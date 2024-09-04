@@ -189,7 +189,7 @@ class DynamicGroupAnalysis:
                 cl.get_application(application_id=ocid)
             elif "apigateway" in ocid_type:
                 cl = self.regional_client(ocid_region, ocid_type)
-                cl.get_api(application_id=ocid)
+                cl.get_api(api_id=ocid)
             # elif "dbnode" in ocid_type:
             #     a = self.database_client[ocid_region].get_db_node(db_node_id=ocid)
             elif False:
