@@ -142,9 +142,11 @@ These filter checkbox options simply set the filter for that field to the hard-c
 
 These can be used to find statements that are too permissive, for example, with a verb filter of `manage` and the tenancy checkbox, we can see policy statements that allow full management of some type of resource within the entire tenancy.
 
-### Load, Save, Clear
+## Load, Save, Clear (UI)
 
-The UI includes convenience buttons to clear all filters, as well as buttons to save the filtered output to a file.  Saving
+The UI includes convenience buttons to clear all filters, as well as buttons to save the filtered output to a file.  Saving to a file to either JSON or CSV will export with all filtered statements,  It does not take into account the display options, shown below.  Only the filter options are taken into account.
+
+Loading a previously saved filtered output brings only the policy statements into view - Dynamic Groups are not loaded at all.  This feature is good for a quick view of statements previously analyzed.  Use the cached or full load to get all statements and dynamic groups.
 
 ## Display Options
 

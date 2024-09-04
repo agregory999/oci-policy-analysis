@@ -477,10 +477,8 @@ def save_file():
         # Write JSON file using filtered data
 
         with open(filepath, mode="w", encoding="utf-8") as output_file:
-            json_det = json.dumps(save_details)
-            # json_out = json.dumps(regular_statements_filtered)
+            json_det = json.dumps(save_details, indent=2)
             output_file.write(json_det)
-            # output_file.write(json_out)
 
     else:
         logger.info(f"CSV Output: {filepath}")
