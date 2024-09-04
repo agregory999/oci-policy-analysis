@@ -349,11 +349,11 @@ def run_policy_statement_dynamic_group_analysis():
     """Let the Policy class handle this"""
     invalid_list = policy_analysis.check_for_invalid_dynamic_groups(dynamic_groups=dyn_group_analysis.dynamic_groups)
 
-    # Create work statements
-    text_work.delete('1.0', tk.END)
-    for inv in invalid_list:
-        oci_command = f"# Delete Statement incorrect\noci iam policy update --policy-id {inv[0]} --st {inv[1]}\n"
-        text_work.insert(tk.END, oci_command)
+    # # Create work statements
+    # text_work.delete('1.0', tk.END)
+    # for inv in invalid_list:
+    #     oci_command = f"# Delete Statement incorrect\noci iam policy update --policy-id {inv[0]} --st {inv[1]}\n"
+    #     text_work.insert(tk.END, oci_command)
 
     update_output()
     logger.info(f"Ran Policy Analysis for DGs not in use: {len(invalid_list)}")
