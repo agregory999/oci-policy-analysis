@@ -1,6 +1,6 @@
 # Policy and Dynamic Group Analysis
 
-This tool is python-based utility that can run either via command line or with a UI.  The main purpose of this tool set is to load, filter, and analyze both OCI Policy Statements and Dynamic Groups from a given tenancy.  It is possible to determine many things by using these tools:
+This tool is a python-based utility that can run either via command line or with a UI.  The main purpose of this tool set is to load, filter, and analyze both OCI Policy Statements and Dynamic Groups from a given tenancy.  It is possible to determine many things by using these tools:
 * What permissions a group or dynamic group has
 * Where in the compartment hierarchy are all relevant statements that meet the search criteria
 * What additional policies exist for cross-tenancy enablement
@@ -17,9 +17,16 @@ Once installed, it is recommended to run in a virtual environment, using the inc
 
 ### Requirements
 
-The repository contains a `requirements.txt` file, which should be used to install the required libraries
+The repository contains a `requirements.txt` file, which should be used to install the required libraries.
 
-### Virtual Environment (Option 1)
+For the command-line version, the only requirement is the `oci` library, which you may already have if you had run `pip install oci` at any point.  
+
+For the UI version, you must also have 
+* `tk` - The main TKIntter pacakge, for the UI on top of Python.  [Read more here](https://www.tutorialspoint.com/how-to-install-tkinter-in-python)
+* `tksheet` - An extension used to build and display the excel-style tables in the UI
+* `tkbootstrap` - For the UI to look better.
+
+### Install via Virtual Environment (Option 1)
 
 To set up a basic Virtual Environment from scratch, first ensure that Python3 installed on the target machine.  An example from MacOS:
 ```bash
@@ -38,7 +45,7 @@ At this point the python virtual environment is running, and you must install th
 pip install -r requirements.txt
 ```
 
-### Python No Nirtual Environment (Option 2)
+### Install via Python No Virtual Environment (Option 2)
 If you already have python3 and are comfortable installing packaged via pip, the following will do:
 ```bash
 python3 -m pip install -r requirements.txt
@@ -49,12 +56,64 @@ As mentioned, the utility can run in a UI (interactive), or via the command line
 
 ```bash
 # Running the CLI version
-(.venv) shell tkinter % python ./oci_policy_analysis.py
+(.venv) shell oci-policy-analysis % python ./oci_policy_analysis.py
 
 # Running the TkInter UI version
-(.venv) shell tkinter % python ./oci_policy_analysis_tkinter.py
+(.venv) shell oci-policy-analysis % python ./oci_policy_analysis_tkinter.py
 ```
-Running with no arguments implies using the DEFAULT OCI profile, which must be set up using the standard OCI CLI documentation, located [HERE](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm)
+
+### Command Line Help (Command Line Version)
+
+Run the program with `--help` or `-h` to see all of the command line options available.  These allow you to select a named OCI Profile, operate with Instance Principal (on an OCI instance), set up filters, and export to JSON.  All of the filters are optional, and if quoted, support the `|` as a logical OR.  For example, `-sf "abc|def"` will bring back policy statements with abc or def in the subject (group or gynamic group) that is allowed to do something.  
+
+For convenience, here is the output:
+```bash
+(.venv) agregory@agregory-mac oci-policy-analysis % python ./oci_policy_analysis.py --help
+usage: oci_policy_analysis.py [-h] [-v] [-pr PROFILE] [-sf SUBJECTFILTER] [-vf VERBFILTER] [-rf RESOURCEFILTER] [-lf LOCATIONFILTER] [-hf HIERARCHYFILTER] [-cf CONDITIONFILTER]
+                              [-pf POLICYNAMEFILTER] [-tf TEXTFILTER] [-dgdf DYNAMICGROUPDOMAINFILTER] [-dgnf DYNAMICGROUPNAMEFILTER] [-dgof DYNAMICGROUPOCIDFILTER]
+                              [-dgtf DYNAMICGROUPTYPEFILTER] [-r] [-c] [-w] [-ip] [-t THREADS]
+
+options:
+  -h, --help            show this help message and exit
+  -v, --verbose         increase output verbosity
+  -pr PROFILE, --profile PROFILE
+                        Config Profile, named. If not given, will use DEFAULT from ~/.oci/config
+  -sf SUBJECTFILTER, --subjectfilter SUBJECTFILTER
+                        Filter all statement subjects by this text
+  -vf VERBFILTER, --verbfilter VERBFILTER
+                        Filter all verbs (inspect,read,use,manage) by this text
+  -rf RESOURCEFILTER, --resourcefilter RESOURCEFILTER
+                        Filter all resource (eg database or stream-family etc) subjects by this text
+  -lf LOCATIONFILTER, --locationfilter LOCATIONFILTER
+                        Filter all location (eg compartment name)
+  -hf HIERARCHYFILTER, --hierarchyfilter HIERARCHYFILTER
+                        Filter by compartment hierarchy (eg compartment in tree)
+  -cf CONDITIONFILTER, --conditionfilter CONDITIONFILTER
+                        Filter by Condition
+  -pf POLICYNAMEFILTER, --policynamefilter POLICYNAMEFILTER
+                        Filter by Policy Name
+  -tf TEXTFILTER, --textfilter TEXTFILTER
+                        Filter by Text (anything in policy statement)
+  -dgdf DYNAMICGROUPDOMAINFILTER, --dynamicgroupdomainfilter DYNAMICGROUPDOMAINFILTER
+                        Filter by Dynamic Group Domain Name
+  -dgnf DYNAMICGROUPNAMEFILTER, --dynamicgroupnamefilter DYNAMICGROUPNAMEFILTER
+                        Filter by Dynamic Group Name
+  -dgof DYNAMICGROUPOCIDFILTER, --dynamicgroupocidfilter DYNAMICGROUPOCIDFILTER
+                        Filter by Dynamic Group OCID (as part of rule)
+  -dgtf DYNAMICGROUPTYPEFILTER, --dynamicgrouptypefilter DYNAMICGROUPTYPEFILTER
+                        Filter by Dynamic Group Type (as part of rule)
+  -r, --recurse         Recursion or not (default True)
+  -c, --usecache        Load from local cache (if it exists)
+  -w, --writejson       Write filtered output to JSON
+  -ip, --instanceprincipal
+                        Use Instance Principal Auth - negates --profile
+  -t THREADS, --threads THREADS
+                        Concurrent Threads (def=5)
+```
+
+### Command Line Help (UI Version)
+
+For the UI version, the only available option is `-v` or `--verbose` for verbose output.
 
 ### Profile Selection
 
@@ -62,7 +121,11 @@ Instance principals do not support the ability to operate on tenancies other tha
 
 The docs for each version explain how to do profile selection.
 
-### Authentication (User)
+Running with no arguments implies using API Keys and the `DEFAULT` OCI profile, which must be set up using the standard OCI CLI documentation, located [HERE](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm)
+
+The UI version allows this selection of profile as a dropdown, while the CLI version takes a command line option, documented above.
+
+### Authentication (User) and Required Policy
 
 The utility can take advantage of either profile-based (API-key) or Instance Principal.  If you are running from your desktop or have no desire to use Instance Principals, simply use an existing or new OCI Profile.  By default, if you have enabled OCI CLI, you have a profile named `DEFAULT` that authhenticates and runs using the configured User OCID.  This means that you need to be covered by a policy statement that, at a minimum, has the following:
 
@@ -81,16 +144,20 @@ allow group <your group name> to inspect domains in tenancy
 To run using instance principals, you must ensure that there is a dynamic group containing either the Instance OCID or the Instance Compartment OCID for the instance you plan to run from.  Then you need a policy statement somewhere, which grants read permission on the policy and dynamic groups:
 
 ```
-allow dynamic-group <your group name> to inspect policies in tenancy
-allow dynamic-group <your group name> to inspect dynamic-groups in tenancy
-allow dynamic-group <your group name> to inspect compartments in tenancy
+allow dynamic-group <your dynamic group name> to inspect policies in tenancy
+allow dynamic-group <your dynamic group name> to inspect dynamic-groups in tenancy
+allow dynamic-group <your dynamic group name> to inspect compartments in tenancy
 
 ```
-
-#### Fail Safe Policy
+As above, if the tenancy is enabled for IAM Domains, the following additional policy statement must be place in order for the dynamic group running the program to load IAM Domains, as Dynamic Groups can be located within a non-Default Identity Domain:
+```
+allow dynamic-group <your dynamic group name> to inspect domains in tenancy
+```
+### Fail Safe Policy
 The program will also happily run with the following policy statement and a group or dynamic-group permission as follows:
 ```
 allow group <your group name> to inspect all-resources in tenancy
+allow dynamic-group <your dynamic group name> to inspect all-resources in tenancy
 ```
 This policy will prevent the user from seeing or manipulating anything in the tenancy, but still be able to read what is necessary for this program to operate.
 
