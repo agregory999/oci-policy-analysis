@@ -1,0 +1,7 @@
+
+# AG - my stuff
+*.code-workspace
+*.json
+*.csv
+.policy-*
+.venv
