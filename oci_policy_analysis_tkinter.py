@@ -335,8 +335,8 @@ def analyze_dynamic_group():
             # Switch to DG and enable filter
             dg_entry_domain.delete(0, tk.END)
             dg_entry_name.delete(0, tk.END)
-            dg_entry_domain.insert(0,subject[0])
-            dg_entry_name.insert(0,subject[1])
+            dg_entry_domain.insert(0,'|'.join(x[0] for x in subject))
+            dg_entry_name.insert(0,'|'.join(x[1] for x in subject))
             tab_control.select(".!notebook.!frame2")
             update_output_dg()
 
