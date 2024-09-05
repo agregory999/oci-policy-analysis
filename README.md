@@ -123,7 +123,9 @@ The docs for each version explain how to do profile selection.
 
 Running with no arguments implies using API Keys and the `DEFAULT` OCI profile, which must be set up using the standard OCI CLI documentation, located [HERE](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm)
 
-The UI version allows this selection of profile as a dropdown, while the CLI version takes a command line option, documented above.
+The UI version allows this selection of profile as a dropdown, while the CLI version takes a command line option, documented above.  
+
+![Policy Analysis Before Load](images/PolicyAnalysisPreLoad.png)
 
 ### Authentication (User) and Required Policy
 
@@ -177,6 +179,8 @@ Files will be located in the location the program was started from in the follow
 
 Cache does not expire, but may be out of sync with live tenancy data.  So it is good to run the program without caching once in a while in order to catch up with changes. 
 
+![Policy Analysis Caching](images/PolicyAnalysisCache.png)
+
 ## Filtering
 
 One of the main features of the tool set is the ability to filter a large list of policy statements.  In OCI, statements are organized into policies, which can have up to 50 statements by default.  Policies are located in compartments (often not the tenancy root), and thus valid statements for a given group or dynamic group can exist in multiple compartments and in multiple policies.  Therefore, the total set of permissions granted to a group is the union of all valid statements, and is evaluated each time an API call is made.   Without a tool that can load and organize ALL statements, it is very difficult to quickly determine whether permission to "do something" exists, and if so, whether more than sufficient permission has been granted.  
@@ -199,6 +203,8 @@ Individual filters support an | (OR) within the filter, and are chained using AN
 
 There are more advanced filter examples, as well as more documentation on what is valid, further below.
 
+![Policy Analysis Filtering](images/PolicyAnalysisFilters.png)
+
 ### Any User/Group, Root Only, Tenancy Checkboxes
 
 These filter checkbox options simply set the filter for that field to the hard-coded values that apply.  These filters can be in addition to other filtered fields.
@@ -215,6 +221,8 @@ The UI includes convenience buttons to clear all filters, as well as buttons to 
 
 Loading a previously saved filtered output brings only the policy statements into view - Dynamic Groups are not loaded at all.  This feature is good for a quick view of statements previously analyzed.  Use the cached or full load to get all statements and dynamic groups.
 
+![Filtered Save](images/PolicyAnalysisFilteredSave.png)
+
 ## Display Options
 
 The UI version of the tool supports additional output filtering.  For example, once the list of policies has been filtered by subject, verb, etc, the UI allows you to further filter the display by policy type.  This can be helpful if you want to see just dynamic-group statements or service statements.  These are implemented as checkboxes, so you can see all or some of the available policy statements that came from the filtered output.
@@ -226,6 +234,9 @@ Finally, the UI has a checkbox option for "Extended View", which shows all infor
 ### Copy / Paste
 
 The UI display grid supports copy and paste.  To copy, simply click on any result cell (or multiple, using ctrl or shift), and then copy with ctrl-C or a right click.  The text is able to be pasted.
+
+Right-click example:
+![Right Click](images/PolicyAnalysisCopy.png)
 
 ## Advanced Analysis
 
