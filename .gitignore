@@ -4,4 +4,5 @@
 *.json
 *.csv
 .policy-*
+.dynamic-
 .venv
