@@ -17,13 +17,8 @@
 # Standard library imports
 import argparse
 import csv
-import datetime
-import json
 import logging
-import re
 import sys
-import time
-from typing import List, Tuple, Dict, Any
 from pathlib import Path
 from threading import Thread
 
@@ -37,7 +32,6 @@ import tksheet
 import ttkbootstrap as ttk
 
 from tkinter import messagebox
-#from ttkbootstrap.constants import *
 
 # Constants
 THREADS = 8
@@ -72,25 +66,42 @@ def clear_dg_filters():
         entry.delete(0, tk.END)
     update_dg_output()
 
-def select_subject_any():
-    entry_subj.config(state=tk.DISABLED if use_subject_any.get() else tk.NORMAL)
-    entry_subj.delete(0, tk.END)
+def toggle_any_subject():
     if use_subject_any.get():
         entry_subj.insert(0, "any-user|any-group")
+        entry_subj.config(state=tk.DISABLED)
+    else:
+        entry_subj.config(state=tk.NORMAL)
+        entry_subj.delete(0, tk.END)
+
+    # Update the Output
     update_policy_output()
 
-def select_location_tenancy():
-    entry_loc.config(state=tk.DISABLED if location_filter_tenancy.get() else tk.NORMAL)
-    entry_loc.delete(0, tk.END)
+def toggle_location_tenancy():
     if location_filter_tenancy.get():
+        entry_loc.delete(0, tk.END)
         entry_loc.insert(0, "tenancy")
+        entry_loc.config(state=tk.DISABLED)
+    else:
+        entry_loc.config(state=tk.NORMAL)
+        entry_loc.delete(0, tk.END)
+    
+    
+        
+    
+    # Update the output
     update_policy_output()
 
-def select_hierarchy_root():
-    entry_hierarchy.config(state=tk.DISABLED if hierarchy_filter_root.get() else tk.NORMAL)
-    entry_hierarchy.delete(0, tk.END)
+def toggle_hierarchy_root():
     if hierarchy_filter_root.get():
+        entry_hierarchy.delete(0, tk.END)
         entry_hierarchy.insert(0, "ROOT")
+        entry_hierarchy.config(state=tk.DISABLED)
+    else:
+        entry_hierarchy.config(state=tk.NORMAL)
+        entry_hierarchy.delete(0, tk.END)
+
+    # Update the Output
     update_policy_output()
 
 def update_report_output():
@@ -151,15 +162,14 @@ def update_policy_output():
     # Display Output
     rows_to_show = [
         i for i, st in enumerate(filtered)
-        if (chk_show_special.get() and (st[6] == "define" or st[4].startswith(("endorse", "admit")))
-            or chk_show_service.get() and st[6] == "service"
+        if (chk_show_service.get() and st[6] == "service"
             or chk_show_dynamic.get() and st[6] == "dynamic-group"
             or chk_show_resource.get() and st[6] == "resource"
             or chk_show_regular.get() and st[6] in ["group", "any-user", "any-group"]
             or chk_show_invalid.get() and not st[5])
     ]
     label_policy_count.config(text=f"Statements (Filtered): {len(filtered)}\nStatements (Shown): {len(rows_to_show)}")
-    if len(rows_to_show) == 0:
+    if rows_to_show and len(rows_to_show) == 0:
         
         sheet_policies.display_rows(rows=[], all_rows_displayed=False, redraw=True)
         logger.info(f"Clearing sheet because there are {len(rows_to_show)} rows to display")
@@ -168,12 +178,9 @@ def update_policy_output():
                                     all_rows_displayed=False)
         
     logger.info(f"Displaying {len(rows_to_show)} rows on sheet")
-    # for i, st in enumerate(filtered):
-    #     if not st[5]:
-    #         sheet_policies.highlight_cells(row=i, column='all', bg="pink")
 
     # Resize to text
-    sheet_policies.set_all_cell_sizes_to_text(slim=True)
+    sheet_policies.set_all_cell_sizes_to_text()
 
 def format_dgrule(text, indent_level=0):
     """
@@ -238,32 +245,30 @@ def update_dg_output():
     sheet_dynamic_group.display_columns(all_columns_displayed=True)
     for i, dg in enumerate(filtered):
         dg[2] = format_dgrule(dg[2],0)
-    #     dg[3] = dg[3].replace(",",",\n")
-    #     # sheet_dynamic_group.set_cell_data(i, 3, "\n".join(dg[4]), keep_formatting=True)
-    #     # sheet_dynamic_group.set_cell_data(i, 5, "\n".join(dg[6]), keep_formatting=True)
-    #     if not dg[5]:
-    #         sheet_dynamic_group.highlight_cells(row=i, column='all', bg="pink")
+
     sheet_dynamic_group.set_sheet_data(filtered, reset_highlights=True)
     sheet_dynamic_group.set_all_cell_sizes_to_text()
     dg_label_count.config(text=f"Dynamic Groups (Filtered): {len(filtered)} \n ")
 
-    filtered_stage2 = []
+    filtered_stage2:int = 0
 
     if chk_show_not_in_use.get():
         run_dg_analysis()
         for i, dg in enumerate(filtered):
-            if not dg[5]:
-                filtered_stage2.append(dg)
-        sheet_dynamic_group.display_columns(all_columns_displayed=False, columns=[0,1,5])
-        sheet_dynamic_group.set_sheet_data(filtered_stage2, reset_highlights=True)
-        dg_label_count.config(text=f"Dynamic Groups (Filtered): {len(filtered_stage2)} \n ")
+            if not dg[3]:
+                filtered_stage2 += 1
+                sheet_dynamic_group.highlight_rows(rows=[i],bg="red")
+                # filtered_stage2.append(dg)
+        # sheet_dynamic_group.display_columns(all_columns_displayed=False, columns=[0,1,5])
+        # sheet_dynamic_group.set_sheet_data(filtered_stage2, reset_highlights=True)
+        dg_label_count.config(text=f"Dynamic Groups (Highlighted): {filtered_stage2}")
 
-def update_user_output():
+def update_user_analysis_output():
     domain_id = domain_var.get()
     user_id = user_var.get()
     compartment_id = compartment_var.get()
     if domain_id == "None" or user_id == "None":
-        sheet_users.set_sheet_data([], reset_highlights=True)
+        sheet_user_policies.set_sheet_data([], reset_highlights=True)
         user_label_count.config(text="Policy Statements (Filtered): 0")
         update_selection_info()
         return
@@ -273,31 +278,44 @@ def update_user_output():
         compartment_id = compartment_id if compartment_id != "All Compartments" else None,
         user_group_names=identity_domain_analysis.get_user_groups(domain_id, user_id),
         user_domain_name=identity_domain_analysis.get_domain_name_by_id(domain_id))
-    sheet_users.set_sheet_data(filtered, reset_highlights=True)
-    sheet_users.display_columns(
+    sheet_user_policies.set_sheet_data(filtered, reset_highlights=True)
+    sheet_user_policies.set_all_cell_sizes_to_text()
+    sheet_user_policies.display_columns(
         all_columns_displayed=True if chk_show_expanded.get() else False,
         columns=[0, 3, 4] if not chk_show_expanded.get() else None
     )
-    rows_to_show = [
-        i for i, st in enumerate(filtered)
-        if (chk_show_special.get() and (st[6] == "define" or st[4].startswith(("endorse", "admit")))
-            or chk_show_service.get() and st[6] == "service"
-            or chk_show_dynamic.get() and st[6] == "dynamic-group"
-            or chk_show_resource.get() and st[6] == "resource"
-            or chk_show_regular.get() and st[6] in ["group", "any-user", "any-group"])
-    ]
-    sheet_users.display_rows(rows=rows_to_show, all_displayed=not rows_to_show)
-    sheet_users.set_all_cell_sizes_to_text()
-    for i, st in enumerate(filtered):
-        if not st[5]:
-            sheet_users.highlight_cells(row=i, column='all', bg="pink")
-    user_label_count.config(text=f"Policy Statements (Filtered): {len(filtered)}\nStatements (Shown): {len(rows_to_show)}")
+
+    user_label_count.config(text=f"Policy Statements (Filtered): {len(filtered)}")
     update_selection_info()
 
 def update_cross_tenancy_output():
-    logger.info(f"cross: {len(policy_compartment_analysis.cross_tenancy_statements)}")
-    sheet_cross_tenancy.set_sheet_data(policy_compartment_analysis.cross_tenancy_statements)
-    # sheet_cross_tenancy.display_rows(all_rows_displayed=True)
+    logger.debug(f"cross: {len(policy_compartment_analysis.cross_tenancy_statements)}")
+    defined_aliases = policy_compartment_analysis.defined_aliases
+    alias_list = []
+    for alias in defined_aliases:
+        logger.debug(f"Alias {alias}: {defined_aliases[alias]}")
+        alias_list.append([alias,defined_aliases[alias][0], defined_aliases[alias][1]])
+    sheet_cross_tenancy_define.set_sheet_data(alias_list)
+    sheet_cross_tenancy_policies.display_columns(columns=[0,1,10,11], all_columns_displayed=False)
+    sheet_cross_tenancy_policies.set_sheet_data(policy_compartment_analysis.cross_tenancy_statements)
+    sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
+
+def update_cross_tenancy_alias_selection(row):
+    selected_rows = sheet_cross_tenancy_define.get_selected_rows()
+    if selected_rows:
+        aliases_to_filter = []
+        for idx in selected_rows:
+            # selected_idx = list(selected_rows)
+            alias = sheet_cross_tenancy_define.get_cell_data(r=idx, c=0)
+            logger.debug(f"Selected row {idx} - Using alias {alias} for search in policies")
+            aliases_to_filter.append(alias)
+
+        logger.debug(f"Using aliases {aliases_to_filter} for search in policies")
+        # Filter bottom sheet
+        filtered = policy_compartment_analysis.filter_cross_tenancy_policy_statements(alias_filter=aliases_to_filter)
+        sheet_cross_tenancy_policies.set_sheet_data(filtered, redraw=True)
+    else:
+        logger.debug("no row selected")
 
 def update_selection_info():
     domain_id = domain_var.get()
@@ -306,11 +324,26 @@ def update_selection_info():
     domain_display = next((d['display_name'] for d in identity_domain_analysis.get_domains() if d['id'] == domain_id), "None") if domain_id != "None" else "None"
     user_display = next((u['display_name'] for u in identity_domain_analysis.get_users_by_domain(domain_id) if u['id'] == user_id), "None") if user_id != "None" else "None"
     compartment_display = next((c["hierarchy_path"] for c in policy_compartment_analysis.compartments if c["id"] == compartment_id), "All Compartments") if compartment_id != "All Compartments" else "All Compartments"
-    selection_info = f"Domain: {domain_display} ({domain_id})\nUser: {user_display} ({user_id})\nCompartment: {compartment_display} ({compartment_id})"
-    user_selection_label.config(text=selection_info)
+    selection_info = f"Domain: {domain_display} ({domain_id})\nUser: {user_display} ({user_id})\nUser groups: {identity_domain_analysis.get_user_groups(domain_id=domain_id, user_id=user_id)}\nCompartment: {compartment_display} ({compartment_id})"
+    text_user_details.delete(1.0, tk.END)
+    text_user_details.insert(1.0, selection_info)
+
+def sort_sheet_cross_tenancy_define(col):
+    global sheet_cross_tenancy_define_search_order
+    logger.debug(f"Sorting Cross-tenancy Define reverse={sheet_cross_tenancy_define_search_order}")
+    seleced_column_index = col['selected'].column
+    sheet_cross_tenancy_define.sort_rows_by_column(column=seleced_column_index, reverse=sheet_cross_tenancy_define_search_order)
+    sheet_cross_tenancy_define_search_order = True if not sheet_cross_tenancy_define_search_order else False
+
+def sort_sheet_cross_tenancy_policies(col):
+    global sheet_cross_tenancy_policies_search_order
+    logger.debug(f"Sorting Cross-tenancy Output reverse={sheet_cross_tenancy_policies_search_order}")
+    seleced_column_index = col['selected'].column
+    sheet_cross_tenancy_policies.sort_rows_by_column(column=seleced_column_index, reverse=sheet_cross_tenancy_policies_search_order)
+    sheet_cross_tenancy_policies_search_order = True if not sheet_cross_tenancy_policies_search_order else False
 
 def export_policy_to_csv():
-    filepath = tk.filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+    filepath = tkfiledialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
     if filepath:
         filtered = policy_compartment_analysis.filter_policy_statements(
             entry_subj.get(), entry_verb.get(), entry_res.get(), entry_loc.get(),
@@ -323,7 +356,7 @@ def export_policy_to_csv():
         logger.info(f"Exported {len(filtered)} policy statements to {filepath}")
 
 def export_dg_to_csv():
-    filepath = tk.filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+    filepath = tkfiledialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
     if filepath:
         filtered = identity_domain_analysis.filter_dynamic_groups(
             dg_entry_domain.get(), dg_entry_name.get(), dg_entry_type.get(), dg_entry_ocid.get()
@@ -343,7 +376,7 @@ def export_user_to_csv():
         filtered = policy_compartment_analysis.get_user_group_statements(user_id, domain_id, compartment_id if compartment_id != "All Compartments" else None)
         with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(sheet_users.headers())
+            writer.writerow(sheet_user_policies.headers())
             writer.writerows(filtered)
         logger.info(f"Exported {len(filtered)} user policy statements to {filepath}")
 
@@ -357,38 +390,41 @@ def export_report_to_txt():
             f.write(dg_content + "\n\n" + policy_content)
         logger.info(f"Exported report to {filepath}")
 
-# Fix me - pass in all statements that pertain to DGs and then figure out which ones are never invoked
 def run_dg_analysis():
     logger.info(f"Running Dynamic Group Analysis for {len(identity_domain_analysis.dynamic_groups)} DGs and {len(policy_compartment_analysis.regular_statements)} Policies")
     identity_domain_analysis.set_statements(policy_compartment_analysis.regular_statements)
     identity_domain_analysis.run_dg_in_use_analysis()
     # update_dg_output()
 
-def show_policy_detail(event=None):
-    current_selection = sheet_policies.get_currently_selected()
-    if current_selection:
-        selected_row = sheet_policies.displayed_row_to_data(current_selection.row)
-        selected_column = sheet_policies.displayed_column_to_data(current_selection.column)
-        data = sheet_policies.data[selected_row][selected_column]
-        logger.info(f"Selected row: {current_selection.row}, column: {selected_column}, data: {data}")
-        messagebox.showinfo("Policy Detailed Statement", str(data))
+def report_text_search(var_name, index, mode):
+    if highlight_entry_var:
+        search_pattern = highlight_entry_var.get()
+        logger.debug(f"Search for {search_pattern} - {var_name}/{index}/{mode}")
+        text_dg_report.tag_remove("found", "1.0", tk.END)
+        text_policy_report.tag_remove("found", "1.0", tk.END)
+        if highlight_entry_var.get() == "":
+            return
+        
+        # If there was a highlight, do it for both
+        start_index = "1.0"
+        while True:
+            pos = text_dg_report.search(search_pattern, start_index, tk.END, nocase=True)
+            if not pos:
+                break
+            end_index = f"{pos}+{len(search_pattern)}c"
+            text_dg_report.tag_add("found", pos, end_index)
+            start_index = end_index
+        text_dg_report.tag_config("found", background="yellow")
 
-def show_dg_detail(event=None):
-    current_selection = sheet_dynamic_group.get_currently_selected()
-    if current_selection:
-        selected_row = sheet_dynamic_group.displayed_row_to_data(current_selection.row)
-        matching_rule = sheet_dynamic_group.data[selected_row][3]
-        logger.info(f"Selected row: {current_selection.row}, Matching Rule: {matching_rule}")
-        messagebox.showinfo("Dynamic Group Matching Rule", str(matching_rule))
-
-def show_user_detail(event=None):
-    current_selection = sheet_users.get_currently_selected()
-    if current_selection:
-        selected_row = sheet_users.displayed_row_to_data(current_selection.row)
-        selected_column = sheet_users.displayed_column_to_data(current_selection.column)
-        data = sheet_users.data[selected_row][selected_column]
-        logger.info(f"Selected row: {current_selection.row}, column: {selected_column}, data: {data}")
-        messagebox.showinfo("User Policy Detailed Statement", str(data))
+        start_index = "1.0"
+        while True:
+            pos = text_policy_report.search(search_pattern, start_index, tk.END, nocase=True)
+            if not pos:
+                break
+            end_index = f"{pos}+{len(search_pattern)}c"
+            text_policy_report.tag_add("found", pos, end_index)
+            start_index = end_index
+        text_policy_report.tag_config("found", background="yellow")
 
 def toggle_profile_dropdown():
     if use_instance_principal.get():
@@ -409,8 +445,8 @@ def update_user_dropdown():
     user_var.set("None")
     for user in users:
         user_id = next((u['id'] for u in identity_domain_analysis.get_users_by_domain(domain_id) if u['display_name'] == user), "None") if user != "None" else "None"
-        user_dropdown["menu"].add_command(label=user, command=lambda u=user, uid=user_id: [user_var.set(uid), user_display_var.set(u), update_user_output()])
-    update_user_output()
+        user_dropdown["menu"].add_command(label=user, command=lambda u=user, uid=user_id: [user_var.set(uid), user_display_var.set(u), update_user_analysis_output()])
+    update_user_analysis_output()
 
 def update_domain_dropdown():
     domains = ["None"] + [d['display_name'] for d in sorted(identity_domain_analysis.get_domains(), key=lambda x: x['display_name'])]
@@ -429,28 +465,23 @@ def update_compartment_dropdown():
     compartment_display_var.set("All Compartments")
     for compartment in compartments:
         compartment_id = next((c["id"] for c in policy_compartment_analysis.compartments if c["hierarchy_path"] == compartment), "All Compartments") if compartment != "All Compartments" else "All Compartments"
-        compartment_dropdown["menu"].add_command(label=compartment, command=lambda c=compartment, cid=compartment_id: [compartment_var.set(cid), compartment_display_var.set(c), update_user_output()])
-    update_user_output()
-
-def switch_tabs():
-    logger.info("Called tab switch")
+        compartment_dropdown["menu"].add_command(label=compartment, command=lambda c=compartment, cid=compartment_id: [compartment_var.set(cid), compartment_display_var.set(c), update_user_analysis_output()])
+    update_user_analysis_output()
 
 def update_principals_sheets(*args):
     """Update sheets based on dropdown selections and dynamic group selection."""
-    type_principal = type_var.get()
     principals_style = principals_style_var.get()
-    resource_type = resource_type_var.get() if type_principal == "Resource Principals" else None
+    resource_type = resource_type_var.get()
     
     # Enable/disable Resource Type dropdown
-    resource_type_dropdown.configure(state="normal" if type_principal == "Resource Principals" else "disabled")
+    resource_type_dropdown.configure(state="normal")
     
     # Enable/disable Principals Style
-    principals_style_dropdown.configure(state="normal" if type_principal == "Resource Principals" else "disabled")
-    if type_principal == "Instance Principals":
-        principals_style_var.set("Dynamic Group")
+    principals_style_dropdown.configure(state="normal")
 
     # Clear sheets and hide both sheets by default
     principals_sheet_dynamic_groups.set_sheet_data([])  # Clear data
+    frm_bottom.grid_remove()
     principals_sheet_dynamic_groups.grid_remove()  # Hide dynamic group sheet
     principals_sheet_policies_instance.grid_remove()  # Hide policy sheet temporarily
 
@@ -464,14 +495,14 @@ def update_principals_sheets(*args):
 
         # Populate dynamic group sheet
         filtered_dynamic_groups = []
-        if type_principal == "Instance Principals":
-            filtered_dynamic_groups = identity_domain_analysis.filter_dynamic_groups(type_filter="instance.compartment.id")
-        elif type_principal == "Resource Principals":
-            filtered_dynamic_groups = identity_domain_analysis.filter_dynamic_groups(type_filter="resource")
+        # if type_principal == "Instance Principals":
+            # filtered_dynamic_groups = identity_domain_analysis.filter_dynamic_groups(type_filter="instance.compartment.id")
+        # elif type_principal == "Resource Principals":
+        filtered_dynamic_groups = identity_domain_analysis.filter_dynamic_groups(type_filter="resource.type|resource.principal|resource.id")
         principals_sheet_dynamic_groups.set_sheet_data(filtered_dynamic_groups)
         
         # Populate policy sheet with initial filter
-        policies = policy_compartment_analysis.filter_policies(type_principal, principals_style, resource_type)
+        policies = policy_compartment_analysis.filter_policies('Resource Principals', principals_style, resource_type)
         principals_sheet_policies_instance.set_sheet_data(policies)
         
         # Enable row selection on dynamic group sheet
@@ -482,12 +513,12 @@ def update_principals_sheets(*args):
                 selected_idx = list(selected_rows)[0]
                 logger.info(f"Selected row in DG sheet: {list(selected_rows)[0]}")
                 selected_dg = (filtered_dynamic_groups[selected_idx][0], filtered_dynamic_groups[selected_idx][1]) 
-                filtered_policies = policy_compartment_analysis.filter_policies(type_principal, principals_style, resource_type, selected_dg)
+                filtered_policies = policy_compartment_analysis.filter_policies('Resource Principals', principals_style, resource_type, selected_dg)
                 logger.info(f"Filtered Policy count for {selected_dg}: {len(filtered_policies)}")
                 principals_sheet_policies_instance.set_sheet_data(filtered_policies)
             else:
                 # Reset to all dynamic group policies
-                filtered_policies = policy_compartment_analysis.filter_policies(type_principal, principals_style, resource_type)
+                filtered_policies = policy_compartment_analysis.filter_policies('Resource Principals', principals_style, resource_type)
                 principals_sheet_policies_instance.set_sheet_data(filtered_policies)
         
         principals_sheet_dynamic_groups.bind("<ButtonRelease-1>", on_row_select)
@@ -497,12 +528,28 @@ def update_principals_sheets(*args):
         frm_bottom.rowconfigure(1, weight=0)  # Remove weight from row 1
         # Show only policy sheet, spanning both rows
         principals_sheet_policies_instance.grid(row=0, column=0, sticky="nsew", rowspan=2)  # Span rows 0 and 1
-        policies = policy_compartment_analysis.filter_policies(type_principal, principals_style, resource_type)
+        policies = policy_compartment_analysis.filter_policies('Resource Principals', principals_style, resource_type)
         principals_sheet_policies_instance.set_sheet_data(policies)
 
     # Resize data
     principals_sheet_dynamic_groups.set_all_cell_sizes_to_text(slim=False)
     principals_sheet_policies_instance.set_all_cell_sizes_to_text(slim=False)
+
+def update_font(var_name, index, mode):
+    if font_size_var:
+        new_font_size = 8 if font_size_var.get() == "Small" else 10 if font_size_var.get() == "Medium" else 12
+        sheet_policies.font(newfont=("Courier New", new_font_size, "normal"))
+        sheet_policies.set_all_cell_sizes_to_text(redraw=True)
+        sheet_dynamic_group.font(newfont=("Courier New", new_font_size, "normal"))
+        sheet_dynamic_group.set_all_cell_sizes_to_text(redraw=True)
+        sheet_user_policies.font(newfont=("Courier New", new_font_size, "normal"))
+        sheet_user_policies.set_all_cell_sizes_to_text(redraw=True)
+        sheet_cross_tenancy_define.font(newfont=("Courier New", new_font_size, "normal"))
+        sheet_cross_tenancy_define.set_all_cell_sizes_to_text(redraw=True)
+        sheet_cross_tenancy_policies.font(newfont=("Courier New", new_font_size, "normal"))
+        sheet_cross_tenancy_policies.set_all_cell_sizes_to_text(redraw=True)
+        logger.info(f"Changing font size globally to {font_size_var.get()}/{new_font_size}")
+
 
 # Process Load Buttons
 def load_from_cache():
@@ -548,12 +595,13 @@ def load_from_cache():
                                                      dg_entry_name, dg_entry_type, dg_entry_ocid, domain_dropdown,
                                                      user_dropdown, compartment_dropdown]],
                 [b.config(state=tk.NORMAL) for b in [btn_update, btn_clear, btn_export_policy, dg_btn_update,
-                                                    dg_btn_clear, dg_btn_export, dg_btn_analyze, btn_analyze_user, btn_export_report]],
+                                                    dg_btn_clear, dg_btn_export, dg_btn_analyze, btn_analyze_user, 
+                                                    btn_export_report]],
                 update_domain_dropdown(),
                 update_compartment_dropdown(),
                 update_policy_output(),
                 update_dg_output(),
-                update_user_output(),
+                update_user_analysis_output(),
                 update_report_output(),
                 update_cross_tenancy_output(),
 
@@ -620,13 +668,15 @@ def load_data():
                                                      dg_entry_name, dg_entry_type, dg_entry_ocid, domain_dropdown,
                                                      user_dropdown, compartment_dropdown]],
                 [b.config(state=tk.NORMAL) for b in [btn_update, btn_clear, btn_export_policy, dg_btn_update,
-                                                    dg_btn_clear, dg_btn_export, dg_btn_analyze, btn_analyze_user, btn_export_report]],
+                                                    dg_btn_clear, dg_btn_export, dg_btn_analyze, btn_analyze_user, 
+                                                    btn_export_report]],
                 update_domain_dropdown(),
                 update_compartment_dropdown(),
                 update_policy_output(),
                 update_dg_output(),
-                update_user_output(),
-                update_report_output()
+                update_user_analysis_output(),
+                update_report_output(),
+                update_cross_tenancy_output()
             ))
             logger.info(f"Loaded data for tenancy: {policy_compartment_analysis.tenancy_ocid}")
         except Exception as exc:
@@ -653,9 +703,18 @@ def main():
            chk_show_invalid, chk_show_expanded, input_profile, policy_compartment_analysis, identity_domain_analysis, progress_bar, \
            label_status_bar, last_load_time, label_profile, btn_load_tenancy, btn_load_cache, principals_sheet_dynamic_groups, principals_sheet_policies_instance, \
            tab_users, domain_var, domain_display_var, user_var, user_display_var, compartment_var, compartment_display_var, \
-           domain_dropdown, user_dropdown, compartment_dropdown, btn_analyze_user, sheet_users, user_label_count, user_selection_label, \
-           progress_bar_label, last_error, text_dg_report, text_policy_report, btn_export_report, sheet_cross_tenancy, type_var, \
-           principals_style_var, resource_type_var, resource_type_dropdown, principals_style_dropdown, frm_bottom, chk_show_instance_principals, chk_show_not_in_use
+           domain_dropdown, user_dropdown, compartment_dropdown, btn_analyze_user, sheet_user_policies, user_label_count, \
+           progress_bar_label, last_error, btn_export_report, \
+           principals_style_var, resource_type_var, resource_type_dropdown, principals_style_dropdown, frm_bottom, chk_show_instance_principals, \
+           chk_show_not_in_use
+    # Main Options
+    global font_size_var
+    
+    # User Report tab
+    global text_dg_report, text_policy_report, highlight_entry_var, text_user_details
+    
+    # Cross-tenancy tab
+    global sheet_cross_tenancy_policies, sheet_cross_tenancy_define, sheet_cross_tenancy_define_search_order, sheet_cross_tenancy_policies_search_order
 
     args = parse_args()
     if args.verbose:
@@ -671,10 +730,13 @@ def main():
     window.rowconfigure(1, weight=1)
     window.columnconfigure(0, weight=1)
 
+    # State 
+    sheet_cross_tenancy_define_search_order = False
+    sheet_cross_tenancy_policies_search_order = False
+    
     # Top frame
     frm_init = ttk.Frame(window)
     frm_init.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-    frm_init.columnconfigure(6, weight=1)
 
     # Instance Principal checkbox
     use_instance_principal = tk.BooleanVar(value=False)
@@ -701,12 +763,19 @@ def main():
     btn_load_cache = ttk.Button(frm_init, text="Load from Cache", command=load_from_cache)
     btn_load_cache.grid(row=0, column=4, padx=5, pady=3)
 
+    # Font Size
+    font_size_var = tk.StringVar()
+    ttk.Label(frm_init, text="Font Size:").grid(row=0, column=5, padx=5, pady=3)
+    options = ["Small", "Medium", "Large"]
+    ttk.OptionMenu(frm_init, font_size_var, "Medium", *options).grid(row=0, column=6, padx=5, pady=3)
+    font_size_var.trace_add("write", update_font)
+
     # Progress bar and label
     progress_bar_label = ttk.Label(frm_init, text="")
-    progress_bar_label.grid(row=0, column=5, padx=5, pady=3)
+    progress_bar_label.grid(row=0, column=7, padx=5, pady=3)
     progress_bar_label.grid_remove()
     progress_bar = ttk.Progressbar(frm_init, mode="indeterminate", length=100)
-    progress_bar.grid(row=0, column=6, padx=5, pady=3, sticky="e")
+    progress_bar.grid(row=0, column=8, padx=5, pady=3, sticky="e")
     progress_bar.grid_remove()
 
     # Status bar
@@ -731,8 +800,13 @@ def main():
     tab_dg = ttk.Frame(tab_control)
     tab_principals = ttk.Frame(tab_control)
     tab_users = ttk.Frame(tab_control)
+    tab_users.grid_rowconfigure(0, weight=2)
+    tab_users.grid_rowconfigure(1, weight=8)
+    tab_users.grid_columnconfigure(0, weight=1)
     tab_report = ttk.Frame(tab_control)
     tab_cross_tenancy = tk.Frame(tab_control)
+    tab_cross_tenancy.grid_rowconfigure(0, weight=1)
+    tab_cross_tenancy.grid_columnconfigure(0, weight=1)
     
     tab_control.add(tab_policy, text="Regular Policy\nStatements")
     tab_control.add(tab_dg, text="Dynamic Groups / \nInstance Principals")
@@ -758,7 +832,7 @@ def main():
     entry_subj = tk.Entry(frm_subj, state=tk.DISABLED, width=20)
     entry_subj.grid(row=0, column=0, padx=2, sticky="ew")
     use_subject_any = tk.BooleanVar()
-    ttk.Checkbutton(frm_subj, text="Any-User/Group", variable=use_subject_any, command=select_subject_any).grid(row=0, column=1, padx=2)
+    ttk.Checkbutton(frm_subj, text="Any-User/Group", variable=use_subject_any, command=toggle_any_subject).grid(row=0, column=1, padx=2)
     frm_subj.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
 
     ttk.Label(frm_policy_filter, text="Verb").grid(row=1, column=2, padx=5, pady=2, sticky="w")
@@ -774,7 +848,7 @@ def main():
     entry_loc = tk.Entry(frm_loc, state=tk.DISABLED, width=20)
     entry_loc.grid(row=0, column=0, padx=2, sticky="ew")
     location_filter_tenancy = tk.BooleanVar()
-    ttk.Checkbutton(frm_loc, text="Tenancy", variable=location_filter_tenancy, command=select_location_tenancy).grid(row=0, column=1, padx=2)
+    ttk.Checkbutton(frm_loc, text="Tenancy", variable=location_filter_tenancy, command=toggle_location_tenancy).grid(row=0, column=1, padx=2)
     frm_loc.grid(row=2, column=3, padx=5, pady=2, sticky="ew")
 
     frm_hierarchy = ttk.Frame(frm_policy_filter)
@@ -782,7 +856,7 @@ def main():
     entry_hierarchy = tk.Entry(frm_hierarchy, state=tk.DISABLED, width=20)
     entry_hierarchy.grid(row=0, column=0, padx=2, sticky="ew")
     hierarchy_filter_root = tk.BooleanVar()
-    ttk.Checkbutton(frm_hierarchy, text="Root", variable=hierarchy_filter_root, command=select_hierarchy_root).grid(row=0, column=1, padx=2)
+    ttk.Checkbutton(frm_hierarchy, text="Root", variable=hierarchy_filter_root, command=toggle_hierarchy_root).grid(row=0, column=1, padx=2)
     frm_hierarchy.grid(row=3, column=1, padx=5, pady=2, sticky="ew")
 
     ttk.Label(frm_policy_filter, text="Condition").grid(row=3, column=2, padx=5, pady=2, sticky="w")
@@ -802,37 +876,37 @@ def main():
     btn_update.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
     btn_clear = ttk.Button(frm_policy_buttons, text="Clear", state=tk.DISABLED, command=clear_policy_filters)
     btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky="ew")
-    btn_export_policy = ttk.Button(frm_policy_buttons, text="Export CSV", state=tk.DISABLED, command=export_policy_to_csv)
+    btn_export_policy = ttk.Button(frm_policy_buttons, text="Export Filtered\nStatements to CSV", state=tk.DISABLED, command=export_policy_to_csv)
     btn_export_policy.grid(row=2, column=0, padx=5, pady=2, sticky="ew")
     frm_policy_buttons.grid(row=1, column=4, rowspan=4, padx=5, pady=2, sticky="ns")
 
     frm_policy_output = ttk.Frame(frm_policy_top)
-    frm_policy_output.grid(row=1, column=0, sticky="ew")
+    frm_policy_output.grid(row=1, column=0, sticky="w")
     frm_policy_output.columnconfigure(0, weight=1)
     label_policy_count = ttk.Label(frm_policy_output, text="Statements (Filtered): 0")
     label_policy_count.grid(row=0, column=0, padx=5, pady=3, sticky="w")
-    chk_show_special = tk.BooleanVar()
     chk_show_service = tk.BooleanVar()
     chk_show_dynamic = tk.BooleanVar()
     chk_show_resource = tk.BooleanVar()
     chk_show_invalid = tk.BooleanVar()
     chk_show_regular = tk.BooleanVar(value=True)
     chk_show_expanded = tk.BooleanVar()
-    ttk.Checkbutton(frm_policy_output, text="Cross-Tenancy", variable=chk_show_special, command=update_policy_output).grid(row=0, column=1, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Service", variable=chk_show_service, command=update_policy_output).grid(row=0, column=2, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Dynamic", variable=chk_show_dynamic, command=update_policy_output).grid(row=0, column=3, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Resource", variable=chk_show_resource, command=update_policy_output).grid(row=0, column=4, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Regular", variable=chk_show_regular, command=update_policy_output).grid(row=0, column=5, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Invalid", variable=chk_show_invalid, command=update_policy_output).grid(row=0, column=6, padx=5, pady=3)
-    ttk.Checkbutton(frm_policy_output, text="Expanded", variable=chk_show_expanded, command=update_policy_output).grid(row=0, column=7, padx=5, pady=3)
+    ttk.Separator(frm_policy_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+    ttk.Label(frm_policy_output, text="Statement Type\nto display:").grid(row=0, column=2, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Service", variable=chk_show_service, command=update_policy_output).grid(row=0, column=3, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Dynamic Group", variable=chk_show_dynamic, command=update_policy_output).grid(row=0, column=4, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Resource", variable=chk_show_resource, command=update_policy_output).grid(row=0, column=5, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Regular", variable=chk_show_regular, command=update_policy_output).grid(row=0, column=6, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Invalid", variable=chk_show_invalid, command=update_policy_output).grid(row=0, column=7, padx=5, pady=3)
+    ttk.Checkbutton(frm_policy_output, text="Expanded Output", variable=chk_show_expanded, command=update_policy_output).grid(row=0, column=8, padx=5, pady=3)
 
     frm_policy_sheet = ttk.Frame(tab_policy)
     frm_policy_sheet.grid(row=1, column=0, sticky="nsew")
     frm_policy_sheet.rowconfigure(0, weight=1)
     frm_policy_sheet.columnconfigure(0, weight=1)
     sheet_policies = tksheet.Sheet(
-        frm_policy_sheet, theme="light green", font=("Courier New", 8, "normal"),
-        header_font=("TkFixedFont", 11, "bold"), index_font=("TkFixedFont", 11, "bold"),
+        frm_policy_sheet, theme="light green", font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), index_font=("Courier New", 11, "bold"),
         headers=["Policy Name", "Policy OCID", "Compartment OCID", "Hierarchy", "Statement Text", "Valid",
                  "Subject Type", "Subject", "Verb", "Resource", "Permission", "Location Type", "Location",
                  "Conditions", "Comments", "Creation Time", "Parsed"],
@@ -841,17 +915,11 @@ def main():
 
     sheet_policies.grid(row=0, column=0, sticky="nsew")
     sheet_policies.enable_bindings("single_select", "column_width_resize", "row_select", "copy", "rc_select")
-    sheet_policies.popup_menu_add_command("Show Details", show_policy_detail)
-    sheet_policies.bind("<Button-3>", show_policy_detail)
-
-    def bind_horizontal_scroll(sheet):
-        sheet.bind("<MouseWheel>", lambda event: sheet.xview_scroll(-1 if event.delta > 0 else 1, "units"))
-    bind_horizontal_scroll(sheet_policies)
 
     #############################
     # Dynamic Group Tab
     frm_dg_filter = ttk.Frame(tab_dg)
-    frm_dg_filter.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+    frm_dg_filter.grid(row=0, column=0, sticky="w", padx=5, pady=5)
     frm_dg_filter.columnconfigure([1, 3], weight=1)
     tab_dg.rowconfigure(2, weight=1)
     tab_dg.columnconfigure(0, weight=1)
@@ -875,20 +943,21 @@ def main():
     dg_btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky="ew")
     dg_btn_export = ttk.Button(frm_dg_buttons, text="Export CSV", state=tk.DISABLED, command=export_dg_to_csv)
     dg_btn_analyze = ttk.Button(frm_dg_buttons, text="Analyze DGs", state=tk.DISABLED, command=run_dg_analysis)
-    #dg_btn_analyze.grid(row=2, column=0, padx=5, pady=2, sticky="ew")
+    # dg_btn_analyze.grid(row=2, column=0, padx=5, pady=2, sticky="ew")
     #dg_btn_export.grid(row=2, column=0, padx=5, pady=2, sticky="ew")
     frm_dg_buttons.grid(row=1, column=4, rowspan=2, padx=5, pady=2, sticky="ns")
 
     # Output filter
     frm_dg_output = ttk.Frame(tab_dg)
-    frm_dg_output.grid(row=1, column=0, sticky="ew")
+    frm_dg_output.grid(row=1, column=0, sticky="w")
     frm_dg_output.columnconfigure(0, weight=1)
     dg_label_count = ttk.Label(frm_dg_output, text="Dynamic Groups (Filtered): 0")
     dg_label_count.grid(row=0, column=0, padx=5, pady=3, sticky="w")
+    ttk.Separator(frm_dg_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
     chk_show_instance_principals = tk.BooleanVar()
     chk_show_not_in_use = tk.BooleanVar()
-    ttk.Checkbutton(frm_dg_output, text="Show Instance Principals Only", variable=chk_show_instance_principals, command=update_dg_output).grid(row=0, column=1, padx=5, pady=3)
-    ttk.Checkbutton(frm_dg_output, text="Show Unused Dynamic Groups Only", variable=chk_show_not_in_use, command=update_dg_output).grid(row=0, column=2, padx=5, pady=3)
+    ttk.Checkbutton(frm_dg_output, text="Show Instance Principals Only", variable=chk_show_instance_principals, command=update_dg_output).grid(row=0, column=2, padx=5, pady=3)
+    ttk.Checkbutton(frm_dg_output, text="Highlight Unused Dynamic Groups", variable=chk_show_not_in_use, command=update_dg_output).grid(row=0, column=3, padx=5, pady=3)
 
     # Bottom Sheet
     frm_dg_sheet = ttk.Frame(tab_dg)
@@ -896,28 +965,26 @@ def main():
     frm_dg_sheet.rowconfigure(0, weight=1)
     frm_dg_sheet.columnconfigure(0, weight=1)
     sheet_dynamic_group = tksheet.Sheet(
-        frm_dg_sheet, theme="light green", font=("Courier New", 8, "normal"),
-        header_font=("TkFixedFont", 11, "bold"), index_font=("TkFixedFont", 10, "bold"),
+        frm_dg_sheet, theme="light green", font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), index_font=("Courier New", 11, "bold"),
         headers=["Domain", "Name", "Matching Rule", "In Use?", "OCID", "Creation Time"],
         # To-do: Add back Invalid OCID functionality "Invalid OCIDs" and maybe rules components
         auto_resize_columns=200, show_x_scrollbar=True, show_y_scrollbar=True
     )
     sheet_dynamic_group.grid(row=0, column=0, sticky="nsew")
     sheet_dynamic_group.enable_bindings("single_select", "column_width_resize", "row_select", "copy", "rc_select")
-    sheet_dynamic_group.popup_menu_add_command("Show Matching Rule", show_dg_detail)
-    sheet_dynamic_group.bind("<Button-3>", show_dg_detail)
-    bind_horizontal_scroll(sheet_dynamic_group)
+    # bind_horizontal_scroll(sheet_dynamic_group)
 
     #######################
     # Principals Tab
     frm_top = tk.Frame(tab_principals)
     frm_top.pack(fill="x", padx=5, pady=5)
 
-    # Type dropdown
-    tk.Label(frm_top, text="Type:").pack(side=tk.LEFT, padx=5)
-    type_var = tk.StringVar(value="Instance Principals")
-    type_dropdown = ttk.Combobox(frm_top, textvariable=type_var, values=["Instance Principals", "Resource Principals"])
-    type_dropdown.pack(side=tk.LEFT, padx=5)
+    # # Type dropdown
+    # tk.Label(frm_top, text="Type:").pack(side=tk.LEFT, padx=5)
+    # type_var = tk.StringVar(value="Instance Principals")
+    # type_dropdown = ttk.Combobox(frm_top, textvariable=type_var, values=["Instance Principals", "Resource Principals"])
+    # type_dropdown.pack(side=tk.LEFT, padx=5)
     
     # Principals Style dropdown
     tk.Label(frm_top, text="Principals Style:").pack(side=tk.LEFT, padx=5)
@@ -947,9 +1014,9 @@ def main():
     principals_sheet_dynamic_groups = tksheet.Sheet(
         frm_dg_sheet, 
         theme="light green", 
-        font=("Courier New", 9, "normal"),
-        header_font=("TkFixedFont", 11, "bold"), 
-        index_font=("Courier New", 10, "bold"),
+        font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), 
+        index_font=("Courier New", 11, "bold"),
         headers=["Domain", "Name", "OCID", "Matching Rule", "Rule Components", "In Use?", "Creation Time"],
         auto_resize_columns=80, 
         show_x_scrollbar=True, 
@@ -957,9 +1024,6 @@ def main():
     )
     principals_sheet_dynamic_groups.grid(row=0, column=0, sticky="nsew")
     principals_sheet_dynamic_groups.enable_bindings("single_select", "column_width_resize", "row_select", "copy", "rc_select")
-    principals_sheet_dynamic_groups.popup_menu_add_command("Show Matching Rule", show_dg_detail)
-    principals_sheet_dynamic_groups.bind("<Button-2>", show_dg_detail)  # Right-click for macOS
-    principals_sheet_dynamic_groups.bind("<Button-3>", show_dg_detail)  # Right-click for other platforms
     
     # Policy sheet frame
     frm_policy_sheet = tk.Frame(frm_bottom)
@@ -970,104 +1034,105 @@ def main():
     principals_sheet_policies_instance = tksheet.Sheet(
         frm_policy_sheet, 
         theme="light green", 
-        font=("Courier New", 9, "normal"),
-        header_font=("TkFixedFont", 11, "bold"), 
-        index_font=("Courier New", 10, "bold"),
+        font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), 
+        index_font=("Courier New", 11, "bold"),
         headers=["Policy Name", "Policy OCID", "Compartment OCID", "Hierarchy", "Statement Text", "Valid",
                  "Subject Type", "Subject", "Verb", "Resource", "Permission", "Location Type", "Location",
                  "Conditions", "Comments", "Creation Time", "Parsed"],
         auto_resize_columns=200, 
         show_x_scrollbar=True, 
         show_y_scrollbar=True,
-        # auto_resize_columns=80, 
-        # width=1200, 
-        # height=400
     )
     principals_sheet_policies_instance.grid(row=0, column=0, sticky="nsew")
     principals_sheet_policies_instance.enable_bindings("column_width_resize", "row_select", "copy")
-    principals_sheet_policies_instance.popup_menu_add_command("Policy Details", show_policy_detail)
-    principals_sheet_policies_instance.bind("<Button-2>", show_policy_detail)  # Right-click for macOS
-    principals_sheet_policies_instance.bind("<Button-3>", show_policy_detail)  # Right-click for other platforms
     principals_sheet_policies_instance.display_columns(all_columns_displayed=False, columns=[0, 3, 4, 7, 8, 9, 10, 12, 13, 14, 15])
 
     # Bind dropdowns to update function
-    type_var.trace_add("write", update_principals_sheets)
     principals_style_var.trace_add("write", update_principals_sheets)
     resource_type_var.trace_add("write", update_principals_sheets)
 
-    # Initial run
-    update_principals_sheets()
+    # # Initial run
+    # update_principals_sheets()
 
     #############################
     # User Analysis Tab
     frm_user_top = ttk.Frame(tab_users)
-    frm_user_top.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-    tab_users.rowconfigure(1, weight=1)
-    tab_users.columnconfigure(0, weight=1)
+    frm_user_top.grid_rowconfigure(0, weight=3)
+    frm_user_top.grid_rowconfigure(1, weight=7)
+    frm_user_top.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+    # tab_users.rowconfigure(1, weight=1)
+    # tab_users.columnconfigure(0, weight=1)
+
     frm_user_select = ttk.Frame(frm_user_top)
     frm_user_select.grid(row=0, column=0, sticky="ew")
-    frm_user_select.columnconfigure([0, 1, 2, 3], weight=1)
 
-    ttk.Label(frm_user_select, text="Identity Domain:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+    ttk.Label(frm_user_select, text="Select the Domain and User in order to\nload all applicable policies.").grid(row=0, column=0, columnspan=2, padx=5, pady=2, sticky="w")
+
+    ttk.Label(frm_user_select, text="Identity Domain:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
     domain_var = tk.StringVar(value="None")
     domain_display_var = tk.StringVar(value="None")
     domain_dropdown = ttk.OptionMenu(frm_user_select, domain_display_var, "None", "None")
-    domain_dropdown.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+    domain_dropdown.grid(row=2, column=1, padx=5, pady=2, sticky="ew")
     domain_dropdown.config(state=tk.DISABLED)
 
-    ttk.Label(frm_user_select, text="User:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+    ttk.Label(frm_user_select, text="User:").grid(row=3, column=0, padx=5, pady=2, sticky="w")
     user_var = tk.StringVar(value="None")
     user_display_var = tk.StringVar(value="None")
-    user_dropdown = ttk.OptionMenu(frm_user_select, user_display_var, "None", "None", command=lambda _: update_user_output())
-    user_dropdown.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+    user_dropdown = ttk.OptionMenu(frm_user_select, user_display_var, "None", "None", command=lambda _: update_user_analysis_output())
+    user_dropdown.grid(row=3, column=1, padx=5, pady=2, sticky="ew")
     user_dropdown.config(state=tk.DISABLED)
 
-    ttk.Label(frm_user_select, text="Compartment:").grid(row=0, column=2, padx=5, pady=2, sticky="w")
+    # ttk.Label(frm_user_select, text="Compartment:").grid(row=0, column=2, padx=5, pady=2, sticky="w")
     compartment_var = tk.StringVar(value="All Compartments")
     compartment_display_var = tk.StringVar(value="All Compartments")
     compartment_dropdown = ttk.OptionMenu(frm_user_select, compartment_display_var, "All Compartments", "All Compartments")
-    compartment_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky="ew")
+    # compartment_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky="ew")
     compartment_dropdown.config(state=tk.DISABLED)
 
     frm_user_buttons = ttk.Frame(frm_user_select)
-    btn_analyze_user = ttk.Button(frm_user_buttons, text="Analyze User", state=tk.DISABLED, command=update_user_output)
-    btn_analyze_user.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
+    btn_analyze_user = ttk.Button(frm_user_buttons, text="Analyze User", state=tk.DISABLED, command=update_user_analysis_output)
+    # btn_analyze_user.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
     btn_export_user = ttk.Button(frm_user_buttons, text="Export CSV", state=tk.DISABLED, command=export_user_to_csv)
-    btn_export_user.grid(row=1, column=0, padx=5, pady=2, sticky="ew")
+    # btn_export_user.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
     frm_user_buttons.grid(row=0, column=4, rowspan=2, padx=5, pady=2, sticky="ns")
 
-    user_selection_label = ttk.Label(frm_user_select, text="Domain: None (None)\nUser: None (None)\nCompartment: All Compartments (All Compartments)", anchor="w")
-    user_selection_label.grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="ew")
+    # Top Right Pane for User Info
+    frm_user_details = ttk.Frame(frm_user_top)
+    text_user_details = tk.Text(frm_user_details, wrap=tk.WORD, font=("TkFixedFont"), state=tk.NORMAL, height=10,width=80)
+    text_user_scroll = ttk.Scrollbar(frm_user_details, orient=tk.VERTICAL, command=text_user_details.yview)
+    text_user_details.grid(row=0, column=0)
+    text_user_scroll.grid(row=0, column=1, sticky="ns")
+    frm_user_details.grid(row=0, column=1)
 
+    # user_selection_label = ttk.Label(frm_user_select, text="Domain: None (None)\nUser: None (None)\nCompartment: All Compartments (All Compartments)", anchor="w")
+    # user_selection_label.grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="ew")
+
+    # Bottom Output
     frm_user_output = ttk.Frame(frm_user_top)
-    frm_user_output.grid(row=1, column=0, sticky="ew")
+    frm_user_output.grid(row=1, column=0, sticky="nsew")
     frm_user_output.columnconfigure(0, weight=1)
     user_label_count = ttk.Label(frm_user_output, text="Policy Statements (Filtered): 0")
     user_label_count.grid(row=0, column=0, padx=5, pady=3, sticky="w")
-    ttk.Checkbutton(frm_user_output, text="Cross-Tenancy", variable=chk_show_special, command=update_user_output).grid(row=0, column=1, padx=5, pady=3)
-    ttk.Checkbutton(frm_user_output, text="Service", variable=chk_show_service, command=update_user_output).grid(row=0, column=2, padx=5, pady=3)
-    ttk.Checkbutton(frm_user_output, text="Dynamic", variable=chk_show_dynamic, command=update_user_output).grid(row=0, column=3, padx=5, pady=3)
-    ttk.Checkbutton(frm_user_output, text="Resource", variable=chk_show_resource, command=update_user_output).grid(row=0, column=4, padx=5, pady=3)
-    ttk.Checkbutton(frm_user_output, text="Regular", variable=chk_show_regular, command=update_user_output).grid(row=0, column=5, padx=5, pady=3)
-    ttk.Checkbutton(frm_user_output, text="Expanded", variable=chk_show_expanded, command=update_user_output).grid(row=0, column=6, padx=5, pady=3)
+    ttk.Separator(frm_user_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+    ttk.Label(frm_user_output, text="Display Options:").grid(row=0, column=2, padx=5, pady=3)
+    ttk.Checkbutton(frm_user_output, text="Expanded", variable=chk_show_expanded, command=update_user_analysis_output).grid(row=0, column=5, padx=5, pady=3)
 
     frm_user_sheet = ttk.Frame(tab_users)
     frm_user_sheet.grid(row=1, column=0, sticky="nsew")
     frm_user_sheet.rowconfigure(0, weight=1)
     frm_user_sheet.columnconfigure(0, weight=1)
-    sheet_users = tksheet.Sheet(
-        frm_user_sheet, theme="light green", font=("Courier New", 8, "normal"),
-        header_font=("TkFixedFont", 10, "bold"), index_font=("TkFixedFont", 10, "bold"),
+    sheet_user_policies = tksheet.Sheet(
+        frm_user_sheet, theme="light green", font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), index_font=("Courier New", 11, "bold"),
         headers=["Policy Name", "Policy OCID", "Compartment OCID", "Hierarchy", "Statement Text", "Valid",
                  "Subject Type", "Subject", "Verb", "Resource", "Permission", "Location Type", "Location",
                  "Conditions", "Comments", "Creation Time", "Parsed"],
         auto_resize_columns=200, show_x_scrollbar=True, show_y_scrollbar=True
     )
-    sheet_users.grid(row=0, column=0, sticky="nsew")
-    sheet_users.enable_bindings("single_select", "column_width_resize", "row_select", "copy", "rc_select")
-    sheet_users.popup_menu_add_command("Show Details", show_user_detail)
-    sheet_users.bind("<Button-3>", show_user_detail)
-    bind_horizontal_scroll(sheet_users)
+    sheet_user_policies.grid(row=0, column=0, sticky="nsew")
+    sheet_user_policies.enable_bindings("single_select", "column_width_resize", "row_select", "copy", "rc_select")
+    # bind_horizontal_scroll(sheet_user_policies)
 
     #############################
     # Policy/Dynamic Group Report Tab
@@ -1076,14 +1141,20 @@ def main():
     tab_report.rowconfigure(1, weight=1)
     tab_report.columnconfigure(0, weight=1)
 
+    # Top Section
     frm_report_buttons = ttk.Frame(frm_report_top)
+    ttk.Label(frm_report_buttons, text="Text Highlight:", font=("TkFixedFont", 10, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    highlight_entry_var = tk.StringVar()
+    tk.Entry(frm_report_buttons, textvariable=highlight_entry_var).grid(row=0, column=1)
+
     btn_export_report = ttk.Button(frm_report_buttons, text="Export Report", state=tk.DISABLED, command=export_report_to_txt)
-    btn_export_report.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
+    btn_export_report.grid(row=0, column=2, padx=5, pady=2, sticky="ew")
     frm_report_buttons.grid(row=0, column=0, sticky="e")
 
     frm_report = ttk.PanedWindow(tab_report, orient=tk.HORIZONTAL)
     frm_report.grid(row=1, column=0, sticky="nsew")
 
+    # Bottom Section
     frm_dg_report = ttk.Frame(frm_report)
     frm_dg_report.grid(sticky="nsew")
     frm_dg_report.rowconfigure(1, weight=1)
@@ -1109,48 +1180,42 @@ def main():
     frm_report.add(frm_dg_report, weight=3)
     frm_report.add(frm_policy_report, weight=7)
 
+    # Call the highlight functionality
+    highlight_entry_var.trace_add("write", report_text_search)
+
     #############################
     # Cross-tenancy Tab
-    sheet_cross_tenancy = tksheet.Sheet(
-        tab_cross_tenancy, theme="light green", font=("Courier new", 8, "normal"),
-        header_font=("TkFixedFont", 10, "bold"), index_font=("TkFixedFont", 10, "bold"),
-        headers=["Policy Name", "Policy OCID", "Statement", "Subject", "Define Type", "Statement Text", "Action", "OCID",
-                 "Verb", "Resource", "Location Type", "Location", "Target Tenancy", "With Resource", "Condition",
-                 "Suggested Policy", "Suggested Policy Tenancy"],
+    frm_cross_tenancy = ttk.Frame(tab_cross_tenancy)
+    frm_cross_tenancy.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+    frm_cross_tenancy.grid_rowconfigure(0, weight=3)
+    frm_cross_tenancy.grid_rowconfigure(1, weight=7)
+    frm_cross_tenancy.grid_columnconfigure(0, weight=2)
+    frm_cross_tenancy.grid_columnconfigure(1, weight=8)
+    ttk.Label(frm_cross_tenancy, text="Select one or more rows to the right\nin order to narrow down cross-tenancy policies\n\nSort by clicking column headers", font=("TkFixedFont", 10, "normal")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+    sheet_cross_tenancy_define = tksheet.Sheet(
+        frm_cross_tenancy, theme="light green", font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), index_font=("Courier New", 11, "bold"),
+        headers=["Defined Alias", "Define Type", "Remote Tenancy OCID"],
+        show_x_scrollbar=True, show_y_scrollbar=True, auto_resize_columns=True
+    )
+    sheet_cross_tenancy_define.enable_bindings("all")
+    sheet_cross_tenancy_define.extra_bindings("column_select",sort_sheet_cross_tenancy_define)
+    sheet_cross_tenancy_define.extra_bindings("row_select",update_cross_tenancy_alias_selection)
+    sheet_cross_tenancy_define.grid(row=0, column=1, sticky="nsew")
+    sheet_cross_tenancy_policies = tksheet.Sheet(
+        frm_cross_tenancy, theme="light green", font=("Courier New", 10, "normal"),
+        header_font=("Courier New", 11, "bold"), index_font=("Courier New", 11, "bold"),
+        headers=["Policy Name", "Statement Text", "Subject Type", "Subject", "Action", "Verb / Resource", "Location Type", 
+                 "Location", "Condition", "Optional", "Policy OCID", "Create Date"],
         auto_resize_columns=200, show_x_scrollbar=True, show_y_scrollbar=True
     )
-    sheet_cross_tenancy.pack(fill="both", expand=True)
+    sheet_cross_tenancy_policies.enable_bindings("all")
+    sheet_cross_tenancy_policies.extra_bindings("column_select",sort_sheet_cross_tenancy_policies)
+    sheet_cross_tenancy_policies.grid(row=1, column=0, columnspan=2, sticky="nsew")
 
-    cross_tenancy_data = policy_compartment_analysis.cross_tenancy_statements
-    logger.info(f"cross: {len(cross_tenancy_data)}")
-    suggestions = policy_compartment_analysis.get_cross_tenancy_suggestions(current_tenancy="MyTenancy")
-    suggestion_map = {s["original"]: (s["suggested"], s["target_tenancy"]) for s in suggestions}
-    
-    for stmt in policy_compartment_analysis.cross_tenancy_statements:
-        statement_text = stmt[4]
-        action = "define" if stmt[6] == "define" else ("admit" if stmt[5] else "endorse")
-        cross_tenancy_data.append([
-            statement_text,  # Statement Text
-            action,  # Action
-            stmt[6],  # Subject Type
-            stmt[7][0][1] if stmt[7] else '',  # Subject
-            stmt[18],  # Define Type
-            stmt[19],  # Alias
-            stmt[20],  # OCID
-            stmt[8],   # Verb
-            stmt[9],   # Resource
-            stmt[11],  # Location Type
-            stmt[12],  # Location
-            stmt[21],  # Target Tenancy
-            stmt[22],  # With Resource
-            stmt[13],  # Condition
-            suggestion_map.get(statement_text, ('', ''))[0],  # Suggested Policy
-            suggestion_map.get(statement_text, ('', ''))[1]   # Suggested Policy Tenancy
-        ])
-    
-    sheet_cross_tenancy.set_sheet_data(cross_tenancy_data)
-
-
+    #############################
+    # Start Main loop
     window.mainloop()
 
 # Start Program

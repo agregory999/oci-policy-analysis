@@ -173,27 +173,26 @@ class PolicyCompartmentAnalysis:
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
         self.logger.debug(f"Checking to see if Cross-tenancy: {statement}")
         result = re.search(CROSS_TENANCY_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-        if result and result.group('action') in ['endorse', 'admit', 'define']:
-            self.logger.info(f"Cross-tenancy statement parsed: {statement}")
+        if result and result.group('action') in ['define']:
+            if result.group('alias') and result.group('ocid'):
+                logger.debug(f"Adding to Defined Aliases - Name: {result.group('alias')}, Type: {result.group('definetype')}, OCID: {result.group('ocid')}")
+                self.defined_aliases[result.group('alias')] = (result.group('definetype'), result.group('ocid'))
+
+        elif result and result.group('action') in ['endorse', 'admit']:
+            self.logger.debug(f"Cross-tenancy statement parsed: {statement}. Groups: {result.groups}")
             try:
                 statement_list = [
-                    policy.name,    #0
-                    policy.id,      #1
-                    # comp_id,        #2
-                    # comp_string,    #3
-                    statement,      
-                    result.group('action') != 'define',  # Valid if not define
-                    result.group('action') if result.group('action') == 'define' else result.group('subjecttype') or 'other',
-                    [(None, result.group('subject'))] if result.group('subject') else [],
-                    result.group('verb') or '',
-                    result.group('resource') or '',
-                    result.group('verb') if result.group('verb') and result.group('verb').startswith('{') else '',  # Store custom permissions
-                    result.group('locationtype') or '',
-                    result.group('location') or '',
-                    result.group('condition') or '',
-                    result.group('optional') or '',     
-                    str(policy.time_created), 
-                    True,                               
+                    policy.name, statement,  #0,1
+                    result.group('subjecttype'), #2
+                    [(None, result.group('subject'))] if result.group('subject') else [], #3
+                    result.group('action'), #4
+                    result.group('verb') or '', #5
+                    result.group('locationtype') or '', #6
+                    result.group('location') or '', #7
+                    result.group('condition') or '', #8
+                    result.group('optional') or '', #9
+                    policy.id, #10
+                    str(policy.time_created), #11
                     result.group('sourcetype') or '',      # Source tenancy type
                     result.group('source') or '',          # Source tenancy name/OCID
                     result.group('definetype') or '',      # Define type (tenancy, compartment, dynamic-group, group)
@@ -203,27 +202,53 @@ class PolicyCompartmentAnalysis:
                     result.group('targettenancy') or '',   # Target tenancy name/OCID
                     result.group('withresource') or '',    # With resource
                     result.group('withlocationtype') or '',# With location type
-                    result.group('withlocation') or ''     # With location
+
                 ]
-                if statement_list[6] in ['any-user', 'any-group']:
-                    statement_list[7] = [(None, statement_list[6])]
+                #     # comp_id,        #2
+                #     # comp_string,    #3
+                          
+                #     result.group('action') != 'define',  # Valid if not define
+                #     result.group('action') if result.group('action') == 'define' else result.group('subjecttype') or 'other',
+                #     [(None, result.group('subject'))] if result.group('subject') else [],
+                #     result.group('verb') or '',
+                #     result.group('resource') or '',
+                #     result.group('verb') if result.group('verb') and result.group('verb').startswith('{') else '',  # Store custom permissions
+                #     result.group('locationtype') or '',
+                #     result.group('location') or '',
+                #     result.group('condition') or '',
+                #     result.group('optional') or '',     
+                #     str(policy.time_created), 
+                #     True,                               
+                #     result.group('sourcetype') or '',      # Source tenancy type
+                #     result.group('source') or '',          # Source tenancy name/OCID
+                #     result.group('definetype') or '',      # Define type (tenancy, compartment, dynamic-group, group)
+                #     result.group('alias') or '',           # Tenancy, compartment, dynamic-group, or group alias
+                #     result.group('ocid') or '',            # OCID (for define)
+                #     result.group('targettenancytype') or '',  # Target tenancy type
+                #     result.group('targettenancy') or '',   # Target tenancy name/OCID
+                #     result.group('withresource') or '',    # With resource
+                #     result.group('withlocationtype') or '',# With location type
+                #     result.group('withlocation') or ''     # With location
+                # ]
+                # if statement_list[6] in ['any-user', 'any-group']:
+                #     statement_list[7] = [(None, statement_list[6])]
                 # elif statement_list[7] and statement_list[6] in ['group', 'dynamic-group']:
                 #     # subject_result = re.findall(SUBJECT_REGEX, statement_list[7][0][1], re.IGNORECASE)
                 #     subject_result = self.parse_subjects(statement_list[7])
                 #     statement_list[7] = [(a[2] or 'Default', a[4]) for a in subject_result]
                 
                 # Store cross-tenancy statements and defined aliases
-                self.cross_tenancy_statements.append(statement_list)
-                if result.group('action') == 'define' and result.group('alias') and result.group('ocid'):
-                    self.defined_aliases[result.group('alias')] = (result.group('definetype'), result.group('ocid'))
+                # self.cross_tenancy_statements.append(statement_list)
+                # if result.group('action') == 'define' and result.group('alias') and result.group('ocid'):
+                #     self.defined_aliases[result.group('alias')] = (result.group('definetype'), result.group('ocid'))
                 
                 # Success - CT
+                self.logger.debug(f"Cross-tenancy statement added: {statement_list}")
+                self.cross_tenancy_statements.append(statement_list)
                 return True
             except Exception as e:
                 self.logger.warning(f"Failed to parse cross-tenancy statement: {e}")
                 return False
-                # return [policy.name, policy.id, comp_id, comp_string, statement,
-                #         False, 'other', [], '', '', '', '', '', '', '', str(policy.time_created), False, '', '', '', '', '', '', '', '']
 
         else:   
             # Regular Statements
@@ -262,7 +287,8 @@ class PolicyCompartmentAnalysis:
                         # Check and change validity accordingly
                         statement_list[5] = self.check_invalid_location(statement_list[12])
                         logger.debug(f"Checked OCID {statement_list[12]} - Valid: {statement_list[5]}")
-                
+
+                    # For Location, use compartment hierarchy and relative
                     # Store regular statements
                     self.regular_statements.append(statement_list)
                     
@@ -283,7 +309,7 @@ class PolicyCompartmentAnalysis:
         # Catch All - should never get here
         return False
 
-    def load_compartment_and_policies(self, compartment: Compartment):
+    def load_compartment_and_policies_worker(self, compartment: Compartment):
         try:
             # Load compartment data
             self.logger.debug(f"Processing compartment: {compartment.name} (OCID: {compartment.id})")
@@ -343,7 +369,7 @@ class PolicyCompartmentAnalysis:
             comp_list.extend(comp_response.data)
             comp_load_time = time.perf_counter()
             with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix="thread") as executor:
-                executor.map(self.load_compartment_and_policies, comp_list)
+                executor.map(self.load_compartment_and_policies_worker, comp_list)
             self.data_as_of = str(datetime.datetime.now())
             policy_finish_time = time.perf_counter()
             self.logger.info(f"Loaded {len(self.compartments)} compartments in {comp_load_time-start_time:.2f} and {len(self.regular_statements)} policies in {policy_finish_time-comp_load_time:.2f}s")
@@ -466,6 +492,10 @@ class PolicyCompartmentAnalysis:
                                     self.logger.info(f"Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}")
 
                                     # Check now for compartment, if defined
+                                    # Turns out this is complex - the location portion of a policy statement should also contain the actual OCID
+                                    # of the referenced compartment, which needs to be determined based on the policy location in hierarchy + 
+                                    # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
+                                    # and then referenced
                                     self.logger.info(f"Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}")
                                 break
             self.logger.info(f"Found {len(filtered_statements)} policy statements for user {user_id}")
@@ -474,94 +504,62 @@ class PolicyCompartmentAnalysis:
             self.logger.error(f"Failed to get user group statements: {e}")
             return []
 
-    def get_cross_tenancy_suggestions(self, current_tenancy: str = "CurrentTenancy") -> List[Dict[str, Any]]:
-        """
-        Generate suggested matching policies for admit and endorse statements.
-        Returns a list of dictionaries with original and suggested statements.
-        """
-        suggestions = []
-        for stmt in self.cross_tenancy_statements:
-            self.logger.info(f"CT Policy: {stmt[3]}")
-            action = stmt[5]  # Valid field indicates action type indirectly
-            subject_type = stmt[6]  # Subject type or 'define'
-            subject = stmt[7][0][1] if stmt[7] else ''  # Subject name
-            verb = stmt[8]  # Verb
-            resource = stmt[9]  # Resource
-            location_type = stmt[11]  # Location type
-            location = stmt[12]  # Location
-            condition = stmt[13]  # Condition
-            source = stmt[16]  # Source tenancy (for admit)
-            target_tenancy = stmt[21]  # Target tenancy (for endorse)
-            with_resource = stmt[22]  # With resource
-            with_location_type = stmt[23]  # With location type
-            with_location = stmt[24]  # With location
-
-            if action and subject_type != 'define':  # Process admit and endorse
-                if subject_type in ['group', 'dynamic-group', 'any-user', 'any-group', 'service']:
-                    original = stmt[4]  # Original statement
-                    suggested = None
-                    if action == 'admit':
-                        # Suggest endorse in source tenancy
-                        source_ocid = self.defined_aliases.get(source, (None, None))[1]
-                        target = current_tenancy
-                        suggested = f"endorse {subject_type} {subject} to {verb} {resource or 'all-resources'}"
-                        if location_type:
-                            suggested += f" in {location_type} {location}"
-                            if target_tenancy:
-                                suggested += f" of tenancy {target_tenancy}"
-                        if with_resource and with_location_type:
-                            suggested += f" with {with_resource} in {with_location_type} {with_location or ''}"
-                        if condition:
-                            suggested += f" where {condition}"
-                        suggestions.append({
-                            "original": original,
-                            "suggested": suggested,
-                            "target_tenancy": source or source_ocid or "UnknownTenancy",
-                            "action": "endorse"
-                        })
-                    elif action == 'endorse':
-                        # Suggest admit in target tenancy
-                        target_ocid = self.defined_aliases.get(target_tenancy, (None, None))[1]
-                        source = current_tenancy
-                        suggested = f"admit {subject_type} {subject} of tenancy {source} to {verb} {resource or 'all-resources'}"
-                        if location_type:
-                            suggested += f" in {location_type} {location}"
-                            if target_tenancy:
-                                suggested += f" of tenancy {target_tenancy}"
-                        if with_resource and with_location_type:
-                            suggested += f" with {with_resource} in {with_location_type} {with_location or ''}"
-                        if condition:
-                            suggested += f" where {condition}"
-                        suggestions.append({
-                            "original": original,
-                            "suggested": suggested,
-                            "target_tenancy": target_tenancy or target_ocid or "UnknownTenancy",
-                            "action": "admit"
-                        })
-        
-        return suggestions
-
-    def filter_policy_statements(self, subj_filter: str, verb_filter: str, resource_filter: str, location_filter: str,
-                                hierarchy_filter: str, condition_filter: str, text_filter: str, policy_filter: str) -> list:
-        filtered = self.regular_statements
-        for filt in subj_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in str(st[7]).casefold()]
-        for filt in verb_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[8].casefold()]
-        for filt in resource_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[9].casefold()]
-        for filt in location_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in (st[11] if "tenancy" == filt.lower() else st[12]).casefold()]
-        for filt in hierarchy_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[3].casefold()]
-        for filt in condition_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[13].casefold()]
-        for filt in text_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[4].casefold()]
-        for filt in policy_filter.split('|'):
-            filtered = [st for st in filtered if filt.casefold() in st[0].casefold()]
-        self.logger.info(f"Filtered to {len(filtered)} policy statements")
+    def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
+        # Iterate cross-tenant policies
+        filtered = []
+        for statement in self.cross_tenancy_statements:
+            if (statement[7] and statement[7].casefold() in alias_filter) or (statement[13] and statement[13] in alias_filter):
+                self.logger.debug(f"Adding statement (alias={statement[7]}): {statement[1]}")
+                filtered.append(statement)
+        self.logger.info(f"Returning {len(filtered)} Cross-Tenancy Results")
         return filtered
+
+    def filter_policy_statements(self, subj_filter = None, verb_filter = None, resource_filter = None, location_filter = None,
+                                hierarchy_filter = None, condition_filter = None, text_filter = None, policy_filter = None) -> list:
+        filtered = []
+        subject_terms = [term.strip().lower() for term in subj_filter.split("|") if term.strip()] if subj_filter else []
+        verb_terms = [term.strip().lower() for term in verb_filter.split("|") if term.strip()] if verb_filter else []
+        resource_terms = [term.strip().lower() for term in resource_filter.split("|") if term.strip()] if resource_filter else []
+        location_terms = [term.strip().lower() for term in location_filter.split("|") if term.strip()] if location_filter else []
+        hierarchy_terms = [term.strip().lower() for term in hierarchy_filter.split("|") if term.strip()] if hierarchy_filter else []
+        condition_terms = [term.strip().lower() for term in condition_filter.split("|") if term.strip()] if condition_filter else []
+        text_terms = [term.strip().lower() for term in text_filter.split("|") if term.strip()] if text_filter else []
+        policy_terms = [term.strip().lower() for term in policy_filter.split("|") if term.strip()] if policy_filter else []
+
+        for st in self.regular_statements:
+            matches_subject = not subject_terms or any(term in str(st[7]).lower() for term in subject_terms)
+            matches_verb = not verb_terms or any(term in str(st[8]).lower() for term in verb_terms)
+            matches_resource = not resource_terms or any(term in str(st[9]).lower() for term in resource_terms)
+            matches_location = not location_terms or any(term in str(st[12]).lower() for term in location_terms)
+            matches_hierarchy = not hierarchy_terms or any(term in str(st[3]).lower() for term in hierarchy_terms)
+            matches_condition = not condition_terms or any(term in str(st[13]).lower() for term in condition_terms)
+            matches_text = not text_terms or any(term in str(st[4]).lower() for term in text_terms)
+            matches_policy = not policy_terms or any(term in str(st[0]).lower() for term in policy_terms)
+
+            if matches_subject and matches_verb and matches_resource and matches_location and matches_hierarchy and matches_condition and matches_text and matches_policy:
+                self.logger.debug(f"Adding Statement {st[4]} due to filter match")
+                filtered.append(st)
+
+        self.logger.info(f"Filtered to {len(filtered)} statements")
+        return filtered
+        # for filt in subj_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in str(st[7]).casefold()]
+        # for filt in verb_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[8].casefold()]
+        # for filt in resource_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[9].casefold()]
+        # for filt in location_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in (st[11] if "tenancy" == filt.lower() else st[12]).casefold()]
+        # for filt in hierarchy_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[3].casefold()]
+        # for filt in condition_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[13].casefold()]
+        # for filt in text_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[4].casefold()]
+        # for filt in policy_filter.split('|'):
+        #     filtered = [st for st in filtered if filt.casefold() in st[0].casefold()]
+        # self.logger.info(f"Filtered to {len(filtered)} policy statements")
+        # return filtered
 
     def filter_policies(self, type_principal: str, principals_style: str, resource_type: str = None, selected_dynamic_group: Tuple = ()) -> List[List[str]]:
         """Filter policies based on principal type, principals style, resource type, and optional dynamic group."""
@@ -679,7 +677,6 @@ class IdentityDomainsAnalysis:
             return False
 
     def parse_dynamic_group(self, dg_name: str, dg_ocid: str, dg_domain: str, dg_rule: str, dg_created: str) -> list:
-        # rules = re.findall(r'[\w.]+\s*=\s*\'[\w\s.]+\'', dg_rule, re.IGNORECASE | re.MULTILINE)
         return [dg_domain, dg_name, dg_rule, True, dg_ocid, dg_created]
         # To-do: Add back invalid OCID analysis
 
@@ -703,7 +700,7 @@ class IdentityDomainsAnalysis:
                         
                         self.logger.debug(f"Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}")
                         for dg in dg_response.data.resources:
-                            self.logger.info(f"DG: {dg}")
+                            self.logger.debug(f"DG: {dg}")
 
                             time_created = dg.meta.created
                             self.dynamic_groups.append(self.parse_dynamic_group(
