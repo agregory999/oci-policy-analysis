@@ -65,7 +65,7 @@ jobs:
             mv dist/oci-policy-dg-viewer-windows/oci-policy-dg-viewer-windows.exe dist/oci-policy-dg-viewer-windows.exe
             rm -rf dist/oci-policy-dg-viewer-windows
           else
-            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
+            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-exec-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
             rm -rf dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
           fi
 
