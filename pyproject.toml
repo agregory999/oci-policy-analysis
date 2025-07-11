@@ -1,6 +1,6 @@
 [project]
 name = "oci-policy-dg-viewer"
-version = "1.0.0"
+dynamic = ["version"]
 description = "OCI Policy and Dynamic Group Viewer"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.11"
@@ -10,6 +10,13 @@ dependencies = [
     "ttkbootstrap>=1.10.1",
     "pyinstaller>=6.1.0",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "src/oci_policy_dg_viewer/_version.py"
 
 [tool.ruff]
 line-length = 120
@@ -40,30 +47,3 @@ quote-style = "single"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.pyinstaller]
-# Configuration for PyInstaller to build executables
-# Note: PyInstaller does not natively support TOML, so this is for reference
-# Run PyInstaller with: `pyinstaller --name oci-policy-dg-viewer --add-data "src/oci_policy_dg_core.py;." src/oci_policy_dg_viewer.py`
-# For cross-platform builds, run on each target OS or use CI/CD tools like GitHub Actions
-output-dir = "dist"
-spec-dir = "build"
-work-dir = "build"
-clean = true
-upx = false
-console = true
-icon = "none"
-hidden-imports = [
-    "oci",
-    "tksheet",
-    "ttkbootstrap",
-]
-datas = [
-    "src/oci_policy_dg_core.py;.",
-]
-binaries = []
-excludes = []

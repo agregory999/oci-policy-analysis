@@ -29,7 +29,8 @@ import oci
 import tksheet
 import ttkbootstrap as ttk
 
-from oci_policy_dg_core import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
+from oci_policy_dg_viewer._version import __version__
+from oci_policy_dg_viewer.oci_policy_dg_core import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 
 # Constants
 THREADS = 8
@@ -40,6 +41,7 @@ last_error = ''
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
 logger = logging.getLogger('oci-policy-dg-viewer')
+logger.warning(f'Version {__version__}')
 
 ### Main Code Helpers
 
@@ -739,11 +741,7 @@ def load_from_cache():
             window.after(
                 0,
                 lambda: (
-                    label_status_bar.config(
-                        text=f"Python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} | "
-                        f"OCI: {oci.__version__} | Tkinter: {tk.Tcl().eval('info patchlevel')} | "
-                        f"tksheet: {tksheet.__version__} | Loaded as of: {last_load_time}"
-                    ),
+                    label_status_bar.config(text=f'{status_bar_text} | Loaded from cache as of {last_load_time}'),
                     [
                         e.config(state=tk.NORMAL)
                         for e in [
@@ -792,11 +790,7 @@ def load_from_cache():
             last_error = str(exc)
             window.after(
                 0,
-                lambda: label_status_bar.config(
-                    text=f"Python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} | "
-                    f"OCI: {oci.__version__} | Tkinter: {tk.Tcl().eval('info patchlevel')} | "
-                    f"tksheet: {tksheet.__version__} | Cache Load Error: {last_error}"
-                ),
+                lambda: label_status_bar.config(text=status_bar_text),
             )
             logger.error(f'Cache load error: {last_error}')
         finally:
@@ -845,11 +839,7 @@ def load_data():
             window.after(
                 0,
                 lambda: (
-                    label_status_bar.config(
-                        text=f"Python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} | "
-                        f"OCI: {oci.__version__} | Tkinter: {tk.Tcl().eval('info patchlevel')} | "
-                        f"tksheet: {tksheet.__version__} | Loaded as of: {last_load_time}"
-                    ),
+                    label_status_bar.config(text=f'{status_bar_text} | Loaded data as of {last_load_time}'),
                     [
                         e.config(state=tk.NORMAL)
                         for e in [
@@ -898,11 +888,7 @@ def load_data():
             last_error = str(exc)
             window.after(
                 0,
-                lambda: label_status_bar.config(
-                    text=f"Python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} | "
-                    f"OCI: {oci.__version__} | Tkinter: {tk.Tcl().eval('info patchlevel')} | "
-                    f"tksheet: {tksheet.__version__} | Load Error: {last_error}"
-                ),
+                lambda: label_status_bar.config(text=status_bar_text),
             )
             logger.error(f'Data load error: {last_error}')
         finally:
@@ -915,6 +901,7 @@ def load_data():
 def main():
     # To-do - split these up by tab
     global \
+        status_bar_text, \
         window, \
         profile_var, \
         entry_subj, \
@@ -1066,9 +1053,13 @@ def main():
     tkinter_version = tk.Tcl().eval('info patchlevel')
     tksheet_version = tksheet.__version__
     last_load_time = 'Not Initialized'
+    status_bar_text = f'OCI Policy & Dynamic Group Analysis v{__version__} \t|\tLast Load: {last_load_time}'
+    if args.verbose:
+        status_bar_text = f'OCI Policy & Dynamic Group Analysis v{__version__} |  Python: {python_version}   | OCI: {oci_version}   |   Tkinter: {tkinter_version}   |   tksheet: {tksheet_version}   |   Last Load: {last_load_time}'
+
     label_status_bar = ttk.Label(
         frm_status,
-        text=f'Python: {python_version}   | OCI: {oci_version}   |   Tkinter: {tkinter_version}   |   tksheet: {tksheet_version}   |   Last Load: {last_load_time}',
+        text=status_bar_text,
         anchor='w',
     )
     label_status_bar.grid(row=0, column=0, sticky='ew')
