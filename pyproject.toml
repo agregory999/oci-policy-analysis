@@ -41,10 +41,6 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[tool.setuptools]
-packages = ["oci_policy_dg_viewer"]
-package-dir = {"" = "src"}
-
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"

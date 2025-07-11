@@ -1,13 +1,15 @@
+```yaml
 name: Build OCI Policy DG Viewer
 
 on:
   push:
     branches:
       - main
+      - v2feature
   pull_request:
     branches:
       - main
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,7 +20,7 @@ jobs:
           - macos-latest
           - windows-latest
         python-version:
-          - '3.11'  # Matches requires-python in pyproject.toml
+          - '3.11'
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -26,6 +28,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Tkinter (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[dev]
+          pip install -e .
 
       - name: Install PyInstaller
         run: |
@@ -45,7 +51,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --name oci-policy-dg-viewer-${{ matrix.os }} \
+          pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }} \
                       --add-data "src/oci_policy_dg_core.py${{ matrix.os == 'windows-latest' && ';' || ':' }}." \
                       --clean \
                       --noconfirm \
@@ -56,14 +62,14 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            mv dist/oci-policy-dg-viewer-${{ matrix.os }}/oci-policy-dg-viewer-${{ matrix.os }}.exe dist/
+            mv dist/oci-policy-dg-viewer-windows/oci-policy-dg-viewer-windows.exe dist/
           else
-            mv dist/oci-policy-dg-viewer-${{ matrix.os }}/oci-policy-dg-viewer-${{ matrix.os }} dist/
+            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/
           fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: oci-policy-dg-viewer-${{ matrix.os }}
-          path: dist/oci-policy-dg-viewer-${{ matrix.os }}*
+          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}
+          path: dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}*
           retention-days: 7
