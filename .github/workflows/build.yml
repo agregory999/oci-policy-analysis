@@ -49,10 +49,21 @@ jobs:
         run: |
           pip install pyinstaller>=6.1.0
 
-      - name: Build executable
+      - name: Build executable (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
-          pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }} \
-                      --add-data "src/oci_policy_dg_core.py${{ matrix.os == 'windows-latest' && ';' || ':' }}." \
+          pyinstaller --name oci-policy-dg-viewer-windows \
+                      --add-data "src/oci_policy_dg_core.py;." \
+                      --clean \
+                      --noconfirm \
+                      src/oci_policy_dg_viewer.py
+
+      - name: Build executable (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} \
+                      --add-data "src/oci_policy_dg_core.py:." \
                       --clean \
                       --noconfirm \
                       src/oci_policy_dg_viewer.py
@@ -65,7 +76,7 @@ jobs:
             mv dist/oci-policy-dg-viewer-windows/oci-policy-dg-viewer-windows.exe dist/oci-policy-dg-viewer-windows.exe
             rm -rf dist/oci-policy-dg-viewer-windows
           else
-            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-exec-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
+            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/oci-policy-dg-viewer-exec-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
             rm -rf dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
           fi
 
