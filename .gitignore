@@ -6,3 +6,6 @@
 .policy-*
 .dynamic-*
 .venv
+__pycache__
+build
+old/
