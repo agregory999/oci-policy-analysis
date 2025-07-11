@@ -15,6 +15,7 @@
 ##########################################################################
 
 # Standard library imports
+import argparse
 import datetime
 import json
 import logging
@@ -33,8 +34,28 @@ from oci.identity.models import Compartment, Domain
 from oci.identity_domains import IdentityDomainsClient
 
 # Constants
-THREADS = 8
+THREADS = 9
 POLICY_REGEX = r'^\s*?(allow|endorse)\s+(?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*(?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)?((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s*(?P<location>[\w\':.-]+)?(?:\s+where\s+(?P<condition>.+))?(?:(?P<optional>\s*\/\/.+))?$'
+
+# POLICY_REGEX = r"""
+# ^\s*
+# (allow|endorse)\s+
+# (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*
+# (?P<subject>(?:'[^']+'|\w+)(?:\s*/\s*(?:'[^']+'|\w+))*)?\s+
+# (?:to\s+)?
+# (?:
+#     (?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|
+#     (?P<perm>\{[\w\s|,]+\})
+# )\s+
+# in\s+
+# (?P<locationtype>any-tenancy|tenancy|compartment(?:\s+id)?)\s*
+# (?P<location>[\w\':.-]+)?
+# (?:\s+where\s+(?P<condition>[^\/\/]+))?
+# (?:\s*(?P<optional>\/\/.+))?
+# $
+# """
+policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
+
 OCID_REGEX = r'ocid1\.\w+\.\w+\.\w*\.\w+'
 # CROSS_TENANCY_REGEX = r'^\s*?(?P<action>endorse|admit|define)\s+(?:(?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*(?P<subject>(?:[\w\/\'\.\\,+-]+(?:\s*,\s*[\w\/\'\.\\,+-]+)*)?)?(?:\s+of\s+(?P<sourcetype>tenancy)\s*(?P<source>[\w\':.-]+)?)?\s+)?(?:(?:to\s+(?P<verb>[\w-]+|\{[\s*\w\s*|\s*\w\s*,\s*]+\})\s+(?P<resource>[\w-]+|all-resources)?)?|(?:(?P<definetype>tenancy|compartment|dynamic-group)\s+(?P<alias>[\w-]+)\s+as\s+(?P<ocid>ocid1\.\w+\.\w+\.\w*\.\w+)))?\s*(?:(?:in)\s+(?P<locationtype>tenancy|any-tenancy|compartment\s+id|compartment)(?:\s+(?P<location>[\w\':.-]+)(?:\s+of\s+(?P<targettenancytype>tenancy)\s*(?P<targettenancy>[\w\':.-]+)?)?)?)?(?:\s+with\s+(?P<withresource>[\w-]+)\s+in\s+(?P<withlocationtype>tenancy|compartment)\s*(?P<withlocation>[\w\':.-]+)?)?(?:\s+where\s+(?P<condition>.+?))?(?:(?P<optional>\s*\/\/.+))?$'
 
@@ -148,6 +169,12 @@ class PolicyCompartmentAnalysis:
 
     def check_invalid_location(self, compartment_ocid) -> bool:
         # Given a compartment OCID-based location, return False if there is no compartment (any more)
+        # # Get this from the compartment tree we have already
+        # if not self.get_compartment_by_id(compartment_ocid):
+        #     self.logger.warning(f'Compartment OCID {compartment_ocid} not valid.')
+        #     return False
+        # else:
+        #     return True
         try:
             comp: Compartment = self.identity_client.get_compartment(compartment_id=compartment_ocid).data
             if comp.lifecycle_state == Compartment.LIFECYCLE_STATE_ACTIVE:
@@ -318,9 +345,12 @@ class PolicyCompartmentAnalysis:
         else:
             # Regular Statements
             self.logger.debug(f'Hierarchy string: {comp_string}')
-            result = re.search(POLICY_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-            if result:
-                self.logger.debug(f"Subject parsed 1: {result.group('subject')} ||| Statement: {statement}")
+            match_result = policy_regex.match(statement)
+
+            # result = re.search(POLICY_REGEX, statement, re.IGNORECASE | re.MULTILINE)
+            if match_result and match_result.groupdict():
+                result = match_result.groupdict()
+                self.logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
                     statement_list = [
                         policy.name,
@@ -329,15 +359,15 @@ class PolicyCompartmentAnalysis:
                         comp_string,
                         statement,
                         True,  # Currently for Validity
-                        result.group('subjecttype'),
-                        result.group('subject') or '',
-                        result.group('verb') or '',
-                        result.group('resource') or '',
-                        result.group('perm') or '',
-                        result.group('locationtype') or '',
-                        result.group('location') or '',
-                        result.group('condition') or '',
-                        result.group('optional') or '',
+                        result.get('subjecttype'),
+                        result.get('subject') or '',
+                        result.get('verb') or '',
+                        result.get('resource') or '',
+                        result.get('perm') or '',
+                        result.get('locationtype') or '',
+                        result.get('location') or '',
+                        result.get('condition') or '',
+                        result.get('optional') or '',
                         str(policy.time_created),
                         True,  # Currently for parsed
                     ]
@@ -398,6 +428,7 @@ class PolicyCompartmentAnalysis:
     def load_compartment_and_policies_worker(self, compartment: Compartment):
         try:
             # Load compartment data
+            start_time = time.perf_counter()
             self.logger.debug(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
             path, ocids = self.get_compartment_path(compartment, 0, '')
             self.compartments.append(
@@ -410,7 +441,6 @@ class PolicyCompartmentAnalysis:
                 }
             )
             self.logger.debug(f'Loaded compartment: {compartment.name}, Path: {path}, OCID: {compartment.id}')
-            start_time = time.perf_counter()
 
             # Load policies for the compartment
             policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
@@ -421,15 +451,17 @@ class PolicyCompartmentAnalysis:
             if not policies:
                 return
             load_pol_time = time.perf_counter()
+            this_comp_count: int = 0
             for policy in policies:
                 for statement in policy.statements:
                     # Maybe just let the parser add to either list - returns False if not parsed
                     if not self.parse_statement(str.casefold(statement), compartment.id, policy):
                         self.logger.warning(f'Statement was unable to parse: {statement}')
+                    this_comp_count += 1
 
             parse_time = time.perf_counter()
             self.logger.info(
-                f'{compartment.name}: Policy Load {len(self.regular_statements)} regular, {len(self.cross_tenancy_statements)} CT policies and {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s'
+                f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s'
             )
 
         except Exception as se:
@@ -451,8 +483,8 @@ class PolicyCompartmentAnalysis:
                 self.tenancy_ocid,
                 access_level='ACCESSIBLE',
                 sort_order='ASC',
-                compartment_id_in_subtree=False,
-                # compartment_id_in_subtree=True,
+                # compartment_id_in_subtree=False,
+                compartment_id_in_subtree=True,
                 lifecycle_state='ACTIVE',
                 limit=1000,
             )
@@ -600,7 +632,7 @@ class PolicyCompartmentAnalysis:
                             ):
                                 if not compartment_id or statement[2] in target_compartment_ocids:
                                     filtered_statements.append(statement)
-                                    self.logger.info(
+                                    self.logger.debug(
                                         f'Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}'
                                     )
 
@@ -609,7 +641,7 @@ class PolicyCompartmentAnalysis:
                                     # of the referenced compartment, which needs to be determined based on the policy location in hierarchy +
                                     # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
                                     # and then referenced
-                                    self.logger.info(
+                                    self.logger.debug(
                                         f'Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}'
                                     )
                                 break
@@ -662,7 +694,7 @@ class PolicyCompartmentAnalysis:
             [term.strip().lower() for term in policy_filter.split('|') if term.strip()] if policy_filter else []
         )
 
-        self.logger.info(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
+        self.logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
         for st in self.regular_statements:
             matches_subject = not subject_terms or any(term in str(st[7]).lower() for term in subject_terms)
             matches_verb = not verb_terms or any(term in str(st[8]).lower() for term in verb_terms)
@@ -974,3 +1006,112 @@ class IdentityDomainsAnalysis:
             return True
         self.logger.warning(f'Cache file not found: {cache_file}')
         return False
+
+
+def main():  # noqa: C901
+    """Main function to parse arguments and print policies and dynamic groups."""
+    parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--instance-principal', action='store_true', help='Use instance principal authentication')
+    parser.add_argument('--use-cache', action='store_true', help='Load data from cache instead of fetching from OCI')
+    parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
+    args = parser.parse_args()
+
+    # Configure logging based on verbose flag
+    if args.verbose:
+        logging.getLogger('oci-policy-dg-viewer').setLevel(logging.DEBUG)
+        logging.getLogger('oci-policy-compartment-analysis').setLevel(logging.DEBUG)
+        logging.getLogger('oci-identity-domains-analysis').setLevel(logging.DEBUG)
+
+    # Initialize PolicyCompartmentAnalysis
+    policy_analysis = PolicyCompartmentAnalysis(verbose=args.verbose)
+    if not policy_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
+        logger.error('Failed to initialize PolicyCompartmentAnalysis client')
+        return
+
+    # Load policies and compartments
+    if args.use_cache:
+        if not policy_analysis.load_policies_from_cache():
+            logger.error('Failed to load policies from cache')
+            return
+    else:
+        if not policy_analysis.load_policies_and_compartments():
+            logger.error('Failed to load policies and compartments from OCI')
+            return
+        policy_analysis.save_to_cache()
+
+    # Initialize IdentityDomainsAnalysis
+    domains_analysis = IdentityDomainsAnalysis(verbose=args.verbose)
+    if not domains_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
+        logger.error('Failed to initialize IdentityDomainsAnalysis client')
+        return
+
+    # Load dynamic groups
+    if args.use_cache:
+        if not domains_analysis.load_from_cache():
+            logger.error('Failed to load dynamic groups from cache')
+            return
+    else:
+        if not domains_analysis.load_all_dynamic_groups():
+            logger.error('Failed to load dynamic groups from OCI')
+            return
+        domains_analysis.save_to_cache()
+
+    # Set policies in IdentityDomainsAnalysis
+    domains_analysis.set_statements(policy_analysis.regular_statements)
+
+    # Print regular policies
+    print('\nRegular Policies:')
+    print('-' * 80)
+    for stmt in policy_analysis.regular_statements:
+        print(f'Policy Name: {stmt[0]}')
+        print(f'Statement: {stmt[4]}')
+        print(f'Compartment: {stmt[3]}')
+        print(f'Subject Type: {stmt[6]}')
+        print(f'Subject: {stmt[7]}')
+        print(f'Verb: {stmt[8]}')
+        print(f'Resource: {stmt[9]}')
+        print(f'Permission: {stmt[10]}')
+        print(f'Location Type: {stmt[11]}')
+        print(f'Location: {stmt[12]}')
+        print(f'Condition: {stmt[13]}')
+        print(f'Comment: {stmt[14]}')
+        print(f'Created: {stmt[15]}')
+        print(f'Parsed: {stmt[16]}')
+        print('-' * 80)
+
+    # Print cross-tenancy policies
+    print('\nCross-Tenancy Policies:')
+    print('-' * 80)
+    for stmt in policy_analysis.cross_tenancy_statements:
+        print(f'Policy Name: {stmt[0]}')
+        print(f'Statement: {stmt[1]}')
+        print(f'Created: {stmt[3]}')
+        print(f'Parsed: {stmt[4]}')
+        if not stmt[4]:
+            print('-' * 80)
+            continue
+        print(f'Statement Type: {stmt[5]}')
+        print(f'Principal: {stmt[6]}')
+        print(f'Of Tenancy: {stmt[7]}')
+        print(f'Action/Resource or Permission: {stmt[8]}')
+        print(f'Location: {stmt[9]}')
+        print(f'Where Clause: {stmt[10]}')
+        print(f'Comment: {stmt[11]}')
+        print('-' * 80)
+
+    # Print dynamic groups
+    print('\nDynamic Groups:')
+    print('-' * 80)
+    for dg in domains_analysis.dynamic_groups:
+        print(f'Domain: {dg[0]}')
+        print(f'Name: {dg[1]}')
+        print(f'Matching Rule: {dg[2]}')
+        print(f'In Use: {dg[3]}')
+        print(f'OCID: {dg[4]}')
+        print(f'Created: {dg[5]}')
+        print('-' * 80)
+
+
+if __name__ == '__main__':
+    main()

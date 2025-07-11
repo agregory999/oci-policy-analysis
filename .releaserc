@@ -1,0 +1,19 @@
+[tool.semantic_release]
+version_variable = "src/oci_policy_dg_viewer/_version.py:__version__"
+changelog_file = "CHANGELOG.md"
+upload_to_pypi = false
+upload_to_release = true
+branch = "main"
+version_source = "tag"
+commit_parser = "semantic_release.history:angular_parser"
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_components = "semantic_release.changelog:default_changelog_components"
+sections = [
+    {name = "Added", parsed_types = ["feat"]},
+    {name = "Fixed", parsed_types = ["fix"]},
+    {name = "Changed", parsed_types = ["refactor", "perf"]},
+    {name = "Deprecated", parsed_types = ["deprecation"]},
+    {name = "Removed", parsed_types = ["breaking"]},
+]
