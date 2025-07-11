@@ -62,9 +62,11 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            mv dist/oci-policy-dg-viewer-windows/oci-policy-dg-viewer-windows.exe dist/
+            mv dist/oci-policy-dg-viewer-windows/oci-policy-dg-viewer-windows.exe dist/oci-policy-dg-viewer-windows.exe
+            rm -rf dist/oci-policy-dg-viewer-windows
           else
-            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/
+            mv dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }} dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
+            rm -rf dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'macos' }}
           fi
 
       - name: Upload artifacts
