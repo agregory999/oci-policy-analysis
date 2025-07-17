@@ -149,7 +149,7 @@ jobs:
 
       - name: Build package
         env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ env.VERSION }}
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
         run: |
           python -m build
           pip install -e .
@@ -161,7 +161,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            pyinstaller --name oci-policy-dg-viewer-macos-${{ env.VERSION }} \
+            pyinstaller --name oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }} \
                         --icon icons/oci-policy-dg-viewer.icns \
                         --windowed \
                         --clean \
@@ -169,7 +169,7 @@ jobs:
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
                         src/oci_policy_dg_viewer.py
           else
-            pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}-${{ env.VERSION }} \
+            pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}-${{ needs.release.outputs.version }} \
                         --icon ${{ matrix.os == 'windows-latest' && 'icons/oci-policy-dg-viewer.ico' || 'icons/oci-policy-dg-viewer.png' }} \
                         --onefile \
                         --clean \
@@ -180,14 +180,14 @@ jobs:
       - name: Archive macOS executable
         if: matrix.os == 'macos-latest'
         run: |
-          tar -C dist -czf dist/oci-policy-dg-viewer-macos-${{ env.VERSION }}.app.tar.gz oci-policy-dg-viewer-macos-${{ env.VERSION }}.app
+          tar -C dist -czf dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-${{ env.VERSION }}
+          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-${{ needs.release.outputs.version }}
           path: |
-            dist/oci-policy-dg-viewer-${{ matrix.os == 'macos-latest' && 'macos-' || matrix.os == 'ubuntu-latest' && 'linux-' || 'windows-' }}${{ env.VERSION }}${{ matrix.os == 'macos-latest' && '.app.tar.gz' || matrix.os == 'windows-latest' && '.exe' || '' }}
+            dist/oci-policy-dg-viewer-${{ matrix.os == 'macos-latest' && 'macos-' || matrix.os == 'ubuntu-latest' && 'linux-' || 'windows-' }}${{ needs.release.outputs.version }}${{ matrix.os == 'macos-latest' && '.app.tar.gz' || matrix.os == 'windows-latest' && '.exe' || '' }}
           retention-days: 30
 
   collect-artifacts:
