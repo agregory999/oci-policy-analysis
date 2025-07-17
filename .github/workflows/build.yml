@@ -58,13 +58,13 @@ jobs:
           git log --oneline -n 5
           echo "Current CHANGELOG.md:"
           cat CHANGELOG.md
-          semantic-release -vv version --dry-run || echo "Dry run failed"
+          semantic-release -vv version --noop || echo "Dry run failed"
 
       - name: Run semantic-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          semantic-release -vv version 2> semantic-release-error.log || {
+          semantic-release version 2> semantic-release-error.log || {
             echo "semantic-release failed:"
             cat semantic-release-error.log
             if grep -q "429 Too Many Requests" semantic-release-error.log; then
