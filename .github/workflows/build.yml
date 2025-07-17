@@ -55,9 +55,6 @@ jobs:
           npm install -g @semantic-release/exec@6
           npm install -g conventional-changelog-conventionalcommits@7
 
-      - name: Create src/oci_policy_dg_viewer directory
-        run: mkdir -p src/oci_policy_dg_viewer
-
       - name: Initialize CHANGELOG.md
         run: |
           if [ ! -f CHANGELOG.md ]; then
@@ -208,6 +205,11 @@ jobs:
           path: dist
           pattern: oci-policy-dg-viewer-*
           merge-multiple: true
+
+      - name: Show Artifacts
+        run: |
+          echo "Artifacts in dist directory:"
+          ls -lR
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
