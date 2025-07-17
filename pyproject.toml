@@ -20,7 +20,7 @@ write_to = "src/oci_policy_dg_viewer/_version.py"
 
 [tool.ruff]
 line-length = 120
-target-version = "1.2.0"
+target-version = "1.2.1"
 exclude = [
     ".git",
     "__pycache__",
