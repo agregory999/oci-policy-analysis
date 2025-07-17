@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+      - develop
       - feature/tkinter-enhanced
   pull_request:
     branches:
       - main
+      - develop
   workflow_dispatch:
 
 permissions:
@@ -18,7 +20,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && !contains(github.event.head_commit.message, '[skip ci]')
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -79,6 +84,16 @@ jobs:
         run: |
           VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if prerelease
+        id: check_prerelease
+        run: |
+          if [[ "${{ env.VERSION }}" == *"-rc."* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload versioned pyproject.toml
         uses: actions/upload-artifact@v4
@@ -126,7 +141,6 @@ jobs:
           VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
         if: matrix.os != 'windows-latest'
-
 
       - name: Get version (Windows)
         id: get_version_windows
@@ -180,24 +194,13 @@ jobs:
           retention-days: 30
 
   collect-artifacts:
-    needs: build
+    needs: [release, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Get version
-        id: get_version
-        run: |
-          VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -209,12 +212,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: v${{ needs.release.outputs.version }}
           files: |
-            dist/oci-policy-dg-viewer-linux-${{ env.VERSION }}
-            dist/oci-policy-dg-viewer-macos-${{ env.VERSION }}.app.tar.gz
-            dist/oci-policy-dg-viewer-windows-${{ env.VERSION }}.exe
+            dist/oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }}
+            dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz
+            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1630,3 +1630,5 @@ def main():
 # Start Program
 if __name__ == '__main__':
     main()
+
+# End of src/oci_policy_dg_viewer.py
