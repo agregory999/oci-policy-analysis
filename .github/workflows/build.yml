@@ -60,7 +60,7 @@ jobs:
           echo "CHANGELOG.md after semantic-release:"
           cat CHANGELOG.md
           git diff CHANGELOG.md || echo "No changes to CHANGELOG.md"
-          
+
       - name: Get version
         id: get_version
         run: |
@@ -114,6 +114,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
         if: matrix.os != 'windows-latest'
 
+        
       - name: Get version (Windows)
         id: get_version_windows
         if: matrix.os == 'windows-latest'

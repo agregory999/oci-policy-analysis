@@ -6,3 +6,7 @@ src/oci_policy_dg_viewer/_version.py
 *.egg-info/
 *.pyc
 pycache/
+icons/
+**/.DS_Store
+images/.$icon_source.drawio.bkp
+
