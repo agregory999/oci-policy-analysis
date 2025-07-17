@@ -10,6 +10,12 @@ dependencies = [
     "ttkbootstrap>=1.10.1",
     "pyinstaller>=6.1.0",
 ]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+readme = "README.md"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]

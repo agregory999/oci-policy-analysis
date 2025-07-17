@@ -56,12 +56,13 @@ jobs:
 
       - name: Install semantic release NPM dependencies
         run: |
-          npm install -g semantic-release@22
-          npm install -g @semantic-release/changelog@6
-          npm install -g @semantic-release/git@10
-          npm install -g @semantic-release/github@9
-          npm install -g @semantic-release/exec@6
-          npm install -g conventional-changelog-conventionalcommits@7
+          npm install -g \
+            semantic-release@22 \
+            @semantic-release/changelog@6 \
+            @semantic-release/git@10 \
+            @semantic-release/github@9 \
+            @semantic-release/exec@6 \
+            conventional-changelog-conventionalcommits@7
 
       - name: Initialize CHANGELOG.md
         run: |
@@ -213,11 +214,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.release.outputs.version }}
-          files: |
             dist/oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }}
             dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz
-            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
-          draft: false
+            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exear.gz
+          draft: falseolicy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
           prerelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
-        env:
+        env:erelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
