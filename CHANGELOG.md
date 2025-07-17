@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Fixed
+- Logging for non-UI 
+
 ## [1.0.0] - 2025-07-14
 ### Added
 - Analysis of Users, Resource Principals, Cross-tenancy policies
