@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.2](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.1...v1.3.0-rc.2) (2025-07-17)
+
+
+### Bug Fixes
+
+* Check artifacts before releas ([047f5b3](https://github.com/agregory999/oci-policy-analysis/commit/047f5b3d6b5f9fa5cbb9ac4e3d676cd574856804))
+
 ## [1.3.0-rc.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.2.0...v1.3.0-rc.1) (2025-07-17)
 
 
