@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.4](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.3...v1.3.0-rc.4) (2025-07-17)
+
+
+### Bug Fixes
+
+* do not upload pyproject from GH actions ([1fa198d](https://github.com/agregory999/oci-policy-analysis/commit/1fa198d515bbdd805548977b8a0eb9a6070337df))
+
 ## [1.3.0-rc.3](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.2...v1.3.0-rc.3) (2025-07-17)
 
 
