@@ -92,13 +92,6 @@ jobs:
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload versioned pyproject.toml
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyproject-toml
-          path: pyproject.toml
-          retention-days: 30
-
   build:
     needs: release
     strategy:
