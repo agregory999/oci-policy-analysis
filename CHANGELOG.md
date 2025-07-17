@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.8](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.7...v1.3.0-rc.8) (2025-07-17)
+
+
+### Bug Fixes
+
+* implement co-pilot suggested no python build and noupx ([a53402b](https://github.com/agregory999/oci-policy-analysis/commit/a53402bfaa69e475d10657645894ccbbc4b11209))
+
 ## [1.3.0-rc.7](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.6...v1.3.0-rc.7) (2025-07-17)
 
 
