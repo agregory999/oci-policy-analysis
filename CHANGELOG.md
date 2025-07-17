@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.5](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.4...v1.3.0-rc.5) (2025-07-17)
+
+
+### Bug Fixes
+
+* pyproject.toml ([db8ccb4](https://github.com/agregory999/oci-policy-analysis/commit/db8ccb4b2f7d919b465e56e701ba515227c90cdd))
+
 ## [1.3.0-rc.4](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.3...v1.3.0-rc.4) (2025-07-17)
 
 
