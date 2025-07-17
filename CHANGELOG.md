@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.7](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.6...v1.3.0-rc.7) (2025-07-17)
+
+
+### Bug Fixes
+
+* implement co-pilot improvements for pyproject ([7824d45](https://github.com/agregory999/oci-policy-analysis/commit/7824d453490615cd3dbf5fea0e2f67edfb93cc40))
+* implement co-pilot typo fix ([5950d1a](https://github.com/agregory999/oci-policy-analysis/commit/5950d1a2bf932291b14ee7941255c1158542df3e))
+
 ## [1.3.0-rc.6](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.5...v1.3.0-rc.6) (2025-07-17)
 
 
