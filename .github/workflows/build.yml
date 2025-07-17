@@ -214,11 +214,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.release.outputs.version }}
+          files: |
             dist/oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }}
             dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz
-            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exear.gz
-          draft: falseolicy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
+            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
+          draft: false
           prerelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
-        env:erelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
