@@ -172,7 +172,11 @@ prompt: repo dir> python -m tkinter
 
 If you get the popup, close it and proceed.  If not, refer to the TKInter documentation to get it running on your platform.
 
+<<<<<<< HEAD
 ## Run the Application with UI
+=======
+### Run the Application
+>>>>>>> 791d4b7 (fix: logger and merge)
 
 Navigate to the repository.  You can run the program directly from the repository directory.
 
@@ -191,7 +195,11 @@ prompt: repo dir> python3 src/oci_policy_dg_viewer.py -v
 ```
 Logging output may assist you with issue tracking, but it is better to leave verbose logging disabled (no option given) unless there are issues.   
 
+<<<<<<< HEAD
 ## Using the Application UI
+=======
+## Using the Application
+>>>>>>> 791d4b7 (fix: logger and merge)
 
    - **Authentication**:
      - If running on an OCI compute instance, check "Instance Principal" to use instance-based authentication.
