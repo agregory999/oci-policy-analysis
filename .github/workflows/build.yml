@@ -64,8 +64,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN }}
         run: |
-          echo 'GITHUB_TOKEN' is set to ${{ secrets.GH_ACTIONS_TOKEN }}
-          semantic-release version -v 2> semantic-release-error.log || {
+          echo 'GH_ACTIONS_TOKEN' is set to ${{ secrets.GH_ACTIONS_TOKEN }}
+          semantic-release -v version 2> semantic-release-error.log || {
             echo "semantic-release failed:"
             cat semantic-release-error.log
             if grep -q "429 Too Many Requests" semantic-release-error.log; then
