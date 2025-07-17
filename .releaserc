@@ -8,7 +8,6 @@ version_source = "tag"
 commit_parser = "semantic_release.history:angular_parser"
 
 [tool.semantic_release.changelog]
-template_dir = "templates"
 changelog_components = "semantic_release.changelog:default_changelog_components"
 sections = [
     {name = "Added", parsed_types = ["feat"]},

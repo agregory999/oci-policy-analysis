@@ -54,6 +54,13 @@ jobs:
         run: |
           echo 'GH_ACTIONS_TOKEN' is set to ${{ secrets.GH_ACTIONS_TOKEN }}
           semantic-release -v version 
+
+      - name: Verify CHANGELOG.md update    
+        run: |
+          echo "CHANGELOG.md after semantic-release:"
+          cat CHANGELOG.md
+          git diff CHANGELOG.md || echo "No changes to CHANGELOG.md"
+          
       - name: Get version
         id: get_version
         run: |
