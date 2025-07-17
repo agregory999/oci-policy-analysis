@@ -159,7 +159,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-<<<<<<< HEAD
           name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-${{ env.VERSION }}
           path: |
             dist/oci-policy-dg-viewer-${{ matrix.os == 'macos-latest' && 'macos-' || matrix.os == 'ubuntu-latest' && 'linux-' || 'windows-' }}${{ env.VERSION }}${{ matrix.os == 'macos-latest' && '.app.tar.gz' || matrix.os == 'windows-latest' && '.exe' || '' }}
@@ -204,8 +203,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-=======
-          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-executable
-          path: dist/oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}*
-          retention-days: 7
->>>>>>> f19ca20 (Updated Build)
