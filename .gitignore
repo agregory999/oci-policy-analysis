@@ -9,4 +9,4 @@ pycache/
 icons/
 **/.DS_Store
 images/.$icon_source.drawio.bkp
-
+*.spec
