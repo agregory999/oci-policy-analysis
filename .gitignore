@@ -10,3 +10,4 @@ icons/
 **/.DS_Store
 images/.$icon_source.drawio.bkp
 *.spec
+docs/_build/
