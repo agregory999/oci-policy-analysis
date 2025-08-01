@@ -166,14 +166,14 @@ jobs:
                         --clean \
                         --noconfirm \
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
-                        src/oci_policy_dg_viewer.py
+                        src/oci_policy_dg_viewer/viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}-${{ needs.release.outputs.version }} \
                         --icon ${{ matrix.os == 'windows-latest' && 'icons/oci-policy-dg-viewer.ico' || 'icons/oci-policy-dg-viewer.png' }} \
                         --onefile \
                         --clean \
                         --noconfirm \
-                        src/oci_policy_dg_viewer.py
+                        src/oci_policy_dg_viewer/viewer.py
           fi
 
       - name: Archive macOS executable
