@@ -767,9 +767,7 @@ class PolicyCompartmentAnalysis:
                             res.data.get('logContent').get('data').get('stateChange').get('previous').get('statements')
                         )
                     self.logger.info(f'Log Type: {type_of_log}')
-                    self.logger.info(
-                        f'***Log Details: Type: {type_of_log}\n*****Previous:{"\n*****".join(change_prev)}\n*****Current:{change_curr}'
-                    )
+                    self.logger.info(f'***Log Details: Type: {type_of_log}Previous:{change_prev} Current:{change_curr}')
 
                     # if 'type' in res.data:
                     #     self.logger.info(f'Type: {res.data["type"]}')
