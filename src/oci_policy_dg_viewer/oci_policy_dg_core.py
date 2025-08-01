@@ -26,50 +26,30 @@ from pathlib import Path
 
 # Third-party imports
 import oci
+from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
 from oci.identity.models import Compartment, Domain
 from oci.identity_domains import IdentityDomainsClient
+from oci.loggingsearch import LogSearchClient
+from oci.loggingsearch.models import SearchLogsDetails
 
 # Constants
 THREADS = 9
-POLICY_REGEX = r'^\s*?(allow|endorse)\s+(?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*(?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)?((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s*(?P<location>[\w\':.-]+)?(?:\s+where\s+(?P<condition>.+))?(?:(?P<optional>\s*\/\/.+))?$'
-
-# POLICY_REGEX = r"""
-# ^\s*
-# (allow|endorse)\s+
-# (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*
-# (?P<subject>(?:'[^']+'|\w+)(?:\s*/\s*(?:'[^']+'|\w+))*)?\s+
-# (?:to\s+)?
-# (?:
-#     (?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|
-#     (?P<perm>\{[\w\s|,]+\})
-# )\s+
-# in\s+
-# (?P<locationtype>any-tenancy|tenancy|compartment(?:\s+id)?)\s*
-# (?P<location>[\w\':.-]+)?
-# (?:\s+where\s+(?P<condition>[^\/\/]+))?
-# (?:\s*(?P<optional>\/\/.+))?
-# $
-# """
+POLICY_REGEX = r"""allow\s+ # Start with allow
+    (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
+    (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
+    ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
+    in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s* # Location type
+    (?P<location>[\w\':.-]+)?(?:\s+where\s+ # Location
+    (?P<condition>.+))? # Condition (optional)
+    (?:(?P<optional>\s*\/\/.+))?$ # Comment (optional)
+"""
 policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
 
 OCID_REGEX = r'ocid1\.\w+\.\w+\.\w*\.\w+'
-# CROSS_TENANCY_REGEX = r'^\s*?(?P<action>endorse|admit|define)\s+(?:(?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s*(?P<subject>(?:[\w\/\'\.\\,+-]+(?:\s*,\s*[\w\/\'\.\\,+-]+)*)?)?(?:\s+of\s+(?P<sourcetype>tenancy)\s*(?P<source>[\w\':.-]+)?)?\s+)?(?:(?:to\s+(?P<verb>[\w-]+|\{[\s*\w\s*|\s*\w\s*,\s*]+\})\s+(?P<resource>[\w-]+|all-resources)?)?|(?:(?P<definetype>tenancy|compartment|dynamic-group)\s+(?P<alias>[\w-]+)\s+as\s+(?P<ocid>ocid1\.\w+\.\w+\.\w*\.\w+)))?\s*(?:(?:in)\s+(?P<locationtype>tenancy|any-tenancy|compartment\s+id|compartment)(?:\s+(?P<location>[\w\':.-]+)(?:\s+of\s+(?P<targettenancytype>tenancy)\s*(?P<targettenancy>[\w\':.-]+)?)?)?)?(?:\s+with\s+(?P<withresource>[\w-]+)\s+in\s+(?P<withlocationtype>tenancy|compartment)\s*(?P<withlocation>[\w\':.-]+)?)?(?:\s+where\s+(?P<condition>.+?))?(?:(?P<optional>\s*\/\/.+))?$'
-
-# CROSS_TENANCY_REGEX = r"""
-#     (?P<statement_type>define|admit|endorse)\s+  # Capture statement type
-#     (?P<define_type>compartment|group|dynamic-group|tenancy)?\s*  # Optional define type
-#     (?P<principal>any-user|(?:group|dynamic-group)\s+[^,\s]+(?:,[^,\s]+)*|\S+)\s*  # Principal (any-user, group(s), dynamic-group, or simple name)
-#     (?:as\s+)?(?P<alias>\S+)?\s*  # Optional alias, capturing only the alias value without 'as '
-#     (?P<action>to\s+(?:{[^}]+}|\S+|associate\s+\S+\s+with\s+\S+\s+in\s+(?:compartment\s+\S+|tenancy\s+\S+)))?  # Action (verb, verb set, or associate clause)
-#     (?P<resource>(?:all-resources|instances|volumes|\S+)(?:\s+in\s+(?:compartment\s+\S+|tenancy\s+\S+))?)  # Resource and location
-#     (?P<of_tenancy>of\s+tenancy\s+\S+)?\s*  # Optional 'of tenancy' clause
-#     (?P<where_clause>where\s+(?:all\s+)?{[^}]+})?  # Optional where clause
-#     (?P<comment>\s*//\s*[^\n]*)?  # Optional comment
-# """
 
 CROSS_TENANCY_DEFINE_REGEX = r"""
     (?P<statement_type>define)\s+  # Capture statement type
@@ -104,9 +84,12 @@ CROSS_TENANCY_ENDORSE_REGEX = r"""
 """
 endorse_regex = re.compile(CROSS_TENANCY_ENDORSE_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
 
+# Cache Directory and Date (for consistency across classes)
+CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
+CACHE_DATE = datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 
-# Global variables
-last_error = ''
+# # Global variables
+# last_error = ''
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
@@ -134,13 +117,18 @@ class PolicyCompartmentAnalysis:
                 self.logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
+                self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
             else:
                 self.logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
                 self.identity_client = IdentityClient(self.config)
+                self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
             self.logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+
+            # Get tenancy name
+            self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
             return True
         except (ConfigFileNotFound, Exception) as exc:
             self.logger.fatal(f'Authentication failed: {exc}')
@@ -371,6 +359,25 @@ class PolicyCompartmentAnalysis:
                         str(policy.time_created),
                         True,  # Currently for parsed
                     ]
+                    statement_dict = {
+                        'policy_name': statement_list[0],
+                        'policy_id': statement_list[1],
+                        'compartment_id': statement_list[2],
+                        'compartment_string': statement_list[3],
+                        'statement_text': statement_list[4],
+                        'validity': statement_list[5],
+                        'subject_type': statement_list[6],
+                        'subject': statement_list[7],  # This will be a list of tuples
+                        'verb': statement_list[8],
+                        'resource': statement_list[9],
+                        'permission': statement_list[10],
+                        'location_type': statement_list[11],
+                        'location': statement_list[12],
+                        'condition': statement_list[13],
+                        'optional_comment': statement_list[14],
+                        'time_created': statement_list[15],
+                        'parsed': statement_list[16],
+                    }
 
                     # Additional Subject Parsing
                     if statement_list[6] in ['any-user', 'any-group']:
@@ -391,7 +398,8 @@ class PolicyCompartmentAnalysis:
 
                     # For Location, use compartment hierarchy and relative
                     # Store regular statements
-                    self.regular_statements.append(statement_list)
+                    # self.regular_statements.append(statement_list)
+                    self.regular_statements.append(statement_dict)
 
                     # Success
                     return True
@@ -426,6 +434,7 @@ class PolicyCompartmentAnalysis:
         return False
 
     def load_compartment_and_policies_worker(self, compartment: Compartment):
+        """Worker function to load compartment and policy data as JSON object in a thread"""
         try:
             # Load compartment data
             start_time = time.perf_counter()
@@ -504,98 +513,6 @@ class PolicyCompartmentAnalysis:
         except Exception as e:
             self.logger.error(f'Failed to load policies and compartments: {e}')
             return False
-
-    def save_to_cache(self):
-        cache_dir = Path.home() / '.oci' / 'cache'
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        compartments_cache_file = cache_dir / f'compartments_{self.tenancy_ocid}.json'
-        policies_cache_file = cache_dir / f'policies_{self.tenancy_ocid}.json'
-        cross_tenancy_policies_cache_file = cache_dir / f'cross_tenancy_policies_{self.tenancy_ocid}.json'
-
-        # Save compartments
-        compartments_data = {
-            'compartments': [
-                {
-                    'id': c['id'],
-                    'name': c['name'],
-                    'parent_id': c['parent_id'],
-                    'hierarchy_path': c['hierarchy_path'],
-                    'hierarchy_ocids': c['hierarchy_ocids'],
-                }
-                for c in self.compartments
-            ],
-            'data_as_of': self.data_as_of,
-        }
-        with open(compartments_cache_file, 'w', encoding='utf-8') as filehandle:
-            json.dump(compartments_data, filehandle, ensure_ascii=False)
-        self.logger.info(f'Saved {len(self.compartments)} compartments to cache: {compartments_cache_file}')
-
-        # Save policies
-        policies_data = {'policies': self.regular_statements, 'data_as_of': self.data_as_of}
-        with open(policies_cache_file, 'w', encoding='utf-8') as filehandle:
-            json.dump(policies_data, filehandle, ensure_ascii=False)
-        self.logger.info(f'Saved {len(self.regular_statements)} policies to cache: {policies_cache_file}')
-
-        # Save Cross Tenant and Defined
-        policies_data = {
-            'cross_tenancy_policies': self.cross_tenancy_statements,
-            'defined_aliases': self.defined_aliases,
-            'data_as_of': self.data_as_of,
-        }
-        with open(cross_tenancy_policies_cache_file, 'w', encoding='utf-8') as filehandle:
-            json.dump(policies_data, filehandle, ensure_ascii=False)
-        self.logger.info(
-            f'Saved {len(self.cross_tenancy_statements)} policies to cache: {cross_tenancy_policies_cache_file}'
-        )
-
-    def load_policies_from_cache(self) -> bool:
-        cache_dir = Path.home() / '.oci' / 'cache'
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-        compartments_cache_file = cache_dir / f'compartments_{self.tenancy_ocid}.json'
-        policies_cache_file = cache_dir / f'policies_{self.tenancy_ocid}.json'
-        cross_tenancy_policies_cache_file = cache_dir / f'cross_tenancy_policies_{self.tenancy_ocid}.json'
-
-        # Load compartments
-        if compartments_cache_file.exists():
-            with open(compartments_cache_file, encoding='utf-8') as filehandle:
-                cache_data = json.load(filehandle)
-                self.compartments = cache_data.get('compartments', [])
-                self.data_as_of = cache_data.get('data_as_of', time.ctime(compartments_cache_file.stat().st_mtime))
-            self.logger.info(f'Loaded {len(self.compartments)} compartments from cache: {compartments_cache_file}')
-        else:
-            self.logger.warning(f'Compartments cache file not found: {compartments_cache_file}')
-            return False
-
-        # Load policies
-        if policies_cache_file.exists():
-            with open(policies_cache_file, encoding='utf-8') as filehandle:
-                cache_data = json.load(filehandle)
-                self.regular_statements = cache_data.get('policies', [])
-                if not self.data_as_of:
-                    self.data_as_of = cache_data.get('data_as_of', time.ctime(policies_cache_file.stat().st_mtime))
-            self.logger.info(f'Loaded {len(self.regular_statements)} policies from cache: {policies_cache_file}')
-            # return True
-        else:
-            self.logger.warning(f'Policies cache file not found: {policies_cache_file}')
-            return False
-
-        # Load Cross Tenant and Defined
-        if cross_tenancy_policies_cache_file.exists():
-            with open(cross_tenancy_policies_cache_file, encoding='utf-8') as filehandle:
-                cache_data = json.load(filehandle)
-                self.cross_tenancy_statements = cache_data.get('cross_tenancy_policies', [])
-                self.defined_aliases = cache_data.get('defined_aliases', [])
-                if not self.data_as_of:
-                    self.data_as_of = cache_data.get(
-                        'data_as_of', time.ctime(cross_tenancy_policies_cache_file.stat().st_mtime)
-                    )
-            self.logger.info(f'Loaded CT policies from cache: {cross_tenancy_policies_cache_file}')
-            # return True
-        else:
-            self.logger.warning(f'Cross Tenancy Policies cache file not found: {cross_tenancy_policies_cache_file}')
-            return False
-        return True
 
     def get_compartment_by_id(self, compartment_id: str) -> dict:
         return next((c for c in self.compartments if c['id'] == compartment_id), None)
@@ -696,16 +613,24 @@ class PolicyCompartmentAnalysis:
 
         self.logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
         for st in self.regular_statements:
-            matches_subject = not subject_terms or any(term in str(st[7]).lower() for term in subject_terms)
-            matches_verb = not verb_terms or any(term in str(st[8]).lower() for term in verb_terms)
-            matches_resource = not resource_terms or any(term in str(st[9]).lower() for term in resource_terms)
-            matches_location = not location_terms or any(term in str(st[12]).lower() for term in location_terms)
-            matches_hierarchy = not hierarchy_terms or any(term in str(st[3]).lower() for term in hierarchy_terms)
-            matches_condition = not condition_terms or any(
-                term in str(st[13]).lower().replace(' ', '') for term in condition_terms
+            matches_subject = not subject_terms or any(term in str(st.get('subject')).lower() for term in subject_terms)
+            matches_verb = not verb_terms or any(term in str(st.get('verb')).lower() for term in verb_terms)
+            matches_resource = not resource_terms or any(
+                term in str(st.get('resource')).lower() for term in resource_terms
             )
-            matches_text = not text_terms or any(term in str(st[4]).lower() for term in text_terms)
-            matches_policy = not policy_terms or any(term in str(st[0]).lower() for term in policy_terms)
+            matches_location = not location_terms or any(
+                term in str(st.get('location')).lower() for term in location_terms
+            )
+            matches_hierarchy = not hierarchy_terms or any(
+                term in str(st.get('compartment_string')).lower() for term in hierarchy_terms
+            )
+            matches_condition = not condition_terms or any(
+                term in str(st.get('condition')).lower().replace(' ', '') for term in condition_terms
+            )
+            matches_text = not text_terms or any(term in str(st.get('statement_text')).lower() for term in text_terms)
+            matches_policy = not policy_terms or any(
+                term in str(st.get('policy_name')).lower() for term in policy_terms
+            )
 
             if (
                 matches_subject
@@ -717,11 +642,143 @@ class PolicyCompartmentAnalysis:
                 and matches_text
                 and matches_policy
             ):
-                self.logger.debug(f'Adding Statement {st[4]} due to filter match')
+                self.logger.debug(f'Adding Statement {st.get("statement_text")} due to filter match')
                 filtered.append(st)
 
         self.logger.info(f'Filtered to {len(filtered)} statements')
         return filtered
+
+    def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
+        """Loads a cache set and compares with the currently loaded policy set and return changes"""
+        # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
+        # Loading the cache is similar to the main loading, but do not want these in memory
+        changes = []
+
+        # Load the referenced cache
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+        # Load policies
+        if combined_cache_file.exists():
+            with open(combined_cache_file, encoding='utf-8') as filehandle:
+                cache_data = json.load(filehandle)
+            cached_policies = cache_data.get('policies', [])
+            self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
+            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
+            self.logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
+            self.logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
+
+            # Do the comparison with deepdiff (do we need to sort the policies first?)
+            # Include paths for the maximum length
+            max_len = max(len(self.regular_statements), len(cached_policies))
+            include_paths = [f"root[{i}]['statement_text']" for i in range(max_len)]
+            diff = DeepDiff(
+                self.regular_statements,
+                cached_policies,
+                ignore_order=True,
+                verbose_level=4,
+                include_paths=include_paths,
+                # exclude_paths=["root['data']"]
+                # include_paths="root[*]['statement_text']"  # Only compare the statement text
+                # group_by=
+            )
+
+            self.logger.info(
+                f'Found {len(diff.get("iterable_item_added", []))} added, '
+                f'{len(diff.get("iterable_item_removed", []))} removed, '
+                f'{len(diff.get("values_changed", []))} changed policies'
+            )
+            for change_type, changes_list in diff.items():
+                self.logger.info(f'Change Type: {change_type}')
+                if change_type == 'values_changed':
+                    for i, change in enumerate(changes_list):
+                        change_index_parsed = parse_path(change)
+                        self.logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
+                        if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
+                            # Change to statement
+                            this_change = changes_list[change]
+                            # self.logger.info(f'- New: {this_change["new_value"]}\n')
+                            # self.logger.info(f'- Old: {this_change["old_value"]}\n')
+                            changes.append(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]["statement_text"]} to {this_change["new_value"]["statement_text"]}'
+                            )
+                            self.logger.info(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]["statement_text"]} to {this_change["new_value"]["statement_text"]}'
+                            )
+                        else:
+                            self.logger.info(f'Change: {changes_list[change]}\n')
+
+                elif change_type == 'iterable_item_removed':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        self.logger.info(
+                            f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+
+                        # self.logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+                elif change_type == 'iterable_item_added':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        self.logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+
+                        # self.logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+
+        else:
+            self.logger.warning(f'Policies cache file not found: {combined_cache_file}')
+            return ''
+        return '\n'.join(changes)
+
+    def check_history(self, policy_ocid: str, start_time: str) -> None:
+        """Look at audit logs to track changes to a policy"""
+        the_log = f'{self.tenancy_ocid}/_Audit'
+        logs_returned = self.logging_search_client.search_logs(
+            search_logs_details=SearchLogsDetails(
+                search_query=f"search \"{the_log}\" | (type in ('com.oraclecloud.identityControlPlane.UpdatePolicy','com.oraclecloud.identityControlPlane.CreatePolicy','com.oraclecloud.identityControlPlane.DeletePolicy')) | sort by datetime desc",
+                # search_query=f'search \"{the_log}\" where type=\'com.oraclecloud.identityControlPlane.UpdatePolicy\'',
+                time_start='2025-07-10T11:59:00Z',
+                time_end='2025-07-23T23:59:00Z',
+            ),
+            limit=1000,
+        )
+        if logs_returned and logs_returned.data and logs_returned.data.results:
+            self.logger.info(f'Found {len(logs_returned.data.results)} logs for policy updates in the last 24 hours')
+            for log in logs_returned.data.results:
+                res: oci.loggingsearch.models.SearchResult = log
+                if res and res.data:
+                    type_of_log = res.data.get('logContent').get('type')
+                    change_curr = (
+                        res.data.get('logContent').get('data').get('stateChange').get('current').get('statements')
+                    )
+                    change_prev = None
+                    if (
+                        res.data.get('logContent').get('data')
+                        and res.data.get('logContent').get('data').get('stateChange')
+                        and res.data.get('logContent').get('data').get('stateChange').get('previous')
+                    ):
+                        # Previous state change exists
+                        change_prev = (
+                            res.data.get('logContent').get('data').get('stateChange').get('previous').get('statements')
+                        )
+                    self.logger.info(f'Log Type: {type_of_log}')
+                    self.logger.info(
+                        f'***Log Details: Type: {type_of_log}\n*****Previous:{"\n*****".join(change_prev)}\n*****Current:{change_curr}'
+                    )
+
+                    # if 'type' in res.data:
+                    #     self.logger.info(f'Type: {res.data["type"]}')
+                    # else:
+                    #     self.logger.info('No type found in log data')
+                # self.logger.info(f'Log: {log.get["data"].get("datetime", "No message found")}')
+        else:
+            self.logger.info('No policy update logs found in the last 24 hours')
+        pass
 
 
 class IdentityDomainsAnalysis:
@@ -757,6 +814,8 @@ class IdentityDomainsAnalysis:
                 self.config = config.from_file(profile_name=profile)
                 self.identity_client = IdentityClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
+            # Get tenancy name
+            self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
             self.logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
             return True
         except (ConfigFileNotFound, Exception) as exc:
@@ -962,50 +1021,156 @@ class IdentityDomainsAnalysis:
     def get_users_by_domain(self, domain_id: str) -> list:
         return [u for u in self.users if u['domain_id'] == domain_id]
 
-    def save_to_cache(self):
-        cache_dir = Path.home() / '.oci' / 'cache'
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f'oci_analysis_{self.tenancy_ocid}.json'
-        cache_data = {
-            'dynamic_groups': self.dynamic_groups,
-            'identity_domains': [
-                {'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains
-            ],
-            'groups': self.groups,
-            'users': self.users,
-            'data_as_of': self.data_as_of,
-        }
-        with open(cache_file, 'w', encoding='utf-8') as filehandle:
-            json.dump(cache_data, filehandle, ensure_ascii=False)
-        self.logger.info(f'Saved data to cache: {cache_file}')
+    # def save_to_cache(self):
+    #     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    #     cache_file = CACHE_DIR / f'oci_identity_domains_{self.tenancy_name}_{CACHE_DATE}.json'
+    #     cache_data = {
+    #         'dynamic_groups': self.dynamic_groups,
+    #         'identity_domains': [
+    #             {'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains
+    #         ],
+    #         'groups': self.groups,
+    #         'users': self.users,
+    #         'data_as_of': self.data_as_of,
+    #     }
+    #     with open(cache_file, 'w', encoding='utf-8') as filehandle:
+    #         json.dump(cache_data, filehandle, ensure_ascii=False)
+    #     self.logger.info(f'Saved data to cache: {cache_file}')
 
-    def load_from_cache(self) -> bool:
-        cache_dir = Path.home() / '.oci' / 'cache'
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f'oci_analysis_{self.tenancy_ocid}.json'
-        if cache_file.exists():
-            with open(cache_file, encoding='utf-8') as filehandle:
+    # def load_from_cache(self, cached_tenancy:str, cached_date:str) -> bool:
+    #     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    #     cache_file = CACHE_DIR / f'oci_identity_domains_{cached_tenancy}_{cached_date}.json'
+    #     if cache_file.exists():
+    #         with open(cache_file, encoding='utf-8') as filehandle:
+    #             cache_data = json.load(filehandle)
+    #             self.dynamic_groups = cache_data.get('dynamic_groups', [])
+    #             self.identity_domains = [
+    #                 Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
+    #                 for d in cache_data.get('identity_domains', [])
+    #             ]
+    #             self.groups = cache_data.get('groups', [])
+    #             self.users = cache_data.get('users', [])
+    #             for domain in self.identity_domains:
+    #                 if self.use_instance_principal:
+    #                     self.domain_clients[domain.id] = IdentityDomainsClient(
+    #                         config={}, signer=self.signer, service_endpoint=domain.url
+    #                     )
+    #                 else:
+    #                     self.domain_clients[domain.id] = IdentityDomainsClient(
+    #                         config=self.config, service_endpoint=domain.url
+    #                     )
+    #         self.logger.info(f'Loaded data from cache: {cache_file}')
+    #         return True
+    #     self.logger.warning(f'Cache file not found: {cache_file}')
+    #     return False
+
+
+# Utility functions for loading and saving cache, using combined caching strategy
+def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_analysis: IdentityDomainsAnalysis) -> bool:
+    """Save combined cache for policies and dynamic groups."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    combined_cache_file = CACHE_DIR / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
+    combined_data = {
+        'tenancy_name': policy_analysis.tenancy_name,
+        'tenancy_ocid': policy_analysis.tenancy_ocid,
+        'policies': policy_analysis.regular_statements,
+        'dynamic_groups': domains_analysis.dynamic_groups,
+        'defined_aliases': policy_analysis.defined_aliases,
+        'cross_tenancy_policies': policy_analysis.cross_tenancy_statements,
+        'identity_domains': domains_analysis.get_domains(),
+        'groups': domains_analysis.groups,
+        'users': domains_analysis.users,
+        'data_as_of': policy_analysis.data_as_of,
+    }
+    with open(combined_cache_file, 'w', encoding='utf-8') as filehandle:
+        json.dump(combined_data, filehandle, ensure_ascii=False)
+    logger.info(f'Saved combined cache to: {combined_cache_file}')
+
+    # Update cache entries
+    entry = {'tenancy_name': policy_analysis.tenancy_name, 'cache_date': CACHE_DATE}
+    with open(CACHE_DIR / 'cache_entries.json', 'a', encoding='utf-8') as date_file:
+        json.dump(entry, date_file, ensure_ascii=False)
+        date_file.write('\n')  # Write a newline after each entry
+    logger.info(f'Updated cache entries with: {entry}')
+    return True
+
+
+def load_combined_cache(
+    cached_tenancy: str,
+    cached_date: str,
+    policy_analysis: PolicyCompartmentAnalysis,
+    domains_analysis: IdentityDomainsAnalysis,
+) -> bool:
+    """Load combined cache for policies and dynamic groups."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+    if combined_cache_file.exists():
+        try:
+            with open(combined_cache_file, encoding='utf-8') as filehandle:
                 cache_data = json.load(filehandle)
-                self.dynamic_groups = cache_data.get('dynamic_groups', [])
-                self.identity_domains = [
+                # Grab all of the elements of the cache
+                policies = cache_data.get('policies', [])
+                dynamic_groups = cache_data.get('dynamic_groups', [])
+                cross_tenancy_data = cache_data.get('cross_tenancy_policies', [])
+                defined_aliases = cache_data.get('defined_aliases', [])
+                # Set the data in the policy analysis object
+                policy_analysis.tenancy_name = cache_data.get('tenancy_name', '')
+                policy_analysis.tenancy_ocid = cache_data.get('tenancy_ocid', '')
+                policy_analysis.regular_statements = policies
+                policy_analysis.defined_aliases = defined_aliases
+                policy_analysis.cross_tenancy_statements = cross_tenancy_data
+                # Set the data in the domains analysis object
+                domains_analysis.dynamic_groups = dynamic_groups
+                domains_analysis.identity_domains = [
                     Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                     for d in cache_data.get('identity_domains', [])
                 ]
-                self.groups = cache_data.get('groups', [])
-                self.users = cache_data.get('users', [])
-                for domain in self.identity_domains:
-                    if self.use_instance_principal:
-                        self.domain_clients[domain.id] = IdentityDomainsClient(
-                            config={}, signer=self.signer, service_endpoint=domain.url
-                        )
-                    else:
-                        self.domain_clients[domain.id] = IdentityDomainsClient(
-                            config=self.config, service_endpoint=domain.url
-                        )
-            self.logger.info(f'Loaded data from cache: {cache_file}')
-            return True
-        self.logger.warning(f'Cache file not found: {cache_file}')
-        return False
+                domains_analysis.groups = cache_data.get('groups', [])
+                domains_analysis.users = cache_data.get('users', [])
+                # Set the data as of time
+                policy_analysis.data_as_of = cache_data.get('data_as_of')
+                domains_analysis.data_as_of = cache_data.get('data_as_of')
+                logger.info(f'Loaded combined cache from: {combined_cache_file}')
+                # Show counts of each loaded element
+                logger.info(
+                    f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
+                    f'{len(cross_tenancy_data)} cross-tenancy policies, '
+                    f'{len(domains_analysis.identity_domains)} identity domains, '
+                    f'{len(domains_analysis.groups)} groups, and {len(domains_analysis.users)} users from cache.'
+                )
+                # Return True to indicate successful load
+                return True
+        except json.JSONDecodeError as e:
+            logger.error(f'Error decoding JSON from combined cache file: {e}')
+            return False
+        except Exception as e:
+            logger.error(f'Error loading combined cache file: {e}')
+            return False
+    logger.warning(f'Unable to load data from cache: {combined_cache_file}')
+    return False
+
+
+def get_available_cache(tenancy_name: str | None) -> list[str]:
+    """Get available cache files for a given profile"""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return_entries = []
+    try:
+        with open(CACHE_DIR / 'cache_entries.json', encoding='utf-8') as date_file:
+            entries = date_file.readlines()
+        logger.info(f'Entries found in cache_entries.json: {entries}')
+
+        for entry in entries:
+            cache = json.loads(entry)
+            if tenancy_name and cache['tenancy_name'] != tenancy_name:
+                continue
+            return_entries.append(cache['tenancy_name'] + '\n' + cache['cache_date'])
+    except json.JSONDecodeError:
+        logger.warning('No cache entries found or cache_entries.json is empty.')
+    except FileNotFoundError:
+        logger.warning('cache_entries.json file not found. No cache entries available.')
+
+    logger.info(f'Entries found in cache_entries.json: {return_entries}')
+    return return_entries
 
 
 def main():  # noqa: C901
@@ -1013,7 +1178,9 @@ def main():  # noqa: C901
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     parser.add_argument('--instance-principal', action='store_true', help='Use instance principal authentication')
-    parser.add_argument('--use-cache', action='store_true', help='Load data from cache instead of fetching from OCI')
+    parser.add_argument('--get-caches', help='provide the names of caches', action='store_true')
+    parser.add_argument('--print-all', help='Print all of the policies and DGs to screen', action='store_true')
+    parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
     args = parser.parse_args()
 
@@ -1023,22 +1190,21 @@ def main():  # noqa: C901
         logging.getLogger('oci-policy-compartment-analysis').setLevel(logging.DEBUG)
         logging.getLogger('oci-identity-domains-analysis').setLevel(logging.DEBUG)
 
+    if args.get_caches:  # If get_caches is provided, list available caches
+        available_caches = get_available_cache()
+        if available_caches:
+            logger.info('Available caches:')
+            for cache in available_caches:
+                logger.info(cache)
+        else:
+            logger.info('No caches available.')
+        return
+
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyCompartmentAnalysis(verbose=args.verbose)
     if not policy_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
         logger.error('Failed to initialize PolicyCompartmentAnalysis client')
         return
-
-    # Load policies and compartments
-    if args.use_cache:
-        if not policy_analysis.load_policies_from_cache():
-            logger.error('Failed to load policies from cache')
-            return
-    else:
-        if not policy_analysis.load_policies_and_compartments():
-            logger.error('Failed to load policies and compartments from OCI')
-            return
-        policy_analysis.save_to_cache()
 
     # Initialize IdentityDomainsAnalysis
     domains_analysis = IdentityDomainsAnalysis(verbose=args.verbose)
@@ -1046,71 +1212,96 @@ def main():  # noqa: C901
         logger.error('Failed to initialize IdentityDomainsAnalysis client')
         return
 
-    # Load dynamic groups
+    # Load policies and compartments
     if args.use_cache:
-        if not domains_analysis.load_from_cache():
-            logger.error('Failed to load dynamic groups from cache')
+        if not load_combined_cache(
+            cached_tenancy=policy_analysis.tenancy_name,
+            cached_date=args.use_cache,
+            policy_analysis=policy_analysis,
+            domains_analysis=domains_analysis,
+        ):
+            logger.error('Failed to load combined cache')
             return
     else:
+        if not policy_analysis.load_policies_and_compartments():
+            logger.error('Failed to load policies and compartments from OCI')
+            return
         if not domains_analysis.load_all_dynamic_groups():
             logger.error('Failed to load dynamic groups from OCI')
             return
-        domains_analysis.save_to_cache()
+        if not domains_analysis.load_domains_groups_users():
+            logger.error('Failed to load identity domains, groups, and users from OCI')
+            return
+        save_combined_cache(policy_analysis, domains_analysis)
+        logger.info('Policies and dynamic groups saved successfully from OCI')
 
-    # Set policies in IdentityDomainsAnalysis
-    domains_analysis.set_statements(policy_analysis.regular_statements)
-
-    # Print regular policies
-    logger.info('\nRegular Policies:')
+    # Print tenancy information
+    logger.info(f'Tenancy Name: {policy_analysis.tenancy_name}')
+    logger.info(f'Tenancy OCID: {policy_analysis.tenancy_ocid}')
+    logger.info(f'Data As Of: {policy_analysis.data_as_of}')
     logger.info('-' * 80)
-    for stmt in policy_analysis.regular_statements:
-        logger.info(f'Policy Name: {stmt[0]}')
-        logger.info(f'Statement: {stmt[4]}')
-        logger.info(f'Compartment: {stmt[3]}')
-        logger.info(f'Subject Type: {stmt[6]}')
-        logger.info(f'Subject: {stmt[7]}')
-        logger.info(f'Verb: {stmt[8]}')
-        logger.info(f'Resource: {stmt[9]}')
-        logger.info(f'Permission: {stmt[10]}')
-        logger.info(f'Location Type: {stmt[11]}')
-        logger.info(f'Location: {stmt[12]}')
-        logger.info(f'Condition: {stmt[13]}')
-        logger.info(f'Comment: {stmt[14]}')
-        logger.info(f'Created: {stmt[15]}')
-        logger.info(f'Parsed: {stmt[16]}')
-        logger.info('-' * 80)
 
-    # Print cross-tenancy policies
-    logger.info('\nCross-Tenancy Policies:')
-    logger.info('-' * 80)
-    for stmt in policy_analysis.cross_tenancy_statements:
-        logger.info(f'Policy Name: {stmt[0]}')
-        logger.info(f'Statement: {stmt[1]}')
-        logger.info(f'Created: {stmt[3]}')
-        logger.info(f'Parsed: {stmt[4]}')
-        if not stmt[4]:
+    if args.print_all:
+        # Print regular policies
+        logger.info('\nRegular Policies:')
+        for stmt in policy_analysis.regular_statements:
+            logger.info(f'Policy Name: {stmt.get("policy_name")}')
+            logger.info(f'Statement: {stmt.get("statement_text")}')
+            logger.info(f'Compartment Hierarchy: {stmt.get("compartment_string")}')
+            if stmt.get('parsed'):
+                logger.info(f'Subject Type: {stmt.get("subject_type")}')
+                logger.info(f'Subject: {stmt.get("subject")}')
+                logger.info(f'Verb: {stmt.get("verb")}')
+                logger.info(f'Resource: {stmt.get("resource")}')
+                logger.info(f'Permission: {stmt.get("permission")}')
+                logger.info(f'Location Type: {stmt.get("location_type")}')
+                logger.info(f'Location: {stmt.get("location")}')
+                logger.info(f'Condition: {stmt.get("condition")}')
+                logger.info(f'Comment: {stmt.get("comment")}')
+                logger.info(f'Created: {stmt.get("created")}')
+            else:
+                logger.info('Statement could not be parsed into components')
             logger.info('-' * 80)
-            continue
-        logger.info(f'Statement Type: {stmt[5]}')
-        logger.info(f'Principal: {stmt[6]}')
-        logger.info(f'Of Tenancy: {stmt[7]}')
-        logger.info(f'Action/Resource or Permission: {stmt[8]}')
-        logger.info(f'Location: {stmt[9]}')
-        logger.info(f'Where Clause: {stmt[10]}')
-        logger.info(f'Comment: {stmt[11]}')
-        logger.info('-' * 80)
 
-    # Print dynamic groups
-    logger.info('\nDynamic Groups:')
-    logger.info('-' * 80)
-    for dg in domains_analysis.dynamic_groups:
-        logger.info(f'Domain: {dg[0]}')
-        logger.info(f'Name: {dg[1]}')
-        logger.info(f'Matching Rule: {dg[2]}')
-        logger.info(f'In Use: {dg[3]}')
-        logger.info(f'OCID: {dg[4]}')
-        logger.info(f'Created: {dg[5]}')
+        # Print cross-tenancy policies
+        logger.info('\nCross-Tenancy Policies:')
         logger.info('-' * 80)
+        for stmt in policy_analysis.cross_tenancy_statements:
+            logger.info(f'Policy Name: {stmt[0]}')
+            logger.info(f'Statement: {stmt[1]}')
+            logger.info(f'Created: {stmt[3]}')
+            logger.info(f'Parsed: {stmt[4]}')
+            if not stmt[4]:
+                logger.info('-' * 80)
+                continue
+            logger.info(f'Statement Type: {stmt[5]}')
+            logger.info(f'Principal: {stmt[6]}')
+            logger.info(f'Of Tenancy: {stmt[7]}')
+            logger.info(f'Action/Resource or Permission: {stmt[8]}')
+            logger.info(f'Location: {stmt[9]}')
+            logger.info(f'Where Clause: {stmt[10]}')
+            logger.info(f'Comment: {stmt[11]}')
+            logger.info('-' * 80)
+
+        # Print dynamic groups
+        logger.info('\nDynamic Groups:')
+        logger.info('-' * 80)
+        for dg in domains_analysis.dynamic_groups:
+            logger.info(f'Domain: {dg[0]}')
+            logger.info(f'Name: {dg[1]}')
+            logger.info(f'Matching Rule: {dg[2]}')
+            logger.info(f'In Use: {dg[3]}')
+            logger.info(f'OCID: {dg[4]}')
+            logger.info(f'Created: {dg[5]}')
+            logger.info('-' * 80)
+    else:
+        # Print summary counts
+        logger.info(f'Total Regular Policies: {len(policy_analysis.regular_statements)}')
+        logger.info(f'Total Cross-Tenancy Policies: {len(policy_analysis.cross_tenancy_statements)}')
+        logger.info(f'Total Dynamic Groups: {len(domains_analysis.dynamic_groups)}')
+        logger.info(f'Total Identity Domains: {len(domains_analysis.identity_domains)}')
+        logger.info(f'Total Groups: {len(domains_analysis.groups)}')
+        logger.info(f'Total Users: {len(domains_analysis.users)}')
 
 
 if __name__ == '__main__':
