@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+
+## [1.3.0-rc.12](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.11...v1.3.0-rc.12) (2025-08-01)
+
+
+### Features
+
+* New features and layout ([6e8ff48](https://github.com/agregory999/oci-policy-analysis/commit/6e8ff480f5b0b19e2ce16ef72a910cb7e8450eef))
+
 ## [Unreleased]
 
 ### Features
