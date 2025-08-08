@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.3.0-rc.14](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.13...v1.3.0-rc.14) (2025-08-08)
+
+
+### Features
+
+* Console, User Analysis, packed window ([7d5d827](https://github.com/agregory999/oci-policy-analysis/commit/7d5d827d066a060dc6474eb0ec77eece41fabc80))
+
 ## [1.3.0-rc.13](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0-rc.12...v1.3.0-rc.13) (2025-08-01)
 
 
