@@ -6,9 +6,11 @@ authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.11"
 dependencies = [
     "oci>=2.28.0",
-    "tksheet>=7.0.3",
+    "tksheet>=7.5.12",
     "ttkbootstrap>=1.10.1",
     "pyinstaller>=6.1.0",
+    "psutil>=7.0.0,
+    deepdiff>=8.5.0
 ]
 classifiers = [
     "Programming Language :: Python :: 3.11",
