@@ -170,7 +170,7 @@ jobs:
                         --add-data src/oci_policy_dg_viewer/core.py:. \
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
                         src/oci_policy_dg_viewer/viewer.py
-          elif [ "${{ matrix.os }}" = "windows" ]; then
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --name oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }} \
                         --icon 'icons/oci-policy-dg-viewer.ico' \
                         --onefile \
@@ -182,7 +182,7 @@ jobs:
                         src/oci_policy_dg_viewer/viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }} \
-                        --icon ${{ matrix.os == 'windows-latest' && 'icons/oci-policy-dg-viewer.ico' || 'icons/oci-policy-dg-viewer.png' }} \
+                        --icon 'icons/oci-policy-dg-viewer.png' }} \
                         --onefile \
                         --clean \
                         --noconfirm \
