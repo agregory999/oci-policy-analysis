@@ -359,6 +359,24 @@ class PolicyCompartmentAnalysis:
                         str(policy.time_created),
                         True,  # Currently for parsed
                     ]
+
+                    # Additional Subject Parsing
+                    if statement_list[6] in ['any-user', 'any-group']:
+                        statement_list[7] = [(None, statement_list[6])]
+                    else:
+                        # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
+                        # Try new subject parser
+                        subject_result = self.parse_subjects(statement_list[7])
+                        self.logger.debug(f'Subject parsed: {subject_result}')
+                        # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
+                        statement_list[7] = subject_result
+
+                    # Additional check for Location Validity
+                    if statement_list[11].casefold() == 'compartment id':
+                        # Check and change validity accordingly
+                        statement_list[5] = self.check_invalid_location(statement_list[12])
+                        logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
+
                     statement_dict = {
                         'policy_name': statement_list[0],
                         'policy_id': statement_list[1],
@@ -379,26 +397,10 @@ class PolicyCompartmentAnalysis:
                         'parsed': statement_list[16],
                     }
 
-                    # Additional Subject Parsing
-                    if statement_list[6] in ['any-user', 'any-group']:
-                        statement_list[7] = [(None, statement_list[6])]
-                    else:
-                        # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
-                        # Try new subject parser
-                        subject_result = self.parse_subjects(statement_list[7])
-                        self.logger.debug(f'Subject parsed: {subject_result}')
-                        # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
-                        statement_list[7] = subject_result
-
-                    # Additional check for Location Validity
-                    if statement_list[11].casefold() == 'compartment id':
-                        # Check and change validity accordingly
-                        statement_list[5] = self.check_invalid_location(statement_list[12])
-                        logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
-
                     # For Location, use compartment hierarchy and relative
                     # Store regular statements
                     # self.regular_statements.append(statement_list)
+                    logging.info(f'Parsed Statement as JSON: {statement_dict}')
                     self.regular_statements.append(statement_dict)
 
                     # Success
@@ -521,52 +523,52 @@ class PolicyCompartmentAnalysis:
         comp = self.get_compartment_by_id(compartment_id)
         return comp['hierarchy_ocids'] if comp else []
 
-    def get_user_group_statements(
-        self, user_id: str, compartment_id: str = '', user_group_names: list = None, user_domain_name: str = ''
-    ) -> list:
-        try:
-            self.logger.info(f'Found {len(user_group_names)} groups for user {user_id}')
+    # def get_user_group_statements(
+    #     self, user_id: str, compartment_id: str = '', user_group_names: list = None, user_domain_name: str = ''
+    # ) -> list:
+    #     try:
+    #         self.logger.info(f'Found {len(user_group_names)} groups for user {user_id}')
 
-            filtered_statements = []
-            target_compartment_ocids = (
-                self.get_hierarchy_ocids(compartment_id)
-                if compartment_id != 'All Compartments'
-                else [c['id'] for c in self.compartments]
-            )
-            for statement in self.regular_statements:
-                if statement[6] == 'group':
-                    # get the tuples - enumerate list
-                    for i, (subj_domain, subj_name) in enumerate(statement[7]):
-                        for group_name in user_group_names:
-                            self.logger.debug(
-                                f'User Group {i}:{user_domain_name}/{group_name} in request against tuple ({subj_domain}/{subj_name}) in Policy'
-                            )
-                            # if (subj_domain is None or subj_domain == "Default") and subj_name == group_name:
-                            # Need to compare domain name and subject
-                            if (
-                                user_domain_name.casefold() == subj_domain.casefold()
-                                and subj_name.casefold() == group_name.casefold()
-                            ):
-                                if not compartment_id or statement[2] in target_compartment_ocids:
-                                    filtered_statements.append(statement)
-                                    self.logger.debug(
-                                        f'Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}'
-                                    )
+    #         filtered_statements = []
+    #         target_compartment_ocids = (
+    #             self.get_hierarchy_ocids(compartment_id)
+    #             if compartment_id != 'All Compartments'
+    #             else [c['id'] for c in self.compartments]
+    #         )
+    #         for statement in self.regular_statements:
+    #             if statement[6] == 'group':
+    #                 # get the tuples - enumerate list
+    #                 for i, (subj_domain, subj_name) in enumerate(statement[7]):
+    #                     for group_name in user_group_names:
+    #                         self.logger.debug(
+    #                             f'User Group {i}:{user_domain_name}/{group_name} in request against tuple ({subj_domain}/{subj_name}) in Policy'
+    #                         )
+    #                         # if (subj_domain is None or subj_domain == "Default") and subj_name == group_name:
+    #                         # Need to compare domain name and subject
+    #                         if (
+    #                             user_domain_name.casefold() == subj_domain.casefold()
+    #                             and subj_name.casefold() == group_name.casefold()
+    #                         ):
+    #                             if not compartment_id or statement[2] in target_compartment_ocids:
+    #                                 filtered_statements.append(statement)
+    #                                 self.logger.debug(
+    #                                     f'Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}'
+    #                                 )
 
-                                    # Check now for compartment, if defined
-                                    # Turns out this is complex - the location portion of a policy statement should also contain the actual OCID
-                                    # of the referenced compartment, which needs to be determined based on the policy location in hierarchy +
-                                    # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
-                                    # and then referenced
-                                    self.logger.debug(
-                                        f'Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}'
-                                    )
-                                break
-            self.logger.info(f'Found {len(filtered_statements)} policy statements for user {user_id}')
-            return filtered_statements
-        except Exception as e:
-            self.logger.error(f'Failed to get user group statements: {e}')
-            return []
+    #                                 # Check now for compartment, if defined
+    #                                 # Turns out this is complex - the location portion of a policy statement should also contain the actual OCID
+    #                                 # of the referenced compartment, which needs to be determined based on the policy location in hierarchy +
+    #                                 # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
+    #                                 # and then referenced
+    #                                 self.logger.debug(
+    #                                     f'Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}'
+    #                                 )
+    #                             break
+    #         self.logger.info(f'Found {len(filtered_statements)} policy statements for user {user_id}')
+    #         return filtered_statements
+    #     except Exception as e:
+    #         self.logger.error(f'Failed to get user group statements: {e}')
+    #         return []
 
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
         # Iterate cross-tenant policies
@@ -610,6 +612,9 @@ class PolicyCompartmentAnalysis:
         policy_terms = (
             [term.strip().lower() for term in policy_filter.split('|') if term.strip()] if policy_filter else []
         )
+        self.logger.info(
+            f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}'
+        )
 
         self.logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
         for st in self.regular_statements:
@@ -618,11 +623,15 @@ class PolicyCompartmentAnalysis:
             matches_resource = not resource_terms or any(
                 term in str(st.get('resource')).lower() for term in resource_terms
             )
-            matches_location = not location_terms or any(
-                term in str(st.get('location')).lower() for term in location_terms
+            matches_location = (
+                not location_terms
+                or any(term in str(st.get('location')).lower() for term in location_terms)
+                or (st.get('location_type') == 'tenancy' and location_terms[0] == 'tenancy')
             )
-            matches_hierarchy = not hierarchy_terms or any(
-                term in str(st.get('compartment_string')).lower() for term in hierarchy_terms
+            matches_hierarchy = (
+                not hierarchy_terms
+                or any(term in str(st.get('compartment_string')).lower() for term in hierarchy_terms)
+                or (st.get('compartment_string') == 'ROOT' and hierarchy_terms[0] == 'root')
             )
             matches_condition = not condition_terms or any(
                 term in str(st.get('condition')).lower().replace(' ', '') for term in condition_terms
@@ -791,8 +800,8 @@ class IdentityDomainsAnalysis:
         self.use_instance_principal = False
         self.dynamic_groups = []
         self.identity_domains = []
-        self.groups = []
-        self.users = []
+        self.groups = {}
+        self.users = {}
         self.domain_clients = {}
         self.policies = []
         self.data_as_of = ''
@@ -908,45 +917,22 @@ class IdentityDomainsAnalysis:
         self.logger.info(f'Filtered to {len(filtered)} dynamic groups')
         return filtered
 
-    def get_user_groups(self, domain_id: str, user_id: str) -> list[str]:
-        # If either domain_id or user_id is None, then return an empty list
-        if not domain_id or not user_id or user_id == 'None':
-            self.logger.info(
-                f'Domain {domain_id} or User {user_id} is None. Cannot load groups until a domain and user are selected.'
-            )
-            return []
-
-        domain_client = self.get_domain_client(domain_id)
-        group_names = []
-        if not domain_client:
-            self.logger.debug(f'No client for domain {domain_id}. Cannot load groups until a domain is selected.')
-            return []
-        try:
-            response = domain_client.get_user(user_id=user_id, attribute_sets=['all'])
-            if response and response.data:
-                group_names = [g.display for g in getattr(response.data, 'groups', [])]
-                self.logger.debug(f'Found {len(group_names)} groups for user {user_id} in domain {domain_id}')
-                return group_names
-        except Exception as e:
-            self.logger.error(f'Failed to list users for groups in domain {domain_id}: {e}')
-            return []
-        # Catch all - should not get here
-        return group_names
-
     def load_domains_groups_users(self) -> bool:  # noqa: C901
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
             if domain_response.data is None:  # type: ignore
                 self.logger.error('Failed to list identity domains')
                 return False
+            # Should we really keep the full thing?
             self.identity_domains = domain_response.data
             self.logger.info(f'Loaded {len(self.identity_domains)} identity domains')
 
             self.domain_clients = {}
-            self.groups = []
-            self.users = []
+            # self.groups = []
+            # self.users = []
             for domain in self.identity_domains:
                 try:
+                    # Get IdentityDomainsClient and hold on to it
                     if self.use_instance_principal:
                         domain_client = IdentityDomainsClient(
                             config={}, signer=self.signer, service_endpoint=domain.url
@@ -954,7 +940,7 @@ class IdentityDomainsAnalysis:
                     else:
                         domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
                     self.domain_clients[domain.id] = domain_client
-
+                    # Load Groups
                     start_index = 1
                     limit = 1000
                     while True:
@@ -963,46 +949,66 @@ class IdentityDomainsAnalysis:
                         )
                         if group_response.data is None or not group_response.data.resources:
                             break
-                        self.groups.extend(
-                            [
-                                {'domain_id': domain.id, 'id': g.id, 'display_name': g.display_name}
-                                for g in group_response.data.resources
-                            ]
-                        )
+                        for g in group_response.data.resources:
+                            logging.debug(f'Group: {g}')
+
+                            # Set the group into the bigger picture JSON
+                            self.groups[g.ocid] = {'domain_id': domain.id, 'id': g.id, 'display_name': g.display_name}
+                        # Logic to re-start new request
                         if (
                             len(group_response.data.resources) < limit
                             or start_index + limit > group_response.data.total_results
                         ):
                             break
                         start_index += limit
+                    logging.debug(f'All Groups: {self.groups}')
 
+                    # Load Users
                     start_index = 1
                     while True:
                         user_response = domain_client.list_users(
-                            start_index=start_index, count=limit, sort_by='displayName', sort_order='ASCENDING'
+                            start_index=start_index,
+                            count=limit,
+                            sort_by='displayName',
+                            sort_order='ASCENDING',
+                            attribute_sets=['all'],
                         )
                         if user_response.data is None or not user_response.data.resources:
                             break
-                        self.users.extend(
-                            [
-                                {'domain_id': domain.id, 'id': u.id, 'display_name': u.display_name}
-                                for u in user_response.data.resources
-                            ]
-                        )
+                        for u in user_response.data.resources:
+                            logging.debug(f'User: {u}')
+                            if not u.groups:
+                                logging.debug(f'No groups for user {u.display_name}')
+                                continue
+                            group_list = []
+                            for gg in u.groups:
+                                group_list.append(gg.ocid)
+                            # Set the user into the bigger picture JSON
+                            self.users[u.ocid] = {
+                                'domain': domain.display_name,
+                                'id': u.id,
+                                'name': u.display_name,
+                                'groups': group_list,
+                            }
+                            # Loop groups
+                        # Loop Logic
                         if (
                             len(user_response.data.resources) < limit
                             or start_index + limit > user_response.data.total_results
                         ):
                             break
                         start_index += limit
+                    logging.debug(f'All Users: {self.users}')
+
                 except Exception as e:
                     self.logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
-                    continue
+                    raise
             self.logger.info(f'Loaded {len(self.groups)} groups and {len(self.users)} users across all domains')
             return True
         except Exception as e:
             self.logger.error(f'Failed to load identity domains: {e}')
-            return False
+            # return False
+            raise
 
     def get_domain_client(self, domain_id: str) -> IdentityDomainsClient:
         return self.domain_clients.get(domain_id)  # type: ignore
@@ -1018,49 +1024,6 @@ class IdentityDomainsAnalysis:
 
     def get_users_by_domain(self, domain_id: str) -> list:
         return [u for u in self.users if u['domain_id'] == domain_id]
-
-    # def save_to_cache(self):
-    #     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    #     cache_file = CACHE_DIR / f'oci_identity_domains_{self.tenancy_name}_{CACHE_DATE}.json'
-    #     cache_data = {
-    #         'dynamic_groups': self.dynamic_groups,
-    #         'identity_domains': [
-    #             {'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains
-    #         ],
-    #         'groups': self.groups,
-    #         'users': self.users,
-    #         'data_as_of': self.data_as_of,
-    #     }
-    #     with open(cache_file, 'w', encoding='utf-8') as filehandle:
-    #         json.dump(cache_data, filehandle, ensure_ascii=False)
-    #     self.logger.info(f'Saved data to cache: {cache_file}')
-
-    # def load_from_cache(self, cached_tenancy:str, cached_date:str) -> bool:
-    #     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    #     cache_file = CACHE_DIR / f'oci_identity_domains_{cached_tenancy}_{cached_date}.json'
-    #     if cache_file.exists():
-    #         with open(cache_file, encoding='utf-8') as filehandle:
-    #             cache_data = json.load(filehandle)
-    #             self.dynamic_groups = cache_data.get('dynamic_groups', [])
-    #             self.identity_domains = [
-    #                 Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
-    #                 for d in cache_data.get('identity_domains', [])
-    #             ]
-    #             self.groups = cache_data.get('groups', [])
-    #             self.users = cache_data.get('users', [])
-    #             for domain in self.identity_domains:
-    #                 if self.use_instance_principal:
-    #                     self.domain_clients[domain.id] = IdentityDomainsClient(
-    #                         config={}, signer=self.signer, service_endpoint=domain.url
-    #                     )
-    #                 else:
-    #                     self.domain_clients[domain.id] = IdentityDomainsClient(
-    #                         config=self.config, service_endpoint=domain.url
-    #                     )
-    #         self.logger.info(f'Loaded data from cache: {cache_file}')
-    #         return True
-    #     self.logger.warning(f'Cache file not found: {cache_file}')
-    #     return False
 
 
 # Utility functions for loading and saving cache, using combined caching strategy
@@ -1125,8 +1088,8 @@ def load_combined_cache(
                     Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                     for d in cache_data.get('identity_domains', [])
                 ]
-                domains_analysis.groups = cache_data.get('groups', [])
-                domains_analysis.users = cache_data.get('users', [])
+                domains_analysis.groups = cache_data.get('groups', {})
+                domains_analysis.users = cache_data.get('users', {})
                 # Set the data as of time
                 policy_analysis.data_as_of = cache_data.get('data_as_of')
                 domains_analysis.data_as_of = cache_data.get('data_as_of')

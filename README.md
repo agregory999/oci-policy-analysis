@@ -6,10 +6,11 @@ The **OCI Policy and Dynamic Group Viewer** is a graphical desktop application b
 - **Policy Analysis**: View and filter IAM policy statements across compartments, with details like subject, verb, resource, and conditions.
 - **Dynamic Group Analysis**: Display dynamic groups, their matching rules, and check for unused groups.
 - **User Analysis**: Filter policy statements applicable to a user based on their group memberships, with compartment filtering.
-- **Advanced Analysis**: Placeholder for principal-based analysis (e.g., Instance Principal, Resource Principal).
+- **Principal Analysis**: Placeholder for principal-based analysis (e.g., Resource Principal).
 - **Caching**: Save and load data to/from a local cache for faster access.
 - **Export**: Export filtered data to CSV for further analysis.
 - **Cross-Platform**: Runs on Windows and Linux with a user-friendly GUI.
+- **Cache History and Comparison**: Ability to compare cached tenancy policies from history to today
 
 The application supports both Instance Principal authentication (for OCI compute instances) and OCI configuration file-based authentication (using named profiles).
 
@@ -159,7 +160,7 @@ pip install oci ttkbootstrap tksheet
 ```
 If you encounter permission errors on Linux, use a user install.  Note that for virtual environments, this is unlikely to happen to you.  It can happen for the machine-based python installation, if you are not an administrator:
 ```bash
-pip install --user oci ttkbootstrap tksheet
+pip install --user oci ttkbootstrap tksheet deepdiff build
 ```
 
 ### Ensure TKInter 
@@ -171,6 +172,12 @@ prompt: repo dir> python -m tkinter
 ```
 
 If you get the popup, close it and proceed.  If not, refer to the TKInter documentation to get it running on your platform.
+
+### Build the app
+The app should be built with 
+```bash
+prompt:  python -m build
+```
 
 ## Run the Application with UI
 
