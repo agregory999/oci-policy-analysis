@@ -166,8 +166,8 @@ jobs:
                         --clean \
                         --noconfirm \
                         --hidden-import=deepdiff \
-                        --add-data src\oci_policy_dg_viewer\_version.py:. \
-                        --add-data src\oci_policy_dg_viewer\core.py:. \
+                        --add-data src/oci_policy_dg_viewer/_version.py:. \
+                        --add-data src/oci_policy_dg_viewer/core.py:. \
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
                         src/oci_policy_dg_viewer/viewer.py
           elif [ "${{ matrix.os }}" = "windows" ]; then
@@ -177,8 +177,8 @@ jobs:
                         --clean \
                         --noconfirm \
                         --hidden-import=deepdiff \
-                        --add-data src\oci_policy_dg_viewer\_version.py;. \
-                        --add-data src\oci_policy_dg_viewer\core.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\_version.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\core.py;. \
                         src/oci_policy_dg_viewer/viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }} \
@@ -187,8 +187,8 @@ jobs:
                         --clean \
                         --noconfirm \
                         --hidden-import=deepdiff \
-                        --add-data src\oci_policy_dg_viewer\_version.py;. \
-                        --add-data src\oci_policy_dg_viewer\core.py;. \
+                        --add-data src/oci_policy_dg_viewer/_version.py:. \
+                        --add-data src/oci_policy_dg_viewer/core.py:. \
                         src/oci_policy_dg_viewer/viewer.py
           fi
 
