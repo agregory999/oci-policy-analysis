@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+      - develop
       - feature/tkinter-enhanced
   pull_request:
     branches:
       - main
+      - develop
   workflow_dispatch:
 
 permissions:
@@ -18,7 +20,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && !contains(github.event.head_commit.message, '[skip ci]')
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,17 +46,23 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install semantic release NPM dependencies
         run: |
-          npm install -g semantic-release@22
-          npm install -g @semantic-release/changelog@6
-          npm install -g @semantic-release/git@10
-          npm install -g @semantic-release/github@9
-          npm install -g @semantic-release/exec@6
-          npm install -g conventional-changelog-conventionalcommits@7
-
-      - name: Create src/oci_policy_dg_viewer directory
-        run: mkdir -p src/oci_policy_dg_viewer
+          npm install -g \
+            semantic-release@22 \
+            @semantic-release/changelog@6 \
+            @semantic-release/git@10 \
+            @semantic-release/github@9 \
+            @semantic-release/exec@6 \
+            conventional-changelog-conventionalcommits@7
 
       - name: Initialize CHANGELOG.md
         run: |
@@ -79,13 +90,16 @@ jobs:
         run: |
           VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Upload versioned pyproject.toml
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyproject-toml
-          path: pyproject.toml
-          retention-days: 30
+      - name: Check if prerelease
+        id: check_prerelease
+        run: |
+          if [[ "${{ env.VERSION }}" == *"-rc."* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
   build:
     needs: release
@@ -117,7 +131,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build setuptools>=61.0 wheel setuptools_scm>=8
+          pip install build setuptools>=61.0 wheel setuptools_scm>=8 pyinstaller>=6.1.0
 
       - name: Get version
         id: get_version
@@ -126,7 +140,6 @@ jobs:
           VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
         if: matrix.os != 'windows-latest'
-
 
       - name: Get version (Windows)
         id: get_version_windows
@@ -138,66 +151,52 @@ jobs:
 
       - name: Build package
         env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ env.VERSION }}
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
         run: |
           python -m build
           pip install -e .
-
-      - name: Install PyInstaller
-        run: pip install pyinstaller>=6.1.0
 
       - name: Build executable
         shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            pyinstaller --name oci-policy-dg-viewer-macos-${{ env.VERSION }} \
+            pyinstaller --name oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }} \
                         --icon icons/oci-policy-dg-viewer.icns \
                         --windowed \
                         --clean \
                         --noconfirm \
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
-                        src/oci_policy_dg_viewer.py
+                        src/oci_policy_dg_viewer/viewer.py
           else
-            pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}-${{ env.VERSION }} \
+            pyinstaller --name oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || 'windows' }}-${{ needs.release.outputs.version }} \
                         --icon ${{ matrix.os == 'windows-latest' && 'icons/oci-policy-dg-viewer.ico' || 'icons/oci-policy-dg-viewer.png' }} \
                         --onefile \
                         --clean \
                         --noconfirm \
-                        src/oci_policy_dg_viewer.py
+                        src/oci_policy_dg_viewer/viewer.py
           fi
 
       - name: Archive macOS executable
         if: matrix.os == 'macos-latest'
         run: |
-          tar -C dist -czf dist/oci-policy-dg-viewer-macos-${{ env.VERSION }}.app.tar.gz oci-policy-dg-viewer-macos-${{ env.VERSION }}.app
+          tar -C dist -czf dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-${{ env.VERSION }}
+          name: oci-policy-dg-viewer-${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'macos' || 'windows' }}-${{ needs.release.outputs.version }}
           path: |
-            dist/oci-policy-dg-viewer-${{ matrix.os == 'macos-latest' && 'macos-' || matrix.os == 'ubuntu-latest' && 'linux-' || 'windows-' }}${{ env.VERSION }}${{ matrix.os == 'macos-latest' && '.app.tar.gz' || matrix.os == 'windows-latest' && '.exe' || '' }}
+            dist/oci-policy-dg-viewer-${{ matrix.os == 'macos-latest' && 'macos-' || matrix.os == 'ubuntu-latest' && 'linux-' || 'windows-' }}${{ needs.release.outputs.version }}${{ matrix.os == 'macos-latest' && '.app.tar.gz' || matrix.os == 'windows-latest' && '.exe' || '' }}
           retention-days: 30
 
   collect-artifacts:
-    needs: build
+    needs: [release, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Get version
-        id: get_version
-        run: |
-          VERSION=$(python -c "import subprocess; tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).decode().strip(); print(tag.lstrip('v'))")
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -206,15 +205,20 @@ jobs:
           pattern: oci-policy-dg-viewer-*
           merge-multiple: true
 
+      - name: Show Artifacts
+        run: |
+          echo "Artifacts in dist directory:"
+          ls -lR
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: v${{ needs.release.outputs.version }}
           files: |
-            dist/oci-policy-dg-viewer-linux-${{ env.VERSION }}
-            dist/oci-policy-dg-viewer-macos-${{ env.VERSION }}.app.tar.gz
-            dist/oci-policy-dg-viewer-windows-${{ env.VERSION }}.exe
+            dist/oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }}
+            dist/oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }}.app.tar.gz
+            dist/oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }}.exe
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.release.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
