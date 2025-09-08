@@ -33,7 +33,7 @@ jobs:
       - name: Pack Flet app for ${{ matrix.os }}
         working-directory: src/oci_policy_dg_viewer/flet_ui
         run: |
-          flet pack main.py --name oci_policy_dg_viewer_flet --distpath dist/${{ matrix.os }} --product-name "OCI Policy DG Viewer" --product-version "1.0.0" --company-name "Your Company" --copyright "Copyright (c) 2025 Your Company" --icon icon.png
+          flet pack main.py --name oci_policy_dg_viewer_flet --distpath dist/${{ matrix.os }} --product-name "OCI Policy DG Viewer" --product-version "1.0.0" --company-name "Your Company" --copyright "Copyright (c) 2025 Your Company"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
