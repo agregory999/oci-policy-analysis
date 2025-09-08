@@ -1,4 +1,4 @@
-name: Build and Release OCI Policy DG Viewer
+name: Build and Release OCI Policy DG Viewer v1
 
 on:
   push:
