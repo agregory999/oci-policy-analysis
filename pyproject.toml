@@ -6,9 +6,12 @@ authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.11"
 dependencies = [
     "oci>=2.28.0",
-    "tksheet>=7.0.3",
-    "ttkbootstrap>=1.10.1",
+    "ttkbootstrap>=1.14.2",
     "pyinstaller>=6.1.0",
+    "psutil>=7.0.0",
+    "deepdiff>=8.6.1",
+    "markdown>=3.9",
+    "tkhtmlview>=0.3.1"
 ]
 
 [build-system]
@@ -20,7 +23,7 @@ write_to = "src/oci_policy_dg_viewer/_version.py"
 
 [tool.ruff]
 line-length = 120
-target-version = "1.2.3"
+target-version = "py311"
 exclude = [
     ".git",
     "__pycache__",
