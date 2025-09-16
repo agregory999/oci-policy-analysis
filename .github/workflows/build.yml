@@ -180,15 +180,15 @@ jobs:
                         --clean \
                         --noconfirm \
                         --hidden-import=deepdiff \
-                        --add-data src\\oci_policy_dg_viewer\\_version.py;. \
-                        --add-data src\\oci_policy_dg_viewer\\core.py;. \
-                        --add-data src\\oci_policy_dg_viewer\\ai.py;. \
-                        --add-data src\\oci_policy_dg_viewer\\formatting.py;. \
-                        --add-data src\\oci_policy_dg_viewer\\data_table.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\_version.py:. \
+                        --add-data src\\oci_policy_dg_viewer\\core.py:. \
+                        --add-data src\\oci_policy_dg_viewer\\ai.py:. \
+                        --add-data src\\oci_policy_dg_viewer\\formatting.py:. \
+                        --add-data src\\oci_policy_dg_viewer\\data_table.py:. \
                         src/oci_policy_dg_viewer/viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }} \
-                        --icon 'icons/oci-policy-dg-viewer.png' }} \
+                        --icon 'icons/oci-policy-dg-viewer.png' \
                         --onefile \
                         --clean \
                         --noconfirm \
