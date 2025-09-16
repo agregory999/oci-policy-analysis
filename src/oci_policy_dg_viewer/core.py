@@ -38,7 +38,7 @@ from oci.loggingsearch.models import SearchLogsDetails
 
 # Constants
 THREADS = 9
-POLICY_REGEX = r"""allow\s+ # Start with allow
+POLICY_REGEX = r"""^\s*allow\s+ # Start with allow (and whitespace at front)
     (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
     (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
     ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
@@ -47,7 +47,8 @@ POLICY_REGEX = r"""allow\s+ # Start with allow
     (?P<condition>.+))? # Condition (optional)
     (?:(?P<optional>\s*\/\/.+))?$ # Comment (optional)
 """
-policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
+# Case insensitive, allow \n in capture
+policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE | re.DOTALL)
 
 OCID_REGEX = r'ocid1\.\w+\.\w+\.\w*\.\w+'
 
@@ -104,14 +105,14 @@ class PolicyCompartmentAnalysis:
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.regular_statements = []
         self.cross_tenancy_statements = []
-        self.defined_aliases = {}  # Store define statements: {alias: (definetype, ocid)}
+        self.defined_aliases = []  # Store define statements as list of dict
 
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
         self.logger.info('Initialized PolicyCompartmentAnalysis')
 
-    def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
+    def initialize_client(self, use_instance_principal: bool, recursive: bool = True, profile: str = 'DEFAULT') -> bool:
         try:
             if use_instance_principal:
                 self.logger.debug('Using Instance Principal Authentication')
@@ -126,6 +127,10 @@ class PolicyCompartmentAnalysis:
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
             self.logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+
+            # Set Recursion
+            self.recursive = recursive
+            self.logger.debug(f'Set recursive to: {self.recursive}')
 
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
@@ -230,116 +235,157 @@ class PolicyCompartmentAnalysis:
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
         self.logger.debug(f'Checking to see if Cross-tenancy: {statement}')
 
-        if statement.startswith('define'):
+        # Define case
+        if comp_id == self.tenancy_ocid and statement.startswith('define'):
             # Parse Define
             try:
                 # result = re.search(CROSS_TENANCY_DEFINE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
                 result = define_regex.match(statement).groupdict()
-                self.logger.debug(f'Result admit: {result}')
+                self.logger.debug(f'Result Define: {result}')
                 if result.get('alias') and result.get('principal'):
-                    logger.debug(
+                    logger.info(
                         f"Adding to Defined Aliases - Name: {result.get('principal')}, Type: {result.get('define_type')}, OCID: {result.get('alias')}"
                     )
-                    self.defined_aliases[result.get('principal')] = (result.get('define_type'), result.get('alias'))
+                    define_dict = {
+                        'Defined Type': result.get('define_type'),
+                        'Defined Name': result.get('principal'),
+                        'OCID Alias': result.get('alias'),
+                    }
+                    self.defined_aliases.append(define_dict)
+
+                    # [result.get('Defined Name')] = (result.get('Defined Type'), result.get('OCID Alias'))
                     return True
             except Exception as e:
                 self.logger.warning(f'Failed to parse define: {e}')
                 return False
 
-        elif statement.startswith('admit'):
-            try:
-                # Parse Admit
-                # result = re.match(CROSS_TENANCY_ADMIT_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-                match_result = admit_regex.match(statement)
-                if not match_result or not match_result.groupdict():
-                    logger.debug(f'Admit Statement did not parse: {statement}')
-                    statement_list = [
-                        policy.name,
-                        statement,  # 0,1
-                        policy.id,
-                        str(policy.time_created),
-                        False,  # Advanced Parsing available
-                    ]
-                    self.logger.debug(f'Cross-tenancy admit statement added but not parsed: {statement_list}')
-                    self.cross_tenancy_statements.append(statement_list)
-                    return False
-                # It did parse ok
-                result = match_result.groupdict()
-                statement_list = [
-                    policy.name,
-                    statement,  # 0,1
-                    policy.id,  # 2
-                    str(policy.time_created),  # 3
-                    True,
-                    result.get('statement_type'),  # 2
-                    result.get('principal'),  # 3 (subj)
-                    result.get('of_tenancy'),  # 3 (of tenancy)
-                    f"{result.get('action')} {result.get('resources')}"
-                    if result.get('action')
-                    else result.get('permission'),  # action resource or permission = 4
-                    result.get('location'),  # 5
-                    result.get('where_clause') or '',  # 6
-                    result.get('comment') or '',  # 7
-                ]
-                self.logger.debug(f'Cross-tenancy admit statement added: {statement_list}')
-                self.cross_tenancy_statements.append(statement_list)
-                return True
-            except Exception as e:
-                self.logger.warning(f'Failed to parse admit: {e}')
-                return False
+        # Admit/endorse case (not parsing at the moment)
+        elif comp_id == self.tenancy_ocid and (statement.startswith('admit') or statement.startswith('endorse')):
+            # TODO: parse these properly - for now, just store them
+            statement_dict = {
+                'Policy Name': policy.name,
+                'Policy OCID': policy.id,
+                'Statement Text': statement,
+                'Creation Time': str(policy.time_created),
+            }
+            self.cross_tenancy_statements.append(statement_dict)
+            return True
+            # # Parse Admit
+            # # result = re.match(CROSS_TENANCY_ADMIT_REGEX, statement, re.IGNORECASE | re.MULTILINE)
+            # try:
+            #     match_result = admit_regex.match(statement)
+            #     if not match_result or not match_result.groupdict():
+            #         logger.debug(f'Admit Statement did not parse: {statement}')
+            #         statement_list = [
+            #             policy.name,
+            #             statement,  # 0,1
+            #             policy.id,
+            #             str(policy.time_created),
+            #             False,  # Advanced Parsing available
+            #         ]
+            #         self.logger.debug(f'Cross-tenancy admit statement added but not parsed: {statement_list}')
+            #         self.cross_tenancy_statements.append(statement_list)
+            #         return False
+            #     # It did parse ok
+            #     result = match_result.groupdict()
+            #     statement_list = [
+            #         policy.name,
+            #         statement,  # 0,1
+            #         policy.id,  # 2
+            #         str(policy.time_created),  # 3
+            #         True,
+            #         result.get('statement_type'),  # 2
+            #         result.get('principal'),  # 3 (subj)
+            #         result.get('of_tenancy'),  # 3 (of tenancy)
+            #         f"{result.get('action')} {result.get('resources')}"
+            #         if result.get('action')
+            #         else result.get('permission'),  # action resource or permission = 4
+            #         result.get('location'),  # 5
+            #         result.get('where_clause') or '',  # 6
+            #         result.get('comment') or '',  # 7
+            #     ]
+            #     self.logger.debug(f'Cross-tenancy admit statement added: {statement_list}')
+            #     self.cross_tenancy_statements.append(statement_list)
+            #     return True
+            # except Exception as e:
+            #     self.logger.warning(f'Failed to parse admit: {e}')
+            #     return False
 
-        elif statement.startswith('endorse'):
-            try:
-                # Parse Endorse
-                # result = re.match(CROSS_TENANCY_ENDORSE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-                match_result = endorse_regex.match(statement)
-                if not match_result or not match_result.groupdict():
-                    logger.debug(f'Statement did not parse: {statement}')
-                    statement_list = [
-                        policy.name,
-                        statement,  # 0,1
-                        policy.id,
-                        str(policy.time_created),
-                        False,  # Advanced Parsing available
-                    ]
-                    self.logger.debug(f'Cross-tenancy endorse statement added but not parsed: {statement_list}')
-                    self.cross_tenancy_statements.append(statement_list)
-                    return False
-                # It did parse
-                result = match_result.groupdict()
-                statement_list = [
-                    policy.name,
-                    statement,  # 0,1
-                    policy.id,  # 2
-                    str(policy.time_created),  # 3
-                    True,  # Parsed, 4
-                    result.get('statement_type'),  # 5
-                    result.get('principal'),  # 6 (subj)
-                    result.get('of_tenancy'),  # 7 (of tenancy)
-                    f"{result.get('action')} {result.get('resources')}"
-                    if result.get('action')
-                    else result.get('permission'),  # action resource or permission = 8
-                    result.get('location'),  # 9
-                    result.get('where_clause') or '',  # 10
-                    result.get('comment') or '',  # 11
-                ]
-                self.logger.debug(f'Cross-tenancy endorse statement added: {statement_list}')
-                self.cross_tenancy_statements.append(statement_list)
-                return True
-            except Exception as e:
-                self.logger.warning(f'Failed to parse endorse: {e}')
-                return False
+        # elif statement.startswith('endorse'):
+        #     try:
+        #         # Parse Endorse
+        #         # result = re.match(CROSS_TENANCY_ENDORSE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
+        #         match_result = endorse_regex.match(statement)
+        #         if not match_result or not match_result.groupdict():
+        #             logger.debug(f'Statement did not parse: {statement}')
+        #             statement_list = [
+        #                 policy.name,
+        #                 statement,  # 0,1
+        #                 policy.id,
+        #                 str(policy.time_created),
+        #                 False,  # Advanced Parsing available
+        #             ]
+        #             self.logger.debug(f'Cross-tenancy endorse statement added but not parsed: {statement_list}')
+        #             self.cross_tenancy_statements.append(statement_list)
+        #             return False
+        #         # It did parse
+        #         result = match_result.groupdict()
+        #         statement_list = [
+        #             policy.name,
+        #             statement,  # 0,1
+        #             policy.id,  # 2
+        #             str(policy.time_created),  # 3
+        #             True,  # Parsed, 4
+        #             result.get('statement_type'),  # 5
+        #             result.get('principal'),  # 6 (subj)
+        #             result.get('of_tenancy'),  # 7 (of tenancy)
+        #             f"{result.get('action')} {result.get('resources')}"
+        #             if result.get('action')
+        #             else result.get('permission'),  # action resource or permission = 8
+        #             result.get('location'),  # 9
+        #             result.get('where_clause') or '',  # 10
+        #             result.get('comment') or '',  # 11
+        #         ]
+        #         self.logger.debug(f'Cross-tenancy endorse statement added: {statement_list}')
+        #         self.cross_tenancy_statements.append(statement_list)
+        #         return True
+        #     except Exception as e:
+        #         self.logger.warning(f'Failed to parse endorse: {e}')
+        #         return False
 
+        # Regular Statements are everything else
         else:
             # Regular Statements
             self.logger.debug(f'Hierarchy string: {comp_string}')
-            match_result = policy_regex.match(statement)
 
-            # result = re.search(POLICY_REGEX, statement, re.IGNORECASE | re.MULTILINE)
+            # Basic Details - not parsed yet
+            statement_list = [
+                policy.name,
+                policy.id,
+                comp_id,
+                comp_string,
+                statement,
+                True,  # Currently for Validity
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                str(policy.time_created),
+                False,  # Currently for parsed
+            ]
+
+            # Process Results of regex
+            match_result = policy_regex.match(statement)
             if match_result and match_result.groupdict():
                 result = match_result.groupdict()
                 self.logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
+                    # Re-define Statement List
                     statement_list = [
                         policy.name,
                         policy.id,
@@ -377,62 +423,45 @@ class PolicyCompartmentAnalysis:
                         statement_list[5] = self.check_invalid_location(statement_list[12])
                         logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
 
-                    statement_dict = {
-                        'policy_name': statement_list[0],
-                        'policy_id': statement_list[1],
-                        'compartment_id': statement_list[2],
-                        'compartment_string': statement_list[3],
-                        'statement_text': statement_list[4],
-                        'validity': statement_list[5],
-                        'subject_type': statement_list[6],
-                        'subject': statement_list[7],  # This will be a list of tuples
-                        'verb': statement_list[8],
-                        'resource': statement_list[9],
-                        'permission': statement_list[10],
-                        'location_type': statement_list[11],
-                        'location': statement_list[12],
-                        'condition': statement_list[13],
-                        'optional_comment': statement_list[14],
-                        'time_created': statement_list[15],
-                        'parsed': statement_list[16],
-                    }
-
-                    # For Location, use compartment hierarchy and relative
-                    # Store regular statements
-                    # self.regular_statements.append(statement_list)
-                    logging.debug(f'Parsed Statement as JSON: {statement_dict}')
-                    self.regular_statements.append(statement_dict)
-
-                    # Success
-                    return True
-
                 except Exception as e:
                     self.logger.warning(f'Failed to parse statement: {e}')
-                    # Add the statement with some missing fields
-                    statement_list = [
-                        policy.name,
-                        policy.id,
-                        comp_id,
-                        comp_string,
-                        statement,
-                        False,  # Currently for Validity
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        str(policy.time_created),
-                        False,  # Currently for parsed
-                    ]
-                    return False
-            self.logger.info(f'No regex match: {statement}')
-            return False
+
+            else:
+                self.logger.warning(f'No regex match for statement: |{statement}|')
+
+            # Create the dict - even if not parsed it will still appear
+            statement_dict = {
+                'Policy Name': statement_list[0],
+                'Policy OCID': statement_list[1],
+                'Compartment OCID': statement_list[2],
+                'Policy Compartment': statement_list[3],
+                'Statement Text': statement_list[4],
+                'Valid': statement_list[5],
+                'Subject Type': statement_list[6],
+                'Subject': statement_list[7],  # This will be a list of tuples
+                'Verb': statement_list[8],
+                'Resource': statement_list[9],
+                'Permission': statement_list[10],
+                'Location Type': statement_list[11],
+                'Location': statement_list[12],
+                'Conditions': statement_list[13],
+                'Comments': statement_list[14],
+                'Creation Time': statement_list[15],
+                'Parsed': statement_list[16],
+            }
+
+            # For Location, use compartment hierarchy and relative
+            # Store regular statements
+            # self.regular_statements.append(statement_list)
+            logging.debug(f'Parsed Statement as JSON: {statement_dict}')
+            self.regular_statements.append(statement_dict)
+
+            # Success or fail based on Parsed field
+            return True if statement_dict.get('Parsed') else False
 
         # Catch All - should never get here
+        self.logger.warning(f'Should not get here.  Statement not added to anything: {statement}')
+
         return False
 
     def load_compartment_and_policies_worker(self, compartment: Compartment):
@@ -489,20 +518,24 @@ class PolicyCompartmentAnalysis:
                 return False
             root_comp = root_comp_response.data
             comp_list = [root_comp]
-            comp_response = pagination.list_call_get_all_results(
-                self.identity_client.list_compartments,
-                self.tenancy_ocid,
-                access_level='ACCESSIBLE',
-                sort_order='ASC',
-                # compartment_id_in_subtree=False,
-                compartment_id_in_subtree=True,
-                lifecycle_state='ACTIVE',
-                limit=1000,
-            )
-            if comp_response.data is None:
-                self.logger.error('Failed to list compartments')
-                return False
-            comp_list.extend(comp_response.data)
+            # If recursive, get all compartments
+            if self.recursive:
+                self.logger.debug('Loading compartments recursively')
+                comp_response = pagination.list_call_get_all_results(
+                    self.identity_client.list_compartments,
+                    self.tenancy_ocid,
+                    access_level='ACCESSIBLE',
+                    sort_order='ASC',
+                    # compartment_id_in_subtree=False,
+                    compartment_id_in_subtree=True,
+                    lifecycle_state='ACTIVE',
+                    limit=1000,
+                )
+                if comp_response.data is None:
+                    self.logger.error('Failed to list compartments')
+                    return False
+                comp_list.extend(comp_response.data)
+
             comp_load_time = time.perf_counter()
             with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
                 executor.map(self.load_compartment_and_policies_worker, comp_list)
@@ -576,10 +609,40 @@ class PolicyCompartmentAnalysis:
         for statement in self.cross_tenancy_statements:
             for alias_to_check in alias_filter:
                 # Check each alias to see if in statement test
-                if alias_to_check in statement[1]:
-                    self.logger.info(f'Adding statement (alias={alias_to_check}): {statement[1]}')
+                statement_text = statement.get('Statement Text', '')
+                if alias_to_check in statement_text:
+                    self.logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
                     filtered.append(statement)
         self.logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
+        return filtered
+
+    def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
+        """Filter cached dynamic groups by list of (domain, name) tuples.  Returns"""
+        filtered = []
+        for statement in self.regular_statements:
+            if statement.get('Subject Type') == 'dynamic-group':
+                # Iterate provided dynamic groups
+                for dg_domain, dg_name in dynamic_groups:
+                    # Compare domain and name
+                    if dg_domain is None:
+                        dg_domain = 'Default'
+                    # Iterate Policy statement subjects
+                    for subj_domain, subj_name in statement.get('Subject'):
+                        logging.info(
+                            f'Comparing DG {type(dg_domain)}:{repr(dg_domain)} / {type(dg_name)}:{repr(dg_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+                        )
+                        # Exact match on both domain and name required
+                        if (subj_domain.casefold() == dg_domain.casefold()) and (
+                            dg_name.casefold() == subj_name.casefold()
+                        ):
+                            filtered.append(statement)
+                            self.logger.info(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
+                        else:
+                            logging.debug(
+                                f'Not a match for dynamic group {dg_domain}/{dg_name}: Subject {subj_domain}/{subj_name}'
+                            )
+                            self.logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
+        self.logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
 
     def filter_policy_statements(
@@ -618,27 +681,27 @@ class PolicyCompartmentAnalysis:
 
         self.logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
         for st in self.regular_statements:
-            matches_subject = not subject_terms or any(term in str(st.get('subject')).lower() for term in subject_terms)
-            matches_verb = not verb_terms or any(term in str(st.get('verb')).lower() for term in verb_terms)
+            matches_subject = not subject_terms or any(term in str(st.get('Subject')).lower() for term in subject_terms)
+            matches_verb = not verb_terms or any(term in str(st.get('Verb')).lower() for term in verb_terms)
             matches_resource = not resource_terms or any(
-                term in str(st.get('resource')).lower() for term in resource_terms
+                term in str(st.get('Resource')).lower() for term in resource_terms
             )
             matches_location = (
                 not location_terms
-                or any(term in str(st.get('location')).lower() for term in location_terms)
-                or (st.get('location_type') == 'tenancy' and location_terms[0] == 'tenancy')
+                or any(term in str(st.get('Location')).lower() for term in location_terms)
+                or (st.get('Location Type') == 'tenancy' and location_terms[0] == 'tenancy')
             )
             matches_hierarchy = (
                 not hierarchy_terms
-                or any(term in str(st.get('compartment_string')).lower() for term in hierarchy_terms)
-                or (st.get('compartment_string') == 'ROOT' and hierarchy_terms[0] == 'root')
+                or any(term in str(st.get('Policy Compartment')).lower() for term in hierarchy_terms)
+                or (st.get('Policy Compartment') == 'ROOT' and hierarchy_terms[0] == 'root')
             )
             matches_condition = not condition_terms or any(
-                term in str(st.get('condition')).lower().replace(' ', '') for term in condition_terms
+                term in str(st.get('Conditions')).lower().replace(' ', '') for term in condition_terms
             )
-            matches_text = not text_terms or any(term in str(st.get('statement_text')).lower() for term in text_terms)
+            matches_text = not text_terms or any(term in str(st.get('Statement Text')).lower() for term in text_terms)
             matches_policy = not policy_terms or any(
-                term in str(st.get('policy_name')).lower() for term in policy_terms
+                term in str(st.get('Policy Name')).lower() for term in policy_terms
             )
 
             if (
@@ -651,7 +714,7 @@ class PolicyCompartmentAnalysis:
                 and matches_text
                 and matches_policy
             ):
-                self.logger.debug(f'Adding Statement {st.get("statement_text")} due to filter match')
+                self.logger.debug(f'Adding Statement {st.get("Statement Text")} due to filter match')
                 filtered.append(st)
 
         self.logger.info(f'Filtered to {len(filtered)} statements')
@@ -800,8 +863,8 @@ class IdentityDomainsAnalysis:
         self.use_instance_principal = False
         self.dynamic_groups = []
         self.identity_domains = []
-        self.groups = {}
-        self.users = {}
+        self.groups = []
+        self.users = []
         self.domain_clients = {}
         self.policies = []
         self.data_as_of = ''
@@ -829,8 +892,17 @@ class IdentityDomainsAnalysis:
             self.logger.fatal(f'Authentication failed: {exc}')
             return False
 
-    def parse_dynamic_group(self, dg_name: str, dg_ocid: str, dg_domain: str, dg_rule: str, dg_created: str) -> list:
-        return [dg_domain, dg_name, dg_rule, True, dg_ocid, dg_created]
+    def parse_dynamic_group(self, dg_name: str, dg_ocid: str, dg_domain: str, dg_rule: str, dg_created: str) -> dict:
+        # return [dg_domain, dg_name, dg_rule, True, dg_ocid, dg_created]
+        dg_dict = {
+            'Domain': dg_domain,
+            'DG Name': dg_name,
+            'Matching Rule': dg_rule,
+            'In Use': True,  # Placeholder until analysis is run
+            'DG OCID': dg_ocid,
+            'Creation Time': dg_created,
+        }
+        return dg_dict
         # To-do: Add back invalid OCID analysis
 
     def load_all_dynamic_groups(self) -> bool:
@@ -906,12 +978,13 @@ class IdentityDomainsAnalysis:
         ocid_terms = [oc.strip().lower() for oc in ocid_filter.split('|') if oc.strip()] if ocid_filter else []
         self.logger.debug(f'Filtering DGs based on Domain: {domain_filter} and Name: {name_filter}')
         for dg in self.dynamic_groups:
-            matches_domain = not domain_terms or any(term in str(dg[0]).lower() for term in domain_terms)
-            matches_name = not name_terms or any(term in str(dg[1]).lower() for term in name_terms)
-            matches_type = not type_terms or any(term in str(dg[2]).lower() for term in type_terms)
-            matches_ocid = not ocid_terms or any(term in str(dg[4]).lower() for term in ocid_terms)
+            # str(st.get('subject')).lower()
+            matches_domain = not domain_terms or any(term in str(dg.get('Domain')).lower() for term in domain_terms)
+            matches_name = not name_terms or any(term in str(dg.get('DG Name')).lower() for term in name_terms)
+            matches_type = not type_terms or any(term in str(dg.get('Matching Rule')).lower() for term in type_terms)
+            matches_ocid = not ocid_terms or any(term in str(dg.get('DG OCID')).lower() for term in ocid_terms)
             if matches_name and matches_domain and matches_type and matches_ocid:
-                self.logger.debug(f'Adding DG {dg[0]}/{dg[1]} due to filter match')
+                self.logger.debug(f'Adding DG {dg.get("Domain")}/{dg.get("DG Name")} due to filter match')
                 filtered.append(dg)
 
         self.logger.info(f'Filtered to {len(filtered)} dynamic groups')
@@ -928,8 +1001,7 @@ class IdentityDomainsAnalysis:
             self.logger.info(f'Loaded {len(self.identity_domains)} identity domains')
 
             self.domain_clients = {}
-            # self.groups = []
-            # self.users = []
+
             for domain in self.identity_domains:
                 try:
                     # Get IdentityDomainsClient and hold on to it
@@ -953,7 +1025,15 @@ class IdentityDomainsAnalysis:
                             logging.debug(f'Group: {g}')
 
                             # Set the group into the bigger picture JSON
-                            self.groups[g.ocid] = {'domain_id': domain.id, 'id': g.id, 'display_name': g.display_name}
+                            self.groups.append(
+                                {
+                                    'Domain OCID': domain.id,
+                                    'Domain Name': domain.display_name,
+                                    'Group ID': g.id,
+                                    'Group OCID': g.ocid,
+                                    'Group Name': g.display_name,
+                                }
+                            )
                         # Logic to re-start new request
                         if (
                             len(group_response.data.resources) < limit
@@ -984,13 +1064,16 @@ class IdentityDomainsAnalysis:
                             for gg in u.groups:
                                 group_list.append(gg.ocid)
                             # Set the user into the bigger picture JSON
-                            self.users[u.ocid] = {
-                                'domain': domain.display_name,
-                                'id': u.id,
-                                'name': u.display_name,
-                                'groups': group_list,
-                            }
-                            # Loop groups
+                            self.users.append(
+                                {
+                                    'Domain Name': domain.display_name,
+                                    'User ID': u.id,
+                                    'User OCID': u.ocid,
+                                    'User Name': u.display_name,
+                                    'User Groups': group_list,
+                                }
+                            )
+
                         # Loop Logic
                         if (
                             len(user_response.data.resources) < limit
@@ -1027,8 +1110,8 @@ class IdentityDomainsAnalysis:
 
 
 # Utility functions for loading and saving cache, using combined caching strategy
-def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_analysis: IdentityDomainsAnalysis) -> bool:
-    """Save combined cache for policies and dynamic groups."""
+def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_analysis: IdentityDomainsAnalysis) -> str:
+    """Save combined cache for policies and dynamic groups. Returns file name if you care"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     combined_cache_file = CACHE_DIR / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
     combined_data = {
@@ -1054,7 +1137,9 @@ def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_anal
         json.dump(entry, date_file, ensure_ascii=False)
         date_file.write('\n')  # Write a newline after each entry
     logger.info(f'Updated cache entries with: {entry}')
-    return True
+
+    # Return the name of the file
+    return str(combined_cache_file)
 
 
 def load_combined_cache(
@@ -1062,8 +1147,8 @@ def load_combined_cache(
     cached_date: str,
     policy_analysis: PolicyCompartmentAnalysis,
     domains_analysis: IdentityDomainsAnalysis,
-) -> bool:
-    """Load combined cache for policies and dynamic groups."""
+) -> str:
+    """Load combined cache for policies and dynamic groups. Returns the name of the file used"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
     if combined_cache_file.exists():
@@ -1105,12 +1190,12 @@ def load_combined_cache(
                 return True
         except json.JSONDecodeError as e:
             logger.error(f'Error decoding JSON from combined cache file: {e}')
-            return False
+            return 'no cache'
         except Exception as e:
             logger.error(f'Error loading combined cache file: {e}')
-            return False
+            return 'no cache'
     logger.warning(f'Unable to load data from cache: {combined_cache_file}')
-    return False
+    return str(combined_cache_file)
 
 
 def get_available_cache(tenancy_name: str | None) -> list[str]:
@@ -1120,7 +1205,9 @@ def get_available_cache(tenancy_name: str | None) -> list[str]:
     try:
         with open(CACHE_DIR / 'cache_entries.json', encoding='utf-8') as date_file:
             entries = date_file.readlines()
-        logger.info(f'Entries found in cache_entries.json: {entries}')
+        logger.debug(f'Entries found in cache_entries.json: {entries}')
+        entries.reverse()  # Show most recent first
+        logger.debug(f'Entries found in cache_entries.json (Reversed): {entries}')
 
         for entry in entries:
             cache = json.loads(entry)
@@ -1132,7 +1219,7 @@ def get_available_cache(tenancy_name: str | None) -> list[str]:
     except FileNotFoundError:
         logger.warning('cache_entries.json file not found. No cache entries available.')
 
-    logger.info(f'Entries found in cache_entries.json: {return_entries}')
+    logger.info(f'Entries found in cache_entries.json: {len(return_entries)}')
     return return_entries
 
 
@@ -1145,6 +1232,11 @@ def main():  # noqa: C901
     parser.add_argument('--print-all', help='Print all of the policies and DGs to screen', action='store_true')
     parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
+    parser.add_argument(
+        '--export-json',
+        help='Export everything that is collected (Policies, Dynamic Groups, Users, Groups, Cross-tenancy Policies) to JSON file',
+        action='store_true',
+    )
     args = parser.parse_args()
 
     # Configure logging based on verbose flag
@@ -1152,16 +1244,6 @@ def main():  # noqa: C901
         logging.getLogger('oci-policy-dg-viewer').setLevel(logging.DEBUG)
         logging.getLogger('oci-policy-compartment-analysis').setLevel(logging.DEBUG)
         logging.getLogger('oci-identity-domains-analysis').setLevel(logging.DEBUG)
-
-    if args.get_caches:  # If get_caches is provided, list available caches
-        available_caches = get_available_cache()
-        if available_caches:
-            logger.info('Available caches:')
-            for cache in available_caches:
-                logger.info(cache)
-        else:
-            logger.info('No caches available.')
-        return
 
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyCompartmentAnalysis(verbose=args.verbose)
@@ -1173,6 +1255,16 @@ def main():  # noqa: C901
     domains_analysis = IdentityDomainsAnalysis(verbose=args.verbose)
     if not domains_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
         logger.error('Failed to initialize IdentityDomainsAnalysis client')
+        return
+
+    if args.get_caches:  # If get_caches is provided, list available caches
+        available_caches = get_available_cache(tenancy_name=policy_analysis.tenancy_name)
+        if available_caches:
+            logger.info('Available caches:')
+            for cache in available_caches:
+                logger.info(cache)
+        else:
+            logger.info('No caches available.')
         return
 
     # Load policies and compartments
@@ -1195,16 +1287,20 @@ def main():  # noqa: C901
         if not domains_analysis.load_domains_groups_users():
             logger.error('Failed to load identity domains, groups, and users from OCI')
             return
-        save_combined_cache(policy_analysis, domains_analysis)
+        cache_file_name = save_combined_cache(policy_analysis, domains_analysis)
         logger.info('Policies and dynamic groups saved successfully from OCI')
 
-    # Print tenancy information
+    # Print some basic details
     logger.info(f'Tenancy Name: {policy_analysis.tenancy_name}')
     logger.info(f'Tenancy OCID: {policy_analysis.tenancy_ocid}')
     logger.info(f'Data As Of: {policy_analysis.data_as_of}')
     logger.info('-' * 80)
 
-    if args.print_all:
+    # Export JSON if needed
+    if args.export_json:
+        logger.info(f'The file is called {cache_file_name}')
+
+    elif args.print_all:
         # Print regular policies
         logger.info('\nRegular Policies:')
         for stmt in policy_analysis.regular_statements:
@@ -1257,14 +1353,16 @@ def main():  # noqa: C901
             logger.info(f'OCID: {dg[4]}')
             logger.info(f'Created: {dg[5]}')
             logger.info('-' * 80)
-    else:
         # Print summary counts
-        logger.info(f'Total Regular Policies: {len(policy_analysis.regular_statements)}')
-        logger.info(f'Total Cross-Tenancy Policies: {len(policy_analysis.cross_tenancy_statements)}')
-        logger.info(f'Total Dynamic Groups: {len(domains_analysis.dynamic_groups)}')
-        logger.info(f'Total Identity Domains: {len(domains_analysis.identity_domains)}')
-        logger.info(f'Total Groups: {len(domains_analysis.groups)}')
-        logger.info(f'Total Users: {len(domains_analysis.users)}')
+
+    # Summary
+    logger.info('-' * 80)
+    logger.info(f'Total Regular Policies: {len(policy_analysis.regular_statements)}')
+    logger.info(f'Total Cross-Tenancy Policies: {len(policy_analysis.cross_tenancy_statements)}')
+    logger.info(f'Total Dynamic Groups: {len(domains_analysis.dynamic_groups)}')
+    logger.info(f'Total Identity Domains: {len(domains_analysis.identity_domains)}')
+    logger.info(f'Total Groups: {len(domains_analysis.groups)}')
+    logger.info(f'Total Users: {len(domains_analysis.users)}')
 
 
 if __name__ == '__main__':

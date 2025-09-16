@@ -5,12 +5,12 @@ description = "OCI Policy and Dynamic Group Viewer"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.11"
 dependencies = [
-    "oci>=2.28.0",
-    "tksheet>=7.5.12",
+    "oci>=2.160.1",
+    "tkhtmlview>=0.3.1",
     "ttkbootstrap>=1.10.1",
     "pyinstaller>=6.1.0",
     "psutil>=7.0.0",
-    "deepdiff>=8.5.0",
+    "deepdiff>=8.6.1",
     "flet"
 ]
 classifiers = [

@@ -1,11 +1,10 @@
-name: Build and Release OCI Policy DG Viewer v1
+name: Build and Release OCI Policy DG Viewer (TKInter)
 
 on:
   push:
     branches:
       - main
       - develop
-      - feature/tkinter-enhanced
   pull_request:
     branches:
       - main
@@ -168,6 +167,9 @@ jobs:
                         --hidden-import=deepdiff \
                         --add-data src/oci_policy_dg_viewer/_version.py:. \
                         --add-data src/oci_policy_dg_viewer/core.py:. \
+                        --add-data src/oci_policy_dg_viewer/ai.py:. \
+                        --add-data src/oci_policy_dg_viewer/data_table.py:. \
+                        --add-data src/oci_policy_dg_viewer/formatting.py:. \
                         --osx-bundle-identifier com.example.oci-policy-dg-viewer \
                         src/oci_policy_dg_viewer/viewer.py
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -179,6 +181,9 @@ jobs:
                         --hidden-import=deepdiff \
                         --add-data src\\oci_policy_dg_viewer\\_version.py;. \
                         --add-data src\\oci_policy_dg_viewer\\core.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\ai.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\data_table.py;. \
+                        --add-data src\\oci_policy_dg_viewer\\formatting.py;. \
                         src/oci_policy_dg_viewer/viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }} \
@@ -189,6 +194,9 @@ jobs:
                         --hidden-import=deepdiff \
                         --add-data src/oci_policy_dg_viewer/_version.py:. \
                         --add-data src/oci_policy_dg_viewer/core.py:. \
+                        --add-data src/oci_policy_dg_viewer/ai.py:. \
+                        --add-data src/oci_policy_dg_viewer/data_table.py:. \
+                        --add-data src/oci_policy_dg_viewer/formatting.py:. \
                         src/oci_policy_dg_viewer/viewer.py
           fi
 

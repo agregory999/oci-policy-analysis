@@ -11,6 +11,7 @@ The **OCI Policy and Dynamic Group Viewer** is a graphical desktop application b
 - **Export**: Export filtered data to CSV for further analysis.
 - **Cross-Platform**: Runs on Windows and Linux with a user-friendly GUI.
 - **Cache History and Comparison**: Ability to compare cached tenancy policies from history to today
+- **GenAI Insights**: Contextual calls to OCI GenAI to gather additional insights per policy statement
 
 The application supports both Instance Principal authentication (for OCI compute instances) and OCI configuration file-based authentication (using named profiles).
 
@@ -45,7 +46,7 @@ This is only required if you are not running the executables, which have the app
     ```
 
 ### OCI SDK and Dependencies
-   - The application requires the `oci`, `ttkbootstrap`, and `tksheet` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for details
+   - The application requires the `oci`, `ttkbootstrap`, `tkhtmlview`, `markdown`, `deepdiff`, and `psutil` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for details
 
 ### OCI Configuration
 
@@ -77,6 +78,11 @@ The minimal policy statement looks like this:
 allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
 ```
 
+In order to allow Generative AI to work, you must also enable it with a policy statement, added to the policy above:
+```
+allow group <your_group> to use generative-ai-family in tenancy
+```
+
 **NOTE** If you already have read access to policies, compartments, and domains, you should be good to go.  
 
 In a new tenancy or a tenancy where you are not sure about changing existing permissions, you can have a user created for yourself by the admin, and then have them create a Group and add you (and others).  Suppose this group is called `PolicyAuditorGroup`.  Then add a policy called `PolicyAnalysisPolicy` in the tenancy root, where the only statement is what is above.
@@ -85,17 +91,17 @@ If you plan to use Instance Principal via an OCI Compute Instance you run the to
 
 ```
 allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to use generative-ai-family in tenancy
 ```
 
 Once created, download the tool or clone the repository from your OCI instance and give it a try.
 
-### TKInter / TKSheet / TTKBootstrap Configuration
+### TKInter / TTKBootstrap Configuration
 
 Only required for locally running the scripts.
 
    - TKInter for UI - Detailed information is maintained here: [Python TKInter](https://docs.python.org/3/library/tkinter.html#)
-   - Both `tksheet` and `ttkbootstrap` are in addition to the core TKInter installation and are installed via PIP.
-   - TKSheet is a great tool for displaying table-based data with sorting, searching, and a host of other features.  More on that here: [TKSheet](https://pypi.org/project/tksheet/)
+   - `ttkbootstrap` are in addition to the core TKInter installation and are installed via PIP.
    - TTKBootstrap improves the look and feel of TKInter applications.  Many of the widgets (ie dropdowns) are based on TTKBootstrap.  More on that here: [TTKBootstrap](https://ttkbootstrap.readthedocs.io/en/latest/)
 
 ## Installation
@@ -156,11 +162,11 @@ Once PIP is ready, proceed to the next section
 
 Install required packages for the tool:
 ```bash
-pip install oci ttkbootstrap tksheet
+pip install oci psutil ttkbootstrap deepdiff markdown tkhtmlview
 ```
 If you encounter permission errors on Linux, use a user install.  Note that for virtual environments, this is unlikely to happen to you.  It can happen for the machine-based python installation, if you are not an administrator:
 ```bash
-pip install --user oci ttkbootstrap tksheet deepdiff build
+pip install --user oci psutil ttkbootstrap deepdiff markdown tkhtmlview
 ```
 
 ### Ensure TKInter 
@@ -213,6 +219,14 @@ Logging output may assist you with issue tracking, but it is better to leave ver
      - **User Analysis**: Select an identity domain, user, and compartment, then click "Analyze User" to view applicable policies.
      - **Advanced Analysis**: Placeholder for principal-based analysis.
    - **Export**: Use the "Export CSV" buttons to save filtered data.
+
+### Notes on Using GenAI
+
+In order to enable AI, you must have the policy statement required (show above) in a policy that applies to either the group or dynamic group (for Instance Principal).  There are 3 steps to enable AI:
+
+1. There is a checkbox for "Enable AI Insights" on the start page - check this.
+2. Click the "Refresh Models" button to load GenAI models, and then select one (Grok 3 mini fast is recommended)
+3. Click to "Apply and Test GenAI" - this will take a few seconds and then load a sample answer, gener
 
 ### Running as an Executable
 To run the application without installing Python, you use the pre-built standalone executable (built using `PyInstaller --one-file`) :

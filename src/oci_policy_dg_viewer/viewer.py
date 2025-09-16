@@ -23,20 +23,19 @@ import logging
 import os
 import queue
 import sys
-import time
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
 
+# Third-party imports
+from tkinter.font import Font
+
 import formatting
 import markdown
-
-# Third-party imports
 import oci
 import psutil
-import tksheet
 import ttkbootstrap as ttk
 from _version import __version__
 from ai import AI  # AI functionality
@@ -47,133 +46,22 @@ from core import (
     load_combined_cache,  # Load combined cache from file
     save_combined_cache,  # Save combined cache to file
 )
+from data_table import DataTable
 from tkhtmlview import HTMLText
 
 # Constants
 THREADS = 8
 
+# Cache Directory and Date (for consistency across classes)
+CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
+
 # Global variables
 last_error = ''
 
 # Setup logging
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
 # logger = logging.getLogger('oci-policy-dg-viewer')
 # self.logger.warning(f'Version {__version__} of oci-policy-dg-viewer is running')
-
-
-# Custom table
-class ReusableTable:
-    def __init__(self, parent, data, columns, link_column, link_callback, font=('Helvetica', 10), row_height=20):
-        """
-        Initialize a reusable Tkinter table with sorting, resizing, alternating rows, and clickable links.
-
-        Args:
-            parent: Tkinter parent widget (e.g., Frame)
-            data: Dict of data where keys are row IDs and values are dicts with column data
-            columns: List of tuples (column_id, display_name, width)
-            link_column: Column ID for clickable links
-            link_callback: Function to call when a link is clicked, receives row ID
-            font: Tuple of (font_family, font_size) for table text
-            row_height: Height of each row in pixels
-        """
-        self.parent = parent
-        self.data = data
-        self.columns = columns
-        self.link_column = link_column
-        self.link_callback = link_callback
-        self.font = font
-        self.row_height = row_height
-        self.sort_column = None
-        self.sort_reverse = False
-
-        logging.debug('Initializing ReusableTable with %d rows and %d columns', len(data), len(columns))
-
-        # Configure Treeview style
-        style = ttk.Style()
-        style.configure('Treeview', font=self.font, rowheight=self.row_height, foreground='black')
-        style.configure('Treeview.Heading', font=('Helvetica', 10, 'bold'), foreground='black')
-        style.configure('OddRow', background='white')
-        style.configure('EvenRow', background='#f0f0f0')
-
-        # Create Treeview
-        self.tree = ttk.Treeview(
-            self.parent, columns=[col[0] for col in self.columns], show='headings', selectmode='browse'
-        )
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Add Scrollbars
-        vsb = ttk.Scrollbar(self.parent, orient='vertical', command=self.tree.yview)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tree.configure(yscrollcommand=vsb.set)
-
-        hsb = ttk.Scrollbar(self.parent, orient='horizontal', command=self.tree.xview)
-        hsb.pack(side=tk.BOTTOM, fill=tk.X)
-        self.tree.configure(xscrollcommand=hsb.set)
-
-        # Configure columns
-        for col_id, display_name, width in self.columns:
-            self.tree.heading(col_id, text=display_name, command=lambda c=col_id: self.sort_by_column(c))
-            self.tree.column(col_id, width=width, anchor='w', stretch=True)
-
-        # Bind link clicks
-        if self.link_column:
-            self.tree.bind('<Double-1>', self.handle_link_click)
-
-        # Populate table
-        self.populate_table()
-
-    def populate_table(self):
-        """Populate the table with data, applying alternating row colors."""
-        logging.debug('Populating table with %d rows', len(self.data))
-        self.tree.delete(*self.tree.get_children())
-        for idx, (row_id, row_data) in enumerate(self.data.items()):
-            values = []
-            for col_id, _, _ in self.columns:
-                if col_id == self.link_column:
-                    values.append(row_id)
-                elif col_id in row_data:
-                    value = row_data[col_id]
-                    values.append(', '.join(value) if isinstance(value, list) else value)
-                else:
-                    values.append('')
-            tag = 'OddRow' if idx % 2 == 0 else 'EvenRow'
-            self.tree.insert('', 'end', iid=row_id, values=values, tags=(tag,))
-
-    def sort_by_column(self, col):
-        """Sort table by the specified column."""
-        logging.debug('Sorting by column %s, reverse=%s', col, self.sort_reverse)
-        items = [(self.tree.item(iid, 'values'), iid) for iid in self.tree.get_children()]
-        col_index = [c[0] for c in self.columns].index(col)
-
-        def get_sort_key(item):
-            value = item[0][col_index]
-            try:
-                return float(value) if value.replace('.', '', 1).isdigit() else value.lower()
-            except AttributeError:
-                return value
-
-        items.sort(key=get_sort_key, reverse=self.sort_reverse)
-        for index, (_, iid) in enumerate(items):
-            self.tree.move(iid, '', index)
-
-        self.sort_reverse = not self.sort_reverse if self.sort_column == col else False
-        self.sort_column = col
-
-        # Reapply alternating colors after sorting
-        for idx, iid in enumerate(self.tree.get_children()):
-            tag = 'OddRow' if idx % 2 == 0 else 'EvenRow'
-            self.tree.item(iid, tags=(tag,))
-
-    def handle_link_click(self, event):
-        """Handle double-click on a link column."""
-        item = self.tree.identify_row(event.y)
-        if item:
-            column = self.tree.identify_column(event.x)
-            col_id = self.columns[int(column.lstrip('#')) - 1][0]
-            if col_id == self.link_column:
-                logging.debug('Link clicked for row ID: %s', item)
-                if self.link_callback:
-                    self.link_callback(item)
 
 
 # Custom handler to redirect logging to Tkinter Text widget (thread-safe)
@@ -203,117 +91,11 @@ class TextHandler(logging.Handler):
         self.root.after(100, self.check_queue)  # Schedule next check
 
 
-# Classes for TKSheet Extensions
-class Tooltip:
-    """A class to create tooltips for Tkinter widgets."""
-
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tip_window = None
-        # self.logger.info(f'Creating tooltip for {self.widget} with text: {self.text}')
-        self.widget.bind('<Enter>', self.show_tooltip)
-        self.widget.bind('<Leave>', self.hide_tooltip)
-        self.enabled = True  # Track if tooltip is enabled
-
-    def show_tooltip(self, event):
-        """Show the tooltip window."""
-        if not self.enabled:
-            logging.debug(f'Tooltip for {self.widget} is disabled')
-            return
-
-        # self.logger.debug(f'Showing tooltip for {self.widget} (Enabled: {self.enabled}) with text: {self.text}')
-        if self.tip_window or not self.text:
-            return
-        x, y = self.widget.winfo_pointerxy()
-        self.tip_window = tk.Toplevel(self.widget)
-        self.tip_window.wm_overrideredirect(True)
-        self.tip_window.wm_geometry(f'+{x + 10}+{y + 10}')
-        label = tk.Label(
-            self.tip_window, text=self.text, background='#ffffe0', relief='solid', borderwidth=2, font=('Arial', 10)
-        )
-        label.pack()
-
-    def hide_tooltip(self, event):
-        """Hide the tooltip window."""
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
-
-
-class SortableSheetMixin:
-    def enable_sorting(self):
-        """Enable sorting functionality for a tksheet instance."""
-        self.sort_reverse = {i: False for i in range(len(self.headers()))}
-        # Use both Button-1 and ButtonRelease-1 for better macOS compatibility
-        self.bind('<ButtonRelease-1>', self._handle_header_click)
-        # self.bind('<ButtonRelease-1>', self._handle_header_click)
-        logging.debug('Sorting bindings enabled for sheet')
-
-    def _handle_header_click(self, event):
-        """Handle column header click to sort the sheet."""
-        region = self.identify_region(event)
-        logging.info(f'Click event: type={event.type}, region={region}, x={event.x}, y={event.y}')
-        if region == 'header':
-            col = self.identify_column(event)
-            logging.debug(f'Column {col} clicked')
-            self.sort_reverse[col] = not self.sort_reverse[col]
-            self._sort_column(col)
-        else:
-            logging.debug(f'Non-header click ignored: region={region}')
-
-    def _sort_column(self, col):
-        """Sort the sheet by the specified column."""
-        data = self.get_sheet_data()
-        reverse = self.sort_reverse[col]
-        sorted_data = sorted(data, key=lambda x: x[col], reverse=reverse)
-        self.set_sheet_data(sorted_data)
-        self.refresh()
-        logging.info(f'Sheet sorted by column {col}, reverse={reverse}')
-
-
-class SortableSheet(tksheet.Sheet, SortableSheetMixin):
-    """A tksheet class with sortable columns."""
-
-    def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
-        # Apply solar theme styling to tksheet
-        # Apply solar theme styling using set_options (compatible with older tksheet versions)
-        # self.set_options(
-        #     header_bg="#ff6b6b",  # Reddish-orange
-        #     table_bg="#2c2c2c",   # Dark gray
-        #     index_bg="#ff8c00",   # Orange
-        #     header_fg="#f5f6f5",  # Light text
-        #     table_fg="#f5f6f5",
-        #     index_fg="#f5f6f5",
-        #     table_selected_cells_bg="#e63939",  # Darker red
-        #     table_selected_rows_bg="#e63939",
-        #     table_selected_columns_bg="#e63939",
-        #     font=("Courier New", 10, 'normal')
-        # )
-        """self.header_bg("#ff6b6b")  # Reddish-orange for headers
-        self.header_fg("#f5f6f5")  # Light text
-        self.table_bg("#2c2c2c")   # Dark background
-        self.table_fg("#f5f6f5")   # Light text
-        self.index_bg("#ff8c00")   # Orange for row indices
-        self.index_fg("#f5f6f5")   # Light text
-        self.table_selected_cells_bg("#e63939")  # Darker red for selected cells
-        self.table_selected_rows_bg("#e63939")   # Darker red for selected rows
-        self.table_selected_columns_bg("#e63939")  # Darker red for selected columns
-        self.set_options(font=("Arial", 10))
-        """
-        self.set_options(font=('Courier New', 10, 'normal'))
-        self.set_options(header_font=('Courier New', 11, 'bold'))
-        self.set_options(index_font=('Courier New', 11, 'bold'))
-        self.enable_sorting()
-
-
 class OCIPolicyDGViewer:
     def __init__(self, root, verbose=False):
         self.root = root
         self.root.title('OCI Policy and Dynamic Group Viewer')
-        # Track last selected row for Shift+click range selection
-        self.last_selected_row = None
+
         # Verbose
         self.verbose = verbose
         self.log_level = tk.StringVar(value='INFO')
@@ -322,48 +104,115 @@ class OCIPolicyDGViewer:
         # Logger
         self.formatter = logging.Formatter('%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
         # Configure root logger to ensure all logging calls are captured
-        self.logger = logging.getLogger()  # Get root logger
+        self.logger = logging.getLogger('viewer')  # Get root logger
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
             self.log_level.set('DEBUG')
         else:
             self.logger.setLevel(logging.INFO)
 
-        # Centralized tooltip text
-        # Keep track of Tool Tips
-        self.tooltips_enabled = True  # Boolean to control all tooltips
-        self.tooltip_instances = []  # Track all tooltip instances
-        self.tooltips = {
-            'label_profile': 'Name of the profile in your OCI config file to use',
-            'tab_policy': 'Policy Data.',
-            'label_subject': 'Search for a Subject (group). Check "any-user" to find only statements that have any-user or any-group as their subject.',
-            'label_location': 'Statements that have "in tenancy" as their location.',
-            'tab2_sheet': 'Click column headers to sort cities data.',
-            'tab2_label': 'City population and area data table.',
-            'tab3_sheet': 'Click column headers to sort products data.',
-            'tab3_label': 'Product inventory data table.',
-        }
+        # Load options quietly (defaults for all)
+        self.load_options()
 
         # Status Bar Text
         self.status_bar_text = ''
         self.currently_loading = False
 
+        # Font (can be changed
+        self.font = Font(family='Helvetica', size=10)
+
+        # Display Tree Style
+        self.style = ttk.Style()
+        self.style.configure('Treeview', font=self.font)
+        self.style.configure('Treeview.Heading', font=('Helvetica', 10, 'bold'))
+
         # Queue for thread communication
         self.queue = Queue()
 
         # Initialize analysis classes
-        self.policy_compartment_analysis = PolicyCompartmentAnalysis(verbose)
-        self.identity_domain_analysis = IdentityDomainsAnalysis(verbose)
+        self.policy_compartment_analysis = PolicyCompartmentAnalysis(verbose)  # Core
+        self.identity_domain_analysis = IdentityDomainsAnalysis(verbose)  # Core
         self.ai = AI(verbose)  # AI functionality
 
         # Initialize Reference Data
         self.load_reference_data()
 
+        # Column data for Custom Data Table
+        self.all_policy_columns = [
+            'Policy Name',
+            'Policy OCID',
+            'Compartment OCID',
+            'Policy Compartment',
+            'Statement Text',
+            'Valid',
+            'Subject Type',
+            'Subject',
+            'Verb',
+            'Resource',
+            'Permission',
+            'Location Type',
+            'Location',
+            'Conditions',
+            'Comments',
+            'Creation Time',
+            'Parsed',
+        ]
+        self.basic_policy_columns = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Valid']
+        self.policy_column_widths = {
+            'Policy Name': 250,
+            'Policy OCID': 450,
+            'Compartment OCID': 450,
+            'Policy Compartment': 250,
+            'Statement Text': 700,
+            'Valid': 80,
+            'Subject Type': 120,
+            'Subject': 200,
+            'Verb': 100,
+            'Resource': 150,
+            'Permission': 150,
+            'Location Type': 120,
+            'Location': 200,
+            'Conditions': 200,
+            'Comments': 200,
+            'Creation Time': 150,
+            'Parsed': 80,
+        }
+        self.basic_dg_columns = ['Domain', 'DG Name', 'Matching Rule', 'In Use']
+        self.all_dg_columns = ['Domain', 'DG Name', 'DG OCID', 'Matching Rule', 'In Use', 'Creation Time']
+
+        self.dg_column_widths = {
+            'Domain': 150,
+            'DG Name': 300,
+            'DG OCID': 450,
+            'Matching Rule': 700,
+            'In Use': 80,
+            'Creation Time': 150,
+        }
+        # Users and Groups
+        self.all_groups_columns = ['Domain Name', 'Group Name', 'Group OCID']
+        self.all_users_columns = ['Domain Name', 'User Name', 'User OCID']
+        self.groups_column_widths = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 450}
+        self.users_column_widths = {'Domain Name': 150, 'User Name': 300, 'User OCID': 450}
+
+        # For cross-tenancy policies, just show all we have
+        self.all_defined_alias_columns = ['Defined Name', 'Defined Type', 'OCID Alias']
+        self.all_cross_tenancy_columns = ['Policy Name', 'Policy OCID', 'Statement Text', 'Creation Time']
+        self.all_defined_alias_column_widths = {'Defined Name': 150, 'Defined Type': 150, 'OCID Alias': 500}
+        self.all_cross_tenancy_column_widths = {
+            'Policy Name': 150,
+            'Policy OCID': 300,
+            'Statement Text': 600,
+            'Creation Time': 150,
+        }
+
+        # AI reference columns
+        self.resource_data_all_columns = ['Resource', 'Permissions', 'Families']
+
         # Packed frame
         self.create_main_shell()
 
         # Create Top-level menu, notebook, console, and status bar
-        self.create_top_menu()
+        # self.create_top_menu()
         self.create_notebook()
         self.create_console()
         self.create_ai_insights()
@@ -378,61 +227,63 @@ class OCIPolicyDGViewer:
         self.create_tab_cross_tenancy()  # Cross Tenancy
         self.create_tab_report()  # Report
         self.create_tab_history()  # History
-        self.create_tab_resource_ref()  # AI Functionality
-
-        # self.create_tab_policy_tree()
-        # self.tab_sample() # Grok-based
+        # self.create_tab_resource_reference()  # Resource Reference Data
 
         # Kick off the scheduled Status Bar Updates:
         self._update_status_bar_text()
         self._update_ai_insights_response()
 
+        # Update the layout
+        self._update_layout()
+
     def load_reference_data(self):
         """Load data from persistent file if available, else return empty dict."""
-        DATA_FILE = 'oci_resources_data.json'
+        CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
+        DATA_FILE = CACHE_DIR / 'oci_resources_data.json'
 
-        logging.info('Loading data from %s', DATA_FILE)
+        self.logger.info('Loading data from %s', DATA_FILE)
         try:
             with open(DATA_FILE) as f:
                 self.resource_reference_data = json.load(f)
-                logging.info('Successfully loaded data with %d resources', len(self.resource_reference_data))
+                self.logger.info(
+                    'Successfully loaded resource data with %d resources', len(self.resource_reference_data)
+                )
                 # return self.resource_reference_data
         except FileNotFoundError:
-            logging.debug('Data file %s not found, returning empty dict', DATA_FILE)
+            self.logger.debug('Data file %s not found, returning empty dict', DATA_FILE)
             self.resource_reference_data = {}
         except json.JSONDecodeError as e:
-            logging.error('Failed to parse JSON from %s: %s', DATA_FILE, e)
+            self.logger.error('Failed to parse JSON from %s: %s', DATA_FILE, e)
             self.resource_reference_data = {}
 
     def create_main_shell(self):
         # Use pack for top and bottom
         # Configure main shell with pack
         self.header_frame = ttk.Frame(self.root)
-        self.header_frame.pack(fill='x', padx=5, pady=5)
+        self.header_frame.pack(fill='x', padx=2, pady=5)
+        self.context_label = ttk.Label(
+            self.header_frame,
+            text='Start with the configuration, load tenancy data live or from a saved cache, then set up GenAI if desired, and then begin to analyze policies, dynamic groups, and resource principals.\nCross-tenancy policies will be separated out and displayed separately.  Use AI Insights to analyze statements further.',
+        )
+        self.context_label.pack(side='left')
 
         # Status bar
         self.status_frame = ttk.Frame(self.root)
         self.status_frame.pack(fill='x', side='bottom', padx=5, pady=5)
 
-        # Frame for AI and console
-        self.tools_frame = ttk.Frame(self.root)
-        self.tools_frame.pack(fill='both', before=self.status_frame, padx=10, pady=5)
-
-        # AI Insights Frame (add and remove as needed)
-        self.ai_frame = ttk.Frame(self.tools_frame)  # AI frame (not packed initially)
-        self.ai_frame.pack(fill='y', side='left', padx=10, pady=5)
-
-        # Console Frame (add and remove as needed)
-        self.console_frame = ttk.Frame(self.tools_frame)  # Console frame (not packed initially)
-        self.console_frame.pack(fill='y', side='right', padx=10, pady=5)
-
-        # AI Frame
-        self.console_frame.pack_forget()
-        self.ai_frame.pack_forget()
-
         # Main Content Area (Notebook)
         self.main_frame = ttk.Frame(self.root)
-        self.main_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        self.main_frame.pack(fill='both', expand=True)
+
+        # AI Insights Frame (add and remove as needed)
+        self.ai_insights_frame = ttk.Frame(self.main_frame)  # AI frame (not packed initially)
+
+        # Console Frame (add and remove as needed)
+        self.console_frame = ttk.Frame(self.main_frame)  # Console frame (not packed initially)
+
+        # Notebook Frame
+        self.notebook_frame = ttk.Frame(self.main_frame)
+        # self.notebook_frame.pack(fill='both', expand=True)
 
     def create_status_bar(self):
         # Status bar
@@ -446,263 +297,132 @@ class OCIPolicyDGViewer:
 
     def create_top_menu(self):  # noqa: C901
         """Create the top-level menu with File and Help options."""
-        frm_init = ttk.Frame(self.header_frame)  # type: ignore
-        frm_init.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
-        # Instance Principal checkbox
-        self.use_instance_principal = tk.BooleanVar(value=False)
-        self.chk_instance_principal = ttk.Checkbutton(
-            frm_init,
-            text='Instance Principal',
-            variable=self.use_instance_principal,
-            command=self._toggle_profile_dropdown,
-        )
-        self.chk_instance_principal.grid(row=0, column=0, padx=5, pady=3)
-
-        self.tooltip_instances.append(Tooltip(self.chk_instance_principal, 'test'))
-        # Profile selection
-        profile_list = ['DEFAULT']
-        try:
-            # TODO - Check Env OCI_CLI_CONFIG_FILE
-            with open(Path.home() / '.oci' / 'config') as fp:
-                profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
-        except FileNotFoundError:
-            self.logger.warning('OCI config file not found')
-            profile_list = ['NONE']
-            self.use_instance_principal.set(True)
-
-        self.profile_var = tk.StringVar(value=profile_list[0])
-        self.label_profile = ttk.Label(frm_init, text='Profile:')
-
-        self.tooltip_instances.append(Tooltip(self.label_profile, self.tooltips['label_profile']))
-        self.logger.info(f'Tooltip: {self.tooltips["label_profile"]}')
-        self.label_profile.grid(row=0, column=1, padx=5, pady=3)
-        self.input_profile = ttk.OptionMenu(frm_init, self.profile_var, self.profile_var.get(), *profile_list)
-        self.input_profile.config(width=20)
-        self.input_profile.grid(row=0, column=2, padx=5, pady=3)
-
-        # Get available cached copies
-        self.label_cache = ttk.Label(frm_init, text='Cache:')
-        self.label_cache.grid(row=1, column=1, padx=5, pady=3)
-        self.cache_list = get_available_cache(None)
-        self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
-        self.cache_list_dropdown = ttk.OptionMenu(
-            frm_init, self.cache_var, self.cache_var.get(), *self.cache_list, bootstyle='default'
-        )
-        self.cache_list_dropdown.config(width=20)
-        self.cache_list_dropdown.grid(row=1, column=2, padx=5, pady=3)
-
-        # If the instance principal was selected, disable this
-        if self.use_instance_principal.get():
-            self.input_profile.config(state=tk.DISABLED)
-
-        # Load buttons
-        self.btn_load_tenancy = ttk.Button(
-            frm_init, text='Load from Tenancy', command=self._load_from_tenancy, width=20, bootstyle='default'
-        )
-        self.btn_load_tenancy.grid(row=0, column=3, padx=5, pady=3)
-        self.btn_load_cache = ttk.Button(
-            frm_init, text='Load from Cache', command=self._load_from_cache, width=20, bootstyle='default'
-        )
-        self.btn_load_cache.grid(row=1, column=3, padx=5, pady=3)
-
-        # Display Menu Options
-        menubutton = ttk.Menubutton(frm_init, text='Display Options', bootstyle='default')
-        menu = tk.Menu(menubutton, tearoff=False)
-        menubutton['menu'] = menu
-
-        def _toggle_tooltips():
-            """Toggle all tooltips on or off."""
-            self.tooltips_enabled = self.option_tooltips_var.get()
-            logging.info(f'Tooltips enabled: {self.tooltips_enabled}')
-            # Hide existing tooltips if disabled
-            if not self.tooltips_enabled:
-                for tooltip in self.tooltip_instances:
-                    tooltip.enabled = False
+    def create_notebook(self):  # noqa: C901
+        def on_tab_change(event):
+            selected_tab_id = self.notebook.select()  # Get the ID of the currently selected tab
+            selected_tab_index = self.notebook.index(selected_tab_id)  # Get the index
+            self.logger.debug(f'Tab changed to: {selected_tab_index} ({selected_tab_id})')
+            # Change the context help text based on the selected tab
+            if selected_tab_index == 0:
+                self.context_label.config(
+                    text='Start with the configuration, load tenancy data live or from a saved cache, then set up GenAI if desired, and then begin to analyze policies, dynamic groups, and resource principals.\nCross-tenancy policies will be separated out and displayed separately.  Use AI Insights to analyze statements further.'
+                )
+            elif selected_tab_index == 1:
+                self.context_label.config(
+                    text='View and analyze standard IAM policy statements here. Use the filters to narrow down to specific compartments, permissions, or keywords. Select a statement to see detailed parsing and AI insights if enabled.'
+                )
+            elif selected_tab_index == 2:
+                self.context_label.config(
+                    text='View and analyze Dynamic Groups here. See which dynamic groups are in use by policies, and examine their matching rules. Select a dynamic group to see detailed formatting and AI insights if enabled.'
+                )
+            elif selected_tab_index == 3:
+                self.context_label.config(
+                    text='View and analyze Resource Principals here. See which resource principals are in use by policies, and examine their details. Select a resource principal to see detailed information and AI insights if enabled.'
+                )
+            elif selected_tab_index == 4:
+                self.context_label.config(
+                    text='Analyze users and their group memberships here. Identify which users are members of groups that have policy permissions, and see if any users have direct policy assignments.'
+                )
+            elif selected_tab_index == 5:
+                self.context_label.config(
+                    text='View cross-tenancy policy statements here. These are policies that reference resources or groups in other tenancies. Analyze these statements and see which defined aliases they use.'
+                )
+            elif selected_tab_index == 6:
+                self.context_label.config(
+                    text='Generate and view reports of your policy and dynamic group analysis here. Export the data to CSV for further examination or sharing.'
+                )
+            elif selected_tab_index == 7:
+                self.context_label.config(
+                    text='View the history of actions taken within the application here. This includes loading data, applying configurations, and any errors encountered.'
+                )
+            elif selected_tab_index == 8:
+                self.context_label.config(
+                    text='Reference data for OCI resources, including permissions and families. This data is used to enhance the analysis of policies and dynamic groups.'
+                )
             else:
-                # Show tooltips if enabled (they will show on hover)
-                for tooltip in self.tooltip_instances:
-                    tooltip.enabled = True
-            logging.info(f'Updated {len(self.tooltip_instances)} tooltip instances')
+                self.context_label.config(
+                    text='OCI Policy and Dynamic Group Viewer. Use the tabs to navigate through different analyses and configurations.'
+                )
 
-        def _on_font_size_select(new_font_size):
-            self.sheet_policies.font(newfont=('Courier New', new_font_size, 'normal'))
-            self.sheet_policies.set_all_cell_sizes_to_text(redraw=True)
-            self.sheet_dynamic_group.font(newfont=('Courier New', new_font_size, 'normal'))
-            self.sheet_dynamic_group.set_all_cell_sizes_to_text(redraw=True)
-            self.sheet_user_policies.font(newfont=('Courier New', new_font_size, 'normal'))
-            self.sheet_user_policies.set_all_cell_sizes_to_text(redraw=True)
-            self.sheet_cross_tenancy_define.font(newfont=('Courier New', new_font_size, 'normal'))
-            self.sheet_cross_tenancy_define.set_all_cell_sizes_to_text(redraw=True)
-            self.sheet_cross_tenancy_policies.font(newfont=('Courier New', new_font_size, 'normal'))
-            self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text(redraw=True)
-            self.logger.info(f'Changing font size globally to {self.font_size_var.get()}/{new_font_size}')
-
-        def _on_toggle_console():
-            if self.option_console_var.get():
-                self.tools_frame.pack(before=self.status_frame)
-                self.console_frame.pack(fill='both', padx=10, pady=5)
-                if self.console_handler not in self.logger.handlers:
-                    self.logger.addHandler(self.console_handler)
-                logging.info('Console enabled (in addition to default shell)')
-                # self.status_label.config(text="Console enabled")
-            else:
-                self.logger.info(f'Console disabled: {self.option_console_var.get()}')
-                self.console_frame.pack_forget()
-                if self.console_handler in self.logger.handlers:
-                    self.logger.removeHandler(self.console_handler)
-                logging.info('Console disabled (logged to default shell only)')
-
-                # If AI is also off, unpack the tools frame
-                if not self.option_ai_var.get():
-                    self.tools_frame.pack_forget()
-
-        def _on_toggle_ai_insights():
-            if self.option_ai_var.get():
-                self.tools_frame.pack(before=self.status_frame)
-                self.ai_frame.pack(fill='both', padx=10, pady=5)
-                logging.info('AI enabled')
-                # self.status_label.config(text="Console enabled")
-            else:
-                self.logger.info(f'AI disabled: {self.option_console_var.get()}')
-                self.ai_frame.pack_forget()
-                logging.info('AI disabled ')
-
-                # If Console is also off, unpack the tools frame
-                if not self.option_console_var.get():
-                    self.tools_frame.pack_forget()
-
-        # Add a Tooltip checkbutton
-        self.option_tooltips_var = tk.BooleanVar()
-        self.option_tooltips_var.set(True)
-        menu.add_checkbutton(
-            label='Enable Tooltips',
-            variable=self.option_tooltips_var,
-            command=_toggle_tooltips,
-        )
-        menu.add_separator()
-
-        # Font Selection sub-menu
-        submenu = tk.Menu(menu, tearoff=False)
-        submenu.add_command(label='Small', command=lambda: _on_font_size_select(8))
-        submenu.add_command(label='Medium', command=lambda: _on_font_size_select(10))
-        submenu.add_command(label='Large', command=lambda: _on_font_size_select(12))
-        menu.add_cascade(label='Font size...', menu=submenu)
-        menubutton.grid(row=1, column=0, padx=5, pady=3)
-        self.font_size_var = tk.StringVar()
-
-        menu.add_separator()
-
-        # Console
-        self.option_console_var = tk.BooleanVar()
-        menu.add_checkbutton(
-            label='Enable Console (Logging)',
-            variable=self.option_console_var,
-            command=_on_toggle_console,
-        )
-        # AI Insights
-        self.option_ai_var = tk.BooleanVar()
-        menu.add_checkbutton(
-            label='Enable AI Insights',
-            variable=self.option_ai_var,
-            command=_on_toggle_ai_insights,
-        )
-        # Progress bar and label
-        self.progress_bar_label = ttk.Label(frm_init, text='')
-        self.progress_bar_label.grid(row=0, column=5, padx=5, pady=3)
-        self.progress_bar_label.grid_remove()
-        self.progress_bar = ttk.Progressbar(frm_init, mode='indeterminate', length=100)
-        self.progress_bar.grid(row=1, column=5, padx=5, pady=3, sticky='ew')
-        self.progress_bar.grid_remove()
-
-    def create_notebook(self):
         # Create notebook - grid row 0
-        self.notebook = ttk.Notebook(self.main_frame, bootstyle='info')
-        self.notebook.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        self.notebook = ttk.Notebook(self.notebook_frame, bootstyle='primary')
 
-        # Configure root grid to expand notebook
-        self.main_frame.grid_rowconfigure(0, weight=1)
-        self.main_frame.grid_columnconfigure(0, weight=1)
+        # self.notebook.grid(row=0, column=0, sticky='nsew', padx=3, pady=5)
+        self.notebook.pack(expand=True, fill='both', padx=3, pady=3)
+        self.notebook.bind('<<NotebookTabChanged>>', on_tab_change)
 
     def create_console(self):
         """Console frame with clear and level button can control main logging level"""
 
-        def _clear_console():
-            self.console_text.config(state='normal')
-            self.console_text.delete(1.0, tk.END)
-            self.console_text.config(state='disabled')
-            logging.info('Console cleared')
-
-        def _update_log_level(level):
-            level_map = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING}
-            self.logger.setLevel(level_map[level])
-            if level == 'DEBUG':
-                self.verbose = True
-            else:
-                self.verbose = False
-            logging.info(f'Log level set to {level}')
-
         # Sub-frame for text widget
-        self.text_frame = ttk.Frame(self.console_frame)
-        self.text_frame.pack(side='left', fill='both', expand=True, padx=5, pady=5)
-        self.console_text = ttk.ScrolledText(self.text_frame, height=10, state='disabled')
+        self.text_frame = ttk.Labelframe(self.console_frame, text='Console Log', bootstyle='secondary')
+        self.text_frame.pack(side='left', fill=tk.BOTH, expand=True)
+        self.console_text = ttk.ScrolledText(
+            self.text_frame, height=12, state='disabled', borderwidth=0, highlightthickness=0, relief='flat'
+        )
         self.console_text.pack(fill='both')
-
-        # Sub-frame for buttons
-        self.button_frame = ttk.Frame(self.console_frame)
-        self.button_frame.pack(side='right', fill='y', padx=5, pady=5)
-        ttk.Button(self.button_frame, text='Clear Console', command=_clear_console).pack(side='left', pady=5)
-        ttk.Label(self.button_frame, text='Log Level:').pack(side='left', pady=5)
-        ttk.OptionMenu(
-            self.button_frame, self.log_level, 'INFO', 'DEBUG', 'INFO', 'WARNING', command=_update_log_level
-        ).pack(side='left', pady=5)
-
-        # Create console handler but don't add it yet
-        self.console_handler = TextHandler(self.console_text, self.root)
-        self.console_handler.setFormatter(self.formatter)
-        logging.info('Application started')
 
     def create_ai_insights(self):
         # Sub-frame for text widget
-        self.policy_response_frame = ttk.Frame(self.ai_frame)
-        self.policy_response_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.policy_response_frame = ttk.Labelframe(self.ai_insights_frame, text='AI Insights', bootstyle='secondary')
+        self.policy_response_frame.pack(side='right', fill=tk.BOTH, expand=True)
 
         # AI Response Markdown
-        self.policy_response_label = tk.Label(self.policy_response_frame, text='AI Response')
-        self.policy_response_label.pack(anchor='w', padx=5)
-        self.policy_response_text = HTMLText(self.policy_response_frame, height=10, width=80)
-        self.policy_response_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        self.policy_response_loading_label = tk.Label(self.policy_response_frame, text='')
-        self.policy_response_loading_label.pack(fill=tk.BOTH, expand=True)
+        self.ai_insights_response_html = HTMLText(
+            self.policy_response_frame, borderwidth=0, highlightthickness=0, relief='flat', height=12
+        )
+        self.ai_insights_response_html.pack(fill=tk.BOTH, expand=True)
 
-    def create_tab_start(self):
+    def create_tab_start(self):  # noqa: C901
         # Tab and add to Notebook
         tab_start = ttk.Frame(self.notebook)  # type: ignore
         self.notebook.add(tab_start, text='Start\n(Configuration)')
         tab_start.grid_rowconfigure(0, weight=1)
         tab_start.grid_columnconfigure(0, weight=1)
+
         # Top-level frame for start tab
         frm_start = ttk.Frame(tab_start)
         frm_start.grid_rowconfigure(0, weight=1)
         frm_start.grid_columnconfigure(0, weight=1)
         frm_start.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-        # Populate model tree
+        def _clear_console():
+            self.console_text.config(state='normal')
+            self.console_text.delete(1.0, tk.END)
+            self.console_text.config(state='disabled')
+            self.logger.info('Console cleared')
+
+        def _update_log_level(level):
+            level_map = {'DEBUG': self.logger.debug, 'INFO': self.logger.info, 'WARNING': self.logger.warning}
+            self.logger.setLevel(level_map[level])
+            if level == 'DEBUG':
+                self.verbose = True
+            else:
+                self.verbose = False
+            self.logger.info(f'Log level set to {level}')
+
         def populate_model_tree():
             """Populate the model Treeview with available models from list_models."""
             start_time = datetime.datetime.now()
-            logging.info('Populating model tree')
+            self.logger.info('Populating model tree')
 
             for item in self.model_tree.get_children():
                 self.model_tree.delete(item)
 
-            # self.loading_label.config(text="Loading available models from OCI Generative AI...")
-            # self.loading_label.pack(fill=tk.BOTH, expand=True)
-            # self.response_text.pack_forget()
-            # self.response_text.update()
-            # logging.debug("Loading message displayed for model tree")
-
+            # Try to load models
             try:
+                if not self.ai.initialized:
+                    self.logger.info(
+                        f'Creating AI Clients from selected Profile: {self.profile_var.get()} or IP:{self.use_instance_principal_var.get()}.'
+                    )
+                    self.ai.initialize_client(
+                        use_instance_principal=self.use_instance_principal_var.get(), profile=self.profile_var.get()
+                    )
+                    # Grab endpoint/compartment for variable
+                    self.endpoint_var.set(self.ai.base_endpoint)
+                    self.ai_compartment_var.set(self.ai.tenancy_ocid)
+
                 models = self.ai.list_models()
                 for model in models:
                     name = model.get('display_name', 'Unknown')
@@ -710,45 +430,54 @@ class OCIPolicyDGViewer:
                     lifecycle_state = model.get('lifecycle_state', 'N/A')
                     creation_date = model.get('time_created', 'N/A')
                     self.model_tree.insert('', tk.END, values=(name, ocid, lifecycle_state, creation_date))
-                    logging.debug('Inserted model: %s, OCID: %s', name, ocid)
+                    self.logger.debug('Inserted model: %s, OCID: %s', name, ocid)
 
-                # self.loading_label.pack_forget()
-                # self.response_text.pack(fill=tk.BOTH, expand=True)
-                # logging.debug("Model tree populated, response text restored")
                 if not models:
-                    #     if USE_HTMLTEXT:
-                    #         self.response_text.set_html("<p>No models available in this region</p>")
-                    #     else:
-                    #         self.response_text.delete('1.0', tk.END)
-                    #         self.response_text.insert(tk.END, "No models available in this region\n")
-                    logging.warning('No models returned from list_models')
+                    self.ai_insights_response_html.set_html('<p>No models available in this region</p>')
+                    self.logger.warning('No models returned from list_models')
             except Exception as e:
-                logging.error('Failed to load models: %s', e)
-                # if USE_HTMLTEXT:
-                #     self.response_text.set_html(f"<p>Error loading models: {str(e)}</p>")
-                # else:
-                #     self.response_text.delete('1.0', tk.END)
-                #     self.response_text.insert(tk.END, f"Error loading models: {str(e)}\n")
-                # self.loading_label.pack_forget()
-                # self.response_text.pack(fill=tk.BOTH, expand=True)
+                self.logger.error('Failed to load models: %s', e)
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                error_html = formatting.exception_to_html(exc_type, exc_value, exc_traceback)
+                # self.ai_insights_response_html.set_html(f'<p>Error loading models: {str(e)}</p>')
+                self.ai_insights_response_html.set_html(error_html)
 
-            logging.info('Populated model tree in %s seconds', (datetime.datetime.now() - start_time).total_seconds())
+            self.logger.info(
+                'Populated model tree in %s seconds', (datetime.datetime.now() - start_time).total_seconds()
+            )
 
         def apply_config():
             """Apply changes to Model ID and Endpoint in AI client."""
             start_time = datetime.datetime.now()
             model_id = self.model_id_var.get().strip()
             endpoint = self.endpoint_var.get().strip()
-            logging.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
+            compartment_ocid = self.ai_compartment_var.get().strip()
+            self.logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
 
             try:
-                self.ai.update_config(model_id, endpoint)
-                logging.info(
+                self.ai.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
+                self.logger.info(
                     'Configuration updated successfully in %s seconds',
                     (datetime.datetime.now() - start_time).total_seconds(),
                 )
+                # Make AI Call to test
+                if self.option_ai_var.get():
+                    # self.ai_insights_frame.pack(fill='both', before=self.status_frame, padx=10, pady=5)
+                    self.logger.info('AI analysis before call')
+                    self.ai_insights_response_html.set_html(
+                        '<p style="font-size: 8px;">Testing AI configuration...</p>'
+                    )
+                    ai_thread = Thread(
+                        target=self.ai.test_ai_call,
+                        args=('What is the meaning of life?', self.result_queue, False, 'Short answer please.'),
+                        daemon=True,
+                        name='AI-Test-Thread',
+                    )
+                    ai_thread.start()
+                    # ai_result = self.ai.analyze_policy_statement(policy_text="allow any-user to manage instances in compartment X", queue=self.result_queue, use_cache=False)
+                    self.logger.info('AI analysis thread started')
             except Exception as e:
-                logging.error('Failed to update configuration: %s', e)
+                self.logger.error('Failed to update configuration: %s', e)
 
         def handle_model_tree_click(event):
             """Handle click on model treeview; populate model ID entry with selected OCID."""
@@ -757,18 +486,146 @@ class OCIPolicyDGViewer:
                 start_time = datetime.datetime.now()
                 values = self.model_tree.item(row_id)['values']
                 model_ocid = values[1]
-                logging.debug('Model tree click on row with OCID: %s', model_ocid)
+                self.logger.debug('Model tree click on row with OCID: %s', model_ocid)
                 self.model_id_var.set(model_ocid)
-                logging.info(
+                self.logger.info(
                     'Updated Model ID entry with OCID %s in %s seconds',
                     model_ocid,
                     (datetime.datetime.now() - start_time).total_seconds(),
                 )
 
+        def update_tree_style(new_font):
+            self.logger.info(f'Update font to size {new_font}')
+            self.font.configure(size=new_font)
+            bold_font = self.font
+            bold_font.configure(weight='bold')
+            # style = ttk.Style()
+            self.style.configure('Treeview', font=self.font, rowheight=(new_font + 10))
+            self.style.configure('Treeview.Heading', font=bold_font, rowheight=(new_font + 10))
+
+        def toggle_recursive_load():
+            self.logger.info(f'Changing to recursive load: {self.recursive_load_var.get()}')
+            # Persist Options
+            self.persist_options()
+
+        def toggle_profile_dropdown():
+            if self.use_instance_principal_var.get():
+                self.input_profile.config(state=tk.DISABLED)
+                self.label_profile.config(state=tk.DISABLED)
+            else:
+                self.input_profile.config(state=tk.NORMAL)
+                self.label_profile.config(state=tk.NORMAL)
+
+        # Label Frame for Tenancy and Config
+        label_frm_tenancy_config = ttk.Labelframe(frm_start, text='Tenancy and Config', bootstyle='secondary')
+        label_frm_tenancy_config.pack(fill='x', padx=5, pady=5)
+
+        # Instance Principal checkbox
+        # self.use_instance_principal_var = tk.BooleanVar(value=False)
+        self.chk_instance_principal = ttk.Checkbutton(
+            label_frm_tenancy_config,
+            text='Instance Principal',
+            variable=self.use_instance_principal_var,
+            command=toggle_profile_dropdown,
+        )
+        self.chk_instance_principal.grid(row=0, column=0, padx=5, pady=5, sticky='w')
+
+        # Recursion checkbox
+        # self.recursive_load_var = tk.BooleanVar(value=True)
+        self.recursive_load = ttk.Checkbutton(
+            label_frm_tenancy_config,
+            text='Recursive',
+            variable=self.recursive_load_var,
+            command=toggle_recursive_load,
+        )
+        self.recursive_load.grid(row=1, column=0, padx=5, pady=5, sticky='w')
+
+        # # Profile selection
+        # profile_list = ['DEFAULT']
+        # try:
+        #     # TODO - Check Env OCI_CLI_CONFIG_FILE
+        #     with open(Path.home() / '.oci' / 'config') as fp:
+        #         profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
+        # except FileNotFoundError:
+        #     self.logger.warning('OCI config file not found')
+        #     profile_list = ['NONE']
+        #     self.use_instance_principal_var.set(True)
+
+        # self.profile_var = tk.StringVar(value=profile_list[0])
+        self.label_profile = ttk.Label(label_frm_tenancy_config, text='Profile:')
+
+        self.label_profile.grid(row=0, column=1, padx=5, pady=3)
+        self.input_profile = ttk.OptionMenu(
+            label_frm_tenancy_config, self.profile_var, self.profile_var.get(), *self.profile_list
+        )
+        self.input_profile.config(width=20)
+        self.input_profile.grid(row=0, column=2, padx=5, pady=3)
+
+        # Get available cached copies
+        self.label_cache = ttk.Label(label_frm_tenancy_config, text='Cache:')
+        self.label_cache.grid(row=1, column=1, padx=5, pady=3)
+        self.cache_list = get_available_cache(None)
+        self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
+        self.cache_list_dropdown = ttk.OptionMenu(
+            label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list, bootstyle='default'
+        )
+        self.cache_list_dropdown.config(width=20)
+        self.cache_list_dropdown.grid(row=1, column=2, padx=5, pady=3)
+
+        # If the instance principal was selected, disable this
+        if self.use_instance_principal_var.get():
+            self.input_profile.config(state=tk.DISABLED)
+
+        # Load buttons
+        self.btn_load_tenancy = ttk.Button(
+            label_frm_tenancy_config,
+            text='Load from Tenancy',
+            command=self._load_from_tenancy,
+            width=20,
+            bootstyle='default',
+        )
+        self.btn_load_tenancy.grid(row=0, column=3, padx=5, pady=3)
+        self.btn_load_cache = ttk.Button(
+            label_frm_tenancy_config,
+            text='Load from Cache',
+            command=self._load_from_cache,
+            width=20,
+            bootstyle='default',
+        )
+        self.btn_load_cache.grid(row=1, column=3, padx=5, pady=3)
+
+        # Progress bar and label
+        self.progress_bar_label = ttk.Label(label_frm_tenancy_config, text='')
+        self.progress_bar_label.grid(row=0, column=5, padx=5, pady=3)
+        self.progress_bar_label.grid_remove()
+        self.progress_bar = ttk.Progressbar(label_frm_tenancy_config, mode='indeterminate', length=100)
+        self.progress_bar.grid(row=1, column=5, padx=5, pady=3, sticky='ew')
+        self.progress_bar.grid_remove()
+
+        ###############################
+        # Label Frame for AI Connection
+        self.label_frm_ai_config = ttk.Labelframe(frm_start, text='OCI GenAI', bootstyle='secondary')
+        self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
+
+        self.option_ai_var = tk.BooleanVar()
+        self.enable_ai_insights = ttk.Checkbutton(
+            self.label_frm_ai_config,
+            text='Enable AI Insights?',
+            variable=self.option_ai_var,
+            command=self._update_layout,
+        )
+        self.enable_ai_insights.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
+
+        self.refresh_button = ttk.Button(
+            self.label_frm_ai_config, text='Refresh Models (using selected profile)', command=populate_model_tree
+        )
+        self.refresh_button.grid(row=0, column=1, padx=3, pady=3, sticky='ew')
+        self.logger.debug('Refresh Models button created')
+
         # Treeview for models
-        tk.Label(frm_start, text='Load and select AI Models').pack(anchor=tk.W)
+        # tk.Label(self.label_frm_ai_config, text='Load and select AI Models').grid(row=1, column=0, padx=3, pady=3, sticky='ew')
         model_columns = ('Model Name', 'OCID', 'Lifecycle State', 'Creation Date')
-        self.model_tree = ttk.Treeview(frm_start, columns=model_columns, show='headings')
+        self.model_tree = ttk.Treeview(self.label_frm_ai_config, columns=model_columns, show='headings', height=4)
         self.model_tree.heading('Model Name', text='Model Name')
         self.model_tree.heading('OCID', text='OCID')
         self.model_tree.heading('Lifecycle State', text='Lifecycle State')
@@ -776,33 +633,75 @@ class OCIPolicyDGViewer:
         self.model_tree.column('Model Name', width=250)
         self.model_tree.column('OCID', width=450)
         self.model_tree.column('Lifecycle State', width=200)
-        self.model_tree.column('Creation Date', width=200)
-        self.model_tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.model_tree.column('Creation Date', width=250)
+        self.model_tree.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
         self.model_tree.bind('<Button-1>', handle_model_tree_click)
-        logging.debug('Model Treeview setup with columns: %s', model_columns)
-
-        refresh_button = ttk.Button(frm_start, text='Refresh Models', command=populate_model_tree)
-        refresh_button.pack(pady=5)
-        logging.debug('Refresh Models button created')
+        self.logger.debug('Model Treeview setup with columns: %s', model_columns)
 
         # Configuration inputs
-        tk.Label(frm_start, text='Model ID (default Grok3 Fast):').pack(anchor=tk.W)
-        self.model_id_var = tk.StringVar(value=self.ai.AI_MODEL_ID)
-        self.model_id_entry = tk.Entry(frm_start, textvariable=self.model_id_var)
-        self.model_id_entry.pack(fill=tk.X, padx=5, pady=2)
-        logging.debug('Model ID entry created with value: %s', self.ai.AI_MODEL_ID)
+        tk.Label(self.label_frm_ai_config, text='Model ID (default Grok3 Fast):').grid(
+            row=2, column=0, padx=2, pady=3, sticky='ew'
+        )
+        self.model_id_var = tk.StringVar()
+        self.model_id_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.model_id_var, width=80)
+        self.model_id_entry.grid(row=2, column=1, padx=3, pady=3, sticky='ew')
 
-        tk.Label(frm_start, text='Regional Endpoint:').pack(anchor=tk.W)
-        self.endpoint_var = tk.StringVar(value=self.ai.client.base_client.endpoint)
-        self.endpoint_entry = tk.Entry(frm_start, textvariable=self.endpoint_var)
-        self.endpoint_entry.pack(fill=tk.X, padx=5, pady=2)
-        logging.debug('Endpoint entry created with value: %s', self.ai.client.base_client.endpoint)
+        tk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='ew')
+        self.endpoint_var = tk.StringVar()
+        self.endpoint_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
+        self.endpoint_entry.grid(row=3, column=1, padx=3, pady=3, sticky='ew')
 
-        apply_button = ttk.Button(frm_start, text='Apply and Test GenAI Settings', command=apply_config)
-        apply_button.pack(pady=5)
-        logging.debug('Apply button created')
+        tk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
+            row=4, column=0, padx=2, pady=3, sticky='ew'
+        )
+        self.ai_compartment_var = tk.StringVar()
+        self.ai_compartment_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
+        self.ai_compartment_entry.grid(row=4, column=1, padx=3, pady=3, sticky='ew')
 
-    def create_tab_policy(self):
+        apply_button = ttk.Button(self.label_frm_ai_config, text='Apply and Test GenAI Settings', command=apply_config)
+        apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
+        self.logger.debug('Apply button created')
+
+        # Label Frame for Display
+        self.label_frm_display_config = ttk.Labelframe(frm_start, text='Display Settings', bootstyle='secondary')
+        self.label_frm_display_config.pack(fill='x', padx=5, pady=5)
+
+        # Console Options
+        self.option_console_var = tk.BooleanVar()
+        self.enable_console = ttk.Checkbutton(
+            self.label_frm_display_config,
+            text='Console Log Window',
+            variable=self.option_console_var,
+            command=self._update_layout,
+        )
+        self.enable_console.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
+
+        # Clear Log
+        ttk.Button(self.label_frm_display_config, text='Clear Log', command=_clear_console).grid(
+            row=0, column=1, padx=3, pady=3, sticky='ew'
+        )
+
+        # Log Level
+        ttk.Label(self.label_frm_display_config, text='Log Level').grid(row=0, column=2, padx=3, pady=3, sticky='ew')
+        ttk.OptionMenu(
+            self.label_frm_display_config, self.log_level, 'INFO', 'DEBUG', 'INFO', 'WARNING', command=_update_log_level
+        ).grid(row=0, column=3, padx=3, pady=3, sticky='ew')
+
+        # Font Size
+        self.font_size_var = tk.IntVar()
+        ttk.Label(self.label_frm_display_config, text='Font Size (Tables)').grid(
+            row=1, column=0, padx=3, pady=3, sticky='ew'
+        )
+        ttk.OptionMenu(
+            self.label_frm_display_config, self.font_size_var, 10, 8, 10, 12, 14, 16, command=update_tree_style
+        ).grid(row=1, column=1, padx=3, pady=3, sticky='ew')
+
+        # # Create console handler but don't add it yet
+        self.console_handler = TextHandler(self.console_text, self.root)
+        self.console_handler.setFormatter(self.formatter)
+        # self.logger.info('Application started')
+
+    def create_tab_policy(self):  # noqa: C901
         # Toggles
         def _toggle_any_subject():
             if self.use_subject_any.get():
@@ -881,16 +780,13 @@ class OCIPolicyDGViewer:
         self.label_subject = ttk.Label(frm_policy_filter, text='Subject').grid(
             row=1, column=0, padx=5, pady=2, sticky='w'
         )
-        self.entry_subj = tk.Entry(frm_subj, state=tk.DISABLED, width=20)
+        self.entry_subj = ttk.Entry(frm_subj, state=tk.DISABLED, width=20)
         self.entry_subj.grid(row=0, column=0, padx=2, sticky='ew')
         self.use_subject_any = tk.BooleanVar()
         ttk.Checkbutton(
             frm_subj, text='Any-User/Group', variable=self.use_subject_any, command=_toggle_any_subject
         ).grid(row=0, column=1, padx=2)
         frm_subj.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
-        # Add a tooltip for the checkbox
-        # self.logger.info(f'Tooltip: {self.tooltips["label_subject"]}')
-        # self.tooltip_instances.append(Tooltip(self.label_subject, self.tooltips["label_subject"]))
 
         ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=2, padx=5, pady=2, sticky='w')
         self.entry_verb = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
@@ -911,9 +807,6 @@ class OCIPolicyDGViewer:
             frm_loc, text='Tenancy', variable=self.location_filter_tenancy, command=_toggle_location_tenancy
         ).grid(row=0, column=1, padx=2)
         frm_loc.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
-
-        # Add a tooltip for the checkbox
-        # self.tooltip_instances.append(Tooltip(self.label_location, self.tooltips.get("label_location")))
 
         frm_hierarchy = ttk.Frame(frm_policy_filter)
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
@@ -944,7 +837,6 @@ class OCIPolicyDGViewer:
         self.btn_update.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
         self.btn_clear = ttk.Button(frm_policy_buttons, text='Clear', state=tk.DISABLED, command=_clear_policy_filters)
         self.btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
-        self.tooltip_instances.append(Tooltip(self.btn_clear, 'Clear the filters completely.'))
 
         self.btn_export_policy = ttk.Button(
             frm_policy_buttons,
@@ -961,11 +853,6 @@ class OCIPolicyDGViewer:
         frm_policy_output.columnconfigure(0, weight=1)
         self.label_policy_count = ttk.Label(frm_policy_output, text='Statements (Filtered): 0')
         self.label_policy_count.grid(row=0, column=0, padx=5, pady=3, sticky='w')
-
-        # Add a tooltip
-        self.tooltip_instances.append(
-            Tooltip(self.label_policy_count, 'This label shows the number of filtered statements and those displayed.')
-        )
 
         self.chk_show_service = tk.BooleanVar()
         self.chk_show_dynamic = tk.BooleanVar()
@@ -991,66 +878,72 @@ class OCIPolicyDGViewer:
             frm_policy_output, text='Invalid', variable=self.chk_show_invalid, command=self._update_policy_output
         ).grid(row=0, column=7, padx=5, pady=3)
         ttk.Checkbutton(
-            frm_policy_output,
-            text='Expanded Output',
-            variable=self.chk_show_expanded,
-            command=self._update_policy_output,
+            frm_policy_output, text='Parsed Output', variable=self.chk_show_expanded, command=self._update_policy_output
         ).grid(row=0, column=8, padx=5, pady=3)
 
-        # Frame for policy sheet - row 1 of tab_policy
+        def selection_callback(selected_rows: list[dict]) -> None:
+            self.logger.info('Selected rows:')
+            for row in selected_rows:
+                self.logger.info(row)
+                # Update the policy box
+                self.policy_analyze_statement_var.set(row.get('Statement Text'))
+
+        # Frame for policy table - row 1 of tab_policy
         frm_policy_sheet = ttk.Frame(tab_policy)
-        frm_policy_sheet.grid(row=1, column=0, sticky='nsew')
-        frm_policy_sheet.rowconfigure(0, weight=1)
-        frm_policy_sheet.columnconfigure(0, weight=1)
-        self.sheet_policies = SortableSheet(
+        frm_policy_sheet.grid_rowconfigure(0, weight=1)
+        frm_policy_sheet.grid_columnconfigure(0, weight=1)
+        frm_policy_sheet.grid(row=1, column=0, columnspan=2, sticky='nsew')
+
+        # Use the Data Table here with fields
+        self.policy_table = DataTable(
             frm_policy_sheet,
-            font=('Courier New', 10, 'normal'),
-            header_font=('Courier New', 11, 'bold'),
-            index_font=('Courier New', 11, 'bold'),
-            headers=[
-                'Policy Name',
-                'Policy OCID',
-                'Compartment OCID',
-                'Policy Compartment',
-                'Statement Text',
-                'Valid',
-                'Subject Type',
-                'Subject',
-                'Verb',
-                'Resource',
-                'Permission',
-                'Location Type',
-                'Location',
-                'Conditions',
-                'Comments',
-                'Creation Time',
-                'Parsed',
-            ],
-            auto_resize_columns=200,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+            columns=self.all_policy_columns,
+            display_columns=self.basic_policy_columns,
+            data=[],
+            column_widths=self.policy_column_widths,
+            font_size=10,
+            selection_callback=selection_callback,
+            multi_select=True,
         )
+        # self.policy_table.grid(row=0, column=0, sticky="nsew")
+        self.policy_table.pack(fill='both', expand=True)
 
-        self.sheet_policies.grid(row=0, column=0, sticky='nsew')
-        self.sheet_policies.enable_bindings('single_select', 'column_width_resize', 'row_select', 'copy', 'rc_select')
+        # Field and button for analysis
+        frm_policy_analyze = ttk.Frame(tab_policy)
+        frm_policy_analyze.grid_rowconfigure(0, weight=1)
+        frm_policy_analyze.grid_columnconfigure(0, weight=20)
+        frm_policy_analyze.grid_columnconfigure(1, weight=60)
+        frm_policy_analyze.grid_columnconfigure(2, weight=20)
+        frm_policy_analyze.grid(row=2, column=0, columnspan=2, sticky='nsew')
 
-        self.tooltip_instances.append(
-            Tooltip(
-                self.sheet_policies,
-                'Policies parsed and organized in a sortable sheet. Click in the column headers to sort the table.',
-            )
+        ttk.Label(frm_policy_analyze, text='Policy Statement to Analyze').grid(
+            row=0, column=0, padx=5, pady=2, sticky='w'
         )
+        self.policy_analyze_statement_var = tk.StringVar()
+        self.policy_analyze_statement_entry = tk.Entry(
+            frm_policy_analyze, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+        )
+        self.policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
 
-        # # Label below the sheet
-        # self.label_sheet_status = ttk.Label(frm_policy_sheet, text='No policies loaded yet.')
-        # self.label_sheet_status.grid(row=1, column=0, sticky='ew', padx=5, pady=3)
-        # Tooltip(self.label_sheet_status, 'This label will update with the status of the sheet.')
+        self.btn_policy_analyze_statement = ttk.Button(
+            frm_policy_analyze,
+            text='Analyze Statement',
+            state=tk.DISABLED,
+            command=lambda: self._analyze_policy_statment_ai(
+                additional_context='Put the actual policy statement into a markdown fenced code block.'
+            ),
+            bootstyle='primary',
+        )
+        self.btn_policy_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
 
     def create_tab_dynamic_groups(self):
         # Tab creation for Dynamic Groups
         tab_dg = ttk.Frame(self.notebook)
         self.notebook.add(tab_dg, text='Dynamic Groups / \nInstance Principals')
-        tab_dg.grid_rowconfigure(0, weight=1)
+        # 20% / 40% / 40% (Filter / DG Sheet / Policy Sheet)
+        tab_dg.grid_rowconfigure(0, weight=2)
+        tab_dg.grid_rowconfigure(1, weight=4)
+        tab_dg.grid_rowconfigure(2, weight=4)
         tab_dg.grid_columnconfigure(0, weight=1)
 
         # Top of frame
@@ -1061,94 +954,149 @@ class OCIPolicyDGViewer:
             row=0, column=0, columnspan=5, pady=2, sticky='ew'
         )
         ttk.Label(frm_dg_filter, text='Domain').grid(row=1, column=0, padx=5, pady=2, sticky='w')
-        self.dg_entry_domain = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=20)
+        self.dg_entry_domain = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=25)
         self.dg_entry_domain.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
-        ttk.Label(frm_dg_filter, text='Name').grid(row=1, column=2, padx=5, pady=2, sticky='w')
-        self.dg_entry_name = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=20)
-        self.dg_entry_name.grid(row=1, column=3, padx=5, pady=2, sticky='ew')
-        ttk.Label(frm_dg_filter, text='Rule Component').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        self.dg_entry_type = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=20)
-        self.dg_entry_type.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
-        ttk.Label(frm_dg_filter, text='OCID').grid(row=2, column=2, padx=5, pady=2, sticky='w')
-        self.dg_entry_ocid = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=20)
-        self.dg_entry_ocid.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
+        ttk.Label(frm_dg_filter, text='OCID').grid(row=1, column=2, padx=5, pady=2, sticky='w')
+        self.dg_entry_ocid = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=40)
+        self.dg_entry_ocid.grid(row=1, column=3, padx=5, pady=2, sticky='ew')
+        ttk.Label(frm_dg_filter, text='Name').grid(row=2, column=0, padx=5, pady=2, sticky='w')
+        self.dg_entry_name = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=25)
+        self.dg_entry_name.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
+        ttk.Label(frm_dg_filter, text='Rule Component').grid(row=2, column=2, padx=5, pady=2, sticky='w')
+        self.dg_entry_type = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=40)
+        self.dg_entry_type.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
 
-        # Frame for buttons
-        frm_dg_buttons = ttk.Frame(frm_dg_filter)
-        self.dg_btn_update = ttk.Button(
-            frm_dg_buttons, text='Update', state=tk.DISABLED, command=self._update_dg_output
-        )
-        self.dg_btn_update.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
-        self.dg_btn_clear = ttk.Button(frm_dg_buttons, text='Clear', state=tk.DISABLED, command=self._clear_dg_filters)
-        self.dg_btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
-        self.dg_btn_export = ttk.Button(
-            frm_dg_buttons, text='Export Selected\nDGs to CSV', state=tk.DISABLED, command=self._export_dg_to_csv
-        )
-        self.dg_btn_export.grid(row=2, column=0, padx=5, pady=2, sticky='ew')
-        frm_dg_buttons.grid(row=1, column=4, rowspan=2, padx=5, pady=2, sticky='ns')
+        # Buttons
+        self.dg_btn_update = ttk.Button(frm_dg_filter, text='Update', state=tk.DISABLED, command=self._update_dg_output)
+        self.dg_btn_update.grid(row=1, column=4, padx=5, pady=2, sticky='ew')
+        self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear', state=tk.DISABLED, command=self._clear_dg_filters)
+        self.dg_btn_clear.grid(row=2, column=4, padx=5, pady=2, sticky='ew')
 
-        # Frame Output filter
-        frm_dg_output = ttk.Frame(tab_dg)
-        frm_dg_output.grid(row=1, column=0, sticky='w')
-        frm_dg_output.columnconfigure(0, weight=1)
-        self.dg_label_count = ttk.Label(frm_dg_output, text='Dynamic Groups (Filtered): 0')
-        self.dg_label_count.grid(row=0, column=0, padx=5, pady=3, sticky='w')
-        ttk.Separator(frm_dg_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+        self.dg_label_count = ttk.Label(frm_dg_filter, text='Dynamic Groups (Filtered): 0')
+        self.dg_label_count.grid(row=3, column=0, columnspan=2, padx=5, pady=3, sticky='w')
         self.chk_show_instance_principals = tk.BooleanVar()
         self.chk_show_not_in_use = tk.BooleanVar()
+        self.chk_show_dg_ocid = tk.BooleanVar()
         ttk.Checkbutton(
-            frm_dg_output,
-            text='Show Instance Principals Only',
+            frm_dg_filter,
+            text='Show Only Instance Principals',
             variable=self.chk_show_instance_principals,
             command=self._update_dg_output,
-        ).grid(row=0, column=2, padx=5, pady=3)
+        ).grid(row=3, column=2, padx=5, pady=3)
         ttk.Checkbutton(
-            frm_dg_output,
-            text='Highlight Unused Dynamic Groups',
+            frm_dg_filter,
+            text='Show Only Unused Dynamic Groups',
             variable=self.chk_show_not_in_use,
             command=self._update_dg_output,
-        ).grid(row=0, column=3, padx=5, pady=3)
+        ).grid(row=3, column=3, padx=5, pady=3)
+        ttk.Checkbutton(
+            frm_dg_filter,
+            text='Show OCID and Creation Time',
+            variable=self.chk_show_dg_ocid,
+            command=self._update_dg_output,
+        ).grid(row=3, column=4, padx=5, pady=3)
 
-        # Frame for Bottom Sheet
+        # Frames for Bottom Sheets
         frm_dg_sheet = ttk.Frame(tab_dg)
-        frm_dg_sheet.grid(row=2, column=0, sticky='nsew')
+        frm_dg_sheet.grid(row=1, column=0, sticky='nsew')
         frm_dg_sheet.grid_rowconfigure(0, weight=1)
         frm_dg_sheet.grid_columnconfigure(0, weight=1)
-        self.sheet_dynamic_group = SortableSheet(
+
+        frm_dg_policy_sheet = ttk.Frame(tab_dg)
+        frm_dg_policy_sheet.grid(row=2, column=0, sticky='nsew')
+        frm_dg_policy_sheet.grid_rowconfigure(0, weight=1)
+        frm_dg_policy_sheet.grid_columnconfigure(0, weight=1)
+
+        def dg_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Dynamic Group is selected, update the policy statements below"""
+            dgs_for_filter = []
+            # Make the DG list (Domain,Name) for all selected rows
+            for row in selected_rows:
+                self.logger.info(f'Selected row: {row}')
+                dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
+            self.logger.info(f'DGs for filter: {dgs_for_filter}')
+            # Call the filter
+            filtered = self.policy_compartment_analysis.filter_policy_statements_by_dynamic_group_name(dgs_for_filter)
+
+            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            # Set them into the next table
+            self.dg_policy_table.update_data(filtered)
+            self.logger.info(f'Policies added to policy table: {len(filtered)}')
+
+        def dg_policy_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Policy Statement is selected, update the policy statement below"""
+            if len(selected_rows) == 1:
+                selected_statement = selected_rows[0].get('Statement Text', '')
+                self.logger.info(f'Selected policy statement: {selected_statement}')
+                self.policy_analyze_statement_var.set(selected_statement)
+            else:
+                self.policy_analyze_statement_var.set('')
+
+        # Dynamic Groups
+        self.custom_data_dynamic_group = DataTable(
             frm_dg_sheet,
-            headers=['Domain', 'Name', 'Matching Rule', 'In Use?', 'OCID', 'Creation Time'],
-            # To-do: Add back Invalid OCID functionality "Invalid OCIDs" and maybe rules components
-            auto_resize_columns=200,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+            columns=self.all_dg_columns,
+            display_columns=self.basic_dg_columns,
+            column_widths=self.dg_column_widths,
+            data=[],
+            selection_callback=dg_selection_callback,
+            multi_select=True,
         )
-        self.sheet_dynamic_group.grid(row=0, column=0, sticky='nsew')
-        self.sheet_dynamic_group.enable_bindings(
-            'single_select', 'column_width_resize', 'row_select', 'copy', 'rc_select'
+        self.custom_data_dynamic_group.grid(row=0, column=0, sticky='nsew')
+
+        # Use a Policy Table here with fields
+        self.dg_policy_table = DataTable(
+            frm_dg_policy_sheet,
+            columns=self.all_policy_columns,
+            display_columns=self.basic_policy_columns,
+            data=[],
+            column_widths=self.policy_column_widths,
+            font_size=10,
+            selection_callback=dg_policy_selection_callback,
+            multi_select=False,
         )
+        self.dg_policy_table.grid(row=0, column=0, columnspan=3, sticky='nsew')
+
+        ttk.Label(frm_dg_policy_sheet, text='Policy Statement to Analyze').grid(
+            row=1, column=0, padx=5, pady=2, sticky='w'
+        )
+        # self.policy_analyze_statement_var = tk.StringVar()
+        # Re-use the same variable for policy to analyze
+        self.policy_analyze_statement_entry = tk.Entry(
+            frm_dg_policy_sheet, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+        )
+        self.policy_analyze_statement_entry.grid(row=1, column=1, padx=5, pady=2, sticky='w')
+
+        self.btn_dg_analyze_statement = ttk.Button(
+            frm_dg_policy_sheet, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai
+        )
+        self.btn_dg_analyze_statement.grid(row=1, column=2, padx=5, pady=2, sticky='ew')
 
     def create_tab_resource_principals(self):
         # Create Resource Principals tab
         tab_principals = ttk.Frame(self.notebook)
         self.notebook.add(tab_principals, text='Resource\nPrincipals')
-        tab_principals.grid_rowconfigure(0, weight=1)
+        # 3 Rows Filter / (DG / RP) / AI (10% / 25% / 25% / 10%)
+        tab_principals.grid_rowconfigure(0, weight=10)
+        tab_principals.grid_rowconfigure(1, weight=80)  # Separate Form
+        tab_principals.grid_rowconfigure(2, weight=10)
         tab_principals.grid_columnconfigure(0, weight=1)
 
         # Frame for top
         frm_principals_top = tk.Frame(tab_principals)
-        frm_principals_top.pack(fill='x', padx=5, pady=5)
+        frm_principals_top.grid(row=0, column=0, sticky='w', padx=5, pady=5)
 
         # Principals Style dropdown
-        tk.Label(frm_principals_top, text='Principals Style:').pack(side=tk.LEFT, padx=5)
+        tk.Label(frm_principals_top, text='Principals Style:').grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.principals_style_var = tk.StringVar(value='Dynamic Group')
         self.principals_style_list = ['Dynamic Group', 'any-user']
         self.principals_style_dropdown = ttk.OptionMenu(
             frm_principals_top, self.principals_style_var, self.principals_style_var.get(), *self.principals_style_list
         )
-        self.principals_style_dropdown.pack(side=tk.LEFT, padx=5)
+        self.principals_style_dropdown.grid(row=0, column=1, padx=5, pady=2, sticky='ew')
 
         # Resource Type dropdown
-        tk.Label(frm_principals_top, text='Resource Type:').pack(side=tk.LEFT, padx=5)
+        tk.Label(frm_principals_top, text='Resource Type:').grid(row=0, column=2, padx=5, pady=2, sticky='w')
         self.resource_type_var = tk.StringVar(value='Any')
         self.resource_type_list = [
             'Any',
@@ -1164,69 +1112,107 @@ class OCIPolicyDGViewer:
         self.resource_type_dropdown = ttk.OptionMenu(
             frm_principals_top, self.resource_type_var, self.resource_type_var.get(), *self.resource_type_list
         )
-        self.resource_type_dropdown.pack(side=tk.LEFT, padx=5)
+        self.resource_type_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky='ew')
 
-        # Bottom frame for sheets using grid
+        def rp_dg_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Dynamic Group is selected, update the policy statements below"""
+            dgs_for_filter = []
+            # Make the DG list (Domain,Name) for all selected rows
+            for row in selected_rows:
+                self.logger.info(f'Selected row: {row}')
+                dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
+            self.logger.info(f'DGs for filter: {dgs_for_filter}')
+            # Call the filter
+            filtered = self.policy_compartment_analysis.filter_policy_statements_by_dynamic_group_name(dgs_for_filter)
+
+            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            # Set them into the next table
+            self.rp_policy_table.update_data(filtered)
+            self.logger.info(f'Policies added to RP policy table: {len(filtered)}')
+
+        def rp_policy_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Policy Statement is selected, update the policy statement below"""
+            if len(selected_rows) == 1:
+                selected_statement = selected_rows[0].get('Statement Text', '')
+                self.logger.info(f'Selected policy statement: {selected_statement}')
+                self.policy_analyze_statement_var.set(selected_statement)
+            else:
+                self.policy_analyze_statement_var.set('')
+
+        # Bottom frame (row 1) for sheets using grid (bottom 2 rows if DG, bottom 1 if any-user)
         frm_principals_bottom = tk.Frame(tab_principals)
-        frm_principals_bottom.pack(fill='both', expand=True, padx=5, pady=5)
         frm_principals_bottom.grid_rowconfigure(0, weight=1)
         frm_principals_bottom.grid_rowconfigure(1, weight=1)
-        frm_principals_bottom.columnconfigure(0, weight=1)
+        frm_principals_bottom.grid_columnconfigure(0, weight=1)
+        frm_principals_bottom.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
 
-        self.principals_sheet_dynamic_groups = SortableSheet(
+        # Dynamic Groups Sheet (can be ungridded when not needed)
+        self.rp_dg_table = DataTable(
             frm_principals_bottom,
-            headers=['Domain', 'Name', 'OCID', 'Matching Rule', 'Rule Components', 'In Use?', 'Creation Time'],
-            auto_resize_columns=80,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+            columns=self.all_dg_columns,
+            display_columns=self.basic_dg_columns,
+            column_widths=self.dg_column_widths,
+            data=[],
+            selection_callback=rp_dg_selection_callback,
+            multi_select=True,
         )
-        self.principals_sheet_dynamic_groups.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        self.principals_sheet_dynamic_groups.enable_bindings(
-            'single_select', 'column_width_resize', 'row_select', 'copy', 'rc_select'
-        )
+        self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
 
-        self.principals_sheet_policies_instance = SortableSheet(
+        # RP Policy Table
+        self.rp_policy_table = DataTable(
             frm_principals_bottom,
-            headers=[
-                'Policy Name',
-                'Policy OCID',
-                'Compartment OCID',
-                'Policy Compartment',
-                'Statement Text',
-                'Valid',
-                'Subject Type',
-                'Subject',
-                'Verb',
-                'Resource',
-                'Permission',
-                'Location Type',
-                'Location',
-                'Conditions',
-                'Comments',
-                'Creation Time',
-                'Parsed',
-            ],
-            auto_resize_columns=200,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+            columns=self.all_policy_columns,
+            display_columns=self.basic_policy_columns,
+            data=[],
+            column_widths=self.policy_column_widths,
+            font_size=10,
+            selection_callback=rp_policy_selection_callback,
+            multi_select=False,
         )
-        self.principals_sheet_policies_instance.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
-        self.principals_sheet_policies_instance.enable_bindings('column_width_resize', 'row_select', 'copy')
-        self.principals_sheet_policies_instance.display_columns(
-            all_columns_displayed=False, columns=[0, 3, 4, 7, 8, 9, 10, 12, 13, 14, 15]
-        )
+        self.rp_policy_table.grid(row=1, column=0, sticky='nsew')
 
-        # Bind dropdowns to update function
+        # Frame for AI
+        frm_principals_ai = tk.Frame(tab_principals)
+        frm_principals_ai.grid(row=2, column=0, sticky='w', padx=5, pady=5)
+
+        ttk.Label(frm_principals_ai, text='Policy Statement to Analyze').grid(
+            row=0, column=0, padx=5, pady=2, sticky='w'
+        )
+        # self.policy_analyze_statement_var = tk.StringVar()
+        # Re-use the same variable as other tabs for policy statement
+        self.rp_policy_analyze_statement_entry = tk.Entry(
+            frm_principals_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+        )
+        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+
+        self.btn_rp_analyze_statement = ttk.Button(
+            frm_principals_ai, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai
+        )
+        self.btn_rp_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
+
+        # Update the sheet
+        self._update_principals_sheets()
+
+        # # Bind dropdowns to update function
         self.principals_style_var.trace_add('write', self._update_principals_sheets)
         self.resource_type_var.trace_add('write', self._update_principals_sheets)
 
-    def create_tab_user_analysis(self):
+    def create_tab_user_analysis(self):  # noqa: C901
         # Create tab with 20/80 rows
         tab_users = ttk.Frame(self.notebook)
         self.notebook.add(tab_users, text='User\nAnalysis')
+        # Groups/Users on top (20%), Policies on bottom (70%), AI on bottom (10%)
         tab_users.grid_rowconfigure(0, weight=2)
-        tab_users.grid_rowconfigure(1, weight=8)
+        tab_users.grid_rowconfigure(1, weight=7)
+        tab_users.grid_rowconfigure(2, weight=1)
+        tab_users.grid_columnconfigure(0, weight=1)
 
+        # For this tab, on the top left, include a table for all Groups with Domain/Group.  Allow Multi-Select
+        # On the top right, include a table for all users, which is unfiltered, but if any group is selected on the left,
+        # only show users in those groups.  This table is multi-select as well.
+        # Depending on what is selected on the right, show all policies for those users in the bottom frame.
+        # Bottom Frame is a policy table, similar to the other tabs, but only showing policies for the selected users/groups.
+        # Similar AI analysis as well.
         def filter_users(event):
             """Filter Combobox values based on typed text."""
             typed_text = self.user_combo.get().strip().lower()
@@ -1249,163 +1235,138 @@ class OCIPolicyDGViewer:
             if selected_display in self.user_display_to_ocid:
                 self.user_combo.set(selected_display)  # Ensure full name is shown
                 # self.update_group_list()
-                logging.info(f'Need to update the sheet data to: {selected_display}')
+                self.logger.info(f'Need to update the sheet data to: {selected_display}')
                 self._update_user_analysis_output()
 
         # Frame for top
         frm_user_top = ttk.Frame(tab_users)
-        frm_user_top.grid_rowconfigure(0, weight=3)
-        frm_user_top.grid_rowconfigure(1, weight=7)
+        frm_user_top.grid_rowconfigure(0, weight=1)
+        frm_user_top.grid_rowconfigure(1, weight=1)
+        frm_user_top.grid_columnconfigure(0, weight=4)
+        frm_user_top.grid_columnconfigure(1, weight=2)  # buttons
+        frm_user_top.grid_columnconfigure(2, weight=4)
         frm_user_top.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-        # User Selection Frame
-        frm_user_select = ttk.Frame(frm_user_top)
-        frm_user_select.grid(row=0, column=0, sticky='ew')
+        # Frame for Policy Statements
+        frm_users_policies = ttk.Frame(tab_users)
+        frm_users_policies.grid_rowconfigure(0, weight=1)
+        frm_users_policies.grid_rowconfigure(1, weight=9)
+        frm_users_policies.grid_columnconfigure(0, weight=1)
+        frm_users_policies.grid_columnconfigure(1, weight=1)
+        frm_users_policies.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
 
-        ttk.Label(frm_user_select, text='Select the Domain and User in order to\nload all applicable policies.').grid(
-            row=0, column=0, columnspan=2, padx=5, pady=2, sticky='w'
+        # Frame for AI (row 2)
+        frm_principals_ai = tk.Frame(tab_users)
+        frm_principals_ai.grid(row=2, column=0, sticky='w', padx=5, pady=5)
+
+        # Frame for AI
+        ttk.Label(frm_principals_ai, text='Policy Statement to Analyze').grid(
+            row=0, column=0, padx=5, pady=2, sticky='w'
+        )
+        # self.policy_analyze_statement_var = tk.StringVar()
+        # Re-use the same variable as other tabs for policy statement
+        self.rp_policy_analyze_statement_entry = tk.Entry(
+            frm_principals_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+        )
+        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+
+        self.btn_user_analyze_statement = ttk.Button(
+            frm_principals_ai, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai
+        )
+        self.btn_user_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
+
+        # User / Group Selection
+        ttk.Label(frm_user_top, text='Select the Groups or Users in order to\nload all applicable policies.').grid(
+            row=0, column=0, columnspan=3, padx=5, pady=2, sticky='w'
         )
 
-        # Sample
-        sample_data = {
-            'policies': {},
-            'compartments': {},
-            'users': {},
-            'groups': {
-                'ocid1.group.oc1..group1': {'domain': 'tenant1', 'name': 'Admins', 'id': 'group001'},
-                'ocid1.group.oc1..group2': {'domain': 'tenant1', 'name': 'Developers', 'id': 'group002'},
-                'ocid1.group.oc1..group3': {'domain': 'tenant2', 'name': 'Managers', 'id': 'group003'},
-            },
-        }
-        for i in range(1, 101):
-            ocid = f'ocid1.user.oc1..example{i:03d}'
-            domain = f'tenant{i % 3 + 1}'
-            name = f'User {chr(65 + (i % 26))} {i:03d}'  # e.g., User A 001, User B 002
-            sample_data['users'][ocid] = {
-                'domain': domain,
-                'name': name,
-                'id': f'user{i:03d}',
-                'groups': [
-                    'ocid1.group.oc1..group1' if i % 2 == 0 else 'ocid1.group.oc1..group2',
-                    'ocid1.group.oc1..group3' if i % 5 == 0 else 'ocid1.group.oc1..group2',
-                ],
-            }
-        users = {}
-        # Dropdown with searchable domain and users
-        # users = self.identity_domain_analysis.users
+        def users_group_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Group or User is selected, update the users/groups and policy statements below"""
+            groups_for_filter = []
+            users_for_filter = []
+            # Make the DG list (Domain,Name) for all selected rows
+            for row in selected_rows:
+                self.logger.info(f'Selected row: {row}')
+                if 'Group Name' in row:
+                    groups_for_filter.append((row.get('Domain'), row.get('Group Name')))
+                elif 'User' in row:
+                    users_for_filter.append(row.get('User'))
+            self.logger.info(f'Groups for filter: {groups_for_filter}')
+            self.logger.info(f'Users for filter: {users_for_filter}')
+            # Call the filter
+            # filtered = self.policy_compartment_analysis.filter_policy_statements_by_user_and_group_name(
+            #     users=users_for_filter,
+            #     groups=groups_for_filter
+            # )
+            filtered = []
 
-        # Create mapping of display name to ocid
-        self.user_display_to_ocid = {
-            f"{user_data['domain']}/{user_data['name']}": ocid for ocid, user_data in users.items()
-        }
-        self.all_users = sorted(self.user_display_to_ocid.keys())  # Full sorted list
-        self.user_combo = ttk.Combobox(frm_user_select, values=self.all_users, width=40)
-        self.user_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5)
+            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            # Set them into the next table
+            self.users_policy_table.update_data(filtered)
+            self.logger.info(f'Policies added to user policy table: {len(filtered)}')
 
-        # Bind events for filtering and selection
-        self.user_combo.bind('<KeyRelease>', filter_users)
-        self.user_combo.bind('<<ComboboxSelected>>', on_select)
-        self.user_combo.bind('<Return>', on_select)  # Allow Enter key to select
-
-        # ttk.Label(frm_user_select, text='Identity Domain:').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        # self.domain_var = tk.StringVar(value='None')
-        # self.domain_display_var = tk.StringVar(value='None')
-        # self.domain_dropdown = ttk.OptionMenu(frm_user_select, self.domain_display_var, 'None', 'None')
-        # self.domain_dropdown.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
-        # self.domain_dropdown.config(state=tk.DISABLED)
-
-        # ttk.Label(frm_user_select, text='User:').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        # self.user_var = tk.StringVar(value='None')
-        # self.user_display_var = tk.StringVar(value='None')
-        # self.user_dropdown = ttk.OptionMenu(
-        #     frm_user_select,
-        #     self.user_display_var,
-        #     'None',
-        #     'None',
-        #     command=lambda _: self._update_user_analysis_output(),
-        # )
-        # self.user_dropdown.grid(row=3, column=1, padx=5, pady=2, sticky='ew')
-        # self.user_dropdown.config(state=tk.DISABLED)
-
-        # TODO: Bring back compartment selection
-        # ttk.Label(frm_user_select, text="Compartment:").grid(row=0, column=2, padx=5, pady=2, sticky="w")
-        # compartment_var = tk.StringVar(value='All Compartments')
-        # compartment_display_var = tk.StringVar(value='All Compartments')
-        # compartment_dropdown = ttk.OptionMenu(
-        #     frm_user_select, compartment_display_var, 'All Compartments', 'All Compartments'
-        # )
-        # compartment_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky="ew")
-        # compartment_dropdown.config(state=tk.DISABLED)
-
-        # User Buttons
-        frm_user_buttons = ttk.Frame(frm_user_select)
-        self.btn_export_user = ttk.Button(
-            frm_user_buttons, text='Export User Policies to CSV', state=tk.DISABLED, command=self._export_user_to_csv
+        # Table for Groups on the left
+        # Groups Table
+        self.users_groups_table = DataTable(
+            frm_user_top,
+            columns=self.all_groups_columns,
+            display_columns=self.all_groups_columns,
+            data=[],
+            column_widths=self.groups_column_widths,
+            font_size=10,
+            selection_callback=users_group_selection_callback,
+            multi_select=True,
         )
-        self.btn_export_user.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
-        frm_user_buttons.grid(row=4, column=0, padx=5, pady=2, sticky='ns')
+        self.users_groups_table.grid(row=1, column=0, sticky='nsew')
 
-        # Top Right Pane for User Info
-        frm_user_details = ttk.Frame(frm_user_top)
-        self.text_user_details = tk.Text(
-            frm_user_details, wrap=tk.WORD, font=('TkFixedFont'), state=tk.NORMAL, height=10, width=80
+        # Button in the middle
+        self.btn_clear_groups_users = ttk.Button(
+            frm_user_top,
+            text='Clear Filters',
+            state=tk.DISABLED,
+            # command=self._analyze_policy_statment_ai
         )
-        self.text_user_scroll = ttk.Scrollbar(
-            frm_user_details, orient=tk.VERTICAL, command=self.text_user_details.yview
-        )
-        self.text_user_details.grid(row=0, column=0)
-        self.text_user_scroll.grid(row=0, column=1, sticky='ns')
-        frm_user_details.grid(row=0, column=1)
+        self.btn_clear_groups_users.grid(row=1, column=1, padx=5, pady=5)
 
-        # user_selection_label = ttk.Label(frm_user_select, text="Domain: None (None)\nUser: None (None)\nCompartment: All Compartments (All Compartments)", anchor="w")
-        # user_selection_label.grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky="ew")
-
-        # Bottom Output
-        frm_user_output = ttk.Frame(frm_user_top)
-        frm_user_output.grid(row=1, column=0, sticky='nsew')
-        frm_user_output.columnconfigure(0, weight=1)
-        self.user_label_count = ttk.Label(frm_user_output, text='Policy Statements (Filtered): 0')
-        self.user_label_count.grid(row=0, column=0, padx=5, pady=3, sticky='w')
-        ttk.Separator(frm_user_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
-        ttk.Label(frm_user_output, text='Display Options:').grid(row=0, column=2, padx=5, pady=3)
-        ttk.Checkbutton(
-            frm_user_output, text='Expanded', variable=self.chk_show_expanded, command=self._update_user_analysis_output
-        ).grid(row=0, column=5, padx=5, pady=3)
-
-        frm_user_sheet = ttk.Frame(tab_users)
-        frm_user_sheet.grid(row=1, column=0, sticky='nsew')
-        frm_user_sheet.rowconfigure(0, weight=1)
-        frm_user_sheet.columnconfigure(0, weight=1)
-        self.sheet_user_policies = SortableSheet(
-            frm_user_sheet,
-            headers=[
-                'Policy Name',
-                'Policy OCID',
-                'Compartment OCID',
-                'Policy Compartment',
-                'Statement Text',
-                'Valid',
-                'Subject Type',
-                'Subject',
-                'Verb',
-                'Resource',
-                'Permission',
-                'Location Type',
-                'Location',
-                'Conditions',
-                'Comments',
-                'Creation Time',
-                'Parsed',
-            ],
-            auto_resize_columns=200,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+        # Users Table
+        self.users_users_table = DataTable(
+            frm_user_top,
+            columns=self.all_users_columns,
+            display_columns=self.all_users_columns,
+            data=[],
+            column_widths=self.users_column_widths,
+            font_size=10,
+            selection_callback=users_group_selection_callback,
+            multi_select=False,
         )
-        self.sheet_user_policies.grid(row=0, column=0, sticky='nsew')
-        self.sheet_user_policies.enable_bindings(
-            'single_select', 'column_width_resize', 'row_select', 'copy', 'rc_select'
+        self.users_users_table.grid(row=1, column=2, sticky='nsew')
+
+        def users_policy_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Policy Statement is selected, update the policy statement below"""
+            if len(selected_rows) == 1:
+                selected_statement = selected_rows[0].get('Statement Text', '')
+                self.logger.info(f'Selected policy statement: {selected_statement}')
+                self.policy_analyze_statement_var.set(selected_statement)
+            else:
+                self.policy_analyze_statement_var.set('')
+
+        # Users Page Policy Table
+        # Text box for groups selected
+        self.user_selected_groups = ttk.Label(frm_users_policies, text='Policies for Selected Users/Groups: ')
+        self.user_selected_groups.grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        self.user_label_count = ttk.Label(frm_users_policies, text='Policy Statements (Filtered): 0')
+        self.user_label_count.grid(row=0, column=1, padx=5, pady=3, sticky='w')
+        self.users_policy_table = DataTable(
+            frm_users_policies,
+            columns=self.all_policy_columns,
+            display_columns=self.basic_policy_columns,
+            data=[],
+            column_widths=self.policy_column_widths,
+            font_size=10,
+            selection_callback=users_policy_selection_callback,
+            multi_select=False,
         )
-        # bind_horizontal_scroll(sheet_user_policies)
+        self.users_policy_table.grid(row=1, column=0, columnspan=2, sticky='nsew')
 
     def create_tab_report(self):
         # Create tab with 20/80 rows
@@ -1473,50 +1434,131 @@ class OCIPolicyDGViewer:
         # Create tab with 20/80 rows
         tab_cross_tenancy = ttk.Frame(self.notebook)
         self.notebook.add(tab_cross_tenancy, text='Cross Tenancy\nPolicies')
+        # Grid 2 columns, rows 305 / 60% / 10%
         frm_cross_tenancy = ttk.Frame(tab_cross_tenancy)
         frm_cross_tenancy.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
         frm_cross_tenancy.grid_rowconfigure(0, weight=3)
-        frm_cross_tenancy.grid_rowconfigure(1, weight=7)
-        frm_cross_tenancy.grid_columnconfigure(0, weight=2)
-        frm_cross_tenancy.grid_columnconfigure(1, weight=8)
+        frm_cross_tenancy.grid_rowconfigure(1, weight=6)
+        frm_cross_tenancy.grid_rowconfigure(2, weight=1)
+        frm_cross_tenancy.grid_columnconfigure(0, weight=4)
+        frm_cross_tenancy.grid_columnconfigure(1, weight=6)
+
+        # For now, a label on the left
         ttk.Label(
             frm_cross_tenancy,
             text='Select one or more rows to the right\nin order to narrow down cross-tenancy policies\n\nSort by clicking column headers',
             font=('TkFixedFont', 10, 'normal'),
         ).grid(row=0, column=0, padx=5, pady=5, sticky='w')
 
-        self.sheet_cross_tenancy_define = SortableSheet(
+        def cross_tenancy_define_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Defined Alias is selected, update the policy statements below"""
+            defined_aliases_for_filter = []
+            # Make the Defined Alias list for all selected rows
+            for row in selected_rows:
+                self.logger.info(f'Selected row: {row}')
+                defined_aliases_for_filter.append(row.get('Defined Name'))
+            self.logger.info(f'Defined Aliases for filter: {defined_aliases_for_filter}')
+
+            # Call the filter
+            filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
+                defined_aliases_for_filter
+            )
+
+            self.logger.info(f'Cross-tenancy: {len(filtered)}')
+            # Set them into the next table
+            self.cross_tenancy_table.update_data(filtered)
+            self.logger.info(f'Policies added to cross-tenancy policy table: {len(filtered)}')
+
+        def cross_tenancy_policy_selection_callback(selected_rows: list[dict]) -> None:
+            """When a Policy Statement is selected, update the policy statement below"""
+            if len(selected_rows) == 1:
+                selected_statement = selected_rows[0].get('Statement Text', '')
+                self.logger.info(f'Selected policy statement: {selected_statement}')
+                self.policy_analyze_statement_var.set(selected_statement)
+            else:
+                self.policy_analyze_statement_var.set('')
+
+        # Defined Aliases
+        self.defined_aliases_table = DataTable(
             frm_cross_tenancy,
-            headers=['Defined Alias', 'Define Type', 'Remote Tenancy OCID'],
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
-            auto_resize_columns=True,
+            columns=self.all_defined_alias_columns,
+            display_columns=self.all_defined_alias_columns,
+            data=[],
+            column_widths=self.all_defined_alias_column_widths,
+            font_size=10,
+            selection_callback=cross_tenancy_define_selection_callback,
+            multi_select=True,
         )
-        self.sheet_cross_tenancy_define.enable_bindings('all')
-        self.sheet_cross_tenancy_define.extra_bindings('row_select', self._update_cross_tenancy_alias_selection)
-        self.sheet_cross_tenancy_define.grid(row=0, column=1, sticky='nsew')
-        self.sheet_cross_tenancy_policies = SortableSheet(
+        self.defined_aliases_table.grid(row=0, column=1, sticky='nsew')
+
+        # Cross Tenancy Policies Table
+        self.cross_tenancy_table = DataTable(
             frm_cross_tenancy,
-            headers=[
-                'Policy Name',
-                'Statement Text',
-                'Policy OCID',
-                'Create Date',
-                'Parsing Available',
-                'Subject Type',
-                'Subject',
-                'Action / Verb / Resource',
-                'Location Type',
-                'Location',
-                'Condition',
-                'Optional',
-            ],
-            auto_resize_columns=200,
-            show_x_scrollbar=True,
-            show_y_scrollbar=True,
+            columns=self.all_cross_tenancy_columns,
+            display_columns=self.all_cross_tenancy_columns,
+            data=[],
+            column_widths=self.all_cross_tenancy_column_widths,
+            font_size=10,
+            selection_callback=cross_tenancy_policy_selection_callback,
+            multi_select=False,
         )
-        self.sheet_cross_tenancy_policies.enable_bindings('all')
-        self.sheet_cross_tenancy_policies.grid(row=1, column=0, columnspan=2, sticky='nsew')
+        self.cross_tenancy_table.grid(row=1, column=0, columnspan=2, sticky='nsew')
+
+        # Frame for AI - take up both column
+        frm_cross_tenancy_ai = tk.Frame(tab_cross_tenancy)
+        frm_cross_tenancy_ai.grid(row=2, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+        ttk.Label(frm_cross_tenancy_ai, text='Policy Statement to Analyze').grid(
+            row=0, column=0, padx=5, pady=2, sticky='w'
+        )
+        # self.policy_analyze_statement_var = tk.StringVar()
+        # Re-use the same variable as other tabs for policy statement
+        self.rp_policy_analyze_statement_entry = tk.Entry(
+            frm_cross_tenancy_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+        )
+        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+
+        self.btn_ct_analyze_statement = ttk.Button(
+            frm_cross_tenancy_ai,
+            text='Analyze Statement',
+            state=tk.DISABLED,
+            command=lambda: self._analyze_policy_statment_ai(
+                additional_context=' This policy statement is from an OCI cross-tenancy policy, add additional detail.'
+            ),
+        )
+        self.btn_ct_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
+
+        # self.sheet_cross_tenancy_define = SortableSheet(
+        #     frm_cross_tenancy,
+        #     headers=['Defined Alias', 'Define Type', 'Remote Tenancy OCID'],
+        #     show_x_scrollbar=True,
+        #     show_y_scrollbar=True,
+        #     auto_resize_columns=True,
+        # )
+        # self.sheet_cross_tenancy_define.enable_bindings('all')
+        # self.sheet_cross_tenancy_define.extra_bindings('row_select', self._update_cross_tenancy_alias_selection)
+        # self.sheet_cross_tenancy_define.grid(row=0, column=1, sticky='nsew')
+        # self.sheet_cross_tenancy_policies = SortableSheet(
+        #     frm_cross_tenancy,
+        #     headers=[
+        #         'Policy Name',
+        #         'Statement Text',
+        #         'Policy OCID',
+        #         'Create Date',
+        #         'Parsing Available',
+        #         'Subject Type',
+        #         'Subject',
+        #         'Action / Verb / Resource',
+        #         'Location Type',
+        #         'Location',
+        #         'Condition',
+        #         'Optional',
+        #     ],
+        #     auto_resize_columns=200,
+        #     show_x_scrollbar=True,
+        #     show_y_scrollbar=True,
+        # )
+        # self.sheet_cross_tenancy_policies.enable_bindings('all')
+        # self.sheet_cross_tenancy_policies.grid(row=1, column=0, columnspan=2, sticky='nsew')
 
     def create_tab_history(self):
         # Create tab with 2 equal rows
@@ -1572,12 +1614,12 @@ class OCIPolicyDGViewer:
         audit_link.bind('<Button-1>', open_audit_link)
         audit_link.grid(row=0, column=6, padx=5, pady=3, sticky='w')
 
-    def create_tab_resource_ref(self):  # noqa: C901
+    def create_tab_resource_reference(self):
         # Create tab
         tab_resource_ref = ttk.Frame(self.notebook)
         # 60/40
-        tab_resource_ref.grid_rowconfigure(0, weight=6)
-        tab_resource_ref.grid_rowconfigure(1, weight=4)
+        tab_resource_ref.grid_rowconfigure(0, weight=2)
+        tab_resource_ref.grid_rowconfigure(1, weight=8)
         tab_resource_ref.grid_columnconfigure(0, weight=1)
         self.notebook.add(tab_resource_ref, text='AI-based\nResource Reference')
 
@@ -1589,134 +1631,6 @@ class OCIPolicyDGViewer:
         frm_reference_bot = ttk.Frame(tab_resource_ref)
         frm_reference_bot.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
 
-        def populate_tree(search_input):
-            """Populate the Treeview with data, filtering by pipe-separated search terms (OR logic)."""
-            logging.debug('Populating resource tree with search input: %s', search_input)
-            for item in self.tree.get_children():
-                self.tree.delete(item)
-
-            search_terms = [term.strip().lower() for term in search_input.split('|') if term.strip()]
-
-            for index, (resource, info) in enumerate(sorted(self.resource_reference_data.items())):
-                if not search_terms:
-                    include = True
-                else:
-                    include = False
-                    for term in search_terms:
-                        if (
-                            term in resource.lower()
-                            or any(term in perm.lower() for perm in info['permissions'])
-                            or any(term in family.lower() for family in info['families'])
-                        ):
-                            include = True
-                            break
-
-                if include:
-                    permissions = ', '.join(info['permissions'])
-                    families = ', '.join(info['families'])
-                    row_tag = 'evenrow' if index % 2 == 0 else 'oddrow'
-                    self.tree.insert(
-                        '',
-                        tk.END,
-                        values=(resource, permissions, families, 'Describe', 'Generate Policy'),
-                        tags=row_tag,
-                    )
-                    # Apply actionlink tag only to Describe and Generate columns
-                    self.tree.item(
-                        self.tree.get_children()[-1],
-                        tags=(row_tag, 'actionlink'),
-                        values=(
-                            resource,
-                            permissions,
-                            families,
-                            self.tree.set(self.tree.get_children()[-1], 'Describe'),
-                            self.tree.set(self.tree.get_children()[-1], 'Generate'),
-                        ),
-                    )
-                    logging.debug('Inserted resource: %s with tag: %s', resource, row_tag)
-
-            # Update sort indicators if a column is sorted
-            if hasattr(self.tree, 'sort_column') and self.tree.sort_column:
-                update_sort_indicator(self.tree.sort_column, self.tree.sort_reverse)
-
-        def update_sort_indicator(col, reverse):
-            """Update the sort indicator in the column header."""
-            logging.debug('Updating sort indicator for column: %s, reverse: %s', col, reverse)
-            for column in self.tree['columns']:
-                text = column
-                if column == col:
-                    text += ' ↑' if not reverse else ' ↓'
-                self.tree.heading(column, text=text)
-            logging.debug('Sort indicator updated for column: %s', col)
-
-        def sort_column(col, reverse):
-            """Sort the Treeview by the specified column and update sort indicator."""
-            logging.debug('Sorting column: %s, reverse: %s', col, reverse)
-            data = [(self.tree.set(item, col), item) for item in self.tree.get_children()]
-            data.sort(reverse=reverse)
-            for index, (_val, item) in enumerate(data):
-                self.tree.move(item, '', index)
-                row_tag = 'evenrow' if index % 2 == 0 else 'oddrow'
-                self.tree.item(item, tags=(row_tag, 'actionlink'))
-            self.tree.heading(col, command=lambda: sort_column(col, not reverse))
-            self.tree.sort_reverse = not reverse
-            self.tree.sort_column = col
-            update_sort_indicator(col, reverse)
-            logging.debug('Column sorted and indicator updated')
-
-        def handle_tree_click(event):
-            """Handle click on resource treeview; call AI for Describe or Generate Policy based on column."""
-            col = self.tree.identify_column(event.x)
-            row_id = self.tree.identify_row(event.y)
-            if row_id and col in ('#4', '#5'):
-                start_time = datetime.datetime.now()
-                values = self.tree.item(row_id)['values']
-                resource = values[0]
-                action = 'Describe' if col == '#4' else 'Generate Policy'
-                logging.info('Tree click on %s column for resource: %s', action, resource)
-
-                # model_name = self.ai.get_model_name(self.ai.AI_MODEL_ID)
-                # self.loading_label.config(text=f"{action} for {resource} using {model_name} model")
-                # self.loading_label.pack(fill=tk.BOTH, expand=True)
-                # self.response_text.pack_forget()
-                # self.response_text.update()
-                # logging.debug("Loading message displayed")
-
-                if col == '#4':
-                    result = self.ai.describe_resource(resource)
-                else:
-                    result = self.ai.generate_policy_statement(resource=resource)
-                logging.debug('Processing response for resource %s: %s', resource, result[:100])
-
-                # self.loading_label.pack_forget()
-                # self.response_text.pack(fill=tk.BOTH, expand=True)
-                logging.debug('Response text widget restored')
-
-                if result.startswith('Error:'):
-                    html_content = f'<p>{result}</p>'
-                else:
-                    cleaned_result = formatting.clean_markdown(result)
-                    html_content = markdown.markdown(cleaned_result)
-                    html_content = html_content.replace(
-                        #     '<p>', '<p style="font-family: Helvetica, Arial, sans-serif; white-space: normal; word-wrap: break-word;">'
-                        # ).replace(
-                        #     '<li>', '<li style="font-family: Helvetica, Arial, sans-serif; white-space: normal; word-wrap: break-word;">'
-                        # # ).replace(
-                        '<code>',
-                        '<code style="font-family: Courier New, monospace; background-color: #d0d0d0; padding: 2px 2px;">',
-                    )
-                    #     logging.debug("Setting HTML content: %s", html_content)
-                    self.ai_ref_response_text.set_html(html_content)
-                # else:
-                #     insert_markdown(self.response_text, result)
-
-                logging.info(
-                    'Processed %s for resource %s in %s seconds',
-                    action,
-                    resource,
-                    (datetime.datetime.now() - start_time).total_seconds(),
-                )
-
         # Search frame
         self.search_frame = ttk.Frame(frm_reference_top)
         self.search_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -1726,47 +1640,32 @@ class OCIPolicyDGViewer:
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         clear_button = tk.Button(self.search_frame, text='Clear', command=lambda: self.search_var.set(''))
         clear_button.pack(side=tk.LEFT, padx=5)
-        logging.debug('Search frame setup')
+        self.logger.debug('Search frame setup')
 
-        # Treeview for permissions
-        columns = ('Resource Type', 'Permissions', 'Families', 'Describe', 'Generate')
-        style = ttk.Style()
-        style.configure('Treeview', rowheight=25)
-        style.configure('Treeview.Heading', font=('Helvetica', 10, 'bold'))
-        self.tree = ttk.Treeview(frm_reference_top, columns=columns, show='headings', style='Treeview', height=10)
-        self.tree.heading('Resource Type', text='Resource Type', command=lambda: sort_column('Resource Type', False))
-        self.tree.heading('Permissions', text='Permissions', command=lambda: sort_column('Permissions', False))
-        self.tree.heading('Families', text='Families', command=lambda: sort_column('Families', False))
-        self.tree.heading('Describe', text='Describe')
-        self.tree.heading('Generate', text='Generate Policy')
-        self.tree.column('Resource Type', width=300)
-        self.tree.column('Permissions', width=350)
-        self.tree.column('Families', width=300)
-        self.tree.column('Describe', width=100)
-        self.tree.column('Generate', width=150)
-        self.tree.tag_configure('oddrow', background='#f0f0f0')
-        self.tree.tag_configure('evenrow', background='#ffffff')
-        self.tree.tag_configure('actionlink', foreground='#0000FF')
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        logging.debug('Treeview setup with columns: %s', columns)
-        self.tree.bind('<Button-1>', handle_tree_click)
-
-        # Response area
-        tk.Label(frm_reference_bot, text='Response:').pack(anchor=tk.W)
-        text_scroll = tk.Scrollbar(frm_reference_bot)
-        text_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.ai_ref_response_text = HTMLText(frm_reference_bot, height=20)
-        self.ai_ref_response_text.pack(fill=tk.BOTH, expand=True)
-        text_scroll.config(command=self.ai_ref_response_text.yview)
-        self.ai_ref_response_text.configure(yscrollcommand=text_scroll.set)
-
-        # Initial population of reference data
-        populate_tree(self.search_var.get())
-        self.search_var.trace_add('write', lambda *args: populate_tree(self.search_var.get()))
+        # Set initial Column widths
+        column_widths = {
+            'Resource': 250,
+            'Permissions': 300,
+            'Families': 600,
+        }
+        # Use the Data Table here with fields
+        self.reference_data_table = DataTable(
+            frm_reference_bot,
+            columns=self.resource_data_all_columns,
+            display_columns=self.resource_data_all_columns,
+            # data=self.resource_reference_data,
+            data=[],
+            column_widths=column_widths,
+            font_size=10,
+            # selection_callback=selection_callback,
+            # multi_select=True,
+        )
+        # self.policy_table.grid(row=0, column=0, sticky='nsew')
+        self.reference_data_table.pack(fill=tk.BOTH, expand=True)
+        # self.search_var.trace_add('write', lambda *args: populate_tree(self.search_var.get()))
 
     def create_tab_policy_tree(self):
-        """Create layout and sheet for Tab 1 with threaded loading, multiple row selection, and tooltips."""
+        """Create layout and sheet for Tab 1 with threaded loading, multiple row selection"""
         frm_policy_tree = ttk.Frame(self.notebook)
         self.notebook.add(frm_policy_tree, text='Policy Tree')
 
@@ -1792,183 +1691,80 @@ class OCIPolicyDGViewer:
         self.policy_tree = ttk.Treeview(tree_frame, columns=('Name', 'Type', 'OCID'), show='tree headings')
         self.policy_tree.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-    def tab_sample(self):
-        """Create layout and sheet for Tab 1 with threaded loading, multiple row selection, and tooltips."""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text='Students')
+    # Based on checkboxes for AI and console, update the layout
+    def _update_layout(self):
+        """Dynamically adjust the layout based on console log and AI insights checkboxes."""
+        console_enabled = self.option_console_var.get()
+        ai_enabled = self.option_ai_var.get()
 
-        # Configure grid layout
-        frame.grid_rowconfigure(0, weight=1)
-        frame.grid_columnconfigure(0, weight=1)
+        # Remove existing placements
+        self.notebook_frame.grid_forget()
+        self.console_frame.grid_forget()
+        self.ai_insights_frame.grid_forget()
 
-        # Create sheet
-        self.tab1_sheet = SortableSheet(
-            frame,
-            headers=['Name', 'Date', 'Score'],
-            data=[],  # Start empty, populate via thread
-            width=400,
-            height=200,
-        )
-        self.tab1_sheet.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        if console_enabled or ai_enabled:
+            # Notebook takes top 2/3, console/AI takes bottom 1/3
+            # self.main_frame.rowconfigure(0, weight=2)  # Notebook
+            # self.main_frame.rowconfigure(1, weight=2)  # Console/AI
+            # self.main_frame.grid_rowconfigure(0, weight=1)  # Notebook
+            # self.main_frame.grid_rowconfigure(1, weight=2)  # Console/AI
+            self.notebook_frame.grid(row=0, column=0, columnspan=2, sticky='nsew', padx=3, pady=3)
 
-        # Enable multiple row selection and bindings
-        self.tab1_sheet.enable_bindings(
-            'multiple_row_select', 'row_select', 'column_select', 'single_select', 'drag_select'
-        )
-        self.tab1_sheet.bind('<Shift-Button-1>', lambda event: self._handle_shift_click(self.tab1_sheet, event))
-        self.tab1_sheet.bind('<Shift-ButtonRelease-1>', lambda event: self._handle_shift_click(self.tab1_sheet, event))
-        # Bind regular click to track last selected row
-        self.tab1_sheet.bind('<Button-1>', lambda event: self._handle_row_click(self.tab1_sheet, event))
-        logging.debug('Row selection bindings enabled for Tab 1 sheet')
-
-        # Add tooltip to sheet
-        Tooltip(self.tab1_sheet, self.tooltips['tab1_sheet'])
-
-        # Add a label for static text
-        label = ttk.Label(frame, text='Student Data (Multi-Select Enabled)')
-        label.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
-        Tooltip(label, self.tooltips['tab1_label'])
-
-        # Add a progress label
-        self.tab1_progress_label = ttk.Label(frame, text='Starting data load...')
-        self.tab1_progress_label.grid(row=2, column=0, sticky='ew', padx=5, pady=5)
-        Tooltip(self.tab1_progress_label, self.tooltips['tab1_progress'])
-
-        # Start threaded data loading
-        self._start_data_loading()
-
-    def create_tab2(self):
-        """Create layout and sheet for Tab 2 with tooltips."""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text='Cities')
-
-        # Configure grid layout
-        frame.grid_rowconfigure(0, weight=1)
-        frame.grid_columnconfigure(0, weight=1)
-
-        # Create sheet
-        sheet = SortableSheet(
-            frame,
-            headers=['City', 'Population', 'Area'],
-            data=[['New York', 8336817, 302.6], ['London', 8982256, 606], ['Tokyo', 37468000, 847]],
-            width=400,
-            height=200,
-        )
-        sheet.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-
-        # Add tooltip to sheet
-        Tooltip(sheet, self.tooltips['tab2_sheet'])
-
-        # Add a label
-        label = ttk.Label(frame, text='City Data')
-        label.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
-        Tooltip(label, self.tooltips['tab2_label'])
-
-    def create_tab3(self):
-        """Create layout and sheet for Tab 3 with tooltips."""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text='Products')
-
-        # Configure grid layout
-        frame.grid_rowconfigure(0, weight=1)
-        frame.grid_columnconfigure(0, weight=1)
-
-        # Create sheet
-        sheet = SortableSheet(
-            frame,
-            headers=['Product', 'Price', 'Stock'],
-            data=[['Laptop', 999.99, 50], ['Phone', 699.99, 100], ['Tablet', 299.99, 75]],
-            width=400,
-            height=200,
-        )
-        sheet.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-
-        # Add tooltip to sheet
-        Tooltip(sheet, self.tooltips['tab3_sheet'])
-
-        # Add a label
-        label = ttk.Label(frame, text='Product Inventory')
-        label.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
-        Tooltip(label, self.tooltips['tab3_label'])
-
-    def _handle_row_click(self, sheet, event):
-        """Handle regular click to track last selected row."""
-        region = sheet.identify_region(event)
-        logging.debug(f'Row click event: type={event.type}, region={region}, x={event.x}, y={event.y}')
-        if region == 'index':
-            row = sheet.identify_row(event)
-            self.last_selected_row = row
-            logging.debug(f'Last selected row updated: {row}')
-
-    def _handle_shift_click(self, sheet, event):
-        """Handle Shift-click for range row selection."""
-        region = sheet.identify_region(event)
-        logging.debug(f'Shift-click event: type={event.type}, region={region}, x={event.x}, y={event.y}')
-        if region == 'index':
-            current_row = sheet.identify_row(event)
-            if self.last_selected_row is not None:
-                # Clear previous selections (optional, remove if you want to keep existing selections)
-                sheet.deselect('all')
-                # Select range from last_selected_row to current_row
-                start_row = min(self.last_selected_row, current_row)
-                end_row = max(self.last_selected_row, current_row)
-                for row in range(start_row, end_row + 1):
-                    sheet.select_row(row)
-                logging.debug(f'Selected row range: {start_row} to {end_row}')
-            else:
-                # If no last selected row, select just the current row
-                sheet.select_row(current_row)
-                logging.debug(f'Selected single row: {current_row}')
-            self.last_selected_row = current_row
+            if console_enabled and ai_enabled:
+                # Split bottom third 50/50 left and right
+                self.main_frame.grid_columnconfigure(0, weight=1)
+                self.main_frame.grid_columnconfigure(1, weight=1)
+                self.console_frame.grid(row=1, column=0, sticky='nsew', padx=3, pady=3)
+                self.ai_insights_frame.grid(row=1, column=1, sticky='nsew', padx=3, pady=3)
+            elif console_enabled:
+                # Console takes full bottom third
+                self.main_frame.grid_columnconfigure(0, weight=1)
+                self.main_frame.grid_columnconfigure(1, weight=0)
+                self.console_frame.grid(row=1, column=0, sticky='nsew', padx=3, pady=3)
+            elif ai_enabled:
+                # AI Insights takes full bottom third
+                self.main_frame.grid_columnconfigure(0, weight=1)
+                self.main_frame.grid_columnconfigure(1, weight=0)
+                self.ai_insights_frame.grid(row=1, column=0, sticky='nsew', padx=3, pady=3)
         else:
-            logging.debug(f'Non-index click ignored: region={region}')
+            # Notebook takes full space
+            self.main_frame.grid_rowconfigure(0, weight=1)
+            self.main_frame.grid_rowconfigure(1, weight=0)
+            self.main_frame.grid_columnconfigure(0, weight=1)
+            self.main_frame.grid_columnconfigure(1, weight=0)
+            self.notebook_frame.grid(row=0, column=0, columnspan=2, sticky='nsew')
 
-    def _start_data_loading(self):
-        """Start the threaded data loading process for Tab 1."""
-        self.total_chunks = 26  # 52 weeks / 2 = 26 chunks
-        self.current_chunk = 0
-        self.data_queue = Queue()
+        self.logger.debug('Layout updated: console=%s, ai_insights=%s', console_enabled, ai_enabled)
 
-        # Start the background thread
-        thread = Thread(target=self._load_data_in_chunks, daemon=True)
-        thread.start()
+        # Update Console
+        if console_enabled:
+            if self.console_handler not in self.logger.handlers:
+                self.logger.addHandler(self.console_handler)
+                self.logger.info('Console enabled (in addition to default shell)')
+        else:
+            if self.console_handler in self.logger.handlers:
+                self.logger.removeHandler(self.console_handler)
+                self.logger.info('Console disabled (only default shell)')
 
-        # Start checking the queue for updates
-        self._check_queue()
-
-    def _load_data_in_chunks(self):
-        """Simulate loading data in 2-week chunks."""
-        start_date = datetime.datetime(2025, 1, 1)
-        names = ['John', 'Alice', 'Bob']
-        for chunk in range(self.total_chunks):
-            time.sleep(1)  # Simulate long-running task
-            chunk_data = []
-            for i in range(5):  # 5 rows per chunk
-                date = start_date + datetime.timedelta(weeks=2 * chunk)
-                chunk_data.append([names[i % len(names)], date.strftime('%Y-%m-%d'), 70 + i + chunk])
-            self.data_queue.put((chunk + 1, chunk_data))
-        self.data_queue.put('done')
-
-    def _check_queue(self):
-        """Check the queue for new data and update the sheet and label."""
-        try:
-            item = self.data_queue.get_nowait()
-            if item == 'done':
-                self.tab1_progress_label.config(text='Data loading complete!')
-            else:
-                chunk_num, chunk_data = item
-                self.current_chunk = chunk_num
-                current_data = self.tab1_sheet.get_sheet_data()
-                current_data.extend(chunk_data)
-                self.tab1_sheet.set_sheet_data(current_data)
-                self.tab1_sheet.refresh()
-                self.tab1_progress_label.config(text=f'Loading chunk {self.current_chunk} of {self.total_chunks}...')
-        except queue.Empty:
-            pass
-        self.root.after(100, self._check_queue)
+        # AI enablement of buttons
+        if ai_enabled:
+            self.refresh_button.config(state=tk.NORMAL)
+            self.btn_policy_analyze_statement.config(state=tk.NORMAL)
+            self.btn_dg_analyze_statement.config(state=tk.NORMAL)
+            self.btn_user_analyze_statement.config(state=tk.NORMAL)
+            self.btn_ct_analyze_statement.config(state=tk.NORMAL)
+            self.btn_rp_analyze_statement.config(state=tk.NORMAL)
+        else:
+            self.refresh_button.config(state=tk.DISABLED)
+            self.btn_policy_analyze_statement.config(state=tk.DISABLED)
+            self.btn_dg_analyze_statement.config(state=tk.DISABLED)
+            self.btn_user_analyze_statement.config(state=tk.DISABLED)
+            self.btn_ct_analyze_statement.config(state=tk.DISABLED)
+            self.btn_rp_analyze_statement.config(state=tk.DISABLED)
 
     # Main Update functions - per tab
     def _update_policy_output(self):
+        # Get filtered statements
         filtered = self.policy_compartment_analysis.filter_policy_statements(
             self.entry_subj.get(),
             self.entry_verb.get(),
@@ -1980,91 +1776,48 @@ class OCIPolicyDGViewer:
             self.entry_policy.get(),
         )
 
-        # Convert back to list to support tksheet
-        if len(filtered) == 0:
-            self.sheet_policies.display_rows(rows=[], all_rows_displayed=False, redraw=True)
-            self.logger.info('Clearing sheet because there are no rows to display')
-            return
-        headers = list(filtered[0].keys())
-        sheet_data = [[row[col] for col in headers] for row in filtered]
-        self.sheet_policies.set_sheet_data(sheet_data, reset_highlights=True)
-        self.sheet_policies.display_columns(
-            all_columns_displayed=True if self.chk_show_expanded.get() else False,
-            columns=[0, 3, 4] if not self.chk_show_expanded.get() else None,
-        )
-        # Display Output
+        # Apply additional filters for output
+
+        # Determine which rows to show based on checkboxes
         rows_to_show: list = [
-            i
-            for i, st in enumerate(filtered)
+            st
+            for st in filtered
             if (
                 self.chk_show_service.get()
-                and st.get('subject_type') == 'service'
+                and st.get('Subject Type') == 'service'
                 or self.chk_show_dynamic.get()
-                and st.get('subject_type') == 'dynamic-group'
+                and st.get('Subject Type') == 'dynamic-group'
                 or self.chk_show_resource.get()
-                and st.get('subject_type') == 'resource'
+                and st.get('Subject Type') == 'resource'
                 or self.chk_show_regular.get()
-                and st.get('subject_type') in ['group', 'any-user', 'any-group']
+                and st.get('Subject Type') in ['group', 'any-user', 'any-group']
                 or self.chk_show_invalid.get()
-                and not st.get('validity')
+                and (not st.get('Valid') or not st.get('Parsed'))
             )
         ]
         self.label_policy_count.config(
             text=f'Statements (Filtered): {len(filtered)}\nStatements (Shown): {len(rows_to_show)}'
         )
-        if rows_to_show and len(rows_to_show) == 0:
-            self.sheet_policies.display_rows(rows=[], all_rows_displayed=False, redraw=True)
-            self.logger.info(f'Clearing sheet because there are {len(rows_to_show)} rows to display')
+        # Populate Data Table
+        self.logger.debug(rows_to_show)
+        self.policy_table.update_data(rows_to_show)
+        self.logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
 
-        self.logger.info(f'Displaying {len(rows_to_show)} rows on sheet')
-
-        # Resize to text
-        self.sheet_policies.set_all_cell_sizes_to_text()
-
-    def _update_policy_tree_recursive(self, parent):
-        # Get compartments
-        compartments = self.policy_compartment_analysis.compartments
-
-        # Root node for tenancy
-        tenancy_node = self.policy_tree.insert(
-            parent,
-            'end',
-            text=self.policy_compartment_analysis.tenancy_name,
-            values=('Tenancy', self.policy_compartment_analysis.tenancy_ocid),
-        )
-
-        # Compartments
-        compartments_node = self.policy_tree.insert(tenancy_node, 'end', text='Compartments')
-        for compartment in compartments:
-            self.policy_tree.insert(
-                compartments_node,
-                'end',
-                text=compartment.get('name'),
-                values=(compartment.get('hierarchy_path'), compartment.get('hierarchy_ocids')),
-            )
-
-        # # Policies
-        # policies_node = self.policy_tree.insert(tenancy_node, 'end', text='Policies')
-        # for policy in data['policies']:
-        #     policy_node = self.policy_tree.insert(policies_node, 'end', text=policy['policy_name'])
-        #     self.policy_tree.insert(policy_node, 'end', text=policy['statement_text'], values=(policy['compartment_string'],))
-
-        # # Groups
-        # groups_node = self.policy_tree.insert(tenancy_node, 'end', text='Groups')
-        # for group in data['groups']:
-        #     self.policy_tree.insert(groups_node, 'end', text=group['display_name'], values=(group['domain_id'],))
-
-        # # Dynamic Groups
-        # dynamic_groups_node = self.policy_tree.insert(tenancy_node, 'end', text='Dynamic Groups')
-        # for dg in data['dynamic_groups']:
-        #     self.policy_tree.insert(dynamic_groups_node, 'end', text=dg[1], values=(dg[2],))
-
-        self.logger.info('Policy tree loaded successfully')
+        # Open up all columns if expanded is checked
+        if self.chk_show_expanded.get():
+            self.policy_table.set_display_columns(self.all_policy_columns)
+            self.logger.info('Setting policy table to expanded view with all columns')
+        else:
+            self.policy_table.set_display_columns(self.basic_policy_columns)
+            self.logger.info('Setting policy table to expanded view with basic columns')
 
     def _update_dg_output(self):
         if self.chk_show_instance_principals.get():
             self.dg_entry_type.delete(0, tk.END)
             self.dg_entry_type.insert(0, 'instance.compartment.id|instance.id')
+        else:
+            if self.dg_entry_type.get() == 'instance.compartment.id|instance.id':
+                self.dg_entry_type.delete(0, tk.END)
 
         filtered = self.identity_domain_analysis.filter_dynamic_groups(
             self.dg_entry_domain.get() if self.dg_entry_domain.get() != '' else None,
@@ -2072,24 +1825,29 @@ class OCIPolicyDGViewer:
             self.dg_entry_type.get() if self.dg_entry_type.get() != '' else None,
             self.dg_entry_ocid.get() if self.dg_entry_ocid.get() != '' else None,
         )
-        self.sheet_dynamic_group.display_columns(all_columns_displayed=True)
+
+        # Apply additional filter for In Use
+        output_filtered = []
         for dg in filtered:
-            dg[2] = format_dgrule(dg[2], 0)
+            if self.chk_show_not_in_use.get():
+                if not dg.get('In Use'):
+                    output_filtered.append(dg)
+            else:
+                output_filtered.append(dg)
+        self.custom_data_dynamic_group.update_data(output_filtered)
 
-        self.sheet_dynamic_group.set_sheet_data(filtered, reset_highlights=True)
-        self.sheet_dynamic_group.set_all_cell_sizes_to_text()
-        self.dg_label_count.config(text=f'Dynamic Groups (Filtered): {len(filtered)} \n ')
+        # If expanded, show all columns, else show a subset
+        if self.chk_show_dg_ocid.get():
+            self.custom_data_dynamic_group.set_display_columns(self.all_dg_columns)
+            self.logger.info('Setting dynamic group table to expanded view with all columns')
+        else:
+            self.custom_data_dynamic_group.set_display_columns(self.basic_dg_columns)
+            self.logger.info('Setting dynamic group table to basic view with key columns')
 
-        filtered_stage2: int = 0
-
-        if self.chk_show_not_in_use.get():
-            self._run_dg_analysis()
-            for i, dg in enumerate(filtered):
-                if not dg[3]:
-                    filtered_stage2 += 1
-                    self.sheet_dynamic_group.highlight_rows(rows=[i], bg='red')  # type: ignore
-                    # filtered_stage2.append(dg)
-            self.dg_label_count.config(text=f'Dynamic Groups (Highlighted): {filtered_stage2}')
+        # Update label with counts
+        self.dg_label_count.config(
+            text=f'Dynamic Groups (Total): {len(self.identity_domain_analysis.dynamic_groups)}\nDynamic Groups (Filtered): {len(output_filtered)}'
+        )
 
     def _update_principals_sheets(self, *args):
         """Update sheets based on dropdown selections and dynamic group selection."""
@@ -2102,41 +1860,54 @@ class OCIPolicyDGViewer:
         # Enable/disable Principals Style
         self.principals_style_dropdown.configure(state='normal')
 
-        # Clear sheets and hide both sheets by default
-        self.principals_sheet_dynamic_groups.set_sheet_data([])  # Clear data
-        # frm_bottom.grid_forget()
-        self.principals_sheet_dynamic_groups.grid_forget()  # Hide dynamic group sheet
-        self.principals_sheet_policies_instance.grid_forget()  # Hide policy sheet temporarily
+        # # Clear sheets and hide both sheets by default
+        # self.principals_sheet_dynamic_groups.set_sheet_data([])  # Clear data
+        # # frm_bottom.grid_forget()
+        # self.principals_sheet_dynamic_groups.grid_forget()  # Hide dynamic group sheet
+        # self.principals_sheet_policies_instance.grid_forget()  # Hide policy sheet temporarily
+
+        # Un-grid both sheets (re-grid in a sec)
+        self.rp_dg_table.grid_forget()
+        self.rp_policy_table.grid_forget()
 
         if principals_style == 'any-user':
             # Start with "any-user" style statement
+
+            # Re-grid RP sheet
+            self.rp_policy_table.grid(row=0, column=0, rowspan=2, sticky='nsew')
+            self.logger.info('Added both DG and Policy tables to grid')
+
             # Don't care about Dynamic groups
             if resource_type == 'Any':
                 self.logger.info('Case 1 - Any-User with no type specified')
                 policies = self.policy_compartment_analysis.filter_policy_statements(
                     condition_filter='request.principal.type'
                 )
-                self.principals_sheet_policies_instance.set_sheet_data(policies)
+                self.rp_policy_table.update_data(policies)
+                self.logger.info(f'Filtered to {len(policies)} policies with any principal type')
+                # self.principals_sheet_policies_instance.set_sheet_data(policies)
             else:
                 self.logger.info(f'Case 2 - Any-User with type {resource_type} specified')
                 condition_filter = f"request.principal.type='{resource_type}'"
                 policies = self.policy_compartment_analysis.filter_policy_statements(condition_filter=condition_filter)
-                self.principals_sheet_policies_instance.set_sheet_data(policies)
+                self.rp_policy_table.update_data(policies)
+                self.logger.info(f'Filtered to {len(policies)} policies with principal type {resource_type}')
+                # self.principals_sheet_policies_instance.set_sheet_data(policies)
+            #     self.principals_sheet_policies_instance.set_sheet_data(policies)
 
-            # UI Elements - re-grid with only Policy viewer
-            self.principals_sheet_policies_instance.grid(
-                row=0, column=0, rowspan=2, sticky='nsew'
-            )  # Show policy sheet in row 1
+            # # UI Elements - re-grid with only Policy viewer
+            # self.principals_sheet_policies_instance.grid(
+            #     row=0, column=0, rowspan=2, sticky='nsew'
+            # )  # Show policy sheet in row 1
 
         elif principals_style == 'Dynamic Group':
             self.logger.info('Case 3 - Dynamic Group')
 
-            # # Configure frm_bottom weights to split space evenly
-            # frm_bottom.rowconfigure(0, weight=1)
-            # frm_bottom.rowconfigure(1, weight=1)
-            # # Show both sheets in their respective grid positions
-            # principals_sheet_dynamic_groups.grid(row=0, column=0, sticky='nsew')  # Show dynamic group sheet
-            # principals_sheet_policies_instance.grid(row=1, column=0, sticky='nsew')  # Show policy sheet in row 1
+            # Re-grid DG and RP sheet
+            self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
+            self.rp_policy_table.grid(row=1, column=0, sticky='nsew')
+
+            self.logger.info('Added both DG and Policy tables to grid')
 
             # Populate dynamic group sheet
             filtered_dynamic_groups = []
@@ -2146,127 +1917,141 @@ class OCIPolicyDGViewer:
             filtered_dynamic_groups = self.identity_domain_analysis.filter_dynamic_groups(
                 type_filter='resource.type|resource.principal|resource.id'
             )
-            self.principals_sheet_dynamic_groups.set_sheet_data(filtered_dynamic_groups)
 
-            # Populate policy sheet with initial filter
-            # For DG style, search any policy that refers to a DG in the list of dynamic groups
-            # Build a list of DGs from previous output
-            selected_dgs: list = []
-            for dg in filtered_dynamic_groups:
-                selected_dgs.append(dg[1])
+            self.rp_dg_table.update_data(filtered_dynamic_groups)
+        #     self.principals_sheet_dynamic_groups.set_sheet_data(filtered_dynamic_groups)
 
-            # Now build a policy search based on a string of all DGs
-            subject_search = '|'.join(selected_dgs)
+        #     # Populate policy sheet with initial filter
+        #     # For DG style, search any policy that refers to a DG in the list of dynamic groups
+        #     # Build a list of DGs from previous output
+        #     selected_dgs: list = []
+        #     for dg in filtered_dynamic_groups:
+        #         selected_dgs.append(dg[1])
 
-            # Now search policies based on DG type and subject string
-            policies = self.policy_compartment_analysis.filter_policy_statements(subj_filter=subject_search)
-            # policies = policy_compartment_analysis.filter_resource_principal_policies('Resource Principals', principals_style, resource_type)
-            self.principals_sheet_policies_instance.set_sheet_data(policies)
+        #     # Now build a policy search based on a string of all DGs
+        #     subject_search = '|'.join(selected_dgs)
 
-            # Enable row selection on dynamic group sheet
-            def on_row_select(event):
-                selected_rows = self.principals_sheet_dynamic_groups.get_selected_rows()
-                self.logger.info(f'Selected row in DG sheet: {selected_rows}')
-                if selected_rows:
-                    selected_idx = list(selected_rows)[0]
-                    self.logger.info(f'Selected row in DG sheet: {list(selected_rows)[0]}')
-                    selected_dg = (filtered_dynamic_groups[selected_idx][0], filtered_dynamic_groups[selected_idx][1])
-                    filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
-                        subj_filter=filtered_dynamic_groups[selected_idx][1]
-                    )
-                    # filtered_policies = self.policy_compartment_analysis.filter_resource_principal_policies(
-                    #     'Resource Principals', principals_style, resource_type, selected_dg
-                    # )
-                    self.logger.info(f'Filtered Policy count for {selected_dg}: {len(filtered_policies)}')
-                    self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
-                else:
-                    # Reset to all dynamic group policies
-                    filtered_policies = self.policy_compartment_analysis.filter_policy_statements()
-                    self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
+        #     # Now search policies based on DG type and subject string
+        #     policies = self.policy_compartment_analysis.filter_policy_statements(subj_filter=subject_search)
+        #     # policies = policy_compartment_analysis.filter_resource_principal_policies('Resource Principals', principals_style, resource_type)
+        #     self.principals_sheet_policies_instance.set_sheet_data(policies)
 
-            # UI Elements - re-grid with both DG and Policy viewer
-            self.principals_sheet_dynamic_groups.grid(row=0, column=0, sticky='nsew')  # Show dynamic group sheet
-            self.principals_sheet_policies_instance.grid(row=1, column=0, sticky='nsew')  # Show policy sheet in row 1
+        #     # Enable row selection on dynamic group sheet
+        #     def on_row_select(event):
+        #         selected_rows = self.principals_sheet_dynamic_groups.get_selected_rows()
+        #         self.logger.info(f'Selected row in DG sheet: {selected_rows}')
+        #         if selected_rows:
+        #             selected_idx = list(selected_rows)[0]
+        #             self.logger.info(f'Selected row in DG sheet: {list(selected_rows)[0]}')
+        #             selected_dg = (filtered_dynamic_groups[selected_idx][0], filtered_dynamic_groups[selected_idx][1])
+        #             filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
+        #                 subj_filter=filtered_dynamic_groups[selected_idx][1]
+        #             )
+        #             # filtered_policies = self.policy_compartment_analysis.filter_resource_principal_policies(
+        #             #     'Resource Principals', principals_style, resource_type, selected_dg
+        #             # )
+        #             self.logger.info(f'Filtered Policy count for {selected_dg}: {len(filtered_policies)}')
+        #             self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
+        #         else:
+        #             # Reset to all dynamic group policies
+        #             filtered_policies = self.policy_compartment_analysis.filter_policy_statements()
+        #             self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
 
-            self.principals_sheet_dynamic_groups.bind('<ButtonRelease-1>', on_row_select)
-        else:
-            self.logger.info('Nothing selected')
+        #     # UI Elements - re-grid with both DG and Policy viewer
+        #     self.principals_sheet_dynamic_groups.grid(row=0, column=0, sticky='nsew')  # Show dynamic group sheet
+        #     self.principals_sheet_policies_instance.grid(row=1, column=0, sticky='nsew')  # Show policy sheet in row 1
 
-        # Resize data
-        self.principals_sheet_dynamic_groups.set_all_cell_sizes_to_text(slim=False)
-        self.principals_sheet_policies_instance.set_all_cell_sizes_to_text(slim=False)
+        #     self.principals_sheet_dynamic_groups.bind('<ButtonRelease-1>', on_row_select)
+        # else:
+        #     self.logger.info('Nothing selected')
 
-    def _update_user_analysis_combo(self):
-        """Update the user list with real data from loaded groups and users"""
-        users = self.identity_domain_analysis.users
-        logging.debug(f'Loaded Users: {users}')
-        # Create mapping of display name to ocid
-        self.user_display_to_ocid = {
-            f"{user_data['domain']}/{user_data['name']}": ocid for ocid, user_data in users.items()
-        }
-        self.all_users = sorted(self.user_display_to_ocid.keys())  # Full sorted list
-        self.user_combo['values'] = self.all_users
-        logging.info(f'Updated Combo box with {len(users)} Users.')
+        # # Resize data
+        # self.principals_sheet_dynamic_groups.set_all_cell_sizes_to_text(slim=False)
+        # self.principals_sheet_policies_instance.set_all_cell_sizes_to_text(slim=False)
+
+    # def _update_user_analysis_combo(self):
+    #     """Update the user list with real data from loaded groups and users"""
+    #     users = self.identity_domain_analysis.users
+    #     self.logger.debug(f'Loaded Users: {users}')
+    #     # Create mapping of display name to ocid
+    #     self.user_display_to_ocid = {
+    #         f"{user_data['domain']}/{user_data['name']}": ocid for ocid, user_data in users.items()
+    #     }
+    #     self.all_users = sorted(self.user_display_to_ocid.keys())  # Full sorted list
+    #     self.user_combo['values'] = self.all_users
+    #     self.logger.info(f'Updated Combo box with {len(users)} Users.')
 
     def _update_user_analysis_output(self):
         # TODO: Compartment Analysis
 
-        # Get the selected User
-        user_selected = self.user_combo.get().strip()
-        if not user_selected or user_selected == '':
-            logging.info('Returning without loading any policies. User was blank.')
-            return
-
-        # All users and Groups for reference
+        # Place the list of groups in the group table (all for now)
         all_groups = self.identity_domain_analysis.groups
+        self.users_groups_table.update_data(all_groups)
+
         all_users = self.identity_domain_analysis.users
-        logging.debug(f'All Users: {all_users}')
-        logging.debug(f'All Groups: {all_groups}')
+        self.users_users_table.update_data(all_users)
+
+        # Show the text of selected users and groups, somehow
+
+        # # Get the selected User
+        # user_selected = self.user_combo.get().strip()
+        # if not user_selected or user_selected == '':
+        #     self.logger.info('Returning without loading any policies. User was blank.')
+        #     return
+
+        # # All users and Groups for reference
+        # all_groups = self.identity_domain_analysis.groups
+        # all_users = self.identity_domain_analysis.users
+        # self.logger.debug(f'All Users: {all_users}')
+        # self.logger.debug(f'All Groups: {all_groups}')
 
         # Create a search term for the main filtering (subject_filter = group|group2|etc)
-        user_groups = []
-        user_ocid = self.user_display_to_ocid.get(user_selected)
-        if user_ocid and user_ocid in all_users:
-            group_ocids = all_users[user_ocid]['groups']
-            logging.info(f'Group OCIDs: {group_ocids}')
-            for group_ocid in group_ocids:
-                if group_ocid in all_groups:
-                    user_groups.append(all_groups[group_ocid]['display_name'])
-        logging.info(f'User {user_selected} in groups {user_groups}')
+        # user_groups = []
+        # user_ocid = self.user_display_to_ocid.get(user_selected)
+        # if user_ocid and user_ocid in all_users:
+        #     group_ocids = all_users[user_ocid]['groups']
+        #     self.logger.info(f'Group OCIDs: {group_ocids}')
+        #     for group_ocid in group_ocids:
+        #         if group_ocid in all_groups:
+        #             user_groups.append(all_groups[group_ocid]['display_name'])
+        # self.logger.info(f'User {user_selected} in groups {user_groups}')
 
-        searchable_subject = '|'.join(user_groups)
-        logging.info(f'Searching policies for subjects: {searchable_subject}')
+        # searchable_subject = '|'.join(user_groups)
+        # self.logger.info(f'Searching policies for subjects: {searchable_subject}')
 
-        # Use the main policy search
-        filtered = self.policy_compartment_analysis.filter_policy_statements(subj_filter=searchable_subject)
-        logging.info(f'User Analysis for {user_selected} to show {len(filtered)} policy statements')
+        # # Use the main policy search
+        # filtered = self.policy_compartment_analysis.filter_policy_statements(subj_filter=searchable_subject)
+        # self.logger.info(f'User Analysis for {user_selected} to show {len(filtered)} policy statements')
 
-        # Convert back to list to support tksheet ()
-        sheet_data = self._convert_filtered_policies_to_list(filtered)
-        self.sheet_user_policies.set_sheet_data(sheet_data, reset_highlights=True)
-        self.sheet_user_policies.set_all_cell_sizes_to_text()
-        self.sheet_user_policies.display_columns(
-            all_columns_displayed=True if self.chk_show_expanded.get() else False,
-            columns=[0, 3, 4] if not self.chk_show_expanded.get() else None,
-        )
+        # # Convert back to list to support tksheet ()
+        # sheet_data = self._convert_filtered_policies_to_list(filtered)
+        # self.sheet_user_policies.set_sheet_data(sheet_data, reset_highlights=True)
+        # self.sheet_user_policies.set_all_cell_sizes_to_text()
+        # self.sheet_user_policies.display_columns(
+        #     all_columns_displayed=True if self.chk_show_expanded.get() else False,
+        #     columns=[0, 3, 4] if not self.chk_show_expanded.get() else None,
+        # )
 
-        self.user_label_count.config(text=f'Policy Statements (Filtered): {len(filtered)}')
+        # self.user_label_count.config(text=f'Policy Statements (Filtered): {len(filtered)}')
 
         # Grab the data for the selected User and Display it nicely
-        selection_info = f'User: {user_selected}\nGroups: {user_groups}'
-        self.text_user_details.delete(1.0, tk.END)
-        self.text_user_details.insert(1.0, selection_info)
+        # selection_info = f'User: {user_selected}\nGroups: {user_groups}'
+        # self.user_selected_groups.config(text=selection_info)
+
+        # self.user_label_count.config(text=f'Policy Statements (Filtered): {len(filtered)}')
 
     def _update_report_output(self):
         self.text_dg_report.delete(1.0, tk.END)
         self.text_policy_report.delete(1.0, tk.END)
-        sorted_dgs = sorted(self.identity_domain_analysis.dynamic_groups, key=lambda x: (x[0], x[1]))
+        sorted_dgs = sorted(
+            self.identity_domain_analysis.dynamic_groups, key=lambda dg: (dg.get('Domain'), dg.get('DG Name'))
+        )
         dg_text = 'Dynamic Groups Report\n====================\n'
         if not sorted_dgs:
             dg_text += 'No dynamic groups found.\n'
         else:
             for dg in sorted_dgs:
-                dg_text += f"Domain: {dg[0]}\nName: {dg[1]}\nMatching Rule: {dg[2]}\nOCID: {dg[4]}\nCreated: {dg[5]}\nIn Use: {'Yes' if dg[3] else 'No'}\n\n"
+                dg_text += f'Domain: {dg.get("Domain")}\nName: {dg.get("DG Name")}\nMatching Rule: {dg.get("Matching Rule")}\nOCID: {dg.get("DG OCID")}\nCreated: {dg.get("Creation Time")}\nIn Use: {"Yes" if dg.get("In Use") else "No"}\n\n'
         self.text_dg_report.config(state=tk.NORMAL)
         self.text_dg_report.insert(tk.END, dg_text)
         self.text_dg_report.config(state=tk.DISABLED)
@@ -2279,22 +2064,22 @@ class OCIPolicyDGViewer:
             policy_text += 'No compartments or policies found.\n'
         else:
             for comp in sorted_comps:
-                policy_text += f"Compartment: {comp['hierarchy_path']} (OCID: {comp['id']})\n"
+                policy_text += f'Compartment: {comp["hierarchy_path"]} (OCID: {comp["id"]})\n'
                 statements = [
                     s
                     for s in self.policy_compartment_analysis.regular_statements
-                    if s.get('compartment_id') == comp['id']
+                    if s.get('Compartment OCID') == comp['id']
                 ]
                 if statements:
                     policy_dict = {}
                     for s in statements:
-                        policy_name = s.get('policy_name', 'Unknown Policy')
-                        policy_ocid = s.get('policy_id', 'Unknown OCID')
+                        policy_name = s.get('Policy Name', 'Unknown Policy')
+                        policy_ocid = s.get('Policy OCID', 'Unknown OCID')
                         if policy_name not in policy_dict:
                             policy_dict[policy_name] = {'ocid': policy_ocid, 'statements': []}
-                        policy_dict[policy_name]['statements'].append(s.get('statement_text', 'No Statement Text'))
+                        policy_dict[policy_name]['statements'].append(s.get('Statement Text', 'No Statement Text'))
                     for policy_name, data in sorted(policy_dict.items()):
-                        policy_text += f"  Policy: {policy_name} (OCID: {data['ocid']})\n"
+                        policy_text += f'  Policy: {policy_name} (OCID: {data["ocid"]})\n'
                         for i, stmt in enumerate(data['statements'], 1):
                             policy_text += f'    {i}. {stmt}\n'
                 else:
@@ -2306,16 +2091,23 @@ class OCIPolicyDGViewer:
         self.logger.info('Updated Policy/Dynamic Group Report tab')
 
     def _update_cross_tenancy_output(self):
-        self.logger.debug(f'cross: {len(self.policy_compartment_analysis.cross_tenancy_statements)}')
+        self.logger.info(f'Displaying: {len(self.policy_compartment_analysis.cross_tenancy_statements)} CT Statements')
         defined_aliases = self.policy_compartment_analysis.defined_aliases
-        alias_list = []
-        for alias in defined_aliases:
-            self.logger.debug(f'Alias {alias}: {defined_aliases[alias]}')
-            alias_list.append([alias, defined_aliases[alias][0], defined_aliases[alias][1]])
-        self.sheet_cross_tenancy_define.set_sheet_data(alias_list)
-        self.sheet_cross_tenancy_policies.display_columns(columns=[0, 1, 2, 3, 4], all_columns_displayed=False)
-        self.sheet_cross_tenancy_policies.set_sheet_data(self.policy_compartment_analysis.cross_tenancy_statements)
-        self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
+        cross_tenancy_statements = self.policy_compartment_analysis.cross_tenancy_statements
+        self.logger.debug(f'Defined Aliases: {defined_aliases}')
+        self.logger.debug(f'Cross-Tenancy Statements: {cross_tenancy_statements}')
+
+        self.defined_aliases_table.update_data(defined_aliases)
+        self.cross_tenancy_table.update_data(cross_tenancy_statements)
+
+        # alias_list = []
+        # for alias in defined_aliases:
+        #     self.logger.debug(f'Alias {alias}: {defined_aliases[alias]}')
+        #     alias_list.append([alias, defined_aliases[alias][0], defined_aliases[alias][1]])
+        # self.sheet_cross_tenancy_define.set_sheet_data(alias_list)
+        # self.sheet_cross_tenancy_policies.display_columns(columns=[0, 1, 2, 3, 4], all_columns_displayed=False)
+        # self.sheet_cross_tenancy_policies.set_sheet_data(self.policy_compartment_analysis.cross_tenancy_statements)
+        # self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
 
     # Calls into core to make updates
     def _run_dg_analysis(self):
@@ -2339,14 +2131,6 @@ class OCIPolicyDGViewer:
         else:
             self.text_compare_report.insert(tk.END, 'No differences found or no cache available.\n')
         self.text_compare_report.config(state=tk.DISABLED)
-
-    def _toggle_profile_dropdown(self):
-        if self.use_instance_principal.get():
-            self.input_profile.config(state=tk.DISABLED)
-            self.label_profile.config(state=tk.DISABLED)
-        else:
-            self.input_profile.config(state=tk.NORMAL)
-            self.label_profile.config(state=tk.NORMAL)
 
     def _clear_dg_filters(self):
         for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type, self.dg_entry_ocid]:
@@ -2383,25 +2167,25 @@ class OCIPolicyDGViewer:
                 start_index = end_index
             self.text_policy_report.tag_config('found', background='yellow')
 
-    def _update_cross_tenancy_alias_selection(self, row):
-        selected_rows = self.sheet_cross_tenancy_define.get_selected_rows()
-        if selected_rows:
-            aliases_to_filter = []
-            for idx in selected_rows:
-                # selected_idx = list(selected_rows)
-                alias = self.sheet_cross_tenancy_define.get_cell_data(r=idx, c=0)
-                self.logger.debug(f'Selected row {idx} - Using alias {alias} for search in policies')
-                aliases_to_filter.append(alias)
+    # def _update_cross_tenancy_alias_selection(self, row):
+    #     selected_rows = self.sheet_cross_tenancy_define.get_selected_rows()
+    #     if selected_rows:
+    #         aliases_to_filter = []
+    #         for idx in selected_rows:
+    #             # selected_idx = list(selected_rows)
+    #             alias = self.sheet_cross_tenancy_define.get_cell_data(r=idx, c=0)
+    #             self.logger.debug(f'Selected row {idx} - Using alias {alias} for search in policies')
+    #             aliases_to_filter.append(alias)
 
-            self.logger.info(f'Using aliases {aliases_to_filter} for search in policies')
-            # Filter bottom sheet
-            filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
-                alias_filter=aliases_to_filter
-            )
-            self.sheet_cross_tenancy_policies.set_sheet_data(filtered, redraw=True)
-            self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
-        else:
-            self.logger.debug('no row selected')
+    #         self.logger.info(f'Using aliases {aliases_to_filter} for search in policies')
+    #         # Filter bottom sheet
+    #         filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
+    #             alias_filter=aliases_to_filter
+    #         )
+    #         self.sheet_cross_tenancy_policies.set_sheet_data(filtered, redraw=True)
+    #         self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
+    #     else:
+    #         self.logger.debug('no row selected')
 
     def _update_history_cache_compare_dropdown(self):
         """Update the cache dropdown with available caches."""
@@ -2420,15 +2204,6 @@ class OCIPolicyDGViewer:
             )
         self.logger.info(f'Updated cache dropdown with {len(available_caches)} caches')
 
-    def _convert_filtered_policies_to_list(self, filtered: list[dict]) -> list:
-        """Convert to list of JSON policy statement data for tksheet"""
-        if len(filtered) == 0:
-            self.sheet_policies.display_rows(rows=[], all_rows_displayed=False, redraw=True)
-            logging.info('No rows in data, returning empty.')
-            return []
-        headers = list(filtered[0].keys())
-        return [[row[col] for col in headers] for row in filtered]
-
     # Exports
     def _export_policy_to_csv(self):
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
@@ -2445,30 +2220,21 @@ class OCIPolicyDGViewer:
             )
             with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow(self.sheet_policies.headers())
+                # writer.writerow(self.sheet_policies.headers())
+                # Write header row
+                writer.writerow(self.all_policy_columns)
+                # Write data rows
                 writer.writerows(filtered)
             self.logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
 
-    def _export_dg_to_csv(self):
-        filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
-        if filepath:
-            filtered = self.identity_domain_analysis.filter_dynamic_groups(
-                self.dg_entry_domain.get(), self.dg_entry_name.get(), self.dg_entry_type.get(), self.dg_entry_ocid.get()
-            )
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(self.sheet_dynamic_group.headers())
-                writer.writerows(filtered)
-            self.logger.info(f'Exported {len(filtered)} dynamic groups to {filepath}')
-
-    def _export_user_to_csv(self):
-        filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
-        if filepath:
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(self.sheet_user_policies.headers())
-                writer.writerows(self.sheet_user_policies.data)
-            self.logger.info(f'Exported {len(self.sheet_user_policies.data)} user policy statements to {filepath}')
+    # def _export_user_to_csv(self):
+    #     filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
+    #     if filepath:
+    #         with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+    #             writer = csv.writer(csvfile)
+    #             writer.writerow(self.sheet_user_policies.headers())
+    #             writer.writerows(self.sheet_user_policies.data)
+    #         self.logger.info(f'Exported {len(self.sheet_user_policies.data)} user policy statements to {filepath}')
 
     def _export_report_to_txt(self):
         # Export the report to a text file
@@ -2514,8 +2280,8 @@ class OCIPolicyDGViewer:
                 self.btn_export_policy,
                 self.dg_btn_update,
                 self.dg_btn_clear,
-                self.dg_btn_export,
-                self.btn_export_user,
+                # self.dg_btn_export,
+                # self.btn_export_user,
                 self.btn_cache_compare,
                 self.btn_export_report,
             ]
@@ -2525,7 +2291,7 @@ class OCIPolicyDGViewer:
         self._update_dg_output()
         self._update_principals_sheets()
         self._update_user_analysis_output()
-        self._update_user_analysis_combo()
+        # self._update_user_analysis_combo()
         self._update_report_output()
         self._update_cross_tenancy_output()
         self._update_history_cache_compare_dropdown()
@@ -2551,7 +2317,7 @@ class OCIPolicyDGViewer:
                 self.logger.info('Kicking off cached tenancy load')
 
                 profile = self.profile_var.get()
-                use_ip = self.use_instance_principal.get()
+                use_ip = self.use_instance_principal_var.get()
                 self.progress_bar_label.config(text='Loading Policies, Dynamic Groups and Compartments from cache')
                 success = self.policy_compartment_analysis.initialize_client(use_ip, profile)
                 if not success:
@@ -2615,9 +2381,11 @@ class OCIPolicyDGViewer:
             try:
                 self.logger.info('Kicking off tenancy load')
                 profile = self.profile_var.get()
-                use_ip = self.use_instance_principal.get()
-                self.progress_bar_label.config(text='Initializing Clients')
-                success = self.policy_compartment_analysis.initialize_client(use_ip, profile)
+                use_ip = self.use_instance_principal_var.get()
+                self.progress_bar_label.config(text=f'Initializing Clients for {profile}')
+                success = self.policy_compartment_analysis.initialize_client(
+                    use_instance_principal=use_ip, recursive=self.recursive_load_var.get(), profile=profile
+                )
                 if not success:
                     raise RuntimeError('Failed to initialize PolicyCompartmentAnalysis client')
                 success = self.identity_domain_analysis.initialize_client(use_ip, profile)
@@ -2673,11 +2441,29 @@ class OCIPolicyDGViewer:
         # Start the data loading in a separate thread to avoid blocking the UI
         Thread(target=load, daemon=True).start()
 
-    def _update_response(self, result, policy_text, response_type):
-        # Update response text widgets for active tabs only
-        active_tab = self.notebook.select()
-        self.logger.info(f'Active Tab: {active_tab}')
-        self.logger.info(f'Result: {result}')
+    def _analyze_policy_statment_ai(self, additional_context: str = ''):
+        self.logger.info(f'Call Analyze for: {self.policy_analyze_statement_entry.get()}')
+        self.ai_insights_response_html.set_html(
+            f'<p>Analyzing statement <code style="font-family: "Courier New", Courier, monospace;">{self.policy_analyze_statement_entry.get()}</code>...</p>'
+        )
+        ai_thread = Thread(
+            target=self.ai.analyze_policy_statement,
+            args=(self.policy_analyze_statement_entry.get(), self.result_queue, False, additional_context),
+            daemon=True,
+            name='AI-Analyze-Statement-Thread',
+        )
+        ai_thread.start()
+
+    # Set the results from the AI call
+    def _update_response(self, result):
+        self.logger.info(f'Setting Result from AI into Response area: {result[:-100]}')
+        # Clean and create Markdown as HTML
+        cleaned_result = formatting.clean_markdown(result)
+        html_content = markdown.markdown(cleaned_result, extensions=['tables', 'fenced_code'])
+
+        # Set in the widget
+        # TODO - Sanitize HTML?
+        self.ai_insights_response_html.set_html(html_content)
 
     # Timer-based continous or periodic updates
     def _update_progress_label(self):
@@ -2690,7 +2476,11 @@ class OCIPolicyDGViewer:
     def _update_status_bar_text(self):
         """every 2 sec update the text for the status bar"""
         self.status_bar_text = f'© 2025 Andrew Gregory  |  OCI Policy & Dynamic Group Analysis v{__version__}  '
-        if not self.policy_compartment_analysis or not self.identity_domain_analysis:
+        if (
+            not self.policy_compartment_analysis
+            or not self.identity_domain_analysis
+            or not self.policy_compartment_analysis.data_as_of
+        ):
             self.status_bar_text += '| Not initialized'
         elif self.currently_loading:
             self.status_bar_text += f'| Loading ({len(self.policy_compartment_analysis.regular_statements)})'
@@ -2701,25 +2491,87 @@ class OCIPolicyDGViewer:
             python_version = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
             oci_version = oci.__version__
             tkinter_version = tk.Tcl().eval('info patchlevel')
-            tksheet_version = tksheet.__version__
-            self.status_bar_text += f'| Python: {python_version} | OCI: {oci_version} | Tkinter: {tkinter_version} | tksheet: {tksheet_version} '
+            self.status_bar_text += f'| Python: {python_version} | OCI: {oci_version} | Tkinter: {tkinter_version} '
             # Process
             process = psutil.Process(os.getpid())
             # Get memory info (in bytes)
             memory_info = process.memory_info()
             self.status_bar_text += f'| Mem: {memory_info.vms / 1024**2:.2f} MB'
-        logging.debug(f'Status: {self.status_bar_text}')
+        # self.logger.debug(f'Status: {self.status_bar_text}')
         self.label_status_bar.config(text=self.status_bar_text)
         self.root.after(2000, self._update_status_bar_text)
 
     def _update_ai_insights_response(self):
         try:
             while True:
-                result, policy_text, response_type = self.result_queue.get_nowait()
-                self._update_response(result, policy_text, response_type)
+                # result, policy_text, response_type = self.result_queue.get_nowait()
+                result = self.result_queue.get_nowait()
+                # self._update_response(result, policy_text, response_type)
+                self._update_response(result)
         except queue.Empty:
             pass
         self.root.after(100, self._update_ai_insights_response)
+
+    def load_options(self):
+        # Load options from Cache directory
+        options = {}
+
+        # Try to load - if not there, no big deal
+        options_file = CACHE_DIR / 'options.json'
+        if options_file.exists():
+            try:
+                with open(options_file, encoding='utf-8') as f:
+                    options = json.load(f)
+                self.logger.info(f'Loaded options from {options_file}')
+            except Exception as exc:
+                self.logger.error(f'Error loading options from {options_file}: {exc}')
+        else:
+            self.logger.info(f'No options file found at {options_file}, using defaults.')
+
+        # Define variables
+        self.use_instance_principal_var = tk.BooleanVar(value=False)
+        self.recursive_load_var = tk.BooleanVar(value=options.get('recursion', True))
+        self.profile_var = tk.StringVar(value='DEFAULT')
+
+        # Load profiles from ~/.oci/config
+        self.profile_list = ['DEFAULT']
+        try:
+            # TODO - Check Env OCI_CLI_CONFIG_FILE
+            with open(Path.home() / '.oci' / 'config') as fp:
+                self.profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
+        except FileNotFoundError:
+            self.logger.warning('OCI config file not found')
+            self.profile_list = ['NONE']
+            self.use_instance_principal_var.set(True)
+
+        # Start loading options
+        # self.font.size = options.get("font-size", 10)
+        self.profile_var.set(options.get('profile', 'DEFAULT'))
+        # self.logger.info(f"Setting font: {self.font}")
+        self.logger.info(f'Setting Recursive: {self.recursive_load_var.get()}')
+        self.logger.info(f'Setting Instance Principal: {self.use_instance_principal_var.get()}')
+        self.logger.info(f'Setting Profile: {self.profile_var.get()}')
+
+    def persist_options(self):
+        # Save all options
+        # with blah as
+        # write json
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        options_file = CACHE_DIR / 'options.json'
+        options = {
+            # "font-size": self.font.size,
+            'recursion': self.recursive_load_var.get(),
+            'instance_principal': self.use_instance_principal_var.get(),
+            'profile': self.profile_var.get(),
+        }
+        # Write out options
+        try:
+            with open(options_file, 'w', encoding='utf-8') as f:
+                json.dump(options, f, indent=4)
+            self.logger.info(f'Wrote options to {options_file}')
+        except Exception as exc:
+            self.logger.error(f'Error writing options to {options_file}: {exc}')
+        pass
 
 
 ### Main Code Helpers
@@ -2729,56 +2581,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
     return parser.parse_args()
-
-
-def format_dgrule(text, indent_level=0) -> str:  # noqa: C901
-    """
-    Recursively formats the input language string with 2-space indentation.
-
-    Args:
-        text (str): The input language string to format
-        indent_level (int): Current indentation level (default: 0)
-
-    Returns:
-        str: Formatted string with newlines and 2-space indentation
-    """
-    result = []
-    current = ''
-    i = 0
-    while i < len(text):
-        char = text[i]
-
-        if char == '{':
-            result.append('  ' * indent_level + current.strip() + ' {')
-            brace_count = 1
-            start = i + 1
-            while i < len(text) and brace_count > 0:
-                i += 1
-                if i < len(text):
-                    if text[i] == '{':
-                        brace_count += 1
-                    elif text[i] == '}':
-                        brace_count -= 1
-            result.append(format_dgrule(text[start:i], indent_level + 1))
-            current = ''
-            continue
-        elif char == '}':
-            if current.strip():
-                result.append('  ' * indent_level + current.strip())
-            result.append('  ' * indent_level + '}')
-            current = ''
-        elif char == ',':
-            if current.strip():
-                result.append('  ' * indent_level + current.strip())
-            current = ''
-        else:
-            current += char
-        i += 1
-
-    if current.strip():
-        result.append('  ' * indent_level + current.strip())
-
-    return '\n'.join(line for line in result if line.strip())
 
 
 ########################
