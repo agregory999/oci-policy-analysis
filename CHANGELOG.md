@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.4.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.4.0...v1.4.1) (2025-09-17)
+
+
+### Bug Fixes
+
+* Do not import toast ([c025e82](https://github.com/agregory999/oci-policy-analysis/commit/c025e8223124397ad738d2e794bae217396f3e5a))
+
+
+### Miscellaneous Chores
+
+* remove a few commented lines ([8c041ad](https://github.com/agregory999/oci-policy-analysis/commit/8c041ad0aa697612e63da8b190d4978af9ae9e15))
+* Removed old files ([30c2659](https://github.com/agregory999/oci-policy-analysis/commit/30c2659030a599925948389f1fbff62e73a842cf))
+
 ## [1.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0...v1.4.0) (2025-09-17)
 
 
