@@ -1,6 +1,5 @@
 import logging
 import tkinter as tk
-import tkinter.font as tkfont
 from collections.abc import Callable
 from tkinter import ttk
 
@@ -8,23 +7,25 @@ from tkinter import ttk
 logging.basicConfig(
     level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('data_table')
 
 
 class DataTable(tk.Frame):
-    """A Tkinter table widget with alternating row colors, sortable columns, resizable columns, show/hide columns, adjustable font size, row selection with callback, full space utilization, and cell copy functionality.
+    """A Tkinter table widget with alternating row colors, sortable columns, resizable columns, show/hide columns, row selection with callback, full space utilization, cell copy functionality, and row context menu.
+
+    Note: ttk.Treeview does not natively support multi-line text wrapping. Text with newlines may appear clipped; use wider columns (via column_widths) for better visibility. Font, padding, and ttk.Style must be configured externally to include right-side cell padding (e.g., padding=(0, 0, 5, 0)) for column separation.
 
     Args:
         parent: The parent Tkinter widget.
         columns: List of all possible column names.
         display_columns: List of initially displayed column names.
         data: List of dictionaries containing row data.
-        font_size: Initial font size for the table (default: 12).
         sortable: Enable/disable column sorting (default: True).
         row_colors: Tuple of colors for alternating rows (default: white, light gray).
-        selection_callback: Function to call with selected rows (default: None).
+        selection_callback: Optional function to call with selected rows (default: None). Can be omitted if no callback is needed.
         multi_select: Enable/disable multi-row selection (default: False).
         column_widths: Dictionary mapping column names to initial widths (default: None, uses 100 for all columns).
+        row_context_menu_callback: Optional function to create a context menu for a row (default: None).
     """
 
     def __init__(
@@ -33,12 +34,12 @@ class DataTable(tk.Frame):
         columns: list[str],
         display_columns: list[str],
         data: list[dict],
-        font_size: int = 12,
         sortable: bool = True,
         row_colors: tuple[str, str] = ('#FFFFFF', '#F0F0F0'),
         selection_callback: Callable[[list[dict]], None] | None = None,
         multi_select: bool = False,
         column_widths: dict[str, int] | None = None,
+        row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
     ) -> None:
         super().__init__(parent)
         logger.info('Initializing DataTable with %d columns and %d rows', len(columns), len(data))
@@ -46,7 +47,6 @@ class DataTable(tk.Frame):
         self.all_columns = columns
         self.display_columns = display_columns
         self.data = data
-        self.font_size = font_size
         self.sortable = sortable
         self.row_colors = row_colors
         self.sort_directions: dict[str, bool] = {col: False for col in columns}
@@ -57,9 +57,9 @@ class DataTable(tk.Frame):
         self.min_width = 50
         self.max_width = 300
         self.resizing_column: str | None = None
-        self.font = tkfont.Font(family='Helvetica', size=font_size)
         self.selection_callback = selection_callback
         self.multi_select = multi_select
+        self.row_context_menu_callback = row_context_menu_callback
         self.data_map: dict[str, int] = {}
         self.selected_cell: tuple[str, int] | None = None  # (column, row_index)
 
@@ -96,11 +96,6 @@ class DataTable(tk.Frame):
         self.tree.grid(row=0, column=0, sticky='nsew')
         logger.debug('Treeview configured with %d columns', len(self.display_columns))
 
-        # Apply font, row height, and header style
-        style = ttk.Style()
-        style.configure('Treeview', font=self.font, rowheight=self.font_size + 10)
-        style.configure('Treeview.Heading', font=self.font, borderwidth=1, relief='solid', padding=(5, 5))
-
         # Configure scrollbars
         vsb = ttk.Scrollbar(self.table_frame, orient='vertical', command=self.tree.yview)
         vsb.grid(row=0, column=1, sticky='ns')
@@ -112,8 +107,8 @@ class DataTable(tk.Frame):
 
         # Configure column headers
         for col in self.display_columns:
-            self.tree.heading(col, text=col, command=lambda c=col: self._sort_column(c))
-            self.tree.column(col, width=self.column_widths[col], minwidth=self.min_width, stretch=False)
+            self.tree.heading(col, text=col, anchor='w', command=lambda c=col: self._sort_column(c))
+            self.tree.column(col, anchor='w', width=self.column_widths[col], minwidth=self.min_width, stretch=False)
 
         # Configure alternating row colors
         self.tree.tag_configure('oddrow', background=self.row_colors[1])
@@ -130,12 +125,6 @@ class DataTable(tk.Frame):
         self.tree.bind('<Button-1>', self._select_cell)
         self.tree.bind('<Control-c>', self._copy_cell)  # Ctrl+C for Windows/Linux
         self.tree.bind('<Command-c>', self._copy_cell)  # Command+C for macOS
-
-        # Context menu for show/hide columns
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self.context_menu.add_command(label='Hide Column', command=self._hide_column)
-        for col in self.all_columns:
-            self.context_menu.add_command(label=f'Show {col}', command=lambda c=col: self._show_column(c))
         self.tree.bind('<Button-3>', self._show_context_menu)
 
         # Initial column update
@@ -169,9 +158,9 @@ class DataTable(tk.Frame):
             self.data.sort(key=lambda x: str(x.get(col, '')), reverse=reverse)
 
         for c in self.tree['columns']:
-            self.tree.heading(c, text=c)
+            self.tree.heading(c, text=c, anchor='w')
         indicator = ' ▼' if reverse else ' ▲'
-        self.tree.heading(col, text=f'{col}{indicator}')
+        self.tree.heading(col, text=f'{col}{indicator}', anchor='w')
 
         self._populate_data()
         logger.info('Table sorted by %s (%s)', col, 'descending' if reverse else 'ascending')
@@ -212,19 +201,29 @@ class DataTable(tk.Frame):
         self.resizing_column = None
 
     def _show_context_menu(self, event: tk.Event) -> None:
-        """Show context menu for column show/hide."""
-        col = self.tree.identify_column(event.x)
-        if not col:
-            return
-        col_index = int(col.replace('#', '')) - 1
-        if col_index >= len(self.tree['columns']):
-            return
-        self.selected_column = self.tree['columns'][col_index]
-        self.context_menu.entryconfigure(
-            'Hide Column', state='normal' if self.selected_column not in self.hidden_columns else 'disabled'
-        )
-        self.context_menu.post(event.x_root, event.y_root)
-        logger.debug('Showing context menu for column %s', self.selected_column)
+        """Show context menu for column show/hide or row actions."""
+        region = self.tree.identify_region(event.x, event.y)
+        if region == 'heading':
+            col = self.tree.identify_column(event.x)
+            if not col:
+                return
+            col_index = int(col.replace('#', '')) - 1
+            if col_index >= len(self.tree['columns']):
+                return
+            self.selected_column = self.tree['columns'][col_index]
+            self.context_menu.entryconfigure(
+                'Hide Column', state='normal' if self.selected_column not in self.hidden_columns else 'disabled'
+            )
+            self.context_menu.post(event.x_root, event.y_root)
+            logger.debug('Showing column context menu for %s', self.selected_column)
+        elif region == 'cell' and self.row_context_menu_callback:
+            item = self.tree.identify_row(event.y)
+            if item and item in self.data_map:
+                row_index = self.data_map[item]
+                menu = self.row_context_menu_callback(row_index)
+                if menu:
+                    menu.post(event.x_root, event.y_root)
+                    logger.debug('Showing row context menu for row %d', row_index)
 
     def _select_cell(self, event: tk.Event) -> None:
         """Select a cell for copying."""
@@ -273,8 +272,8 @@ class DataTable(tk.Frame):
         sorted_col = next((col for col, reverse in self.sort_directions.items() if reverse), None)
         for col in visible_columns:
             indicator = ' ▼' if sorted_col == col and self.sort_directions[col] else ''
-            self.tree.heading(col, text=f'{col}{indicator}', command=lambda c=col: self._sort_column(c))
-            self.tree.column(col, width=self.column_widths[col], stretch=False)
+            self.tree.heading(col, text=f'{col}{indicator}', anchor='w', command=lambda c=col: self._sort_column(c))
+            self.tree.column(col, anchor='w', width=self.column_widths[col], stretch=False)
         self._populate_data()
         logger.debug('Updated columns: %d visible', len(visible_columns))
 
@@ -292,21 +291,7 @@ class DataTable(tk.Frame):
         self.display_columns = display_columns
         self.hidden_columns = set(self.all_columns) - set(display_columns)
         self._update_columns()
-        logger.info('Set display columns: %s', display_columns)
-
-    def set_font_size(self, font_size: int) -> None:
-        """Set the font size and adjust row height."""
-        try:
-            self.font.configure(size=font_size)
-            self.font_size = font_size
-            style = ttk.Style()
-            style.configure('Treeview', font=self.font, rowheight=font_size + 10)
-            style.configure('Treeview.Heading', font=self.font)
-            self._populate_data()
-            logger.info('Font size set to %d', font_size)
-        except ValueError as e:
-            logger.error('Invalid font size: %s', font_size)
-            raise ValueError(f'Invalid font size: {font_size}') from e
+        logger.debug('Set display columns: %s', display_columns)
 
     def _on_selection(self, event: tk.Event) -> None:
         """Handle row selection and trigger callback."""
@@ -335,37 +320,66 @@ if __name__ == '__main__':
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
+    # External style configuration with right padding
+    style = ttk.Style()
+    style.configure('Treeview', font=('Helvetica', 8), rowheight=28, padding=(0, 0, 5, 0))
+    style.configure('Treeview.Heading', font=('Helvetica', 8))
+
     columns = ['Name', 'Age', 'City', 'Country', 'Occupation', 'Salary']
     display_columns = ['Name', 'City', 'Occupation']
     data = [
-        {'Name': 'Alice', 'Age': 25, 'City': 'New York', 'Country': 'USA', 'Occupation': 'Engineer', 'Salary': 75000},
-        {'Name': 'Bob', 'Age': 30, 'City': 'London', 'Country': 'UK', 'Occupation': 'Designer', 'Salary': 65000},
+        {
+            'Name': 'Alice',
+            'Age': 25,
+            'City': 'New York\nManhattan\nTimes Square',
+            'Country': 'USA',
+            'Occupation': 'Engineer',
+            'Salary': 75000,
+        },
+        {
+            'Name': 'Bob',
+            'Age': 30,
+            'City': 'London',
+            'Country': 'UK',
+            'Occupation': 'Designer\nSenior\nLead',
+            'Salary': 65000,
+        },
         {'Name': 'Charlie', 'Age': 35, 'City': 'Paris', 'Country': 'France', 'Occupation': 'Teacher', 'Salary': 55000},
-        {'Name': 'David', 'Age': 28, 'City': 'Tokyo', 'Country': 'Japan', 'Occupation': 'Developer', 'Salary': 80000},
+        {
+            'Name': 'David',
+            'Age': 28,
+            'City': 'Tokyo\nShibuya',
+            'Country': 'Japan',
+            'Occupation': 'Developer',
+            'Salary': 80000,
+        },
     ]
     column_widths = {
-        'Name': 150,  # Wider for names
-        'City': 120,  # Slightly wider for city names
-        'Occupation': 200,  # Wider for longer text
+        'Name': 150,
+        'City': 200,
+        'Occupation': 200,
         'Country': 100,
-        'Age': 80,  # Narrower for numbers
+        'Age': 80,
         'Salary': 100,
     }
 
-    def selection_callback(selected_rows: list[dict]) -> None:
-        print('Selected rows:')
-        for row in selected_rows:
-            print(row)
+    def row_context_menu_callback(row_index: int) -> tk.Menu:
+        menu = tk.Menu(root, tearoff=0)
+        menu.add_command(
+            label=f'View Details (Row {row_index})',
+            command=lambda: print(f'View details for row {row_index}: {data[row_index]}'),
+        )
+        menu.add_command(label=f'Delete Row {row_index}', command=lambda: print(f'Delete row {row_index}'))
+        return menu
 
     table = DataTable(
         root,
         columns=columns,
         display_columns=display_columns,
         data=data,
-        font_size=14,
-        selection_callback=selection_callback,
-        multi_select=True,
         column_widths=column_widths,
+        multi_select=True,
+        row_context_menu_callback=row_context_menu_callback,
     )
     table.grid(row=0, column=0, sticky='nsew')
 
@@ -385,22 +399,6 @@ if __name__ == '__main__':
     selection_button = tk.Button(controls_frame, text='Toggle Selection Mode', command=toggle_selection_mode)
     selection_button.grid(row=0, column=0, sticky='ew', padx=5)
 
-    # Font size selector
-    font_size_var = tk.StringVar(value='14')
-    font_sizes = [8, 10, 12, 14, 16, 18, 20]
-    font_selector = ttk.Combobox(
-        controls_frame, textvariable=font_size_var, values=font_sizes, state='readonly', width=5
-    )
-    font_selector.grid(row=0, column=1, sticky='ew', padx=5)
-
-    def change_font_size(event: tk.Event) -> None:
-        try:
-            table.set_font_size(int(font_size_var.get()))
-        except ValueError:
-            logger.error('Invalid font size selected: %s', font_size_var.get())
-
-    font_selector.bind('<<ComboboxSelected>>', change_font_size)
-
     # Column toggle
     show_all_var = tk.BooleanVar(value=False)
 
@@ -413,7 +411,7 @@ if __name__ == '__main__':
     column_checkbox = tk.Checkbutton(
         controls_frame, text='Show All Columns', variable=show_all_var, command=toggle_columns
     )
-    column_checkbox.grid(row=0, column=2, sticky='ew', padx=5)
+    column_checkbox.grid(row=0, column=1, sticky='ew', padx=5)
 
     # Update data button
     def update_data_example() -> None:
@@ -421,9 +419,9 @@ if __name__ == '__main__':
             {
                 'Name': 'Eve',
                 'Age': 27,
-                'City': 'Berlin',
+                'City': 'Berlin\nDowntown\nBrandenburg',
                 'Country': 'Germany',
-                'Occupation': 'Analyst',
+                'Occupation': 'Analyst\nData',
                 'Salary': 70000,
             },
             {
@@ -437,7 +435,7 @@ if __name__ == '__main__':
             {
                 'Name': 'Grace',
                 'Age': 29,
-                'City': 'Toronto',
+                'City': 'Toronto\nNorth\nYork',
                 'Country': 'Canada',
                 'Occupation': 'Consultant',
                 'Salary': 72000,
@@ -446,6 +444,25 @@ if __name__ == '__main__':
         table.update_data(new_data)
 
     update_button = tk.Button(controls_frame, text='Update Data', command=update_data_example)
-    update_button.grid(row=0, column=3, sticky='ew', padx=5)
+    update_button.grid(row=0, column=2, sticky='ew', padx=5)
+
+    # Row height selector
+    row_height_var = tk.StringVar(value='28')
+    row_heights = [20, 28, 36, 44, 52, 60]
+    row_height_selector = ttk.Combobox(
+        controls_frame, textvariable=row_height_var, values=row_heights, state='readonly', width=5
+    )
+    row_height_selector.grid(row=0, column=3, sticky='ew', padx=5)
+
+    def change_row_height(event: tk.Event) -> None:
+        try:
+            row_height = int(row_height_var.get())
+            style = ttk.Style()
+            style.configure('Treeview', rowheight=row_height)
+            logger.info('Row height set to %d', row_height)
+        except ValueError:
+            logger.error('Invalid row height selected: %s', row_height_var.get())
+
+    row_height_selector.bind('<<ComboboxSelected>>', change_row_height)
 
     root.mainloop()

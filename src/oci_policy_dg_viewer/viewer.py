@@ -43,11 +43,14 @@ from core import (
     IdentityDomainsAnalysis,  # Analysis of Identity Domains
     PolicyCompartmentAnalysis,  # Analysis of Policy Compartments
     get_available_cache,  # Get available cache files
+    load_cache_from_json,  # Load imported
     load_combined_cache,  # Load combined cache from file
     save_combined_cache,  # Save combined cache to file
 )
 from data_table import DataTable
+from popup import FlyInPopup
 from tkhtmlview import HTMLText
+from toast import Toast
 
 # Constants
 THREADS = 8
@@ -55,13 +58,17 @@ THREADS = 8
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 
+# Column information and widths
+AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
+AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
+
 # Global variables
 last_error = ''
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
-# logger = logging.getLogger('oci-policy-dg-viewer')
-# self.logger.warning(f'Version {__version__} of oci-policy-dg-viewer is running')
+logger = logging.getLogger('viewer-main')
+# logger.warning(f'Version {__version__} of oci-policy-dg-viewer is running')
 
 
 # Custom handler to redirect logging to Tkinter Text widget (thread-safe)
@@ -104,12 +111,14 @@ class OCIPolicyDGViewer:
         # Logger
         self.formatter = logging.Formatter('%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
         # Configure root logger to ensure all logging calls are captured
-        self.logger = logging.getLogger('viewer')  # Get root logger
+        # logger = logging.getLogger('viewer')  # Get root logger
         if self.verbose:
-            self.logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
+            # logger.setLevel(logging.DEBUG)
             self.log_level.set('DEBUG')
         else:
-            self.logger.setLevel(logging.INFO)
+            logger.setLevel(logging.INFO)
+            # logger.setLevel(logging.INFO)
 
         # Load options quietly (defaults for all)
         self.load_options()
@@ -118,13 +127,16 @@ class OCIPolicyDGViewer:
         self.status_bar_text = ''
         self.currently_loading = False
 
-        # Font (can be changed
-        self.font = Font(family='Helvetica', size=10)
+        # Font (size can be changed)
+        # self.font = Font(family='Courier New', size=10, weight='normal')
+        # self.bold_font = Font(family='Courier New', size=10, weight='bold')
+        self.font = Font(family='TkFixedFont', size=10, weight='normal')
+        self.bold_font = Font(family='TkFixedFont', size=10, weight='bold')
 
         # Display Tree Style
         self.style = ttk.Style()
-        self.style.configure('Treeview', font=self.font)
-        self.style.configure('Treeview.Heading', font=('Helvetica', 10, 'bold'))
+        self.style.configure('Treeview', font=self.font, padding=(0, 0, 5, 0))
+        self.style.configure('Treeview.Heading', font=self.bold_font, padding=(0, 0, 5, 0))
 
         # Queue for thread communication
         self.queue = Queue()
@@ -229,6 +241,14 @@ class OCIPolicyDGViewer:
         self.create_tab_history()  # History
         # self.create_tab_resource_reference()  # Resource Reference Data
 
+        # # Disable tabs until data loaded
+        # self.notebook.tab(1, state="disabled")
+        # self.notebook.tab(2, state="disabled")
+        # self.notebook.tab(3, state="disabled")
+        # self.notebook.tab(4, state="disabled")
+        # self.notebook.tab(5, state="disabled")
+        # self.notebook.tab(6, state="disabled")
+
         # Kick off the scheduled Status Bar Updates:
         self._update_status_bar_text()
         self._update_ai_insights_response()
@@ -241,19 +261,17 @@ class OCIPolicyDGViewer:
         CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
         DATA_FILE = CACHE_DIR / 'oci_resources_data.json'
 
-        self.logger.info('Loading data from %s', DATA_FILE)
+        logger.info('Loading data from %s', DATA_FILE)
         try:
             with open(DATA_FILE) as f:
                 self.resource_reference_data = json.load(f)
-                self.logger.info(
-                    'Successfully loaded resource data with %d resources', len(self.resource_reference_data)
-                )
+                logger.info('Successfully loaded resource data with %d resources', len(self.resource_reference_data))
                 # return self.resource_reference_data
         except FileNotFoundError:
-            self.logger.debug('Data file %s not found, returning empty dict', DATA_FILE)
+            logger.debug('Data file %s not found, returning empty dict', DATA_FILE)
             self.resource_reference_data = {}
         except json.JSONDecodeError as e:
-            self.logger.error('Failed to parse JSON from %s: %s', DATA_FILE, e)
+            logger.error('Failed to parse JSON from %s: %s', DATA_FILE, e)
             self.resource_reference_data = {}
 
     def create_main_shell(self):
@@ -302,15 +320,17 @@ class OCIPolicyDGViewer:
         def on_tab_change(event):
             selected_tab_id = self.notebook.select()  # Get the ID of the currently selected tab
             selected_tab_index = self.notebook.index(selected_tab_id)  # Get the index
-            self.logger.debug(f'Tab changed to: {selected_tab_index} ({selected_tab_id})')
+            logger.debug(f'Tab changed to: {selected_tab_index} ({selected_tab_id})')
             # Change the context help text based on the selected tab
             if selected_tab_index == 0:
                 self.context_label.config(
-                    text='Start with the configuration, load tenancy data live or from a saved cache, then set up GenAI if desired, and then begin to analyze policies, dynamic groups, and resource principals.\nCross-tenancy policies will be separated out and displayed separately.  Use AI Insights to analyze statements further.'
+                    text='Start with the configuration, load tenancy data live or from a saved cache, then set up other settings and GenAI if desired.\n\
+Once Loaded, use the tabs to analyze policies, dynamic groups, resource principals, and cross-tenancy policies.  Use AI Insights to analyze statements further.'
                 )
             elif selected_tab_index == 1:
                 self.context_label.config(
-                    text='View and analyze standard IAM policy statements here. Use the filters to narrow down to specific compartments, permissions, or keywords. Select a statement to see detailed parsing and AI insights if enabled.'
+                    text='View and analyze standard IAM policy statements here. Use the filters to narrow down to specific compartments, permissions, or keywords.\n\
+Select a statement to see detailed parsing and AI insights if enabled.'
                 )
             elif selected_tab_index == 2:
                 self.context_label.config(
@@ -347,7 +367,6 @@ class OCIPolicyDGViewer:
 
         # Create notebook - grid row 0
         self.notebook = ttk.Notebook(self.notebook_frame, bootstyle='primary')
-
         # self.notebook.grid(row=0, column=0, sticky='nsew', padx=3, pady=5)
         self.notebook.pack(expand=True, fill='both', padx=3, pady=3)
         self.notebook.bind('<<NotebookTabChanged>>', on_tab_change)
@@ -387,64 +406,46 @@ class OCIPolicyDGViewer:
         frm_start.grid_columnconfigure(0, weight=1)
         frm_start.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-        def _clear_console():
+        def clear_console():
             self.console_text.config(state='normal')
             self.console_text.delete(1.0, tk.END)
             self.console_text.config(state='disabled')
-            self.logger.info('Console cleared')
+            logger.info('Console cleared')
 
         def _update_log_level(level):
-            level_map = {'DEBUG': self.logger.debug, 'INFO': self.logger.info, 'WARNING': self.logger.warning}
-            self.logger.setLevel(level_map[level])
+            level_map = {'DEBUG': logger.debug, 'INFO': logger.info, 'WARNING': logger.warning}
+            logger.setLevel(level_map[level])
             if level == 'DEBUG':
                 self.verbose = True
             else:
                 self.verbose = False
-            self.logger.info(f'Log level set to {level}')
+            logger.info(f'Log level set to {level}')
+            self.persist_options()
 
         def populate_model_tree():
             """Populate the model Treeview with available models from list_models."""
-            start_time = datetime.datetime.now()
-            self.logger.info('Populating model tree')
+            logger.info('Populating model tree')
+            # Check and initialize AI client if needed
+            if not self.ai.initialized:
+                logger.info(
+                    f'Creating AI Clients from selected Profile: {self.profile_var.get()} or IP:{self.use_instance_principal_var.get()}.'
+                )
+                self.ai.initialize_client(
+                    use_instance_principal=self.use_instance_principal_var.get(), profile=self.profile_var.get()
+                )
+                # Grab endpoint/compartment for variable
+                self.endpoint_var.set(self.ai.base_endpoint)
+                self.ai_compartment_var.set(self.ai.tenancy_ocid)
+                logger.debug(f'AI initialized: {self.ai.initialized}')
 
-            for item in self.model_tree.get_children():
-                self.model_tree.delete(item)
+            if self.ai.initialized:
+                ai_models = self.ai.list_models()
+                logger.info(f'list_models returned {len(ai_models)} models')
 
-            # Try to load models
-            try:
-                if not self.ai.initialized:
-                    self.logger.info(
-                        f'Creating AI Clients from selected Profile: {self.profile_var.get()} or IP:{self.use_instance_principal_var.get()}.'
-                    )
-                    self.ai.initialize_client(
-                        use_instance_principal=self.use_instance_principal_var.get(), profile=self.profile_var.get()
-                    )
-                    # Grab endpoint/compartment for variable
-                    self.endpoint_var.set(self.ai.base_endpoint)
-                    self.ai_compartment_var.set(self.ai.tenancy_ocid)
-
-                models = self.ai.list_models()
-                for model in models:
-                    name = model.get('display_name', 'Unknown')
-                    ocid = model.get('id', 'N/A')
-                    lifecycle_state = model.get('lifecycle_state', 'N/A')
-                    creation_date = model.get('time_created', 'N/A')
-                    self.model_tree.insert('', tk.END, values=(name, ocid, lifecycle_state, creation_date))
-                    self.logger.debug('Inserted model: %s, OCID: %s', name, ocid)
-
-                if not models:
-                    self.ai_insights_response_html.set_html('<p>No models available in this region</p>')
-                    self.logger.warning('No models returned from list_models')
-            except Exception as e:
-                self.logger.error('Failed to load models: %s', e)
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                error_html = formatting.exception_to_html(exc_type, exc_value, exc_traceback)
-                # self.ai_insights_response_html.set_html(f'<p>Error loading models: {str(e)}</p>')
-                self.ai_insights_response_html.set_html(error_html)
-
-            self.logger.info(
-                'Populated model tree in %s seconds', (datetime.datetime.now() - start_time).total_seconds()
-            )
+                # Put in Model Data Table
+                ai_model_table.update_data(new_data=ai_models)
+            else:
+                logger.warning('AI client not initialized, cannot list models')
 
         def apply_config():
             """Apply changes to Model ID and Endpoint in AI client."""
@@ -452,18 +453,18 @@ class OCIPolicyDGViewer:
             model_id = self.model_id_var.get().strip()
             endpoint = self.endpoint_var.get().strip()
             compartment_ocid = self.ai_compartment_var.get().strip()
-            self.logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
+            logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
 
             try:
                 self.ai.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
-                self.logger.info(
+                logger.info(
                     'Configuration updated successfully in %s seconds',
                     (datetime.datetime.now() - start_time).total_seconds(),
                 )
                 # Make AI Call to test
                 if self.option_ai_var.get():
                     # self.ai_insights_frame.pack(fill='both', before=self.status_frame, padx=10, pady=5)
-                    self.logger.info('AI analysis before call')
+                    logger.info('AI analysis before call')
                     self.ai_insights_response_html.set_html(
                         '<p style="font-size: 8px;">Testing AI configuration...</p>'
                     )
@@ -475,36 +476,20 @@ class OCIPolicyDGViewer:
                     )
                     ai_thread.start()
                     # ai_result = self.ai.analyze_policy_statement(policy_text="allow any-user to manage instances in compartment X", queue=self.result_queue, use_cache=False)
-                    self.logger.info('AI analysis thread started')
+                    logger.info('AI analysis thread started')
             except Exception as e:
-                self.logger.error('Failed to update configuration: %s', e)
+                logger.error('Failed to update configuration: %s', e)
 
-        def handle_model_tree_click(event):
-            """Handle click on model treeview; populate model ID entry with selected OCID."""
-            row_id = self.model_tree.identify_row(event.y)
-            if row_id:
-                start_time = datetime.datetime.now()
-                values = self.model_tree.item(row_id)['values']
-                model_ocid = values[1]
-                self.logger.debug('Model tree click on row with OCID: %s', model_ocid)
-                self.model_id_var.set(model_ocid)
-                self.logger.info(
-                    'Updated Model ID entry with OCID %s in %s seconds',
-                    model_ocid,
-                    (datetime.datetime.now() - start_time).total_seconds(),
-                )
-
-        def update_tree_style(new_font):
-            self.logger.info(f'Update font to size {new_font}')
-            self.font.configure(size=new_font)
-            bold_font = self.font
-            bold_font.configure(weight='bold')
+        def update_tree_style(new_font_size: int, lines: int = 1):
+            logger.info(f'Update font to size {new_font_size}')
+            self.font.configure(size=new_font_size)
+            self.bold_font.configure(size=new_font_size)
             # style = ttk.Style()
-            self.style.configure('Treeview', font=self.font, rowheight=(new_font + 10))
-            self.style.configure('Treeview.Heading', font=bold_font, rowheight=(new_font + 10))
+            self.style.configure('Treeview', font=self.font, rowheight=(new_font_size + 10))
+            self.style.configure('Treeview.Heading', font=self.bold_font, rowheight=(new_font_size + 10))
 
         def toggle_recursive_load():
-            self.logger.info(f'Changing to recursive load: {self.recursive_load_var.get()}')
+            logger.info(f'Changing to recursive load: {self.recursive_load_var.get()}')
             # Persist Options
             self.persist_options()
 
@@ -515,6 +500,7 @@ class OCIPolicyDGViewer:
             else:
                 self.input_profile.config(state=tk.NORMAL)
                 self.label_profile.config(state=tk.NORMAL)
+            self.persist_options()
 
         # Label Frame for Tenancy and Config
         label_frm_tenancy_config = ttk.Labelframe(frm_start, text='Tenancy and Config', bootstyle='secondary')
@@ -539,17 +525,6 @@ class OCIPolicyDGViewer:
             command=toggle_recursive_load,
         )
         self.recursive_load.grid(row=1, column=0, padx=5, pady=5, sticky='w')
-
-        # # Profile selection
-        # profile_list = ['DEFAULT']
-        # try:
-        #     # TODO - Check Env OCI_CLI_CONFIG_FILE
-        #     with open(Path.home() / '.oci' / 'config') as fp:
-        #         profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
-        # except FileNotFoundError:
-        #     self.logger.warning('OCI config file not found')
-        #     profile_list = ['NONE']
-        #     self.use_instance_principal_var.set(True)
 
         # self.profile_var = tk.StringVar(value=profile_list[0])
         self.label_profile = ttk.Label(label_frm_tenancy_config, text='Profile:')
@@ -594,6 +569,14 @@ class OCIPolicyDGViewer:
         )
         self.btn_load_cache.grid(row=1, column=3, padx=5, pady=3)
 
+        # Import button
+        self.btn_import_cache = ttk.Button(
+            label_frm_tenancy_config,
+            text='Import from JSON',
+            command=self._import_cache_from_csv,
+        )
+        self.btn_import_cache.grid(row=1, column=4, padx=5, pady=2, sticky='ew')
+
         # Progress bar and label
         self.progress_bar_label = ttk.Label(label_frm_tenancy_config, text='')
         self.progress_bar_label.grid(row=0, column=5, padx=5, pady=3)
@@ -620,23 +603,38 @@ class OCIPolicyDGViewer:
             self.label_frm_ai_config, text='Refresh Models (using selected profile)', command=populate_model_tree
         )
         self.refresh_button.grid(row=0, column=1, padx=3, pady=3, sticky='ew')
-        self.logger.debug('Refresh Models button created')
+        logger.debug('Refresh Models button created')
 
-        # Treeview for models
-        # tk.Label(self.label_frm_ai_config, text='Load and select AI Models').grid(row=1, column=0, padx=3, pady=3, sticky='ew')
-        model_columns = ('Model Name', 'OCID', 'Lifecycle State', 'Creation Date')
-        self.model_tree = ttk.Treeview(self.label_frm_ai_config, columns=model_columns, show='headings', height=4)
-        self.model_tree.heading('Model Name', text='Model Name')
-        self.model_tree.heading('OCID', text='OCID')
-        self.model_tree.heading('Lifecycle State', text='Lifecycle State')
-        self.model_tree.heading('Creation Date', text='Creation Date')
-        self.model_tree.column('Model Name', width=250)
-        self.model_tree.column('OCID', width=450)
-        self.model_tree.column('Lifecycle State', width=200)
-        self.model_tree.column('Creation Date', width=250)
-        self.model_tree.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
-        self.model_tree.bind('<Button-1>', handle_model_tree_click)
-        self.logger.debug('Model Treeview setup with columns: %s', model_columns)
+        def update_model_ocid(selected_items):
+            if selected_items:
+                model_ocid = selected_items[0].get('Model OCID', '')
+                self.model_id_var.set(model_ocid)
+                logger.info(f'Updated Model ID entry with OCID {model_ocid} from data table selection')
+
+        def model_ocid_right_click(row_index: int) -> tk.Menu:
+            menu = tk.Menu(self.label_frm_ai_config, tearoff=0)
+            menu.add_command(
+                label=f'View Details (Row {row_index})',
+                command=lambda: logger.info(f'View details for row {row_index}'),
+            )
+            # menu.add_command(
+            #     label=f"Delete Row {row_index}",
+            #     command=lambda: print(f"Delete row {row_index}")
+            # )
+            return menu
+
+        # Data Table for models
+        ai_model_table = DataTable(
+            parent=self.label_frm_ai_config,
+            columns=AI_MODEL_COLUMNS,
+            display_columns=AI_MODEL_COLUMNS,
+            column_widths=AI_MODEL_COLUMN_WIDTHS,
+            data=[],
+            selection_callback=update_model_ocid,
+            row_context_menu_callback=model_ocid_right_click,
+            multi_select=False,
+        )
+        ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
 
         # Configuration inputs
         tk.Label(self.label_frm_ai_config, text='Model ID (default Grok3 Fast):').grid(
@@ -660,7 +658,7 @@ class OCIPolicyDGViewer:
 
         apply_button = ttk.Button(self.label_frm_ai_config, text='Apply and Test GenAI Settings', command=apply_config)
         apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
-        self.logger.debug('Apply button created')
+        logger.debug('Apply button created')
 
         # Label Frame for Display
         self.label_frm_display_config = ttk.Labelframe(frm_start, text='Display Settings', bootstyle='secondary')
@@ -677,7 +675,7 @@ class OCIPolicyDGViewer:
         self.enable_console.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
 
         # Clear Log
-        ttk.Button(self.label_frm_display_config, text='Clear Log', command=_clear_console).grid(
+        ttk.Button(self.label_frm_display_config, text='Clear Log', command=clear_console).grid(
             row=0, column=1, padx=3, pady=3, sticky='ew'
         )
 
@@ -688,7 +686,6 @@ class OCIPolicyDGViewer:
         ).grid(row=0, column=3, padx=3, pady=3, sticky='ew')
 
         # Font Size
-        self.font_size_var = tk.IntVar()
         ttk.Label(self.label_frm_display_config, text='Font Size (Tables)').grid(
             row=1, column=0, padx=3, pady=3, sticky='ew'
         )
@@ -696,20 +693,26 @@ class OCIPolicyDGViewer:
             self.label_frm_display_config, self.font_size_var, 10, 8, 10, 12, 14, 16, command=update_tree_style
         ).grid(row=1, column=1, padx=3, pady=3, sticky='ew')
 
+        # Add a test button for the popup
+        # test_popup_button = ttk.Button(self.label_frm_display_config, text="Show Popup", command=lambda: self.show_popup("Policy Loaded Successfully!", side="right"))
+        # test_popup_button.grid(row=0, column=5, padx=5, pady=5)
+
         # # Create console handler but don't add it yet
         self.console_handler = TextHandler(self.console_text, self.root)
         self.console_handler.setFormatter(self.formatter)
-        # self.logger.info('Application started')
+        # logger.info('Application started')
 
     def create_tab_policy(self):  # noqa: C901
         # Toggles
         def _toggle_any_subject():
             if self.use_subject_any.get():
-                self.entry_subj.insert(0, 'any-user|any-group')
-                self.entry_subj.config(state=tk.DISABLED)
+                self.subject_filter_var.set('any-user|any-group')
+                # self.entry_subj.insert(0, 'any-user|any-group')
+                # self.entry_subj.config(state=tk.DISABLED)
             else:
-                self.entry_subj.config(state=tk.NORMAL)
-                self.entry_subj.delete(0, tk.END)
+                self.subject_filter_var.set('')
+                # self.entry_subj.config(state=tk.NORMAL)
+                # self.entry_subj.delete(0, tk.END)
 
             # Update the Output
             self._update_policy_output()
@@ -760,6 +763,8 @@ class OCIPolicyDGViewer:
         self.notebook.add(tab_policy, text='Regular Policy\nStatements')
         tab_policy.grid_rowconfigure(1, weight=1)
         tab_policy.grid_columnconfigure(0, weight=1)
+        tab_policy.configure(style='disabled.TNotebook.Tab')
+        tab_policy.state(['disabled'])
 
         # Top-level frame for policy tab
         frm_policy_top = ttk.Frame(tab_policy)
@@ -775,32 +780,38 @@ class OCIPolicyDGViewer:
             row=0, column=0, columnspan=5, pady=2, sticky='ew'
         )
 
+        # Variables for filter
+        self.subject_filter_var = tk.StringVar()
+        self.use_subject_any = tk.BooleanVar()
+        self.verb_filter_var = tk.StringVar()
+        self.resource_filter_var = tk.StringVar()
+
         # Within the policy filter frame, create the filter fields and buttons
         frm_subj = ttk.Frame(frm_policy_filter)
-        self.label_subject = ttk.Label(frm_policy_filter, text='Subject').grid(
-            row=1, column=0, padx=5, pady=2, sticky='w'
+        ttk.Label(frm_policy_filter, text='Subject').grid(row=1, column=0, padx=5, pady=2, sticky='w')
+        ttk.Entry(frm_subj, textvariable=self.subject_filter_var, width=20, bootstyle='info').grid(
+            row=0, column=0, padx=2, sticky='ew'
         )
-        self.entry_subj = ttk.Entry(frm_subj, state=tk.DISABLED, width=20)
-        self.entry_subj.grid(row=0, column=0, padx=2, sticky='ew')
-        self.use_subject_any = tk.BooleanVar()
         ttk.Checkbutton(
             frm_subj, text='Any-User/Group', variable=self.use_subject_any, command=_toggle_any_subject
         ).grid(row=0, column=1, padx=2)
         frm_subj.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=2, padx=5, pady=2, sticky='w')
-        self.entry_verb = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
-        self.entry_verb.grid(row=1, column=3, padx=5, pady=2, sticky='ew')
+        self.entry_verb = tk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=20).grid(
+            row=1, column=3, padx=5, pady=2, sticky='ew'
+        )
 
         ttk.Label(frm_policy_filter, text='Resource').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        self.entry_res = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
-        self.entry_res.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
+        self.entry_res = tk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=20).grid(
+            row=2, column=1, padx=5, pady=2, sticky='ew'
+        )
 
         frm_loc = ttk.Frame(frm_policy_filter)
         self.label_location = ttk.Label(frm_policy_filter, text='Location').grid(
             row=2, column=2, padx=5, pady=2, sticky='w'
         )
-        self.entry_loc = tk.Entry(frm_loc, state=tk.DISABLED, width=20)
+        self.entry_loc = tk.Entry(frm_loc, width=20)
         self.entry_loc.grid(row=0, column=0, padx=2, sticky='ew')
         self.location_filter_tenancy = tk.BooleanVar()
         ttk.Checkbutton(
@@ -810,7 +821,7 @@ class OCIPolicyDGViewer:
 
         frm_hierarchy = ttk.Frame(frm_policy_filter)
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        self.entry_hierarchy = tk.Entry(frm_hierarchy, state=tk.DISABLED, width=20)
+        self.entry_hierarchy = tk.Entry(frm_hierarchy, width=20)
         self.entry_hierarchy.grid(row=0, column=0, padx=2, sticky='ew')
         self.hierarchy_filter_root = tk.BooleanVar()
         ttk.Checkbutton(
@@ -826,8 +837,9 @@ class OCIPolicyDGViewer:
         self.entry_text = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
         self.entry_text.grid(row=4, column=1, padx=5, pady=2, sticky='ew')
 
+        self.policy_name_var = tk.StringVar()
         ttk.Label(frm_policy_filter, text='Policy Name').grid(row=4, column=2, padx=5, pady=2, sticky='w')
-        self.entry_policy = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
+        self.entry_policy = tk.Entry(frm_policy_filter, textvariable=self.policy_name_var, state=tk.DISABLED, width=20)
         self.entry_policy.grid(row=4, column=3, padx=5, pady=2, sticky='ew')
 
         frm_policy_buttons = ttk.Frame(frm_policy_filter)
@@ -851,8 +863,14 @@ class OCIPolicyDGViewer:
         frm_policy_output = ttk.Frame(frm_policy_top)
         frm_policy_output.grid(row=1, column=0, sticky='w')
         frm_policy_output.columnconfigure(0, weight=1)
+
+        # Show Tenancy Name
+        self.tenancy_name_var = tk.StringVar()
+        ttk.Label(frm_policy_output, textvariable=self.tenancy_name_var).grid(row=0, column=0, padx=5, pady=3)
+        ttk.Separator(frm_policy_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+        # Statements count
         self.label_policy_count = ttk.Label(frm_policy_output, text='Statements (Filtered): 0')
-        self.label_policy_count.grid(row=0, column=0, padx=5, pady=3, sticky='w')
+        self.label_policy_count.grid(row=0, column=2, padx=5, pady=3, sticky='w')
 
         self.chk_show_service = tk.BooleanVar()
         self.chk_show_dynamic = tk.BooleanVar()
@@ -860,31 +878,31 @@ class OCIPolicyDGViewer:
         self.chk_show_invalid = tk.BooleanVar()
         self.chk_show_regular = tk.BooleanVar(value=True)
         self.chk_show_expanded = tk.BooleanVar()
-        ttk.Separator(frm_policy_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
-        ttk.Label(frm_policy_output, text='Statement Type\nto display:').grid(row=0, column=2, padx=5, pady=3)
+        ttk.Separator(frm_policy_output, orient=tk.VERTICAL).grid(row=0, column=3, padx=5, pady=3)
+        # Display Output Selection
+        ttk.Label(frm_policy_output, text='Statement Type\nto display:').grid(row=0, column=4, padx=5, pady=3)
         ttk.Checkbutton(
             frm_policy_output, text='Service', variable=self.chk_show_service, command=self._update_policy_output
-        ).grid(row=0, column=3, padx=5, pady=3)
-        ttk.Checkbutton(
-            frm_policy_output, text='Dynamic Group', variable=self.chk_show_dynamic, command=self._update_policy_output
-        ).grid(row=0, column=4, padx=5, pady=3)
-        ttk.Checkbutton(
-            frm_policy_output, text='Resource', variable=self.chk_show_resource, command=self._update_policy_output
         ).grid(row=0, column=5, padx=5, pady=3)
         ttk.Checkbutton(
-            frm_policy_output, text='Regular', variable=self.chk_show_regular, command=self._update_policy_output
+            frm_policy_output, text='Dynamic Group', variable=self.chk_show_dynamic, command=self._update_policy_output
         ).grid(row=0, column=6, padx=5, pady=3)
         ttk.Checkbutton(
-            frm_policy_output, text='Invalid', variable=self.chk_show_invalid, command=self._update_policy_output
+            frm_policy_output, text='Resource', variable=self.chk_show_resource, command=self._update_policy_output
         ).grid(row=0, column=7, padx=5, pady=3)
         ttk.Checkbutton(
-            frm_policy_output, text='Parsed Output', variable=self.chk_show_expanded, command=self._update_policy_output
+            frm_policy_output, text='Regular', variable=self.chk_show_regular, command=self._update_policy_output
         ).grid(row=0, column=8, padx=5, pady=3)
+        ttk.Checkbutton(
+            frm_policy_output, text='Invalid Only', variable=self.chk_show_invalid, command=self._update_policy_output
+        ).grid(row=0, column=9, padx=5, pady=3)
+        ttk.Checkbutton(
+            frm_policy_output, text='Parsed Output', variable=self.chk_show_expanded, command=self._update_policy_output
+        ).grid(row=0, column=10, padx=5, pady=3)
 
         def selection_callback(selected_rows: list[dict]) -> None:
-            self.logger.info('Selected rows:')
             for row in selected_rows:
-                self.logger.info(row)
+                logger.info(f"Selected policy statement: {row.get('Statement Text')}")
                 # Update the policy box
                 self.policy_analyze_statement_var.set(row.get('Statement Text'))
 
@@ -901,7 +919,7 @@ class OCIPolicyDGViewer:
             display_columns=self.basic_policy_columns,
             data=[],
             column_widths=self.policy_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=selection_callback,
             multi_select=True,
         )
@@ -921,7 +939,7 @@ class OCIPolicyDGViewer:
         )
         self.policy_analyze_statement_var = tk.StringVar()
         self.policy_analyze_statement_entry = tk.Entry(
-            frm_policy_analyze, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+            frm_policy_analyze, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
         self.policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
 
@@ -935,6 +953,12 @@ class OCIPolicyDGViewer:
             bootstyle='primary',
         )
         self.btn_policy_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
+
+        # Trace for auto-update
+        # _update_policy_output
+        self.subject_filter_var.trace_add('write', self._update_policy_output)
+        self.verb_filter_var.trace_add('write', self._update_policy_output)
+        self.resource_filter_var.trace_add('write', self._update_policy_output)
 
     def create_tab_dynamic_groups(self):
         # Tab creation for Dynamic Groups
@@ -1012,22 +1036,22 @@ class OCIPolicyDGViewer:
             dgs_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                self.logger.info(f'Selected row: {row}')
+                logger.info(f"Selected DG: {row.get('Domain')}, {row.get('DG Name')}")
                 dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
-            self.logger.info(f'DGs for filter: {dgs_for_filter}')
+            logger.info(f'DGs for filter: {dgs_for_filter}')
             # Call the filter
             filtered = self.policy_compartment_analysis.filter_policy_statements_by_dynamic_group_name(dgs_for_filter)
 
-            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
             # Set them into the next table
             self.dg_policy_table.update_data(filtered)
-            self.logger.info(f'Policies added to policy table: {len(filtered)}')
+            logger.info(f'Policies added to policy table: {len(filtered)}')
 
         def dg_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
-                self.logger.info(f'Selected policy statement: {selected_statement}')
+                logger.info(f'Selected policy statement: {selected_statement}')
                 self.policy_analyze_statement_var.set(selected_statement)
             else:
                 self.policy_analyze_statement_var.set('')
@@ -1051,7 +1075,7 @@ class OCIPolicyDGViewer:
             display_columns=self.basic_policy_columns,
             data=[],
             column_widths=self.policy_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=dg_policy_selection_callback,
             multi_select=False,
         )
@@ -1063,9 +1087,9 @@ class OCIPolicyDGViewer:
         # self.policy_analyze_statement_var = tk.StringVar()
         # Re-use the same variable for policy to analyze
         self.policy_analyze_statement_entry = tk.Entry(
-            frm_dg_policy_sheet, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+            frm_dg_policy_sheet, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
-        self.policy_analyze_statement_entry.grid(row=1, column=1, padx=5, pady=2, sticky='w')
+        self.policy_analyze_statement_entry.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
 
         self.btn_dg_analyze_statement = ttk.Button(
             frm_dg_policy_sheet, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai
@@ -1119,22 +1143,22 @@ class OCIPolicyDGViewer:
             dgs_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                self.logger.info(f'Selected row: {row}')
+                logger.info(f'Selected row: {row}')
                 dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
-            self.logger.info(f'DGs for filter: {dgs_for_filter}')
+            logger.info(f'DGs for filter: {dgs_for_filter}')
             # Call the filter
             filtered = self.policy_compartment_analysis.filter_policy_statements_by_dynamic_group_name(dgs_for_filter)
 
-            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
             # Set them into the next table
             self.rp_policy_table.update_data(filtered)
-            self.logger.info(f'Policies added to RP policy table: {len(filtered)}')
+            logger.info(f'Policies added to RP policy table: {len(filtered)}')
 
         def rp_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
-                self.logger.info(f'Selected policy statement: {selected_statement}')
+                logger.info(f'Selected policy statement: {selected_statement}')
                 self.policy_analyze_statement_var.set(selected_statement)
             else:
                 self.policy_analyze_statement_var.set('')
@@ -1165,7 +1189,7 @@ class OCIPolicyDGViewer:
             display_columns=self.basic_policy_columns,
             data=[],
             column_widths=self.policy_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=rp_policy_selection_callback,
             multi_select=False,
         )
@@ -1181,7 +1205,7 @@ class OCIPolicyDGViewer:
         # self.policy_analyze_statement_var = tk.StringVar()
         # Re-use the same variable as other tabs for policy statement
         self.rp_policy_analyze_statement_entry = tk.Entry(
-            frm_principals_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+            frm_principals_ai, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
         self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
 
@@ -1235,7 +1259,7 @@ class OCIPolicyDGViewer:
             if selected_display in self.user_display_to_ocid:
                 self.user_combo.set(selected_display)  # Ensure full name is shown
                 # self.update_group_list()
-                self.logger.info(f'Need to update the sheet data to: {selected_display}')
+                logger.info(f'Need to update the sheet data to: {selected_display}')
                 self._update_user_analysis_output()
 
         # Frame for top
@@ -1266,9 +1290,9 @@ class OCIPolicyDGViewer:
         # self.policy_analyze_statement_var = tk.StringVar()
         # Re-use the same variable as other tabs for policy statement
         self.rp_policy_analyze_statement_entry = tk.Entry(
-            frm_principals_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+            frm_principals_ai, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
-        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='ew')
 
         self.btn_user_analyze_statement = ttk.Button(
             frm_principals_ai, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai
@@ -1286,13 +1310,13 @@ class OCIPolicyDGViewer:
             users_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                self.logger.info(f'Selected row: {row}')
+                logger.info(f"Selected Group: {row.get('Domain')} / {row.get('Group Name')} / User: {row.get('User')}")
                 if 'Group Name' in row:
                     groups_for_filter.append((row.get('Domain'), row.get('Group Name')))
                 elif 'User' in row:
                     users_for_filter.append(row.get('User'))
-            self.logger.info(f'Groups for filter: {groups_for_filter}')
-            self.logger.info(f'Users for filter: {users_for_filter}')
+            logger.info(f'Groups for filter: {groups_for_filter}')
+            logger.info(f'Users for filter: {users_for_filter}')
             # Call the filter
             # filtered = self.policy_compartment_analysis.filter_policy_statements_by_user_and_group_name(
             #     users=users_for_filter,
@@ -1300,10 +1324,10 @@ class OCIPolicyDGViewer:
             # )
             filtered = []
 
-            self.logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
             # Set them into the next table
             self.users_policy_table.update_data(filtered)
-            self.logger.info(f'Policies added to user policy table: {len(filtered)}')
+            logger.info(f'Policies added to user policy table: {len(filtered)}')
 
         # Table for Groups on the left
         # Groups Table
@@ -1313,7 +1337,7 @@ class OCIPolicyDGViewer:
             display_columns=self.all_groups_columns,
             data=[],
             column_widths=self.groups_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=users_group_selection_callback,
             multi_select=True,
         )
@@ -1335,7 +1359,7 @@ class OCIPolicyDGViewer:
             display_columns=self.all_users_columns,
             data=[],
             column_widths=self.users_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=users_group_selection_callback,
             multi_select=False,
         )
@@ -1345,7 +1369,7 @@ class OCIPolicyDGViewer:
             """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
-                self.logger.info(f'Selected policy statement: {selected_statement}')
+                logger.info(f'Selected policy statement: {selected_statement}')
                 self.policy_analyze_statement_var.set(selected_statement)
             else:
                 self.policy_analyze_statement_var.set('')
@@ -1362,7 +1386,7 @@ class OCIPolicyDGViewer:
             display_columns=self.basic_policy_columns,
             data=[],
             column_widths=self.policy_column_widths,
-            font_size=10,
+            # font_size=10,
             selection_callback=users_policy_selection_callback,
             multi_select=False,
         )
@@ -1431,21 +1455,18 @@ class OCIPolicyDGViewer:
         self.highlight_entry_var.trace_add('write', self._report_text_search)
 
     def create_tab_cross_tenancy(self):
-        # Create tab with 20/80 rows
+        # Create tab with 30/60/10 rows (top label, tables, AI), 2 columns (tables)
         tab_cross_tenancy = ttk.Frame(self.notebook)
+        tab_cross_tenancy.grid_rowconfigure(0, weight=3)
+        tab_cross_tenancy.grid_rowconfigure(1, weight=6)
+        tab_cross_tenancy.grid_rowconfigure(2, weight=1)
+        tab_cross_tenancy.grid_columnconfigure(0, weight=1)
+        tab_cross_tenancy.grid_columnconfigure(1, weight=6)
         self.notebook.add(tab_cross_tenancy, text='Cross Tenancy\nPolicies')
-        # Grid 2 columns, rows 305 / 60% / 10%
-        frm_cross_tenancy = ttk.Frame(tab_cross_tenancy)
-        frm_cross_tenancy.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        frm_cross_tenancy.grid_rowconfigure(0, weight=3)
-        frm_cross_tenancy.grid_rowconfigure(1, weight=6)
-        frm_cross_tenancy.grid_rowconfigure(2, weight=1)
-        frm_cross_tenancy.grid_columnconfigure(0, weight=4)
-        frm_cross_tenancy.grid_columnconfigure(1, weight=6)
 
         # For now, a label on the left
         ttk.Label(
-            frm_cross_tenancy,
+            tab_cross_tenancy,
             text='Select one or more rows to the right\nin order to narrow down cross-tenancy policies\n\nSort by clicking column headers',
             font=('TkFixedFont', 10, 'normal'),
         ).grid(row=0, column=0, padx=5, pady=5, sticky='w')
@@ -1455,50 +1476,60 @@ class OCIPolicyDGViewer:
             defined_aliases_for_filter = []
             # Make the Defined Alias list for all selected rows
             for row in selected_rows:
-                self.logger.info(f'Selected row: {row}')
+                logger.info(f"Selected row: {row.get('Defined Name')}")
                 defined_aliases_for_filter.append(row.get('Defined Name'))
-            self.logger.info(f'Defined Aliases for filter: {defined_aliases_for_filter}')
+            logger.info(f'Defined Aliases for filter: {defined_aliases_for_filter}')
 
             # Call the filter
             filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
                 defined_aliases_for_filter
             )
 
-            self.logger.info(f'Cross-tenancy: {len(filtered)}')
+            logger.info(f'Cross-tenancy: {len(filtered)}')
             # Set them into the next table
             self.cross_tenancy_table.update_data(filtered)
-            self.logger.info(f'Policies added to cross-tenancy policy table: {len(filtered)}')
+            logger.info(f'Policies added to cross-tenancy policy table: {len(filtered)}')
 
         def cross_tenancy_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
-                self.logger.info(f'Selected policy statement: {selected_statement}')
+                logger.info(f'Selected policy statement: {selected_statement}')
                 self.policy_analyze_statement_var.set(selected_statement)
             else:
                 self.policy_analyze_statement_var.set('')
 
+        def switch_tab_policy_analysis():
+            self.notebook.select(tab_id=1)  # Policy Analysis tab
+            # Set the policy name entry
+            # self.policy_name_var.set(self.defined_aliases_table.get_row_data(row_index).get('Defined Name', ''))
+
+        def defined_aliases_row_details(row_index: int) -> tk.Menu:
+            menu = tk.Menu(tab_cross_tenancy, tearoff=0)
+            menu.add_command(label=f'View Details (Row {row_index})', command=switch_tab_policy_analysis)
+
+            return menu
+
         # Defined Aliases
         self.defined_aliases_table = DataTable(
-            frm_cross_tenancy,
+            tab_cross_tenancy,
             columns=self.all_defined_alias_columns,
             display_columns=self.all_defined_alias_columns,
             data=[],
             column_widths=self.all_defined_alias_column_widths,
-            font_size=10,
             selection_callback=cross_tenancy_define_selection_callback,
+            row_context_menu_callback=defined_aliases_row_details,
             multi_select=True,
         )
         self.defined_aliases_table.grid(row=0, column=1, sticky='nsew')
 
         # Cross Tenancy Policies Table
         self.cross_tenancy_table = DataTable(
-            frm_cross_tenancy,
+            tab_cross_tenancy,
             columns=self.all_cross_tenancy_columns,
             display_columns=self.all_cross_tenancy_columns,
             data=[],
             column_widths=self.all_cross_tenancy_column_widths,
-            font_size=10,
             selection_callback=cross_tenancy_policy_selection_callback,
             multi_select=False,
         )
@@ -1513,9 +1544,9 @@ class OCIPolicyDGViewer:
         # self.policy_analyze_statement_var = tk.StringVar()
         # Re-use the same variable as other tabs for policy statement
         self.rp_policy_analyze_statement_entry = tk.Entry(
-            frm_cross_tenancy_ai, state=tk.NORMAL, width=80, textvariable=self.policy_analyze_statement_var
+            frm_cross_tenancy_ai, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
-        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+        self.rp_policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='ew')
 
         self.btn_ct_analyze_statement = ttk.Button(
             frm_cross_tenancy_ai,
@@ -1526,39 +1557,6 @@ class OCIPolicyDGViewer:
             ),
         )
         self.btn_ct_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
-
-        # self.sheet_cross_tenancy_define = SortableSheet(
-        #     frm_cross_tenancy,
-        #     headers=['Defined Alias', 'Define Type', 'Remote Tenancy OCID'],
-        #     show_x_scrollbar=True,
-        #     show_y_scrollbar=True,
-        #     auto_resize_columns=True,
-        # )
-        # self.sheet_cross_tenancy_define.enable_bindings('all')
-        # self.sheet_cross_tenancy_define.extra_bindings('row_select', self._update_cross_tenancy_alias_selection)
-        # self.sheet_cross_tenancy_define.grid(row=0, column=1, sticky='nsew')
-        # self.sheet_cross_tenancy_policies = SortableSheet(
-        #     frm_cross_tenancy,
-        #     headers=[
-        #         'Policy Name',
-        #         'Statement Text',
-        #         'Policy OCID',
-        #         'Create Date',
-        #         'Parsing Available',
-        #         'Subject Type',
-        #         'Subject',
-        #         'Action / Verb / Resource',
-        #         'Location Type',
-        #         'Location',
-        #         'Condition',
-        #         'Optional',
-        #     ],
-        #     auto_resize_columns=200,
-        #     show_x_scrollbar=True,
-        #     show_y_scrollbar=True,
-        # )
-        # self.sheet_cross_tenancy_policies.enable_bindings('all')
-        # self.sheet_cross_tenancy_policies.grid(row=1, column=0, columnspan=2, sticky='nsew')
 
     def create_tab_history(self):
         # Create tab with 2 equal rows
@@ -1640,7 +1638,7 @@ class OCIPolicyDGViewer:
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         clear_button = tk.Button(self.search_frame, text='Clear', command=lambda: self.search_var.set(''))
         clear_button.pack(side=tk.LEFT, padx=5)
-        self.logger.debug('Search frame setup')
+        logger.debug('Search frame setup')
 
         # Set initial Column widths
         column_widths = {
@@ -1734,17 +1732,17 @@ class OCIPolicyDGViewer:
             self.main_frame.grid_columnconfigure(1, weight=0)
             self.notebook_frame.grid(row=0, column=0, columnspan=2, sticky='nsew')
 
-        self.logger.debug('Layout updated: console=%s, ai_insights=%s', console_enabled, ai_enabled)
+        logger.debug('Layout updated: console=%s, ai_insights=%s', console_enabled, ai_enabled)
 
         # Update Console
         if console_enabled:
-            if self.console_handler not in self.logger.handlers:
-                self.logger.addHandler(self.console_handler)
-                self.logger.info('Console enabled (in addition to default shell)')
+            if self.console_handler not in logger.handlers:
+                logger.addHandler(self.console_handler)
+                logger.info('Console enabled (in addition to default shell)')
         else:
-            if self.console_handler in self.logger.handlers:
-                self.logger.removeHandler(self.console_handler)
-                self.logger.info('Console disabled (only default shell)')
+            if self.console_handler in logger.handlers:
+                logger.removeHandler(self.console_handler)
+                logger.info('Console disabled (only default shell)')
 
         # AI enablement of buttons
         if ai_enabled:
@@ -1763,12 +1761,18 @@ class OCIPolicyDGViewer:
             self.btn_rp_analyze_statement.config(state=tk.DISABLED)
 
     # Main Update functions - per tab
-    def _update_policy_output(self):
+    def _update_policy_output(self, *args):
+        # Tenancy Display
+        if self.policy_compartment_analysis and self.policy_compartment_analysis.tenancy_name:
+            self.tenancy_name_var.set(f'Tenancy:\n{self.policy_compartment_analysis.tenancy_name}')
+        else:
+            self.tenancy_name_var.set('Please Load a Tenancy')
+
         # Get filtered statements
         filtered = self.policy_compartment_analysis.filter_policy_statements(
-            self.entry_subj.get(),
-            self.entry_verb.get(),
-            self.entry_res.get(),
+            self.subject_filter_var.get(),
+            self.verb_filter_var.get(),
+            self.resource_filter_var.get(),
             self.entry_loc.get(),
             'ROOT' if self.hierarchy_filter_root.get() else self.entry_hierarchy.get(),
             self.entry_condition.get(),
@@ -1799,17 +1803,17 @@ class OCIPolicyDGViewer:
             text=f'Statements (Filtered): {len(filtered)}\nStatements (Shown): {len(rows_to_show)}'
         )
         # Populate Data Table
-        self.logger.debug(rows_to_show)
+        logger.debug(rows_to_show)
         self.policy_table.update_data(rows_to_show)
-        self.logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
+        logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
 
         # Open up all columns if expanded is checked
         if self.chk_show_expanded.get():
             self.policy_table.set_display_columns(self.all_policy_columns)
-            self.logger.info('Setting policy table to expanded view with all columns')
+            logger.debug('Setting policy table to expanded view with all columns')
         else:
             self.policy_table.set_display_columns(self.basic_policy_columns)
-            self.logger.info('Setting policy table to expanded view with basic columns')
+            logger.debug('Setting policy table to expanded view with basic columns')
 
     def _update_dg_output(self):
         if self.chk_show_instance_principals.get():
@@ -1839,10 +1843,10 @@ class OCIPolicyDGViewer:
         # If expanded, show all columns, else show a subset
         if self.chk_show_dg_ocid.get():
             self.custom_data_dynamic_group.set_display_columns(self.all_dg_columns)
-            self.logger.info('Setting dynamic group table to expanded view with all columns')
+            logger.info('Setting dynamic group table to expanded view with all columns')
         else:
             self.custom_data_dynamic_group.set_display_columns(self.basic_dg_columns)
-            self.logger.info('Setting dynamic group table to basic view with key columns')
+            logger.info('Setting dynamic group table to basic view with key columns')
 
         # Update label with counts
         self.dg_label_count.config(
@@ -1860,12 +1864,6 @@ class OCIPolicyDGViewer:
         # Enable/disable Principals Style
         self.principals_style_dropdown.configure(state='normal')
 
-        # # Clear sheets and hide both sheets by default
-        # self.principals_sheet_dynamic_groups.set_sheet_data([])  # Clear data
-        # # frm_bottom.grid_forget()
-        # self.principals_sheet_dynamic_groups.grid_forget()  # Hide dynamic group sheet
-        # self.principals_sheet_policies_instance.grid_forget()  # Hide policy sheet temporarily
-
         # Un-grid both sheets (re-grid in a sec)
         self.rp_dg_table.grid_forget()
         self.rp_policy_table.grid_forget()
@@ -1875,39 +1873,32 @@ class OCIPolicyDGViewer:
 
             # Re-grid RP sheet
             self.rp_policy_table.grid(row=0, column=0, rowspan=2, sticky='nsew')
-            self.logger.info('Added both DG and Policy tables to grid')
+            logger.info('Added both DG and Policy tables to grid')
 
             # Don't care about Dynamic groups
             if resource_type == 'Any':
-                self.logger.info('Case 1 - Any-User with no type specified')
+                logger.info('Case 1 - Any-User with no type specified')
                 policies = self.policy_compartment_analysis.filter_policy_statements(
                     condition_filter='request.principal.type'
                 )
                 self.rp_policy_table.update_data(policies)
-                self.logger.info(f'Filtered to {len(policies)} policies with any principal type')
+                logger.info(f'Filtered to {len(policies)} policies with any principal type')
                 # self.principals_sheet_policies_instance.set_sheet_data(policies)
             else:
-                self.logger.info(f'Case 2 - Any-User with type {resource_type} specified')
+                logger.info(f'Case 2 - Any-User with type {resource_type} specified')
                 condition_filter = f"request.principal.type='{resource_type}'"
                 policies = self.policy_compartment_analysis.filter_policy_statements(condition_filter=condition_filter)
                 self.rp_policy_table.update_data(policies)
-                self.logger.info(f'Filtered to {len(policies)} policies with principal type {resource_type}')
-                # self.principals_sheet_policies_instance.set_sheet_data(policies)
-            #     self.principals_sheet_policies_instance.set_sheet_data(policies)
-
-            # # UI Elements - re-grid with only Policy viewer
-            # self.principals_sheet_policies_instance.grid(
-            #     row=0, column=0, rowspan=2, sticky='nsew'
-            # )  # Show policy sheet in row 1
+                logger.info(f'Filtered to {len(policies)} policies with principal type {resource_type}')
 
         elif principals_style == 'Dynamic Group':
-            self.logger.info('Case 3 - Dynamic Group')
+            logger.info('Case 3 - Dynamic Group')
 
             # Re-grid DG and RP sheet
             self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
             self.rp_policy_table.grid(row=1, column=0, sticky='nsew')
 
-            self.logger.info('Added both DG and Policy tables to grid')
+            logger.info('Added both DG and Policy tables to grid')
 
             # Populate dynamic group sheet
             filtered_dynamic_groups = []
@@ -1939,10 +1930,10 @@ class OCIPolicyDGViewer:
         #     # Enable row selection on dynamic group sheet
         #     def on_row_select(event):
         #         selected_rows = self.principals_sheet_dynamic_groups.get_selected_rows()
-        #         self.logger.info(f'Selected row in DG sheet: {selected_rows}')
+        #         logger.info(f'Selected row in DG sheet: {selected_rows}')
         #         if selected_rows:
         #             selected_idx = list(selected_rows)[0]
-        #             self.logger.info(f'Selected row in DG sheet: {list(selected_rows)[0]}')
+        #             logger.info(f'Selected row in DG sheet: {list(selected_rows)[0]}')
         #             selected_dg = (filtered_dynamic_groups[selected_idx][0], filtered_dynamic_groups[selected_idx][1])
         #             filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
         #                 subj_filter=filtered_dynamic_groups[selected_idx][1]
@@ -1950,7 +1941,7 @@ class OCIPolicyDGViewer:
         #             # filtered_policies = self.policy_compartment_analysis.filter_resource_principal_policies(
         #             #     'Resource Principals', principals_style, resource_type, selected_dg
         #             # )
-        #             self.logger.info(f'Filtered Policy count for {selected_dg}: {len(filtered_policies)}')
+        #             logger.info(f'Filtered Policy count for {selected_dg}: {len(filtered_policies)}')
         #             self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
         #         else:
         #             # Reset to all dynamic group policies
@@ -1963,7 +1954,7 @@ class OCIPolicyDGViewer:
 
         #     self.principals_sheet_dynamic_groups.bind('<ButtonRelease-1>', on_row_select)
         # else:
-        #     self.logger.info('Nothing selected')
+        #     logger.info('Nothing selected')
 
         # # Resize data
         # self.principals_sheet_dynamic_groups.set_all_cell_sizes_to_text(slim=False)
@@ -1972,14 +1963,14 @@ class OCIPolicyDGViewer:
     # def _update_user_analysis_combo(self):
     #     """Update the user list with real data from loaded groups and users"""
     #     users = self.identity_domain_analysis.users
-    #     self.logger.debug(f'Loaded Users: {users}')
+    #     logger.debug(f'Loaded Users: {users}')
     #     # Create mapping of display name to ocid
     #     self.user_display_to_ocid = {
     #         f"{user_data['domain']}/{user_data['name']}": ocid for ocid, user_data in users.items()
     #     }
     #     self.all_users = sorted(self.user_display_to_ocid.keys())  # Full sorted list
     #     self.user_combo['values'] = self.all_users
-    #     self.logger.info(f'Updated Combo box with {len(users)} Users.')
+    #     logger.info(f'Updated Combo box with {len(users)} Users.')
 
     def _update_user_analysis_output(self):
         # TODO: Compartment Analysis
@@ -1996,32 +1987,32 @@ class OCIPolicyDGViewer:
         # # Get the selected User
         # user_selected = self.user_combo.get().strip()
         # if not user_selected or user_selected == '':
-        #     self.logger.info('Returning without loading any policies. User was blank.')
+        #     logger.info('Returning without loading any policies. User was blank.')
         #     return
 
         # # All users and Groups for reference
         # all_groups = self.identity_domain_analysis.groups
         # all_users = self.identity_domain_analysis.users
-        # self.logger.debug(f'All Users: {all_users}')
-        # self.logger.debug(f'All Groups: {all_groups}')
+        # logger.debug(f'All Users: {all_users}')
+        # logger.debug(f'All Groups: {all_groups}')
 
         # Create a search term for the main filtering (subject_filter = group|group2|etc)
         # user_groups = []
         # user_ocid = self.user_display_to_ocid.get(user_selected)
         # if user_ocid and user_ocid in all_users:
         #     group_ocids = all_users[user_ocid]['groups']
-        #     self.logger.info(f'Group OCIDs: {group_ocids}')
+        #     logger.info(f'Group OCIDs: {group_ocids}')
         #     for group_ocid in group_ocids:
         #         if group_ocid in all_groups:
         #             user_groups.append(all_groups[group_ocid]['display_name'])
-        # self.logger.info(f'User {user_selected} in groups {user_groups}')
+        # logger.info(f'User {user_selected} in groups {user_groups}')
 
         # searchable_subject = '|'.join(user_groups)
-        # self.logger.info(f'Searching policies for subjects: {searchable_subject}')
+        # logger.info(f'Searching policies for subjects: {searchable_subject}')
 
         # # Use the main policy search
         # filtered = self.policy_compartment_analysis.filter_policy_statements(subj_filter=searchable_subject)
-        # self.logger.info(f'User Analysis for {user_selected} to show {len(filtered)} policy statements')
+        # logger.info(f'User Analysis for {user_selected} to show {len(filtered)} policy statements')
 
         # # Convert back to list to support tksheet ()
         # sheet_data = self._convert_filtered_policies_to_list(filtered)
@@ -2056,7 +2047,7 @@ class OCIPolicyDGViewer:
         self.text_dg_report.insert(tk.END, dg_text)
         self.text_dg_report.config(state=tk.DISABLED)
 
-        self.logger.info(f'Compartments to sort: {len(self.policy_compartment_analysis.compartments)}')
+        logger.info(f'Compartments to sort: {len(self.policy_compartment_analysis.compartments)}')
         # Now update the policy report
         sorted_comps = sorted(self.policy_compartment_analysis.compartments, key=lambda x: x['hierarchy_path'])
         policy_text = 'Compartment and Policy Report\n============================\n'
@@ -2088,30 +2079,21 @@ class OCIPolicyDGViewer:
         self.text_policy_report.config(state=tk.NORMAL)
         self.text_policy_report.insert(tk.END, policy_text)
         self.text_policy_report.config(state=tk.DISABLED)
-        self.logger.info('Updated Policy/Dynamic Group Report tab')
+        logger.info('Updated Policy/Dynamic Group Report tab')
 
     def _update_cross_tenancy_output(self):
-        self.logger.info(f'Displaying: {len(self.policy_compartment_analysis.cross_tenancy_statements)} CT Statements')
+        logger.info(f'Displaying: {len(self.policy_compartment_analysis.cross_tenancy_statements)} CT Statements')
         defined_aliases = self.policy_compartment_analysis.defined_aliases
         cross_tenancy_statements = self.policy_compartment_analysis.cross_tenancy_statements
-        self.logger.debug(f'Defined Aliases: {defined_aliases}')
-        self.logger.debug(f'Cross-Tenancy Statements: {cross_tenancy_statements}')
+        logger.debug(f'Defined Aliases: {defined_aliases}')
+        logger.debug(f'Cross-Tenancy Statements: {cross_tenancy_statements}')
 
         self.defined_aliases_table.update_data(defined_aliases)
         self.cross_tenancy_table.update_data(cross_tenancy_statements)
 
-        # alias_list = []
-        # for alias in defined_aliases:
-        #     self.logger.debug(f'Alias {alias}: {defined_aliases[alias]}')
-        #     alias_list.append([alias, defined_aliases[alias][0], defined_aliases[alias][1]])
-        # self.sheet_cross_tenancy_define.set_sheet_data(alias_list)
-        # self.sheet_cross_tenancy_policies.display_columns(columns=[0, 1, 2, 3, 4], all_columns_displayed=False)
-        # self.sheet_cross_tenancy_policies.set_sheet_data(self.policy_compartment_analysis.cross_tenancy_statements)
-        # self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
-
     # Calls into core to make updates
     def _run_dg_analysis(self):
-        self.logger.info(
+        logger.info(
             f'Running Dynamic Group Analysis for {len(self.identity_domain_analysis.dynamic_groups)} DGs and {len(self.policy_compartment_analysis.regular_statements)} Policies'
         )
         self.identity_domain_analysis.set_statements(self.policy_compartment_analysis.regular_statements)
@@ -2121,7 +2103,7 @@ class OCIPolicyDGViewer:
         selected_cache = self.cache_compare_var.get()
         ten, dat = selected_cache.split('\n')
         results = self.policy_compartment_analysis.compare_against_cache(cached_tenancy=ten, cached_date=dat)
-        self.logger.info(f'Comparing current policies against cache: {selected_cache} - {results}')
+        logger.info(f'Comparing current policies against cache: {selected_cache} - {results}')
 
         self.text_compare_report.config(state=tk.NORMAL)
         self.text_compare_report.delete(1.0, tk.END)
@@ -2140,7 +2122,7 @@ class OCIPolicyDGViewer:
     def _report_text_search(self, var_name, index, mode):
         if self.highlight_entry_var:
             search_pattern = self.highlight_entry_var.get()
-            self.logger.debug(f'Search for {search_pattern} - {var_name}/{index}/{mode}')
+            logger.debug(f'Search for {search_pattern} - {var_name}/{index}/{mode}')
             self.text_dg_report.tag_remove('found', '1.0', tk.END)
             self.text_policy_report.tag_remove('found', '1.0', tk.END)
             if self.highlight_entry_var.get() == '':
@@ -2167,31 +2149,11 @@ class OCIPolicyDGViewer:
                 start_index = end_index
             self.text_policy_report.tag_config('found', background='yellow')
 
-    # def _update_cross_tenancy_alias_selection(self, row):
-    #     selected_rows = self.sheet_cross_tenancy_define.get_selected_rows()
-    #     if selected_rows:
-    #         aliases_to_filter = []
-    #         for idx in selected_rows:
-    #             # selected_idx = list(selected_rows)
-    #             alias = self.sheet_cross_tenancy_define.get_cell_data(r=idx, c=0)
-    #             self.logger.debug(f'Selected row {idx} - Using alias {alias} for search in policies')
-    #             aliases_to_filter.append(alias)
-
-    #         self.logger.info(f'Using aliases {aliases_to_filter} for search in policies')
-    #         # Filter bottom sheet
-    #         filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
-    #             alias_filter=aliases_to_filter
-    #         )
-    #         self.sheet_cross_tenancy_policies.set_sheet_data(filtered, redraw=True)
-    #         self.sheet_cross_tenancy_policies.set_all_cell_sizes_to_text()
-    #     else:
-    #         self.logger.debug('no row selected')
-
     def _update_history_cache_compare_dropdown(self):
         """Update the cache dropdown with available caches."""
         available_caches = get_available_cache(tenancy_name=self.policy_compartment_analysis.tenancy_name)
         if not available_caches:
-            self.logger.warning('No caches found. Please load data first.')
+            logger.warning('No caches found. Please load data first.')
             self.cache_var.set('No caches available')
             return
 
@@ -2202,7 +2164,7 @@ class OCIPolicyDGViewer:
                 label=cache,
                 command=lambda c=cache: self.cache_compare_var.set(c),
             )
-        self.logger.info(f'Updated cache dropdown with {len(available_caches)} caches')
+        logger.info(f'Updated cache dropdown with {len(available_caches)} caches')
 
     # Exports
     def _export_policy_to_csv(self):
@@ -2224,8 +2186,55 @@ class OCIPolicyDGViewer:
                 # Write header row
                 writer.writerow(self.all_policy_columns)
                 # Write data rows
-                writer.writerows(filtered)
-            self.logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
+                for row in filtered:
+                    writer.writerow(row.values())
+            logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
+
+    def _import_cache_from_csv(self):
+        filepath = tkfiledialog.askopenfilename(filetypes=[('JSON Files', '*.json')])
+        if filepath:
+            self.progress_bar.grid()
+            self.progress_bar_label.grid()
+            self.progress_bar_label.config(text=f'Loading Policies and Compartments from file: {filepath}')
+            self.progress_bar.start()
+            try:
+                # Load the file into local JSON
+                with open(filepath, encoding='utf-8') as jsonfile:
+                    loaded_json = json.load(jsonfile)
+                    logger.debug(f'JSON Data: {loaded_json}')
+                # Load the data into Data Classes
+                success = load_cache_from_json(
+                    loaded_json=loaded_json,
+                    policy_analysis=self.policy_compartment_analysis,
+                    domains_analysis=self.identity_domain_analysis,
+                )
+                if success:
+                    # Update the last load time and enable UI elements
+                    self.last_load_time = self.policy_compartment_analysis.data_as_of
+                    logger.info(f'***Loaded cached data as of {self.last_load_time}')
+
+                    # If the cache load was successful, update the last load time, enable UI elements, and update outputs
+                    self.root.after(
+                        0,
+                        self._window_after_lambda,
+                    )
+                    logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
+                else:
+                    logger.warning('Failed to load from saved cache')
+
+            except Exception as e:
+                logger.error(f'Error importing policies from CSV: {e}')
+            finally:
+                self.root.after(
+                    0,
+                    lambda: (
+                        self.progress_bar.stop(),
+                        self.progress_bar.grid_remove(),
+                        self.progress_bar_label.grid_remove(),
+                    ),
+                )
+
+    # load_cache_from_json
 
     # def _export_user_to_csv(self):
     #     filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
@@ -2234,7 +2243,7 @@ class OCIPolicyDGViewer:
     #             writer = csv.writer(csvfile)
     #             writer.writerow(self.sheet_user_policies.headers())
     #             writer.writerows(self.sheet_user_policies.data)
-    #         self.logger.info(f'Exported {len(self.sheet_user_policies.data)} user policy statements to {filepath}')
+    #         logger.info(f'Exported {len(self.sheet_user_policies.data)} user policy statements to {filepath}')
 
     def _export_report_to_txt(self):
         # Export the report to a text file
@@ -2246,18 +2255,18 @@ class OCIPolicyDGViewer:
             policy_content = self.text_policy_report.get(1.0, tk.END).strip()
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(dg_content + '\n\n' + policy_content)
-            self.logger.info(f'Exported report to {filepath}')
+            logger.info(f'Exported report to {filepath}')
 
     # Define window after lambda (used to update UI after data load)
     def _window_after_lambda(self):
         # global last_load_time, last_error
-        self.label_status_bar.config(text=f'{self.status_bar_text} | Loaded data as of {last_load_time}')
+        self.label_status_bar.config(text=f'{self.status_bar_text} | Loaded data as of {self.last_load_time}')
         [
             e.config(state=tk.NORMAL)
             for e in [
-                self.entry_subj,
-                self.entry_verb,
-                self.entry_res,
+                # self.entry_subj,
+                # self.entry_verb,
+                # self.entry_res,
                 self.entry_loc,
                 self.entry_hierarchy,
                 self.entry_condition,
@@ -2296,6 +2305,9 @@ class OCIPolicyDGViewer:
         self._update_cross_tenancy_output()
         self._update_history_cache_compare_dropdown()
 
+        # self.show_popup("Data loaded successfully!", side="right", duration=10000)
+        # self.show_toast("Data loaded successfully!", side="right", duration=10000)
+
     # Process Load Buttons
     def _load_from_cache(self):
         """Load data from the selected cache."""
@@ -2314,7 +2326,7 @@ class OCIPolicyDGViewer:
             """Load the cache in a separate thread to avoid blocking the UI."""
             global last_load_time, last_error
             try:
-                self.logger.info('Kicking off cached tenancy load')
+                logger.info('Kicking off cached tenancy load')
 
                 profile = self.profile_var.get()
                 use_ip = self.use_instance_principal_var.get()
@@ -2333,22 +2345,22 @@ class OCIPolicyDGViewer:
                 )
 
                 # Update the last load time and enable UI elements
-                last_load_time = self.policy_compartment_analysis.data_as_of
-                self.logger.info(f'***Loaded cached data as of {last_load_time}')
+                self.last_load_time = self.policy_compartment_analysis.data_as_of
+                logger.info(f'***Loaded cached data as of {self.last_load_time}')
 
                 # If the cache load was successful, update the last load time, enable UI elements, and update outputs
                 self.root.after(
                     0,
                     self._window_after_lambda,
                 )
-                self.logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
+                logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
             except Exception as exc:
                 last_error = str(exc)
                 self.root.after(
                     0,
                     lambda: self.label_status_bar.config(text=self.status_bar_text),
                 )
-                self.logger.error(f'Cache load error: {last_error}')
+                logger.error(f'Cache load error: {last_error}')
             finally:
                 self.root.after(
                     0,
@@ -2360,7 +2372,7 @@ class OCIPolicyDGViewer:
                 )
 
         # Start the cache loading in a separate thread
-        self.logger.info(f'Loading cache for tenancy {ten} dated {dat}')
+        logger.info(f'Loading cache for tenancy {ten} dated {dat}')
         Thread(target=load_cache, daemon=True).start()
 
     def _load_from_tenancy(self):
@@ -2379,7 +2391,7 @@ class OCIPolicyDGViewer:
         def load():
             global last_error, last_load_time
             try:
-                self.logger.info('Kicking off tenancy load')
+                logger.info('Kicking off tenancy load')
                 profile = self.profile_var.get()
                 use_ip = self.use_instance_principal_var.get()
                 self.progress_bar_label.config(text=f'Initializing Clients for {profile}')
@@ -2413,20 +2425,20 @@ class OCIPolicyDGViewer:
                 )
 
                 # Update the last load time and enable UI elements
-                last_load_time = self.policy_compartment_analysis.data_as_of
-                # self.logger.info(f'***Loaded tenancy data as of {last_load_time}')
+                self.last_load_time = self.policy_compartment_analysis.data_as_of
+                logger.info(f'***Loaded tenancy data as of {self.last_load_time}')
                 self.root.after(
                     0,
                     self._window_after_lambda,
                 )
-                # self.logger.info(f'Loaded data for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
+                # logger.info(f'Loaded data for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
             except Exception as exc:
                 last_error = str(exc)
                 self.root.after(
                     0,
-                    lambda: self.label_status_bar.config(text=self.status_bar_text),
+                    lambda: self.label_status_bar.config(text=f'{self.status_bar_text} | Load Error: {last_error}'),
                 )
-                self.logger.error(f'Data load error: {last_error}')
+                logger.error(f'Data load error: {last_error}')
             finally:
                 self.currently_loading = False
                 self.root.after(
@@ -2441,8 +2453,9 @@ class OCIPolicyDGViewer:
         # Start the data loading in a separate thread to avoid blocking the UI
         Thread(target=load, daemon=True).start()
 
+    # Set the results from the AI call
     def _analyze_policy_statment_ai(self, additional_context: str = ''):
-        self.logger.info(f'Call Analyze for: {self.policy_analyze_statement_entry.get()}')
+        logger.info(f'Call Analyze for: {self.policy_analyze_statement_entry.get()}')
         self.ai_insights_response_html.set_html(
             f'<p>Analyzing statement <code style="font-family: "Courier New", Courier, monospace;">{self.policy_analyze_statement_entry.get()}</code>...</p>'
         )
@@ -2454,9 +2467,8 @@ class OCIPolicyDGViewer:
         )
         ai_thread.start()
 
-    # Set the results from the AI call
     def _update_response(self, result):
-        self.logger.info(f'Setting Result from AI into Response area: {result[:-100]}')
+        logger.info(f'Setting Result from AI into Response area: {result[:-100]}')
         # Clean and create Markdown as HTML
         cleaned_result = formatting.clean_markdown(result)
         html_content = markdown.markdown(cleaned_result, extensions=['tables', 'fenced_code'])
@@ -2497,7 +2509,7 @@ class OCIPolicyDGViewer:
             # Get memory info (in bytes)
             memory_info = process.memory_info()
             self.status_bar_text += f'| Mem: {memory_info.vms / 1024**2:.2f} MB'
-        # self.logger.debug(f'Status: {self.status_bar_text}')
+        # logger.debug(f'Status: {self.status_bar_text}')
         self.label_status_bar.config(text=self.status_bar_text)
         self.root.after(2000, self._update_status_bar_text)
 
@@ -2512,6 +2524,7 @@ class OCIPolicyDGViewer:
             pass
         self.root.after(100, self._update_ai_insights_response)
 
+    # Options Load and Save
     def load_options(self):
         # Load options from Cache directory
         options = {}
@@ -2522,16 +2535,17 @@ class OCIPolicyDGViewer:
             try:
                 with open(options_file, encoding='utf-8') as f:
                     options = json.load(f)
-                self.logger.info(f'Loaded options from {options_file}')
+                logger.info(f'Loaded options from {options_file}')
             except Exception as exc:
-                self.logger.error(f'Error loading options from {options_file}: {exc}')
+                logger.error(f'Error loading options from {options_file}: {exc}')
         else:
-            self.logger.info(f'No options file found at {options_file}, using defaults.')
+            logger.info(f'No options file found at {options_file}, using defaults.')
 
         # Define variables
         self.use_instance_principal_var = tk.BooleanVar(value=False)
         self.recursive_load_var = tk.BooleanVar(value=options.get('recursion', True))
         self.profile_var = tk.StringVar(value='DEFAULT')
+        self.font_size_var = tk.IntVar()
 
         # Load profiles from ~/.oci/config
         self.profile_list = ['DEFAULT']
@@ -2540,17 +2554,17 @@ class OCIPolicyDGViewer:
             with open(Path.home() / '.oci' / 'config') as fp:
                 self.profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
         except FileNotFoundError:
-            self.logger.warning('OCI config file not found')
+            logger.warning('OCI config file not found')
             self.profile_list = ['NONE']
             self.use_instance_principal_var.set(True)
 
         # Start loading options
         # self.font.size = options.get("font-size", 10)
         self.profile_var.set(options.get('profile', 'DEFAULT'))
-        # self.logger.info(f"Setting font: {self.font}")
-        self.logger.info(f'Setting Recursive: {self.recursive_load_var.get()}')
-        self.logger.info(f'Setting Instance Principal: {self.use_instance_principal_var.get()}')
-        self.logger.info(f'Setting Profile: {self.profile_var.get()}')
+        # logger.info(f"Setting font: {self.font}")
+        logger.info(f'Setting Recursive: {self.recursive_load_var.get()}')
+        logger.info(f'Setting Instance Principal: {self.use_instance_principal_var.get()}')
+        logger.info(f'Setting Profile: {self.profile_var.get()}')
 
     def persist_options(self):
         # Save all options
@@ -2568,10 +2582,21 @@ class OCIPolicyDGViewer:
         try:
             with open(options_file, 'w', encoding='utf-8') as f:
                 json.dump(options, f, indent=4)
-            self.logger.info(f'Wrote options to {options_file}')
+            logger.info(f'Wrote options to {options_file}')
         except Exception as exc:
-            self.logger.error(f'Error writing options to {options_file}: {exc}')
+            logger.error(f'Error writing options to {options_file}: {exc}')
         pass
+
+    # Popup and Toast
+    def show_popup(self, message, side='top', duration=3000):
+        """Show a fly-in popup with a message."""
+        FlyInPopup(self.root, message=message, side=side, duration=duration)
+        logger.info(f'Showing popup: {message}')
+
+    def show_toast(self, message, side='right', duration=5000):
+        """Show a toast notification within the window."""
+        logger.info(f'Scheduling toast: {message}')
+        self.root.after(0, lambda: Toast(self.root, message=message, side=side, duration=duration))
 
 
 ### Main Code Helpers
@@ -2593,9 +2618,9 @@ def main():
     window = ttk.Window(themename='litera')
     window.geometry('1280x900')
     OCIPolicyDGViewer(window, verbose=args.verbose)
-    # self.logger.info(f'Starting OCI Policy and Dynamic Group Viewer with profile: {type(app)}')
+    # logger.info(f'Starting OCI Policy and Dynamic Group Viewer with profile: {type(app)}')
     window.mainloop()
-    # self.logger.info('OCI Policy and Dynamic Group Viewer has exited.')
+    # logger.info('OCI Policy and Dynamic Group Viewer has exited.')
 
 
 # Start Program

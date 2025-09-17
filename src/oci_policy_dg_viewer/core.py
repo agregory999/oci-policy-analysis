@@ -94,14 +94,14 @@ CACHE_DATE = datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z'
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
-logger = logging.getLogger('oci-policy-dg-viewer')
+logger = logging.getLogger('data-core')
 
 
 class PolicyCompartmentAnalysis:
     def __init__(self, verbose: bool):
-        self.logger = logging.getLogger('oci-policy-compartment-analysis')
+        # self.logger = logging.getLogger('oci-policy-compartment-analysis')
         if verbose:
-            self.logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.regular_statements = []
         self.cross_tenancy_statements = []
@@ -110,61 +110,61 @@ class PolicyCompartmentAnalysis:
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
-        self.logger.info('Initialized PolicyCompartmentAnalysis')
+        logger.info('Initialized PolicyCompartmentAnalysis')
 
     def initialize_client(self, use_instance_principal: bool, recursive: bool = True, profile: str = 'DEFAULT') -> bool:
         try:
             if use_instance_principal:
-                self.logger.debug('Using Instance Principal Authentication')
+                logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
             else:
-                self.logger.debug(f'Using Profile Authentication: {profile}')
+                logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
-            self.logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
 
             # Set Recursion
             self.recursive = recursive
-            self.logger.debug(f'Set recursive to: {self.recursive}')
+            logger.debug(f'Set recursive to: {self.recursive}')
 
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
             return True
         except (ConfigFileNotFound, Exception) as exc:
-            self.logger.fatal(f'Authentication failed: {exc}')
+            logger.fatal(f'Authentication failed: {exc}')
             return False
 
     def get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
         hierarchy_ocids = [compartment.id]
-        self.logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
+        logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
         if not compartment.compartment_id:
-            self.logger.debug(f'Reached root compartment: {compartment.name} (OCID: {compartment.id})')
+            logger.debug(f'Reached root compartment: {compartment.name} (OCID: {compartment.id})')
             return f'ROOT{comp_string}', hierarchy_ocids  # type: ignore
         try:
             parent_response = self.identity_client.get_compartment(compartment_id=compartment.compartment_id)
             if parent_response.data is None:
-                self.logger.warning(f'Failed to get parent compartment for {compartment.id}')
+                logger.warning(f'Failed to get parent compartment for {compartment.id}')
                 return comp_string, hierarchy_ocids  # type: ignore
             parent_path, parent_ocids = self.get_compartment_path(
                 parent_response.data, level + 1, f'/{compartment.name}{comp_string}'
             )
             hierarchy_ocids.extend(parent_ocids)
-            self.logger.debug(f'Compartment {compartment.name} path: {parent_path}, OCIDs: {hierarchy_ocids}')
+            logger.debug(f'Compartment {compartment.name} path: {parent_path}, OCIDs: {hierarchy_ocids}')
             return parent_path, hierarchy_ocids
         except Exception as e:
-            self.logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
+            logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
             return comp_string, hierarchy_ocids
 
     def check_invalid_location(self, compartment_ocid) -> bool:
         # Given a compartment OCID-based location, return False if there is no compartment (any more)
         # # Get this from the compartment tree we have already
         # if not self.get_compartment_by_id(compartment_ocid):
-        #     self.logger.warning(f'Compartment OCID {compartment_ocid} not valid.')
+        #     logger.warning(f'Compartment OCID {compartment_ocid} not valid.')
         #     return False
         # else:
         #     return True
@@ -173,12 +173,12 @@ class PolicyCompartmentAnalysis:
             if comp.lifecycle_state == Compartment.LIFECYCLE_STATE_ACTIVE:
                 return True
             else:
-                self.logger.warning(f'Found Compartment but not ACTIVE: {compartment_ocid} was: {comp.lifecycle_state}')
+                logger.warning(f'Found Compartment but not ACTIVE: {compartment_ocid} was: {comp.lifecycle_state}')
                 return False
 
         except Exception as e:
             # Any error means it is invalid
-            self.logger.warning(f'Compartment OCID {compartment_ocid} not valid: {e}')
+            logger.warning(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
         return True
 
@@ -192,7 +192,7 @@ class PolicyCompartmentAnalysis:
             if not part:  # Skip empty parts
                 continue
 
-            self.logger.debug(f"  DEBUG: Processing part: '{part}'")
+            logger.debug(f"  DEBUG: Processing part: '{part}'")
 
             # Check if it contains a separator (/ or \)
             if '/' in part or '\\' in part:
@@ -210,19 +210,19 @@ class PolicyCompartmentAnalysis:
                     domain = domain_part.strip('\'"')
                     name = name_part.strip('\'"')
 
-                    self.logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
+                    logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
                     results.append((domain, name))
                 else:
                     # Shouldn't happen, but fallback
                     clean_name = part.strip('\'"')
-                    self.logger.debug(
+                    logger.debug(
                         f"  DEBUG: Separator found but couldn't split properly - using as simple name: '{clean_name}'"
                     )
                     results.append(('Default', clean_name))
             else:
                 # No separator, it's just a name
                 clean_name = part.strip('\'"')
-                self.logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
+                logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
                 results.append(('Default', clean_name))
 
         return results
@@ -233,7 +233,7 @@ class PolicyCompartmentAnalysis:
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
-        self.logger.debug(f'Checking to see if Cross-tenancy: {statement}')
+        logger.debug(f'Checking to see if Cross-tenancy: {statement}')
 
         # Define case
         if comp_id == self.tenancy_ocid and statement.startswith('define'):
@@ -241,12 +241,16 @@ class PolicyCompartmentAnalysis:
             try:
                 # result = re.search(CROSS_TENANCY_DEFINE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
                 result = define_regex.match(statement).groupdict()
-                self.logger.debug(f'Result Define: {result}')
+                logger.debug(f'Result Define: {result}')
                 if result.get('alias') and result.get('principal'):
                     logger.info(
                         f"Adding to Defined Aliases - Name: {result.get('principal')}, Type: {result.get('define_type')}, OCID: {result.get('alias')}"
                     )
                     define_dict = {
+                        'Policy Name': policy.name,
+                        'Policy OCID': policy.id,
+                        'Creation Time': str(policy.time_created),
+                        'Statement Text': statement,
                         'Defined Type': result.get('define_type'),
                         'Defined Name': result.get('principal'),
                         'OCID Alias': result.get('alias'),
@@ -256,7 +260,7 @@ class PolicyCompartmentAnalysis:
                     # [result.get('Defined Name')] = (result.get('Defined Type'), result.get('OCID Alias'))
                     return True
             except Exception as e:
-                self.logger.warning(f'Failed to parse define: {e}')
+                logger.warning(f'Failed to parse define: {e}')
                 return False
 
         # Admit/endorse case (not parsing at the moment)
@@ -283,7 +287,7 @@ class PolicyCompartmentAnalysis:
             #             str(policy.time_created),
             #             False,  # Advanced Parsing available
             #         ]
-            #         self.logger.debug(f'Cross-tenancy admit statement added but not parsed: {statement_list}')
+            #         logger.debug(f'Cross-tenancy admit statement added but not parsed: {statement_list}')
             #         self.cross_tenancy_statements.append(statement_list)
             #         return False
             #     # It did parse ok
@@ -304,11 +308,11 @@ class PolicyCompartmentAnalysis:
             #         result.get('where_clause') or '',  # 6
             #         result.get('comment') or '',  # 7
             #     ]
-            #     self.logger.debug(f'Cross-tenancy admit statement added: {statement_list}')
+            #     logger.debug(f'Cross-tenancy admit statement added: {statement_list}')
             #     self.cross_tenancy_statements.append(statement_list)
             #     return True
             # except Exception as e:
-            #     self.logger.warning(f'Failed to parse admit: {e}')
+            #     logger.warning(f'Failed to parse admit: {e}')
             #     return False
 
         # elif statement.startswith('endorse'):
@@ -325,7 +329,7 @@ class PolicyCompartmentAnalysis:
         #                 str(policy.time_created),
         #                 False,  # Advanced Parsing available
         #             ]
-        #             self.logger.debug(f'Cross-tenancy endorse statement added but not parsed: {statement_list}')
+        #             logger.debug(f'Cross-tenancy endorse statement added but not parsed: {statement_list}')
         #             self.cross_tenancy_statements.append(statement_list)
         #             return False
         #         # It did parse
@@ -346,17 +350,17 @@ class PolicyCompartmentAnalysis:
         #             result.get('where_clause') or '',  # 10
         #             result.get('comment') or '',  # 11
         #         ]
-        #         self.logger.debug(f'Cross-tenancy endorse statement added: {statement_list}')
+        #         logger.debug(f'Cross-tenancy endorse statement added: {statement_list}')
         #         self.cross_tenancy_statements.append(statement_list)
         #         return True
         #     except Exception as e:
-        #         self.logger.warning(f'Failed to parse endorse: {e}')
+        #         logger.warning(f'Failed to parse endorse: {e}')
         #         return False
 
         # Regular Statements are everything else
         else:
             # Regular Statements
-            self.logger.debug(f'Hierarchy string: {comp_string}')
+            logger.debug(f'Hierarchy string: {comp_string}')
 
             # Basic Details - not parsed yet
             statement_list = [
@@ -383,7 +387,7 @@ class PolicyCompartmentAnalysis:
             match_result = policy_regex.match(statement)
             if match_result and match_result.groupdict():
                 result = match_result.groupdict()
-                self.logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
+                logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
                     # Re-define Statement List
                     statement_list = [
@@ -413,7 +417,7 @@ class PolicyCompartmentAnalysis:
                         # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
                         # Try new subject parser
                         subject_result = self.parse_subjects(statement_list[7])
-                        self.logger.debug(f'Subject parsed: {subject_result}')
+                        logger.debug(f'Subject parsed: {subject_result}')
                         # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
                         statement_list[7] = subject_result
 
@@ -424,10 +428,10 @@ class PolicyCompartmentAnalysis:
                         logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
 
                 except Exception as e:
-                    self.logger.warning(f'Failed to parse statement: {e}')
+                    logger.warning(f'Failed to parse statement: {e}')
 
             else:
-                self.logger.warning(f'No regex match for statement: |{statement}|')
+                logger.warning(f'No regex match for statement: |{statement}|')
 
             # Create the dict - even if not parsed it will still appear
             statement_dict = {
@@ -460,7 +464,7 @@ class PolicyCompartmentAnalysis:
             return True if statement_dict.get('Parsed') else False
 
         # Catch All - should never get here
-        self.logger.warning(f'Should not get here.  Statement not added to anything: {statement}')
+        logger.warning(f'Should not get here.  Statement not added to anything: {statement}')
 
         return False
 
@@ -469,7 +473,7 @@ class PolicyCompartmentAnalysis:
         try:
             # Load compartment data
             start_time = time.perf_counter()
-            self.logger.debug(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
+            logger.debug(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
             path, ocids = self.get_compartment_path(compartment, 0, '')
             self.compartments.append(
                 {
@@ -480,12 +484,12 @@ class PolicyCompartmentAnalysis:
                     'hierarchy_ocids': ocids,
                 }
             )
-            self.logger.debug(f'Loaded compartment: {compartment.name}, Path: {path}, OCID: {compartment.id}')
+            logger.debug(f'Loaded compartment: {compartment.name}, Path: {path}, OCID: {compartment.id}')
 
             # Load policies for the compartment
             policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
             if policies_response.data is None:
-                self.logger.warning(f'No policies found for compartment: {compartment.id}')
+                logger.warning(f'No policies found for compartment: {compartment.id}')
                 return
             policies = policies_response.data
             if not policies:
@@ -496,16 +500,16 @@ class PolicyCompartmentAnalysis:
                 for statement in policy.statements:
                     # Maybe just let the parser add to either list - returns False if not parsed
                     if not self.parse_statement(str.casefold(statement), compartment.id, policy):
-                        self.logger.warning(f'Statement was unable to parse: {statement}')
+                        logger.warning(f'Statement was unable to parse: {statement}')
                     this_comp_count += 1
 
             parse_time = time.perf_counter()
-            self.logger.info(
+            logger.info(
                 f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s'
             )
 
         except Exception as se:
-            self.logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
+            logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
 
     def load_policies_and_compartments(self) -> bool:
         self.compartments = []
@@ -514,13 +518,13 @@ class PolicyCompartmentAnalysis:
         try:
             root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
             if root_comp_response.data is None:
-                self.logger.error(f'Failed to get root compartment: {self.tenancy_ocid}')
+                logger.error(f'Failed to get root compartment: {self.tenancy_ocid}')
                 return False
             root_comp = root_comp_response.data
             comp_list = [root_comp]
             # If recursive, get all compartments
             if self.recursive:
-                self.logger.debug('Loading compartments recursively')
+                logger.debug('Loading compartments recursively')
                 comp_response = pagination.list_call_get_all_results(
                     self.identity_client.list_compartments,
                     self.tenancy_ocid,
@@ -532,7 +536,7 @@ class PolicyCompartmentAnalysis:
                     limit=1000,
                 )
                 if comp_response.data is None:
-                    self.logger.error('Failed to list compartments')
+                    logger.error('Failed to list compartments')
                     return False
                 comp_list.extend(comp_response.data)
 
@@ -541,12 +545,12 @@ class PolicyCompartmentAnalysis:
                 executor.map(self.load_compartment_and_policies_worker, comp_list)
             self.data_as_of = str(datetime.datetime.now())
             policy_finish_time = time.perf_counter()
-            self.logger.info(
+            logger.info(
                 f'Loaded {len(self.compartments)} compartments in {comp_load_time-start_time:.2f} and {len(self.regular_statements)} policies in {policy_finish_time-comp_load_time:.2f}s'
             )
             return True
         except Exception as e:
-            self.logger.error(f'Failed to load policies and compartments: {e}')
+            logger.error(f'Failed to load policies and compartments: {e}')
             return False
 
     def get_compartment_by_id(self, compartment_id: str) -> dict:
@@ -560,7 +564,7 @@ class PolicyCompartmentAnalysis:
     #     self, user_id: str, compartment_id: str = '', user_group_names: list = None, user_domain_name: str = ''
     # ) -> list:
     #     try:
-    #         self.logger.info(f'Found {len(user_group_names)} groups for user {user_id}')
+    #         logger.info(f'Found {len(user_group_names)} groups for user {user_id}')
 
     #         filtered_statements = []
     #         target_compartment_ocids = (
@@ -573,7 +577,7 @@ class PolicyCompartmentAnalysis:
     #                 # get the tuples - enumerate list
     #                 for i, (subj_domain, subj_name) in enumerate(statement[7]):
     #                     for group_name in user_group_names:
-    #                         self.logger.debug(
+    #                         logger.debug(
     #                             f'User Group {i}:{user_domain_name}/{group_name} in request against tuple ({subj_domain}/{subj_name}) in Policy'
     #                         )
     #                         # if (subj_domain is None or subj_domain == "Default") and subj_name == group_name:
@@ -584,7 +588,7 @@ class PolicyCompartmentAnalysis:
     #                         ):
     #                             if not compartment_id or statement[2] in target_compartment_ocids:
     #                                 filtered_statements.append(statement)
-    #                                 self.logger.debug(
+    #                                 logger.debug(
     #                                     f'Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}'
     #                                 )
 
@@ -593,14 +597,14 @@ class PolicyCompartmentAnalysis:
     #                                 # of the referenced compartment, which needs to be determined based on the policy location in hierarchy +
     #                                 # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
     #                                 # and then referenced
-    #                                 self.logger.debug(
+    #                                 logger.debug(
     #                                     f'Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}'
     #                                 )
     #                             break
-    #         self.logger.info(f'Found {len(filtered_statements)} policy statements for user {user_id}')
+    #         logger.info(f'Found {len(filtered_statements)} policy statements for user {user_id}')
     #         return filtered_statements
     #     except Exception as e:
-    #         self.logger.error(f'Failed to get user group statements: {e}')
+    #         logger.error(f'Failed to get user group statements: {e}')
     #         return []
 
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
@@ -611,9 +615,9 @@ class PolicyCompartmentAnalysis:
                 # Check each alias to see if in statement test
                 statement_text = statement.get('Statement Text', '')
                 if alias_to_check in statement_text:
-                    self.logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
+                    logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
                     filtered.append(statement)
-        self.logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
+        logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
 
     def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
@@ -636,13 +640,13 @@ class PolicyCompartmentAnalysis:
                             dg_name.casefold() == subj_name.casefold()
                         ):
                             filtered.append(statement)
-                            self.logger.info(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
+                            logger.info(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
                         else:
                             logging.debug(
                                 f'Not a match for dynamic group {dg_domain}/{dg_name}: Subject {subj_domain}/{subj_name}'
                             )
-                            self.logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
-        self.logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
+                            logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
+        logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
 
     def filter_policy_statements(
@@ -675,11 +679,9 @@ class PolicyCompartmentAnalysis:
         policy_terms = (
             [term.strip().lower() for term in policy_filter.split('|') if term.strip()] if policy_filter else []
         )
-        self.logger.info(
-            f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}'
-        )
+        logger.info(f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}')
 
-        self.logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
+        logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
         for st in self.regular_statements:
             matches_subject = not subject_terms or any(term in str(st.get('Subject')).lower() for term in subject_terms)
             matches_verb = not verb_terms or any(term in str(st.get('Verb')).lower() for term in verb_terms)
@@ -714,10 +716,10 @@ class PolicyCompartmentAnalysis:
                 and matches_text
                 and matches_policy
             ):
-                self.logger.debug(f'Adding Statement {st.get("Statement Text")} due to filter match')
+                logger.debug(f'Adding Statement {st.get("Statement Text")} due to filter match')
                 filtered.append(st)
 
-        self.logger.info(f'Filtered to {len(filtered)} statements')
+        logger.info(f'Filtered to {len(filtered)} statements')
         return filtered
 
     def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
@@ -736,8 +738,8 @@ class PolicyCompartmentAnalysis:
             cached_policies = cache_data.get('policies', [])
             self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
             self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
-            self.logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
-            self.logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
+            logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
+            logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
 
             # Do the comparison with deepdiff (do we need to sort the policies first?)
             # Include paths for the maximum length
@@ -754,30 +756,30 @@ class PolicyCompartmentAnalysis:
                 # group_by=
             )
 
-            self.logger.info(
+            logger.info(
                 f'Found {len(diff.get("iterable_item_added", []))} added, '
                 f'{len(diff.get("iterable_item_removed", []))} removed, '
                 f'{len(diff.get("values_changed", []))} changed policies'
             )
             for change_type, changes_list in diff.items():
-                self.logger.info(f'Change Type: {change_type}')
+                logger.info(f'Change Type: {change_type}')
                 if change_type == 'values_changed':
                     for i, change in enumerate(changes_list):
                         change_index_parsed = parse_path(change)
-                        self.logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
+                        logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
                         if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
                             # Change to statement
                             this_change = changes_list[change]
-                            # self.logger.info(f'- New: {this_change["new_value"]}\n')
-                            # self.logger.info(f'- Old: {this_change["old_value"]}\n')
+                            # logger.info(f'- New: {this_change["new_value"]}\n')
+                            # logger.info(f'- Old: {this_change["old_value"]}\n')
                             changes.append(
                                 f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
                             )
-                            self.logger.info(
+                            logger.info(
                                 f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
                             )
                         else:
-                            self.logger.info(f'Change: {changes_list[change]}\n')
+                            logger.info(f'Change: {changes_list[change]}\n')
 
                 elif change_type == 'iterable_item_removed':
                     for i, change in enumerate(changes_list):
@@ -786,11 +788,9 @@ class PolicyCompartmentAnalysis:
                         changes.append(
                             f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
                         )
-                        self.logger.info(
-                            f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}'
-                        )
+                        logger.info(f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
 
-                        # self.logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+                        # logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
                 elif change_type == 'iterable_item_added':
                     for i, change in enumerate(changes_list):
                         this_change = changes_list[change]
@@ -798,12 +798,12 @@ class PolicyCompartmentAnalysis:
                         changes.append(
                             f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
                         )
-                        self.logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+                        logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
 
-                        # self.logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+                        # logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
 
         else:
-            self.logger.warning(f'Policies cache file not found: {combined_cache_file}')
+            logger.warning(f'Policies cache file not found: {combined_cache_file}')
             return ''
         return '\n'.join(changes)
 
@@ -820,7 +820,7 @@ class PolicyCompartmentAnalysis:
             limit=1000,
         )
         if logs_returned and logs_returned.data and logs_returned.data.results:
-            self.logger.info(f'Found {len(logs_returned.data.results)} logs for policy updates in the last 24 hours')
+            logger.info(f'Found {len(logs_returned.data.results)} logs for policy updates in the last 24 hours')
             for log in logs_returned.data.results:
                 res: oci.loggingsearch.models.SearchResult = log
                 if res and res.data:
@@ -838,16 +838,16 @@ class PolicyCompartmentAnalysis:
                         change_prev = (
                             res.data.get('logContent').get('data').get('stateChange').get('previous').get('statements')
                         )
-                    self.logger.info(f'Log Type: {type_of_log}')
-                    self.logger.info(f'***Log Details: Type: {type_of_log}Previous:{change_prev} Current:{change_curr}')
+                    logger.info(f'Log Type: {type_of_log}')
+                    logger.info(f'***Log Details: Type: {type_of_log}Previous:{change_prev} Current:{change_curr}')
 
                     # if 'type' in res.data:
-                    #     self.logger.info(f'Type: {res.data["type"]}')
+                    #     logger.info(f'Type: {res.data["type"]}')
                     # else:
-                    #     self.logger.info('No type found in log data')
-                # self.logger.info(f'Log: {log.get["data"].get("datetime", "No message found")}')
+                    #     logger.info('No type found in log data')
+                # logger.info(f'Log: {log.get["data"].get("datetime", "No message found")}')
         else:
-            self.logger.info('No policy update logs found in the last 24 hours')
+            logger.info('No policy update logs found in the last 24 hours')
         pass
 
 
@@ -855,7 +855,7 @@ class IdentityDomainsAnalysis:
     def __init__(self, verbose: bool):
         self.logger = logging.getLogger('oci-identity-domins-analysis')
         if verbose:
-            self.logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         self.tenancy_ocid = None
         self.identity_client = None
         self.signer = None
@@ -869,27 +869,27 @@ class IdentityDomainsAnalysis:
         self.policies = []
         self.data_as_of = ''
 
-        self.logger.info('Initialized IdentityDomainsAnalysis')
+        logger.info('Initialized IdentityDomainsAnalysis')
 
     def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
         try:
             self.use_instance_principal = use_instance_principal
             if use_instance_principal:
-                self.logger.debug('Using Instance Principal Authentication')
+                logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
             else:
-                self.logger.debug(f'Using Profile Authentication: {profile}')
+                logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
                 self.identity_client = IdentityClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
-            self.logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
             return True
         except (ConfigFileNotFound, Exception) as exc:
-            self.logger.fatal(f'Authentication failed: {exc}')
+            logger.fatal(f'Authentication failed: {exc}')
             return False
 
     def parse_dynamic_group(self, dg_name: str, dg_ocid: str, dg_domain: str, dg_rule: str, dg_created: str) -> dict:
@@ -913,7 +913,7 @@ class IdentityDomainsAnalysis:
             domains_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)
             if domains_response and domains_response.data:
                 for domain in domains_response.data:
-                    self.logger.debug(f'Domain {domain.display_name}, OCID {domain.id}')
+                    logger.debug(f'Domain {domain.display_name}, OCID {domain.id}')
                     if self.use_instance_principal:
                         domain_client = IdentityDomainsClient(
                             config={}, signer=self.signer, service_endpoint=domain.url
@@ -924,11 +924,11 @@ class IdentityDomainsAnalysis:
 
                     dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
                     if dg_response and dg_response.data:
-                        self.logger.debug(
+                        logger.debug(
                             f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
                         )
                         for dg in dg_response.data.resources:
-                            self.logger.debug(f'DG: {dg.display_name}')
+                            logger.debug(f'DG: {dg.display_name}')
 
                             time_created = dg.meta.created
                             self.dynamic_groups.append(
@@ -941,13 +941,13 @@ class IdentityDomainsAnalysis:
                                 )
                             )
                     else:
-                        self.logger.error('Failed to list dynamic groups')
+                        logger.error('Failed to list dynamic groups')
                         return False
-                    self.logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
+                    logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
             self.data_as_of = str(datetime.datetime.now())
             return True
         except ServiceError as se:
-            self.logger.error(f'Failed to load dynamic groups: {se}')
+            logger.error(f'Failed to load dynamic groups: {se}')
             return False
 
     def set_statements(self, statements: list):
@@ -966,7 +966,7 @@ class IdentityDomainsAnalysis:
             dg[3] = self.dg_in_use(dg)
             if not dg[3]:
                 unused_dynamic_groups.append(dg)
-        self.logger.info(f'Found {len(unused_dynamic_groups)} unused dynamic groups')
+        logger.info(f'Found {len(unused_dynamic_groups)} unused dynamic groups')
         return unused_dynamic_groups
 
     def filter_dynamic_groups(self, domain_filter=None, name_filter=None, type_filter=None, ocid_filter=None) -> list:
@@ -976,7 +976,7 @@ class IdentityDomainsAnalysis:
         name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
         type_terms = [ty.strip().lower() for ty in type_filter.split('|') if ty.strip()] if type_filter else []
         ocid_terms = [oc.strip().lower() for oc in ocid_filter.split('|') if oc.strip()] if ocid_filter else []
-        self.logger.debug(f'Filtering DGs based on Domain: {domain_filter} and Name: {name_filter}')
+        logger.debug(f'Filtering DGs based on Domain: {domain_filter} and Name: {name_filter}')
         for dg in self.dynamic_groups:
             # str(st.get('subject')).lower()
             matches_domain = not domain_terms or any(term in str(dg.get('Domain')).lower() for term in domain_terms)
@@ -984,21 +984,21 @@ class IdentityDomainsAnalysis:
             matches_type = not type_terms or any(term in str(dg.get('Matching Rule')).lower() for term in type_terms)
             matches_ocid = not ocid_terms or any(term in str(dg.get('DG OCID')).lower() for term in ocid_terms)
             if matches_name and matches_domain and matches_type and matches_ocid:
-                self.logger.debug(f'Adding DG {dg.get("Domain")}/{dg.get("DG Name")} due to filter match')
+                logger.debug(f'Adding DG {dg.get("Domain")}/{dg.get("DG Name")} due to filter match')
                 filtered.append(dg)
 
-        self.logger.info(f'Filtered to {len(filtered)} dynamic groups')
+        logger.info(f'Filtered to {len(filtered)} dynamic groups')
         return filtered
 
     def load_domains_groups_users(self) -> bool:  # noqa: C901
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
             if domain_response.data is None:  # type: ignore
-                self.logger.error('Failed to list identity domains')
+                logger.error('Failed to list identity domains')
                 return False
             # Should we really keep the full thing?
             self.identity_domains = domain_response.data
-            self.logger.info(f'Loaded {len(self.identity_domains)} identity domains')
+            logger.info(f'Loaded {len(self.identity_domains)} identity domains')
 
             self.domain_clients = {}
 
@@ -1084,12 +1084,12 @@ class IdentityDomainsAnalysis:
                     logging.debug(f'All Users: {self.users}')
 
                 except Exception as e:
-                    self.logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
+                    logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
                     raise
-            self.logger.info(f'Loaded {len(self.groups)} groups and {len(self.users)} users across all domains')
+            logger.info(f'Loaded {len(self.groups)} groups and {len(self.users)} users across all domains')
             return True
         except Exception as e:
-            self.logger.error(f'Failed to load identity domains: {e}')
+            logger.error(f'Failed to load identity domains: {e}')
             # return False
             raise
 
@@ -1140,6 +1140,55 @@ def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_anal
 
     # Return the name of the file
     return str(combined_cache_file)
+
+
+def load_cache_from_json(
+    loaded_json: dict,
+    policy_analysis: PolicyCompartmentAnalysis,
+    domains_analysis: IdentityDomainsAnalysis,
+) -> bool:
+    # Load everything
+    logger.info(f'Loaded JSON({type(loaded_json)})')
+    try:
+        # Grab all of the elements of the cache
+        policies = loaded_json.get('policies', [])
+        dynamic_groups = loaded_json.get('dynamic_groups', [])
+        cross_tenancy_data = loaded_json.get('cross_tenancy_policies', [])
+        defined_aliases = loaded_json.get('defined_aliases', [])
+
+        # Set the data in the policy analysis object
+        policy_analysis.tenancy_name = loaded_json.get('tenancy_name', '')
+        policy_analysis.tenancy_ocid = loaded_json.get('tenancy_ocid', '')
+        policy_analysis.compartments = loaded_json.get('compartments', [])
+        policy_analysis.regular_statements = policies
+        policy_analysis.defined_aliases = defined_aliases
+        policy_analysis.cross_tenancy_statements = cross_tenancy_data
+        # Set the data in the domains analysis object
+        domains_analysis.dynamic_groups = dynamic_groups
+        domains_analysis.identity_domains = [
+            Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
+            for d in loaded_json.get('identity_domains', [])
+        ]
+        domains_analysis.groups = loaded_json.get('groups', {})
+        domains_analysis.users = loaded_json.get('users', {})
+        # Set the data as of time
+        policy_analysis.data_as_of = loaded_json.get('data_as_of')
+        domains_analysis.data_as_of = loaded_json.get('data_as_of')
+        logger.info('Loaded combined cache from JSON')
+        # Show counts of each loaded element
+        logger.info(
+            f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
+            f'{len(cross_tenancy_data)} cross-tenancy policies, '
+            f'{len(domains_analysis.identity_domains)} identity domains, '
+            f'{len(domains_analysis.groups)} groups, and {len(domains_analysis.users)} users from cache.'
+        )
+        return True
+    except json.JSONDecodeError as e:
+        logger.error(f'Error decoding JSON from combined cache file: {e}')
+        return False
+    except Exception as e:
+        logger.error(f'Error loading combined cache file: {e}')
+        return False
 
 
 def load_combined_cache(
