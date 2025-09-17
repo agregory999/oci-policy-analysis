@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.3.0...v1.4.0) (2025-09-17)
+
+
+### Features
+
+* Updated Logging, Table struct, AI Loading ([f5f4f03](https://github.com/agregory999/oci-policy-analysis/commit/f5f4f033ed4213bc5cf8fd90430e1d785a3426f2))
+
 ## [1.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.2.3...v1.3.0) (2025-09-16)
 
 
