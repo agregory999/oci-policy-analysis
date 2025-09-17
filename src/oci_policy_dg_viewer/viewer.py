@@ -48,9 +48,7 @@ from core import (
     save_combined_cache,  # Save combined cache to file
 )
 from data_table import DataTable
-from popup import FlyInPopup
 from tkhtmlview import HTMLText
-from toast import Toast
 
 # Constants
 THREADS = 8
@@ -2584,16 +2582,16 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             logger.error(f'Error writing options to {options_file}: {exc}')
         pass
 
-    # Popup and Toast
-    def show_popup(self, message, side='top', duration=3000):
-        """Show a fly-in popup with a message."""
-        FlyInPopup(self.root, message=message, side=side, duration=duration)
-        logger.info(f'Showing popup: {message}')
+    # # Popup and Toast
+    # def show_popup(self, message, side='top', duration=3000):
+    #     """Show a fly-in popup with a message."""
+    #     FlyInPopup(self.root, message=message, side=side, duration=duration)
+    #     logger.info(f'Showing popup: {message}')
 
-    def show_toast(self, message, side='right', duration=5000):
-        """Show a toast notification within the window."""
-        logger.info(f'Scheduling toast: {message}')
-        self.root.after(0, lambda: Toast(self.root, message=message, side=side, duration=duration))
+    # def show_toast(self, message, side='right', duration=5000):
+    #     """Show a toast notification within the window."""
+    #     logger.info(f'Scheduling toast: {message}')
+    #     self.root.after(0, lambda: Toast(self.root, message=message, side=side, duration=duration))
 
 
 ### Main Code Helpers
