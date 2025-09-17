@@ -22,32 +22,16 @@ from oci.generative_ai_inference.models import (
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 CACHE_FILE = CACHE_DIR / 'oci_policy_ai_cache.json'
 
-# # Global variables
-# last_error = ''
-
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
+logger = logging.getLogger('oci-policy-dg-ai')
 
 
 class AI:
     def __init__(self, verbose=False):
         """Initialize OCI GenAI client and constants."""
-        # self.COMPARTMENT_ID = 'ocid1.compartment.oc1..aaaaaaaazgn5vtlrndakdili7vvsvstsr5p3t7nsm56wummhuk4tb5rgrfda'
-        # self.AI_MODEL_ID = (
-        #     'ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyat326ygnn5hesfplopdmkyrklzcehzxhk5262655bthjq'
-        # )
-
-        self.model_name_cache = {}  # Cache for model OCID to display_name
         self.verbose = verbose
-        # try:
-        #     self.config = oci.config.from_file()
-        #     self.client = oci.generative_ai_inference.GenerativeAiInferenceClient(self.config)
-        #     logging.info('Initialized OCI GenAI client')
-        # except Exception as e:
-        #     logging.error('Error initializing OCI GenAI client: %s', e)
-        #     raise
-        self.logger = logging.getLogger('oci-policy-dg-ai')
-        self.logger.info('Initialized AI Module')
+        logger.info('Initialized AI Module')
 
         # Load the cache internally
         self.load_cache()
@@ -58,27 +42,27 @@ class AI:
     def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
         try:
             if use_instance_principal:
-                self.logger.debug('Using Instance Principal Authentication for AI')
+                logger.debug('Using Instance Principal Authentication for AI')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.genai_client = GenerativeAiClient(config={}, signer=self.signer)
                 self.genai_inference_client = GenerativeAiInferenceClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
                 self.region = self.signer.region
             else:
-                self.logger.debug(f'Using Profile Authentication for AI: {profile}')
+                logger.debug(f'Using Profile Authentication for AI: {profile}')
                 self.config = config.from_file(profile_name=profile)
                 self.genai_client = GenerativeAiClient(self.config)
                 self.genai_inference_client = GenerativeAiInferenceClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
                 self.region = self.config['region']
-            self.logger.info(f'Set up GenAI and Inference Client for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up GenAI and Inference Client for tenancy: {self.tenancy_ocid}')
 
             # Set up base endpoint
             self.base_endpoint = f'https://inference.generativeai.{self.region}.oci.oraclecloud.com'
-
+            self.initialized = True
             return True
         except (ConfigFileNotFound, Exception) as exc:
-            self.logger.fatal(f'Authentication failed: {exc}')
+            logger.fatal(f'Authentication failed: {exc}')
             return False
 
     def update_config(self, model_ocid, endpoint, compartment_ocid):
@@ -101,9 +85,9 @@ class AI:
         chat_request = GenericChatRequest()
         chat_request.api_format = BaseChatRequest.API_FORMAT_GENERIC
         chat_request.messages = [Message(role='USER', content=[content])]
-        chat_request.max_tokens = 2000
+        chat_request.max_tokens = 1500
         chat_request.temperature = 0
-        chat_request.top_p = 1
+        chat_request.top_p = 0.25
         chat_request.top_k = 0
 
         chat_detail.chat_request = chat_request
@@ -112,7 +96,7 @@ class AI:
         logging.debug(f'Created Chat: {chat_detail}')
         return chat_detail
 
-    def list_models(self):
+    def list_models(self) -> list[dict]:
         """List available models using GenerativeAiClient.list_models."""
         logging.info('Listing available models')
         try:
@@ -120,15 +104,15 @@ class AI:
             response = self.genai_client.list_models(compartment_id=self.tenancy_ocid)
             models = [
                 {
-                    'display_name': model.display_name or 'Unknown',
-                    'id': model.id,
-                    'lifecycle_state': model.lifecycle_state or 'N/A',
-                    'time_created': model.time_created.isoformat() if model.time_created else 'N/A',
+                    'Model Name': model.display_name or 'Unknown',
+                    'Model OCID': model.id,
+                    'Lifecycle State': model.lifecycle_state or 'N/A',
+                    'Creation Date': model.time_created.isoformat() if model.time_created else 'N/A',
                 }
                 for model in response.data.items
             ]
-            for model in models:
-                self.model_name_cache[model['id']] = model['display_name']
+            # for model in models:
+            #     self.model_name_cache[model['id']] = model['display_name']
             logging.info('Retrieved %d models from list_models', len(models))
             return models
         except ServiceError as e:
@@ -138,32 +122,12 @@ class AI:
             logging.error('Error listing models: %s', e)
             raise
 
-    def get_model_name(self, model_id):
-        """Get the display name for a model OCID, using cache or list_models."""
-        logging.debug('Getting model name for OCID: %s', model_id)
-        if model_id in self.model_name_cache:
-            logging.debug('Cache hit for model name: %s', self.model_name_cache[model_id])
-            return self.model_name_cache[model_id]
-
-        try:
-            models = self.list_models()
-            for model in models:
-                if model['id'] == model_id:
-                    self.model_name_cache[model_id] = model['display_name']
-                    logging.debug('Found model name: %s for OCID: %s', model['display_name'], model_id)
-                    return model['display_name']
-            logging.warning("Model OCID %s not found, returning 'Unknown'", model_id)
-            self.model_name_cache[model_id] = 'Unknown'
-            return 'Unknown'
-        except Exception as e:
-            logging.error('Error getting model name for OCID %s: %s', model_id, e)
-            self.model_name_cache[model_id] = 'Unknown'
-            return 'Unknown'
-
     def load_cache(self):
         """Load AI query cache from persistent file if available, else return empty list."""
         logging.debug('Loading cache from %s', CACHE_FILE)
         try:
+            # Ensure cache directory exists
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
             with open(CACHE_FILE) as f:
                 self.ai_result_cache = json.load(f)
                 if not isinstance(self.ai_result_cache, list):
@@ -171,7 +135,14 @@ class AI:
                     # return []
                 logging.info('Successfully loaded cache with %d entries', len(self.ai_result_cache))
 
-                # TO-DO: remove older entries from cache
+            # TO-DO: remove older entries from cache
+            for entry in self.ai_result_cache:
+                if 'date_ms' in entry:
+                    # Just show the date for logging purposes
+                    logger.debug(
+                        f"Cache entry date: {datetime.fromtimestamp(entry['date_ms'] / 1000, UTC).isoformat()}"
+                    )
+
         except FileNotFoundError:
             logging.debug('Cache file %s not found, returning empty list', CACHE_FILE)
             self.ai_result_cache = []
@@ -297,6 +268,7 @@ class AI:
                     'type': 'analyze_policy_statement',
                     'query': policy_text,
                     'result': result,
+                    'date_ms': int(datetime.now().timestamp() * 1000),
                 }
             )
             self.save_cache()
@@ -341,8 +313,9 @@ class AI:
         prompt = (
             f'{query} '
             f'{additional_instruction} '
-            'Use unordered lists (- item) for permissions and use cases, ensuring each list item has meaningful content and no empty items. '
-            'Avoid empty lines in lists and ensure all content is concise and relevant.'
+            'return strict markdown format with no empty lines.'
+            'markdown should include sections with headers (##) and unordered lists (* item).'
+            'return a web link if relevant.'
         )
         chat_detail = self.create_chat_request(prompt=prompt)
         # Make the request
