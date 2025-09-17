@@ -2276,9 +2276,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 self.dg_entry_name,
                 self.dg_entry_type,
                 self.dg_entry_ocid,
-                # self.domain_dropdown,
-                # self.user_dropdown,
-                # compartment_dropdown,
             ]
         ]
         [
