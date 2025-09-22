@@ -60,6 +60,13 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
 AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
 
+GROUPS_COLUMNS = ['Domain Name', 'Group Name', 'Group OCID']
+GROUPS_COLUMNS_WIDTHS = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 450}
+
+USERS_COLUMNS = ['Domain Name', 'User Name', 'User OCID']
+USERS_COLUMNS_WIDTHS = {'Domain Name': 150, 'User Name': 300, 'User OCID': 450}
+
+
 # Global variables
 last_error = ''
 
@@ -411,7 +418,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             logger.info('Console cleared')
 
         def _update_log_level(level):
-            level_map = {'DEBUG': logger.debug, 'INFO': logger.info, 'WARNING': logger.warning}
+            level_map = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING}
             logger.setLevel(level_map[level])
             if level == 'DEBUG':
                 self.verbose = True
@@ -567,20 +574,28 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         )
         self.btn_load_cache.grid(row=1, column=3, padx=5, pady=3)
 
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=4, rowspan=2, padx=5, pady=3)
+
         # Import button
         self.btn_import_cache = ttk.Button(
             label_frm_tenancy_config,
             text='Import from JSON',
-            command=self._import_cache_from_csv,
+            command=self._import_cache_from_json,
         )
-        self.btn_import_cache.grid(row=1, column=4, padx=5, pady=2, sticky='ew')
+        self.btn_import_cache.grid(row=0, column=5, padx=5, pady=2, sticky='ew')
+
+        # Export button
+        self.btn_export_cache = ttk.Button(
+            label_frm_tenancy_config, text='Export to JSON', command=self._export_cache_to_json, state=tk.DISABLED
+        )
+        self.btn_export_cache.grid(row=1, column=5, padx=5, pady=2, sticky='ew')
 
         # Progress bar and label
         self.progress_bar_label = ttk.Label(label_frm_tenancy_config, text='')
-        self.progress_bar_label.grid(row=0, column=5, padx=5, pady=3)
+        self.progress_bar_label.grid(row=0, column=6, padx=5, pady=3)
         self.progress_bar_label.grid_remove()
         self.progress_bar = ttk.Progressbar(label_frm_tenancy_config, mode='indeterminate', length=100)
-        self.progress_bar.grid(row=1, column=5, padx=5, pady=3, sticky='ew')
+        self.progress_bar.grid(row=1, column=6, padx=5, pady=3, sticky='ew')
         self.progress_bar.grid_remove()
 
         ###############################
@@ -1264,9 +1279,9 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_user_top = ttk.Frame(tab_users)
         frm_user_top.grid_rowconfigure(0, weight=1)
         frm_user_top.grid_rowconfigure(1, weight=1)
-        frm_user_top.grid_columnconfigure(0, weight=4)
-        frm_user_top.grid_columnconfigure(1, weight=2)  # buttons
-        frm_user_top.grid_columnconfigure(2, weight=4)
+        frm_user_top.grid_columnconfigure(0, weight=3)  # Options
+        frm_user_top.grid_columnconfigure(1, weight=7)  # Table
+        # frm_user_top.grid_columnconfigure(2, weight=4)
         frm_user_top.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
         # Frame for Policy Statements
@@ -1275,6 +1290,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_users_policies.grid_rowconfigure(1, weight=9)
         frm_users_policies.grid_columnconfigure(0, weight=1)
         frm_users_policies.grid_columnconfigure(1, weight=1)
+        frm_users_policies.grid_columnconfigure(2, weight=1)
+        frm_users_policies.grid_columnconfigure(3, weight=7)
         frm_users_policies.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
 
         # Frame for AI (row 2)
@@ -1285,7 +1302,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         ttk.Label(frm_principals_ai, text='Policy Statement to Analyze').grid(
             row=0, column=0, padx=5, pady=2, sticky='w'
         )
-        # self.policy_analyze_statement_var = tk.StringVar()
+
         # Re-use the same variable as other tabs for policy statement
         self.rp_policy_analyze_statement_entry = tk.Entry(
             frm_principals_ai, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
@@ -1297,71 +1314,33 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         )
         self.btn_user_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
 
-        # User / Group Selection
-        ttk.Label(frm_user_top, text='Select the Groups or Users in order to\nload all applicable policies.').grid(
-            row=0, column=0, columnspan=3, padx=5, pady=2, sticky='w'
-        )
-
         def users_group_selection_callback(selected_rows: list[dict]) -> None:
-            """When a Group or User is selected, update the users/groups and policy statements below"""
+            """When a Group is selected, update the users/groups and policy statements below"""
             groups_for_filter = []
+            # Make the DG list (Domain,Name) for all selected rows
+            for row in selected_rows:
+                logger.info(f"Selected Group: {row.get('Domain Name')} / {row.get('Group Name')}")
+                if 'Group Name' in row:
+                    groups_for_filter.append((row.get('Domain Name'), row.get('Group Name')))
+            logger.info(f'Groups for filter: {groups_for_filter}')
+
+            self._update_user_analysis_policy_output(groups_for_filter=groups_for_filter, users_for_filter=None)
+
+            logger.info('Policies added to user policy table: ')
+
+        def users_user_selection_callback(selected_rows: list[dict]) -> None:
+            """When a User is selected, update the users/groups and policy statements below"""
             users_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                logger.info(f"Selected Group: {row.get('Domain')} / {row.get('Group Name')} / User: {row.get('User')}")
-                if 'Group Name' in row:
-                    groups_for_filter.append((row.get('Domain'), row.get('Group Name')))
-                elif 'User' in row:
-                    users_for_filter.append(row.get('User'))
-            logger.info(f'Groups for filter: {groups_for_filter}')
+                logger.info(f"Selected User: {row.get('Domain Name')} / {row.get('User Name')}")
+                if 'User Name' in row:
+                    users_for_filter.append((row.get('Domain Name'), row.get('User Name')))
             logger.info(f'Users for filter: {users_for_filter}')
-            # Call the filter
-            # filtered = self.policy_compartment_analysis.filter_policy_statements_by_user_and_group_name(
-            #     users=users_for_filter,
-            #     groups=groups_for_filter
-            # )
-            filtered = []
 
-            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
-            # Set them into the next table
-            self.users_policy_table.update_data(filtered)
-            logger.info(f'Policies added to user policy table: {len(filtered)}')
+            self._update_user_analysis_policy_output(groups_for_filter=None, users_for_filter=users_for_filter)
 
-        # Table for Groups on the left
-        # Groups Table
-        self.users_groups_table = DataTable(
-            frm_user_top,
-            columns=self.all_groups_columns,
-            display_columns=self.all_groups_columns,
-            data=[],
-            column_widths=self.groups_column_widths,
-            # font_size=10,
-            selection_callback=users_group_selection_callback,
-            multi_select=True,
-        )
-        self.users_groups_table.grid(row=1, column=0, sticky='nsew')
-
-        # Button in the middle
-        self.btn_clear_groups_users = ttk.Button(
-            frm_user_top,
-            text='Clear Filters',
-            state=tk.DISABLED,
-            # command=self._analyze_policy_statment_ai
-        )
-        self.btn_clear_groups_users.grid(row=1, column=1, padx=5, pady=5)
-
-        # Users Table
-        self.users_users_table = DataTable(
-            frm_user_top,
-            columns=self.all_users_columns,
-            display_columns=self.all_users_columns,
-            data=[],
-            column_widths=self.users_column_widths,
-            # font_size=10,
-            selection_callback=users_group_selection_callback,
-            multi_select=False,
-        )
-        self.users_users_table.grid(row=1, column=2, sticky='nsew')
+            logger.info('Policies added to user policy table: ')
 
         def users_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
@@ -1372,12 +1351,94 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             else:
                 self.policy_analyze_statement_var.set('')
 
+        def switch_groups_users_selection(*args):
+            logger.info('Calling update for users')
+            self._update_user_analysis_output()
+
+        def update_search(*args):
+            logger.info(f'Updating search: {self.user_group_search.get()}')
+            self._update_user_analysis_output()
+
+        def clear_filter():
+            self.user_group_search.set('')
+
+        def update_user_policy_output():
+            # Change to more output
+            if self.chk_show_expanded.get():
+                self.users_policy_table.set_display_columns(self.all_policy_columns)
+            else:
+                self.users_policy_table.set_display_columns(self.basic_policy_columns)
+            logger.info(f'Updated display for expanded output: {self.chk_show_expanded.get()}')
+
+        # Frame for selection and Search
+        frm_user_selection = ttk.Frame(frm_user_top)
+        frm_user_selection.grid(row=0, column=0, padx=5, pady=2, sticky='w')
+
+        # User / Group Selection
+        ttk.Label(frm_user_selection, text='Select Groups or Users').grid(row=0, column=0, padx=5, pady=2, sticky='w')
+
+        # Selection Dropdown (users or groups)
+        self.groups_option_var = tk.StringVar(value='GROUPS')
+        self.groups_users_dropdown = ttk.OptionMenu(
+            frm_user_selection,
+            self.groups_option_var,
+            self.groups_option_var.get(),
+            *['GROUPS', 'USERS'],
+            bootstyle='default',
+            command=switch_groups_users_selection,
+        )
+        self.groups_users_dropdown.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(frm_user_selection, text='Search').grid(row=1, column=0, padx=5, pady=2, sticky='w')
+
+        # Search with trace
+        self.user_group_search = tk.StringVar()
+        ttk.Entry(frm_user_selection, textvariable=self.user_group_search).grid(
+            row=1, column=1, padx=5, pady=2, sticky='w'
+        )
+        self.user_group_search.trace_add('write', update_search)
+        self.btn_clear_groups_users = ttk.Button(frm_user_selection, text='Clear Filter', command=clear_filter)
+        self.btn_clear_groups_users.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+
+        self.user_selected_groups = ttk.Label(frm_user_selection, text='Selected Groups: ')
+        self.user_selected_groups.grid(row=3, column=0, columnspan=2, padx=5, pady=2, sticky='w')
+
+        # Table for Groups on the left
+        # Groups Table
+        self.users_groups_table = DataTable(
+            frm_user_top,
+            columns=GROUPS_COLUMNS,
+            display_columns=GROUPS_COLUMNS,
+            data=[],
+            column_widths=self.groups_column_widths,
+            # font_size=10,
+            selection_callback=users_group_selection_callback,
+            multi_select=True,
+        )
+
+        # Users Table
+        self.users_users_table = DataTable(
+            frm_user_top,
+            columns=USERS_COLUMNS,
+            display_columns=USERS_COLUMNS,
+            data=[],
+            column_widths=USERS_COLUMNS_WIDTHS,
+            # font_size=10,
+            selection_callback=users_user_selection_callback,
+            multi_select=True,
+        )
+
         # Users Page Policy Table
-        # Text box for groups selected
-        self.user_selected_groups = ttk.Label(frm_users_policies, text='Policies for Selected Users/Groups: ')
-        self.user_selected_groups.grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.user_label_count = ttk.Label(frm_users_policies, text='Policy Statements (Filtered): 0')
-        self.user_label_count.grid(row=0, column=1, padx=5, pady=3, sticky='w')
+        self.user_label_count.grid(row=0, column=0, padx=5, pady=3, sticky='w')
+
+        ttk.Separator(frm_users_policies, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+
+        ttk.Checkbutton(
+            frm_users_policies, text='Parsed Output', variable=self.chk_show_expanded, command=update_user_policy_output
+        ).grid(row=0, column=2, padx=5, pady=3)
+
+        # Policy Table
         self.users_policy_table = DataTable(
             frm_users_policies,
             columns=self.all_policy_columns,
@@ -1388,7 +1449,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             selection_callback=users_policy_selection_callback,
             multi_select=False,
         )
-        self.users_policy_table.grid(row=1, column=0, columnspan=2, sticky='nsew')
+        self.users_policy_table.grid(row=1, column=0, columnspan=4, sticky='nsew')
 
     def create_tab_report(self):
         # Create tab with 20/80 rows
@@ -1908,126 +1969,52 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             )
 
             self.rp_dg_table.update_data(filtered_dynamic_groups)
-        #     self.principals_sheet_dynamic_groups.set_sheet_data(filtered_dynamic_groups)
-
-        #     # Populate policy sheet with initial filter
-        #     # For DG style, search any policy that refers to a DG in the list of dynamic groups
-        #     # Build a list of DGs from previous output
-        #     selected_dgs: list = []
-        #     for dg in filtered_dynamic_groups:
-        #         selected_dgs.append(dg[1])
-
-        #     # Now build a policy search based on a string of all DGs
-        #     subject_search = '|'.join(selected_dgs)
-
-        #     # Now search policies based on DG type and subject string
-        #     policies = self.policy_compartment_analysis.filter_policy_statements(subj_filter=subject_search)
-        #     # policies = policy_compartment_analysis.filter_resource_principal_policies('Resource Principals', principals_style, resource_type)
-        #     self.principals_sheet_policies_instance.set_sheet_data(policies)
-
-        #     # Enable row selection on dynamic group sheet
-        #     def on_row_select(event):
-        #         selected_rows = self.principals_sheet_dynamic_groups.get_selected_rows()
-        #         logger.info(f'Selected row in DG sheet: {selected_rows}')
-        #         if selected_rows:
-        #             selected_idx = list(selected_rows)[0]
-        #             logger.info(f'Selected row in DG sheet: {list(selected_rows)[0]}')
-        #             selected_dg = (filtered_dynamic_groups[selected_idx][0], filtered_dynamic_groups[selected_idx][1])
-        #             filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
-        #                 subj_filter=filtered_dynamic_groups[selected_idx][1]
-        #             )
-        #             # filtered_policies = self.policy_compartment_analysis.filter_resource_principal_policies(
-        #             #     'Resource Principals', principals_style, resource_type, selected_dg
-        #             # )
-        #             logger.info(f'Filtered Policy count for {selected_dg}: {len(filtered_policies)}')
-        #             self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
-        #         else:
-        #             # Reset to all dynamic group policies
-        #             filtered_policies = self.policy_compartment_analysis.filter_policy_statements()
-        #             self.principals_sheet_policies_instance.set_sheet_data(filtered_policies)
-
-        #     # UI Elements - re-grid with both DG and Policy viewer
-        #     self.principals_sheet_dynamic_groups.grid(row=0, column=0, sticky='nsew')  # Show dynamic group sheet
-        #     self.principals_sheet_policies_instance.grid(row=1, column=0, sticky='nsew')  # Show policy sheet in row 1
-
-        #     self.principals_sheet_dynamic_groups.bind('<ButtonRelease-1>', on_row_select)
-        # else:
-        #     logger.info('Nothing selected')
-
-        # # Resize data
-        # self.principals_sheet_dynamic_groups.set_all_cell_sizes_to_text(slim=False)
-        # self.principals_sheet_policies_instance.set_all_cell_sizes_to_text(slim=False)
-
-    # def _update_user_analysis_combo(self):
-    #     """Update the user list with real data from loaded groups and users"""
-    #     users = self.identity_domain_analysis.users
-    #     logger.debug(f'Loaded Users: {users}')
-    #     # Create mapping of display name to ocid
-    #     self.user_display_to_ocid = {
-    #         f"{user_data['domain']}/{user_data['name']}": ocid for ocid, user_data in users.items()
-    #     }
-    #     self.all_users = sorted(self.user_display_to_ocid.keys())  # Full sorted list
-    #     self.user_combo['values'] = self.all_users
-    #     logger.info(f'Updated Combo box with {len(users)} Users.')
 
     def _update_user_analysis_output(self):
         # TODO: Compartment Analysis
+        logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
+        # Grid the correct table
+        if self.groups_option_var.get() == 'GROUPS':
+            # Load the groups into grid and search
+            self.users_users_table.grid_forget()
+            self.users_groups_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
-        # Place the list of groups in the group table (all for now)
-        all_groups = self.identity_domain_analysis.groups
-        self.users_groups_table.update_data(all_groups)
+            # Filter and display
+            filtered_groups = self.identity_domain_analysis.filter_groups(name_filter=self.user_group_search.get())
+            self.users_groups_table.update_data(filtered_groups)
+            logger.info(f'Loaded {len(filtered_groups)} groups into table')
+        elif self.groups_option_var.get() == 'USERS':
+            self.users_groups_table.grid_forget()
+            self.users_users_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
-        all_users = self.identity_domain_analysis.users
-        self.users_users_table.update_data(all_users)
+            # Filter and display
+            filtered_users = self.identity_domain_analysis.filter_users(name_filter=self.user_group_search.get())
+            self.users_users_table.update_data(filtered_users)
+            logger.info(f'Loaded {len(filtered_users)} users into data')
+        else:
+            logger.warning('Should not get here')
 
-        # Show the text of selected users and groups, somehow
+    def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):
+        logger.info('Getting policies for groups and users')
 
-        # # Get the selected User
-        # user_selected = self.user_combo.get().strip()
-        # if not user_selected or user_selected == '':
-        #     logger.info('Returning without loading any policies. User was blank.')
-        #     return
+        if users_for_filter and len(users_for_filter) > 0:
+            groups_for_filter = []
+            # If we only have users, populate the groups for those users
+            for user in users_for_filter:
+                logger.info(f'Getting groups for user: {user}')
+                groups_for_user = self.identity_domain_analysis.get_groups_for_user(user)
+                groups_for_filter.extend(groups_for_user)
 
-        # # All users and Groups for reference
-        # all_groups = self.identity_domain_analysis.groups
-        # all_users = self.identity_domain_analysis.users
-        # logger.debug(f'All Users: {all_users}')
-        # logger.debug(f'All Groups: {all_groups}')
+        # Take the list of groups, make a group filter, and update policy table
+        logger.info(f'Searching for policies for groups: {groups_for_filter}')
+        filtered_policies = self.policy_compartment_analysis.filter_policy_statements_by_groups(
+            groups_filter=groups_for_filter
+        )
+        self.users_policy_table.update_data(filtered_policies)
 
-        # Create a search term for the main filtering (subject_filter = group|group2|etc)
-        # user_groups = []
-        # user_ocid = self.user_display_to_ocid.get(user_selected)
-        # if user_ocid and user_ocid in all_users:
-        #     group_ocids = all_users[user_ocid]['groups']
-        #     logger.info(f'Group OCIDs: {group_ocids}')
-        #     for group_ocid in group_ocids:
-        #         if group_ocid in all_groups:
-        #             user_groups.append(all_groups[group_ocid]['display_name'])
-        # logger.info(f'User {user_selected} in groups {user_groups}')
-
-        # searchable_subject = '|'.join(user_groups)
-        # logger.info(f'Searching policies for subjects: {searchable_subject}')
-
-        # # Use the main policy search
-        # filtered = self.policy_compartment_analysis.filter_policy_statements(subj_filter=searchable_subject)
-        # logger.info(f'User Analysis for {user_selected} to show {len(filtered)} policy statements')
-
-        # # Convert back to list to support tksheet ()
-        # sheet_data = self._convert_filtered_policies_to_list(filtered)
-        # self.sheet_user_policies.set_sheet_data(sheet_data, reset_highlights=True)
-        # self.sheet_user_policies.set_all_cell_sizes_to_text()
-        # self.sheet_user_policies.display_columns(
-        #     all_columns_displayed=True if self.chk_show_expanded.get() else False,
-        #     columns=[0, 3, 4] if not self.chk_show_expanded.get() else None,
-        # )
-
-        # self.user_label_count.config(text=f'Policy Statements (Filtered): {len(filtered)}')
-
-        # Grab the data for the selected User and Display it nicely
-        # selection_info = f'User: {user_selected}\nGroups: {user_groups}'
-        # self.user_selected_groups.config(text=selection_info)
-
-        # self.user_label_count.config(text=f'Policy Statements (Filtered): {len(filtered)}')
+        # Update the labels
+        self.user_selected_groups.configure(text=f'Selected Groups: {groups_for_filter}')
+        self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(filtered_policies)}')
 
     def _update_report_output(self):
         self.text_dg_report.delete(1.0, tk.END)
@@ -2188,7 +2175,18 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                     writer.writerow(row.values())
             logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
 
-    def _import_cache_from_csv(self):
+    def _export_cache_to_json(self):
+        filepath = tkfiledialog.asksaveasfile(filetypes=[('JSON Files', '*.json')])
+        if filepath:
+            logger.info(f'Writing file: {filepath.name}')
+            save_combined_cache(
+                policy_analysis=self.policy_compartment_analysis,
+                domains_analysis=self.identity_domain_analysis,
+                export_file=filepath,
+            )
+        logger.info(f'Wrote file {filepath.name}')
+
+    def _import_cache_from_json(self):
         filepath = tkfiledialog.askopenfilename(filetypes=[('JSON Files', '*.json')])
         if filepath:
             self.progress_bar.grid()
@@ -2260,6 +2258,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # global last_load_time, last_error
         self.label_status_bar.config(text=f'{self.status_bar_text} | Loaded data as of {self.last_load_time}')
         [
+            # Allow entry in some of the widgets (after load)
             e.config(state=tk.NORMAL)
             for e in [
                 # self.entry_subj,
@@ -2284,7 +2283,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 self.btn_export_policy,
                 self.dg_btn_update,
                 self.dg_btn_clear,
-                # self.dg_btn_export,
+                self.btn_export_cache,
                 # self.btn_export_user,
                 self.btn_cache_compare,
                 self.btn_export_report,
@@ -2581,17 +2580,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         except Exception as exc:
             logger.error(f'Error writing options to {options_file}: {exc}')
         pass
-
-    # # Popup and Toast
-    # def show_popup(self, message, side='top', duration=3000):
-    #     """Show a fly-in popup with a message."""
-    #     FlyInPopup(self.root, message=message, side=side, duration=duration)
-    #     logger.info(f'Showing popup: {message}')
-
-    # def show_toast(self, message, side='right', duration=5000):
-    #     """Show a toast notification within the window."""
-    #     logger.info(f'Scheduling toast: {message}')
-    #     self.root.after(0, lambda: Toast(self.root, message=message, side=side, duration=duration))
 
 
 ### Main Code Helpers

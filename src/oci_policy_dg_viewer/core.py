@@ -620,6 +620,38 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
 
+    def filter_policy_statements_by_groups(self, groups_filter: list[tuple]) -> list:
+        """Filter cached groups by list of (domain, name) tuples.  Returns"""
+        logger.info(f'Looking for all policies related to groups: {groups_filter}')
+        groups_filter = list(set(groups_filter))
+        logger.info(f'De-duped groups: {groups_filter}')
+        filtered = []
+        for statement in self.regular_statements:
+            if statement.get('Subject Type') == 'group':
+                # Iterate provided dynamic groups
+                for group_domain, group_name in groups_filter:
+                    # Compare domain and name
+                    if group_domain is None:
+                        group_domain = 'Default'
+                    # Iterate Policy statement subjects
+                    for subj_domain, subj_name in statement.get('Subject'):
+                        logging.debug(
+                            f'Comparing Group {type(group_domain)}:{repr(group_domain)} / {type(group_name)}:{repr(group_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+                        )
+                        # Exact match on both domain and name required
+                        if (subj_domain.casefold() == group_domain.casefold()) and (
+                            group_name.casefold() == subj_name.casefold()
+                        ):
+                            filtered.append(statement)
+                            logger.debug(f'Adding statement for group: {group_domain}/{group_name}: {statement}')
+                        else:
+                            logging.debug(
+                                f'Not a match for group {group_domain}/{group_name}: Subject {subj_domain}/{subj_name}'
+                            )
+                            logger.debug(f'Not a match for group {group_domain}/{group_name}: {statement}')
+        logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
+        return filtered
+
     def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
         """Filter cached dynamic groups by list of (domain, name) tuples.  Returns"""
         filtered = []
@@ -990,6 +1022,34 @@ class IdentityDomainsAnalysis:
         logger.info(f'Filtered to {len(filtered)} dynamic groups')
         return filtered
 
+    def filter_groups(self, name_filter=None) -> list:
+        filtered = []
+
+        name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
+        logger.debug(f'Filtering Groups based on Name: {name_filter}')
+        for g in self.groups:
+            matches_name = not name_terms or any(term in str(g.get('Group Name')).lower() for term in name_terms)
+            if matches_name:
+                logger.debug(f'Adding Group: {g.get("Group Name")} due to filter match')
+                filtered.append(g)
+
+        logger.info(f'Filtered to {len(filtered)} groups')
+        return filtered
+
+    def filter_users(self, name_filter=None) -> list:
+        filtered = []
+
+        name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
+        logger.debug(f'Filtering Users based on Name: {name_filter}')
+        for u in self.users:
+            matches_name = not name_terms or any(term in str(u.get('User Name')).lower() for term in name_terms)
+            if matches_name:
+                logger.debug(f'Adding Group: {u.get("User Name")} due to filter match')
+                filtered.append(u)
+
+        logger.info(f'Filtered to {len(filtered)} users')
+        return filtered
+
     def load_domains_groups_users(self) -> bool:  # noqa: C901
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
@@ -1108,12 +1168,34 @@ class IdentityDomainsAnalysis:
     def get_users_by_domain(self, domain_id: str) -> list:
         return [u for u in self.users if u['domain_id'] == domain_id]
 
+    def get_groups_for_user(self, user: str) -> list:
+        groups_for_user: list = []
+        logger.info(f'User to filter: {user}')
+        logger.debug(f'Users: {self.users}')
+
+        # Iterate through users to find our user
+        for u in self.users:
+            # Match the tuple
+            if u.get('User Name') == user[1] and u.get('Domain Name') == user[0]:
+                logger.info(f"User found. Groups: {u.get('User Groups')}")
+
+                for user_group_ocid in u.get('User Groups'):
+                    # Find the Group OCID in the groups and append
+                    for g in self.groups:
+                        if g.get('Group OCID') == user_group_ocid:
+                            # Now append as tuple
+                            groups_for_user.append((g.get('Domain Name'), g.get('Group Name')))
+                            logger.info(f"Adding Group {g.get('Domain Name')}/{g.get('Group Name')} ")
+        return groups_for_user
+
 
 # Utility functions for loading and saving cache, using combined caching strategy
-def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_analysis: IdentityDomainsAnalysis) -> str:
+def save_combined_cache(
+    policy_analysis: PolicyCompartmentAnalysis, domains_analysis: IdentityDomainsAnalysis, export_file=None
+) -> str:
     """Save combined cache for policies and dynamic groups. Returns file name if you care"""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    combined_cache_file = CACHE_DIR / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
+
+    # Create the file as JSON first, collecting all details
     combined_data = {
         'tenancy_name': policy_analysis.tenancy_name,
         'tenancy_ocid': policy_analysis.tenancy_ocid,
@@ -1127,9 +1209,21 @@ def save_combined_cache(policy_analysis: PolicyCompartmentAnalysis, domains_anal
         'users': domains_analysis.users,
         'data_as_of': policy_analysis.data_as_of,
     }
-    with open(combined_cache_file, 'w', encoding='utf-8') as filehandle:
-        json.dump(combined_data, filehandle, ensure_ascii=False)
-    logger.info(f'Saved combined cache to: {combined_cache_file}')
+
+    if export_file:
+        with open(export_file.name, 'w', newline='', encoding='utf-8') as filehandle:
+            json.dump(combined_data, filehandle, ensure_ascii=False)
+        logger.info(f'Exported combined cache to: {export_file.name}')
+        return str(export_file.name)
+
+    else:
+        # Just write to cache as normal
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        combined_cache_file = CACHE_DIR / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
+
+        with open(combined_cache_file, 'w', encoding='utf-8') as filehandle:
+            json.dump(combined_data, filehandle, ensure_ascii=False)
+        logger.info(f'Saved combined cache to: {combined_cache_file}')
 
     # Update cache entries
     entry = {'tenancy_name': policy_analysis.tenancy_name, 'cache_date': CACHE_DATE}

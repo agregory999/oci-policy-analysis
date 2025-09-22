@@ -67,7 +67,7 @@ class AI:
 
     def update_config(self, model_ocid, endpoint, compartment_ocid):
         """Update Model ID and Endpoint, reinitializing client if endpoint changes."""
-        logging.info(
+        logger.info(
             f'Updating AI config: Model OCID:{model_ocid}, Endpoint:{endpoint}, Compartment: {compartment_ocid}'
         )
         self.model_ocid = model_ocid
@@ -92,13 +92,13 @@ class AI:
 
         chat_detail.chat_request = chat_request
         chat_detail.compartment_id = self.compartment_ocid
-        logging.info(f'Created Chat Request with prompt: {prompt}')
-        logging.debug(f'Created Chat: {chat_detail}')
+        logger.info(f'Created Chat Request with prompt: {prompt}')
+        logger.debug(f'Created Chat: {chat_detail}')
         return chat_detail
 
     def list_models(self) -> list[dict]:
         """List available models using GenerativeAiClient.list_models."""
-        logging.info('Listing available models')
+        logger.info('Listing available models')
         try:
             # Try to list models from tenancy
             response = self.genai_client.list_models(compartment_id=self.tenancy_ocid)
@@ -113,27 +113,27 @@ class AI:
             ]
             # for model in models:
             #     self.model_name_cache[model['id']] = model['display_name']
-            logging.info('Retrieved %d models from list_models', len(models))
+            logger.info('Retrieved %d models from list_models', len(models))
             return models
         except ServiceError as e:
-            logging.error('Service error listing models: %s', e)
+            logger.error('Service error listing models: %s', e)
             raise
         except Exception as e:
-            logging.error('Error listing models: %s', e)
+            logger.error('Error listing models: %s', e)
             raise
 
     def load_cache(self):
         """Load AI query cache from persistent file if available, else return empty list."""
-        logging.debug('Loading cache from %s', CACHE_FILE)
+        logger.debug('Loading cache from %s', CACHE_FILE)
         try:
             # Ensure cache directory exists
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             with open(CACHE_FILE) as f:
                 self.ai_result_cache = json.load(f)
                 if not isinstance(self.ai_result_cache, list):
-                    logging.warning('Cache file %s is not a list, returning empty list', CACHE_FILE)
+                    logger.warning('Cache file %s is not a list, returning empty list', CACHE_FILE)
                     # return []
-                logging.info('Successfully loaded cache with %d entries', len(self.ai_result_cache))
+                logger.info('Successfully loaded cache with %d entries', len(self.ai_result_cache))
 
             # TO-DO: remove older entries from cache
             for entry in self.ai_result_cache:
@@ -144,36 +144,36 @@ class AI:
                     )
 
         except FileNotFoundError:
-            logging.debug('Cache file %s not found, returning empty list', CACHE_FILE)
+            logger.debug('Cache file %s not found, returning empty list', CACHE_FILE)
             self.ai_result_cache = []
         except json.JSONDecodeError as e:
-            logging.error('Failed to parse JSON from %s: %s', CACHE_FILE, e)
+            logger.error('Failed to parse JSON from %s: %s', CACHE_FILE, e)
             self.ai_result_cache = []
 
     def save_cache(self):
         """Save AI query cache to persistent file each time a query occurs."""
-        logging.debug('Saving cache to %s', CACHE_FILE)
+        logger.debug('Saving cache to %s', CACHE_FILE)
         try:
             with open(CACHE_FILE, 'w') as f:
                 json.dump(self.ai_result_cache, f, indent=4)
-            logging.info('Successfully saved cache to %s with %d entries', CACHE_FILE, len(self.ai_result_cache))
+            logger.info('Successfully saved cache to %s with %d entries', CACHE_FILE, len(self.ai_result_cache))
         except Exception as e:
-            logging.error('Failed to save cache to %s: %s', CACHE_FILE, e)
+            logger.error('Failed to save cache to %s: %s', CACHE_FILE, e)
 
     def analyze_policy_statement(  # noqa: C901
         self, policy_text: str, queue: queue.Queue, use_cache: bool = False, additional_instruction: str = ''
     ):  # noqa: C901
         """Call OCI GenAI to analyze an OCI IAM policy statement, using cache if available. Put the results on a Queue that is provided"""
-        logging.info('Analyzing policy statement: %s', policy_text)
+        logger.info('Analyzing policy statement: %s', policy_text)
 
         if use_cache:
             for entry in self.ai_result_cache:
                 if entry.get('type') == 'analyze_policy_statement' and entry.get('query') == policy_text:
-                    logging.debug('Cache hit for policy analysis: %s', policy_text)
+                    logger.debug('Cache hit for policy analysis: %s', policy_text)
                     return entry['result']
 
         start_time = datetime.now()
-        logging.info(f'Calling OCI GenAI for policy analysis: {policy_text}')
+        logger.info(f'Calling OCI GenAI for policy analysis: {policy_text}')
         prompt = (
             f"Describe OCI Policy permission '{policy_text}' in detail, including what it allows, typical use cases, and any important considerations. "
             'Format the response in markdown with clear sections using headers (##). '
@@ -188,78 +188,76 @@ class AI:
             response = self.genai_inference_client.chat(chat_detail)
             raw_content = response.data.chat_response.choices[0].message.content
 
-            logging.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
+            logger.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
 
             # Process result
             if isinstance(raw_content, list):
-                logging.debug('Raw content is a list with length %d', len(raw_content))
+                logger.debug('Raw content is a list with length %d', len(raw_content))
                 if len(raw_content) > 0:
                     first_item = raw_content[0]
-                    logging.debug('First item type: %s', type(first_item))
+                    logger.debug('First item type: %s', type(first_item))
                     if hasattr(first_item, 'text'):
                         result = first_item.text
-                        logging.debug(f"Extracted 'text' attribute from first item: {policy_text} = {result[:100]}")
+                        logger.debug(f"Extracted 'text' attribute from first item: {policy_text} = {result[:100]}")
                     elif isinstance(first_item, dict) and 'text' in first_item:
                         result = first_item['text']
-                        logging.debug("Extracted 'text' key from first dict: %s", result[:100])
+                        logger.debug("Extracted 'text' key from first dict: %s", result[:100])
                     else:
-                        logging.debug(
+                        logger.debug(
                             "First item lacks 'text' attribute or key, using str(first_item) as fallback: %s",
                             str(first_item)[:100],
                         )
                         result = str(first_item)
                 else:
-                    logging.debug(
+                    logger.debug(
                         'List response is empty, using str(raw_content) as fallback: %s', str(raw_content)[:100]
                     )
                     result = str(raw_content)
             elif isinstance(raw_content, str):
                 try:
                     parsed_content = json.loads(raw_content)
-                    logging.debug(
+                    logger.debug(
                         'Parsed JSON content type: %s, content: %s', type(parsed_content), str(parsed_content)[:1000]
                     )
                     if isinstance(parsed_content, dict) and 'text' in parsed_content:
                         result = parsed_content['text']
-                        logging.debug("Extracted 'text' field from JSON: %s", result[:100])
+                        logger.debug("Extracted 'text' field from JSON: %s", result[:100])
                     elif isinstance(parsed_content, list) and len(parsed_content) > 0:
                         first_item = parsed_content[0]
                         if isinstance(first_item, dict) and 'text' in first_item:
                             result = first_item['text']
-                            logging.debug("Extracted 'text' field from JSON list: %s", result[:100])
+                            logger.debug("Extracted 'text' field from JSON list: %s", result[:100])
                         else:
-                            logging.debug(
+                            logger.debug(
                                 "No 'text' field in JSON list, using raw content as fallback: %s", raw_content[:100]
                             )
                             result = raw_content
                     else:
                         result = raw_content
-                        logging.debug('Treating raw content as plain string: %s', result[:100])
+                        logger.debug('Treating raw content as plain string: %s', result[:100])
                 except json.JSONDecodeError:
                     result = raw_content
-                    logging.debug('Raw content is not JSON, using as-is: %s', result[:100])
+                    logger.debug('Raw content is not JSON, using as-is: %s', result[:100])
             elif isinstance(raw_content, dict):
-                logging.debug('Raw content is dict: %s', str(raw_content)[:1000])
+                logger.debug('Raw content is dict: %s', str(raw_content)[:1000])
                 if 'text' in raw_content:
                     result = raw_content['text']
-                    logging.debug("Extracted 'text' field from dict: %s", result[:100])
+                    logger.debug("Extracted 'text' field from dict: %s", result[:100])
                 else:
-                    logging.debug(
+                    logger.debug(
                         "Dictionary response lacks 'text' field, using str(raw_content) as fallback: %s",
                         str(raw_content)[:100],
                     )
                     result = str(raw_content)
             else:
-                logging.error('Unexpected response format: %s', type(raw_content))
+                logger.error('Unexpected response format: %s', type(raw_content))
                 result = f'Error: Unexpected API response format: {type(raw_content)}'
 
             if not isinstance(result, str):
-                logging.error(
-                    'Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000]
-                )
+                logger.error('Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000])
                 result = f'Error: Extracted content is not a string: {type(result)}'
 
-            logging.debug('Final result type: %s, content: %s', type(result), result[:100])
+            logger.debug('Final result type: %s, content: %s', type(result), result[:100])
 
             # Add to cache if success
             self.ai_result_cache.append(
@@ -273,30 +271,31 @@ class AI:
             )
             self.save_cache()
 
-            logging.info('Completed policy analysis in %s seconds', (datetime.now() - start_time).total_seconds())
+            logger.info('Completed policy analysis in %s seconds', (datetime.now() - start_time).total_seconds())
             # if queue:
             #     queue.put(result)
             # else:
             #     return result
         except ServiceError as e:
             if e.status == 404:
-                logging.error('OCI GenAI returned 404 for policy analysis: %s', e)
-                result = 'Error: Policy analysis failed (404)'
+                logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
+                result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has \
+<code>allow group PolicyUsers to use generative-ai in tenancy</code><br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if self.verbose else ""}<p>'
                 # if queue:
                 #     queue.put(result)
                 # else:
                 #     return result
             else:
-                logging.error('Error calling OCI GenAI for policy analysis: %s', e)
+                logger.error('Error calling OCI GenAI for policy analysis: %s', e)
                 result = f'Error calling OCI GenAI: {str(e)}'
-            logging.info(
+            logger.info(
                 'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
             )
             # return result
         except Exception as e:
-            logging.error('Error calling OCI GenAI for policy analysis: %s', e)
+            logger.error('Error calling OCI GenAI for policy analysis: %s', e)
             result = f'Error calling OCI GenAI: {str(e)}'
-            logging.info(
+            logger.info(
                 'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
             )
         # Put on queue if it is there or return the result
@@ -307,7 +306,7 @@ class AI:
 
     def test_ai_call(self, query: str, queue: queue.Queue, use_cache: bool = False, additional_instruction: str = ''):  # noqa: C901
         """Call OCI GenAI to test AI functionality. Put the results on a Queue that is provided"""
-        logging.info(f'Given Prompt: {query}, Additional Instruction: {additional_instruction}')
+        logger.info(f'Given Prompt: {query}, Additional Instruction: {additional_instruction}')
 
         start_time = datetime.now()
         prompt = (
@@ -323,96 +322,94 @@ class AI:
             response = self.genai_inference_client.chat(chat_detail)
             raw_content = response.data.chat_response.choices[0].message.content
 
-            logging.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
+            logger.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
 
             # Process result
             if isinstance(raw_content, list):
-                logging.debug('Raw content is a list with length %d', len(raw_content))
+                logger.debug('Raw content is a list with length %d', len(raw_content))
                 if len(raw_content) > 0:
                     first_item = raw_content[0]
-                    logging.debug('First item type: %s', type(first_item))
+                    logger.debug('First item type: %s', type(first_item))
                     if hasattr(first_item, 'text'):
                         result = first_item.text
-                        logging.debug(f"Extracted 'text' attribute from first item: {result[:100]}")
+                        logger.debug(f"Extracted 'text' attribute from first item: {result[:100]}")
                     elif isinstance(first_item, dict) and 'text' in first_item:
                         result = first_item['text']
-                        logging.debug("Extracted 'text' key from first dict: %s", result[:100])
+                        logger.debug("Extracted 'text' key from first dict: %s", result[:100])
                     else:
-                        logging.debug(
+                        logger.debug(
                             "First item lacks 'text' attribute or key, using str(first_item) as fallback: %s",
                             str(first_item)[:100],
                         )
                         result = str(first_item)
                 else:
-                    logging.debug(
+                    logger.debug(
                         'List response is empty, using str(raw_content) as fallback: %s', str(raw_content)[:100]
                     )
                     result = str(raw_content)
             elif isinstance(raw_content, str):
                 try:
                     parsed_content = json.loads(raw_content)
-                    logging.debug(
+                    logger.debug(
                         'Parsed JSON content type: %s, content: %s', type(parsed_content), str(parsed_content)[:1000]
                     )
                     if isinstance(parsed_content, dict) and 'text' in parsed_content:
                         result = parsed_content['text']
-                        logging.debug("Extracted 'text' field from JSON: %s", result[:100])
+                        logger.debug("Extracted 'text' field from JSON: %s", result[:100])
                     elif isinstance(parsed_content, list) and len(parsed_content) > 0:
                         first_item = parsed_content[0]
                         if isinstance(first_item, dict) and 'text' in first_item:
                             result = first_item['text']
-                            logging.debug("Extracted 'text' field from JSON list: %s", result[:100])
+                            logger.debug("Extracted 'text' field from JSON list: %s", result[:100])
                         else:
-                            logging.debug(
+                            logger.debug(
                                 "No 'text' field in JSON list, using raw content as fallback: %s", raw_content[:100]
                             )
                             result = raw_content
                     else:
                         result = raw_content
-                        logging.debug('Treating raw content as plain string: %s', result[:100])
+                        logger.debug('Treating raw content as plain string: %s', result[:100])
                 except json.JSONDecodeError:
                     result = raw_content
-                    logging.debug('Raw content is not JSON, using as-is: %s', result[:100])
+                    logger.debug('Raw content is not JSON, using as-is: %s', result[:100])
             elif isinstance(raw_content, dict):
-                logging.debug('Raw content is dict: %s', str(raw_content)[:1000])
+                logger.debug('Raw content is dict: %s', str(raw_content)[:1000])
                 if 'text' in raw_content:
                     result = raw_content['text']
-                    logging.debug("Extracted 'text' field from dict: %s", result[:100])
+                    logger.debug("Extracted 'text' field from dict: %s", result[:100])
                 else:
-                    logging.debug(
+                    logger.debug(
                         "Dictionary response lacks 'text' field, using str(raw_content) as fallback: %s",
                         str(raw_content)[:100],
                     )
                     result = str(raw_content)
             else:
-                logging.error('Unexpected response format: %s', type(raw_content))
+                logger.error('Unexpected response format: %s', type(raw_content))
                 result = f'Error: Unexpected API response format: {type(raw_content)}'
 
             if not isinstance(result, str):
-                logging.error(
-                    'Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000]
-                )
+                logger.error('Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000])
                 result = f'Error: Extracted content is not a string: {type(result)}'
 
-            logging.debug('Final result type: %s, content: %s', type(result), result[:100])
+            logger.debug('Final result type: %s, content: %s', type(result), result[:100])
 
-            logging.info('Completed test call in %s seconds', (datetime.now() - start_time).total_seconds())
+            logger.info('Completed test call in %s seconds', (datetime.now() - start_time).total_seconds())
 
         except ServiceError as e:
             if e.status == 404:
-                logging.error('OCI GenAI returned 404 for policy analysis: %s', e)
-                result = 'Error: Policy analysis failed (404)'
+                logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
+                result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has access to use generative-ai in tenancy.<br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if logger.level == logger.debug else ""}<p>'
 
             else:
-                logging.error('Error calling OCI GenAI for policy analysis: %s', e)
+                logger.error('Error calling OCI GenAI for policy analysis: %s', e)
                 result = f'Error calling OCI GenAI: {str(e)}'
-            logging.info(
+            logger.info(
                 'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
             )
         except Exception as e:
-            logging.error('Error calling OCI GenAI for policy analysis: %s', e)
+            logger.error('Error calling OCI GenAI for policy analysis: %s', e)
             result = f'Error calling OCI GenAI: {str(e)}'
-            logging.info(
+            logger.info(
                 'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
             )
 
