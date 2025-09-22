@@ -10,3 +10,11 @@ icons/
 **/.DS_Store
 images/.$icon_source.drawio.bkp
 
+# Sphinx
+docs/_build/
+_build/
+docs/_autosummary/
+_autosummary/
+# Sphinx cache files
+docs/.doctrees/
+docs/.buildinfo
