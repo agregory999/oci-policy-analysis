@@ -1,3 +1,4 @@
-oci>=2.130.0
-tksheet>=7.2.12
-ttkbootstrap>=1.10.1
+oci>=2.160.1
+deepdiff>=8.6.1
+ttkbootstrap>=1.14.2
+markdown>=3.9

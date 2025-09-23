@@ -44,7 +44,7 @@ This is only required if you are not running the executables, which have the app
     ```
 
 ### OCI SDK and Dependencies
-   - The application requires the `oci`, `ttkbootstrap`, and `tksheet` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for details
+   - The application requires the `oci`, `ttkbootstrap`, and `deepdiff` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for details
 
 ### OCI Configuration
 
@@ -88,13 +88,12 @@ allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to {POLICY_READ, COMP
 
 Once created, download the tool or clone the repository from your OCI instance and give it a try.
 
-### TKInter / TKSheet / TTKBootstrap Configuration
+### TKInter / TTKBootstrap Configuration
 
 Only required for locally running the scripts.
 
    - TKInter for UI - Detailed information is maintained here: [Python TKInter](https://docs.python.org/3/library/tkinter.html#)
-   - Both `tksheet` and `ttkbootstrap` are in addition to the core TKInter installation and are installed via PIP.
-   - TKSheet is a great tool for displaying table-based data with sorting, searching, and a host of other features.  More on that here: [TKSheet](https://pypi.org/project/tksheet/)
+   - Both `deepdiff` and `ttkbootstrap` are in addition to the core TKInter installation and are installed via PIP.
    - TTKBootstrap improves the look and feel of TKInter applications.  Many of the widgets (ie dropdowns) are based on TTKBootstrap.  More on that here: [TTKBootstrap](https://ttkbootstrap.readthedocs.io/en/latest/)
 
 ## Installation
@@ -155,11 +154,11 @@ Once PIP is ready, proceed to the next section
 
 Install required packages for the tool:
 ```bash
-pip install oci ttkbootstrap tksheet
+pip install oci ttkbootstrap deepdiff markdown
 ```
 If you encounter permission errors on Linux, use a user install.  Note that for virtual environments, this is unlikely to happen to you.  It can happen for the machine-based python installation, if you are not an administrator:
 ```bash
-pip install --user oci ttkbootstrap tksheet
+pip install --user oci ttkbootstrap deepdiff markdown
 ```
 
 ### Ensure TKInter 
