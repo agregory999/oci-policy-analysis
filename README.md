@@ -3,13 +3,15 @@
 ## Overview
 The **OCI Policy and Dynamic Group Viewer** is a graphical desktop application built with Python and Tkinter for Oracle Cloud Infrastructure (OCI) administrators. It allows you to analyze and visualize OCI policies, dynamic groups, and user permissions within a tenancy. Key features include:
 
-- **Policy Analysis**: View and filter IAM policy statements across compartments, with details like subject, verb, resource, and conditions.
+- **Policy Analysis**: View and filter parsed IAM policy statements across compartments, with details like subject, verb, resource, and conditions.
 - **Dynamic Group Analysis**: Display dynamic groups, their matching rules, and check for unused groups.
-- **User Analysis**: Filter policy statements applicable to a user based on their group memberships, with compartment filtering.
+- **Resource Principal Analysis**: Display resource principals and search for relevant policy statements.
+- **User Analysis**: Filter policy statements applicable to a user based on their group memberships.
 - **Advanced Analysis**: Placeholder for principal-based analysis (e.g., Instance Principal, Resource Principal).
 - **Caching**: Save and load data to/from a local cache for faster access.
-- **Export**: Export filtered data to CSV for further analysis.
+- **Export**: Export filtered data to CSV or JSON for further analysis.  Good for offline usage.
 - **Cross-Platform**: Runs on Windows and Linux with a user-friendly GUI.
+- **GenAI Insights**: Takes advantage of AI to create insights that may help users understand a policy statement.
 
 The application supports both Instance Principal authentication (for OCI compute instances) and OCI configuration file-based authentication (using named profiles).
 
@@ -74,6 +76,7 @@ The minimal policy statement looks like this:
 
 ```
 allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+allow group <your_group> to use generative-ai-family in tenancy
 ```
 
 **NOTE** If you already have read access to policies, compartments, and domains, you should be good to go.  
@@ -177,16 +180,16 @@ Navigate to the repository.  You can run the program directly from the repositor
 
 Run the UI using `python` or `python3`, depending on how you have your Python installation:
 ```bash
-prompt: repo dir> python3 src/oci_policy_dg_viewer.py
+prompt: repo dir> python3 src/oci_policy_dg_viewer/viewer.py
 ```
 On Windows, you may use:
 ```bash
-prompt: repo dir> python src\oci_policy_dg_viewer.py
+prompt: repo dir> python src\oci_policy_dg_viewer\viewer.py
 ```
 
 For verbose logging (useful for debugging), add the `-v` flag:
 ```bash
-prompt: repo dir> python3 src/oci_policy_dg_viewer.py -v
+prompt: repo dir> python3 src/oci_policy_dg_viewer/viewer.py -v
 ```
 Logging output may assist you with issue tracking, but it is better to leave verbose logging disabled (no option given) unless there are issues.   
 
@@ -198,7 +201,7 @@ Logging output may assist you with issue tracking, but it is better to leave ver
      - TODO
    - **Load Data**:
      - Click "Load from Tenancy" to fetch policies, dynamic groups, and user data from OCI.
-     - Click "Load from Cache" to use previously saved data (stored in `~/.oci/cache/` or `%USERPROFILE%\.oci\cache\`).
+     - Click "Load from Cache" to use previously saved data (stored in `~/.oci-policy-analysis/cache/` or `%USERPROFILE%\.oci-policy-analysis\cache\`).
    - **Tabs**:
      - **All Policies**: Filter and view all policy statements.
      - **Dynamic Groups**: Analyze dynamic groups and their usage.
@@ -206,30 +209,11 @@ Logging output may assist you with issue tracking, but it is better to leave ver
      - **Advanced Analysis**: Placeholder for principal-based analysis.
    - **Export**: Use the "Export CSV" buttons to save filtered data.
 
-### Running as an Executable
-To run the application without installing Python, you use the pre-built standalone executable (built using `PyInstaller --one-file`) :
-1. **Install PyInstaller**:
-   ```bash
-   pip install pyinstaller
-   ```
-2. **Create the Executable**:
-   - In the directory with `oci_policy_dg_viewer.py`, run:
-     ```bash
-     pyinstaller --onefile oci_policy_dg_viewer.py
-     ```
-   - This creates a single executable in the `dist/` folder.
-3. **Run the Executable**:
-   - On Windows: Double-click `dist\oci_policy_dg_viewer.exe` or run it from the command line.
-   - On Linux: Run `./dist/oci_policy_dg_viewer` from a terminal.
-   - Note: The executable requires the OCI config file for non-Instance Principal authentication, and Instance Principal still requires running on an OCI compute instance.
-4. **Troubleshooting**:
-   - Ensure the OCI config file is in the correct location.
-   - For large tenancies, the executable may take longer to start due to bundled dependencies.
-   - If issues arise, run with `-v` for verbose logging: `oci_policy_dg_viewer.exe -v`.
+### Build as an Executable
+TBD
 
 ### Notes
 - **Permissions**: Ensure your OCI user or instance has IAM permissions to read policies, dynamic groups, compartments, identity domains, and user group memberships.
-- **Cache**: Data is cached in `~/.oci/cache/` (Linux) or `%USERPROFILE%\.oci\cache\` (Windows) to speed up subsequent loads.
 - **Support**: This is not an official Oracle application and is not supported by Oracle Support. For issues, check the logs or contact the repository maintainer.
 
 ## Run the Application (non-UI)
@@ -237,5 +221,6 @@ To run the application without installing Python, you use the pre-built standalo
 To run with no UI, this section is in progress.  Essentially we can run the core, which loads the policies from cache or the tenancy, and simply outputs them to the console.  Filtering and export will be added in a later release
 
 ```bash 
-prompt: repo dir> python src/oci_policy_dg_viewer/oci_policy_dg_core.py
+prompt: repo dir> python src/oci_policy_dg_viewer/core.py --help
 ```
+Follow the options and run again
