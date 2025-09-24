@@ -35,12 +35,9 @@ from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
 from oci.identity.models import Compartment, Domain, Policy
-from oci.identity.models import Compartment, Domain, Policy
 from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
-from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
-from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 
 # Constants
@@ -488,12 +485,9 @@ class PolicyCompartmentAnalysis:
             else:
                 logger.debug(f'No policies found for compartment: {compartment.id}')
                 return
-                parse_time = time.perf_counter()
-                logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
+            parse_time = time.perf_counter()
+            logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
 {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s')
-            else:
-                logger.debug(f'No policies found for compartment: {compartment.id}')
-                return
 
         except Exception as se:
             logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
