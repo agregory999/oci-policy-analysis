@@ -187,14 +187,9 @@ class PolicyCompartmentAnalysis:
             logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
             return comp_string, hierarchy_ocids
 
-    def check_invalid_location(self, compartment_ocid) -> bool:
-        # Given a compartment OCID-based location, return False if there is no compartment (any more)
-        # # Get this from the compartment tree we have already
-        # if not self.get_compartment_by_id(compartment_ocid):
-        #     logger.warning(f'Compartment OCID {compartment_ocid} not valid.')
-        #     return False
-        # else:
-        #     return True
+    def _check_invalid_location(self, compartment_ocid) -> bool:
+        """Given a compartment OCID-based location, return False if there is no compartment (any more)"""
+
         try:
             comp: Compartment = self.identity_client.get_compartment(compartment_id=compartment_ocid).data
             if comp.lifecycle_state == Compartment.LIFECYCLE_STATE_ACTIVE:
@@ -207,9 +202,8 @@ class PolicyCompartmentAnalysis:
             # Any error means it is invalid
             logger.warning(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
-        return True
 
-    def parse_subjects(self, subject_string) -> list[tuple[str, str]]:
+    def _parse_subjects(self, subject_string) -> list[tuple[str, str]]:
         """Parse a comma-separated string of subjects and return list of (domain, name) tuples"""
         # Split by comma and strip whitespace
         subject_parts = [part.strip() for part in subject_string.split(',')]
@@ -254,8 +248,14 @@ class PolicyCompartmentAnalysis:
 
         return results
 
-    def parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
-        # TODO: Grab policy description and save that somehow
+    def _parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
+        """Parses a policy statement into component parts
+        Subject / Verb / Resource(or permission) / Location / Conditions (opt) / Comments (opt)
+
+        This is the main parsing logic that uses Regular Expressions and post-parsing logic.
+        An example of post-parsing would be to separate the subject list into an actual list of tuples
+        representing the domain and group or dynamic group.
+        """
         comp = self.get_compartment_by_id(comp_id)
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
@@ -276,6 +276,7 @@ class PolicyCompartmentAnalysis:
                     define_dict = {
                         'Policy Name': policy.name,
                         'Policy OCID': policy.id,
+                        'Policy Description': policy.description,
                         'Creation Time': str(policy.time_created),
                         'Statement Text': statement,
                         'Defined Type': result.get('define_type'),
@@ -301,88 +302,7 @@ class PolicyCompartmentAnalysis:
             }
             self.cross_tenancy_statements.append(statement_dict)
             return True
-            # # Parse Admit
-            # # result = re.match(CROSS_TENANCY_ADMIT_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-            # try:
-            #     match_result = admit_regex.match(statement)
-            #     if not match_result or not match_result.groupdict():
-            #         logger.debug(f'Admit Statement did not parse: {statement}')
-            #         statement_list = [
-            #             policy.name,
-            #             statement,  # 0,1
-            #             policy.id,
-            #             str(policy.time_created),
-            #             False,  # Advanced Parsing available
-            #         ]
-            #         logger.debug(f'Cross-tenancy admit statement added but not parsed: {statement_list}')
-            #         self.cross_tenancy_statements.append(statement_list)
-            #         return False
-            #     # It did parse ok
-            #     result = match_result.groupdict()
-            #     statement_list = [
-            #         policy.name,
-            #         statement,  # 0,1
-            #         policy.id,  # 2
-            #         str(policy.time_created),  # 3
-            #         True,
-            #         result.get('statement_type'),  # 2
-            #         result.get('principal'),  # 3 (subj)
-            #         result.get('of_tenancy'),  # 3 (of tenancy)
-            #         f"{result.get('action')} {result.get('resources')}"
-            #         if result.get('action')
-            #         else result.get('permission'),  # action resource or permission = 4
-            #         result.get('location'),  # 5
-            #         result.get('where_clause') or '',  # 6
-            #         result.get('comment') or '',  # 7
-            #     ]
-            #     logger.debug(f'Cross-tenancy admit statement added: {statement_list}')
-            #     self.cross_tenancy_statements.append(statement_list)
-            #     return True
-            # except Exception as e:
-            #     logger.warning(f'Failed to parse admit: {e}')
-            #     return False
-
-        # elif statement.startswith('endorse'):
-        #     try:
-        #         # Parse Endorse
-        #         # result = re.match(CROSS_TENANCY_ENDORSE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-        #         match_result = endorse_regex.match(statement)
-        #         if not match_result or not match_result.groupdict():
-        #             logger.debug(f'Statement did not parse: {statement}')
-        #             statement_list = [
-        #                 policy.name,
-        #                 statement,  # 0,1
-        #                 policy.id,
-        #                 str(policy.time_created),
-        #                 False,  # Advanced Parsing available
-        #             ]
-        #             logger.debug(f'Cross-tenancy endorse statement added but not parsed: {statement_list}')
-        #             self.cross_tenancy_statements.append(statement_list)
-        #             return False
-        #         # It did parse
-        #         result = match_result.groupdict()
-        #         statement_list = [
-        #             policy.name,
-        #             statement,  # 0,1
-        #             policy.id,  # 2
-        #             str(policy.time_created),  # 3
-        #             True,  # Parsed, 4
-        #             result.get('statement_type'),  # 5
-        #             result.get('principal'),  # 6 (subj)
-        #             result.get('of_tenancy'),  # 7 (of tenancy)
-        #             f"{result.get('action')} {result.get('resources')}"
-        #             if result.get('action')
-        #             else result.get('permission'),  # action resource or permission = 8
-        #             result.get('location'),  # 9
-        #             result.get('where_clause') or '',  # 10
-        #             result.get('comment') or '',  # 11
-        #         ]
-        #         logger.debug(f'Cross-tenancy endorse statement added: {statement_list}')
-        #         self.cross_tenancy_statements.append(statement_list)
-        #         return True
-        #     except Exception as e:
-        #         logger.warning(f'Failed to parse endorse: {e}')
-        #         return False
+            # TODO: try corss-tenancy parsing again
 
         # Regular Statements are everything else
         else:
@@ -443,7 +363,7 @@ class PolicyCompartmentAnalysis:
                     else:
                         # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
                         # Try new subject parser
-                        subject_result = self.parse_subjects(statement_list[7])
+                        subject_result = self._parse_subjects(statement_list[7])
                         logger.debug(f'Subject parsed: {subject_result}')
                         # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
                         statement_list[7] = subject_result
@@ -451,7 +371,7 @@ class PolicyCompartmentAnalysis:
                     # Additional check for Location Validity
                     if statement_list[11].casefold() == 'compartment id':
                         # Check and change validity accordingly
-                        statement_list[5] = self.check_invalid_location(statement_list[12])
+                        statement_list[5] = self._check_invalid_location(statement_list[12])
                         logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
 
                 except Exception as e:
@@ -521,7 +441,7 @@ class PolicyCompartmentAnalysis:
                 for policy in policies_response.data:
                     for statement in policy.statements:
                         # Maybe just let the parser add to either list - returns False if not parsed
-                        if not self.parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
+                        if not self._parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
                             logger.warning(f'Statement was unable to parse: {statement}')
                         this_comp_count += 1
 
@@ -536,7 +456,13 @@ class PolicyCompartmentAnalysis:
             logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
 
     def load_policies_and_compartments(self) -> bool:
-        """Load all compartments and policies.  If recursive was selected, use a thread pool and the worker function."""
+        """Load all compartments and policies from a tenancy using OCI Clients.
+
+        If recursive was selected, use a thread pool and the worker function.
+
+        Returns:
+            a boolean indicating success or failure
+        """
         self.compartments = []
         self.regular_statements = []
         start_time = time.perf_counter()
@@ -589,9 +515,9 @@ class PolicyCompartmentAnalysis:
     def get_compartment_by_id(self, compartment_id: str) -> dict:
         return next((c for c in self.compartments if c['id'] == compartment_id), None)
 
-    def get_hierarchy_ocids(self, compartment_id: str) -> list[str]:
-        comp = self.get_compartment_by_id(compartment_id)
-        return comp['hierarchy_ocids'] if comp else []
+    # def get_hierarchy_ocids(self, compartment_id: str) -> list[str]:
+    #     comp = self.get_compartment_by_id(compartment_id)
+    #     return comp['hierarchy_ocids'] if comp else []
 
     # Filtering logic - return a list of policy statements matching given filter
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
@@ -676,7 +602,25 @@ class PolicyCompartmentAnalysis:
         text_filter=None,
         policy_filter=None,
     ) -> list:
-        """Given the filters from the UI, return the list of matching policy statements.  Process the | as logical OR."""
+        """Given the filters from the UI, return the list of matching policy statements.  Process the | as logical OR.
+
+        There are 8 filters that can be applied.  Each filter is treated as its own and then they are applied at the
+        end using logical AND.  If more than 1 filter is used, both must be true for the policy statement to be
+        returned.
+
+        Args:
+            subj_filter: A delimited list of subjects that could appear in the policy statement. Supports | for OR
+            verb_filter: A delimited list of verbs that could appear in the policy statement. Supports | for OR
+            resource_filter: A delimited list of resources that could appear in the policy statement. Supports | for OR
+            location_filter: A delimited list of locations that could appear in the policy statement. Supports | for OR
+            hierarchy_filter: A delimited list of heierachy locations that could appear in the policy statement. Supports | for OR
+            condition_filter: A delimited list of conditions that could appear in the policy statement. Supports | for OR
+            text_filter: A delimited list of text bits that could appear in the policy statement. Supports | for OR
+            policy_filter: A delimited list of policy names that could appear in the policy statement. Supports | for OR
+
+        Returns:
+            a list of JSON dicts representing policy statemewnts matching the criteria
+        """
         filtered = []
         subject_terms = [term.strip().lower() for term in subj_filter.split('|') if term.strip()] if subj_filter else []
         verb_terms = [term.strip().lower() for term in verb_filter.split('|') if term.strip()] if verb_filter else []
@@ -715,7 +659,9 @@ class PolicyCompartmentAnalysis:
             matches_hierarchy = (
                 not hierarchy_terms
                 or any(term in str(st.get('Policy Compartment')).lower() for term in hierarchy_terms)
-                or (st.get('Policy Compartment') == 'ROOT' and hierarchy_terms[0] == 'root')
+                or (
+                    st.get('Compartment OCID') == self.tenancy_ocid and hierarchy_terms[0] == 'rootonly'
+                )  # Uses Root Level boolean
             )
             matches_condition = not condition_terms or any(
                 term in str(st.get('Conditions')).lower().replace(' ', '') for term in condition_terms
@@ -961,7 +907,7 @@ class IdentityDomainsAnalysis:
         return dg_dict
         # TODO: Add back invalid OCID analysis
 
-    def _load_all_dynamic_groups(self) -> bool:
+    def load_all_dynamic_groups(self) -> bool:
         """Load all of the dynamic groups across all Identity Domains"""
         self.dynamic_groups = []
 
@@ -1524,7 +1470,7 @@ def main():  # noqa: C901
         if not policy_analysis.load_policies_and_compartments():
             logger.error('Failed to load policies and compartments from OCI')
             return
-        if not domains_analysis._load_all_dynamic_groups():
+        if not domains_analysis.load_all_dynamic_groups():
             logger.error('Failed to load dynamic groups from OCI')
             return
         if not domains_analysis.load_domains_groups_users():

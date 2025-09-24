@@ -42,7 +42,7 @@ class DataTable(tk.Frame):
         row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
     ) -> None:
         super().__init__(parent)
-        logger.info('Initializing DataTable with %d columns and %d rows', len(columns), len(data))
+        logger.debug('Initializing DataTable with %d columns and %d rows', len(columns), len(data))
 
         self.all_columns = columns
         self.display_columns = display_columns

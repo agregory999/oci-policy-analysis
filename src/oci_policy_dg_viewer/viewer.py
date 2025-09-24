@@ -742,7 +742,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         def _toggle_hierarchy_root():
             if self.hierarchy_filter_root.get():
                 self.entry_hierarchy.delete(0, tk.END)
-                self.entry_hierarchy.insert(0, 'ROOT')
+                self.entry_hierarchy.insert(0, 'ROOTONLY')
                 self.entry_hierarchy.config(state=tk.DISABLED)
             else:
                 self.entry_hierarchy.config(state=tk.NORMAL)
@@ -753,8 +753,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
         def _clear_policy_filters():
             for entry in [
-                self.entry_subj,
-                self.entry_verb,
+                self.subject_filter_var,
+                self.verb_filter_var,
                 self.entry_res,
                 self.entry_loc,
                 self.entry_hierarchy,
@@ -794,7 +794,12 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.subject_filter_var = tk.StringVar()
         self.use_subject_any = tk.BooleanVar()
         self.verb_filter_var = tk.StringVar()
+        self.location_filter_var = tk.StringVar()
         self.resource_filter_var = tk.StringVar()
+        self.hierarchy_filter_var = tk.StringVar()
+        self.condition_filter_var = tk.StringVar()
+        self.text_filter_var = tk.StringVar()
+        self.policy_filter_var = tk.StringVar()
 
         # Within the policy filter frame, create the filter fields and buttons
         frm_subj = ttk.Frame(frm_policy_filter)
@@ -821,7 +826,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.label_location = ttk.Label(frm_policy_filter, text='Location').grid(
             row=2, column=2, padx=5, pady=2, sticky='w'
         )
-        self.entry_loc = tk.Entry(frm_loc, width=20)
+        self.entry_loc = tk.Entry(frm_loc, width=20, textvariable=self.location_filter_var)
         self.entry_loc.grid(row=0, column=0, padx=2, sticky='ew')
         self.location_filter_tenancy = tk.BooleanVar()
         ttk.Checkbutton(
@@ -831,32 +836,31 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
         frm_hierarchy = ttk.Frame(frm_policy_filter)
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        self.entry_hierarchy = tk.Entry(frm_hierarchy, width=20)
+        self.entry_hierarchy = tk.Entry(frm_hierarchy, width=20, textvariable=self.hierarchy_filter_var)
         self.entry_hierarchy.grid(row=0, column=0, padx=2, sticky='ew')
         self.hierarchy_filter_root = tk.BooleanVar()
         ttk.Checkbutton(
-            frm_hierarchy, text='Root', variable=self.hierarchy_filter_root, command=_toggle_hierarchy_root
+            frm_hierarchy, text='Tenancy Root Only', variable=self.hierarchy_filter_root, command=_toggle_hierarchy_root
         ).grid(row=0, column=1, padx=2)
         frm_hierarchy.grid(row=3, column=1, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=2, padx=5, pady=2, sticky='w')
-        self.entry_condition = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
+        self.entry_condition = tk.Entry(frm_policy_filter, width=20, textvariable=self.condition_filter_var)
         self.entry_condition.grid(row=3, column=3, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
-        self.entry_text = tk.Entry(frm_policy_filter, state=tk.DISABLED, width=20)
-        self.entry_text.grid(row=4, column=1, padx=5, pady=2, sticky='ew')
+        entry_text = tk.Entry(frm_policy_filter, width=20, textvariable=self.text_filter_var)
+        entry_text.grid(row=4, column=1, padx=5, pady=2, sticky='ew')
 
-        self.policy_name_var = tk.StringVar()
         ttk.Label(frm_policy_filter, text='Policy Name').grid(row=4, column=2, padx=5, pady=2, sticky='w')
-        self.entry_policy = tk.Entry(frm_policy_filter, textvariable=self.policy_name_var, state=tk.DISABLED, width=20)
-        self.entry_policy.grid(row=4, column=3, padx=5, pady=2, sticky='ew')
+        entry_policy = tk.Entry(frm_policy_filter, textvariable=self.policy_filter_var, width=20)
+        entry_policy.grid(row=4, column=3, padx=5, pady=2, sticky='ew')
 
         frm_policy_buttons = ttk.Frame(frm_policy_filter)
         self.btn_update = ttk.Button(
             frm_policy_buttons, text='Update', state=tk.DISABLED, command=self._update_policy_output
         )
-        self.btn_update.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
+        # self.btn_update.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
         self.btn_clear = ttk.Button(frm_policy_buttons, text='Clear', state=tk.DISABLED, command=_clear_policy_filters)
         self.btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
 
@@ -969,6 +973,11 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.subject_filter_var.trace_add('write', self._update_policy_output)
         self.verb_filter_var.trace_add('write', self._update_policy_output)
         self.resource_filter_var.trace_add('write', self._update_policy_output)
+        self.location_filter_var.trace_add('write', self._update_policy_output)
+        self.hierarchy_filter_var.trace_add('write', self._update_policy_output)
+        self.condition_filter_var.trace_add('write', self._update_policy_output)
+        self.text_filter_var.trace_add('write', self._update_policy_output)
+        self.policy_filter_var.trace_add('write', self._update_policy_output)
 
     def create_tab_dynamic_groups(self):
         # Tab creation for Dynamic Groups
@@ -1942,11 +1951,11 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             self.subject_filter_var.get(),
             self.verb_filter_var.get(),
             self.resource_filter_var.get(),
-            self.entry_loc.get(),
-            'ROOT' if self.hierarchy_filter_root.get() else self.entry_hierarchy.get(),
-            self.entry_condition.get(),
-            self.entry_text.get(),
-            self.entry_policy.get(),
+            self.location_filter_var.get(),
+            'ROOTONLY' if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get(),
+            self.condition_filter_var.get(),
+            self.text_filter_var.get(),
+            self.policy_filter_var.get(),
         )
 
         # Apply additional filters for output
@@ -2276,14 +2285,14 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
         if filepath:
             filtered = self.policy_compartment_analysis.filter_policy_statements(
-                self.entry_subj.get(),
-                self.entry_verb.get(),
-                self.entry_res.get(),
-                self.entry_loc.get(),
-                self.entry_hierarchy.get(),
-                self.entry_condition.get(),
-                self.entry_text.get(),
-                self.entry_policy.get(),
+                self.subject_filter_var.get(),
+                self.verb_filter_var.get(),
+                self.resource_filter_var.get(),
+                self.location_filter_var.get(),
+                self.hierarchy_filter_var.get(),
+                self.condition_filter_var.get(),
+                self.text_filter_var.get(),
+                self.policy_filter_var.get(),
             )
             with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
@@ -2381,14 +2390,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             # Allow entry in some of the widgets (after load)
             e.config(state=tk.NORMAL)
             for e in [
-                # self.entry_subj,
-                # self.entry_verb,
-                # self.entry_res,
-                self.entry_loc,
-                self.entry_hierarchy,
-                self.entry_condition,
-                self.entry_text,
-                self.entry_policy,
                 self.dg_entry_domain,
                 self.dg_entry_name,
                 self.dg_entry_type,
