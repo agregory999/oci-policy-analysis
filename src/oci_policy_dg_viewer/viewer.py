@@ -1680,27 +1680,52 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 parent_id = self.comparison_tree.insert('', 'end', text=change_type, open=True, tags=(parent_tag,))
                 for path, details in changes.items():
                     if isinstance(details, dict) and 'old_value' in details:
+                        # this is a change
+                        # Ignore the data_as_of field
                         old_value = details['old_value']
                         new_value = details['new_value']
+
+                        # Attempt to make a dictionary because everything is essentially a list
                         old_dict = {}
                         new_dict = {}
                         try:
                             old_dict = json.loads(old_value)
                             new_dict = json.loads(new_value)
+                            logger.info(f'Old value is {old_dict}')
+                            logger.info(f'New value is {new_dict}')
                         except Exception as e:
                             logger.debug(f'Error: {e}')
-                        logger.info(f'Old value is {old_dict}')
-                        logger.info(f'New value is {new_dict}')
                         if old_dict.get('Statement Text'):
-                            node_text = f'Policy {path}: {old_dict} → {new_dict}'
+                            node_text = f'Policy changed: {old_dict} → {new_dict}'
                         else:
                             node_text = f'Def {path}: {old_value} → {new_value}'
                         tag = 'changed'
                     elif 'added' in change_type:
-                        node_text = f'{path}: {details}'
+                        # Check the JSON fields
+                        if details.get('Statement Text'):
+                            node_text = f"Policy added: {details.get('Policy Name')} // {details.get('Statement Text')}"
+                        elif details.get('User Name'):
+                            node_text = f"User added: {details.get('Domain Name')} // {details.get('User Name')}"
+                        elif details.get('Group Name'):
+                            node_text = f"Group added: {details.get('Domain Name')} // {details.get('Group Name')}"
+                        elif details.get('DG Name'):
+                            node_text = f"DG added: {details.get('DG Domain')} // {details.get('DG Name')}"
+                        else:
+                            node_text = f'{path}: {details}'
+                        # node_text = f'{path}: {details}'
                         tag = 'added'
                     elif 'removed' in change_type:
-                        node_text = f'{path}: {details}'
+                        # Check the JSON fields
+                        if details.get('Statement Text'):
+                            node_text = f"Policy statement removed: {details.get('Policy Name')} // {details.get('Statement Text')}"
+                        elif details.get('User Name'):
+                            node_text = f"User removed: {details.get('Domain Name')} // {details.get('User Name')}"
+                        elif details.get('Group Name'):
+                            node_text = f"Group removed: {details.get('Domain Name')} // {details.get('Group Name')}"
+                        elif details.get('DG Name'):
+                            node_text = f"DG removed: {details.get('Domain Name')} // {details.get('DG Name')}"
+                        else:
+                            node_text = f'{path}: {details}'
                         tag = 'removed'
                     else:
                         node_text = f'{path}: {details}'
