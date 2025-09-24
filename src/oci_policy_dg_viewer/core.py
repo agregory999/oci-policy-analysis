@@ -5,9 +5,12 @@
 # DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
 #
 # core.py
+# core.py
 #
 # @author: Andrew Gregory
+# @author: Andrew Gregory
 #
+# Supports Python 3.11 and above
 # Supports Python 3.11 and above
 #
 # coding: utf-8
@@ -25,15 +28,19 @@ from pathlib import Path
 
 # Third-party imports
 # import oci
+# import oci
 from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
 from oci.identity.models import Compartment, Domain, Policy
+from oci.identity.models import Compartment, Domain, Policy
 from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
+from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
+from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 
 # Constants
@@ -111,6 +118,22 @@ class PolicyCompartmentAnalysis:
         identity_client: The OCI client that is initialized and used for all data loading purposes.
     """
 
+    """This is the main data repository for Policy and Compartment data
+
+    During initialization, the entire compartment hierarchy and policy tree is loaded into a central JSON dictionary.
+    This central dictionary is then referenced by functions that filter and return a subset of information for display.
+    Parsing, additional analysis, and import/export are made available by additional functions exposed.
+
+    Attributes:
+        compartments: A list of JSON dicts containing the compartment hierarchy
+        regular_statements: A list of JSON dicts containing the individual regular policy statements within an OCI tenancy
+        cross_tenancy_statements: A list of JSON dicts containing the individual cross-tenancy policy statements within an OCI tenancy
+        defined_aliases: A list of JSON dicts containing the "define" statements within an OCI tenancy, used for cross-tenancy evaluation
+        data_as_of: The timestamp that this data load was completed.
+        tenancy_ocid: The OCID of the tenancy being analyzed here.
+        identity_client: The OCI client that is initialized and used for all data loading purposes.
+    """
+
     def __init__(self, verbose: bool):
         # self.logger = logging.getLogger('oci-policy-compartment-analysis')
         if verbose:
@@ -126,6 +149,20 @@ class PolicyCompartmentAnalysis:
         logger.info('Initialized PolicyCompartmentAnalysis')
 
     def initialize_client(self, use_instance_principal: bool, recursive: bool = True, profile: str = 'DEFAULT') -> bool:
+        """Initializes the OCI client to be used for all data operations
+
+        Client can be loaded using PROFILE or Instance Principal authentication methods
+
+        Args:
+            use_instance_principal: Whether to attempt Instance Principal signer-based authentication
+            recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
+            profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
+
+        Returns:
+            A boolean indicating whether the client was created successfully.  False indicates that an unrecoverable issue occurred
+            setting up the client.
+
+        """
         """Initializes the OCI client to be used for all data operations
 
         Client can be loaded using PROFILE or Instance Principal authentication methods
@@ -248,14 +285,8 @@ class PolicyCompartmentAnalysis:
 
         return results
 
-    def _parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
-        """Parses a policy statement into component parts
-        Subject / Verb / Resource(or permission) / Location / Conditions (opt) / Comments (opt)
-
-        This is the main parsing logic that uses Regular Expressions and post-parsing logic.
-        An example of post-parsing would be to separate the subject list into an actual list of tuples
-        representing the domain and group or dynamic group.
-        """
+    def parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
+        # TODO: Grab policy description and save that somehow
         comp = self.get_compartment_by_id(comp_id)
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
@@ -441,10 +472,16 @@ class PolicyCompartmentAnalysis:
                 for policy in policies_response.data:
                     for statement in policy.statements:
                         # Maybe just let the parser add to either list - returns False if not parsed
-                        if not self._parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
+                        if not self.parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
                             logger.warning(f'Statement was unable to parse: {statement}')
                         this_comp_count += 1
 
+                parse_time = time.perf_counter()
+                logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
+{len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s')
+            else:
+                logger.debug(f'No policies found for compartment: {compartment.id}')
+                return
                 parse_time = time.perf_counter()
                 logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
 {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s')
@@ -502,6 +539,15 @@ class PolicyCompartmentAnalysis:
                 # Call the worker on its own with just the root compartment
                 self.load_compartment_and_policies_worker(compartment=root_comp)
             # Keep track of the time of this completed data load
+
+            if self.recursive:
+                # Use a thread pool
+                with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
+                    executor.map(self.load_compartment_and_policies_worker, comp_list)
+            else:
+                # Call the worker on its own with just the root compartment
+                self.load_compartment_and_policies_worker(compartment=root_comp)
+            # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.datetime.now())
             policy_finish_time = time.perf_counter()
             logger.info(
@@ -519,6 +565,7 @@ class PolicyCompartmentAnalysis:
     #     comp = self.get_compartment_by_id(compartment_id)
     #     return comp['hierarchy_ocids'] if comp else []
 
+    # Filtering logic - return a list of policy statements matching given filter
     # Filtering logic - return a list of policy statements matching given filter
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
         # Iterate cross-tenant policies
