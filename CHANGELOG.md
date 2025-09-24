@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.4.1...v1.5.0) (2025-09-24)
+
+
+### Features
+
+* new user and group analysis ([9d5253c](https://github.com/agregory999/oci-policy-analysis/commit/9d5253c61f1c49a52bae7d743a665bf539b6e7aa))
+
+
+### Bug Fixes
+
+* Tenancy root, docstrings and tidy ([9c62617](https://github.com/agregory999/oci-policy-analysis/commit/9c626178ddae92ea58c4f6ddb915aae47577b8ac))
+
+
+### Miscellaneous Chores
+
+* newest requirements ([ea9e06a](https://github.com/agregory999/oci-policy-analysis/commit/ea9e06a9e71eeceaedab20195d20637873107193))
+* newest requirements ([ddc01d7](https://github.com/agregory999/oci-policy-analysis/commit/ddc01d71b3ef801776bf597f92d004b66db506c5))
+* **release:** 1.5.0 [skip ci] ([b317f36](https://github.com/agregory999/oci-policy-analysis/commit/b317f363bc48edf15c452f1da5f073bb671b156d))
+* **release:** 1.5.0 [skip ci] ([845dd2d](https://github.com/agregory999/oci-policy-analysis/commit/845dd2dae34b23287d99f10181a0959370813eb7))
+
 ## [1.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.4.1...v1.5.0) (2025-09-22)
 
 
