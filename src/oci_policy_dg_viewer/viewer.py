@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
 ##########################################################################
 # Copyright (c) 2024, Oracle and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 #
 # DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
 #
-# oci_policy_dg_viewer.py
+# viewer.py
 #
-# @author: Andrew Gregory (original), enhanced by Grok
+# @author: Andrew Gregory
 #
-# Supports Python 3.13 and above
+# Supports Python 3.11 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -20,7 +19,6 @@ import csv
 import datetime
 import json
 import logging
-import os
 import queue
 import sys
 import tkinter as tk
@@ -35,7 +33,6 @@ from tkinter.font import Font
 import formatting
 import markdown
 import oci
-import psutil
 import ttkbootstrap as ttk
 from _version import __version__
 from ai import AI  # AI functionality
@@ -983,6 +980,12 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         tab_dg.grid_rowconfigure(2, weight=4)
         tab_dg.grid_columnconfigure(0, weight=1)
 
+        # Inner methods
+        def clear_dg_filters():
+            for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type, self.dg_entry_ocid]:
+                entry.delete(0, tk.END)
+            self._update_dg_output()
+
         # Top of frame
         frm_dg_filter = ttk.Frame(tab_dg)
         frm_dg_filter.grid(row=0, column=0, sticky='w', padx=5, pady=5)
@@ -1006,8 +1009,11 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # Buttons
         self.dg_btn_update = ttk.Button(frm_dg_filter, text='Update', state=tk.DISABLED, command=self._update_dg_output)
         self.dg_btn_update.grid(row=1, column=4, padx=5, pady=2, sticky='ew')
-        self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear', state=tk.DISABLED, command=self._clear_dg_filters)
+        self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear', state=tk.DISABLED, command=clear_dg_filters)
         self.dg_btn_clear.grid(row=2, column=4, padx=5, pady=2, sticky='ew')
+
+        dg_btn_analyze_dg = ttk.Button(frm_dg_filter, text='Run', command=self._run_dg_analysis)
+        dg_btn_analyze_dg.grid(row=1, column=45, padx=5, pady=2, sticky='ew')
 
         self.dg_label_count = ttk.Label(frm_dg_filter, text='Dynamic Groups (Filtered): 0')
         self.dg_label_count.grid(row=3, column=0, columnspan=2, padx=5, pady=3, sticky='w')
@@ -1250,41 +1256,17 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # Depending on what is selected on the right, show all policies for those users in the bottom frame.
         # Bottom Frame is a policy table, similar to the other tabs, but only showing policies for the selected users/groups.
         # Similar AI analysis as well.
-        def filter_users(event):
-            """Filter Combobox values based on typed text."""
-            typed_text = self.user_combo.get().strip().lower()
-            if not typed_text:
-                # Show all users if input is empty
-                self.user_combo['values'] = self.all_users
-            else:
-                # Filter users containing the typed text
-                filtered = [display_name for display_name in self.all_users if typed_text in display_name.lower()]
-                self.user_combo['values'] = filtered or ['No matches found']
 
-        def on_select(event=None):
-            """Handle Combobox selection and update group list."""
-            selected_display = self.user_combo.get().strip()
-            # if selected_display == "No matches found":
-            #     self.group_listbox.delete(0, tk.END)
-            #     return
-
-            # Verify the selected display name is valid
-            if selected_display in self.user_display_to_ocid:
-                self.user_combo.set(selected_display)  # Ensure full name is shown
-                # self.update_group_list()
-                logger.info(f'Need to update the sheet data to: {selected_display}')
-                self._update_user_analysis_output()
-
-        # Frame for top
+        # Frame for top (left form, right table)
         frm_user_top = ttk.Frame(tab_users)
         frm_user_top.grid_rowconfigure(0, weight=1)
         frm_user_top.grid_rowconfigure(1, weight=1)
-        frm_user_top.grid_columnconfigure(0, weight=3)  # Options
-        frm_user_top.grid_columnconfigure(1, weight=7)  # Table
+        frm_user_top.grid_columnconfigure(0, weight=4)  # Options
+        frm_user_top.grid_columnconfigure(1, weight=6)  # Table
         # frm_user_top.grid_columnconfigure(2, weight=4)
         frm_user_top.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
 
-        # Frame for Policy Statements
+        # Frame for Policy Statements (row 1)
         frm_users_policies = ttk.Frame(tab_users)
         frm_users_policies.grid_rowconfigure(0, weight=1)
         frm_users_policies.grid_rowconfigure(1, weight=9)
@@ -1319,28 +1301,24 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             groups_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                logger.info(f"Selected Group: {row.get('Domain Name')} / {row.get('Group Name')}")
+                logger.debug(f"Selected Group: {row.get('Domain Name')} / {row.get('Group Name')}")
                 if 'Group Name' in row:
                     groups_for_filter.append((row.get('Domain Name'), row.get('Group Name')))
             logger.info(f'Groups for filter: {groups_for_filter}')
 
             self._update_user_analysis_policy_output(groups_for_filter=groups_for_filter, users_for_filter=None)
 
-            logger.info('Policies added to user policy table: ')
-
         def users_user_selection_callback(selected_rows: list[dict]) -> None:
             """When a User is selected, update the users/groups and policy statements below"""
             users_for_filter = []
             # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
-                logger.info(f"Selected User: {row.get('Domain Name')} / {row.get('User Name')}")
+                logger.debug(f"Selected User: {row.get('Domain Name')} / {row.get('User Name')}")
                 if 'User Name' in row:
                     users_for_filter.append((row.get('Domain Name'), row.get('User Name')))
             logger.info(f'Users for filter: {users_for_filter}')
 
             self._update_user_analysis_policy_output(groups_for_filter=None, users_for_filter=users_for_filter)
-
-            logger.info('Policies added to user policy table: ')
 
         def users_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
@@ -1352,11 +1330,13 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 self.policy_analyze_statement_var.set('')
 
         def switch_groups_users_selection(*args):
-            logger.info('Calling update for users')
+            """probably get rid of this"""
+            logger.debug('Calling update for users')
             self._update_user_analysis_output()
 
         def update_search(*args):
-            logger.info(f'Updating search: {self.user_group_search.get()}')
+            """probably get rid of this"""
+            logger.debug(f'Updating search: {self.user_group_search.get()}')
             self._update_user_analysis_output()
 
         def clear_filter():
@@ -1372,6 +1352,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
         # Frame for selection and Search
         frm_user_selection = ttk.Frame(frm_user_top)
+        frm_user_selection.grid_columnconfigure(0, weight=3)
+        frm_user_selection.grid_columnconfigure(1, weight=7)
         frm_user_selection.grid(row=0, column=0, padx=5, pady=2, sticky='w')
 
         # User / Group Selection
@@ -1393,15 +1375,27 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
         # Search with trace
         self.user_group_search = tk.StringVar()
-        ttk.Entry(frm_user_selection, textvariable=self.user_group_search).grid(
+        ttk.Entry(frm_user_selection, textvariable=self.user_group_search, width=30).grid(
             row=1, column=1, padx=5, pady=2, sticky='w'
         )
         self.user_group_search.trace_add('write', update_search)
         self.btn_clear_groups_users = ttk.Button(frm_user_selection, text='Clear Filter', command=clear_filter)
-        self.btn_clear_groups_users.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+        self.btn_clear_groups_users.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
         self.user_selected_groups = ttk.Label(frm_user_selection, text='Selected Groups: ')
         self.user_selected_groups.grid(row=3, column=0, columnspan=2, padx=5, pady=2, sticky='w')
+
+        self.selected_groups_table = DataTable(
+            frm_user_selection,
+            columns=['Domain', 'Group'],
+            display_columns=['Domain', 'Group'],
+            data=[],
+            column_widths={'Domain': 150, 'Group': 200},
+            # font_size=10,
+            # selection_callback=users_group_selection_callback,
+            # multi_select=True,
+        )
+        self.selected_groups_table.grid(row=4, column=0, columnspan=2, padx=5, pady=2, sticky='w')
 
         # Table for Groups on the left
         # Groups Table
@@ -1620,43 +1614,47 @@ Select a statement to see detailed parsing and AI insights if enabled.'
     def create_tab_history(self):
         # Create tab with 2 equal rows
         tab_history = ttk.Frame(self.notebook)
+        self.notebook.add(tab_history, text='Policy Set Compare/\nAudit History')
         tab_history.grid_rowconfigure(0, weight=1)
         tab_history.grid_rowconfigure(1, weight=1)
         tab_history.grid_columnconfigure(0, weight=1)
+        tab_history.grid_columnconfigure(1, weight=1)
 
-        self.notebook.add(tab_history, text='Policy Compare/\nAudit History')
-        frm_history_top = ttk.Frame(tab_history)
-        frm_history_top.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        frm_history_bottom = ttk.Frame(tab_history)
-        frm_history_bottom.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+        # Top left and right allow selection of cache (need to include current)
+        frm_history_left = ttk.Frame(tab_history)
+        frm_history_left.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        frm_history_right = ttk.Frame(tab_history)
+        frm_history_right.grid(row=0, column=1, sticky='nsew', padx=5, pady=5)
 
-        # Cache Compare Input
-        self.label_cache_compare = ttk.Label(frm_history_top, text='Compare Cache:')
-        self.label_cache_compare.grid(row=0, column=3, padx=5, pady=3)
-        self.cache_compare_list = ['No Cache Available']
-        self.cache_compare_var = tk.StringVar(
-            value=self.cache_compare_list[0] if len(self.cache_compare_list) > 0 else 'No Cache Available'
-        )
-        self.cache_compare_list_dropdown = ttk.OptionMenu(
-            frm_history_top, self.cache_compare_var, self.cache_compare_var.get(), *self.cache_compare_list
-        )
-        self.cache_compare_list_dropdown.grid(row=0, column=4, padx=5, pady=3)
-        self.btn_cache_compare = ttk.Button(
-            frm_history_top,
-            text='Compare Cache',
-            # state=tk.DISABLED,
-            command=self._compare_against_cache,
-        )
-        self.btn_cache_compare.grid(row=0, column=5, padx=5, pady=3, sticky='ew')
+        def update_diff(self, event=None):
+            logger.info('Called to change comparison')
+            # Clear existing trees
+            # self.left_tree.delete(*self.left_tree.get_children())
+            # self.right_tree.delete(*self.right_tree.get_children())
 
-        # Bottom Frame for History
-        self.text_compare_report = tk.Text(frm_history_bottom, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
-        self.text_compare_report.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
-        self.compare_scroll = ttk.Scrollbar(
-            frm_history_bottom, orient=tk.VERTICAL, command=self.text_compare_report.yview
-        )
-        self.compare_scroll.grid(row=0, column=1, sticky='ns')
-        self.text_compare_report.config(yscrollcommand=self.compare_scroll.set)
+            # # Get selected JSON versions
+            # left_json = json_versions[self.left_version.get()]
+            # right_json = json_versions[self.right_version.get()]
+
+            # Update tree headings
+            # self.left_tree.heading("#0", text=f"Left JSON ({self.left_version.get()})")
+            # self.right_tree.heading("#0", text=f"Right JSON ({self.right_version.get()})")
+
+            # Update date labels
+            # self.left_info_label.config(text=f"Date: {left_json.get('data_as_of', 'Unknown')} | Selected: None")
+            # self.right_info_label.config(text=f"Date: {right_json.get('data_as_of', 'Unknown')} | Selected: None")
+
+            # # Build trees using JsonTreeBuilder
+            # self.tree_builder.build_trees(
+            #     left_tree=self.left_tree,
+            #     right_tree=self.right_tree,
+            #     left_json=left_json,
+            #     right_json=right_json,
+            #     show_diff_only=self.show_diff_only.get()
+            # )
+
+        def load_audit_for_policy():
+            logger.info('Load audit for policy:')
 
         def open_audit_link(event):
             """Open a link in the default web browser."""
@@ -1664,12 +1662,124 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
             webbrowser.open_new('https://cloud.oracle.com/logging/audit')
 
-        # Open a Link
-        audit_link = ttk.Label(
-            frm_history_top, text='Open OCI Audit (have logged in browser)', cursor='hand2', foreground='#0000EE'
+        # History dropdown (include current)
+        comparison_list = [f'(Current - {self.policy_compartment_analysis.data_as_of})']
+        comparison_list.extend(self.cache_list)
+
+        # Dropdown menus for selecting JSON versions
+        ttk.Label(frm_history_left, text='Left JSON Version:', bootstyle='info').grid(
+            row=0, column=0, padx=5, pady=5, sticky=tk.W
         )
-        audit_link.bind('<Button-1>', open_audit_link)
-        audit_link.grid(row=0, column=6, padx=5, pady=3, sticky='w')
+        self.left_version = tk.StringVar(value='none')
+        left_dropdown = ttk.Combobox(
+            frm_history_left, textvariable=self.left_version, values=comparison_list, state='readonly', bootstyle='info'
+        )
+        left_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        left_dropdown.bind('<<ComboboxSelected>>', update_diff)
+
+        ttk.Label(frm_history_right, text='Right JSON Version:', bootstyle='info').grid(
+            row=0, column=0, padx=5, pady=5, sticky=tk.W
+        )
+        self.right_version = tk.StringVar(value='none')
+        right_dropdown = ttk.Combobox(
+            frm_history_right,
+            textvariable=self.right_version,
+            values=comparison_list,
+            state='readonly',
+            bootstyle='info',
+        )
+        right_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        right_dropdown.bind('<<ComboboxSelected>>', update_diff)
+
+        # Table Views for JSON
+        # Left Treeview with columns for key and value
+        self.left_tree = ttk.Treeview(
+            frm_history_left, columns=('Value',), height=20, bootstyle='info', show='tree headings'
+        )
+        self.left_tree.heading('#0', text='Key')
+        self.left_tree.heading('Value', text='Value')
+        self.left_tree.column('#0', width=200)
+        self.left_tree.column('Value', width=200)
+        # self.left_tree.bind("<<TreeviewSelect>>", self.update_left_selection)
+        self.left_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Right Treeview with columns for key and value
+        self.right_tree = ttk.Treeview(
+            frm_history_right, columns=('Value',), height=20, bootstyle='info', show='tree headings'
+        )
+        self.right_tree.heading('#0', text='Key')
+        self.right_tree.heading('Value', text='Value')
+        self.right_tree.column('#0', width=200)
+        self.right_tree.column('Value', width=200)
+        # self.left_right.bind("<<TreeviewSelect>>", self.update_left_selection)
+        self.right_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        self.btn_show_audit_left = ttk.Button(
+            frm_history_left,
+            text='Show Audit for selected policy statement',
+            # state=tk.DISABLED,
+            command=load_audit_for_policy,
+        )
+        self.btn_show_audit_left.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
+
+        self.btn_show_audit_right = ttk.Button(
+            frm_history_right,
+            text='Show Audit for selected policy statement',
+            # state=tk.DISABLED,
+            command=load_audit_for_policy,
+        )
+        self.btn_show_audit_right.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
+
+        # Below everything, table
+        AUDIT_COLUMNS = ['Policy OCID', 'Change Date', 'Change User', 'Before', 'After']
+        AUDIT_COLUMN_WIDTHS = {'Policy OCID': 250, 'Change Date': 100, 'Change User': 150, 'Before': 300, 'After': 300}
+        # Use a Policy Table here with fields
+        self.audit_policy_table = DataTable(
+            tab_history,
+            columns=AUDIT_COLUMNS,
+            display_columns=AUDIT_COLUMNS,
+            data=[],
+            column_widths=AUDIT_COLUMN_WIDTHS,
+            # font_size=10,
+            # selection_callback=dg_policy_selection_callback,
+            # multi_select=False,
+        )
+        self.audit_policy_table.grid(row=2, column=0, columnspan=2, sticky='nsew')
+
+        # # Cache Compare Input
+        # self.label_cache_compare = ttk.Label(frm_history_top, text='Compare Cache:')
+        # self.label_cache_compare.grid(row=0, column=3, padx=5, pady=3)
+        # self.cache_compare_list = ['No Cache Available']
+        # self.cache_compare_var = tk.StringVar(
+        #     value=self.cache_compare_list[0] if len(self.cache_compare_list) > 0 else 'No Cache Available'
+        # )
+        # self.cache_compare_list_dropdown = ttk.OptionMenu(
+        #     frm_history_top, self.cache_compare_var, self.cache_compare_var.get(), *self.cache_compare_list
+        # )
+        # self.cache_compare_list_dropdown.grid(row=0, column=4, padx=5, pady=3)
+        # self.btn_cache_compare = ttk.Button(
+        #     frm_history_top,
+        #     text='Compare Cache',
+        #     # state=tk.DISABLED,
+        #     command=self._compare_against_cache,
+        # )
+        # self.btn_cache_compare.grid(row=0, column=5, padx=5, pady=3, sticky='ew')
+
+        # # Bottom Frame for History
+        # self.text_compare_report = tk.Text(frm_history_bottom, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
+        # self.text_compare_report.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
+        # self.compare_scroll = ttk.Scrollbar(
+        #     frm_history_bottom, orient=tk.VERTICAL, command=self.text_compare_report.yview
+        # )
+        # self.compare_scroll.grid(row=0, column=1, sticky='ns')
+        # self.text_compare_report.config(yscrollcommand=self.compare_scroll.set)
+
+        # # Open a Link
+        # audit_link = ttk.Label(
+        #     frm_history_top, text='Open OCI Audit (have logged in browser)', cursor='hand2', foreground='#0000EE'
+        # )
+        # audit_link.bind('<Button-1>', open_audit_link)
+        # audit_link.grid(row=0, column=6, padx=5, pady=3, sticky='w')
 
     def create_tab_resource_reference(self):
         # Create tab
@@ -2012,8 +2122,13 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         )
         self.users_policy_table.update_data(filtered_policies)
 
-        # Update the labels
-        self.user_selected_groups.configure(text=f'Selected Groups: {groups_for_filter}')
+        # Update the labels and table
+        # Create a list of dict for the table
+        selected_groups_for_table = []
+        for dom, gr in groups_for_filter:
+            selected_groups_for_table.append({'Domain': dom, 'Group': gr})
+        # Update the group and policies table
+        self.selected_groups_table.update_data(selected_groups_for_table)
         self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(filtered_policies)}')
 
     def _update_report_output(self):
@@ -2081,8 +2196,18 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         logger.info(
             f'Running Dynamic Group Analysis for {len(self.identity_domain_analysis.dynamic_groups)} DGs and {len(self.policy_compartment_analysis.regular_statements)} Policies'
         )
-        self.identity_domain_analysis.set_statements(self.policy_compartment_analysis.regular_statements)
-        self.identity_domain_analysis.run_dg_in_use_analysis()
+        start_time = datetime.datetime.now()
+        # Send in the statemetns directly for DG processing.
+        # TODO: Maybe the CT statements could have a dynamic group in them
+        self.identity_domain_analysis.run_dg_in_use_analysis(
+            policy_statements=self.policy_compartment_analysis.regular_statements
+        )
+
+        # Now set the data again, in case it changed
+        self._update_dg_output()
+        # self.dg_policy_table.update_data(self.identity_domain_analysis.dynamic_groups)
+        total_time = (datetime.datetime.now() - start_time).total_seconds()
+        logger.info(f'Ran DG Analysis in {total_time}s')
 
     def _compare_against_cache(self):
         selected_cache = self.cache_compare_var.get()
@@ -2098,11 +2223,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         else:
             self.text_compare_report.insert(tk.END, 'No differences found or no cache available.\n')
         self.text_compare_report.config(state=tk.DISABLED)
-
-    def _clear_dg_filters(self):
-        for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type, self.dg_entry_ocid]:
-            entry.delete(0, tk.END)
-        self._update_dg_output()
 
     def _report_text_search(self, var_name, index, mode):
         if self.highlight_entry_var:
@@ -2285,7 +2405,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 self.dg_btn_clear,
                 self.btn_export_cache,
                 # self.btn_export_user,
-                self.btn_cache_compare,
+                # self.btn_cache_compare,
                 self.btn_export_report,
             ]
         ]
@@ -2297,7 +2417,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # self._update_user_analysis_combo()
         self._update_report_output()
         self._update_cross_tenancy_output()
-        self._update_history_cache_compare_dropdown()
+        # self._update_history_cache_compare_dropdown()
 
         # self.show_popup("Data loaded successfully!", side="right", duration=10000)
         # self.show_toast("Data loaded successfully!", side="right", duration=10000)
@@ -2498,11 +2618,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             oci_version = oci.__version__
             tkinter_version = tk.Tcl().eval('info patchlevel')
             self.status_bar_text += f'| Python: {python_version} | OCI: {oci_version} | Tkinter: {tkinter_version} '
-            # Process
-            process = psutil.Process(os.getpid())
-            # Get memory info (in bytes)
-            memory_info = process.memory_info()
-            self.status_bar_text += f'| Mem: {memory_info.vms / 1024**2:.2f} MB'
         # logger.debug(f'Status: {self.status_bar_text}')
         self.label_status_bar.config(text=self.status_bar_text)
         self.root.after(2000, self._update_status_bar_text)

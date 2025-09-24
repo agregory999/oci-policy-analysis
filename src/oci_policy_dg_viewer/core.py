@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
 ##########################################################################
 # Copyright (c) 2024, Oracle and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 #
 # DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
 #
-# oci_policy_dg_core.py
+# core.py
 #
-# @author: Andrew Gregory (original), enhanced by Grok
+# @author: Andrew Gregory
 #
-# Supports Python 3.13 and above
+# Supports Python 3.11 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -25,16 +24,17 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # Third-party imports
-import oci
+# import oci
 from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
-from oci.identity.models import Compartment, Domain
+from oci.identity.models import Compartment, Domain, Policy
 from oci.identity_domains import IdentityDomainsClient
+from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
-from oci.loggingsearch.models import SearchLogsDetails
+from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 
 # Constants
 THREADS = 9
@@ -89,15 +89,28 @@ endorse_regex = re.compile(CROSS_TENANCY_ENDORSE_REGEX, re.IGNORECASE | re.MULTI
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 CACHE_DATE = datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 
-# # Global variables
-# last_error = ''
-
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s [%(threadName)s] %(levelname)s %(message)s')
 logger = logging.getLogger('data-core')
 
 
 class PolicyCompartmentAnalysis:
+    """This is the main data repository for Policy and Compartment data
+
+    During initialization, the entire compartment hierarchy and policy tree is loaded into a central JSON dictionary.
+    This central dictionary is then referenced by functions that filter and return a subset of information for display.
+    Parsing, additional analysis, and import/export are made available by additional functions exposed.
+
+    Attributes:
+        compartments: A list of JSON dicts containing the compartment hierarchy
+        regular_statements: A list of JSON dicts containing the individual regular policy statements within an OCI tenancy
+        cross_tenancy_statements: A list of JSON dicts containing the individual cross-tenancy policy statements within an OCI tenancy
+        defined_aliases: A list of JSON dicts containing the "define" statements within an OCI tenancy, used for cross-tenancy evaluation
+        data_as_of: The timestamp that this data load was completed.
+        tenancy_ocid: The OCID of the tenancy being analyzed here.
+        identity_client: The OCI client that is initialized and used for all data loading purposes.
+    """
+
     def __init__(self, verbose: bool):
         # self.logger = logging.getLogger('oci-policy-compartment-analysis')
         if verbose:
@@ -113,6 +126,20 @@ class PolicyCompartmentAnalysis:
         logger.info('Initialized PolicyCompartmentAnalysis')
 
     def initialize_client(self, use_instance_principal: bool, recursive: bool = True, profile: str = 'DEFAULT') -> bool:
+        """Initializes the OCI client to be used for all data operations
+
+        Client can be loaded using PROFILE or Instance Principal authentication methods
+
+        Args:
+            use_instance_principal: Whether to attempt Instance Principal signer-based authentication
+            recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
+            profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
+
+        Returns:
+            A boolean indicating whether the client was created successfully.  False indicates that an unrecoverable issue occurred
+            setting up the client.
+
+        """
         try:
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication')
@@ -227,7 +254,7 @@ class PolicyCompartmentAnalysis:
 
         return results
 
-    def parse_statement(self, statement: str, comp_id: str, policy: oci.identity.models.Policy) -> bool:  # noqa: C901
+    def parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
         # TODO: Grab policy description and save that somehow
         comp = self.get_compartment_by_id(comp_id)
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
@@ -243,7 +270,7 @@ class PolicyCompartmentAnalysis:
                 result = define_regex.match(statement).groupdict()
                 logger.debug(f'Result Define: {result}')
                 if result.get('alias') and result.get('principal'):
-                    logger.info(
+                    logger.debug(
                         f"Adding to Defined Aliases - Name: {result.get('principal')}, Type: {result.get('define_type')}, OCID: {result.get('alias')}"
                     )
                     define_dict = {
@@ -488,30 +515,28 @@ class PolicyCompartmentAnalysis:
 
             # Load policies for the compartment
             policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
-            if policies_response.data is None:
-                logger.warning(f'No policies found for compartment: {compartment.id}')
-                return
-            policies = policies_response.data
-            if not policies:
-                return
-            load_pol_time = time.perf_counter()
-            this_comp_count: int = 0
-            for policy in policies:
-                for statement in policy.statements:
-                    # Maybe just let the parser add to either list - returns False if not parsed
-                    if not self.parse_statement(str.casefold(statement), compartment.id, policy):
-                        logger.warning(f'Statement was unable to parse: {statement}')
-                    this_comp_count += 1
+            if policies_response and policies_response.data:
+                load_pol_time = time.perf_counter()
+                this_comp_count: int = 0
+                for policy in policies_response.data:
+                    for statement in policy.statements:
+                        # Maybe just let the parser add to either list - returns False if not parsed
+                        if not self.parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
+                            logger.warning(f'Statement was unable to parse: {statement}')
+                        this_comp_count += 1
 
-            parse_time = time.perf_counter()
-            logger.info(
-                f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s'
-            )
+                parse_time = time.perf_counter()
+                logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
+{len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s')
+            else:
+                logger.debug(f'No policies found for compartment: {compartment.id}')
+                return
 
         except Exception as se:
             logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
 
     def load_policies_and_compartments(self) -> bool:
+        """Load all compartments and policies.  If recursive was selected, use a thread pool and the worker function."""
         self.compartments = []
         self.regular_statements = []
         start_time = time.perf_counter()
@@ -540,9 +565,17 @@ class PolicyCompartmentAnalysis:
                     return False
                 comp_list.extend(comp_response.data)
 
+            # Catch the load time for compartments
             comp_load_time = time.perf_counter()
-            with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
-                executor.map(self.load_compartment_and_policies_worker, comp_list)
+
+            if self.recursive:
+                # Use a thread pool
+                with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
+                    executor.map(self.load_compartment_and_policies_worker, comp_list)
+            else:
+                # Call the worker on its own with just the root compartment
+                self.load_compartment_and_policies_worker(compartment=root_comp)
+            # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.datetime.now())
             policy_finish_time = time.perf_counter()
             logger.info(
@@ -560,53 +593,7 @@ class PolicyCompartmentAnalysis:
         comp = self.get_compartment_by_id(compartment_id)
         return comp['hierarchy_ocids'] if comp else []
 
-    # def get_user_group_statements(
-    #     self, user_id: str, compartment_id: str = '', user_group_names: list = None, user_domain_name: str = ''
-    # ) -> list:
-    #     try:
-    #         logger.info(f'Found {len(user_group_names)} groups for user {user_id}')
-
-    #         filtered_statements = []
-    #         target_compartment_ocids = (
-    #             self.get_hierarchy_ocids(compartment_id)
-    #             if compartment_id != 'All Compartments'
-    #             else [c['id'] for c in self.compartments]
-    #         )
-    #         for statement in self.regular_statements:
-    #             if statement[6] == 'group':
-    #                 # get the tuples - enumerate list
-    #                 for i, (subj_domain, subj_name) in enumerate(statement[7]):
-    #                     for group_name in user_group_names:
-    #                         logger.debug(
-    #                             f'User Group {i}:{user_domain_name}/{group_name} in request against tuple ({subj_domain}/{subj_name}) in Policy'
-    #                         )
-    #                         # if (subj_domain is None or subj_domain == "Default") and subj_name == group_name:
-    #                         # Need to compare domain name and subject
-    #                         if (
-    #                             user_domain_name.casefold() == subj_domain.casefold()
-    #                             and subj_name.casefold() == group_name.casefold()
-    #                         ):
-    #                             if not compartment_id or statement[2] in target_compartment_ocids:
-    #                                 filtered_statements.append(statement)
-    #                                 logger.debug(
-    #                                     f'Statement Match Subject << {statement[3]} >>  User Group: {user_domain_name}/{group_name} == Policy Subject {subj_domain}/{subj_name}'
-    #                                 )
-
-    #                                 # Check now for compartment, if defined
-    #                                 # Turns out this is complex - the location portion of a policy statement should also contain the actual OCID
-    #                                 # of the referenced compartment, which needs to be determined based on the policy location in hierarchy +
-    #                                 # the relative path of the string that is referenced.  That compartment OCID, once calculated, should be stored
-    #                                 # and then referenced
-    #                                 logger.debug(
-    #                                     f'Check matching statement against select compartments {target_compartment_ocids}. Statement Loc: {statement[12]}'
-    #                                 )
-    #                             break
-    #         logger.info(f'Found {len(filtered_statements)} policy statements for user {user_id}')
-    #         return filtered_statements
-    #     except Exception as e:
-    #         logger.error(f'Failed to get user group statements: {e}')
-    #         return []
-
+    # Filtering logic - return a list of policy statements matching given filter
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
         # Iterate cross-tenant policies
         filtered = []
@@ -622,9 +609,9 @@ class PolicyCompartmentAnalysis:
 
     def filter_policy_statements_by_groups(self, groups_filter: list[tuple]) -> list:
         """Filter cached groups by list of (domain, name) tuples.  Returns"""
-        logger.info(f'Looking for all policies related to groups: {groups_filter}')
+        logger.debug(f'Looking for all policies related to groups: {groups_filter}')
         groups_filter = list(set(groups_filter))
-        logger.info(f'De-duped groups: {groups_filter}')
+        logger.debug(f'De-duped groups: {groups_filter}')
         filtered = []
         for statement in self.regular_statements:
             if statement.get('Subject Type') == 'group':
@@ -664,7 +651,7 @@ class PolicyCompartmentAnalysis:
                         dg_domain = 'Default'
                     # Iterate Policy statement subjects
                     for subj_domain, subj_name in statement.get('Subject'):
-                        logging.info(
+                        logger.debug(
                             f'Comparing DG {type(dg_domain)}:{repr(dg_domain)} / {type(dg_name)}:{repr(dg_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
                         )
                         # Exact match on both domain and name required
@@ -674,9 +661,6 @@ class PolicyCompartmentAnalysis:
                             filtered.append(statement)
                             logger.info(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
                         else:
-                            logging.debug(
-                                f'Not a match for dynamic group {dg_domain}/{dg_name}: Subject {subj_domain}/{subj_name}'
-                            )
                             logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
         logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
@@ -692,6 +676,7 @@ class PolicyCompartmentAnalysis:
         text_filter=None,
         policy_filter=None,
     ) -> list:
+        """Given the filters from the UI, return the list of matching policy statements.  Process the | as logical OR."""
         filtered = []
         subject_terms = [term.strip().lower() for term in subj_filter.split('|') if term.strip()] if subj_filter else []
         verb_terms = [term.strip().lower() for term in verb_filter.split('|') if term.strip()] if verb_filter else []
@@ -711,9 +696,11 @@ class PolicyCompartmentAnalysis:
         policy_terms = (
             [term.strip().lower() for term in policy_filter.split('|') if term.strip()] if policy_filter else []
         )
-        logger.info(f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}')
+        logger.debug(
+            f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}, Condition {condition_terms}'
+        )
 
-        logger.debug(f'Filtering Policies based on subject {subject_terms} and condition {condition_terms}')
+        # Iterate all policy statements and return a new list
         for st in self.regular_statements:
             matches_subject = not subject_terms or any(term in str(st.get('Subject')).lower() for term in subject_terms)
             matches_verb = not verb_terms or any(term in str(st.get('Verb')).lower() for term in verb_terms)
@@ -738,6 +725,7 @@ class PolicyCompartmentAnalysis:
                 term in str(st.get('Policy Name')).lower() for term in policy_terms
             )
 
+            # All matches must be satisfied - None for a particular filter does that as well.
             if (
                 matches_subject
                 and matches_verb
@@ -751,9 +739,11 @@ class PolicyCompartmentAnalysis:
                 logger.debug(f'Adding Statement {st.get("Statement Text")} due to filter match')
                 filtered.append(st)
 
-        logger.info(f'Filtered to {len(filtered)} statements')
+        logger.info(f'Filtered to {len(filtered)} policy statements')
         return filtered
 
+    # Perform a comparison (left vs right)
+    # TODO fix this to compare any 2 full JSON
     def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
         """Loads a cache set and compares with the currently loaded policy set and return changes"""
         # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
@@ -839,7 +829,8 @@ class PolicyCompartmentAnalysis:
             return ''
         return '\n'.join(changes)
 
-    def check_history(self, policy_ocid: str, start_time: str) -> None:
+    # Not in use
+    def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
         the_log = f'{self.tenancy_ocid}/_Audit'
         logs_returned = self.logging_search_client.search_logs(
@@ -854,7 +845,7 @@ class PolicyCompartmentAnalysis:
         if logs_returned and logs_returned.data and logs_returned.data.results:
             logger.info(f'Found {len(logs_returned.data.results)} logs for policy updates in the last 24 hours')
             for log in logs_returned.data.results:
-                res: oci.loggingsearch.models.SearchResult = log
+                res: SearchResult = log
                 if res and res.data:
                     type_of_log = res.data.get('logContent').get('type')
                     change_curr = (
@@ -884,6 +875,23 @@ class PolicyCompartmentAnalysis:
 
 
 class IdentityDomainsAnalysis:
+    """This is the main data repository for Identity Domains data
+
+    During initialization, all Identity Domain data is loaded into a central JSON dictionary.
+    This central dictionary is then referenced by functions that filter and return a subset of information for display.
+    Parsing, additional analysis, and import/export are made available by additional functions exposed.
+
+    Attributes:
+        dynamic_groups: A list of JSON dicts containing the Dyanmic Groups present in the OCI tenancy
+        identity_domains: A list of JSON dicts containing the Identity Domains in the OCI tenancy
+        groups: A list of JSON dicts containing the Groups in the OCI tenancy
+        users: A list of JSON dicts containing the Users in the OCI tenancy
+        domain_clients: A dict containing the OCI IdentityDomainClients required to collect all of the information
+        data_as_of: The timestamp that this data load was completed.
+        tenancy_ocid: The OCID of the tenancy being analyzed here.
+        identity_client: The OCI client that is initialized and used for all data loading purposes.
+    """
+
     def __init__(self, verbose: bool):
         self.logger = logging.getLogger('oci-identity-domins-analysis')
         if verbose:
@@ -904,6 +912,20 @@ class IdentityDomainsAnalysis:
         logger.info('Initialized IdentityDomainsAnalysis')
 
     def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
+        """Initializes the OCI client to be used for all data operations
+
+        Client can be loaded using PROFILE or Instance Principal authentication methods
+
+        Args:
+            use_instance_principal: Whether to attempt Instance Principal signer-based authentication
+            recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
+            profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
+
+        Returns:
+            A boolean indicating whether the client was created successfully.  False indicates that an unrecoverable issue occurred
+            setting up the client.
+
+        """
         try:
             self.use_instance_principal = use_instance_principal
             if use_instance_principal:
@@ -924,20 +946,23 @@ class IdentityDomainsAnalysis:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
-    def parse_dynamic_group(self, dg_name: str, dg_ocid: str, dg_domain: str, dg_rule: str, dg_created: str) -> dict:
-        # return [dg_domain, dg_name, dg_rule, True, dg_ocid, dg_created]
+    def _parse_dynamic_group(self, domain_name: str, dg: DynamicResourceGroup) -> dict:
+        """Extract the contents of the DG into a dict"""
+
         dg_dict = {
-            'Domain': dg_domain,
-            'DG Name': dg_name,
-            'Matching Rule': dg_rule,
+            'Domain': domain_name,
+            'DG Name': dg.display_name,
+            'DG Description': dg.description,
+            'Matching Rule': dg.matching_rule,
             'In Use': True,  # Placeholder until analysis is run
-            'DG OCID': dg_ocid,
-            'Creation Time': dg_created,
+            'DG OCID': dg.ocid,
+            'Creation Time': str(dg.meta.created),
         }
         return dg_dict
-        # To-do: Add back invalid OCID analysis
+        # TODO: Add back invalid OCID analysis
 
-    def load_all_dynamic_groups(self) -> bool:
+    def _load_all_dynamic_groups(self) -> bool:
+        """Load all of the dynamic groups across all Identity Domains"""
         self.dynamic_groups = []
 
         # We need to go through all domains
@@ -961,16 +986,9 @@ class IdentityDomainsAnalysis:
                         )
                         for dg in dg_response.data.resources:
                             logger.debug(f'DG: {dg.display_name}')
-
-                            time_created = dg.meta.created
+                            # Append the Dynamic Group dict to the list
                             self.dynamic_groups.append(
-                                self.parse_dynamic_group(
-                                    dg_domain=domain.display_name,
-                                    dg_name=dg.display_name,
-                                    dg_ocid=dg.ocid,
-                                    dg_rule=dg.matching_rule,
-                                    dg_created=str(time_created),
-                                )
+                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
                             )
                     else:
                         logger.error('Failed to list dynamic groups')
@@ -982,26 +1000,64 @@ class IdentityDomainsAnalysis:
             logger.error(f'Failed to load dynamic groups: {se}')
             return False
 
-    def set_statements(self, statements: list):
-        self.policies = statements
+    def run_dg_in_use_analysis(self, policy_statements: list):
+        """Analyzes Dynamic Group data for unused Dynamic Groups
 
-    def dg_in_use(self, dg: list) -> bool:
-        for statement in self.policies:
-            for subj in statement[7]:
-                if subj[0] and dg[0].casefold() == subj[0].casefold() and dg[1].casefold() == subj[1].casefold():
-                    return True
-        return False
+        Given a list of policy statements, iterates to see if each dynamic group is used.  If not, it
+        is marked with "In Use" = False, for later display
 
-    def run_dg_in_use_analysis(self) -> list:
-        unused_dynamic_groups = []
+        Args:
+            policy_statements: A list of JSON dicts containing a policy statement each
+        """
+
+        # Build a list of all subjects as list(tuple(domain,name))
+        all_subjects: list[tuple] = []
+        for st in policy_statements:
+            subject_list = st.get('Subject') or []
+            subject_type = st.get('Subject Type')
+            logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
+            if subject_type == 'dynamic-group':
+                logger.info(f'Add: {subject_type} Subject: {subject_list}')
+                all_subjects.extend(subject_list)
+
+        logger.info(f'all subjects: {len(all_subjects)}')
+        # all_subjects = list(set(all_subjects))
+        # logger.info(f"all subjects: {len(all_subjects)}")
+
+        # Iterate all DGs, look at their Domain and Name, then look through each statement
+        unused_dynamic_groups = 0
         for dg in self.dynamic_groups:
-            dg[3] = self.dg_in_use(dg)
-            if not dg[3]:
-                unused_dynamic_groups.append(dg)
-        logger.info(f'Found {len(unused_dynamic_groups)} unused dynamic groups')
-        return unused_dynamic_groups
+            dg_domain = dg.get('Domain') or 'default'
+            dg_name = dg.get('DG Name')
+            in_use = False  # Will be true at end if it exists
+            # Iterate our subject list
+            for subj_domain, subj_name in all_subjects:
+                logger.info(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
+                if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
+                    in_use = True
+                    break
+            # Now if in_use still False, change the DG itself
+            if not in_use:
+                logger.info(f'Dynamic Group {dg_domain}/{dg_name} not in use')
+                dg['In Use'] = False
+                unused_dynamic_groups += 1
+
+        logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
 
     def filter_dynamic_groups(self, domain_filter=None, name_filter=None, type_filter=None, ocid_filter=None) -> list:
+        """Filters Dynamic Groups by Domain, Name, Type, or OCID
+
+        Returns a list of filtered Dynamic Groups.
+
+        Args:
+            domain_filter: A string containing domains to filter.  Can be delimited by | to indicate logical OR
+            name_filter: A string containing dynamic group to filter.  Can be delimited by | to indicate logical OR
+            type_filter: A string containing types to filter.  Can be delimited by | to indicate logical OR
+            ocid_filter: A string containing OCIDs to filter.  Can be delimited by | to indicate logical OR
+
+        Returns:
+            A list of filtered dynamic groups, which are the original JSON format per dynamic group returned
+        """
         filtered = []
 
         domain_terms = [dom.strip().lower() for dom in domain_filter.split('|') if dom.strip()] if domain_filter else []
@@ -1051,6 +1107,18 @@ class IdentityDomainsAnalysis:
         return filtered
 
     def load_domains_groups_users(self) -> bool:  # noqa: C901
+        """Loads everything into the cetntral JSON
+
+        Identity Domains are loaded via the Identity Client.
+        For each Identity Domain, load the Dynamic Groups, Groups, and Users
+
+        Args:
+            none
+
+        Returns:
+            A boolean indicating success of the data load.  False indicates there was some failure in loading data,
+            so it may be incomplete.
+        """
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
             if domain_response.data is None:  # type: ignore
@@ -1153,22 +1221,15 @@ class IdentityDomainsAnalysis:
             # return False
             raise
 
-    def get_domain_client(self, domain_id: str) -> IdentityDomainsClient:
-        return self.domain_clients.get(domain_id)  # type: ignore
-
-    def get_domains(self) -> list:
-        return [{'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains]
-
-    def get_domain_name_by_id(self, domain_id: str) -> str:
-        for dom in self.identity_domains:
-            if dom.id == domain_id:
-                return dom.display_name
-        return 'Unk'
-
-    def get_users_by_domain(self, domain_id: str) -> list:
-        return [u for u in self.users if u['domain_id'] == domain_id]
-
     def get_groups_for_user(self, user: str) -> list:
+        """Return the list of all Groups that a user is a member of
+
+        Args:
+
+
+        Returns:
+            A list of Groups
+        """
         groups_for_user: list = []
         logger.info(f'User to filter: {user}')
         logger.debug(f'Users: {self.users}')
@@ -1188,6 +1249,21 @@ class IdentityDomainsAnalysis:
                             logger.info(f"Adding Group {g.get('Domain Name')}/{g.get('Group Name')} ")
         return groups_for_user
 
+    # def get_domain_client(self, domain_id: str) -> IdentityDomainsClient:
+    #     return self.domain_clients.get(domain_id)  # type: ignore
+
+    def _get_domains(self) -> list:
+        return [{'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains]
+
+    # def get_domain_name_by_id(self, domain_id: str) -> str:
+    #     for dom in self.identity_domains:
+    #         if dom.id == domain_id:
+    #             return dom.display_name
+    #     return 'Unk'
+
+    # def get_users_by_domain(self, domain_id: str) -> list:
+    #     return [u for u in self.users if u['domain_id'] == domain_id]
+
 
 # Utility functions for loading and saving cache, using combined caching strategy
 def save_combined_cache(
@@ -1204,7 +1280,7 @@ def save_combined_cache(
         'defined_aliases': policy_analysis.defined_aliases,
         'cross_tenancy_policies': policy_analysis.cross_tenancy_statements,
         'compartments': policy_analysis.compartments,
-        'identity_domains': domains_analysis.get_domains(),
+        'identity_domains': domains_analysis._get_domains(),
         'groups': domains_analysis.groups,
         'users': domains_analysis.users,
         'data_as_of': policy_analysis.data_as_of,
@@ -1291,7 +1367,19 @@ def load_combined_cache(
     policy_analysis: PolicyCompartmentAnalysis,
     domains_analysis: IdentityDomainsAnalysis,
 ) -> str:
-    """Load combined cache for policies and dynamic groups. Returns the name of the file used"""
+    """Load combined cache for policies and dynamic groups.
+
+    Given the name and data of a cache, loads the data into both of the centralized structures
+    for Compartment/Policy and Identity Domain storage.
+
+    Args:
+        cached_tenancy: The name of the tenancy to load
+        cached_date: The date string of the cache
+        policy_analysis: The initialized PolicyCompartmentAnalysis class instance to use
+        domains_analysis: The initialized IdentityDomainsAnalysis class instance to use
+    Returns:
+        A string indicating the name of the file used
+    """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
     if combined_cache_file.exists():
@@ -1342,7 +1430,18 @@ def load_combined_cache(
 
 
 def get_available_cache(tenancy_name: str | None) -> list[str]:
-    """Get available cache files for a given profile"""
+    """Get available cache files for a given profile
+
+    If given no argument, simply return the list of all avialable cache files that
+    exist in the cache directory.  Entries will contain the tenancy name and date loaded.
+
+    Args:
+        tenancy_name: The name of an OCI tenancy, which will filter the cache list down to only
+        caches for that tenancy.
+
+    Returns:
+        a list of the available named caches
+    """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return_entries = []
     try:
@@ -1366,6 +1465,7 @@ def get_available_cache(tenancy_name: str | None) -> list[str]:
     return return_entries
 
 
+# TODO: split this out into a CLI that is separated
 def main():  # noqa: C901
     """Main function to parse arguments and print policies and dynamic groups."""
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
@@ -1424,7 +1524,7 @@ def main():  # noqa: C901
         if not policy_analysis.load_policies_and_compartments():
             logger.error('Failed to load policies and compartments from OCI')
             return
-        if not domains_analysis.load_all_dynamic_groups():
+        if not domains_analysis._load_all_dynamic_groups():
             logger.error('Failed to load dynamic groups from OCI')
             return
         if not domains_analysis.load_domains_groups_users():
