@@ -41,10 +41,12 @@ from core import (
     PolicyCompartmentAnalysis,  # Analysis of Policy Compartments
     get_available_cache,  # Get available cache files
     load_cache_from_json,  # Load imported
+    load_cache_into_local_json,  # Loading of cache to a json
     load_combined_cache,  # Load combined cache from file
     save_combined_cache,  # Save combined cache to file
 )
 from data_table import DataTable
+from deepdiff import DeepDiff
 from tkhtmlview import HTMLText
 
 # Constants
@@ -717,52 +719,43 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         def _toggle_any_subject():
             if self.use_subject_any.get():
                 self.subject_filter_var.set('any-user|any-group')
-                # self.entry_subj.insert(0, 'any-user|any-group')
-                # self.entry_subj.config(state=tk.DISABLED)
             else:
                 self.subject_filter_var.set('')
-                # self.entry_subj.config(state=tk.NORMAL)
-                # self.entry_subj.delete(0, tk.END)
 
             # Update the Output
             self._update_policy_output()
 
         def _toggle_location_tenancy():
             if self.location_filter_tenancy.get():
-                self.entry_loc.delete(0, tk.END)
-                self.entry_loc.insert(0, 'tenancy')
-                self.entry_loc.config(state=tk.DISABLED)
+                self.location_filter_var.set('tenancy')
             else:
-                self.entry_loc.config(state=tk.NORMAL)
-                self.entry_loc.delete(0, tk.END)
+                self.location_filter_var.set('')
 
             # Update the output
             self._update_policy_output()
 
         def _toggle_hierarchy_root():
             if self.hierarchy_filter_root.get():
-                self.entry_hierarchy.delete(0, tk.END)
-                self.entry_hierarchy.insert(0, 'ROOTONLY')
-                self.entry_hierarchy.config(state=tk.DISABLED)
+                self.hierarchy_filter_var.set('ROOTONLY')
             else:
-                self.entry_hierarchy.config(state=tk.NORMAL)
-                self.entry_hierarchy.delete(0, tk.END)
+                self.hierarchy_filter_var.set('')
 
             # Update the Output
             self._update_policy_output()
 
         def _clear_policy_filters():
+            # Clear all filters
             for entry in [
                 self.subject_filter_var,
                 self.verb_filter_var,
-                self.entry_res,
-                self.entry_loc,
-                self.entry_hierarchy,
-                self.entry_condition,
-                self.entry_text,
-                self.entry_policy,
+                self.resource_filter_var,
+                self.location_filter_var,
+                self.hierarchy_filter_var,
+                self.condition_filter_var,
+                self.text_filter_var,
+                self.policy_filter_var,
             ]:
-                entry.delete(0, tk.END)
+                entry.set('')
             self.use_subject_any.set(False)
             self.location_filter_tenancy.set(False)
             self.hierarchy_filter_root.set(False)
@@ -800,6 +793,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.condition_filter_var = tk.StringVar()
         self.text_filter_var = tk.StringVar()
         self.policy_filter_var = tk.StringVar()
+        self.hierarchy_filter_root = tk.BooleanVar()
+        self.location_filter_tenancy = tk.BooleanVar()
 
         # Within the policy filter frame, create the filter fields and buttons
         frm_subj = ttk.Frame(frm_policy_filter)
@@ -813,40 +808,36 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_subj.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=2, padx=5, pady=2, sticky='w')
-        self.entry_verb = tk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=20).grid(
+        tk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=20).grid(
             row=1, column=3, padx=5, pady=2, sticky='ew'
         )
 
         ttk.Label(frm_policy_filter, text='Resource').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        self.entry_res = tk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=20).grid(
+        tk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=20).grid(
             row=2, column=1, padx=5, pady=2, sticky='ew'
         )
 
         frm_loc = ttk.Frame(frm_policy_filter)
-        self.label_location = ttk.Label(frm_policy_filter, text='Location').grid(
-            row=2, column=2, padx=5, pady=2, sticky='w'
-        )
-        self.entry_loc = tk.Entry(frm_loc, width=20, textvariable=self.location_filter_var)
-        self.entry_loc.grid(row=0, column=0, padx=2, sticky='ew')
-        self.location_filter_tenancy = tk.BooleanVar()
+        ttk.Label(frm_policy_filter, text='Location').grid(row=2, column=2, padx=5, pady=2, sticky='w')
+        entry_loc = tk.Entry(frm_loc, width=20, textvariable=self.location_filter_var)
+        entry_loc.grid(row=0, column=0, padx=2, sticky='ew')
         ttk.Checkbutton(
-            frm_loc, text='Tenancy', variable=self.location_filter_tenancy, command=_toggle_location_tenancy
+            frm_loc, text='in tenancy', variable=self.location_filter_tenancy, command=_toggle_location_tenancy
         ).grid(row=0, column=1, padx=2)
         frm_loc.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
 
         frm_hierarchy = ttk.Frame(frm_policy_filter)
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        self.entry_hierarchy = tk.Entry(frm_hierarchy, width=20, textvariable=self.hierarchy_filter_var)
-        self.entry_hierarchy.grid(row=0, column=0, padx=2, sticky='ew')
-        self.hierarchy_filter_root = tk.BooleanVar()
+        entry_hierarchy = tk.Entry(frm_hierarchy, width=20, textvariable=self.hierarchy_filter_var)
+        entry_hierarchy.grid(row=0, column=0, padx=2, sticky='ew')
         ttk.Checkbutton(
             frm_hierarchy, text='Tenancy Root Only', variable=self.hierarchy_filter_root, command=_toggle_hierarchy_root
         ).grid(row=0, column=1, padx=2)
         frm_hierarchy.grid(row=3, column=1, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=2, padx=5, pady=2, sticky='w')
-        self.entry_condition = tk.Entry(frm_policy_filter, width=20, textvariable=self.condition_filter_var)
-        self.entry_condition.grid(row=3, column=3, padx=5, pady=2, sticky='ew')
+        entry_condition = tk.Entry(frm_policy_filter, width=20, textvariable=self.condition_filter_var)
+        entry_condition.grid(row=3, column=3, padx=5, pady=2, sticky='ew')
 
         ttk.Label(frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
         entry_text = tk.Entry(frm_policy_filter, width=20, textvariable=self.text_filter_var)
@@ -860,7 +851,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.btn_update = ttk.Button(
             frm_policy_buttons, text='Update', state=tk.DISABLED, command=self._update_policy_output
         )
-        # self.btn_update.grid(row=0, column=0, padx=5, pady=2, sticky='ew')
+        # Clear Button
         self.btn_clear = ttk.Button(frm_policy_buttons, text='Clear', state=tk.DISABLED, command=_clear_policy_filters)
         self.btn_clear.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
 
@@ -1620,12 +1611,15 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         )
         self.btn_ct_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
 
-    def create_tab_history(self):
+    def create_tab_history(self):  # noqa: C901
         # Create tab with 2 equal rows
         tab_history = ttk.Frame(self.notebook)
-        self.notebook.add(tab_history, text='Policy Set Compare/\nAudit History')
-        tab_history.grid_rowconfigure(0, weight=1)
-        tab_history.grid_rowconfigure(1, weight=1)
+        self.notebook.add(tab_history, text='Policy Set Compare/\nAudit History (W.I.P.)')
+        tab_history.grid_rowconfigure(0, weight=2)  # JSON dropdowns
+        tab_history.grid_rowconfigure(1, weight=2)  # Comparison Output
+        tab_history.grid_rowconfigure(2, weight=2)  # Comparison Output
+        tab_history.grid_rowconfigure(3, weight=2)  # Comparison Output
+        tab_history.grid_rowconfigure(4, weight=2)  # Comparison Output
         tab_history.grid_columnconfigure(0, weight=1)
         tab_history.grid_columnconfigure(1, weight=1)
 
@@ -1634,33 +1628,6 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_history_left.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
         frm_history_right = ttk.Frame(tab_history)
         frm_history_right.grid(row=0, column=1, sticky='nsew', padx=5, pady=5)
-
-        def update_diff(self, event=None):
-            logger.info('Called to change comparison')
-            # Clear existing trees
-            # self.left_tree.delete(*self.left_tree.get_children())
-            # self.right_tree.delete(*self.right_tree.get_children())
-
-            # # Get selected JSON versions
-            # left_json = json_versions[self.left_version.get()]
-            # right_json = json_versions[self.right_version.get()]
-
-            # Update tree headings
-            # self.left_tree.heading("#0", text=f"Left JSON ({self.left_version.get()})")
-            # self.right_tree.heading("#0", text=f"Right JSON ({self.right_version.get()})")
-
-            # Update date labels
-            # self.left_info_label.config(text=f"Date: {left_json.get('data_as_of', 'Unknown')} | Selected: None")
-            # self.right_info_label.config(text=f"Date: {right_json.get('data_as_of', 'Unknown')} | Selected: None")
-
-            # # Build trees using JsonTreeBuilder
-            # self.tree_builder.build_trees(
-            #     left_tree=self.left_tree,
-            #     right_tree=self.right_tree,
-            #     left_json=left_json,
-            #     right_json=right_json,
-            #     show_diff_only=self.show_diff_only.get()
-            # )
 
         def load_audit_for_policy():
             logger.info('Load audit for policy:')
@@ -1672,72 +1639,168 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             webbrowser.open_new('https://cloud.oracle.com/logging/audit')
 
         # History dropdown (include current)
-        comparison_list = [f'(Current - {self.policy_compartment_analysis.data_as_of})']
-        comparison_list.extend(self.cache_list)
+        # comparison_list = [f'(Current)']
+        # comparison_list.extend(self.cache_list)
+        self.cache_comparison_list = []
+
+        def compare(*args):  # noqa: C901
+            logger.info(f'Compare begin {self.left_version.get()} and {self.right_version.get()}')
+
+            # Only do this if they are set
+            if self.left_version.get() and self.right_version.get():
+                left_json = load_cache_into_local_json(
+                    cached_tenancy=self.policy_compartment_analysis.tenancy_name, cached_date=self.left_version.get()
+                )
+                right_json = load_cache_into_local_json(
+                    cached_tenancy=self.policy_compartment_analysis.tenancy_name, cached_date=self.right_version.get()
+                )
+                logger.info(f'Loaded Left: {left_json.keys()} and Right: {right_json.keys()} into memory')
+
+                # Actual Comparison
+                diff_result = DeepDiff(left_json, right_json, ignore_order=True)
+                for change_type, changes in diff_result.items():
+                    logger.debug(f'Diff: {change_type} Diff: {changes}')
+
+            else:
+                logger.info('No comparison yet')
+
+            # Clean up tree
+            self.comparison_tree.delete(*self.comparison_tree.get_children())
+
+            # Put in new values
+            for change_type, changes in diff_result.items():
+                if 'added' in change_type:
+                    parent_tag = 'added'
+                elif 'removed' in change_type:
+                    parent_tag = 'removed'
+                elif 'changed' in change_type:
+                    parent_tag = 'changed'
+                else:
+                    parent_tag = ''
+                parent_id = self.comparison_tree.insert('', 'end', text=change_type, open=True, tags=(parent_tag,))
+                for path, details in changes.items():
+                    if isinstance(details, dict) and 'old_value' in details:
+                        old_value = details['old_value']
+                        new_value = details['new_value']
+                        old_dict = {}
+                        new_dict = {}
+                        try:
+                            old_dict = json.loads(old_value)
+                            new_dict = json.loads(new_value)
+                        except Exception as e:
+                            logger.debug(f'Error: {e}')
+                        logger.info(f'Old value is {old_dict}')
+                        logger.info(f'New value is {new_dict}')
+                        if old_dict.get('Statement Text'):
+                            node_text = f'Policy {path}: {old_dict} → {new_dict}'
+                        else:
+                            node_text = f'Def {path}: {old_value} → {new_value}'
+                        tag = 'changed'
+                    elif 'added' in change_type:
+                        node_text = f'{path}: {details}'
+                        tag = 'added'
+                    elif 'removed' in change_type:
+                        node_text = f'{path}: {details}'
+                        tag = 'removed'
+                    else:
+                        node_text = f'{path}: {details}'
+                        tag = ''
+                    self.comparison_tree.insert(parent_id, 'end', text=node_text, values=(path,), tags=(tag,))
+
+            if not self.show_diff_only.get():
+                all_keys = set(left_json.keys()) | set(right_json.keys())
+                for k in all_keys:
+                    if f"root['{k}']" not in str(diff_result):
+                        self.comparison_tree.insert('', 'end', text=f'Unchanged: {k}')
 
         # Dropdown menus for selecting JSON versions
         ttk.Label(frm_history_left, text='Left JSON Version:', bootstyle='info').grid(
             row=0, column=0, padx=5, pady=5, sticky=tk.W
         )
         self.left_version = tk.StringVar(value='none')
-        left_dropdown = ttk.Combobox(
-            frm_history_left, textvariable=self.left_version, values=comparison_list, state='readonly', bootstyle='info'
+        self.left_dropdown = ttk.Combobox(
+            frm_history_left,
+            textvariable=self.left_version,
+            values=self.cache_comparison_list,
+            state='readonly',
+            bootstyle='info',
         )
-        left_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
-        left_dropdown.bind('<<ComboboxSelected>>', update_diff)
+        self.left_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        self.left_dropdown.bind('<<ComboboxSelected>>', compare)
 
         ttk.Label(frm_history_right, text='Right JSON Version:', bootstyle='info').grid(
             row=0, column=0, padx=5, pady=5, sticky=tk.W
         )
         self.right_version = tk.StringVar(value='none')
-        right_dropdown = ttk.Combobox(
+        self.right_dropdown = ttk.Combobox(
             frm_history_right,
             textvariable=self.right_version,
-            values=comparison_list,
+            values=self.cache_comparison_list,
             state='readonly',
             bootstyle='info',
         )
-        right_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
-        right_dropdown.bind('<<ComboboxSelected>>', update_diff)
+        self.right_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        self.right_dropdown.bind('<<ComboboxSelected>>', compare)
 
-        # Table Views for JSON
-        # Left Treeview with columns for key and value
-        self.left_tree = ttk.Treeview(
-            frm_history_left, columns=('Value',), height=20, bootstyle='info', show='tree headings'
-        )
-        self.left_tree.heading('#0', text='Key')
-        self.left_tree.heading('Value', text='Value')
-        self.left_tree.column('#0', width=200)
-        self.left_tree.column('Value', width=200)
-        # self.left_tree.bind("<<TreeviewSelect>>", self.update_left_selection)
-        self.left_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Checkbox: show differences only
+        self.show_diff_only = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            tab_history,
+            text='Show differences only',
+            variable=self.show_diff_only,
+            bootstyle='round-toggle',
+            command=compare,
+        ).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
-        # Right Treeview with columns for key and value
-        self.right_tree = ttk.Treeview(
-            frm_history_right, columns=('Value',), height=20, bootstyle='info', show='tree headings'
-        )
-        self.right_tree.heading('#0', text='Key')
-        self.right_tree.heading('Value', text='Value')
-        self.right_tree.column('#0', width=200)
-        self.right_tree.column('Value', width=200)
-        # self.left_right.bind("<<TreeviewSelect>>", self.update_left_selection)
-        self.right_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Treeview
+        self.comparison_tree = ttk.Treeview(tab_history, bootstyle='info')
+        self.comparison_tree.heading('#0', text='Differences')
+        # self.comparison_tree.bind("<<TreeviewSelect>>", self.on_row_select)
+        self.comparison_tree.grid(row=2, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+
+        # Define tags with ttkbootstrap colors
+        self.comparison_tree.tag_configure('added', foreground=self.style.colors.success)
+        self.comparison_tree.tag_configure('removed', foreground=self.style.colors.danger)
+        self.comparison_tree.tag_configure('changed', foreground=self.style.colors.warning)
+
+        # # Table Views for JSON
+        # # Left Treeview with columns for key and value
+        # self.left_tree = ttk.Treeview(
+        #     frm_history_left, columns=('Value',), height=20, bootstyle='info', show='tree headings'
+        # )
+        # self.left_tree.heading('#0', text='Key')
+        # self.left_tree.heading('Value', text='Value')
+        # self.left_tree.column('#0', width=200)
+        # self.left_tree.column('Value', width=200)
+        # # self.left_tree.bind("<<TreeviewSelect>>", self.update_left_selection)
+        # self.left_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # # Right Treeview with columns for key and value
+        # self.right_tree = ttk.Treeview(
+        #     frm_history_right, columns=('Value',), height=20, bootstyle='info', show='tree headings'
+        # )
+        # self.right_tree.heading('#0', text='Key')
+        # self.right_tree.heading('Value', text='Value')
+        # self.right_tree.column('#0', width=200)
+        # self.right_tree.column('Value', width=200)
+        # # self.left_right.bind("<<TreeviewSelect>>", self.update_left_selection)
+        # self.right_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
 
         self.btn_show_audit_left = ttk.Button(
-            frm_history_left,
+            tab_history,
             text='Show Audit for selected policy statement',
             # state=tk.DISABLED,
             command=load_audit_for_policy,
         )
-        self.btn_show_audit_left.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
+        self.btn_show_audit_left.grid(row=4, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
 
-        self.btn_show_audit_right = ttk.Button(
-            frm_history_right,
-            text='Show Audit for selected policy statement',
-            # state=tk.DISABLED,
-            command=load_audit_for_policy,
-        )
-        self.btn_show_audit_right.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
+        # self.btn_show_audit_right = ttk.Button(
+        #     frm_history_right,
+        #     text='Show Audit for selected policy statement',
+        #     # state=tk.DISABLED,
+        #     command=load_audit_for_policy,
+        # )
+        # self.btn_show_audit_right.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
 
         # Below everything, table
         AUDIT_COLUMNS = ['Policy OCID', 'Change Date', 'Change User', 'Before', 'After']
@@ -1753,7 +1816,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             # selection_callback=dg_policy_selection_callback,
             # multi_select=False,
         )
-        self.audit_policy_table.grid(row=2, column=0, columnspan=2, sticky='nsew')
+        self.audit_policy_table.grid(row=5, column=0, columnspan=2, sticky='nsew')
 
         # # Cache Compare Input
         # self.label_cache_compare = ttk.Label(frm_history_top, text='Compare Cache:')
@@ -2200,6 +2263,18 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.defined_aliases_table.update_data(defined_aliases)
         self.cross_tenancy_table.update_data(cross_tenancy_statements)
 
+    def _update_cache_comparison(self):
+        # Make the list of caches available
+        self.cache_comparison_list = []
+        # Somehow separate the dates
+        new_comparison_list = get_available_cache(tenancy_name=self.policy_compartment_analysis.tenancy_name)
+        for item in new_comparison_list:
+            tenancy, cache_date = item.split('\n')
+            self.cache_comparison_list.append(cache_date)
+        logger.info(f'Loaded {len(self.cache_comparison_list)} cache entries for comparison')
+        self.left_dropdown['values'] = self.cache_comparison_list
+        self.right_dropdown['values'] = self.cache_comparison_list
+
     # Calls into core to make updates
     def _run_dg_analysis(self):
         logger.info(
@@ -2418,6 +2493,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # self._update_user_analysis_combo()
         self._update_report_output()
         self._update_cross_tenancy_output()
+        self._update_cache_comparison()
         # self._update_history_cache_compare_dropdown()
 
         # self.show_popup("Data loaded successfully!", side="right", duration=10000)
