@@ -1,3 +1,17 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# ai.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
 import json
 import logging
 import queue
@@ -28,6 +42,16 @@ logger = logging.getLogger('oci-policy-dg-ai')
 
 
 class AI:
+    """AI Module for OCI Policy Analysis
+
+    Contains all of the available GenAI calls that can be made to obtain additional context.
+
+    Attributes:
+        genai_client: The OCI GenAI Client.
+        genai_inference_client: The OCI GenAI Inference Client
+        verbose: Whether to use verbose output
+    """
+
     def __init__(self, verbose=False):
         """Initialize OCI GenAI client and constants."""
         self.verbose = verbose
@@ -163,7 +187,20 @@ class AI:
     def analyze_policy_statement(  # noqa: C901
         self, policy_text: str, queue: queue.Queue, use_cache: bool = False, additional_instruction: str = ''
     ):  # noqa: C901
-        """Call OCI GenAI to analyze an OCI IAM policy statement, using cache if available. Put the results on a Queue that is provided"""
+        """Call OCI GenAI to analyze an OCI IAM policy statement, using cache if available.
+
+        Given an OCI Policy Statement, analyze using AI. Put the results on a Queue that if provided.
+        Otherwise, return the data directly as Markdown.
+
+        Args:
+            policy_text: The OCI Policy statement string to analyze
+            queue: An initialized Queue object, on which to put the response.  None if you expect a reply directly
+            use_cache: whether to skip the built-in cache and make the call directly.
+            additional_instruction: An optional line of additional instruction for the AI Prompt.
+
+        Returns:
+            The result in markdown, if a queue was not provided.
+        """
         logger.info('Analyzing policy statement: %s', policy_text)
 
         if use_cache:

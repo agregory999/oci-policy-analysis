@@ -15,7 +15,7 @@ class DataTable(tk.Frame):
 
     Note: ttk.Treeview does not natively support multi-line text wrapping. Text with newlines may appear clipped; use wider columns (via column_widths) for better visibility. Font, padding, and ttk.Style must be configured externally to include right-side cell padding (e.g., padding=(0, 0, 5, 0)) for column separation.
 
-    Args:
+    Attributes:
         parent: The parent Tkinter widget.
         columns: List of all possible column names.
         display_columns: List of initially displayed column names.
