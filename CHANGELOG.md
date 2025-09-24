@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+* Better docstrings and Tenancy Root ([18523fa](https://github.com/agregory999/oci-policy-analysis/commit/18523faf787439d4023aea0d65ecd968214ad8fa))
+* Comparison of cache ([7060e24](https://github.com/agregory999/oci-policy-analysis/commit/7060e24118b39c6fa28063c515f266eea56ab76a))
+* new user and group analysis ([9d5253c](https://github.com/agregory999/oci-policy-analysis/commit/9d5253c61f1c49a52bae7d743a665bf539b6e7aa))
+
+
+### Bug Fixes
+
+* Tenancy root, docstrings and tidy ([9c62617](https://github.com/agregory999/oci-policy-analysis/commit/9c626178ddae92ea58c4f6ddb915aae47577b8ac))
+
+
+### Miscellaneous Chores
+
+* build again ([f1c0777](https://github.com/agregory999/oci-policy-analysis/commit/f1c0777057ea5af46b650b5be42c2a947aecc145))
+* newest requirements ([ea9e06a](https://github.com/agregory999/oci-policy-analysis/commit/ea9e06a9e71eeceaedab20195d20637873107193))
+* newest requirements ([ddc01d7](https://github.com/agregory999/oci-policy-analysis/commit/ddc01d71b3ef801776bf597f92d004b66db506c5))
+* **release:** 1.5.0 [skip ci] ([635fd43](https://github.com/agregory999/oci-policy-analysis/commit/635fd43e9fb9c8babcfa906876432adbeece1339))
+* **release:** 1.5.0 [skip ci] ([39c2bfa](https://github.com/agregory999/oci-policy-analysis/commit/39c2bfa60b3c6c708d9fec3a29a6f6d76f0986c2))
+* **release:** 1.5.0 [skip ci] ([b317f36](https://github.com/agregory999/oci-policy-analysis/commit/b317f363bc48edf15c452f1da5f073bb671b156d))
+* **release:** 1.5.0 [skip ci] ([845dd2d](https://github.com/agregory999/oci-policy-analysis/commit/845dd2dae34b23287d99f10181a0959370813eb7))
+
+## [1.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.4.1...v1.5.0) (2025-09-24)
+
+
+### Features
+
 * new user and group analysis ([9d5253c](https://github.com/agregory999/oci-policy-analysis/commit/9d5253c61f1c49a52bae7d743a665bf539b6e7aa))
 
 
