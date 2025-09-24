@@ -285,8 +285,14 @@ class PolicyCompartmentAnalysis:
 
         return results
 
-    def parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
-        # TODO: Grab policy description and save that somehow
+    def _parse_statement(self, statement: str, comp_id: str, policy: Policy) -> bool:  # noqa: C901
+        """Parses a policy statement into component parts
+        Subject / Verb / Resource(or permission) / Location / Conditions (opt) / Comments (opt)
+
+        This is the main parsing logic that uses Regular Expressions and post-parsing logic.
+        An example of post-parsing would be to separate the subject list into an actual list of tuples
+        representing the domain and group or dynamic group.
+        """
         comp = self.get_compartment_by_id(comp_id)
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
@@ -472,7 +478,7 @@ class PolicyCompartmentAnalysis:
                 for policy in policies_response.data:
                     for statement in policy.statements:
                         # Maybe just let the parser add to either list - returns False if not parsed
-                        if not self.parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
+                        if not self._parse_statement(str.casefold(statement), compartment.id, policy):  # type: ignore
                             logger.warning(f'Statement was unable to parse: {statement}')
                         this_comp_count += 1
 
