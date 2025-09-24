@@ -502,6 +502,7 @@ class PolicyCompartmentAnalysis:
         """
         self.compartments = []
         self.regular_statements = []
+        self.cross_tenancy_statements = []
         start_time = time.perf_counter()
         try:
             root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
@@ -538,15 +539,7 @@ class PolicyCompartmentAnalysis:
             else:
                 # Call the worker on its own with just the root compartment
                 self.load_compartment_and_policies_worker(compartment=root_comp)
-            # Keep track of the time of this completed data load
 
-            if self.recursive:
-                # Use a thread pool
-                with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
-                    executor.map(self.load_compartment_and_policies_worker, comp_list)
-            else:
-                # Call the worker on its own with just the root compartment
-                self.load_compartment_and_policies_worker(compartment=root_comp)
             # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.datetime.now())
             policy_finish_time = time.perf_counter()
@@ -956,8 +949,11 @@ class IdentityDomainsAnalysis:
 
     def load_all_dynamic_groups(self) -> bool:
         """Load all of the dynamic groups across all Identity Domains"""
-        self.dynamic_groups = []
 
+        self.dynamic_groups = []
+        self.identity_domains = []
+        self.groups = []
+        self.users = []
         # We need to go through all domains
         try:
             domains_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)
@@ -1456,6 +1452,31 @@ def get_available_cache(tenancy_name: str | None) -> list[str]:
 
     logger.info(f'Entries found in cache_entries.json: {len(return_entries)}')
     return return_entries
+
+
+def load_cache_into_local_json(
+    cached_tenancy: str,
+    cached_date: str,
+) -> dict:
+    # Load everything into a JSON dict and return it
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+    if combined_cache_file.exists():
+        try:
+            with open(combined_cache_file, encoding='utf-8') as filehandle:
+                cache_data = json.load(filehandle)
+                logger.info(f'Loaded combined cache from: {combined_cache_file}')
+                # Show counts of each loaded element
+                # Return data as object
+                return cache_data
+        except json.JSONDecodeError as e:
+            logger.error(f'Error decoding JSON from combined cache file: {e}')
+            return {}
+        except Exception as e:
+            logger.error(f'Error loading combined cache file: {e}')
+            return {}
+    logger.warning(f'Unable to load data from cache: {combined_cache_file}')
+    return {}
 
 
 # TODO: split this out into a CLI that is separated
