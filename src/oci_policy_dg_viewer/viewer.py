@@ -26,6 +26,7 @@ import tkinter.filedialog as tkfiledialog
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
+from tkinter import font
 
 # Third-party imports
 from tkinter.font import Font
@@ -65,6 +66,8 @@ GROUPS_COLUMNS_WIDTHS = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 45
 USERS_COLUMNS = ['Domain Name', 'User Name', 'User OCID']
 USERS_COLUMNS_WIDTHS = {'Domain Name': 150, 'User Name': 300, 'User OCID': 450}
 
+AUDIT_COLUMNS = ['Policy OCID', 'Change Date', 'Change User', 'Before', 'After']
+AUDIT_COLUMN_WIDTHS = {'Policy OCID': 250, 'Change Date': 100, 'Change User': 150, 'Before': 300, 'After': 300}
 
 # Global variables
 last_error = ''
@@ -338,19 +341,23 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 )
             elif selected_tab_index == 2:
                 self.context_label.config(
-                    text='View and analyze Dynamic Groups here. See which dynamic groups are in use by policies, and examine their matching rules. Select a dynamic group to see detailed formatting and AI insights if enabled.'
+                    text='View and analyze Dynamic Groups here. See which dynamic groups are in use by policies, and examine their matching rules.\n'
+                    'Select a dynamic group to see detailed formatting and AI insights if enabled.'
                 )
             elif selected_tab_index == 3:
                 self.context_label.config(
-                    text='View and analyze Resource Principals here. See which resource principals are in use by policies, and examine their details. Select a resource principal to see detailed information and AI insights if enabled.'
+                    text='View and analyze Resource Principals here. See which resource principals are in use by policies, and examine their details.\n'
+                    'Select a resource principal to see detailed information and AI insights if enabled.'
                 )
             elif selected_tab_index == 4:
                 self.context_label.config(
-                    text='Analyze users and their group memberships here. Identify which users are members of groups that have policy permissions, and see if any users have direct policy assignments.'
+                    text='Analyze users and their group memberships here. Identify which users are members of groups that have policy permissions, and see\n'
+                    'if any users have direct policy assignments.'
                 )
             elif selected_tab_index == 5:
                 self.context_label.config(
-                    text='View cross-tenancy policy statements here. These are policies that reference resources or groups in other tenancies. Analyze these statements and see which defined aliases they use.'
+                    text='View cross-tenancy policy statements here. These are policies that reference resources or groups in other tenancies.\n'
+                    'Analyze these statements and see which defined aliases they use.'
                 )
             elif selected_tab_index == 6:
                 self.context_label.config(
@@ -358,7 +365,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 )
             elif selected_tab_index == 7:
                 self.context_label.config(
-                    text='View the history of actions taken within the application here. This includes loading data, applying configurations, and any errors encountered.'
+                    text='View the history of actions taken within the application here. This includes loading data, applying configurations,\n'
+                    'and any errors encountered.'
                 )
             elif selected_tab_index == 8:
                 self.context_label.config(
@@ -1012,8 +1020,10 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear', state=tk.DISABLED, command=clear_dg_filters)
         self.dg_btn_clear.grid(row=2, column=4, padx=5, pady=2, sticky='ew')
 
-        dg_btn_analyze_dg = ttk.Button(frm_dg_filter, text='Run', command=self._run_dg_analysis)
-        dg_btn_analyze_dg.grid(row=1, column=45, padx=5, pady=2, sticky='ew')
+        self.dg_btn_analyze_dg = ttk.Button(
+            frm_dg_filter, text='Run In\nUse Analysis', state=tk.DISABLED, command=self._run_dg_analysis
+        )
+        self.dg_btn_analyze_dg.grid(row=1, column=5, rowspan=2, padx=5, pady=2, sticky='ew')
 
         self.dg_label_count = ttk.Label(frm_dg_filter, text='Dynamic Groups (Filtered): 0')
         self.dg_label_count.grid(row=3, column=0, columnspan=2, padx=5, pady=3, sticky='w')
@@ -1643,6 +1653,24 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # comparison_list.extend(self.cache_list)
         self.cache_comparison_list = []
 
+        def autosize_columns(tree: ttk.Treeview, padding: int = 20):
+            """Resize Treeview columns to fit the widest cell in each column."""
+            style = ttk.Style(tree)
+            tree_font = font.nametofont(style.lookup('Treeview', 'font', default='TkDefaultFont'))
+
+            for col in tree['columns']:
+                # Start with width of heading text
+                max_width = tree_font.measure(text=tree.heading(col)['text'])
+
+                # Check width of each cell in this column
+                for item in tree.get_children():
+                    cell_text = str(tree.set(item, col))
+                    cell_width = tree_font.measure(cell_text)
+                    max_width = max(max_width, cell_width)
+
+                # Apply new width (+padding for spacing)
+                tree.column(col, width=max_width + padding, stretch=False)
+
         def compare(*args):  # noqa: C901
             logger.info(f'Compare begin {self.left_version.get()} and {self.right_version.get()}')
 
@@ -1657,7 +1685,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 logger.info(f'Loaded Left: {left_json.keys()} and Right: {right_json.keys()} into memory')
 
                 # Actual Comparison
-                diff_result = DeepDiff(left_json, right_json, ignore_order=True)
+                diff_result = DeepDiff(left_json, right_json, ignore_order=True, exclude_paths='data_as_of')
                 for change_type, changes in diff_result.items():
                     logger.debug(f'Diff: {change_type} Diff: {changes}')
 
@@ -1681,25 +1709,38 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 for path, details in changes.items():
                     if isinstance(details, dict) and 'old_value' in details:
                         # this is a change
-                        # Ignore the data_as_of field
-                        old_value = details['old_value']
-                        new_value = details['new_value']
+                        # # Ignore the data_as_of field
+                        # old_value = details['old_value']
+                        # new_value = details['new_value']
 
-                        # Attempt to make a dictionary because everything is essentially a list
-                        old_dict = {}
-                        new_dict = {}
-                        try:
-                            old_dict = json.loads(old_value)
-                            new_dict = json.loads(new_value)
-                            logger.info(f'Old value is {old_dict}')
-                            logger.info(f'New value is {new_dict}')
-                        except Exception as e:
-                            logger.debug(f'Error: {e}')
-                        if old_dict.get('Statement Text'):
-                            node_text = f'Policy changed: {old_dict} → {new_dict}'
-                        else:
-                            node_text = f'Def {path}: {old_value} → {new_value}'
-                        tag = 'changed'
+                        # # Attempt to make a dictionary because everything is essentially a list
+                        # old_dict = {}
+                        # new_dict = {}
+                        # logger.info(f"Change details: {details}")
+                        # logger.info(f"{type(old_value)} / {old_value}")
+                        # logger.info(f"{type(new_value)} / {new_value}")
+                        # try:
+                        #     old_dict = json.loads(old_value)
+                        #     new_dict = json.loads(new_value)
+                        #     logger.info(f'Old value is {old_dict}')
+                        #     logger.info(f'New value is {new_dict}')
+                        # except Exception as e:
+                        #     logger.debug(f'Error: {e}')
+                        # if old_dict.get('Statement Text'):
+                        #     node_text = f'Policy changed: {old_dict} → {new_dict}'
+                        # else:
+                        # node_text = f"Change Path: {path}:\n  {details['old_value']}\n  →\n  {details['new_value']}"
+                        self.comparison_tree.insert(
+                            parent_id, 'end', text=f'Change Path: {path}', values=(path,), tags=('changed')
+                        )
+                        self.comparison_tree.insert(
+                            parent_id, 'end', text=details['old_value'], values=(path,), tags=('changed')
+                        )
+                        self.comparison_tree.insert(parent_id, 'end', text=' → ', values=(path,), tags=('changed'))
+                        self.comparison_tree.insert(
+                            parent_id, 'end', text=details['new_value'], values=(path,), tags=('changed')
+                        )
+
                     elif 'added' in change_type:
                         # Check the JSON fields
                         if details.get('Statement Text'):
@@ -1710,10 +1751,12 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                             node_text = f"Group added: {details.get('Domain Name')} // {details.get('Group Name')}"
                         elif details.get('DG Name'):
                             node_text = f"DG added: {details.get('DG Domain')} // {details.get('DG Name')}"
+                        elif details.get('Defined Name'):
+                            node_text = f"Define added: {details.get('Policy Name')} // {details.get('Defined Name')}"
                         else:
                             node_text = f'{path}: {details}'
-                        # node_text = f'{path}: {details}'
-                        tag = 'added'
+                        self.comparison_tree.insert(parent_id, 'end', text=node_text, values=(path,), tags=('added'))
+
                     elif 'removed' in change_type:
                         # Check the JSON fields
                         if details.get('Statement Text'):
@@ -1724,19 +1767,24 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                             node_text = f"Group removed: {details.get('Domain Name')} // {details.get('Group Name')}"
                         elif details.get('DG Name'):
                             node_text = f"DG removed: {details.get('Domain Name')} // {details.get('DG Name')}"
+                        elif details.get('Defined Name'):
+                            node_text = f"Define removed: {details.get('Policy Name')} // {details.get('Defined Name')}"
                         else:
                             node_text = f'{path}: {details}'
-                        tag = 'removed'
+                        self.comparison_tree.insert(parent_id, 'end', text=node_text, values=(path,), tags=('removed'))
+                        # tag = 'removed'
                     else:
                         node_text = f'{path}: {details}'
-                        tag = ''
-                    self.comparison_tree.insert(parent_id, 'end', text=node_text, values=(path,), tags=(tag,))
+                        self.comparison_tree.insert(parent_id, 'end', text=node_text, values=(path,))
 
             if not self.show_diff_only.get():
                 all_keys = set(left_json.keys()) | set(right_json.keys())
                 for k in all_keys:
                     if f"root['{k}']" not in str(diff_result):
                         self.comparison_tree.insert('', 'end', text=f'Unchanged: {k}')
+
+            # Resize
+            autosize_columns(self.comparison_tree)
 
         # Dropdown menus for selecting JSON versions
         ttk.Label(frm_history_left, text='Left JSON Version:', bootstyle='info').grid(
@@ -1777,59 +1825,42 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             command=compare,
         ).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
-        # Treeview
-        self.comparison_tree = ttk.Treeview(tab_history, bootstyle='info')
+        # Treeview Frame
+        frm_comparison_tree = ttk.Frame(tab_history)
+        frm_comparison_tree.grid(row=2, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+        frm_comparison_tree.grid_rowconfigure(0, weight=1)
+        frm_comparison_tree.grid_columnconfigure(0, weight=1)
+
+        # Add tree view to frame
+        self.comparison_tree = ttk.Treeview(frm_comparison_tree, bootstyle='primary')
         self.comparison_tree.heading('#0', text='Differences')
+        self.comparison_tree.column('#0', width=200, stretch=False)
         # self.comparison_tree.bind("<<TreeviewSelect>>", self.on_row_select)
-        self.comparison_tree.grid(row=2, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+        self.comparison_tree.grid(row=0, column=0, sticky='nsew')
 
         # Define tags with ttkbootstrap colors
         self.comparison_tree.tag_configure('added', foreground=self.style.colors.success)
         self.comparison_tree.tag_configure('removed', foreground=self.style.colors.danger)
         self.comparison_tree.tag_configure('changed', foreground=self.style.colors.warning)
 
-        # # Table Views for JSON
-        # # Left Treeview with columns for key and value
-        # self.left_tree = ttk.Treeview(
-        #     frm_history_left, columns=('Value',), height=20, bootstyle='info', show='tree headings'
-        # )
-        # self.left_tree.heading('#0', text='Key')
-        # self.left_tree.heading('Value', text='Value')
-        # self.left_tree.column('#0', width=200)
-        # self.left_tree.column('Value', width=200)
-        # # self.left_tree.bind("<<TreeviewSelect>>", self.update_left_selection)
-        # self.left_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Add scrollbars to Tree view
+        vsb = ttk.Scrollbar(frm_comparison_tree, orient='vertical', command=self.comparison_tree.yview)
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb = ttk.Scrollbar(frm_comparison_tree, orient='horizontal', command=self.comparison_tree.xview)
+        hsb.grid(row=1, column=0, sticky='ew')
+        self.comparison_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
-        # # Right Treeview with columns for key and value
-        # self.right_tree = ttk.Treeview(
-        #     frm_history_right, columns=('Value',), height=20, bootstyle='info', show='tree headings'
-        # )
-        # self.right_tree.heading('#0', text='Key')
-        # self.right_tree.heading('Value', text='Value')
-        # self.right_tree.column('#0', width=200)
-        # self.right_tree.column('Value', width=200)
-        # # self.left_right.bind("<<TreeviewSelect>>", self.update_left_selection)
-        # self.right_tree.grid(row=1, column=0, columnspan=2, padx=(0, 5), sticky=(tk.W, tk.E, tk.N, tk.S))
-
+        # Audit Button
         self.btn_show_audit_left = ttk.Button(
             tab_history,
             text='Show Audit for selected policy statement',
-            # state=tk.DISABLED,
+            state=tk.DISABLED,
             command=load_audit_for_policy,
         )
         self.btn_show_audit_left.grid(row=4, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
 
-        # self.btn_show_audit_right = ttk.Button(
-        #     frm_history_right,
-        #     text='Show Audit for selected policy statement',
-        #     # state=tk.DISABLED,
-        #     command=load_audit_for_policy,
-        # )
-        # self.btn_show_audit_right.grid(row=2, column=0, columnspan=2, padx=5, pady=3, sticky='ew')
-
         # Below everything, table
-        AUDIT_COLUMNS = ['Policy OCID', 'Change Date', 'Change User', 'Before', 'After']
-        AUDIT_COLUMN_WIDTHS = {'Policy OCID': 250, 'Change Date': 100, 'Change User': 150, 'Before': 300, 'After': 300}
+        ttk.Label(tab_history, text='Not Implemented').grid(row=5, column=0)
         # Use a Policy Table here with fields
         self.audit_policy_table = DataTable(
             tab_history,
@@ -1841,26 +1872,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             # selection_callback=dg_policy_selection_callback,
             # multi_select=False,
         )
-        self.audit_policy_table.grid(row=5, column=0, columnspan=2, sticky='nsew')
-
-        # # Cache Compare Input
-        # self.label_cache_compare = ttk.Label(frm_history_top, text='Compare Cache:')
-        # self.label_cache_compare.grid(row=0, column=3, padx=5, pady=3)
-        # self.cache_compare_list = ['No Cache Available']
-        # self.cache_compare_var = tk.StringVar(
-        #     value=self.cache_compare_list[0] if len(self.cache_compare_list) > 0 else 'No Cache Available'
-        # )
-        # self.cache_compare_list_dropdown = ttk.OptionMenu(
-        #     frm_history_top, self.cache_compare_var, self.cache_compare_var.get(), *self.cache_compare_list
-        # )
-        # self.cache_compare_list_dropdown.grid(row=0, column=4, padx=5, pady=3)
-        # self.btn_cache_compare = ttk.Button(
-        #     frm_history_top,
-        #     text='Compare Cache',
-        #     # state=tk.DISABLED,
-        #     command=self._compare_against_cache,
-        # )
-        # self.btn_cache_compare.grid(row=0, column=5, padx=5, pady=3, sticky='ew')
+        self.audit_policy_table.grid(row=6, column=0, columnspan=2, sticky='nsew')
 
         # # Bottom Frame for History
         # self.text_compare_report = tk.Text(frm_history_bottom, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
@@ -2505,7 +2517,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 self.dg_btn_update,
                 self.dg_btn_clear,
                 self.btn_export_cache,
-                # self.btn_export_user,
+                self.dg_btn_analyze_dg,
                 # self.btn_cache_compare,
                 self.btn_export_report,
             ]

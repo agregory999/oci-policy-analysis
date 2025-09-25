@@ -1,3 +1,17 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# data_table.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
 import logging
 import tkinter as tk
 from collections.abc import Callable
