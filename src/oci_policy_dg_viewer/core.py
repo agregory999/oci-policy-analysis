@@ -503,6 +503,7 @@ class PolicyCompartmentAnalysis:
         self.compartments = []
         self.regular_statements = []
         self.cross_tenancy_statements = []
+        self.defined_aliases = []
         start_time = time.perf_counter()
         try:
             root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
@@ -625,7 +626,7 @@ class PolicyCompartmentAnalysis:
                             dg_name.casefold() == subj_name.casefold()
                         ):
                             filtered.append(statement)
-                            logger.info(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
+                            logger.debug(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
                         else:
                             logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
         logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
@@ -1021,7 +1022,7 @@ class IdentityDomainsAnalysis:
             in_use = False  # Will be true at end if it exists
             # Iterate our subject list
             for subj_domain, subj_name in all_subjects:
-                logger.info(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
+                logger.debug(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
                 if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
                     in_use = True
                     break
