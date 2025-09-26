@@ -835,8 +835,11 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_loc.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
 
         frm_hierarchy = ttk.Frame(frm_policy_filter)
+        frm_hierarchy.grid_columnconfigure(0, weight=15)
+        frm_hierarchy.grid_columnconfigure(1, weight=70)
+        frm_hierarchy.grid_columnconfigure(2, weight=15)
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        entry_hierarchy = tk.Entry(frm_hierarchy, width=20, textvariable=self.hierarchy_filter_var)
+        entry_hierarchy = tk.Entry(frm_hierarchy, width=40, textvariable=self.hierarchy_filter_var)
         entry_hierarchy.grid(row=0, column=0, padx=2, sticky='ew')
         ttk.Checkbutton(
             frm_hierarchy, text='Tenancy Root Only', variable=self.hierarchy_filter_root, command=_toggle_hierarchy_root
@@ -942,9 +945,9 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # Field and button for analysis
         frm_policy_analyze = ttk.Frame(tab_policy)
         frm_policy_analyze.grid_rowconfigure(0, weight=1)
-        frm_policy_analyze.grid_columnconfigure(0, weight=20)
-        frm_policy_analyze.grid_columnconfigure(1, weight=60)
-        frm_policy_analyze.grid_columnconfigure(2, weight=20)
+        frm_policy_analyze.grid_columnconfigure(0, weight=15)
+        frm_policy_analyze.grid_columnconfigure(1, weight=70)
+        frm_policy_analyze.grid_columnconfigure(2, weight=15)
         frm_policy_analyze.grid(row=2, column=0, columnspan=2, sticky='nsew')
 
         ttk.Label(frm_policy_analyze, text='Policy Statement to Analyze').grid(
@@ -952,7 +955,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         )
         self.policy_analyze_statement_var = tk.StringVar()
         self.policy_analyze_statement_entry = tk.Entry(
-            frm_policy_analyze, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
+            frm_policy_analyze, state=tk.NORMAL, width=120, textvariable=self.policy_analyze_statement_var
         )
         self.policy_analyze_statement_entry.grid(row=0, column=1, padx=5, pady=2, sticky='w')
 
@@ -1058,7 +1061,9 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_dg_policy_sheet = ttk.Frame(tab_dg)
         frm_dg_policy_sheet.grid(row=2, column=0, sticky='nsew')
         frm_dg_policy_sheet.grid_rowconfigure(0, weight=1)
-        frm_dg_policy_sheet.grid_columnconfigure(0, weight=1)
+        frm_dg_policy_sheet.grid_columnconfigure(0, weight=2)
+        frm_dg_policy_sheet.grid_columnconfigure(1, weight=6)
+        frm_dg_policy_sheet.grid_columnconfigure(2, weight=2)
 
         def dg_selection_callback(selected_rows: list[dict]) -> None:
             """When a Dynamic Group is selected, update the policy statements below"""
@@ -1118,7 +1123,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.policy_analyze_statement_entry = tk.Entry(
             frm_dg_policy_sheet, state=tk.NORMAL, width=100, textvariable=self.policy_analyze_statement_var
         )
-        self.policy_analyze_statement_entry.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
+        self.policy_analyze_statement_entry.grid(row=1, column=1, padx=5, pady=2, sticky='w')
 
         self.btn_dg_analyze_statement = ttk.Button(
             frm_dg_policy_sheet, text='Analyze Statement', state=tk.DISABLED, command=self._analyze_policy_statment_ai

@@ -175,7 +175,7 @@ jobs:
                         src/oci_policy_dg_viewer/viewer.py
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --name oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }} \
-                        --icon=icons\\oci-policy-dg-viewer.ico \
+                        --icon=icons\\oci-policy-dg-viewer2.ico \
                         --onefile \
                         --clean \
                         --noconfirm \
