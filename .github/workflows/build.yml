@@ -160,18 +160,12 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            pyinstaller --name oci-policy-dg-viewer-macos-${{ needs.release.outputs.version }} \
-                        --icon=icons/oci-policy-dg-viewer.icns \
+            pyinstaller --name oci-policy-dg-viewer-macos-${{ env.VERSION }} \
+                        --icon icons/oci-policy-dg-viewer.icns \
                         --windowed \
                         --clean \
                         --noconfirm \
-                        --hidden-import=deepdiff \
-                        --add-data src/oci_policy_dg_viewer/_version.py:. \
-                        --add-data src/oci_policy_dg_viewer/core.py:. \
-                        --add-data src/oci_policy_dg_viewer/ai.py:. \
-                        --add-data src/oci_policy_dg_viewer/formatting.py:. \
-                        --add-data src/oci_policy_dg_viewer/data_table.py:. \
-                        --osx-bundle-identifier com.example.oci-policy-dg-viewer \
+                        --osx-bundle-identifier com.oracle.oci-policy-dg-viewer \
                         src/oci_policy_dg_viewer/viewer.py
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --name oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }} \
