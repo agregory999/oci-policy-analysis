@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v1.5.1...v1.5.2) (2025-09-27)
+
+
+### Bug Fixes
+
+* rebuild with different structure ([19aa4e4](https://github.com/agregory999/oci-policy-analysis/commit/19aa4e49c6ec37274d1f187c53283ddb0be4a232))
+
+
+### Miscellaneous Chores
+
+* fix mac icons ([29209de](https://github.com/agregory999/oci-policy-analysis/commit/29209de2cadd0becd7dbd79884aa3221370825ce))
+* icons ([287a9a1](https://github.com/agregory999/oci-policy-analysis/commit/287a9a1dfcc6f67663a65e4bd83156283d6958c8))
+* rebuild with different structure ([496a93e](https://github.com/agregory999/oci-policy-analysis/commit/496a93e74ef79b477782023a89f633abd36a5d60))
+* rebuild with different structure ([21ac888](https://github.com/agregory999/oci-policy-analysis/commit/21ac888723a65d1b16d0666b948908f12ea90707))
+* revert to old mac build ([5fc8363](https://github.com/agregory999/oci-policy-analysis/commit/5fc8363554ddd45cee44421a8a7c8069d2e9812e))
+
 ## [1.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.5.0...v1.5.1) (2025-09-25)
 
 
