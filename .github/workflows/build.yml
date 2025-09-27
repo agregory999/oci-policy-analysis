@@ -131,7 +131,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build setuptools>=61.0 wheel setuptools_scm>=8 pyinstaller>=6.1.0
+          pip install build setuptools>=61.0 wheel setuptools_scm>=8 pyinstaller=6.14.2
 
       - name: Get version
         id: get_version
@@ -169,30 +169,18 @@ jobs:
                         src/viewer.py
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --name oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }} \
-                        --icon=icons\\oci-policy-dg-viewer2.ico \
+                        --icon=icons\\oci-policy-dg-viewer.ico \
                         --onefile \
                         --clean \
                         --noconfirm \
-                        --hidden-import=deepdiff \
-                        --add-data src\\oci_policy_dg_viewer\\_version.py:. \
-                        --add-data src\\oci_policy_dg_viewer\\core.py:. \
-                        --add-data src\\oci_policy_dg_viewer\\ai.py:. \
-                        --add-data src\\oci_policy_dg_viewer\\formatting.py:. \
-                        --add-data src\\oci_policy_dg_viewer\\data_table.py:. \
-                        src/oci_policy_dg_viewer/viewer.py
+                        src\\viewer.py
           else
             pyinstaller --name oci-policy-dg-viewer-linux-${{ needs.release.outputs.version }} \
                         --icon=icons/oci-policy-dg-viewer.png \
                         --onefile \
                         --clean \
                         --noconfirm \
-                        --hidden-import=deepdiff \
-                        --add-data src/oci_policy_dg_viewer/_version.py:. \
-                        --add-data src/oci_policy_dg_viewer/core.py:. \
-                        --add-data src/oci_policy_dg_viewer/ai.py:. \
-                        --add-data src/oci_policy_dg_viewer/formatting.py:. \
-                        --add-data src/oci_policy_dg_viewer/data_table.py:. \
-                        src/oci_policy_dg_viewer/viewer.py
+                       src/viewer.py
           fi
 
       - name: Archive macOS executable
