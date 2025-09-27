@@ -166,7 +166,7 @@ jobs:
                         --clean \
                         --noconfirm \
                         --osx-bundle-identifier com.oracle.oci-policy-dg-viewer \
-                        src/oci_policy_dg_viewer/viewer.py
+                        src/viewer.py
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --name oci-policy-dg-viewer-windows-${{ needs.release.outputs.version }} \
                         --icon=icons\\oci-policy-dg-viewer2.ico \
