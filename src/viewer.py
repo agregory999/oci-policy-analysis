@@ -2845,9 +2845,9 @@ def parse_args():
 def main():
     # Parse command line arguments
     args = parse_args()
-
+    window = tk.Tk()
     # Create Tkinter root and NotebookApp with parsed arguments
-    window = ttk.Window(themename='litera')
+    # window = ttk.Window(themename='litera')
     window.geometry('1280x900')
     OCIPolicyDGViewer(window, verbose=args.verbose)
     # logger.info(f'Starting OCI Policy and Dynamic Group Viewer with profile: {type(app)}')
