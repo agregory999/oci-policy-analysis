@@ -393,7 +393,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
                 )
 
         # Create notebook - grid row 0
-        self.notebook = ttk.Notebook(self.notebook_frame, bootstyle='primary')
+        self.notebook = ttk.Notebook(self.notebook_frame)
         # self.notebook.grid(row=0, column=0, sticky='nsew', padx=3, pady=5)
         self.notebook.pack(expand=True, fill='both', padx=3, pady=3)
         self.notebook.bind('<<NotebookTabChanged>>', on_tab_change)
@@ -402,7 +402,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         """Console frame with clear and level button can control main logging level"""
 
         # Sub-frame for text widget
-        self.text_frame = ttk.Labelframe(self.console_frame, text='Console Log', bootstyle='secondary')
+        self.text_frame = ttk.Labelframe(self.console_frame, text='Console Log')
         self.text_frame.pack(side='left', fill=tk.BOTH, expand=True)
         self.console_text = ttk.ScrolledText(
             self.text_frame, height=12, state='disabled', borderwidth=0, highlightthickness=0, relief='flat'
@@ -411,7 +411,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
     def create_ai_insights(self):
         # Sub-frame for text widget
-        self.policy_response_frame = ttk.Labelframe(self.ai_insights_frame, text='AI Insights', bootstyle='secondary')
+        self.policy_response_frame = ttk.Labelframe(self.ai_insights_frame, text='AI Insights')
         self.policy_response_frame.pack(side='right', fill=tk.BOTH, expand=True)
 
         # AI Response Markdown
@@ -530,7 +530,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             self.persist_options()
 
         # Label Frame for Tenancy and Config
-        label_frm_tenancy_config = ttk.Labelframe(frm_start, text='Tenancy and Config', bootstyle='secondary')
+        label_frm_tenancy_config = ttk.Labelframe(frm_start, text='Tenancy and Config')
         label_frm_tenancy_config.pack(fill='x', padx=5, pady=5)
 
         # Instance Principal checkbox
@@ -569,7 +569,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.cache_list = get_available_cache(None)
         self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
         self.cache_list_dropdown = ttk.OptionMenu(
-            label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list, bootstyle='default'
+            label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list
         )
         self.cache_list_dropdown.config(width=20)
         self.cache_list_dropdown.grid(row=1, column=2, padx=5, pady=3)
@@ -584,7 +584,8 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             text='Load from Tenancy',
             command=self._load_from_tenancy,
             width=20,
-            bootstyle='default',
+            # bootstyle='default',
+            style='Custom.TButton',
         )
         self.btn_load_tenancy.grid(row=0, column=3, padx=5, pady=3)
         self.btn_load_cache = ttk.Button(
@@ -592,7 +593,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             text='Load from Cache',
             command=self._load_from_cache,
             width=20,
-            bootstyle='default',
+            # bootstyle='default',
         )
         self.btn_load_cache.grid(row=1, column=3, padx=5, pady=3)
 
@@ -622,7 +623,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
 
         ###############################
         # Label Frame for AI Connection
-        self.label_frm_ai_config = ttk.Labelframe(frm_start, text='OCI GenAI', bootstyle='secondary')
+        self.label_frm_ai_config = ttk.Labelframe(frm_start, text='OCI GenAI')
         self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
 
         self.option_ai_var = tk.BooleanVar()
@@ -696,7 +697,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         logger.debug('Apply button created')
 
         # Label Frame for Display
-        self.label_frm_display_config = ttk.Labelframe(frm_start, text='Display Settings', bootstyle='secondary')
+        self.label_frm_display_config = ttk.Labelframe(frm_start, text='Display Settings')
         self.label_frm_display_config.pack(fill='x', padx=5, pady=5)
 
         # Console Options
@@ -789,7 +790,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         self.notebook.add(tab_policy, text='Regular Policy\nStatements')
         tab_policy.grid_rowconfigure(1, weight=1)
         tab_policy.grid_columnconfigure(0, weight=1)
-        tab_policy.configure(style='disabled.TNotebook.Tab')
+        # tab_policy.configure(style='disabled.TNotebook.Tab')
         tab_policy.state(['disabled'])
 
         # Top-level frame for policy tab
@@ -822,9 +823,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         # Within the policy filter frame, create the filter fields and buttons
         frm_subj = ttk.Frame(frm_policy_filter)
         ttk.Label(frm_policy_filter, text='Subject').grid(row=1, column=0, padx=5, pady=2, sticky='w')
-        ttk.Entry(frm_subj, textvariable=self.subject_filter_var, width=20, bootstyle='info').grid(
-            row=0, column=0, padx=2, sticky='ew'
-        )
+        ttk.Entry(frm_subj, textvariable=self.subject_filter_var, width=20).grid(row=0, column=0, padx=2, sticky='ew')
         ttk.Checkbutton(
             frm_subj, text='Any-User/Group', variable=self.use_subject_any, command=_toggle_any_subject
         ).grid(row=0, column=1, padx=2)
@@ -981,7 +980,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             command=lambda: self._analyze_policy_statment_ai(
                 additional_context='Put the actual policy statement into a markdown fenced code block.'
             ),
-            bootstyle='primary',
+            # bootstyle='primary',
         )
         self.btn_policy_analyze_statement.grid(row=0, column=2, padx=5, pady=2, sticky='ew')
 
@@ -1396,7 +1395,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             self.groups_option_var,
             self.groups_option_var.get(),
             *['GROUPS', 'USERS'],
-            bootstyle='default',
+            # bootstyle='default',
             command=switch_groups_users_selection,
         )
         self.groups_users_dropdown.grid(row=0, column=1, padx=5, pady=5)
@@ -1807,30 +1806,26 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             autosize_columns(self.comparison_tree)
 
         # Dropdown menus for selecting JSON versions
-        ttk.Label(frm_history_left, text='Left JSON Version:', bootstyle='info').grid(
-            row=0, column=0, padx=5, pady=5, sticky=tk.W
-        )
+        ttk.Label(frm_history_left, text='Left JSON Version:').grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.left_version = tk.StringVar(value='none')
         self.left_dropdown = ttk.Combobox(
             frm_history_left,
             textvariable=self.left_version,
             values=self.cache_comparison_list,
             state='readonly',
-            bootstyle='info',
+            # bootstyle='info',
         )
         self.left_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
         self.left_dropdown.bind('<<ComboboxSelected>>', compare)
 
-        ttk.Label(frm_history_right, text='Right JSON Version:', bootstyle='info').grid(
-            row=0, column=0, padx=5, pady=5, sticky=tk.W
-        )
+        ttk.Label(frm_history_right, text='Right JSON Version:').grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.right_version = tk.StringVar(value='none')
         self.right_dropdown = ttk.Combobox(
             frm_history_right,
             textvariable=self.right_version,
             values=self.cache_comparison_list,
             state='readonly',
-            bootstyle='info',
+            # bootstyle='info',
         )
         self.right_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
         self.right_dropdown.bind('<<ComboboxSelected>>', compare)
@@ -1841,7 +1836,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
             tab_history,
             text='Show differences only',
             variable=self.show_diff_only,
-            bootstyle='round-toggle',
+            # bootstyle='round-toggle',
             command=compare,
         ).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
@@ -1852,7 +1847,7 @@ Select a statement to see detailed parsing and AI insights if enabled.'
         frm_comparison_tree.grid_columnconfigure(0, weight=1)
 
         # Add tree view to frame
-        self.comparison_tree = ttk.Treeview(frm_comparison_tree, bootstyle='primary')
+        self.comparison_tree = ttk.Treeview(frm_comparison_tree)
         self.comparison_tree.heading('#0', text='Differences')
         self.comparison_tree.column('#0', width=200, stretch=False)
         # self.comparison_tree.bind("<<TreeviewSelect>>", self.on_row_select)
@@ -2846,13 +2841,31 @@ def main():
     # Parse command line arguments
     args = parse_args()
     window = tk.Tk()
+
+    style = ttk.Style('litera')
+
+    # optional: force scaling (for HiDPI displays)
+    style.configure('.', font=('Oracle Sans', 12))  # default font
+    style.theme_use('litera')  # re-apply explicitly if you want
+
+    # Rounded button look
+    style.configure(
+        'Custom.TButton',
+        padding=10,
+        relief='flat',
+        borderwidth=0,
+        focusthickness=3,
+        focuscolor=style.colors.primary,
+        # font=("Helvetica", 12)
+    )
+
     # Create Tkinter root and NotebookApp with parsed arguments
     # window = ttk.Window(themename='litera')
     window.geometry('1280x900')
     OCIPolicyDGViewer(window, verbose=args.verbose)
-    # logger.info(f'Starting OCI Policy and Dynamic Group Viewer with profile: {type(app)}')
+    logger.info('Starting OCI Policy and Dynamic Group Viewer')
     window.mainloop()
-    # logger.info('OCI Policy and Dynamic Group Viewer has exited.')
+    logger.info('OCI Policy and Dynamic Group Viewer has exited.')
 
 
 # Start Program
