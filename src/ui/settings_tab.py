@@ -1,12 +1,21 @@
+import logging
 import tkinter as tk
+import webbrowser
+from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
 from logic import config
 from logic.caching import get_available_cache
+from logic.data_repo import AI
 from logic.logger import get_logger
+from ui.data_table import DataTable
 
 logger = get_logger()
+
+# Constants for data table
+AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
+AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
 
 
 class SettingsTab(ttk.Frame):
@@ -16,16 +25,21 @@ class SettingsTab(ttk.Frame):
     - (extend here with more settings later)
     """
 
-    def __init__(self, parent, app, settings):
+    def __init__(self, parent, app, ai_repo: AI, settings):
         super().__init__(parent)
         self.app = app
         self.settings = settings
+        self.ai_repo = ai_repo
 
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
+        self.ai_compartment_var = tk.StringVar(
+            value=self.settings.get('ai_compartment_ocid', '<use compartment or tenancy ocid with genai permission>')
+        )
+        self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
 
         # Load profiles from ~/.oci/config
         self.profile_list = ['DEFAULT']
@@ -40,13 +54,13 @@ class SettingsTab(ttk.Frame):
 
         # Display options (LabelFrame)
         disp = ttk.LabelFrame(self, text='Display Options')
-        disp.pack(fill='x', padx=10, pady=10)
+        disp.pack(fill='both', padx=10, pady=10)
 
         # Theme
         ttk.Label(disp, text='Theme:').pack(side='left', padx=(8, 4))
-        self.theme_var = tk.StringVar(value=self.settings.get('theme', self.app.style.theme_use()))
+        self.theme_var = tk.StringVar(value=self.settings.get('theme', 'Light'))
         theme_combo = ttk.Combobox(
-            disp, textvariable=self.theme_var, values=sorted(self.app.style.theme_names()), state='readonly', width=16
+            disp, textvariable=self.theme_var, values=['Light', 'Dark'], state='readonly', width=16
         )
         theme_combo.pack(side='left', padx=(0, 10))
         theme_combo.bind('<<ComboboxSelected>>', lambda e: self.app.apply_theme(self.theme_var.get()))
@@ -60,6 +74,47 @@ class SettingsTab(ttk.Frame):
         font_combo.pack(side='left')
         font_combo.bind('<<ComboboxSelected>>', lambda e: self.app.apply_font_size(self.font_var.get()))
 
+        # Console
+        ttk.Button(disp, text='Open Console', command=self.app.open_console).pack(side='left', padx=10, pady=6)
+        ttk.Label(disp, text='Log Level:').pack(side='left', padx=(20, 5))
+        # self.level_var = tk.StringVar(value=logging.getLevelName(logger.level))
+
+        level_combo = ttk.Combobox(
+            disp,
+            textvariable=self.app.log_level_var,
+            values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            state='readonly',
+            width=10,
+        )
+        level_combo.pack(side='left')
+
+        def set_level(_=None):
+            level = getattr(logging, self.app.log_level_var.get(), logging.INFO)
+            logger.setLevel(level)
+            app.settings['log_level'] = self.app.log_level_var.get()
+            from logic import config
+
+            config.save_settings(app.settings)
+            logger.info(f'Log level set to {self.app.log_level_var.get()}')
+
+        level_combo.bind('<<ComboboxSelected>>', set_level)
+
+        # Markup / HTML / Text
+        ttk.Label(disp, text='Result Format:').pack(side='left', padx=(20, 5))
+        format_combo = ttk.Combobox(
+            disp, textvariable=self.format_var, values=['Text', 'Markdown', 'HTML'], state='readonly', width=10
+        )
+        format_combo.pack(side='left')
+
+        def set_format(_=None):
+            self.settings['result_format'] = self.format_var.get()
+            from logic import config
+
+            config.save_settings(self.settings)
+            logger.info(f'Result format set to {self.format_var.get()}')
+
+        format_combo.bind('<<ComboboxSelected>>', set_format)
+
         # Tenancy Config (LabelFrame)
         label_frm_tenancy_config = ttk.Labelframe(self, text='Tenancy and Config')
         label_frm_tenancy_config.pack(fill='x', padx=10, pady=10)
@@ -69,7 +124,6 @@ class SettingsTab(ttk.Frame):
             label_frm_tenancy_config,
             text='Instance Principal',
             variable=self.ip_var,
-            # command=self._toggle_profile_dropdown,
         )
         chk_instance_principal.grid(row=0, column=0, padx=5, pady=5, sticky='w')
 
@@ -78,7 +132,6 @@ class SettingsTab(ttk.Frame):
             label_frm_tenancy_config,
             text='Recursive',
             variable=self.recursive_var,
-            # command=self._toggle_recursive_load,
         )
         self.recursive_load.grid(row=1, column=0, padx=5, pady=5, sticky='w')
 
@@ -104,33 +157,146 @@ class SettingsTab(ttk.Frame):
 
         # Load button (lambda function with boolean for cache)
         ttk.Button(
-            label_frm_tenancy_config, text='Load Tenancy', command=lambda: self._on_load_clicked(use_cache=False)
+            label_frm_tenancy_config,
+            width=20,
+            text='Load Tenancy',
+            command=lambda: self._on_load_clicked(use_cache=False),
         ).grid(row=0, column=3, padx=5, pady=5, sticky='w')
         ttk.Button(
-            label_frm_tenancy_config, text='Load Cache', command=lambda: self._on_load_clicked(use_cache=True)
+            label_frm_tenancy_config, width=20, text='Load Cache', command=lambda: self._on_load_clicked(use_cache=True)
         ).grid(row=1, column=3, padx=5, pady=5, sticky='w')
+
+        # audit_link = ttk.Label(
+        #     frm_history_top, text='Open OCI Audit (have logged in browser)', cursor='hand2', foreground='#0000EE'
+        # )
+
+        def open_link(event):
+            link = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
+            logger.info(f'Opening link in browser: {link}')
+            webbrowser.open_new(link)
+
+        # Session Token (with link)
+        session_auth_link_label = ttk.Label(
+            label_frm_tenancy_config,
+            text='Session Token (oci session authenticate)',
+            cursor='hand2',
+            foreground='#0000EE',  # Make it a link
+        )
+        session_auth_link_label.bind('<Button-1>', open_link)
+        session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
+        self.session_token_var = tk.StringVar()
+        self.session_token_entry = tk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=20)
+        self.session_token_entry.grid(row=2, column=2, padx=5, pady=3)
+        ttk.Button(
+            label_frm_tenancy_config,
+            width=25,
+            text='Load via Session Token',
+            command=lambda: self._on_load_clicked(use_cache=False),
+        ).grid(row=2, column=3, padx=5, pady=5, sticky='w')
 
         # Progress indicator
         self.progress_var = tk.StringVar(value='')
-        self.progress_label = ttk.Label(self, textvariable=self.progress_var, foreground='blue')
-        self.progress_label.pack(anchor='w', padx=8, pady=(0, 10))
+        self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
+        self.progress_label.grid(row=0, column=4, padx=5, pady=5, sticky='w')
 
-        # Bottom pane toggle
-        ttk.Button(self, text='Toggle Bottom Pane', command=self.app.toggle_bottom).pack(pady=(6, 12))
+        # Label Frame for AI Connection
+        self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
+        self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
 
-        # (Optional) quick test button to push text to bottom entry
-        ttk.Button(
-            self,
-            text='Put sample text in Bottom Entry',
-            command=lambda: self.app.update_bottom_entry('Hello from Settings'),
-        ).pack(pady=(0, 12))
+        # AI Toggle
+        ttk.Button(self.label_frm_ai_config, text='Toggle AI Pane', command=self.app.toggle_bottom).grid(
+            row=0, column=0, padx=3, pady=3, sticky='ew'
+        )
 
+        def populate_model_tree():
+            """Populate the model Treeview with available models from list_models."""
+            logger.info('Populating model tree')
+            # Check and initialize AI client if needed
+            if not self.ai_repo.initialized:
+                logger.info(
+                    f'Creating AI Clients from selected Profile: {self.profile_var.get()} or IP:{self.ip_var.get()}.'
+                )
+                self.ai_repo.initialize_client(use_instance_principal=self.ip_var.get(), profile=self.profile_var.get())
+                # Grab endpoint/compartment for variable
+                self.endpoint_var.set(self.ai_repo.base_endpoint)
+                self.ai_compartment_var.set(self.ai_repo.tenancy_ocid)
+                logger.debug(f'AI initialized: {self.ai_repo.initialized}')
+
+            if self.ai_repo.initialized:
+                ai_models = self.ai_repo.list_models()
+                logger.info(f'list_models returned {len(ai_models)} models')
+
+                # Put in Model Data Table
+                ai_model_table.update_data(new_data=ai_models)
+            else:
+                logger.warning('AI client not initialized, cannot list models')
+
+        self.refresh_button = ttk.Button(
+            self.label_frm_ai_config, text='Refresh Models (using selected profile)', command=populate_model_tree
+        )
+        self.refresh_button.grid(row=0, column=2, padx=3, pady=3, sticky='ew')
+
+        self.ai_progress_var = tk.StringVar(value='')
+        self.ai_progress_label = ttk.Label(
+            self.label_frm_ai_config, textvariable=self.ai_progress_var, foreground='blue'
+        )
+        self.ai_progress_label.grid(row=0, column=1, padx=3, pady=3, sticky='w')
+
+        def update_model_ocid(selected_items):
+            if selected_items:
+                model_ocid = selected_items[0].get('Model OCID', '')
+                self.model_id_var.set(model_ocid)
+                logger.info(f'Updated Model ID entry with OCID {model_ocid} from data table selection')
+
+        # Data Table for models
+        ai_model_table = DataTable(
+            parent=self.label_frm_ai_config,
+            columns=AI_MODEL_COLUMNS,
+            display_columns=AI_MODEL_COLUMNS,
+            column_widths=AI_MODEL_COLUMN_WIDTHS,
+            data=[],
+            selection_callback=update_model_ocid,
+            # row_context_menu_callback=model_ocid_right_click,
+            multi_select=False,
+        )
+        ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
+
+        # Configuration inputs
+        # tk.Label(self.label_frm_ai_config, text='Model ID:').grid(
+        #     row=2, column=0, padx=2, pady=3, sticky='ew'
+        # )
+        self.model_id_var = tk.StringVar()
+        # self.model_id_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.model_id_var, width=80)
+        # self.model_id_entry.grid(row=2, column=1, padx=3, pady=3, sticky='ew')
+
+        tk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='ew')
+        self.endpoint_var = tk.StringVar()
+        self.endpoint_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
+        self.endpoint_entry.grid(row=3, column=1, padx=3, pady=3, sticky='ew')
+
+        tk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
+            row=4, column=0, padx=2, pady=3, sticky='ew'
+        )
+        self.ai_compartment_var = tk.StringVar()
+        self.ai_compartment_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
+        self.ai_compartment_entry.grid(row=4, column=1, padx=3, pady=3, sticky='ew')
+
+        apply_button = ttk.Button(
+            self.label_frm_ai_config, text='Apply and Test GenAI Settings', command=self.apply_config
+        )
+        apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
+        logger.debug('Apply button created')
+
+    # -------------------------
+    # Loading of tenancy buttons
+    # -------------------------
     def _on_load_clicked(self, use_cache: bool):
         # Save current selections
         self.settings['tenancy_ocid'] = self.tenancy_var.get()
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
+        self.settings['ai_compartment_ocid'] = self.profile_var.get()
 
         # Save the settings now
         config.save_settings(self.settings)
@@ -144,6 +310,7 @@ class SettingsTab(ttk.Frame):
             recursive=self.recursive_var.get(),
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
+            named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
             named_cache=self.cache_var.get().replace('\n', '_') if use_cache else None,
             callback=self._on_load_finished,
         )
@@ -158,3 +325,39 @@ class SettingsTab(ttk.Frame):
         # Schedule it to go away if clear was set
         if clear:
             self.after(2000, lambda: self.progress_var.set(''))
+
+    # -------------------------
+    # AI Enablement
+    # -------------------------
+    def apply_config(self):
+        """Apply changes to Model ID and Endpoint in AI client."""
+        start_time = datetime.now()
+        model_id = self.model_id_var.get().strip()
+        endpoint = self.endpoint_var.get().strip()
+        compartment_ocid = self.ai_compartment_var.get().strip()
+        logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
+        self.ai_progress_var.set('Running AI test call…')
+
+        try:
+            self.ai_repo.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
+            logger.info(
+                'Configuration updated successfully in %s seconds',
+                (datetime.now() - start_time).total_seconds(),
+            )
+
+            # Make AI Call to test with callback
+            self.app.ask_genai_async(prompt='What is the meaning of life?', callback=self._on_ai_enablement_finished)
+
+        except Exception as e:
+            logger.error('Failed to update configuration: %s', e)
+
+    def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):
+        """Callback from App once AI loading completes."""
+        if success:
+            self.ai_progress_var.set(f'✅ {message}')
+        else:
+            self.ai_progress_var.set(f'❌ {message}')
+
+        # Schedule it to go away if clear was set
+        if clear:
+            self.after(2000, lambda: self.ai_progress_var.set(''))

@@ -3,7 +3,10 @@ import logging
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+import webbrowser
 from tkinter import ttk
+
+import markdown2
 
 # Optional HTML widget (graceful fallback if not installed)
 try:
@@ -17,6 +20,7 @@ from logic import config
 from logic.caching import load_combined_cache, save_combined_cache
 from logic.data_repo import AI, IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
+from ui.policies_tab import PoliciesTab
 from ui.settings_tab import SettingsTab
 from ui.users_tab import UsersTab
 
@@ -44,7 +48,7 @@ class TextHandler(logging.Handler):
         self.text_widget.see(tk.END)
 
 
-class App(tk.Tk):
+class App(ttk.Window):
     """Main application window for OCI Policy Analysis.
 
     This class manages the main Tkinter window, top Notebook tabs, bottom pane,
@@ -67,9 +71,9 @@ class App(tk.Tk):
     """
 
     def __init__(self):
-        super().__init__()
+        super().__init__(themename='litera')
         self.title('OCI Policy Analysis')
-        self.geometry('1024x900')
+        self.geometry('1200x900')
 
         # Shared config & logger
         self.settings = config.load_settings()
@@ -77,14 +81,16 @@ class App(tk.Tk):
         # Restore global logger level from settings (default INFO)
         level_name = self.settings.get('log_level', 'INFO')
         logger.setLevel(getattr(logging, level_name, logging.INFO))
+        self.log_level_var = tk.StringVar(value=logging.getLevelName(logger.level))
 
         # Style / fonts
-        self.style = ttk.Style()
+        # self.style = ttk.Style()
         self.default_font = tkfont.nametofont('TkDefaultFont')
         self.style.configure('.', font=('Oracle Sans', 12))
+        self.style.configure('TButton', bootstyle='round')  # all buttons get round style
 
         # Apply theme & font from settings
-        self.apply_theme(self.settings.get('theme', self.style.theme_use()))
+        self.apply_theme(self.settings.get('theme', 'Light'))
         self.apply_font_size(self.settings.get('font_size', 'Medium'))
 
         # PanedWindow (vertical split)
@@ -104,10 +110,12 @@ class App(tk.Tk):
         self.ai = AI()  # AI functionality
 
         # Tab References
-        self.settings_tab = SettingsTab(self.notebook, self, self.settings)
+        self.settings_tab = SettingsTab(self.notebook, self, self.ai, self.settings)
+        self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis)
-        self.notebook.add(self.settings_tab, text='Settings')
-        self.notebook.add(self.users_tab, text='Users')
+        self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
+        self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
+        self.notebook.add(self.users_tab, text='Groups\nUsers')
 
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -126,10 +134,10 @@ class App(tk.Tk):
         self.console_window = None
         self.console_handler = None
 
-        # A small top-right bar with "Open Console"
-        topbar = ttk.Frame(self)
-        topbar.pack(fill='x')
-        ttk.Button(topbar, text='Open Console', command=self.open_console).pack(side='right', padx=10, pady=6)
+        # # A small top-right bar with "Open Console"
+        # topbar = ttk.Frame(self)
+        # topbar.pack(fill='x')
+        # ttk.Button(topbar, text='Open Console', command=self.open_console).pack(side='right', padx=10, pady=6)
 
     # -------------------------
     # Bottom area construction
@@ -138,10 +146,22 @@ class App(tk.Tk):
         # Command row: Entry + quick button
         cmdrow = ttk.Frame(parent)
         cmdrow.pack(fill='x', padx=8, pady=(8, 4))
-
-        self.bottom_entry = ttk.Entry(cmdrow)
+        # TODO - grid this
+        self.policy_query_var = tk.StringVar()
+        ttk.Label(cmdrow, text='Policy Statement for analysis:').pack(side='left', fill='x', expand=True, padx=(0, 6))
+        self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=80)
         self.bottom_entry.pack(side='left', fill='x', expand=True, padx=(0, 6))
-        ttk.Button(cmdrow, text='Log Entry', command=self._log_bottom_entry).pack(side='left')
+        ttk.Button(
+            cmdrow,
+            text='Query GenAI',
+            state=ttk.DISABLED,
+            command=lambda: self.ask_genai_async(prompt=f'{self.policy_query_var.get()}'),
+        ).pack(side='left')
+
+        self.ai_progress_var = tk.StringVar(value='')
+        ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue').pack(
+            side='left', fill='x', expand=True, padx=(0, 6)
+        )
 
         # A white background scrollable area with either HTMLLabel or Text
         container = ttk.Frame(parent)
@@ -174,10 +194,10 @@ class App(tk.Tk):
             self.html_view.insert('1.0', 'tkhtmlview not installed. Using plain Text display.\n')
             self.html_view.pack(fill='both', expand=True, padx=6, pady=6)
 
-    def _log_bottom_entry(self):
-        text = self.bottom_entry.get().strip()
-        if text:
-            logger.info(f'BottomEntry: {text}')
+    # def _log_bottom_entry(self):
+    #     text = self.bottom_entry.get().strip()
+    #     if text:
+    #         logger.info(f'BottomEntry: {text}')
 
     # Public API for tabs to update the bottom entry
     def update_bottom_entry(self, text: str):
@@ -187,25 +207,40 @@ class App(tk.Tk):
     # -------------------------
     # Theme / Font application
     # -------------------------
-    def apply_theme(self, theme: str):
+    def apply_theme(self, choice: str):
+        """Apply either Light (litera) or Dark (darkly)."""
+        mapping = {'Light': 'litera', 'Dark': 'darkly'}
+        theme_name = mapping.get(choice, 'litera')
         try:
-            self.style.theme_use(theme)
-            self.settings['theme'] = theme
+            self.style.theme_use(theme_name)
+            self.settings['theme'] = choice
             config.save_settings(self.settings)
-            logger.info(f'Theme set to {theme}')
-        except tk.TclError:
-            logger.warning(f"Theme '{theme}' is not available")
+            logger.info(f'Theme set to {choice} ({theme_name})')
+
+        except Exception as e:
+            logger.warning(f'Failed to apply theme {choice}: {e}')
+
+        # Also update HTML view colors
+        if hasattr(self, 'html_view'):
+            logger.info(f'Change HTML to {choice} ({theme_name})')
+            if choice == 'Dark':
+                self.html_view.configure(background='black', foreground='white')
+            else:
+                self.html_view.configure(background='white', foreground='black')
 
     def apply_font_size(self, size_name: str):
         sizes = {'Small': 9, 'Medium': 11, 'Large': 13}
         size = sizes.get(size_name, 11)
 
-        # Try Oracle Sans, fallback to TkDefaultFont
+        # Choose family (Oracle Sans if installed, else fallback)
         families = tkfont.families()
-        family = 'Oracle Sans' if 'Oracle Sans' in families else self.default_font.cget('family')
+        family = 'Oracle Sans' if 'Oracle Sans' in families else 'Helvetica'
 
-        self.default_font.configure(family=family, size=size)
-        # (ttk widgets track TkDefaultFont automatically)
+        # Tell ttkbootstrap to use this font globally
+        font = (family, size)
+        self.style.configure('.', font=font)  # "." applies to *all* widgets
+
+        # Save & log
         self.settings['font_size'] = size_name
         config.save_settings(self.settings)
         logger.info(f'Font size set to {size_name} ({size}px)')
@@ -242,6 +277,7 @@ class App(tk.Tk):
     # -------------------------
     # Console window & logging
     # -------------------------
+
     def open_console(self):
         if self.console_window and tk.Toplevel.winfo_exists(self.console_window):
             self.console_window.lift()
@@ -251,40 +287,31 @@ class App(tk.Tk):
         self.console_window.title('Console Log')
         self.console_window.geometry('800x400')
 
-        # Text area + scrollbar
+        # --- Controls row at top ---
+        controls = ttk.Frame(self.console_window)
+        controls.pack(fill='x', padx=5, pady=5)
+
+        ttk.Button(controls, text='Clear', command=lambda: text.delete('1.0', tk.END)).pack(side='left', padx=(0, 10))
+
+        ttk.Label(controls, text='Log Level:').pack(side='left')
+        level_combo = ttk.Combobox(
+            controls,
+            textvariable=self.log_level_var,
+            values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            state='readonly',
+            width=10,
+        )
+        level_combo.pack(side='left')
+        level_combo.bind('<<ComboboxSelected>>', lambda e: self._apply_log_level())
+
+        # --- Text area ---
         text = tk.Text(self.console_window, wrap='word')
         scroll = ttk.Scrollbar(self.console_window, command=text.yview)
         text.configure(yscrollcommand=scroll.set)
         text.pack(side='left', fill='both', expand=True)
         scroll.pack(side='right', fill='y')
 
-        # Controls: Clear + Log Level
-        controls = ttk.Frame(self.console_window)
-        controls.pack(fill='x', pady=3)
-
-        ttk.Button(controls, text='Clear', command=lambda: text.delete('1.0', tk.END)).pack(side='left', padx=6)
-
-        ttk.Label(controls, text='Log Level:').pack(side='left', padx=(16, 6))
-        level_var = tk.StringVar(value=logging.getLevelName(logger.level))
-        level_combo = ttk.Combobox(
-            controls,
-            textvariable=level_var,
-            values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            state='readonly',
-            width=10,
-        )
-        level_combo.pack(side='left')
-
-        def set_level(_=None):
-            level = getattr(logging, level_var.get(), logging.INFO)
-            logger.setLevel(level)
-            self.settings['log_level'] = level_var.get()
-            config.save_settings(self.settings)
-            logger.info(f'Log level set to {level_var.get()}')
-
-        level_combo.bind('<<ComboboxSelected>>', set_level)
-
-        # Attach handler to global logger so logs from ANY module stream here
+        # Attach handler
         self.console_handler = TextHandler(text)
         self.console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
         logger.addHandler(self.console_handler)
@@ -299,118 +326,207 @@ class App(tk.Tk):
             self.console_window.destroy()
             self.console_window = None
 
+    def _apply_log_level(self):
+        level = getattr(logging, self.log_level_var.get(), logging.INFO)
+        logger.setLevel(level)
+        self.settings['log_level'] = self.log_level_var.get()
+        config.save_settings(self.settings)
+        logger.info(f'Log level set to {self.log_level_var.get()}')
+
     # -------------------------
     # Loading of tenancy
     # -------------------------
-    def load_tenancy_async(
+    def load_tenancy_async(  # noqa: C901
         self,
         tenancy_id: str,
         recursive: bool,
         instance_principal: bool,
         named_profile: str,
+        named_session: str,
         named_cache: str,
         callback=None,
     ):
         """Kick off tenancy loading in a background thread."""
-
         # Could load from cache or from tenancy with threading
-        logger.info(f'Starting tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
-        threading.Thread(
-            target=lambda: asyncio.run(
-                self._load_tenancy(tenancy_id, recursive, instance_principal, named_profile, named_cache, callback)
-            ),
-            daemon=True,
-        ).start()
+        logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
 
-    async def _load_tenancy(  # noqa: C901
-        self,
-        tenancy_id: str,
-        recursive: bool,
-        instance_principal: bool,
-        named_profile: str,
-        named_cache: str,
-        callback=None,
-    ):
-        """Async worker that actually performs the tenancy load."""
-        try:
-            success = False
+        def worker():  # noqa: C901
+            """Async worker that actually performs the tenancy load."""
+            try:
+                success = False
 
-            # If cached, simply load directly
-            if named_cache:
-                logger.info(f'Using named cache: {named_cache}')
+                # If cached, simply load directly
+                if named_cache:
+                    logger.info(f'Using named cache: {named_cache}')
 
-                # Call into the data caching module
-                success = load_combined_cache(
-                    named_cache=named_cache,
-                    policy_analysis=self.policy_compartment_analysis,
-                    domains_analysis=self.identity_domain_analysis,
-                )
+                    # Call into the data caching module
+                    success = load_combined_cache(
+                        named_cache=named_cache,
+                        policy_analysis=self.policy_compartment_analysis,
+                        domains_analysis=self.identity_domain_analysis,
+                    )
 
-            # If tenancy, initialize client
-            elif named_profile:
-                logger.info(f'Using named profile: {named_profile}')
+                # If tenancy, initialize client
+                elif named_profile:
+                    logger.info(f'Using named profile: {named_profile}')
 
-                success = self.policy_compartment_analysis.initialize_client(
-                    use_instance_principal=instance_principal, recursive=recursive, profile=named_profile
-                )
+                    success = self.policy_compartment_analysis.initialize_client(
+                        use_instance_principal=instance_principal,
+                        session=named_session,
+                        recursive=recursive,
+                        profile=named_profile,
+                    )
+                    if not success:
+                        raise RuntimeError('Failed to initialize PolicyCompartmentAnalysis client')
+                    success = self.identity_domain_analysis.initialize_client(
+                        use_instance_principal=instance_principal, profile=named_profile
+                    )
+                    # Fail if unable to initialize client
+                    if not success:
+                        raise RuntimeError('Failed to initialize IdentityDomainAnalysis client')
+
+                    # Update the message
+                    if callback:
+                        # Schedule safe UI update in main thread
+                        self.after(0, lambda: callback(True, 'Loading Policies and Compartments'))
+
+                    success = self.policy_compartment_analysis.load_policies_and_compartments()
+
+                    if callback:
+                        # Schedule safe UI update in main thread
+                        self.after(0, lambda: callback(True, 'Loading Dynamic Groups'))
+
+                    success = self.identity_domain_analysis.load_all_dynamic_groups()
+
+                    if callback:
+                        # Schedule safe UI update in main thread
+                        self.after(0, lambda: callback(True, 'Loading Users and Groups'))
+
+                    success = self.identity_domain_analysis.load_domains_groups_users()
+
+                    save_combined_cache(
+                        policy_analysis=self.policy_compartment_analysis, domains_analysis=self.identity_domain_analysis
+                    )
+
+                    if callback:
+                        # Schedule safe UI update in main thread
+                        self.after(
+                            0,
+                            lambda: callback(
+                                True, f'Loading data from tenancy {self.policy_compartment_analysis.tenancy_name}'
+                            ),  # type: ignore
+                        )
+
+                # Fail if unsuccessful
                 if not success:
-                    raise RuntimeError('Failed to initialize PolicyCompartmentAnalysis client')
-                success = self.identity_domain_analysis.initialize_client(
-                    use_instance_principal=instance_principal, profile=named_profile
-                )
-                # Fail if unable to initialize client
-                if not success:
-                    raise RuntimeError('Failed to initialize IdentityDomainAnalysis client')
+                    raise Exception('Failed to initialize')
 
-                # Update the message
-                if callback:
-                    # Schedule safe UI update in main thread
-                    self.after(0, lambda: callback(True, 'Loading Policies and Compartments'))
-
-                success = self.policy_compartment_analysis.load_policies_and_compartments()
+                msg = f'Finished loading tenancy {tenancy_id}'
+                logger.info(f'✅ {msg}')
 
                 if callback:
                     # Schedule safe UI update in main thread
-                    self.after(0, lambda: callback(True, 'Loading Dynamic Groups'))
+                    self.after(0, lambda: callback(True, msg, True))
 
-                success = self.identity_domain_analysis.load_all_dynamic_groups()
+                # Tell the tab to reload
+                logger.info('Reload all tabs')
+                self.users_tab.reload_data()
+                self.policies_tab.update_policy_output()
 
-                if callback:
-                    # Schedule safe UI update in main thread
-                    self.after(0, lambda: callback(True, 'Loading Users and Groups'))
-
-                success = self.identity_domain_analysis.load_domains_groups_users()
-
-                save_combined_cache(
-                    policy_analysis=self.policy_compartment_analysis, domains_analysis=self.identity_domain_analysis
-                )
-
+            except Exception as e:
+                logger.error(f'❌ Failed to load tenancy: {e}')
                 if callback:
                     # Schedule safe UI update in main thread
                     self.after(
-                        0,
-                        lambda: callback(
-                            True, f'Loading data from tenancy {self.policy_compartment_analysis.tenancy_name}'
-                        ),
+                        0, lambda e=e: callback(False, f'❌ Failed to load tenancy - {e} - please try again', True)
                     )
 
-            # Fail if unsuccessful
-            if not success:
-                raise Exception('Failed to initialize')
+        threading.Thread(target=worker, daemon=True).start()
 
-            msg = f'Finished loading tenancy {tenancy_id}'
-            logger.info(f'✅ {msg}')
+    # -------------------------
+    # AI Calls
+    # -------------------------
+    def ask_genai_async(self, prompt: str, callback=None):
+        """Run a GenAI query asynchronously in a thread and update the UI."""
+        logger.info(f'Submitting GenAI prompt: {prompt}')
+        self.set_bottom_output(f'## Querying GenAI \n\n`{prompt}`')
 
-            if callback:
-                # Schedule safe UI update in main thread
-                self.after(0, lambda: callback(True, msg, True))
+        def worker():
+            try:
+                # run the async AI call inside this thread
+                ai_markdown_response = asyncio.run(self.ai.test_ai_call(query=prompt, queue=None))
 
-            # Tell the tab to reload
-            logger.info('Reload all tabs')
-            self.users_tab.reload_data()
+                # update UI in main thread
+                self.after(0, lambda: self.set_bottom_output(ai_markdown_response))
+
+                if callback:
+                    self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
+
+                # progress label
+                self.after(0, lambda: self.ai_progress_var.set('Finished AI Call'))
+                self.after(2000, lambda: self.ai_progress_var.set(''))
+
+            except Exception as e:
+                logger.error(f'GenAI request failed: {e}')
+                self.after(0, lambda e=e: self.set_bottom_output(f'**Error:** {e}'))
+                if callback:
+                    self.after(0, lambda e=e: callback(success=False, message=f'Failed AI: {e}'))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def set_bottom_output(self, content: str):
+        """Render AI result based on user-selected format (Text, Markdown, HTML)."""
+        fmt = self.settings.get('result_format', 'Markdown')
+
+        try:
+            if fmt == 'Text':
+                # Just show plain text
+                if hasattr(self.html_view, 'set_html'):
+                    self.html_view.set_html(f'<pre>{content}</pre>')
+                else:
+                    self.html_view.delete('1.0', tk.END)
+                    self.html_view.insert('1.0', content)
+
+            elif fmt == 'Markdown':
+                html_body = markdown2.markdown(content)
+                style = self._theme_css()
+                html = f'<!DOCTYPE html><html><head>{style}</head><body>{html_body}</body></html>'
+                self.html_view.set_html(html)
+
+            elif fmt == 'HTML':
+                style = self._theme_css()
+                html = f'<!DOCTYPE html><html><head>{style}</head><body>{content}</body></html>'
+                self.html_view.set_html(html)
 
         except Exception as e:
-            logger.error(f'❌ Failed to load tenancy: {e}')
+            logger.error(f'Failed to render {fmt}: {e}')
+            self.html_view.set_html(f"<p style='color:red;'>Error rendering {fmt}: {e}</p>")
+
+    def _theme_css(self) -> str:
+        """Generate theme-aware CSS for dark/light modes."""
+        if self.settings.get('theme', 'Light') == 'Dark':
+            return """
+                <style>
+                body { background-color: black; color: white; font-family: sans-serif; }
+                a { color: #66b3ff; text-decoration: underline; }
+                pre { color: #eee; }
+                </style>
+            """
+        else:
+            return """
+                <style>
+                body { background-color: white; color: black; font-family: sans-serif; }
+                a { color: blue; text-decoration: underline; }
+                pre { color: #333; }
+                </style>
+            """
+
+    # -------------------------
+    # Web Links
+    # -------------------------
+    def open_link(self, link):
+        logger.info(f'Opening web link: {link}')
+        webbrowser.open_new(link)
 
 
 if __name__ == '__main__':

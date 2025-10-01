@@ -29,7 +29,7 @@ from pathlib import Path
 # Third-party imports
 from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
-from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
+from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.generative_ai import GenerativeAiClient
 from oci.generative_ai_inference import GenerativeAiInferenceClient
@@ -47,6 +47,7 @@ from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
+from oci.signer import load_private_key_from_file
 
 from logic.logger import get_logger
 
@@ -136,7 +137,9 @@ class PolicyCompartmentAnalysis:
         self.identity_client = None
         logger.info('Initialized PolicyCompartmentAnalysis')
 
-    def initialize_client(self, use_instance_principal: bool, recursive: bool = True, profile: str = 'DEFAULT') -> bool:
+    def initialize_client(
+        self, use_instance_principal: bool, session: str, recursive: bool = True, profile: str = 'DEFAULT'
+    ) -> bool:
         """Initializes the OCI client to be used for all data operations
 
         Client can be loaded using PROFILE or Instance Principal authentication methods
@@ -158,6 +161,19 @@ class PolicyCompartmentAnalysis:
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
+            elif session:
+                logger.info('Attempt session auth')
+                self.config = config.from_file(profile_name=session)
+                token_file = self.config['security_token_file']
+                token = None
+                with open(token_file) as f:
+                    token = f.read()
+                private_key = load_private_key_from_file(self.config['key_file'])
+                self.signer = SecurityTokenSigner(token, private_key)
+                self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
+                self.tenancy_ocid = self.config['tenancy']
+                logger.info('Success session auth')
+
             else:
                 logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
@@ -1511,7 +1527,7 @@ class AI:
         else:
             return result
 
-    def test_ai_call(self, query: str, queue: queue.Queue, use_cache: bool = False, additional_instruction: str = ''):  # noqa: C901
+    async def test_ai_call(self, query: str, queue: queue.Queue, additional_instruction: str = ''):  # noqa: C901
         """Call OCI GenAI to test AI functionality. Put the results on a Queue that is provided"""
         logger.info(f'Given Prompt: {query}, Additional Instruction: {additional_instruction}')
 
