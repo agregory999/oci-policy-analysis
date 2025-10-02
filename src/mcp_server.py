@@ -6,18 +6,25 @@ import sys
 
 # from mcp.server.fastmcp import FastMCP
 from fastmcp import FastMCP
+from starlette.responses import JSONResponse
 
 from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
 
 logger = get_logger()
 
-mcp = FastMCP('OCI Policy MCP')
+mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyCompartmentAnalysis | None = None
 ida: IdentityDomainsAnalysis | None = None
 
 
 # --- Resources and Tools (unchanged) ---
+@mcp.custom_route('/health', methods=['GET'])
+async def health_check(request):
+    # Perform any necessary checks here (e.g., database connection, external service availability)
+    return JSONResponse({'status': 'healthy'})
+
+
 @mcp.resource('policies://all')
 def list_policies() -> str:
     if not pca:
@@ -73,6 +80,7 @@ def build_arg_parser():
     parser.add_argument('--no-recursive', action='store_true')
     parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--host', default='127.0.0.1')
     return parser
 
 
@@ -86,7 +94,7 @@ def main():
     if args.transport == 'stdio':
         mcp.run(transport='stdio')
     else:
-        mcp.run(transport='streamable-http', host='127.0.0.1', port=args.port)
+        mcp.run(transport='streamable-http', host=args.host, port=args.port)
 
 
 # --- Inspector/Claude env bootstrap ---

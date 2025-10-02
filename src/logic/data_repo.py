@@ -23,7 +23,7 @@ import queue
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Third-party imports
@@ -178,7 +178,7 @@ class PolicyCompartmentAnalysis:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
-            logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up Identity Client (Policy) for tenancy: {self.tenancy_ocid}')
 
             # Set Recursion
             self.recursive = recursive
@@ -533,7 +533,7 @@ class PolicyCompartmentAnalysis:
                 self.load_compartment_and_policies_worker(compartment=root_comp)
 
             # Keep track of the time of this completed data load
-            self.data_as_of = str(datetime.now)
+            self.data_as_of = str(datetime.now(UTC))
             policy_finish_time = time.perf_counter()
             logger.info(
                 f'Loaded {len(self.compartments)} compartments in {comp_load_time-start_time:.2f} and {len(self.regular_statements)} policies in {policy_finish_time-comp_load_time:.2f}s'
@@ -910,7 +910,7 @@ class IdentityDomainsAnalysis:
                 self.tenancy_ocid = self.config['tenancy']
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
-            logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up Identity Client (Domain) for tenancy: {self.tenancy_ocid}')
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
@@ -967,7 +967,7 @@ class IdentityDomainsAnalysis:
                         logger.error('Failed to list dynamic groups')
                         return False
                     logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
-            self.data_as_of = str(datetime.now())
+            self.data_as_of = str(datetime.now(UTC))
             return True
         except ServiceError as se:
             logger.error(f'Failed to load dynamic groups: {se}')
@@ -1344,7 +1344,7 @@ class AI:
         """
         logger.info('Analyzing policy statement: %s', policy_text)
 
-        start_time = datetime.now()
+        start_time = time.perf_counter()
         logger.info(f'Calling OCI GenAI for policy analysis: {policy_text}')
         prompt = (
             f"Describe OCI Policy permission '{policy_text}' in detail, including what it allows, typical use cases, and any important considerations. "
@@ -1431,33 +1431,22 @@ class AI:
                 result = f'Error: Extracted content is not a string: {type(result)}'
 
             logger.debug('Final result type: %s, content: %s', type(result), result[:100])
-            logger.info('Completed policy analysis in %s seconds', (datetime.now() - start_time).total_seconds())
-            # if queue:
-            #     queue.put(result)
-            # else:
-            #     return result
+
         except ServiceError as e:
             if e.status == 404:
                 logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
                 result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has \
 <code>allow group PolicyUsers to use generative-ai in tenancy</code><br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if self.verbose else ""}<p>'
-                # if queue:
-                #     queue.put(result)
-                # else:
-                #     return result
+
             else:
                 logger.error('Error calling OCI GenAI for policy analysis: %s', e)
                 result = f'Error calling OCI GenAI: {str(e)}'
-            logger.info(
-                'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
-            )
-            # return result
         except Exception as e:
             logger.error('Error calling OCI GenAI for policy analysis: %s', e)
             result = f'Error calling OCI GenAI: {str(e)}'
-            logger.info(
-                'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
-            )
+        finally:
+            logger.info('Completed policy analysis in %s seconds', (time.perf_counter() - start_time))
+
         # Put on queue if it is there or return the result
         if queue:
             queue.put(result)
