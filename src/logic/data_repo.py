@@ -23,7 +23,7 @@ import queue
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 # Third-party imports
@@ -102,8 +102,6 @@ define_regex = re.compile(CROSS_TENANCY_DEFINE_REGEX, re.IGNORECASE | re.MULTILI
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
-CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
-AI_CACHE_FILE = CACHE_DIR / 'oci_policy_ai_cache.json'
 
 # Logger is centralized now...
 logger = get_logger()
@@ -1236,15 +1234,11 @@ class AI:
     Attributes:
         genai_client: The OCI GenAI Client.
         genai_inference_client: The OCI GenAI Inference Client
-        verbose: Whether to use verbose output
     """
 
     def __init__(self):
         """Initialize OCI GenAI client and constants."""
         logger.info('Initialized AI Module')
-
-        # Load the cache internally
-        self.load_cache()
 
         # Mark not initialized
         self.initialized = False
@@ -1332,46 +1326,8 @@ class AI:
             logger.error('Error listing models: %s', e)
             raise
 
-    def load_cache(self):
-        """Load AI query cache from persistent file if available, else return empty list."""
-        logger.debug('Loading cache from %s', AI_CACHE_FILE)
-        try:
-            # Ensure cache directory exists
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            with open(AI_CACHE_FILE) as f:
-                self.ai_result_cache = json.load(f)
-                if not isinstance(self.ai_result_cache, list):
-                    logger.warning('Cache file %s is not a list, returning empty list', AI_CACHE_FILE)
-                    # return []
-                logger.info('Successfully loaded cache with %d entries', len(self.ai_result_cache))
-
-            # TO-DO: remove older entries from cache
-            for entry in self.ai_result_cache:
-                if 'date_ms' in entry:
-                    # Just show the date for logging purposes
-                    logger.debug(
-                        f"Cache entry date: {datetime.fromtimestamp(entry['date_ms'] / 1000, UTC).isoformat()}"
-                    )
-
-        except FileNotFoundError:
-            logger.debug('Cache file %s not found, returning empty list', AI_CACHE_FILE)
-            self.ai_result_cache = []
-        except json.JSONDecodeError as e:
-            logger.error('Failed to parse JSON from %s: %s', AI_CACHE_FILE, e)
-            self.ai_result_cache = []
-
-    def save_cache(self):
-        """Save AI query cache to persistent file each time a query occurs."""
-        logger.debug('Saving cache to %s', AI_CACHE_FILE)
-        try:
-            with open(AI_CACHE_FILE, 'w') as f:
-                json.dump(self.ai_result_cache, f, indent=4)
-            logger.info('Successfully saved cache to %s with %d entries', AI_CACHE_FILE, len(self.ai_result_cache))
-        except Exception as e:
-            logger.error('Failed to save cache to %s: %s', AI_CACHE_FILE, e)
-
-    def analyze_policy_statement(  # noqa: C901
-        self, policy_text: str, queue: queue.Queue, use_cache: bool = False, additional_instruction: str = ''
+    async def analyze_policy_statement(  # noqa: C901
+        self, policy_text: str, queue: queue.Queue = None, additional_instruction: str = ''
     ):  # noqa: C901
         """Call OCI GenAI to analyze an OCI IAM policy statement, using cache if available.
 
@@ -1381,7 +1337,6 @@ class AI:
         Args:
             policy_text: The OCI Policy statement string to analyze
             queue: An initialized Queue object, on which to put the response.  None if you expect a reply directly
-            use_cache: whether to skip the built-in cache and make the call directly.
             additional_instruction: An optional line of additional instruction for the AI Prompt.
 
         Returns:
@@ -1389,21 +1344,16 @@ class AI:
         """
         logger.info('Analyzing policy statement: %s', policy_text)
 
-        if use_cache:
-            for entry in self.ai_result_cache:
-                if entry.get('type') == 'analyze_policy_statement' and entry.get('query') == policy_text:
-                    logger.debug('Cache hit for policy analysis: %s', policy_text)
-                    return entry['result']
-
         start_time = datetime.now()
         logger.info(f'Calling OCI GenAI for policy analysis: {policy_text}')
         prompt = (
             f"Describe OCI Policy permission '{policy_text}' in detail, including what it allows, typical use cases, and any important considerations. "
-            'Format the response in markdown with clear sections using headers (##). '
-            f'{additional_instruction} '
+            'Format the response in GFM markdown with clear sections using the 3rd level ### header For each section. '
+            'Avoid empty lines in lists and ensure all content is concise and relevant. '
             'Use unordered lists (- item) for permissions and use cases, ensuring each list item has meaningful content and no empty items. '
+            'Give the original policy statement back in a fenced code block '
             "Include a direct documentation link if available under a 'Documentation' section. "
-            'Avoid empty lines in lists and ensure all content is concise and relevant.'
+            f'{additional_instruction} '
         )
         chat_detail = self.create_chat_request(prompt=prompt)
         # Make the request
@@ -1481,19 +1431,6 @@ class AI:
                 result = f'Error: Extracted content is not a string: {type(result)}'
 
             logger.debug('Final result type: %s, content: %s', type(result), result[:100])
-
-            # Add to cache if success
-            self.ai_result_cache.append(
-                {
-                    'date': datetime.now(UTC).isoformat(),
-                    'type': 'analyze_policy_statement',
-                    'query': policy_text,
-                    'result': result,
-                    'date_ms': int(datetime.now().timestamp() * 1000),
-                }
-            )
-            self.save_cache()
-
             logger.info('Completed policy analysis in %s seconds', (datetime.now() - start_time).total_seconds())
             # if queue:
             #     queue.put(result)

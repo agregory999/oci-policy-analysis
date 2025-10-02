@@ -1,23 +1,22 @@
 import asyncio
 import logging
 import threading
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 import webbrowser
+from datetime import datetime
 from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
 
+# import markdown
 import markdown2
-
-# Optional HTML widget (graceful fallback if not installed)
-try:
-    from tkhtmlview import HTMLLabel
-
-    HAS_HTML = True
-except Exception:
-    HAS_HTML = False
+from bs4 import BeautifulSoup
+from tkhtmlview import HTMLLabel
+from ttkbootstrap import Window
 
 from logic import config
-from logic.caching import load_combined_cache, save_combined_cache
+from logic.caching import CacheManager
 from logic.data_repo import AI, IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
 from ui.policies_tab import PoliciesTab
@@ -48,7 +47,7 @@ class TextHandler(logging.Handler):
         self.text_widget.see(tk.END)
 
 
-class App(ttk.Window):
+class App(Window):
     """Main application window for OCI Policy Analysis.
 
     This class manages the main Tkinter window, top Notebook tabs, bottom pane,
@@ -73,7 +72,7 @@ class App(ttk.Window):
     def __init__(self):
         super().__init__(themename='litera')
         self.title('OCI Policy Analysis')
-        self.geometry('1200x900')
+        self.geometry('1400x900')
 
         # Shared config & logger
         self.settings = config.load_settings()
@@ -109,8 +108,13 @@ class App(ttk.Window):
         self.identity_domain_analysis = IdentityDomainsAnalysis()  # Core
         self.ai = AI()  # AI functionality
 
+        # Caching Manager
+        self.caching = CacheManager(
+            policy_analysis=self.policy_compartment_analysis, domains_analysis=self.identity_domain_analysis
+        )
+
         # Tab References
-        self.settings_tab = SettingsTab(self.notebook, self, self.ai, self.settings)
+        self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis)
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
@@ -142,62 +146,92 @@ class App(ttk.Window):
     # -------------------------
     # Bottom area construction
     # -------------------------
+
     def _build_bottom_area(self, parent: ttk.Frame):
-        # Command row: Entry + quick button
+        # -------------------------
+        # Command row
+        # -------------------------
         cmdrow = ttk.Frame(parent)
         cmdrow.pack(fill='x', padx=8, pady=(8, 4))
-        # TODO - grid this
+        # Grid this
+        cmdrow.grid_columnconfigure(0, weight=8)
+        cmdrow.grid_columnconfigure(1, weight=75)
+        cmdrow.grid_columnconfigure(2, weight=7)
+        cmdrow.grid_columnconfigure(3, weight=10)
+
         self.policy_query_var = tk.StringVar()
-        ttk.Label(cmdrow, text='Policy Statement for analysis:').pack(side='left', fill='x', expand=True, padx=(0, 6))
-        self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=80)
-        self.bottom_entry.pack(side='left', fill='x', expand=True, padx=(0, 6))
+        ttk.Label(cmdrow, text='Policy Statement\nfor analysis:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
+
+        self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=90)
+        self.bottom_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+
         ttk.Button(
             cmdrow,
             text='Query GenAI',
-            state=ttk.DISABLED,
-            command=lambda: self.ask_genai_async(prompt=f'{self.policy_query_var.get()}'),
-        ).pack(side='left')
+            command=lambda: self.ask_genai_async(prompt=self.policy_query_var.get()),
+        ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
 
         self.ai_progress_var = tk.StringVar(value='')
-        ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue').pack(
-            side='left', fill='x', expand=True, padx=(0, 6)
+        ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue', width=22).grid(
+            row=0, column=3, padx=5, pady=5, sticky='w'
         )
 
-        # A white background scrollable area with either HTMLLabel or Text
-        container = ttk.Frame(parent)
-        container.pack(fill='both', expand=True, padx=8, pady=(0, 8))
+        # -------------------------
+        # Bottom content (direct, no Canvas wrapper)
+        # -------------------------
+        self.bottom_content = ttk.Frame(parent)
+        self.bottom_content.pack(fill='both', expand=True, padx=8, pady=(0, 8))
 
-        canvas = tk.Canvas(container, background='white', highlightthickness=0)
-        vscroll = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
-        canvas.configure(yscrollcommand=vscroll.set)
+        # Frame for scrollbar for HTML
+        self.md_frame = ttk.Frame(self.bottom_content)
+        self.md_frame.pack(fill='both', expand=True)
+        self.md_canvas = tk.Canvas(self.md_frame, background='white', highlightthickness=0)
+        self.md_vscroll = ttk.Scrollbar(self.md_frame, orient='vertical', command=self.md_canvas.yview)
+        self.md_canvas.configure(yscrollcommand=self.md_vscroll.set)
 
-        self.bottom_content = tk.Frame(canvas, background='white')
-        content_window = canvas.create_window((0, 0), window=self.bottom_content, anchor='nw')
+        # Markdown view (HTMLLabel)
+        self.html_view = HTMLLabel(
+            self.md_canvas,
+            html='<h3>Welcome</h3><p>This area can show Markdown as HTML output.</p>',
+            background='white',
+        )
+        content_window = self.md_canvas.create_window((0, 0), window=self.html_view, anchor='nw')
 
-        def _resize(e):
-            canvas.configure(scrollregion=canvas.bbox('all'))
-            canvas.itemconfig(content_window, width=canvas.winfo_width())
+        def _resize(event):
+            self.md_canvas.configure(scrollregion=self.md_canvas.bbox('all'))
+            self.md_canvas.itemconfig(content_window, width=self.md_canvas.winfo_width())
 
-        self.bottom_content.bind('<Configure>', _resize)
+        self.html_view.bind('<Configure>', _resize)
 
-        canvas.pack(side='left', fill='both', expand=True)
-        vscroll.pack(side='right', fill='y')
+        self.md_canvas.pack(side='left', fill='both', expand=True)
+        self.md_vscroll.pack(side='right', fill='y')
 
-        # HTML view or fallback Text
-        if HAS_HTML:
-            self.html_view = HTMLLabel(
-                self.bottom_content, html='<h3>Welcome</h3><p>This area can show HTML output.</p>', background='white'
-            )
-            self.html_view.pack(fill='both', expand=True, padx=6, pady=6)
-        else:
-            self.html_view = tk.Text(self.bottom_content, wrap='word', background='white', relief='flat')
-            self.html_view.insert('1.0', 'tkhtmlview not installed. Using plain Text display.\n')
-            self.html_view.pack(fill='both', expand=True, padx=6, pady=6)
+        # Text view (ScrolledText, already has scrollbar built-in)
+        self.text_view = ScrolledText(self.bottom_content, wrap='word', background='white', relief='flat')
+        self.text_view.insert('1.0', 'Plain text output will appear here.\n')
 
-    # def _log_bottom_entry(self):
-    #     text = self.bottom_entry.get().strip()
-    #     if text:
-    #         logger.info(f'BottomEntry: {text}')
+        # Start with Markdown visible
+        self.md_frame.pack(fill='both', expand=True)
+        # self.text_frame = self.md_frame  # keep reference to toggle later
+        # self.html_view.pack(fill="both", expand=True, padx=6, pady=6)
+
+        # bind mousewheel properly
+        self._bind_mousewheel(self.md_canvas)
+        self._bind_mousewheel(self.text_view)
+
+    def _bind_mousewheel(self, widget):
+        def _on_mousewheel(event):
+            if event.num == 5 or event.delta < 0:
+                widget.yview_scroll(1, 'units')
+            elif event.num == 4 or event.delta > 0:
+                widget.yview_scroll(-1, 'units')
+            return 'break'
+
+        # Windows / Mac
+        widget.bind_all('<MouseWheel>', _on_mousewheel)
+        # Linux
+        widget.bind_all('<Button-4>', _on_mousewheel)
+        widget.bind_all('<Button-5>', _on_mousewheel)
 
     # Public API for tabs to update the bottom entry
     def update_bottom_entry(self, text: str):
@@ -245,6 +279,24 @@ class App(ttk.Window):
         config.save_settings(self.settings)
         logger.info(f'Font size set to {size_name} ({size}px)')
 
+    def show_output_widget(self, fmt: str):
+        self.text_view.pack_forget()
+        self.md_frame.pack_forget()
+
+        if fmt == 'Text':
+            self.text_view.pack(fill='both', expand=True, padx=6, pady=6)
+        else:  # Markdown
+            self.md_frame.pack(fill='both', expand=True, padx=6, pady=6)
+
+    # def show_output_widget(self, fmt: str):
+    #     """Switch between Markdown (HTMLLabel) and Text (ScrolledText)."""
+    #     self.html_view.pack_forget()
+    #     self.text_view.pack_forget()
+
+    #     if fmt == "Text":
+    #         self.text_view.pack(fill="both", expand=True, padx=6, pady=6)
+    #     else:  # "Markdown"
+    #         self.html_view.pack(fill="both", expand=True, padx=6, pady=6)
     # -------------------------
     # Bottom pane toggle & sash
     # -------------------------
@@ -285,7 +337,7 @@ class App(ttk.Window):
 
         self.console_window = tk.Toplevel(self)
         self.console_window.title('Console Log')
-        self.console_window.geometry('800x400')
+        self.console_window.geometry('900x500')
 
         # --- Controls row at top ---
         controls = ttk.Frame(self.console_window)
@@ -360,11 +412,7 @@ class App(ttk.Window):
                     logger.info(f'Using named cache: {named_cache}')
 
                     # Call into the data caching module
-                    success = load_combined_cache(
-                        named_cache=named_cache,
-                        policy_analysis=self.policy_compartment_analysis,
-                        domains_analysis=self.identity_domain_analysis,
-                    )
+                    success = self.caching.load_combined_cache(named_cache=named_cache)
 
                 # If tenancy, initialize client
                 elif named_profile:
@@ -404,9 +452,8 @@ class App(ttk.Window):
 
                     success = self.identity_domain_analysis.load_domains_groups_users()
 
-                    save_combined_cache(
-                        policy_analysis=self.policy_compartment_analysis, domains_analysis=self.identity_domain_analysis
-                    )
+                    # Write the cache
+                    self.caching.save_combined_cache()
 
                     if callback:
                         # Schedule safe UI update in main thread
@@ -446,16 +493,50 @@ class App(ttk.Window):
     # -------------------------
     # AI Calls
     # -------------------------
-    def ask_genai_async(self, prompt: str, callback=None):
+    def ask_genai_async(self, prompt: str, test=False, callback=None):
         """Run a GenAI query asynchronously in a thread and update the UI."""
         logger.info(f'Submitting GenAI prompt: {prompt}')
         self.set_bottom_output(f'## Querying GenAI \n\n`{prompt}`')
 
         def worker():
             try:
-                # run the async AI call inside this thread
-                ai_markdown_response = asyncio.run(self.ai.test_ai_call(query=prompt, queue=None))
+                start_time = time.perf_counter()
+                if test:
+                    ai_markdown_response = asyncio.run(
+                        self.ai.test_ai_call(
+                            query=prompt, additional_instruction='Super-fast and funny answer please.', queue=None
+                        )
+                    )
+                    self.after(
+                        0, lambda: self.ai_progress_var.set(f'✅ Test GenAI ({time.perf_counter()-start_time:.2f}ms)')
+                    )
 
+                else:
+                    self.after(0, lambda: self.ai_progress_var.set('⌛ Running AI Query'))
+                    # Check the cache
+                    for entry in self.caching.ai_result_cache:
+                        if entry.get('type') == 'analyze_policy_statement' and entry.get('query') == prompt:
+                            logger.info('Cache hit for policy analysis: %s', prompt)
+
+                            # Cache result to display
+                            self.after(0, lambda entry=entry: self.set_bottom_output(entry['result']))
+
+                            # message to user
+                            self.after(0, lambda: self.ai_progress_var.set('✅ Result from AI Cache'))
+
+                    # run the async AI call inside this thread
+                    ai_markdown_response = asyncio.run(self.ai.analyze_policy_statement(policy_text=prompt, queue=None))
+
+                    # Add to the cache
+                    self.caching.ai_result_cache.append(
+                        {
+                            'type': 'analyze_policy_statement',
+                            'query': prompt,
+                            'result': ai_markdown_response,
+                            'date_ms': int(datetime.now().timestamp() * 1000),
+                        }
+                    )
+                    self.caching.save_cache()
                 # update UI in main thread
                 self.after(0, lambda: self.set_bottom_output(ai_markdown_response))
 
@@ -463,8 +544,13 @@ class App(ttk.Window):
                     self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
 
                 # progress label
-                self.after(0, lambda: self.ai_progress_var.set('Finished AI Call'))
-                self.after(2000, lambda: self.ai_progress_var.set(''))
+                self.after(
+                    0,
+                    lambda: self.ai_progress_var.set(
+                        f'✅ Finished AI Call in ({time.perf_counter()-start_time:.2f}ms)'
+                    ),
+                )
+                # self.after(3000, lambda: self.ai_progress_var.set(''))
 
             except Exception as e:
                 logger.error(f'GenAI request failed: {e}')
@@ -474,52 +560,44 @@ class App(ttk.Window):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _markdown_to_text(self, md: str) -> str:
+        html = markdown2.markdown(md, extras=['fenced-code-blocks', 'tables', 'strike', 'break-on-newline'])
+        soup = BeautifulSoup(html, 'html.parser')
+        return soup.get_text('\n').strip()
+
     def set_bottom_output(self, content: str):
-        """Render AI result based on user-selected format (Text, Markdown, HTML)."""
         fmt = self.settings.get('result_format', 'Markdown')
+        self.show_output_widget(fmt)
 
         try:
-            if fmt == 'Text':
-                # Just show plain text
-                if hasattr(self.html_view, 'set_html'):
-                    self.html_view.set_html(f'<pre>{content}</pre>')
-                else:
-                    self.html_view.delete('1.0', tk.END)
-                    self.html_view.insert('1.0', content)
-
-            elif fmt == 'Markdown':
-                html_body = markdown2.markdown(content)
-                style = self._theme_css()
-                html = f'<!DOCTYPE html><html><head>{style}</head><body>{html_body}</body></html>'
-                self.html_view.set_html(html)
-
-            elif fmt == 'HTML':
-                style = self._theme_css()
-                html = f'<!DOCTYPE html><html><head>{style}</head><body>{content}</body></html>'
-                self.html_view.set_html(html)
+            # Text
+            plain = self._markdown_to_text(content)
+            self.text_view.delete('1.0', tk.END)
+            self.text_view.insert('1.0', plain)
+            # HTML
+            html_body = markdown2.markdown(
+                content, extras=['fenced-code-blocks', 'tables', 'strike', 'break-on-newline']
+            )
+            # Generate a theme
+            if self.settings.get('theme', 'Light') == 'Dark':
+                themed = f"""
+                <div style="font-family:sans-serif; color:black;">
+                    {html_body}
+                </div>
+                """
+            else:
+                themed = f"""
+                    <div style="font-family:sans-serif; color:black; background:white;">
+                        {html_body}
+                    </div>
+                """
+            self.html_view.set_html(themed)
 
         except Exception as e:
-            logger.error(f'Failed to render {fmt}: {e}')
-            self.html_view.set_html(f"<p style='color:red;'>Error rendering {fmt}: {e}</p>")
-
-    def _theme_css(self) -> str:
-        """Generate theme-aware CSS for dark/light modes."""
-        if self.settings.get('theme', 'Light') == 'Dark':
-            return """
-                <style>
-                body { background-color: black; color: white; font-family: sans-serif; }
-                a { color: #66b3ff; text-decoration: underline; }
-                pre { color: #eee; }
-                </style>
-            """
-        else:
-            return """
-                <style>
-                body { background-color: white; color: black; font-family: sans-serif; }
-                a { color: blue; text-decoration: underline; }
-                pre { color: #333; }
-                </style>
-            """
+            if fmt == 'Text':
+                self.text_view.insert('1.0', f'Error rendering text: {e}')
+            else:
+                self.html_view.set_html(f"<p style='color:red;'>Error rendering Markdown: {e}</p>")
 
     # -------------------------
     # Web Links

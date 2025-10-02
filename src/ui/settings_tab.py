@@ -6,7 +6,7 @@ from pathlib import Path
 from tkinter import ttk
 
 from logic import config
-from logic.caching import get_available_cache
+from logic.caching import CacheManager
 from logic.data_repo import AI
 from logic.logger import get_logger
 from ui.data_table import DataTable
@@ -25,11 +25,12 @@ class SettingsTab(ttk.Frame):
     - (extend here with more settings later)
     """
 
-    def __init__(self, parent, app, ai_repo: AI, settings):
+    def __init__(self, parent, app, caching: CacheManager, ai_repo: AI, settings):
         super().__init__(parent)
         self.app = app
         self.settings = settings
         self.ai_repo = ai_repo
+        self.caching = caching
 
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
@@ -74,6 +75,8 @@ class SettingsTab(ttk.Frame):
         font_combo.pack(side='left')
         font_combo.bind('<<ComboboxSelected>>', lambda e: self.app.apply_font_size(self.font_var.get()))
 
+        ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
+
         # Console
         ttk.Button(disp, text='Open Console', command=self.app.open_console).pack(side='left', padx=10, pady=6)
         ttk.Label(disp, text='Log Level:').pack(side='left', padx=(20, 5))
@@ -99,18 +102,21 @@ class SettingsTab(ttk.Frame):
 
         level_combo.bind('<<ComboboxSelected>>', set_level)
 
+        ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
+
         # Markup / HTML / Text
-        ttk.Label(disp, text='Result Format:').pack(side='left', padx=(20, 5))
+        ttk.Label(disp, text='AI Result Format:').pack(side='left', padx=(20, 5))
         format_combo = ttk.Combobox(
-            disp, textvariable=self.format_var, values=['Text', 'Markdown', 'HTML'], state='readonly', width=10
+            disp, textvariable=self.format_var, values=['Text', 'Markdown'], state='readonly', width=10
         )
         format_combo.pack(side='left')
 
         def set_format(_=None):
+            """Change the output format of the AI Insights"""
             self.settings['result_format'] = self.format_var.get()
-            from logic import config
-
             config.save_settings(self.settings)
+            # Call parent
+            self.app.show_output_widget(self.format_var.get())
             logger.info(f'Result format set to {self.format_var.get()}')
 
         format_combo.bind('<<ComboboxSelected>>', set_format)
@@ -147,7 +153,7 @@ class SettingsTab(ttk.Frame):
         # Get available cached copies
         self.label_cache = ttk.Label(label_frm_tenancy_config, text='Cache:')
         self.label_cache.grid(row=1, column=1, padx=5, pady=3)
-        self.cache_list = get_available_cache(None)
+        self.cache_list = self.caching.get_available_cache(None)
         self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
         self.cache_list_dropdown = ttk.OptionMenu(
             label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list
@@ -158,17 +164,16 @@ class SettingsTab(ttk.Frame):
         # Load button (lambda function with boolean for cache)
         ttk.Button(
             label_frm_tenancy_config,
-            width=20,
-            text='Load Tenancy',
+            width=25,
+            text='Load from Tenancy',
             command=lambda: self._on_load_clicked(use_cache=False),
         ).grid(row=0, column=3, padx=5, pady=5, sticky='w')
         ttk.Button(
-            label_frm_tenancy_config, width=20, text='Load Cache', command=lambda: self._on_load_clicked(use_cache=True)
+            label_frm_tenancy_config,
+            width=25,
+            text='Load from Cache',
+            command=lambda: self._on_load_clicked(use_cache=True),
         ).grid(row=1, column=3, padx=5, pady=5, sticky='w')
-
-        # audit_link = ttk.Label(
-        #     frm_history_top, text='Open OCI Audit (have logged in browser)', cursor='hand2', foreground='#0000EE'
-        # )
 
         def open_link(event):
             link = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
@@ -194,10 +199,30 @@ class SettingsTab(ttk.Frame):
             command=lambda: self._on_load_clicked(use_cache=False),
         ).grid(row=2, column=3, padx=5, pady=5, sticky='w')
 
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(
+            row=0, column=4, rowspan=4, padx=5, pady=5, sticky='w'
+        )
+
+        ttk.Button(
+            label_frm_tenancy_config,
+            width=25,
+            text='Import',
+            # command=lambda: self._on_load_clicked(use_cache=False),
+        ).grid(row=0, column=5, padx=5, pady=5, sticky='w')
+
+        ttk.Button(
+            label_frm_tenancy_config,
+            width=25,
+            text='Export',
+            # command=lambda: self._on_load_clicked(use_cache=False),
+        ).grid(row=1, column=5, padx=5, pady=5, sticky='w')
+
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=2, column=6, rowspan=4, pady=5, sticky='w')
+
         # Progress indicator
         self.progress_var = tk.StringVar(value='')
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
-        self.progress_label.grid(row=0, column=4, padx=5, pady=5, sticky='w')
+        self.progress_label.grid(row=0, column=7, padx=5, pady=5, sticky='w')
 
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
@@ -234,13 +259,13 @@ class SettingsTab(ttk.Frame):
         self.refresh_button = ttk.Button(
             self.label_frm_ai_config, text='Refresh Models (using selected profile)', command=populate_model_tree
         )
-        self.refresh_button.grid(row=0, column=2, padx=3, pady=3, sticky='ew')
+        self.refresh_button.grid(row=0, column=1, padx=3, pady=3, sticky='ew')
 
         self.ai_progress_var = tk.StringVar(value='')
         self.ai_progress_label = ttk.Label(
             self.label_frm_ai_config, textvariable=self.ai_progress_var, foreground='blue'
         )
-        self.ai_progress_label.grid(row=0, column=1, padx=3, pady=3, sticky='w')
+        self.ai_progress_label.grid(row=0, column=2, padx=3, pady=3, sticky='w')
 
         def update_model_ocid(selected_items):
             if selected_items:
@@ -336,7 +361,7 @@ class SettingsTab(ttk.Frame):
         endpoint = self.endpoint_var.get().strip()
         compartment_ocid = self.ai_compartment_var.get().strip()
         logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
-        self.ai_progress_var.set('Running AI test call…')
+        self.ai_progress_var.set('⌛ Running AI test call…')
 
         try:
             self.ai_repo.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
@@ -346,7 +371,9 @@ class SettingsTab(ttk.Frame):
             )
 
             # Make AI Call to test with callback
-            self.app.ask_genai_async(prompt='What is the meaning of life?', callback=self._on_ai_enablement_finished)
+            self.app.ask_genai_async(
+                prompt='What is the meaning of life?', test=True, callback=self._on_ai_enablement_finished
+            )
 
         except Exception as e:
             logger.error('Failed to update configuration: %s', e)
@@ -361,3 +388,6 @@ class SettingsTab(ttk.Frame):
         # Schedule it to go away if clear was set
         if clear:
             self.after(2000, lambda: self.ai_progress_var.set(''))
+
+        # # Enable Query Button
+        # self.app.ai_query_button.config(state=tk.NORMAL)
