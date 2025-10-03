@@ -484,9 +484,7 @@ class App(Window):
                 logger.error(f'❌ Failed to load tenancy: {e}')
                 if callback:
                     # Schedule safe UI update in main thread
-                    self.after(
-                        0, lambda e=e: callback(False, f'❌ Failed to load tenancy - {e} - please try again', True)
-                    )
+                    self.after(0, lambda e=e: callback(False, f'Failed to load tenancy - {e} - please try again', True))
 
         threading.Thread(target=worker, daemon=True).start()
 

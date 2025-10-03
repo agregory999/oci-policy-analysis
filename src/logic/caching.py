@@ -88,8 +88,7 @@ class CacheManager:
         for Compartment/Policy and Identity Domain storage.
 
         Args:
-            cached_tenancy: The name of the tenancy to load
-            cached_date: The date string of the cache
+            named_cache: The tenancy_date string of the cache name to load
             policy_analysis: The initialized PolicyCompartmentAnalysis class instance to use
             domains_analysis: The initialized IdentityDomainsAnalysis class instance to use
         Returns:
@@ -138,7 +137,7 @@ class CacheManager:
             except Exception as e:
                 logger.error(f'Error loading combined cache file: {e}')
                 return 'no cache'
-        logger.warning(f'Unable to load data from cache: {combined_cache_file}')
+        # logger.warning(f'Unable to load data from cache: {combined_cache_file}')
         return str(combined_cache_file)
 
     def load_cache_from_json(self, loaded_json: dict) -> bool:

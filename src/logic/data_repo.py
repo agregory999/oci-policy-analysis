@@ -25,6 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypedDict
 
 # Third-party imports
 from deepdiff import DeepDiff, parse_path
@@ -105,6 +106,61 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 
 # Logger is centralized now...
 logger = get_logger()
+
+# For MCP-specific JSON
+VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
+
+FILTER_KEY_MAP = {
+    'policy_name': 'Policy Name',
+    'policy_ocid': 'Policy OCID',
+    'compartment_ocid': 'Compartment OCID',
+    'policy_compartment': 'Policy Compartment',
+    'statement_text': 'Statement Text',
+    'valid': 'Valid',
+    'invalid_reason': 'Invalid Reason',
+    'subject_type': 'Subject Type',
+    'subject': 'Subject',
+    'verb': 'Verb',
+    'resource': 'Resource',
+    'permission': 'Permission',
+    'location_type': 'Location Type',
+    'location': 'Location',
+    'conditions': 'Conditions',
+    'comments': 'Comments',
+    'creation_time': 'Creation Time',
+    'parsed': 'Parsed',
+}
+
+
+# TypedDicts for MCP - these improve the code readability and help with type checking
+class Group(TypedDict):
+    domain: str | None
+    name: str
+
+
+class DynamicGroup(TypedDict):
+    domain: str | None
+    name: str
+
+
+class PolicyStatement(TypedDict, total=False):
+    Policy_Name: str
+    Policy_OCID: str
+    Compartment_OCID: str
+    Policy_Compartment: str
+    Statement_Text: str
+    Valid: bool
+    Subject_Type: str
+    Subject: list[tuple[str | None, str]] | str
+    Verb: str
+    Resource: str
+    Permission: str
+    Location_Type: str
+    Location: str
+    Conditions: str
+    Comments: str
+    Creation_Time: str
+    Parsed: bool
 
 
 class PolicyCompartmentAnalysis:
@@ -284,6 +340,16 @@ class PolicyCompartmentAnalysis:
         comp = self.get_compartment_by_id(comp_id)
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
+        # Basic statement dict - will be augmented after parsing
+        statement_dict = {
+            'Policy Name': policy.name,
+            'Policy OCID': policy.id,
+            'Compartment OCID': comp_id,
+            'Policy Compartment': comp_string,
+            'Statement Text': statement,
+            'Creation Time': str(policy.time_created),
+        }
+
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
         logger.debug(f'Checking to see if Cross-tenancy: {statement}')
 
@@ -310,7 +376,6 @@ class PolicyCompartmentAnalysis:
                     }
                     self.defined_aliases.append(define_dict)
 
-                    # [result.get('Defined Name')] = (result.get('Defined Type'), result.get('OCID Alias'))
                     return True
             except Exception as e:
                 logger.warning(f'Failed to parse define: {e}')
@@ -319,41 +384,41 @@ class PolicyCompartmentAnalysis:
         # Admit/endorse case (not parsing at the moment)
         elif comp_id == self.tenancy_ocid and (statement.startswith('admit') or statement.startswith('endorse')):
             # TODO: parse these properly - for now, just store them
-            statement_dict = {
-                'Policy Name': policy.name,
-                'Policy OCID': policy.id,
-                'Statement Text': statement,
-                'Creation Time': str(policy.time_created),
-            }
+            # statement_dict = {
+            #     'Policy Name': policy.name,
+            #     'Policy OCID': policy.id,
+            #     'Statement Text': statement,
+            #     'Creation Time': str(policy.time_created),
+            # }
             self.cross_tenancy_statements.append(statement_dict)
             return True
-            # TODO: try corss-tenancy parsing again
+            # TODO: try cross-tenancy parsing again
 
         # Regular Statements are everything else
         else:
             # Regular Statements
             logger.debug(f'Hierarchy string: {comp_string}')
 
-            # Basic Details - not parsed yet
-            statement_list = [
-                policy.name,
-                policy.id,
-                comp_id,
-                comp_string,
-                statement,
-                True,  # Currently for Validity
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                str(policy.time_created),
-                False,  # Currently for parsed
-            ]
+            # # Basic Details - not parsed yet
+            # statement_list = [
+            #     policy.name,
+            #     policy.id,
+            #     comp_id,
+            #     comp_string,
+            #     statement,
+            #     True,  # Currently for Validity
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     None,
+            #     str(policy.time_created),
+            #     False,  # Currently for parsed
+            # ]
 
             # Process Results of regex
             match_result = policy_regex.match(statement)
@@ -361,70 +426,93 @@ class PolicyCompartmentAnalysis:
                 result = match_result.groupdict()
                 logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
-                    # Re-define Statement List
-                    statement_list = [
-                        policy.name,
-                        policy.id,
-                        comp_id,
-                        comp_string,
-                        statement,
-                        True,  # Currently for Validity
-                        result.get('subjecttype'),
-                        result.get('subject') or '',
-                        result.get('verb') or '',
-                        result.get('resource') or '',
-                        result.get('perm') or '',
-                        result.get('locationtype') or '',
-                        result.get('location') or '',
-                        result.get('condition') or '',
-                        result.get('optional') or '',
-                        str(policy.time_created),
-                        True,  # Currently for parsed
-                    ]
-
+                    # # Re-define Statement List
+                    # statement_list = [
+                    #     policy.name,
+                    #     policy.id,
+                    #     comp_id,
+                    #     comp_string,
+                    #     statement,
+                    #     True,  # Currently for Validity
+                    #     result.get('subjecttype'),
+                    #     result.get('subject') or '',
+                    #     result.get('verb') or '',
+                    #     result.get('resource') or '',
+                    #     result.get('perm') or '',
+                    #     result.get('locationtype') or '',
+                    #     result.get('location') or '',
+                    #     result.get('condition') or '',
+                    #     result.get('optional') or '',
+                    #     str(policy.time_created),
+                    #     True,  # Currently for parsed
+                    # ]
+                    statement_dict['Valid'] = True  # Currently for Validity
+                    statement_dict['Subject Type'] = result.get('subjecttype')
+                    statement_dict['Subject'] = result.get('subject') or ''
+                    statement_dict['Verb'] = result.get('verb') or ''
+                    statement_dict['Resource'] = result.get('resource') or ''
+                    statement_dict['Permission'] = result.get('perm') or ''
+                    statement_dict['Location Type'] = result.get('locationtype') or ''
+                    statement_dict['Location'] = result.get('location') or ''
+                    statement_dict['Conditions'] = result.get('condition') or ''
+                    statement_dict['Comments'] = result.get('optional') or ''
+                    statement_dict['Parsed'] = True  # Currently for parsed
                     # Additional Subject Parsing
-                    if statement_list[6] in ['any-user', 'any-group']:
-                        statement_list[7] = [(None, statement_list[6])]
+                    if statement_dict['Subject Type'] in ['any-user', 'any-group']:
+                        statement_dict['Subject'] = [(None, statement_dict['Subject Type'])]
                     else:
                         # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
                         # Try new subject parser
-                        subject_result = self._parse_subjects(statement_list[7])
+                        subject_result = self._parse_subjects(statement_dict['Subject'])
                         logger.debug(f'Subject parsed: {subject_result}')
                         # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
-                        statement_list[7] = subject_result
+                        statement_dict['Subject'] = subject_result
 
                     # Additional check for Location Validity
-                    if statement_list[11].casefold() == 'compartment id':
+                    if statement_dict['Location Type'].casefold() == 'compartment id':
                         # Check and change validity accordingly
-                        statement_list[5] = self._check_invalid_location(statement_list[12])
-                        logger.debug(f'Checked OCID {statement_list[12]} - Valid: {statement_list[5]}')
+                        statement_dict['Valid'] = self._check_invalid_location(statement_dict['Location'])
+                        logger.debug(f"Checked OCID {statement_dict['Location']} - Valid: {statement_dict['Valid']}")
+                        if not statement_dict['Valid']:
+                            statement_dict['Invalid Reason'] = 'Invalid Compartment OCID'
 
+                    # Additional check for Verb validity
+                    if statement_dict['Verb'] and statement_dict['Verb'].casefold() not in VALID_VERBS:
+                        logger.warning(f"Invalid Verb found: {statement_dict['Verb']}")
+                        statement_dict['Valid'] = False
+                        statement_dict['Invalid Reason'] = 'Invalid Verb'
+
+                    # Fake invalid (delete this)
+                    if statement_dict['Resource'] == 'orm-jobs':
+                        logger.warning(f"Fake Invalid Resource found: {statement_dict['Resource']}")
+                        statement_dict['Valid'] = False
+                        statement_dict['Invalid Reason'] = 'Fake Invalid Resource for testing'
                 except Exception as e:
                     logger.warning(f'Failed to parse statement: {e}')
 
             else:
                 logger.warning(f'No regex match for statement: |{statement}|')
 
-            # Create the dict - even if not parsed it will still appear
-            statement_dict = {
-                'Policy Name': statement_list[0],
-                'Policy OCID': statement_list[1],
-                'Compartment OCID': statement_list[2],
-                'Policy Compartment': statement_list[3],
-                'Statement Text': statement_list[4],
-                'Valid': statement_list[5],
-                'Subject Type': statement_list[6],
-                'Subject': statement_list[7],  # This will be a list of tuples
-                'Verb': statement_list[8],
-                'Resource': statement_list[9],
-                'Permission': statement_list[10],
-                'Location Type': statement_list[11],
-                'Location': statement_list[12],
-                'Conditions': statement_list[13],
-                'Comments': statement_list[14],
-                'Creation Time': statement_list[15],
-                'Parsed': statement_list[16],
-            }
+            # # Create the dict - even if not parsed it will still appear
+            # statement_dict = {
+            #     'Policy Name': statement_list[0],
+            #     'Policy OCID': statement_list[1],
+            #     'Compartment OCID': statement_list[2],
+            #     'Policy Compartment': statement_list[3],
+            #     'Statement Text': statement_list[4],
+            #     'Valid': statement_list[5],
+            #     'Subject Type': statement_list[6],
+            #     'Subject': statement_list[7],  # This will be a list of tuples
+            #     'Verb': statement_list[8],
+            #     'Resource': statement_list[9],
+            #     'Permission': statement_list[10],
+            #     'Location Type': statement_list[11],
+            #     'Location': statement_list[12],
+            #     'Conditions': statement_list[13],
+            #     'Comments': statement_list[14],
+            #     'Creation Time': statement_list[15],
+            #     'Parsed': statement_list[16],
+            # }
 
             # For Location, use compartment hierarchy and relative
             # Store regular statements
@@ -560,64 +648,305 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
 
-    def filter_policy_statements_by_groups(self, groups_filter: list[tuple]) -> list:
-        """Filter cached groups by list of (domain, name) tuples.  Returns"""
+    def filter_policy_statements_by_groups(self, groups_filter: list[Group]) -> list[PolicyStatement]:
+        """
+        Filter policy statements by group membership.
+
+        Args:
+            groups_filter (list[Group]): A list of group objects, each with:
+                - domain (str | None): The group domain. If None, treated as "Default".
+                - name (str): The group name.
+
+        Behavior:
+            - Only applies to statements where "Subject Type" == "group".
+            - A statement's "Subject" field may contain one or more (domain, name) pairs.
+            - A match occurs if any provided (domain, name) tuple matches
+            any subject in the statement (case-insensitive).
+
+        Returns:
+            list[PolicyStatement]: Matching policy statements.
+        """
         logger.debug(f'Looking for all policies related to groups: {groups_filter}')
-        groups_filter = list(set(groups_filter))
-        logger.debug(f'De-duped groups: {groups_filter}')
-        filtered = []
+
+        # Deduplicate input groups
+        deduped = {(g['domain'] or 'Default', g['name']) for g in groups_filter}
+        logger.debug(f'De-duped groups: {deduped}')
+
+        filtered: list[PolicyStatement] = []
+
         for statement in self.regular_statements:
-            if statement.get('Subject Type') == 'group':
-                # Iterate provided dynamic groups
-                for group_domain, group_name in groups_filter:
-                    # Compare domain and name
-                    if group_domain is None:
-                        group_domain = 'Default'
-                    # Iterate Policy statement subjects
-                    for subj_domain, subj_name in statement.get('Subject'):
-                        logging.debug(
-                            f'Comparing Group {type(group_domain)}:{repr(group_domain)} / {type(group_name)}:{repr(group_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+            if statement.get('Subject Type') != 'group':
+                continue
+
+            subjects = statement.get('Subject', [])
+            if not isinstance(subjects, list):
+                logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
+                continue
+
+            for group_domain, group_name in deduped:
+                for subj_domain, subj_name in subjects:
+                    logger.debug(
+                        f'Comparing Group ({group_domain}/{group_name}) '
+                        f'to Policy Subject ({subj_domain}/{subj_name})'
+                    )
+                    if (
+                        subj_domain.casefold() == group_domain.casefold()
+                        and subj_name.casefold() == group_name.casefold()
+                    ):
+                        filtered.append(statement)
+                        logger.debug(
+                            f"Adding statement for group {group_domain}/{group_name}: {statement.get('Policy Name')}"
                         )
-                        # Exact match on both domain and name required
-                        if (subj_domain.casefold() == group_domain.casefold()) and (
-                            group_name.casefold() == subj_name.casefold()
-                        ):
-                            filtered.append(statement)
-                            logger.debug(f'Adding statement for group: {group_domain}/{group_name}: {statement}')
-                        else:
-                            logging.debug(
-                                f'Not a match for group {group_domain}/{group_name}: Subject {subj_domain}/{subj_name}'
-                            )
-                            logger.debug(f'Not a match for group {group_domain}/{group_name}: {statement}')
-        logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
+                        break  # stop checking once matched
+
+        logger.info(f'Returning {len(filtered)} statements for groups: {deduped}')
         return filtered
 
-    def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
-        """Filter cached dynamic groups by list of (domain, name) tuples.  Returns"""
-        filtered = []
+        # logger.debug(f'Looking for all policies related to groups: {groups_filter}')
+        # groups_filter = list(set(groups_filter))
+        # logger.debug(f'De-duped groups: {groups_filter}')
+        # filtered = []
+        # for statement in self.regular_statements:
+        #     if statement.get('Subject Type') == 'group':
+        #         # Iterate provided dynamic groups
+        #         for group_domain, group_name in groups_filter:
+        #             # Compare domain and name
+        #             if group_domain is None:
+        #                 group_domain = 'Default'
+        #             # Iterate Policy statement subjects
+        #             for subj_domain, subj_name in statement.get('Subject'):
+        #                 logging.debug(
+        #                     f'Comparing Group {type(group_domain)}:{repr(group_domain)} / {type(group_name)}:{repr(group_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+        #                 )
+        #                 # Exact match on both domain and name required
+        #                 if (subj_domain.casefold() == group_domain.casefold()) and (
+        #                     group_name.casefold() == subj_name.casefold()
+        #                 ):
+        #                     filtered.append(statement)
+        #                     logger.debug(f'Adding statement for group: {group_domain}/{group_name}: {statement}')
+        #                 else:
+        #                     logging.debug(
+        #                         f'Not a match for group {group_domain}/{group_name}: Subject {subj_domain}/{subj_name}'
+        #                     )
+        #                     logger.debug(f'Not a match for group {group_domain}/{group_name}: {statement}')
+        # logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
+        # return filtered
+
+    # def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
+    #     """Filter cached dynamic groups by list of (domain, name) tuples.  Returns"""
+    #     filtered = []
+    #     for statement in self.regular_statements:
+    #         if statement.get('Subject Type') == 'dynamic-group':
+    #             # Iterate provided dynamic groups
+    #             for dg_domain, dg_name in dynamic_groups:
+    #                 # Compare domain and name
+    #                 if dg_domain is None:
+    #                     dg_domain = 'Default'
+    #                 # Iterate Policy statement subjects
+    #                 for subj_domain, subj_name in statement.get('Subject'):
+    #                     logger.debug(
+    #                         f'Comparing DG {type(dg_domain)}:{repr(dg_domain)} / {type(dg_name)}:{repr(dg_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+    #                     )
+    #                     # Exact match on both domain and name required
+    #                     if (subj_domain.casefold() == dg_domain.casefold()) and (
+    #                         dg_name.casefold() == subj_name.casefold()
+    #                     ):
+    #                         filtered.append(statement)
+    #                         logger.debug(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
+    #                     else:
+    #                         logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
+    #     logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
+    #     return filtered
+
+    # MCP-friendly version of dynamic group filtering
+
+    # def filter_policy_statements_by_dynamic_group_name(
+    #     self,
+    #     dynamic_groups: list[tuple[str | None, str]]
+    # ) -> list[dict[str, str]]:
+    #     """
+    #     Filter policy statements by dynamic group membership.
+
+    #     Args:
+    #         dynamic_groups (list[tuple[str | None, str]]):
+    #             A list of (domain, name) tuples representing dynamic groups.
+    #             - If domain is None, it is treated as "Default".
+    #             - Name must match exactly (case-insensitive).
+
+    #     Behavior:
+    #         - Only applies to statements where "Subject Type" == "dynamic-group".
+    #         - A statement's "Subject" field may contain one or more (domain, name) pairs.
+    #         - A match occurs if any provided (domain, name) tuple matches
+    #         any subject in the statement (case-insensitive).
+
+    #     Returns:
+    #         list[dict[str, str]]: A list of matching policy statements.
+    #     """
+    #     filtered: list[dict[str, str]] = []
+
+    #     for statement in self.regular_statements:
+    #         if statement.get("Subject Type") != "dynamic-group":
+    #             continue
+
+    #         subjects = statement.get("Subject", [])
+    #         if not isinstance(subjects, list):
+    #             logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
+    #             continue
+
+    #         for dg_domain, dg_name in dynamic_groups:
+    #             domain = dg_domain or "Default"
+
+    #             for subj_domain, subj_name in subjects:
+    #                 logger.info(
+    #                     f"Comparing DG ({domain}/{dg_name}) to Policy Subject ({subj_domain}/{subj_name})"
+    #                 )
+
+    #                 if subj_domain.casefold() == domain.casefold() and subj_name.casefold() == dg_name.casefold():
+    #                     filtered.append(statement)
+    #                     logger.info(
+    #                         f"Adding statement for dynamic group {domain}/{dg_name}: {statement.get('Policy Name')}"
+    #                     )
+    #                     break  # stop checking this statement once matched
+
+    #     logger.info(f"Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}")
+    #     return filtered
+
+    def filter_policy_statements_by_dynamic_group_name(
+        self, dynamic_groups: list[DynamicGroup]
+    ) -> list[PolicyStatement]:
+        """
+        Filter policy statements by dynamic group membership.
+
+        Args:
+            dynamic_groups (list[dict]): A list of objects with keys:
+                - domain (str | None): Domain name for the dynamic group.
+                If None, treated as "Default".
+                - name (str): Dynamic group name.
+            Behavior:
+                - Only applies to statements where "Subject Type" == "dynamic-group".
+                - The "Subject" field may contain one or more (domain, name) pairs.
+                - A match occurs if any provided (domain, name) matches any subject in
+                the statement (case-insensitive).
+
+        Returns:
+            list[dict[str, str]]: Matching policy statements.
+        """
+        filtered: list[dict[str, str]] = []
+
         for statement in self.regular_statements:
-            if statement.get('Subject Type') == 'dynamic-group':
-                # Iterate provided dynamic groups
-                for dg_domain, dg_name in dynamic_groups:
-                    # Compare domain and name
-                    if dg_domain is None:
-                        dg_domain = 'Default'
-                    # Iterate Policy statement subjects
-                    for subj_domain, subj_name in statement.get('Subject'):
+            if statement.get('Subject Type') != 'dynamic-group':
+                continue
+
+            subjects = statement.get('Subject', [])
+            if not isinstance(subjects, list):
+                logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
+                continue
+
+            for dg in dynamic_groups:
+                domain = dg.get('domain') or 'Default'
+                name = dg.get('name')
+
+                for subj_domain, subj_name in subjects:
+                    logger.debug(f'Comparing DG ({domain}/{name}) to Policy Subject ({subj_domain}/{subj_name})')
+
+                    if subj_domain.casefold() == domain.casefold() and subj_name.casefold() == name.casefold():
+                        filtered.append(statement)
                         logger.debug(
-                            f'Comparing DG {type(dg_domain)}:{repr(dg_domain)} / {type(dg_name)}:{repr(dg_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
+                            f"Adding statement for dynamic group {domain}/{name}: {statement.get('Policy Name')}"
                         )
-                        # Exact match on both domain and name required
-                        if (subj_domain.casefold() == dg_domain.casefold()) and (
-                            dg_name.casefold() == subj_name.casefold()
-                        ):
-                            filtered.append(statement)
-                            logger.debug(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
-                        else:
-                            logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
+                        break  # stop checking once matched
+
         logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
 
+    def filter_policy_statements_json(self, filters: dict[str, list[str]]) -> list[PolicyStatement]:  # noqa: C901
+        """
+        Filter policy statements using JSON-based filters.
+
+        Args:
+            filters (dict[str, list[str]]): A mapping of filter keys to one or more values.
+                - OR: multiple values within a field act as logical OR.
+                - AND: multiple fields are combined as logical AND.
+                - Supported keys:
+                    * policy_name          → matches "Policy Name"
+                    * policy_ocid          → matches "Policy OCID"
+                    * compartment_ocid     → matches "Compartment OCID"
+                    * policy_compartment   → matches "Policy Compartment"
+                    * statement_text       → matches "Statement Text"
+                    * subject_type         → matches "Subject Type"
+                    * subject              → matches "Subject"
+                    * verb                 → must be one of: inspect, read, use, manage
+                    * resource             → matches "Resource"
+                    * permission           → matches "Permission"
+                    * location_type        → matches "Location Type"
+                    * location             → matches "Location"
+                    * conditions           → matches "Conditions"
+                    * comments             → matches "Comments"
+                    * creation_time        → matches "Creation Time"
+                    * parsed               → matches "Parsed"
+                    * policy_text          → searches entire statement text
+                - Special cases:
+                    * verb: values must be a subset of {inspect, read, use, manage}
+                    * policy_compartment: supports "ROOTONLY" (restrict to tenancy root)
+                    * policy_text: full-text search across all fields in a statement
+
+        Returns:
+            list[dict[str, str]]: A list of policy statements that satisfy the filters.
+        """
+        results = []
+
+        for stmt in self.regular_statements:
+            stmt_text = ' '.join(str(v) for v in stmt.values()).lower()
+            match = True
+
+            for key, values in filters.items():
+                values = [v.lower() for v in values]
+
+                # Policy text → whole statement string search
+                if key == 'policy_text':
+                    if not any(val in stmt_text for val in values):
+                        logger.info(f"Rejecting {stmt.get('Policy Name')} due to policy_text mismatch")
+                        match = False
+                        break
+
+                # Compartment special: ROOTONLY
+                elif key == 'policy_compartment' and 'rootonly' in values:
+                    if stmt.get('Compartment OCID') != self.tenancy_ocid:
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
+                        match = False
+                        break
+
+                # Verb enum
+                elif key == 'verb':
+                    invalid = set(values) - VALID_VERBS
+                    if invalid:
+                        logger.warning(f'Invalid verbs in filter: {invalid}')
+                    field_value = str(stmt.get('Verb', '')).lower()
+                    if field_value not in values:
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to verb mismatch: {field_value}")
+                        match = False
+                        break
+
+                # Default lookup using column map
+                else:
+                    column = FILTER_KEY_MAP.get(key)
+                    logger.info(f'Filtering on {key} mapped to column {column} with values {values}')
+                    if not column:
+                        logger.warning(f'Unknown filter key: {key}')
+                        continue
+                    field_value = str(stmt.get(column, '')).lower()
+                    if not any(val in field_value for val in values):
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to {key} mismatch")
+                        match = False
+                        break
+
+            if match:
+                results.append(stmt)
+
+        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        return results
+
+    # Original - non-MCP version of filter_policy_statements
     def filter_policy_statements(
         self,
         subj_filter=None,
