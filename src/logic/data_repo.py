@@ -143,6 +143,11 @@ class DynamicGroup(TypedDict):
     name: str
 
 
+LOC_TENANCY_RE = re.compile(r'\btenancy\b', re.IGNORECASE)
+LOC_COMP_NAME_RE = re.compile(r'\b([a-zA-Z0-9:_\-\s]+)$', re.IGNORECASE)
+LOC_COMP_ID_RE = re.compile(r'\b(ocid1\.compartment\..+)$', re.IGNORECASE)
+
+
 class PolicyStatement(TypedDict, total=False):
     Policy_Name: str
     Policy_OCID: str
@@ -161,6 +166,11 @@ class PolicyStatement(TypedDict, total=False):
     Comments: str
     Creation_Time: str
     Parsed: bool
+
+
+class PolicyMatch(TypedDict):
+    Statement: dict
+    AppliedFrom: str  # which effective compartment made this apply
 
 
 class PolicyCompartmentAnalysis:
@@ -247,7 +257,99 @@ class PolicyCompartmentAnalysis:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
-    def get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
+    def _calculate_effective_compartments_for_statements(self):
+        """
+        Resolve effective compartment for all statements.  Loop through all statements and calculate
+        """
+        for st in self.regular_statements:
+            logger.info(f"-Statement: {st.get('Statement Text')}")
+            # Case 1 - in tenancy
+            if st.get('Location Type') == 'tenancy':
+                st['Effective Compartment'] = self.tenancy_ocid
+                st['Effective Path'] = self._name_path_from_ocid(self.tenancy_ocid)
+                logger.info(f"Effective (ten) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+            # Case 2 - Compartment ID
+            elif st.get('Location Type') == 'compartment id':
+                st['Effective Compartment'] = st.get('Location')
+                st['Effective Path'] = self._name_path_from_ocid(st.get('Location'))
+                st['Parsing Notes'].append('Compartment ID used for location')
+                logger.info(f"Effective (id) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+            # Case 3 - Compartment Name (with or without full path)
+            # Note - if location refers to current compartment, we need to remove that from the path
+            else:
+                logger.info(f"Need to calc eff path for {st.get('Statement Text')}")
+                location = st.get('Location')
+                parts = [p.strip() for p in location.split(':') if p.strip()]
+                policy_path = self._name_path_from_ocid(st.get('Compartment OCID'))
+                logger.info(f'Policy Path: {policy_path} / Location parts: {parts}')
+
+                # If the first element of the path is the same as the policy compartment name, remove it from cosideration
+                eff_path = policy_path
+                comp_name = self._comp_name_path_ocid(st.get('Compartment OCID'))
+                logger.info(f'Compartment name for compare: {comp_name}')
+                # We need just the name of the compartment of the policy, get from
+                if parts[0].casefold() == comp_name.casefold():
+                    st['Parsing Notes'].append('Deleted compartment from effective location')
+                    del parts[0]
+                for p in parts:
+                    eff_path += f'/{p}'
+                logger.info(f"Effective (loc) path for {st.get('Statement Text')}: {eff_path}")
+                st['Effective Path'] = eff_path
+
+    # --- helpers (as before) ---
+    def _name_path_from_ocid(self, ocid: str) -> str | None:
+        """Lookup full root:...:name path from a compartment OCID."""
+        comp = self.compartments_by_id.get(ocid)
+        return comp.get('path') if comp else None
+
+    def _comp_name_path_ocid(self, ocid: str) -> str | None:
+        """Get compartment name from compartment OCID."""
+        comp = self.compartments_by_id.get(ocid)
+        return comp.get('name') if comp else None
+
+    def _build_compartment_index(self) -> None:
+        """
+        Build quick-lookup structures for resolving compartment names and parent/child
+        relationships used by _calculate_effective_compartments_for_statements().
+        """
+
+        # Build these idexes for use later
+        self.compartments_by_id: dict[str, dict[str, str]] = {}
+        self.compartments_by_path: dict[str, dict[str, str]] = {}
+        self.children_by_parent: dict[str, dict[str, str]] = {}
+
+        for comp in self.compartments:  # however you store them
+            logger.info(comp)
+            cid = comp.get('id')
+            name = comp.get('name')
+            parent_id = comp.get('parent_id') or self.tenancy_ocid
+            # There is no path at this point, maybe we can generate it now
+            path = comp.get('hierarchy_path')
+            logger.info(f'***Path is {path}')
+            # path, ocids = self._get_compartment_path(comp, 0, '')
+            # path = comp.get("path")
+
+            # Index by id
+            self.compartments_by_id[cid] = {
+                'name': name,
+                'path': comp.get('hierarchy_path'),
+                'parent_id': parent_id,
+            }
+
+            # Index by path
+            if path:
+                self.compartments_by_path[path] = {'id': cid, 'name': name}
+
+            # Build children_by_parent
+            self.children_by_parent.setdefault(parent_id, {})[name] = cid
+
+        logger.info(
+            f'Built compartment index: {len(self.compartments_by_id)} compartments, '
+            f'{len(self.children_by_parent)} parents with children.'
+        )
+
+    def _get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
+        """Recursive function to generate a compartment's path to the root"""
         hierarchy_ocids = [compartment.id]
         logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
         if not compartment.compartment_id:
@@ -258,7 +360,7 @@ class PolicyCompartmentAnalysis:
             if parent_response.data is None:
                 logger.warning(f'Failed to get parent compartment for {compartment.id}')
                 return comp_string, hierarchy_ocids  # type: ignore
-            parent_path, parent_ocids = self.get_compartment_path(
+            parent_path, parent_ocids = self._get_compartment_path(
                 parent_response.data, level + 1, f'/{compartment.name}{comp_string}'
             )
             hierarchy_ocids.extend(parent_ocids)
@@ -338,6 +440,7 @@ class PolicyCompartmentAnalysis:
         representing the domain and group or dynamic group.
         """
         comp = self.get_compartment_by_id(comp_id)
+        logger.debug(f'Parsing statement {statement} (Comp: {comp})')
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
         # Basic statement dict - will be augmented after parsing
@@ -384,12 +487,7 @@ class PolicyCompartmentAnalysis:
         # Admit/endorse case (not parsing at the moment)
         elif comp_id == self.tenancy_ocid and (statement.startswith('admit') or statement.startswith('endorse')):
             # TODO: parse these properly - for now, just store them
-            # statement_dict = {
-            #     'Policy Name': policy.name,
-            #     'Policy OCID': policy.id,
-            #     'Statement Text': statement,
-            #     'Creation Time': str(policy.time_created),
-            # }
+
             self.cross_tenancy_statements.append(statement_dict)
             return True
             # TODO: try cross-tenancy parsing again
@@ -399,53 +497,13 @@ class PolicyCompartmentAnalysis:
             # Regular Statements
             logger.debug(f'Hierarchy string: {comp_string}')
 
-            # # Basic Details - not parsed yet
-            # statement_list = [
-            #     policy.name,
-            #     policy.id,
-            #     comp_id,
-            #     comp_string,
-            #     statement,
-            #     True,  # Currently for Validity
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     None,
-            #     str(policy.time_created),
-            #     False,  # Currently for parsed
-            # ]
-
             # Process Results of regex
             match_result = policy_regex.match(statement)
             if match_result and match_result.groupdict():
                 result = match_result.groupdict()
                 logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
-                    # # Re-define Statement List
-                    # statement_list = [
-                    #     policy.name,
-                    #     policy.id,
-                    #     comp_id,
-                    #     comp_string,
-                    #     statement,
-                    #     True,  # Currently for Validity
-                    #     result.get('subjecttype'),
-                    #     result.get('subject') or '',
-                    #     result.get('verb') or '',
-                    #     result.get('resource') or '',
-                    #     result.get('perm') or '',
-                    #     result.get('locationtype') or '',
-                    #     result.get('location') or '',
-                    #     result.get('condition') or '',
-                    #     result.get('optional') or '',
-                    #     str(policy.time_created),
-                    #     True,  # Currently for parsed
-                    # ]
+                    # Populate parsed fields
                     statement_dict['Valid'] = True  # Currently for Validity
                     statement_dict['Subject Type'] = result.get('subjecttype')
                     statement_dict['Subject'] = result.get('subject') or ''
@@ -456,6 +514,7 @@ class PolicyCompartmentAnalysis:
                     statement_dict['Location'] = result.get('location') or ''
                     statement_dict['Conditions'] = result.get('condition') or ''
                     statement_dict['Comments'] = result.get('optional') or ''
+                    statement_dict['Parsing Notes'] = []
                     statement_dict['Parsed'] = True  # Currently for parsed
                     # Additional Subject Parsing
                     if statement_dict['Subject Type'] in ['any-user', 'any-group']:
@@ -466,6 +525,8 @@ class PolicyCompartmentAnalysis:
                         subject_result = self._parse_subjects(statement_dict['Subject'])
                         logger.debug(f'Subject parsed: {subject_result}')
                         # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
+                        if len(subject_result) > 1:
+                            statement_dict['Parsing Notes'].append('Multiple subjects found')
                         statement_dict['Subject'] = subject_result
 
                     # Additional check for Location Validity
@@ -493,30 +554,6 @@ class PolicyCompartmentAnalysis:
             else:
                 logger.warning(f'No regex match for statement: |{statement}|')
 
-            # # Create the dict - even if not parsed it will still appear
-            # statement_dict = {
-            #     'Policy Name': statement_list[0],
-            #     'Policy OCID': statement_list[1],
-            #     'Compartment OCID': statement_list[2],
-            #     'Policy Compartment': statement_list[3],
-            #     'Statement Text': statement_list[4],
-            #     'Valid': statement_list[5],
-            #     'Subject Type': statement_list[6],
-            #     'Subject': statement_list[7],  # This will be a list of tuples
-            #     'Verb': statement_list[8],
-            #     'Resource': statement_list[9],
-            #     'Permission': statement_list[10],
-            #     'Location Type': statement_list[11],
-            #     'Location': statement_list[12],
-            #     'Conditions': statement_list[13],
-            #     'Comments': statement_list[14],
-            #     'Creation Time': statement_list[15],
-            #     'Parsed': statement_list[16],
-            # }
-
-            # For Location, use compartment hierarchy and relative
-            # Store regular statements
-            # self.regular_statements.append(statement_list)
             logging.debug(f'Parsed Statement as JSON: {statement_dict}')
             self.regular_statements.append(statement_dict)
 
@@ -531,10 +568,11 @@ class PolicyCompartmentAnalysis:
     def load_compartment_and_policies_worker(self, compartment: Compartment):
         """Worker function to load compartment and policy data as JSON object in a thread"""
         try:
-            # Load compartment data
             start_time = time.perf_counter()
+            # Load compartment data
             logger.debug(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
-            path, ocids = self.get_compartment_path(compartment, 0, '')
+            # Do this instead of build_compartment index
+            path, ocids = self._get_compartment_path(compartment, 0, '')
             self.compartments.append(
                 {
                     'id': compartment.id,
@@ -549,6 +587,7 @@ class PolicyCompartmentAnalysis:
             # Load policies for the compartment
             policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
             if policies_response and policies_response.data:
+                logger.info(f'Looping policies for comp: {compartment.name} ({len(policies_response.data)})')
                 load_pol_time = time.perf_counter()
                 this_comp_count: int = 0
                 for policy in policies_response.data:
@@ -561,6 +600,7 @@ class PolicyCompartmentAnalysis:
                 parse_time = time.perf_counter()
                 logger.debug(f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
 {len(self.defined_aliases)} aliases in {load_pol_time-start_time:.2f} and parse all in {parse_time-load_pol_time:.2f}s')
+
             else:
                 logger.debug(f'No policies found for compartment: {compartment.id}')
                 return
@@ -591,6 +631,7 @@ class PolicyCompartmentAnalysis:
                 return False
             root_comp = root_comp_response.data
             comp_list = [root_comp]
+            logger.info(f'Loaded root compartment: {root_comp.name} (OCID: {root_comp.id})')
             # If recursive, get all compartments
             if self.recursive:
                 logger.debug('Loading compartments recursively')
@@ -608,10 +649,11 @@ class PolicyCompartmentAnalysis:
                     logger.error('Failed to list compartments')
                     return False
                 comp_list.extend(comp_response.data)
-
+            logger.info(f'All compartments loaded: {len(comp_list)}')
             # Catch the load time for compartments
             comp_load_time = time.perf_counter()
 
+            # Load all of the policy data in threaded worker if recursive
             if self.recursive:
                 # Use a thread pool
                 with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
@@ -619,6 +661,21 @@ class PolicyCompartmentAnalysis:
             else:
                 # Call the worker on its own with just the root compartment
                 self.load_compartment_and_policies_worker(compartment=root_comp)
+
+            # Now self.compartments exists. If we build the index from it, won't be as slow
+            self._build_compartment_index()
+
+            # Print indexes
+            logger.info(f'Compartments by id: {self.compartments_by_id}')
+            logger.info(f'Compartments by path: {self.compartments_by_path}')
+            logger.info(f'Children by parent: {self.children_by_parent}')
+
+            logger.info('Effective Compartment Calc starting...')
+
+            # Now call effective compartment code - for all
+            logger.info('---------')
+            self._calculate_effective_compartments_for_statements()
+            logger.info('---------')
 
             # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.now(UTC))
@@ -927,10 +984,24 @@ class PolicyCompartmentAnalysis:
                         match = False
                         break
 
+                # Effective path search
+                elif key == 'effective_path':
+                    filter_eff_value = values[0]  # only one supported
+                    statement_eff_value = str(stmt.get('Effective Path', '')).lower()
+                    logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
+                    # Logic here - if the effective path given contains the effective path of the statement,
+                    # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
+                    if not (filter_eff_value.startswith(statement_eff_value)):
+                        logger.debug(
+                            f"Rejecting {stmt.get('Policy Name')} due to effective_path mismatch: "
+                            f"{statement_eff_value} not in {filter_eff_value}"
+                        )
+                        match = False
+                        break
                 # Default lookup using column map
                 else:
                     column = FILTER_KEY_MAP.get(key)
-                    logger.info(f'Filtering on {key} mapped to column {column} with values {values}')
+                    logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
                     if not column:
                         logger.warning(f'Unknown filter key: {key}')
                         continue
@@ -944,6 +1015,71 @@ class PolicyCompartmentAnalysis:
                 results.append(stmt)
 
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        return results
+
+    def filter_policies_by_effective_compartment(
+        self,
+        compartment_path: str | None = None,
+        compartment_ocid: str | None = None,
+        filters: dict[str, list[str]] | None = None,
+    ) -> list[PolicyMatch]:
+        """
+        Combines JSON-based filtering with effective-compartment evaluation.
+
+        Args:
+            compartment_path: path like "root:A:B"
+            compartment_ocid: compartment OCID
+            filters: same schema as filter_policy_statements_json()
+
+        Returns:
+            List of {"Statement": stmt, "AppliedFrom": eff_path}
+        """
+        if (compartment_path and compartment_ocid) or (not compartment_path and not compartment_ocid):
+            raise ValueError('Must provide exactly one of compartment_path or compartment_ocid')
+
+        # Resolve path <-> OCID
+        if compartment_ocid:
+            comp_id = compartment_ocid
+            comp_path = self._name_path_from_ocid(comp_id)
+            if not comp_path:
+                logger.info(f'Could not resolve OCID {compartment_ocid}')
+                return []
+            logger.debug(f'Resolved OCID {compartment_ocid} → path {comp_path}')
+        else:
+            comp_path = compartment_path
+            comp = self.compartments_by_path.get(comp_path)
+            comp_id = comp.get('id') if comp else None
+            if not comp_id:
+                logger.info(f'Could not resolve path {compartment_path}')
+                return []
+            logger.debug(f'Resolved path {compartment_path} → OCID {comp_id}')
+
+        # Phase 1: pre-filter using JSON filter engine
+        base_results = self.filter_policy_statements_json(filters or {})
+        logger.debug(f'{len(base_results)} statements matched base JSON filters')
+
+        # Build ancestor paths for this compartment
+        path_parts = comp_path.split(':')
+        ancestor_paths = [':'.join(path_parts[:i]) for i in range(1, len(path_parts) + 1)]
+        if 'root' not in ancestor_paths:
+            ancestor_paths.insert(0, 'root')
+        logger.debug(f'Ancestor paths for {comp_path}: {ancestor_paths}')
+
+        # Phase 2: effective-compartment filtering
+        results: list[PolicyMatch] = []
+        for stmt in base_results:
+            eff_path = stmt.get('Effective Compartment')
+            if not stmt.get('Valid', False):
+                continue
+            if eff_path not in ancestor_paths:
+                continue
+
+            results.append({'Statement': stmt, 'AppliedFrom': eff_path})
+
+        logger.info(
+            f'Effective filter: path={compartment_path}, ocid={compartment_ocid}, '
+            f'filters={filters}, returned {len(results)} statements'
+        )
         return results
 
     # Original - non-MCP version of filter_policy_statements
