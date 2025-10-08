@@ -258,6 +258,26 @@ class PoliciesTab(ttk.Frame):
                 self.app.policy_query_var.set(row.get('Statement Text'))
                 # self.policy_analyze_statement_var.set(row.get('Statement Text'))
 
+        def perform_effective_path_search(effective_path: str):
+            # set the effective path variable to the selected compartment path
+            self.effective_path_var.set(effective_path)
+            # Update the output
+            self.update_policy_output()
+
+        def effective_right_click(row_index: int) -> tk.Menu:
+            effective_path_text = self.policy_table.data[row_index].get('Effective Path')
+            logger.info(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label=f'Show all Policies with same Effective Path ({effective_path_text})',
+                command=lambda: perform_effective_path_search(effective_path_text),
+            )
+            # menu.add_command(
+            #     label=f"Delete Row {row_index}",
+            #     command=lambda: print(f"Delete row {row_index}")
+            # )
+            return menu
+
         # Use the Data Table here with fields
         self.policy_table = DataTable(
             self,
@@ -266,6 +286,7 @@ class PoliciesTab(ttk.Frame):
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
             selection_callback=selection_callback,
+            row_context_menu_callback=effective_right_click,
             multi_select=True,
         )
         # self.policy_table.grid(row=0, column=0, sticky="nsew")

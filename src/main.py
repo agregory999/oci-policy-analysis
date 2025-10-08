@@ -87,6 +87,7 @@ class App(Window):
         self.default_font = tkfont.nametofont('TkDefaultFont')
         self.style.configure('.', font=('Oracle Sans', 12))
         self.style.configure('TButton', bootstyle='round')  # all buttons get round style
+        self.style.configure('TNotebook.Tab', padding=[40, 20, 40, 20])  # notebook tab [left, top, right, bottom]
 
         # Apply theme & font from settings
         self.apply_theme(self.settings.get('theme', 'Light'))
@@ -116,7 +117,7 @@ class App(Window):
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
-        self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis)
+        self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis, self.policy_compartment_analysis)
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
@@ -471,7 +472,7 @@ class App(Window):
 
                 # Tell the tab to reload
                 logger.info('Reload all tabs')
-                self.users_tab.reload_data()
+                self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
 
             except Exception as e:

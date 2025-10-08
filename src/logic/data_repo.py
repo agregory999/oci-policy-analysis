@@ -149,6 +149,7 @@ class User(TypedDict):
 
     user_name: str
     user_id: str
+    display_name: str
     domain_name: str | None
 
 
@@ -762,12 +763,7 @@ class PolicyCompartmentAnalysis:
         Returns:
             list[PolicyStatement]: Matching policy statements.
         """
-        logger.debug(f'Looking for all policies related to groups: {groups_filter}')
-
-        # Deduplicate input groups
-        deduped = {(g['domain'] or 'Default', g['name']) for g in groups_filter}
-        logger.debug(f'De-duped groups: {deduped}')
-
+        logger.info(f'Filter policies related to groups: {groups_filter}')
         filtered: list[PolicyStatement] = []
 
         for statement in self.regular_statements:
@@ -778,8 +774,13 @@ class PolicyCompartmentAnalysis:
             if not isinstance(subjects, list):
                 logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
                 continue
+            if not groups_filter:
+                logger.debug('No groups provided for filtering, skipping statement.')
+                continue
+            for group in groups_filter:
+                group_domain = group.get('domain') or 'Default'
+                group_name = group.get('name')
 
-            for group_domain, group_name in deduped:
                 for subj_domain, subj_name in subjects:
                     logger.debug(
                         f'Comparing Group ({group_domain}/{group_name}) '
@@ -795,7 +796,7 @@ class PolicyCompartmentAnalysis:
                         )
                         break  # stop checking once matched
 
-        logger.info(f'Returning {len(filtered)} statements for groups: {deduped}')
+        logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
         return filtered
 
     def filter_policy_statements_by_dynamic_group_name(
@@ -899,7 +900,7 @@ class PolicyCompartmentAnalysis:
                 elif key == 'verb':
                     invalid = set(values) - VALID_VERBS
                     if invalid:
-                        logger.warning(f'Invalid verbs in filter: {invalid}')
+                        logger.debug(f'Invalid verbs in filter: {invalid}')
                     field_value = str(stmt.get('Verb', '')).lower()
                     if field_value not in values:
                         logger.debug(f"Rejecting {stmt.get('Policy Name')} due to verb mismatch: {field_value}")
@@ -1253,48 +1254,6 @@ class IdentityDomainsAnalysis:
         return dg_dict
         # TODO: Add back invalid OCID analysis
 
-    # def load_all_dynamic_groups(self) -> bool:
-    #     """Load all of the dynamic groups across all Identity Domains"""
-
-    #     self.dynamic_groups = []
-    #     self.identity_domains = []
-    #     self.groups = []
-    #     self.users = []
-    #     # We need to go through all domains
-    #     try:
-    #         domains_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)
-    #         if domains_response and domains_response.data:
-    #             for domain in domains_response.data:
-    #                 logger.debug(f'Domain {domain.display_name}, OCID {domain.id}')
-    #                 if self.use_instance_principal:
-    #                     domain_client = IdentityDomainsClient(
-    #                         config={}, signer=self.signer, service_endpoint=domain.url
-    #                     )
-    #                 else:
-    #                     domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
-    #                 self.domain_clients[domain.id] = domain_client
-
-    #                 dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
-    #                 if dg_response and dg_response.data:
-    #                     logger.debug(
-    #                         f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
-    #                     )
-    #                     for dg in dg_response.data.resources:
-    #                         logger.debug(f'DG: {dg.display_name}')
-    #                         # Append the Dynamic Group dict to the list
-    #                         self.dynamic_groups.append(
-    #                             self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
-    #                         )
-    #                 else:
-    #                     logger.error('Failed to list dynamic groups')
-    #                     return False
-    #                 logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
-    #         self.data_as_of = str(datetime.now(UTC))
-    #         return True
-    #     except ServiceError as se:
-    #         logger.error(f'Failed to load dynamic groups: {se}')
-    #         return False
-
     def run_dg_in_use_analysis(self, policy_statements: list):
         """Analyzes Dynamic Group data for unused Dynamic Groups
 
@@ -1410,9 +1369,10 @@ class IdentityDomainsAnalysis:
             if group_ocid in user_groups:
                 matched_users.append(
                     {
-                        'user_name': user.get('User Name'),
+                        'user_name': user.get('Username'),
                         'user_id': user.get('User ID'),
                         'domain_name': user.get('Domain Name'),
+                        'display_name': user.get('Display Name'),
                     }
                 )
 
@@ -1439,9 +1399,9 @@ class IdentityDomainsAnalysis:
         name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
         logger.debug(f'Filtering Users based on Name: {name_filter}')
         for u in self.users:
-            matches_name = not name_terms or any(term in str(u.get('User Name')).lower() for term in name_terms)
+            matches_name = not name_terms or any(term in str(u.get('Username')).lower() for term in name_terms)
             if matches_name:
-                logger.debug(f'Adding Group: {u.get("User Name")} due to filter match')
+                logger.debug(f'Adding Group: {u.get("Username")} due to filter match')
                 filtered.append(u)
 
         logger.info(f'Filtered to {len(filtered)} users')
@@ -1554,13 +1514,21 @@ class IdentityDomainsAnalysis:
                             group_list = []
                             for gg in u.groups:
                                 group_list.append(gg.ocid)
+
+                            email = ''
+                            for em in u.emails:
+                                if em.primary:
+                                    email = em.value
+                                    break
                             # Set the user into the bigger picture JSON
                             self.users.append(
                                 {
                                     'Domain Name': domain.display_name,
                                     'User ID': u.id,
                                     'User OCID': u.ocid,
-                                    'User Name': u.display_name,
+                                    'Username': u.user_name,
+                                    'Display Name': u.display_name,
+                                    'Primary Email': email,
                                     'User Groups': group_list,
                                 }
                             )
@@ -1588,7 +1556,7 @@ class IdentityDomainsAnalysis:
             # return False
             raise
 
-    def get_groups_for_user(self, user: str) -> list:
+    def get_groups_for_user(self, user: User) -> list:
         """Return the list of all Groups that a user is a member of
 
         Args:
@@ -1604,7 +1572,7 @@ class IdentityDomainsAnalysis:
         # Iterate through users to find our user
         for u in self.users:
             # Match the tuple
-            if u.get('User Name') == user[1] and u.get('Domain Name') == user[0]:
+            if u.get('Username') == user.get('name') and u.get('Domain Name') == user.get('domain', 'default'):
                 logger.info(f"User found. Groups: {u.get('User Groups')}")
 
                 for user_group_ocid in u.get('User Groups'):
@@ -1612,7 +1580,7 @@ class IdentityDomainsAnalysis:
                     for g in self.groups:
                         if g.get('Group OCID') == user_group_ocid:
                             # Now append as tuple
-                            groups_for_user.append((g.get('Domain Name'), g.get('Group Name')))
+                            groups_for_user.append({'domain': g.get('Domain Name'), 'name': g.get('Group Name')})
                             logger.info(f"Adding Group {g.get('Domain Name')}/{g.get('Group Name')} ")
         return groups_for_user
 
