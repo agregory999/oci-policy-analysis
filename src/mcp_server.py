@@ -14,7 +14,15 @@ from fastmcp.exceptions import ToolError
 # from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
-from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
+from logic.data_repo import (
+    DynamicGroup,
+    Group,
+    IdentityDomainsAnalysis,
+    PolicyCompartmentAnalysis,
+    PolicyFilters,
+    PolicyStatement,
+    User,
+)
 from logic.logger import get_logger
 
 logger = get_logger(use_console=True)
@@ -22,52 +30,6 @@ logger = get_logger(use_console=True)
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyCompartmentAnalysis | None = None
 ida: IdentityDomainsAnalysis | None = None
-
-
-class DynamicGroup(TypedDict):
-    domain: str | None
-    name: str
-
-
-class Group(TypedDict):
-    domain: str | None
-    name: str
-
-
-class PolicyStatement(TypedDict, total=False):
-    Policy_Name: str
-    Policy_OCID: str
-    Compartment_OCID: str
-    Policy_Compartment: str
-    Statement_Text: str
-    Valid: bool
-    Invalid_Reason: str | None
-    Subject_Type: str
-    Subject: list[tuple[str | None, str]] | str
-    Verb: str
-    Resource: str
-    Permission: str
-    Location_Type: str
-    Location: str
-    Conditions: str
-    Comments: str
-    Creation_Time: str
-    Parsed: bool
-
-
-class PolicyFilters(TypedDict, total=False):
-    # "total=False" = all keys optional
-    verb: list[Literal['inspect', 'read', 'use', 'manage']]
-    policy_text: list[str]
-    policy_name: list[str]
-    policy_compartment: list[str]  # supports ROOTONLY
-    resource: list[str]
-    location: list[str]
-    subject_type: list[str]
-    subject: list[str]
-    permission: list[str]
-    comments: list[str]
-    conditions: list[str]
 
 
 # Combined filter input for policies - example
@@ -83,8 +45,8 @@ async def health_check(request):
     return JSONResponse({'status': 'healthy'})
 
 
-@mcp.resource('policies://regular')
-def list_policy_statements() -> str:
+@mcp.resource('policies://regular', description='Return All regular policy statements in the tenancy')
+def list_policy_statements() -> list[PolicyStatement]:
     """
     All policy statements in the tenancy.
 
@@ -98,11 +60,11 @@ def list_policy_statements() -> str:
     logger.info(
         f'Resource returning {len(pca.regular_statements)} regular and {len(pca.cross_tenancy_statements)} CT policy statements'
     )
-    return json.dumps(pca.regular_statements)
+    return pca.regular_statements
 
 
-@mcp.resource('policies://cross-tenancy')
-def cross_tenancy_policy_statements() -> str:
+@mcp.resource('policies://cross-tenancy', description='Return All cross-tenancy policy statements in the tenancy')
+def cross_tenancy_policy_statements() -> list[PolicyStatement]:
     """
     All cross-trenancy policy statements in the tenancy.
 
@@ -111,11 +73,14 @@ def cross_tenancy_policy_statements() -> str:
     """
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    return json.dumps(pca.cross_tenancy_statements)
+    return pca.cross_tenancy_statements
 
 
-@mcp.resource('policies://compartment/root')
-def root_policy_statements() -> str:
+@mcp.resource(
+    'policies://compartment/root',
+    description='Return All regular policy statements in the root compartment of the tenancy',
+)
+def root_policy_statements() -> list[PolicyStatement]:
     """
     All regular policy statements in the root compartment of the tenancy.
 
@@ -125,21 +90,12 @@ def root_policy_statements() -> str:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info('Tool Policy Filter for ROOT only')
-    results = pca.filter_policy_statements(
-        subj_filter=None,
-        verb_filter=None,
-        resource_filter=None,
-        location_filter=None,
-        hierarchy_filter='rootonly',
-        condition_filter=None,
-        text_filter=None,
-        policy_filter=None,
-    )
+    results = pca.filter_policy_statements_json({'policy_compartment': ['ROOTONLY']})
     logger.info(f'Filter for root returning {len(results)} policy statements to client')
-    return json.dumps(results)
+    return results
 
 
-@mcp.resource('groups://all')
+@mcp.resource('groups://all', description='Return All groups in the tenancy')
 def list_groups() -> str:
     """
     All groups in the tenancy.
@@ -150,12 +106,50 @@ def list_groups() -> str:
     - Raw group information for cross-referencing with policies
     """
     if not ida:
-        return json.dumps({'error': 'repo not initialized'})
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
         logger.info(f'Resource Groups returning {len(ida.groups)} groups')
         return json.dumps(ida.groups)
     except Exception as e:
-        raise ToolError(f'Failed to fetch policies: {e}') from e
+        raise ToolError(f'Failed to fetch groups: {e}') from e
+
+
+@mcp.resource('dynamic-groups://all', description='Return All dynamic groups in the tenancy')
+def list_dynamic_groups() -> list[DynamicGroup]:
+    """
+    All dynamic groups in the tenancy.
+
+    Use this resource when the user asks for:
+    - All named dynamic groups in the tenancy.
+    - Domain and dynamic group information
+    - Raw dynamic group information for cross-referencing with policies
+    """
+    if not ida:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f'Resource Dynamic Groups returning {len(ida.dynamic_groups)} groups')
+        return ida.dynamic_groups
+    except Exception as e:
+        raise ToolError(f'Failed to fetch dynamic groups: {e}') from e
+
+
+@mcp.resource('users://all', description='Return All users in the tenancy')
+def list_users() -> list[User]:
+    """
+    All users in the tenancy.
+
+    Use this resource when the user asks for:
+    - All named users in the tenancy.
+    - Domain and user information
+    - Raw user information for cross-referencing with groups
+    """
+    if not ida:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f'Resource Users returning {len(ida.users)} users')
+        return ida.users
+    except Exception as e:
+        raise ToolError(f'Failed to fetch users: {e}') from e
 
 
 # --- Tools ---
@@ -210,6 +204,8 @@ def filter_policy_statements_by_dynamic_groups(dynamic_groups: list[DynamicGroup
         "Input is a list of objects with keys 'domain' (string or null) and 'name' (string). "
         "Only applies to statements where Subject Type is 'group'. "
         'Returns matching policy statements with full policy fields.'
+        'Domain can be null for Default'
+        'Name must be an exact match for an existing group name in the tenancy.'
     ),
 )
 def filter_policy_statements_by_groups(groups: list[Group]) -> list[PolicyStatement]:
@@ -251,6 +247,37 @@ def filter_invalid_policy_statements() -> list[PolicyStatement]:
     return [s for s in pca.regular_statements if not s.get('Valid', True)]
 
 
+@mcp.tool(
+    name='get_users_for_group',
+    description=(
+        'Return all users that belong to a specified OCI IAM group. '
+        "Input must include the group's domain (string or null for Default) and name (string). "
+        "Returns a list of user dictionaries with keys 'user_name', 'user_id', and 'domain_name'."
+    ),
+)
+def get_users_for_group(group: Group) -> list[User]:
+    """
+    Get all users for a specific group.
+
+    Args:
+        group (Group): A dictionary containing:
+            - 'domain' (str | None): The group's domain, or None for Default.
+            - 'name' (str): The group name.
+
+    Returns:
+        list[User]: List of user entries who are members of that group.
+    """
+    if not ida:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f'MCP Tool: Getting users for group {group}')
+        results = ida.get_users_for_group(group)
+        logger.info(f'Returning {len(results)} users for group {group}')
+        return results
+    except Exception as e:
+        raise ToolError(f'Failed to retrieve users for group {group}: {e}') from e
+
+
 # --- Initialization ---
 def initialize_and_load(use_instance_principal, profile, session, recursive):
     global pca, ida
@@ -269,13 +296,14 @@ def initialize_and_load(use_instance_principal, profile, session, recursive):
     if not ok_pca or not ok_ida:
         logger.error('Failed initializing clients')
         sys.exit(2)
-    pca.load_policies_and_compartments()
-    ida.load_domains_groups_users()
     try:
-        ida.load_all_dynamic_groups()
+        pca.load_policies_and_compartments()
+        ida.load_complete_identity_domains()
     except Exception as e:
-        logger.warning(f'Dynamic groups load failed: {e}')
-    logger.info('Tenancy loaded.')
+        logger.warning(f'Policy and Identity domains load failed: {e}')
+    logger.info(
+        f'Tenancy loaded. Policies: {len(pca.regular_statements)} regular, {len(pca.cross_tenancy_statements)} cross-tenancy; Groups: {len(ida.groups)}; Users: {len(ida.users)}; Dynamic Groups: {len(ida.dynamic_groups)}'
+    )
 
 
 def build_arg_parser():

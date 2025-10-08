@@ -25,7 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 # Third-party imports
 from deepdiff import DeepDiff, parse_path
@@ -110,6 +110,7 @@ logger = get_logger()
 # For MCP-specific JSON
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
+# Covers both policies and groups/dynamic groups
 FILTER_KEY_MAP = {
     'policy_name': 'Policy Name',
     'policy_ocid': 'Policy OCID',
@@ -129,6 +130,11 @@ FILTER_KEY_MAP = {
     'comments': 'Comments',
     'creation_time': 'Creation Time',
     'parsed': 'Parsed',
+    'effective_path': 'Effective Path',
+    'dg_name': 'DG Name',
+    'dg_matching_rule': 'Matching Rule',
+    'group_name': 'Group Name',
+    'group_domain': 'Domain Name',
 }
 
 
@@ -138,14 +144,53 @@ class Group(TypedDict):
     name: str
 
 
+class User(TypedDict):
+    """Represents an OCI IAM user entry."""
+
+    user_name: str
+    user_id: str
+    domain_name: str | None
+
+
 class DynamicGroup(TypedDict):
     domain: str | None
     name: str
 
 
-LOC_TENANCY_RE = re.compile(r'\btenancy\b', re.IGNORECASE)
-LOC_COMP_NAME_RE = re.compile(r'\b([a-zA-Z0-9:_\-\s]+)$', re.IGNORECASE)
-LOC_COMP_ID_RE = re.compile(r'\b(ocid1\.compartment\..+)$', re.IGNORECASE)
+class PolicyFilters(TypedDict, total=False):
+    # "total=False" = all keys optional
+    verb: list[Literal['inspect', 'read', 'use', 'manage']]
+    statement_text: list[str]  # Text snippet of the policy statement to filter on
+    policy_name: list[str]  # Name of the policy
+    policy_compartment: list[str]  # supports ROOTONLY
+    resource: list[str]  # resource is a list of OCI resources that this policy statement applies to
+    location: list[
+        str
+    ]  # location is a list of relative compartment paths or compartment id OCID.  Also can be "tenancy"
+    effective_path: list[
+        str
+    ]  # Contains the compartment path that this policy statement applies to.  This is used to determine if a policy applies to a given compartment or any of its children.
+    subject_type: list[str]  # e.g. group, dynamic-group, any-user, any-group, service
+    subject: list[str]  # subject is a list of names or domain/name
+    permission: list[str]  # permission is a list of actions such as START_INSTANCE
+    comments: list[str]  # comments added to the end of the policy statement
+    conditions: list[str]  # any or all clause of an OCI policy statement
+
+
+class GroupFilters(TypedDict, total=False):
+    domain: list[str | None]  # None represents no domain
+    name: list[str]
+
+
+class DynamicGroupFilters(TypedDict, total=False):
+    domain: list[str | None]  # None represents no domain
+    name: list[str]
+    matching_rule: list[str]
+
+
+# LOC_TENANCY_RE = re.compile(r'\btenancy\b', re.IGNORECASE)
+# LOC_COMP_NAME_RE = re.compile(r'\b([a-zA-Z0-9:_\-\s]+)$', re.IGNORECASE)
+# LOC_COMP_ID_RE = re.compile(r'\b(ocid1\.compartment\..+)$', re.IGNORECASE)
 
 
 class PolicyStatement(TypedDict, total=False):
@@ -162,15 +207,12 @@ class PolicyStatement(TypedDict, total=False):
     Permission: str
     Location_Type: str
     Location: str
+    Effective_Compartment: str
+    Effective_Path: str
     Conditions: str
     Comments: str
     Creation_Time: str
     Parsed: bool
-
-
-class PolicyMatch(TypedDict):
-    Statement: dict
-    AppliedFrom: str  # which effective compartment made this apply
 
 
 class PolicyCompartmentAnalysis:
@@ -262,39 +304,40 @@ class PolicyCompartmentAnalysis:
         Resolve effective compartment for all statements.  Loop through all statements and calculate
         """
         for st in self.regular_statements:
-            logger.info(f"-Statement: {st.get('Statement Text')}")
+            logger.debug(f"-Statement: {st.get('Statement Text')}")
             # Case 1 - in tenancy
             if st.get('Location Type') == 'tenancy':
                 st['Effective Compartment'] = self.tenancy_ocid
                 st['Effective Path'] = self._name_path_from_ocid(self.tenancy_ocid)
-                logger.info(f"Effective (ten) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+                logger.debug(f"Effective (ten) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
             # Case 2 - Compartment ID
             elif st.get('Location Type') == 'compartment id':
                 st['Effective Compartment'] = st.get('Location')
                 st['Effective Path'] = self._name_path_from_ocid(st.get('Location'))
                 st['Parsing Notes'].append('Compartment ID used for location')
-                logger.info(f"Effective (id) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+                logger.debug(f"Effective (id) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
             # Case 3 - Compartment Name (with or without full path)
             # Note - if location refers to current compartment, we need to remove that from the path
             else:
-                logger.info(f"Need to calc eff path for {st.get('Statement Text')}")
+                logger.debug(f"Need to calc eff path for {st.get('Statement Text')}")
                 location = st.get('Location')
                 parts = [p.strip() for p in location.split(':') if p.strip()]
                 policy_path = self._name_path_from_ocid(st.get('Compartment OCID'))
-                logger.info(f'Policy Path: {policy_path} / Location parts: {parts}')
+                logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
 
                 # If the first element of the path is the same as the policy compartment name, remove it from cosideration
                 eff_path = policy_path
                 comp_name = self._comp_name_path_ocid(st.get('Compartment OCID'))
-                logger.info(f'Compartment name for compare: {comp_name}')
+                logger.debug(f'Compartment name for compare: {comp_name}')
                 # We need just the name of the compartment of the policy, get from
                 if parts[0].casefold() == comp_name.casefold():
                     st['Parsing Notes'].append('Deleted compartment from effective location')
                     del parts[0]
                 for p in parts:
                     eff_path += f'/{p}'
-                logger.info(f"Effective (loc) path for {st.get('Statement Text')}: {eff_path}")
+                logger.debug(f"Effective (loc) path for {st.get('Statement Text')}: {eff_path}")
                 st['Effective Path'] = eff_path
+                st['Effective Compartment'] = self.compartments_by_path.get(eff_path, {}).get('id')
 
     # --- helpers (as before) ---
     def _name_path_from_ocid(self, ocid: str) -> str | None:
@@ -670,12 +713,8 @@ class PolicyCompartmentAnalysis:
             logger.info(f'Compartments by path: {self.compartments_by_path}')
             logger.info(f'Children by parent: {self.children_by_parent}')
 
-            logger.info('Effective Compartment Calc starting...')
-
             # Now call effective compartment code - for all
-            logger.info('---------')
             self._calculate_effective_compartments_for_statements()
-            logger.info('---------')
 
             # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.now(UTC))
@@ -759,115 +798,6 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} statements for groups: {deduped}')
         return filtered
 
-        # logger.debug(f'Looking for all policies related to groups: {groups_filter}')
-        # groups_filter = list(set(groups_filter))
-        # logger.debug(f'De-duped groups: {groups_filter}')
-        # filtered = []
-        # for statement in self.regular_statements:
-        #     if statement.get('Subject Type') == 'group':
-        #         # Iterate provided dynamic groups
-        #         for group_domain, group_name in groups_filter:
-        #             # Compare domain and name
-        #             if group_domain is None:
-        #                 group_domain = 'Default'
-        #             # Iterate Policy statement subjects
-        #             for subj_domain, subj_name in statement.get('Subject'):
-        #                 logging.debug(
-        #                     f'Comparing Group {type(group_domain)}:{repr(group_domain)} / {type(group_name)}:{repr(group_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
-        #                 )
-        #                 # Exact match on both domain and name required
-        #                 if (subj_domain.casefold() == group_domain.casefold()) and (
-        #                     group_name.casefold() == subj_name.casefold()
-        #                 ):
-        #                     filtered.append(statement)
-        #                     logger.debug(f'Adding statement for group: {group_domain}/{group_name}: {statement}')
-        #                 else:
-        #                     logging.debug(
-        #                         f'Not a match for group {group_domain}/{group_name}: Subject {subj_domain}/{subj_name}'
-        #                     )
-        #                     logger.debug(f'Not a match for group {group_domain}/{group_name}: {statement}')
-        # logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
-        # return filtered
-
-    # def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[tuple]) -> list:
-    #     """Filter cached dynamic groups by list of (domain, name) tuples.  Returns"""
-    #     filtered = []
-    #     for statement in self.regular_statements:
-    #         if statement.get('Subject Type') == 'dynamic-group':
-    #             # Iterate provided dynamic groups
-    #             for dg_domain, dg_name in dynamic_groups:
-    #                 # Compare domain and name
-    #                 if dg_domain is None:
-    #                     dg_domain = 'Default'
-    #                 # Iterate Policy statement subjects
-    #                 for subj_domain, subj_name in statement.get('Subject'):
-    #                     logger.debug(
-    #                         f'Comparing DG {type(dg_domain)}:{repr(dg_domain)} / {type(dg_name)}:{repr(dg_name)} to Policy Subject {type(subj_domain)}:{repr(subj_domain)} / {type(subj_name)}:{repr(subj_name)}'
-    #                     )
-    #                     # Exact match on both domain and name required
-    #                     if (subj_domain.casefold() == dg_domain.casefold()) and (
-    #                         dg_name.casefold() == subj_name.casefold()
-    #                     ):
-    #                         filtered.append(statement)
-    #                         logger.debug(f'Adding statement for dynamic group: {dg_domain}/{dg_name}: {statement}')
-    #                     else:
-    #                         logger.debug(f'Not a match for dynamic group {dg_domain}/{dg_name}: {statement}')
-    #     logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
-    #     return filtered
-
-    # MCP-friendly version of dynamic group filtering
-
-    # def filter_policy_statements_by_dynamic_group_name(
-    #     self,
-    #     dynamic_groups: list[tuple[str | None, str]]
-    # ) -> list[dict[str, str]]:
-    #     """
-    #     Filter policy statements by dynamic group membership.
-
-    #     Args:
-    #         dynamic_groups (list[tuple[str | None, str]]):
-    #             A list of (domain, name) tuples representing dynamic groups.
-    #             - If domain is None, it is treated as "Default".
-    #             - Name must match exactly (case-insensitive).
-
-    #     Behavior:
-    #         - Only applies to statements where "Subject Type" == "dynamic-group".
-    #         - A statement's "Subject" field may contain one or more (domain, name) pairs.
-    #         - A match occurs if any provided (domain, name) tuple matches
-    #         any subject in the statement (case-insensitive).
-
-    #     Returns:
-    #         list[dict[str, str]]: A list of matching policy statements.
-    #     """
-    #     filtered: list[dict[str, str]] = []
-
-    #     for statement in self.regular_statements:
-    #         if statement.get("Subject Type") != "dynamic-group":
-    #             continue
-
-    #         subjects = statement.get("Subject", [])
-    #         if not isinstance(subjects, list):
-    #             logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
-    #             continue
-
-    #         for dg_domain, dg_name in dynamic_groups:
-    #             domain = dg_domain or "Default"
-
-    #             for subj_domain, subj_name in subjects:
-    #                 logger.info(
-    #                     f"Comparing DG ({domain}/{dg_name}) to Policy Subject ({subj_domain}/{subj_name})"
-    #                 )
-
-    #                 if subj_domain.casefold() == domain.casefold() and subj_name.casefold() == dg_name.casefold():
-    #                     filtered.append(statement)
-    #                     logger.info(
-    #                         f"Adding statement for dynamic group {domain}/{dg_name}: {statement.get('Policy Name')}"
-    #                     )
-    #                     break  # stop checking this statement once matched
-
-    #     logger.info(f"Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}")
-    #     return filtered
-
     def filter_policy_statements_by_dynamic_group_name(
         self, dynamic_groups: list[DynamicGroup]
     ) -> list[PolicyStatement]:
@@ -916,12 +846,12 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
 
-    def filter_policy_statements_json(self, filters: dict[str, list[str]]) -> list[PolicyStatement]:  # noqa: C901
+    def filter_policy_statements_json(self, filters: PolicyFilters) -> list[PolicyStatement]:  # noqa: C901
         """
         Filter policy statements using JSON-based filters.
 
         Args:
-            filters (dict[str, list[str]]): A mapping of filter keys to one or more values.
+            filters (dict[PolicyFilters]): A mapping of filter keys to one or more values.
                 - OR: multiple values within a field act as logical OR.
                 - AND: multiple fields are combined as logical AND.
                 - Supported keys:
@@ -937,37 +867,29 @@ class PolicyCompartmentAnalysis:
                     * permission           → matches "Permission"
                     * location_type        → matches "Location Type"
                     * location             → matches "Location"
+                    * effective_path       → matches "Effective Path"
+                    * effective_compartment→ matches "Effective Compartment"
                     * conditions           → matches "Conditions"
                     * comments             → matches "Comments"
                     * creation_time        → matches "Creation Time"
                     * parsed               → matches "Parsed"
-                    * policy_text          → searches entire statement text
                 - Special cases:
                     * verb: values must be a subset of {inspect, read, use, manage}
                     * policy_compartment: supports "ROOTONLY" (restrict to tenancy root)
-                    * policy_text: full-text search across all fields in a statement
 
         Returns:
-            list[dict[str, str]]: A list of policy statements that satisfy the filters.
+            list[PolicyStatement]: A list of policy statements that satisfy the filters.
         """
         results = []
 
         for stmt in self.regular_statements:
-            stmt_text = ' '.join(str(v) for v in stmt.values()).lower()
             match = True
 
             for key, values in filters.items():
                 values = [v.lower() for v in values]
 
-                # Policy text → whole statement string search
-                if key == 'policy_text':
-                    if not any(val in stmt_text for val in values):
-                        logger.info(f"Rejecting {stmt.get('Policy Name')} due to policy_text mismatch")
-                        match = False
-                        break
-
                 # Compartment special: ROOTONLY
-                elif key == 'policy_compartment' and 'rootonly' in values:
+                if key == 'policy_compartment' and 'rootonly' in values:
                     if stmt.get('Compartment OCID') != self.tenancy_ocid:
                         logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
                         match = False
@@ -1015,71 +937,6 @@ class PolicyCompartmentAnalysis:
                 results.append(stmt)
 
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
-        return results
-
-    def filter_policies_by_effective_compartment(
-        self,
-        compartment_path: str | None = None,
-        compartment_ocid: str | None = None,
-        filters: dict[str, list[str]] | None = None,
-    ) -> list[PolicyMatch]:
-        """
-        Combines JSON-based filtering with effective-compartment evaluation.
-
-        Args:
-            compartment_path: path like "root:A:B"
-            compartment_ocid: compartment OCID
-            filters: same schema as filter_policy_statements_json()
-
-        Returns:
-            List of {"Statement": stmt, "AppliedFrom": eff_path}
-        """
-        if (compartment_path and compartment_ocid) or (not compartment_path and not compartment_ocid):
-            raise ValueError('Must provide exactly one of compartment_path or compartment_ocid')
-
-        # Resolve path <-> OCID
-        if compartment_ocid:
-            comp_id = compartment_ocid
-            comp_path = self._name_path_from_ocid(comp_id)
-            if not comp_path:
-                logger.info(f'Could not resolve OCID {compartment_ocid}')
-                return []
-            logger.debug(f'Resolved OCID {compartment_ocid} → path {comp_path}')
-        else:
-            comp_path = compartment_path
-            comp = self.compartments_by_path.get(comp_path)
-            comp_id = comp.get('id') if comp else None
-            if not comp_id:
-                logger.info(f'Could not resolve path {compartment_path}')
-                return []
-            logger.debug(f'Resolved path {compartment_path} → OCID {comp_id}')
-
-        # Phase 1: pre-filter using JSON filter engine
-        base_results = self.filter_policy_statements_json(filters or {})
-        logger.debug(f'{len(base_results)} statements matched base JSON filters')
-
-        # Build ancestor paths for this compartment
-        path_parts = comp_path.split(':')
-        ancestor_paths = [':'.join(path_parts[:i]) for i in range(1, len(path_parts) + 1)]
-        if 'root' not in ancestor_paths:
-            ancestor_paths.insert(0, 'root')
-        logger.debug(f'Ancestor paths for {comp_path}: {ancestor_paths}')
-
-        # Phase 2: effective-compartment filtering
-        results: list[PolicyMatch] = []
-        for stmt in base_results:
-            eff_path = stmt.get('Effective Compartment')
-            if not stmt.get('Valid', False):
-                continue
-            if eff_path not in ancestor_paths:
-                continue
-
-            results.append({'Statement': stmt, 'AppliedFrom': eff_path})
-
-        logger.info(
-            f'Effective filter: path={compartment_path}, ocid={compartment_ocid}, '
-            f'filters={filters}, returned {len(results)} statements'
-        )
         return results
 
     # Original - non-MCP version of filter_policy_statements
@@ -1396,47 +1253,47 @@ class IdentityDomainsAnalysis:
         return dg_dict
         # TODO: Add back invalid OCID analysis
 
-    def load_all_dynamic_groups(self) -> bool:
-        """Load all of the dynamic groups across all Identity Domains"""
+    # def load_all_dynamic_groups(self) -> bool:
+    #     """Load all of the dynamic groups across all Identity Domains"""
 
-        self.dynamic_groups = []
-        self.identity_domains = []
-        self.groups = []
-        self.users = []
-        # We need to go through all domains
-        try:
-            domains_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)
-            if domains_response and domains_response.data:
-                for domain in domains_response.data:
-                    logger.debug(f'Domain {domain.display_name}, OCID {domain.id}')
-                    if self.use_instance_principal:
-                        domain_client = IdentityDomainsClient(
-                            config={}, signer=self.signer, service_endpoint=domain.url
-                        )
-                    else:
-                        domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
-                    self.domain_clients[domain.id] = domain_client
+    #     self.dynamic_groups = []
+    #     self.identity_domains = []
+    #     self.groups = []
+    #     self.users = []
+    #     # We need to go through all domains
+    #     try:
+    #         domains_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)
+    #         if domains_response and domains_response.data:
+    #             for domain in domains_response.data:
+    #                 logger.debug(f'Domain {domain.display_name}, OCID {domain.id}')
+    #                 if self.use_instance_principal:
+    #                     domain_client = IdentityDomainsClient(
+    #                         config={}, signer=self.signer, service_endpoint=domain.url
+    #                     )
+    #                 else:
+    #                     domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
+    #                 self.domain_clients[domain.id] = domain_client
 
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
-                    if dg_response and dg_response.data:
-                        logger.debug(
-                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
-                        )
-                        for dg in dg_response.data.resources:
-                            logger.debug(f'DG: {dg.display_name}')
-                            # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(
-                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
-                            )
-                    else:
-                        logger.error('Failed to list dynamic groups')
-                        return False
-                    logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
-            self.data_as_of = str(datetime.now(UTC))
-            return True
-        except ServiceError as se:
-            logger.error(f'Failed to load dynamic groups: {se}')
-            return False
+    #                 dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
+    #                 if dg_response and dg_response.data:
+    #                     logger.debug(
+    #                         f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
+    #                     )
+    #                     for dg in dg_response.data.resources:
+    #                         logger.debug(f'DG: {dg.display_name}')
+    #                         # Append the Dynamic Group dict to the list
+    #                         self.dynamic_groups.append(
+    #                             self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
+    #                         )
+    #                 else:
+    #                     logger.error('Failed to list dynamic groups')
+    #                     return False
+    #                 logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
+    #         self.data_as_of = str(datetime.now(UTC))
+    #         return True
+    #     except ServiceError as se:
+    #         logger.error(f'Failed to load dynamic groups: {se}')
+    #         return False
 
     def run_dg_in_use_analysis(self, policy_statements: list):
         """Analyzes Dynamic Group data for unused Dynamic Groups
@@ -1516,7 +1373,53 @@ class IdentityDomainsAnalysis:
         logger.info(f'Filtered to {len(filtered)} dynamic groups')
         return filtered
 
-    def filter_groups(self, name_filter=None) -> list:
+    def get_users_for_group(self, group: Group) -> list[User]:
+        """
+        Return all users that belong to the specified group.
+
+        Args:
+            group (Group): A dictionary with keys:
+                - 'domain': str | None
+                - 'name': str
+
+        Returns:
+            list[User]: All matching user entries with 'user_name', 'user_id', and 'domain_name'.
+        """
+        group_domain = group.get('domain') or 'default'
+        group_name = group['name']
+        logger.info(f'Looking for users in group: {group_domain}/{group_name}')
+        logger.debug(f'Number of groups: {len(self.groups)}  Number of users: {len(self.users)}')
+
+        group_ocids = [
+            g['Group OCID']
+            for g in self.groups
+            if g.get('Group Name', '').casefold() == group_name.casefold()
+            and g.get('Domain Name', '').casefold() == group_domain.casefold()
+        ]
+
+        if not group_ocids:
+            logger.warning(f'No group found for {group_domain}/{group_name}')
+            return []
+
+        group_ocid = group_ocids[0]
+
+        # Step 2: Find users who are members of that group
+        matched_users: list[User] = []
+        for user in self.users:
+            user_groups = user.get('User Groups', [])
+            if group_ocid in user_groups:
+                matched_users.append(
+                    {
+                        'user_name': user.get('User Name'),
+                        'user_id': user.get('User ID'),
+                        'domain_name': user.get('Domain Name'),
+                    }
+                )
+
+        logger.info(f'Found {len(matched_users)} users for group {group_domain}/{group_name}')
+        return matched_users
+
+    def filter_groups(self, name_filter=None) -> list[Group]:
         filtered = []
 
         name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
@@ -1544,7 +1447,7 @@ class IdentityDomainsAnalysis:
         logger.info(f'Filtered to {len(filtered)} users')
         return filtered
 
-    def load_domains_groups_users(self) -> bool:  # noqa: C901
+    def load_complete_identity_domains(self) -> bool:  # noqa: C901
         """Loads everything into the cetntral JSON
 
         Identity Domains are loaded via the Identity Client.
@@ -1557,6 +1460,11 @@ class IdentityDomainsAnalysis:
             A boolean indicating success of the data load.  False indicates there was some failure in loading data,
             so it may be incomplete.
         """
+        # Clean up any existing data
+        self.dynamic_groups = []
+        self.identity_domains = []
+        self.groups = []
+        self.users = []
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
             if domain_response.data is None:  # type: ignore
@@ -1578,6 +1486,23 @@ class IdentityDomainsAnalysis:
                     else:
                         domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
                     self.domain_clients[domain.id] = domain_client
+
+                    # Load Dynamic Groups
+                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
+                    if dg_response and dg_response.data:
+                        logger.debug(
+                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
+                        )
+                        for dg in dg_response.data.resources:
+                            logger.debug(f'DG: {dg.display_name}')
+                            # Append the Dynamic Group dict to the list
+                            self.dynamic_groups.append(
+                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
+                            )
+                    else:
+                        logger.error('Failed to list dynamic groups')
+                        return False
+
                     # Load Groups
                     start_index = 1
                     limit = 1000
@@ -1649,10 +1574,14 @@ class IdentityDomainsAnalysis:
                         start_index += limit
                     logging.debug(f'All Users: {self.users}')
 
+                    self.data_as_of = str(datetime.now(UTC))
+
                 except Exception as e:
                     logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
                     raise
-            logger.info(f'Loaded {len(self.groups)} groups and {len(self.users)} users across all domains')
+            logger.info(
+                f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
+            )
             return True
         except Exception as e:
             logger.error(f'Failed to load identity domains: {e}')

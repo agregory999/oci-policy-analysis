@@ -442,15 +442,9 @@ class App(Window):
 
                     if callback:
                         # Schedule safe UI update in main thread
-                        self.after(0, lambda: callback(True, 'Loading Dynamic Groups'))
-
-                    success = self.identity_domain_analysis.load_all_dynamic_groups()
-
-                    if callback:
-                        # Schedule safe UI update in main thread
                         self.after(0, lambda: callback(True, 'Loading Users and Groups'))
 
-                    success = self.identity_domain_analysis.load_domains_groups_users()
+                    success = self.identity_domain_analysis.load_complete_identity_domains()
 
                     # Write the cache
                     self.caching.save_combined_cache()

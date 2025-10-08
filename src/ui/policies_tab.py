@@ -306,7 +306,7 @@ class PoliciesTab(ttk.Frame):
         if self.condition_filter_var.get():
             filters['condition'] = self.condition_filter_var.get().split('|') or None
         if self.text_filter_var.get():
-            filters['text'] = self.text_filter_var.get().split('|') or None
+            filters['statement_text'] = self.text_filter_var.get().split('|') or None
         if self.policy_filter_var.get():
             filters['policy_name'] = self.policy_filter_var.get().split('|') or None
         if self.effective_path_var.get():
