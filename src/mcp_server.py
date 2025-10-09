@@ -356,7 +356,7 @@ def main():
     if args.transport == 'stdio':
         mcp.run(transport='stdio')
     else:
-        mcp.run(transport='streamable-http', port=args.port)
+        mcp.run(transport='streamable-http', port=args.port, host=args.host)
 
 
 # --- Inspector/Claude env bootstrap ---
