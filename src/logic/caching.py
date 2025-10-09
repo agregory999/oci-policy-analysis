@@ -7,12 +7,13 @@ from oci.identity.models import Domain
 from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
 
-logger = get_logger()
-
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 AI_CACHE_FILE = CACHE_DIR / 'oci_policy_ai_cache.json'
+
+# Global logger for this module
+logger = get_logger(component='caching')
 
 
 class CacheManager:
@@ -24,6 +25,7 @@ class CacheManager:
         domains_analysis: IdentityDomainsAnalysis,
         cache_dir: Path = None,
     ):
+        # logger = get_logger(component="caching")
         self.policy_analysis = policy_analysis
         self.domains_analysis = domains_analysis
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir else CACHE_DIR

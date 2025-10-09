@@ -11,11 +11,12 @@ from logic.data_repo import AI
 from logic.logger import get_logger
 from ui.data_table import DataTable
 
-logger = get_logger()
-
 # Constants for data table
 AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
 AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
+
+# Global logger for this module
+logger = get_logger(component='settings')
 
 
 class SettingsTab(ttk.Frame):
@@ -203,21 +204,22 @@ class SettingsTab(ttk.Frame):
             row=0, column=4, rowspan=4, padx=5, pady=5, sticky='w'
         )
 
+        # Import / Export buttons
         ttk.Button(
             label_frm_tenancy_config,
-            width=25,
-            text='Import',
-            # command=lambda: self._on_load_clicked(use_cache=False),
+            width=40,
+            text='Import from JSON\n(load previously saved JSON)',
+            command=lambda: self.app._import_cache_from_json(callback={'complete': self._on_load_finished}),
         ).grid(row=0, column=5, padx=5, pady=5, sticky='w')
 
         ttk.Button(
             label_frm_tenancy_config,
-            width=25,
-            text='Export',
-            # command=lambda: self._on_load_clicked(use_cache=False),
+            width=40,
+            text='Export to JSON\n(allows sharing with others)',
+            command=lambda: self.app._export_cache_to_json(),
         ).grid(row=1, column=5, padx=5, pady=5, sticky='w')
 
-        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=2, column=6, rowspan=4, pady=5, sticky='w')
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
 
         # Progress indicator
         self.progress_var = tk.StringVar(value='')
@@ -326,9 +328,6 @@ class SettingsTab(ttk.Frame):
         # Save the settings now
         config.save_settings(self.settings)
 
-        # Update indicator immediately
-        self.progress_var.set('Loading tenancy…')
-
         # Kick off async call in main app
         self.app.load_tenancy_async(
             tenancy_id=self.tenancy_var.get(),
@@ -337,19 +336,45 @@ class SettingsTab(ttk.Frame):
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
             named_cache=self.cache_var.get().replace('\n', '_') if use_cache else None,
-            callback=self._on_load_finished,
+            callback={
+                'progress': self._on_load_progress,
+                'complete': self._on_load_finished,
+                'error': self._on_load_finished,
+            },
         )
+
+    def _on_load_progress(self, message: str, clear: bool = False):
+        """Callback from App to update progress during tenancy loading."""
+        self.progress_var.set(f'🔄 {message}')
+        if clear:
+            self.after(2000, lambda: self.progress_var.set(''))
 
     def _on_load_finished(self, success: bool, message: str, clear: bool = False):
         """Callback from App once tenancy loading completes."""
         if success:
             self.progress_var.set(f'✅ {message}')
+            logger.info('Updating UI after load')
+            self.app.policies_tab.update_policy_output()
+            self.app.policies_tab.enable_widgets_after_load()
+            self.app.users_tab._update_user_analysis_output()
         else:
             self.progress_var.set(f'❌ {message}')
 
         # Schedule it to go away if clear was set
         if clear:
             self.after(2000, lambda: self.progress_var.set(''))
+
+        # After loading, update the cache list in case new one was created
+        logger.info('Updating cache list after load')
+        self.cache_list = self.caching.get_available_cache(None)
+        menu = self.cache_list_dropdown['menu']
+        menu.delete(0, 'end')
+        for cache_name in self.cache_list:
+            menu.add_command(label=cache_name, command=lambda value=cache_name: self.cache_var.set(value))
+        if len(self.cache_list) > 0:
+            self.cache_var.set(self.cache_list[0])
+        else:
+            self.cache_var.set('No Cache Available')
 
     # -------------------------
     # AI Enablement
@@ -378,6 +403,7 @@ class SettingsTab(ttk.Frame):
         except Exception as e:
             logger.error('Failed to update configuration: %s', e)
 
+    # TODO - improve this callback to show more detail in the UI and more if failed
     def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):
         """Callback from App once AI loading completes."""
         if success:

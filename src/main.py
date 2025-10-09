@@ -1,8 +1,27 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# main.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
+
+# Standard library imports
+import argparse
 import asyncio
+import json
 import logging
 import threading
 import time
 import tkinter as tk
+import tkinter.filedialog as tkfiledialog
 import tkinter.font as tkfont
 import webbrowser
 from datetime import datetime
@@ -18,13 +37,10 @@ from ttkbootstrap import Window
 from logic import config
 from logic.caching import CacheManager
 from logic.data_repo import AI, IdentityDomainsAnalysis, PolicyCompartmentAnalysis
-from logic.logger import get_logger
+from logic.logger import get_logger, set_log_level
 from ui.policies_tab import PoliciesTab
 from ui.settings_tab import SettingsTab
 from ui.users_tab import UsersTab
-
-# Logger
-logger = get_logger()
 
 
 class TextHandler(logging.Handler):
@@ -381,13 +397,15 @@ class App(Window):
 
     def _apply_log_level(self):
         level = getattr(logging, self.log_level_var.get(), logging.INFO)
-        logger.setLevel(level)
+        set_log_level(level, component='main')
+
+        # logger.setLevel(level)
         self.settings['log_level'] = self.log_level_var.get()
         config.save_settings(self.settings)
         logger.info(f'Log level set to {self.log_level_var.get()}')
 
     # -------------------------
-    # Loading of tenancy
+    # Loading / exporting of tenancy data
     # -------------------------
     def load_tenancy_async(  # noqa: C901
         self,
@@ -397,7 +415,7 @@ class App(Window):
         named_profile: str,
         named_session: str,
         named_cache: str,
-        callback=None,
+        callback: dict = None,
     ):
         """Kick off tenancy loading in a background thread."""
         # Could load from cache or from tenancy with threading
@@ -435,29 +453,27 @@ class App(Window):
                         raise RuntimeError('Failed to initialize IdentityDomainAnalysis client')
 
                     # Update the message
-                    if callback:
-                        # Schedule safe UI update in main thread
-                        self.after(0, lambda: callback(True, 'Loading Policies and Compartments'))
+                    if callback and callback.get('progress'):
+                        cb = callback.get('progress')
+                        self.after(0, lambda: cb('Loading Policies and Compartments'))
 
                     success = self.policy_compartment_analysis.load_policies_and_compartments()
 
-                    if callback:
-                        # Schedule safe UI update in main thread
-                        self.after(0, lambda: callback(True, 'Loading Users and Groups'))
+                    # Update the message
+                    if callback and callback.get('progress'):
+                        cb = callback.get('progress')
+                        self.after(0, lambda: cb('Loading Users and Groups'))
 
                     success = self.identity_domain_analysis.load_complete_identity_domains()
 
                     # Write the cache
                     self.caching.save_combined_cache()
 
-                    if callback:
-                        # Schedule safe UI update in main thread
+                    if callback and callback.get('progress'):
+                        cb = callback.get('progress')
                         self.after(
-                            0,
-                            lambda: callback(
-                                True, f'Loading data from tenancy {self.policy_compartment_analysis.tenancy_name}'
-                            ),  # type: ignore
-                        )
+                            0, lambda: cb(f'Loading data from tenancy {self.policy_compartment_analysis.tenancy_name}')
+                        )  # type: ignore
 
                 # Fail if unsuccessful
                 if not success:
@@ -466,22 +482,78 @@ class App(Window):
                 msg = f'Finished loading tenancy {tenancy_id}'
                 logger.info(f'✅ {msg}')
 
-                if callback:
-                    # Schedule safe UI update in main thread
-                    self.after(0, lambda: callback(True, msg, True))
+                if callback and callback.get('complete'):
+                    cb = callback.get('complete')
+                    self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
 
                 # Tell the tab to reload
-                logger.info('Reload all tabs')
+                logger.info('Tenancy Load completeReload all tabs')
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
 
             except Exception as e:
                 logger.error(f'❌ Failed to load tenancy: {e}')
-                if callback:
-                    # Schedule safe UI update in main thread
-                    self.after(0, lambda e=e: callback(False, f'Failed to load tenancy - {e} - please try again', True))
+                if callback and callback.get('error'):
+                    cb = callback.get('error')
+                    self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _import_cache_from_json(self, callback: dict = None):
+        """Import cached data from a JSON file asynchronously. There can be a 3 callback(progress, complete, error) to update the UI."""
+        if callback is None:
+            callback = {}
+        filepath = tkfiledialog.askopenfilename(filetypes=[('JSON Files', '*.json')])
+        if filepath:
+            try:
+                if callback and callback.get('progress'):
+                    # Schedule safe UI update in main thread
+                    cb = callback.get('progress')
+                    self.after(0, lambda: cb('Loading from JSON file'))  # type: ignore
+                # Load the file into local JSON
+                with open(filepath, encoding='utf-8') as jsonfile:
+                    loaded_json = json.load(jsonfile)
+                    logger.debug(f'JSON Data: {loaded_json}')
+                # Load the data into Data Classes
+                success = self.caching.load_cache_from_json(loaded_json=loaded_json)
+                if success and callback.get('complete'):
+                    # Update the last load time and enable UI elements
+                    self.last_load_time = self.policy_compartment_analysis.data_as_of
+                    logger.info(f'***Loaded cached data from file as of {self.last_load_time}')
+                    logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
+                    if callback:
+                        # Schedule safe UI update in main thread
+                        cb = callback.get('complete')
+                        self.after(0, lambda: cb(True, 'Loaded from JSON file', True))  # type: ignore
+                else:
+                    logger.warning('Failed to load from saved cache')
+
+                # Tell the tab to reload
+                logger.info('Cache Load JSON complete - Reload all tabs')
+                self.users_tab._update_user_analysis_output()
+                self.policies_tab.update_policy_output()
+
+            except Exception as e:
+                logger.error(f'Error importing policies from CSV: {e}')
+                if callback and callback.get('error'):
+                    # Schedule safe UI update in main thread
+                    cb = callback.get('error')
+                    self.after(0, lambda: cb(False, 'Failed to load from JSON file', True))  # type: ignore
+            finally:
+                pass
+
+            # # Tell the tab to reload
+            # self.users_tab._update_user_analysis_output()
+            # self.policies_tab.update_policy_output()
+
+    def _export_cache_to_json(self):
+        filepath = tkfiledialog.asksaveasfile(filetypes=[('JSON Files', '*.json')])
+        if filepath:
+            logger.info(f'Writing file: {type(filepath)} {filepath.name}')
+            self.caching.save_combined_cache(export_file=filepath)
+            logger.info(f'Wrote file {filepath.name}')
+        else:
+            logger.info('Export cancelled by user')
 
     # -------------------------
     # AI Calls
@@ -601,5 +673,25 @@ class App(Window):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--console-log', action='store_true', help='Log to console instead of file')
+
+    args = parser.parse_args()
+
+    if args.console_log:
+        # Reconfigure logger to use console
+        logger = get_logger(use_console=True, component='main')
+        logger.info('Logging to console')
+    else:
+        logger = get_logger(component='main')
+        logger.info('Logging to app.log')
+
+    # Configure logging based on verbose flag
+    if args.verbose:
+        set_log_level('DEBUG', component='main')
+        # logger.setLevel('DEBUG')
+        logger.debug('Verbose logging enabled')
+
     app = App()
     app.mainloop()

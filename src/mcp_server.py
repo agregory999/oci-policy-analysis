@@ -278,6 +278,30 @@ def get_users_for_group(group: Group) -> list[User]:
         raise ToolError(f'Failed to retrieve users for group {group}: {e}') from e
 
 
+@mcp.tool(
+    name='filter_policy_statements_by_users',
+    description=(
+        'Filter OCI IAM policy statements by user membership in groups. '
+        "Input is a list of User with keys 'domain' (string or null) and 'name' (string). "
+        "Only applies to statements where Subject Type is 'group'. "
+        'Matches occur if any provided (domain, name) matches any group that the user belongs to in the statement.'
+        'If domain is null, it matches groups in the Default domain.'
+    ),
+)
+def filter_policy_statements_by_users(users: list[User]) -> list[PolicyStatement]:
+    if not ida or not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    logger.info(f'Tool User Filter with users: {users}')
+    groups = []
+    for user in users:
+        user_groups = ida.get_groups_for_user(user)
+        groups.extend(user_groups)
+    logger.info(f'User filter expanded to groups: {groups}')
+    results = pca.filter_policy_statements_by_groups(groups)
+    logger.info(f'Filter returning {len(results)} policy statements to client')
+    return results
+
+
 # --- Initialization ---
 def initialize_and_load(use_instance_principal, profile, session, recursive):
     global pca, ida

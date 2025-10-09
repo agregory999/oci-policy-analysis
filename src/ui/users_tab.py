@@ -5,7 +5,8 @@ from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
 from ui.data_table import DataTable
 
-logger = get_logger()
+# Global logger for this module
+logger = get_logger(component='users')
 
 GROUPS_COLUMNS = ['Domain Name', 'Group Name', 'Group OCID']
 GROUPS_COLUMNS_WIDTHS = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 450}
@@ -128,7 +129,7 @@ class UsersTab(ttk.Frame):
             for row in selected_rows:
                 logger.debug(f"Selected User: {row.get('Domain Name')} / {row.get('Username')}")
                 if 'Username' in row:
-                    users_for_filter.append({'domain': row.get('Domain Name'), 'name': row.get('Username')})
+                    users_for_filter.append({'domain_name': row.get('Domain Name'), 'user_name': row.get('Username')})
             logger.info(f'Users for filter: {users_for_filter}')
 
             self._update_user_analysis_policy_output(groups_for_filter=None, users_for_filter=users_for_filter)

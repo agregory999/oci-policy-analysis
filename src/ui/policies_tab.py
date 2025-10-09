@@ -1,11 +1,12 @@
+import csv
 import tkinter as tk
+import tkinter.filedialog as tkfiledialog
+import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
 
 from logic.data_repo import PolicyCompartmentAnalysis
 from logic.logger import get_logger
 from ui.data_table import DataTable
-
-logger = get_logger()
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [
@@ -55,10 +56,47 @@ POLICY_COLUMN_WIDTHS = {
     'Parsed': 80,
 }
 
+# Global logger for this module
+logger = get_logger(component='policies')
+
 
 class PoliciesTab(ttk.Frame):
-    """Policy UI:
-    - document here
+    """Tab for displaying and filtering policies.
+    Args:
+        parent: The parent tkinter widget.
+        app: The main application instance.
+        policy_repo (PolicyCompartmentAnalysis): The policy data repository.
+        settings: The application settings dictionary.
+    Attributes:
+        app: The main application instance.
+        settings: The application settings dictionary.
+        policy_repo (PolicyCompartmentAnalysis): The policy data repository.
+        subject_filter_var: Tkinter StringVar for subject filter.
+        use_subject_any: Tkinter BooleanVar for 'any-user/group' checkbox.
+        verb_filter_var: Tkinter StringVar for verb filter.
+        location_filter_var: Tkinter StringVar for location filter.
+        resource_filter_var: Tkinter StringVar for resource filter.
+        hierarchy_filter_var: Tkinter StringVar for hierarchy filter.
+        condition_filter_var: Tkinter StringVar for condition filter.
+        text_filter_var: Tkinter StringVar for text filter.
+        effective_path_var: Tkinter StringVar for effective path filter.
+        policy_filter_var: Tkinter StringVar for policy name filter.
+        hierarchy_filter_root: Tkinter BooleanVar for 'tenancy root only' checkbox.
+        location_filter_tenancy: Tkinter BooleanVar for 'in tenancy' checkbox.
+        chk_show_service: Tkinter BooleanVar for showing service statements.
+        chk_show_dynamic: Tkinter BooleanVar for showing dynamic group statements.
+        chk_show_resource: Tkinter BooleanVar for showing resource statements.
+        chk_show_invalid: Tkinter BooleanVar for showing invalid statements.
+        chk_show_regular: Tkinter BooleanVar for showing regular statements.
+        chk_show_expanded: Tkinter BooleanVar for showing expanded columns.
+        tenancy_name_var: Tkinter StringVar for displaying tenancy name.
+        label_policy_count: Tkinter Label for displaying count of filtered and shown statements.
+        policy_table: DataTable instance for displaying policy statements.
+    Methods:
+        update_policy_output: Updates the policy output based on current filters.
+        enable_widgets_after_load: Enables widgets after data load is complete.
+        clear_policy_filters: Clears all policy filters.
+        export_policy_to_csv: Exports filtered policy statements to a CSV file.
     """
 
     def __init__(self, parent, app, policy_repo: PolicyCompartmentAnalysis, settings):  # noqa: C901
@@ -148,6 +186,30 @@ class PoliciesTab(ttk.Frame):
             self.hierarchy_filter_root.set(False)
             self.update_policy_output()
 
+        def export_policy_to_csv():
+            filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
+            if filepath:
+                filtered = self.policy_repo.filter_policy_statements(
+                    self.subject_filter_var.get(),
+                    self.verb_filter_var.get(),
+                    self.resource_filter_var.get(),
+                    self.location_filter_var.get(),
+                    self.hierarchy_filter_var.get(),
+                    self.condition_filter_var.get(),
+                    self.text_filter_var.get(),
+                    self.policy_filter_var.get(),
+                )
+                with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    # writer.writerow(self.sheet_policies.headers())
+                    # Write header row
+                    writer.writerow(ALL_POLICY_COLUMNS)
+                    # Write data rows
+                    for row in filtered:
+                        writer.writerow(row.values())
+                logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
+                tkmessagebox.showinfo('Export Complete', f'Exported {len(filtered)} policy statements to {filepath}')
+
         # Within the policy filter frame, create the filter fields and buttons
         ttk.Label(frm_policy_filter, text='Subject').grid(row=1, column=0, padx=5, pady=2, sticky='w')
         ttk.Entry(frm_policy_filter, textvariable=self.subject_filter_var, width=20).grid(
@@ -215,8 +277,16 @@ class PoliciesTab(ttk.Frame):
         effective_path_text.grid(row=5, column=3, columnspan=4, padx=5, pady=2, sticky='ew')
 
         # Clear Button
-        self.btn_clear = ttk.Button(label_frm, text='Clear', state=tk.DISABLED, command=clear_policy_filters)
-        self.btn_clear.grid(row=0, column=1, padx=5, pady=2, sticky='e')
+        self.btn_clear = ttk.Button(label_frm, text='Clear Filters', state=tk.DISABLED, command=clear_policy_filters)
+        self.btn_clear.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+
+        self.btn_export_policy = ttk.Button(
+            label_frm,
+            text='Export Filtered\nStatements to CSV',
+            state=tk.DISABLED,
+            command=export_policy_to_csv,
+        )
+        self.btn_export_policy.grid(row=0, column=2, padx=5, pady=2, sticky='w')
 
         # Output Filter options (LabelFrame)
         label_frm2 = ttk.LabelFrame(self, text='Output Filters')
@@ -373,3 +443,15 @@ class PoliciesTab(ttk.Frame):
         else:
             self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
             logger.debug('Setting policy table to expanded view with basic columns')
+
+    def enable_widgets_after_load(self):
+        """Enable widgets after load."""
+        # Enable all the filter widgets
+        # for child in self.winfo_children():
+        #     if isinstance(child, ttk.LabelFrame):
+        #         for sub_child in child.winfo_children():
+        #             sub_child.configure(state='normal')
+
+        # Clear/export button
+        self.btn_clear.configure(state='normal')
+        self.btn_export_policy.configure(state='normal')

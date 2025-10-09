@@ -52,6 +52,9 @@ from oci.signer import load_private_key_from_file
 
 from logic.logger import get_logger
 
+# Global logger for this module
+logger = get_logger(component='data_repo')
+
 # Constants
 THREADS = 9
 POLICY_REGEX = r"""^\s*allow\s+ # Start with allow (and whitespace at front)
@@ -104,9 +107,6 @@ define_regex = re.compile(CROSS_TENANCY_DEFINE_REGEX, re.IGNORECASE | re.MULTILI
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 
-# Logger is centralized now...
-logger = get_logger()
-
 # For MCP-specific JSON
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
@@ -145,7 +145,7 @@ class Group(TypedDict):
 
 
 class User(TypedDict):
-    """Represents an OCI IAM user entry."""
+    """Represents an OCI IAM user entry. Users need a domain and name to be unique.  Domain can be None for default domain."""
 
     user_name: str
     user_id: str
@@ -363,13 +363,12 @@ class PolicyCompartmentAnalysis:
         self.children_by_parent: dict[str, dict[str, str]] = {}
 
         for comp in self.compartments:  # however you store them
-            logger.info(comp)
             cid = comp.get('id')
             name = comp.get('name')
             parent_id = comp.get('parent_id') or self.tenancy_ocid
             # There is no path at this point, maybe we can generate it now
             path = comp.get('hierarchy_path')
-            logger.info(f'***Path is {path}')
+            logger.debug(f'***Path is {path}')
             # path, ocids = self._get_compartment_path(comp, 0, '')
             # path = comp.get("path")
 
@@ -710,9 +709,9 @@ class PolicyCompartmentAnalysis:
             self._build_compartment_index()
 
             # Print indexes
-            logger.info(f'Compartments by id: {self.compartments_by_id}')
-            logger.info(f'Compartments by path: {self.compartments_by_path}')
-            logger.info(f'Children by parent: {self.children_by_parent}')
+            logger.debug(f'Compartments by id: {self.compartments_by_id}')
+            logger.debug(f'Compartments by path: {self.compartments_by_path}')
+            logger.debug(f'Children by parent: {self.children_by_parent}')
 
             # Now call effective compartment code - for all
             self._calculate_effective_compartments_for_statements()
@@ -1572,7 +1571,10 @@ class IdentityDomainsAnalysis:
         # Iterate through users to find our user
         for u in self.users:
             # Match the tuple
-            if u.get('Username') == user.get('name') and u.get('Domain Name') == user.get('domain', 'default'):
+            if (
+                u.get('Username', '').casefold() == user.get('user_name').casefold()
+                and u.get('Domain Name', 'default').casefold() == user.get('domain_name', 'default').casefold()
+            ):
                 logger.info(f"User found. Groups: {u.get('User Groups')}")
 
                 for user_group_ocid in u.get('User Groups'):
