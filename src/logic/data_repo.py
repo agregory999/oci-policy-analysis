@@ -25,7 +25,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, TypedDict
 
 # Third-party imports
 from deepdiff import DeepDiff, parse_path
@@ -51,6 +50,16 @@ from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.signer import load_private_key_from_file
 
 from logic.logger import get_logger
+from logic.models import (
+    DynamicGroup,
+    DynamicGroupFilters,
+    Group,
+    GroupFilters,
+    PolicyFilters,
+    PolicyStatement,
+    User,
+    UserFilters,
+)
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
@@ -137,83 +146,14 @@ FILTER_KEY_MAP = {
     'group_domain': 'Domain Name',
 }
 
+FILTER_DG_KEY_MAP = {
+    'domain': 'Domain',
+    'name': 'DG Name',
+    'matching_rule': 'Matching Rule',
+    'in_use': 'In Use',
+}
 
 # TypedDicts for MCP - these improve the code readability and help with type checking
-class Group(TypedDict):
-    domain: str | None
-    name: str
-
-
-class User(TypedDict):
-    """Represents an OCI IAM user entry. Users need a domain and name to be unique.  Domain can be None for default domain."""
-
-    user_name: str
-    user_id: str
-    display_name: str
-    domain_name: str | None
-
-
-class DynamicGroup(TypedDict):
-    domain: str | None
-    name: str
-
-
-class PolicyFilters(TypedDict, total=False):
-    # "total=False" = all keys optional
-    verb: list[Literal['inspect', 'read', 'use', 'manage']]
-    statement_text: list[str]  # Text snippet of the policy statement to filter on
-    policy_name: list[str]  # Name of the policy
-    policy_compartment: list[str]  # supports ROOTONLY
-    resource: list[str]  # resource is a list of OCI resources that this policy statement applies to
-    location: list[
-        str
-    ]  # location is a list of relative compartment paths or compartment id OCID.  Also can be "tenancy"
-    effective_path: list[
-        str
-    ]  # Contains the compartment path that this policy statement applies to.  This is used to determine if a policy applies to a given compartment or any of its children.
-    subject_type: list[str]  # e.g. group, dynamic-group, any-user, any-group, service
-    subject: list[str]  # subject is a list of names or domain/name
-    permission: list[str]  # permission is a list of actions such as START_INSTANCE
-    comments: list[str]  # comments added to the end of the policy statement
-    conditions: list[str]  # any or all clause of an OCI policy statement
-
-
-class GroupFilters(TypedDict, total=False):
-    domain: list[str | None]  # None represents no domain
-    name: list[str]
-
-
-class DynamicGroupFilters(TypedDict, total=False):
-    domain: list[str | None]  # None represents no domain
-    name: list[str]
-    matching_rule: list[str]
-
-
-# LOC_TENANCY_RE = re.compile(r'\btenancy\b', re.IGNORECASE)
-# LOC_COMP_NAME_RE = re.compile(r'\b([a-zA-Z0-9:_\-\s]+)$', re.IGNORECASE)
-# LOC_COMP_ID_RE = re.compile(r'\b(ocid1\.compartment\..+)$', re.IGNORECASE)
-
-
-class PolicyStatement(TypedDict, total=False):
-    Policy_Name: str
-    Policy_OCID: str
-    Compartment_OCID: str
-    Policy_Compartment: str
-    Statement_Text: str
-    Valid: bool
-    Subject_Type: str
-    Subject: list[tuple[str | None, str]] | str
-    Verb: str
-    Resource: str
-    Permission: str
-    Location_Type: str
-    Location: str
-    Effective_Compartment: str
-    Effective_Path: str
-    Conditions: str
-    Comments: str
-    Creation_Time: str
-    Parsed: bool
 
 
 class PolicyCompartmentAnalysis:
@@ -245,7 +185,7 @@ class PolicyCompartmentAnalysis:
         logger.info('Initialized PolicyCompartmentAnalysis')
 
     def initialize_client(
-        self, use_instance_principal: bool, session: str, recursive: bool = True, profile: str = 'DEFAULT'
+        self, use_instance_principal: bool, session: str | None = None, recursive: bool = True, profile: str = 'DEFAULT'
     ) -> bool:
         """Initializes the OCI client to be used for all data operations
 
@@ -280,7 +220,6 @@ class PolicyCompartmentAnalysis:
                 self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
                 self.tenancy_ocid = self.config['tenancy']
                 logger.info('Success session auth')
-
             else:
                 logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
@@ -494,6 +433,8 @@ class PolicyCompartmentAnalysis:
             'Policy Compartment': comp_string,
             'Statement Text': statement,
             'Creation Time': str(policy.time_created),
+            'Valid': True,  # Mark as False later if needed
+            'Parsed': False,  # Mark as True later if parsed successfully
         }
 
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
@@ -630,7 +571,7 @@ class PolicyCompartmentAnalysis:
             # Load policies for the compartment
             policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
             if policies_response and policies_response.data:
-                logger.info(f'Looping policies for comp: {compartment.name} ({len(policies_response.data)})')
+                logger.debug(f'Looping policies for comp: {compartment.name} ({len(policies_response.data)})')
                 load_pol_time = time.perf_counter()
                 this_comp_count: int = 0
                 for policy in policies_response.data:
@@ -731,7 +672,7 @@ class PolicyCompartmentAnalysis:
         return next((c for c in self.compartments if c['id'] == compartment_id), None)
 
     # Filtering logic - return a list of policy statements matching given filter
-    def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list:
+    def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[dict]:
         # Iterate cross-tenant policies
         filtered = []
         for statement in self.cross_tenancy_statements:
@@ -744,7 +685,7 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
 
-    def filter_policy_statements_by_groups(self, groups_filter: list[Group]) -> list[PolicyStatement]:
+    def filter_policy_statements_by_groups(self, groups_filter: list[Group]) -> list[dict]:
         """
         Filter policy statements by group membership.
 
@@ -763,8 +704,18 @@ class PolicyCompartmentAnalysis:
             list[PolicyStatement]: Matching policy statements.
         """
         logger.info(f'Filter policies related to groups: {groups_filter}')
-        filtered: list[PolicyStatement] = []
+        # De-dupe the groups filter
+        seen = set()
+        deduplicated_list = []
+        for group in groups_filter:
+            identifier = (group.get('domain') or 'Default', group.get('name'))
+            if identifier not in seen:
+                seen.add(identifier)
+                deduplicated_list.append(group)
 
+        filtered: list[PolicyStatement] = []
+        logger.debug(f'Deduplicated groups filter: {deduplicated_list}')
+        groups_filter = deduplicated_list
         for statement in self.regular_statements:
             if statement.get('Subject Type') != 'group':
                 continue
@@ -798,9 +749,7 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
         return filtered
 
-    def filter_policy_statements_by_dynamic_group_name(
-        self, dynamic_groups: list[DynamicGroup]
-    ) -> list[PolicyStatement]:
+    def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[DynamicGroup]) -> list[dict]:
         """
         Filter policy statements by dynamic group membership.
 
@@ -846,7 +795,7 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
         return filtered
 
-    def filter_policy_statements_json(self, filters: PolicyFilters) -> list[PolicyStatement]:  # noqa: C901
+    def filter_policy_statements_json(self, filters: PolicyFilters) -> list[dict]:  # noqa: C901
         """
         Filter policy statements using JSON-based filters.
 
@@ -938,104 +887,6 @@ class PolicyCompartmentAnalysis:
 
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
         return results
-
-    # Original - non-MCP version of filter_policy_statements
-    def filter_policy_statements(
-        self,
-        subj_filter=None,
-        verb_filter=None,
-        resource_filter=None,
-        location_filter=None,
-        hierarchy_filter=None,
-        condition_filter=None,
-        text_filter=None,
-        policy_filter=None,
-    ) -> list:
-        """Given the filters from the UI, return the list of matching policy statements.  Process the | as logical OR.
-
-        There are 8 filters that can be applied.  Each filter is treated as its own and then they are applied at the
-        end using logical AND.  If more than 1 filter is used, both must be true for the policy statement to be
-        returned.
-
-        Args:
-            subj_filter: A delimited list of subjects that could appear in the policy statement. Supports | for OR
-            verb_filter: A delimited list of verbs that could appear in the policy statement. Supports | for OR
-            resource_filter: A delimited list of resources that could appear in the policy statement. Supports | for OR
-            location_filter: A delimited list of locations that could appear in the policy statement. Supports | for OR
-            hierarchy_filter: A delimited list of heierachy locations that could appear in the policy statement. Supports | for OR
-            condition_filter: A delimited list of conditions that could appear in the policy statement. Supports | for OR
-            text_filter: A delimited list of text bits that could appear in the policy statement. Supports | for OR
-            policy_filter: A delimited list of policy names that could appear in the policy statement. Supports | for OR
-
-        Returns:
-            a list of JSON dicts representing policy statemewnts matching the criteria
-        """
-        filtered = []
-        subject_terms = [term.strip().lower() for term in subj_filter.split('|') if term.strip()] if subj_filter else []
-        verb_terms = [term.strip().lower() for term in verb_filter.split('|') if term.strip()] if verb_filter else []
-        resource_terms = (
-            [term.strip().lower() for term in resource_filter.split('|') if term.strip()] if resource_filter else []
-        )
-        location_terms = (
-            [term.strip().lower() for term in location_filter.split('|') if term.strip()] if location_filter else []
-        )
-        hierarchy_terms = (
-            [term.strip().lower() for term in hierarchy_filter.split('|') if term.strip()] if hierarchy_filter else []
-        )
-        condition_terms = (
-            [term.strip().lower() for term in condition_filter.split('|') if term.strip()] if condition_filter else []
-        )
-        text_terms = [term.strip().lower() for term in text_filter.split('|') if term.strip()] if text_filter else []
-        policy_terms = (
-            [term.strip().lower() for term in policy_filter.split('|') if term.strip()] if policy_filter else []
-        )
-        logger.debug(
-            f'Search Terms: Subject: {subject_terms} Location: {location_terms} Hierarchy: {hierarchy_terms}, Condition {condition_terms}'
-        )
-
-        # Iterate all policy statements and return a new list
-        for st in self.regular_statements:
-            matches_subject = not subject_terms or any(term in str(st.get('Subject')).lower() for term in subject_terms)
-            matches_verb = not verb_terms or any(term in str(st.get('Verb')).lower() for term in verb_terms)
-            matches_resource = not resource_terms or any(
-                term in str(st.get('Resource')).lower() for term in resource_terms
-            )
-            matches_location = (
-                not location_terms
-                or any(term in str(st.get('Location')).lower() for term in location_terms)
-                or (st.get('Location Type') == 'tenancy' and location_terms[0] == 'tenancy')
-            )
-            matches_hierarchy = (
-                not hierarchy_terms
-                or any(term in str(st.get('Policy Compartment')).lower() for term in hierarchy_terms)
-                or (
-                    st.get('Compartment OCID') == self.tenancy_ocid and hierarchy_terms[0] == 'rootonly'
-                )  # Uses Root Level boolean
-            )
-            matches_condition = not condition_terms or any(
-                term in str(st.get('Conditions')).lower().replace(' ', '') for term in condition_terms
-            )
-            matches_text = not text_terms or any(term in str(st.get('Statement Text')).lower() for term in text_terms)
-            matches_policy = not policy_terms or any(
-                term in str(st.get('Policy Name')).lower() for term in policy_terms
-            )
-
-            # All matches must be satisfied - None for a particular filter does that as well.
-            if (
-                matches_subject
-                and matches_verb
-                and matches_resource
-                and matches_location
-                and matches_hierarchy
-                and matches_condition
-                and matches_text
-                and matches_policy
-            ):
-                logger.debug(f'Adding Statement {st.get("Statement Text")} due to filter match')
-                filtered.append(st)
-
-        logger.info(f'Filtered to {len(filtered)} policy statements')
-        return filtered
 
     # Perform a comparison (left vs right)
     # TODO fix this to compare any 2 full JSON
@@ -1203,7 +1054,9 @@ class IdentityDomainsAnalysis:
 
         logger.info('Initialized IdentityDomainsAnalysis')
 
-    def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
+    def initialize_client(
+        self, use_instance_principal: bool, session: str | None = None, profile: str = 'DEFAULT'
+    ) -> bool:
         """Initializes the OCI client to be used for all data operations
 
         Client can be loaded using PROFILE or Instance Principal authentication methods
@@ -1225,6 +1078,19 @@ class IdentityDomainsAnalysis:
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
+            elif session:
+                self.session_token = session
+                logger.info('Session auth')
+                self.config = config.from_file(profile_name=session)
+                token_file = self.config['security_token_file']
+                token = None
+                with open(token_file) as f:
+                    token = f.read()
+                private_key = load_private_key_from_file(self.config['key_file'])
+                self.signer = SecurityTokenSigner(token, private_key)
+                self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
+                self.tenancy_ocid = self.config['tenancy']
+                logger.info('Success session auth')
             else:
                 logger.debug(f'Using Profile Authentication: {profile}')
                 self.config = config.from_file(profile_name=profile)
@@ -1297,39 +1163,50 @@ class IdentityDomainsAnalysis:
 
         logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
 
-    def filter_dynamic_groups(self, domain_filter=None, name_filter=None, type_filter=None, ocid_filter=None) -> list:
-        """Filters Dynamic Groups by Domain, Name, Type, or OCID
-
-        Returns a list of filtered Dynamic Groups.
+    def filter_dynamic_groups(self, filters: DynamicGroupFilters) -> list[dict]:
+        """
+        Filter dynamic groups using JSON-based filters.
 
         Args:
-            domain_filter: A string containing domains to filter.  Can be delimited by | to indicate logical OR
-            name_filter: A string containing dynamic group to filter.  Can be delimited by | to indicate logical OR
-            type_filter: A string containing types to filter.  Can be delimited by | to indicate logical OR
-            ocid_filter: A string containing OCIDs to filter.  Can be delimited by | to indicate logical OR
+            filters (dict[DynamicGroupFilters]): A mapping of filter keys to one or more values.
+                - OR: multiple values within a field act as logical OR.
+                - AND: multiple fields are combined as logical AND.
+                - Supported keys:
+                    * domain      → matches "Domain"
+                    * name        → matches "DG Name"
+                    * type        → matches "Matching Rule"
+                    * in_use      → matches "In Use" (True/False)
 
         Returns:
-            A list of filtered dynamic groups, which are the original JSON format per dynamic group returned
+            list[dict]: A list of dynamic groups that satisfy the filters.
         """
-        filtered = []
+        results = []
 
-        domain_terms = [dom.strip().lower() for dom in domain_filter.split('|') if dom.strip()] if domain_filter else []
-        name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
-        type_terms = [ty.strip().lower() for ty in type_filter.split('|') if ty.strip()] if type_filter else []
-        ocid_terms = [oc.strip().lower() for oc in ocid_filter.split('|') if oc.strip()] if ocid_filter else []
-        logger.debug(f'Filtering DGs based on Domain: {domain_filter} and Name: {name_filter}')
         for dg in self.dynamic_groups:
-            # str(st.get('subject')).lower()
-            matches_domain = not domain_terms or any(term in str(dg.get('Domain')).lower() for term in domain_terms)
-            matches_name = not name_terms or any(term in str(dg.get('DG Name')).lower() for term in name_terms)
-            matches_type = not type_terms or any(term in str(dg.get('Matching Rule')).lower() for term in type_terms)
-            matches_ocid = not ocid_terms or any(term in str(dg.get('DG OCID')).lower() for term in ocid_terms)
-            if matches_name and matches_domain and matches_type and matches_ocid:
-                logger.debug(f'Adding DG {dg.get("Domain")}/{dg.get("DG Name")} due to filter match')
-                filtered.append(dg)
+            match = True
 
-        logger.info(f'Filtered to {len(filtered)} dynamic groups')
-        return filtered
+            for key, values in filters.items():
+                if not values:
+                    logger.debug(f'Skipping empty filter for key: {key}')
+                    continue
+                values = [v.lower() for v in values]
+
+                column = FILTER_DG_KEY_MAP.get(key)
+                logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
+                if not column:
+                    logger.warning(f'Unknown filter key: {key}')
+                    continue
+                field_value = str(dg.get(column, '')).lower()
+                if not any(val in field_value for val in values):
+                    logger.debug(f"Rejecting DG {dg.get('DG Name')} due to {key} mismatch")
+                    match = False
+                    break
+
+            if match:
+                results.append(dg)
+
+        logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
+        return results
 
     def get_users_for_group(self, group: Group) -> list[User]:
         """
@@ -1378,29 +1255,52 @@ class IdentityDomainsAnalysis:
         logger.info(f'Found {len(matched_users)} users for group {group_domain}/{group_name}')
         return matched_users
 
-    def filter_groups(self, name_filter=None) -> list[Group]:
+    def filter_groups(self, group_filter: GroupFilters) -> list[dict]:
         filtered = []
+        logger.info(f'Filtering Groups based on: {group_filter}')
 
-        name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
-        logger.debug(f'Filtering Groups based on Name: {name_filter}')
+        # name_terms = [term.strip().lower() for term in group_filter.get('name', [])] if group_filter.get('name') else []
+        # logger.debug(f'Filtering Groups based on Name: {name_terms}')
         for g in self.groups:
-            matches_name = not name_terms or any(term in str(g.get('Group Name')).lower() for term in name_terms)
-            if matches_name:
-                logger.debug(f'Adding Group: {g.get("Group Name")} due to filter match')
+            matches_name = not group_filter.get('name') or any(
+                term in str(g.get('Group Name')).lower() for term in group_filter.get('name')
+            )
+            matches_domain = not group_filter.get('domain') or any(
+                term in str(g.get('Domain Name')).lower() for term in group_filter.get('domain', ['defaut'])
+            )
+            if matches_name and matches_domain:
+                logger.info(f'Adding Group: {g.get("Group Name")} due to filter match')
                 filtered.append(g)
 
         logger.info(f'Filtered to {len(filtered)} groups')
         return filtered
 
-    def filter_users(self, name_filter=None) -> list:
+    def filter_users(self, user_filter: UserFilters, use_or_filter: bool = False) -> list[dict]:
         filtered = []
 
-        name_terms = [term.strip().lower() for term in name_filter.split('|') if term.strip()] if name_filter else []
-        logger.debug(f'Filtering Users based on Name: {name_filter}')
+        logger.info(f'Filtering Users based on: {user_filter}')
         for u in self.users:
-            matches_name = not name_terms or any(term in str(u.get('Username')).lower() for term in name_terms)
-            if matches_name:
-                logger.debug(f'Adding Group: {u.get("Username")} due to filter match')
+            matches_domain = not user_filter.get('domain') or any(
+                term.lower() in str(u.get('Domain Name')).lower() for term in user_filter.get('domain', ['default'])
+            )
+            matches_name = not user_filter.get('username') or any(
+                term.lower() in str(u.get('Username')).lower() for term in user_filter.get('username')
+            )
+            matches_display = not user_filter.get('display_name') or any(
+                term.lower() in str(u.get('Display Name')).lower() for term in user_filter.get('display_name')
+            )
+            if use_or_filter:
+                if matches_name or matches_display:
+                    logger.debug(f'Adding User: {u.get("Username")} due to filter match (or)')
+                    logger.info(
+                        f'Adding User: {u.get("Domain Name")}/{u.get("Username")} Name:"{u.get("Display Name")}" due to filter match (or)'
+                    )
+                    filtered.append(u)
+            elif matches_domain and matches_name and matches_display:
+                logger.debug(f'Adding User: {u.get("Username")} due to filter match')
+                logger.info(
+                    f'Adding User: {u.get("Domain Name")}/{u.get("Username")} Name:"{u.get("Display Name")}" due to filter match'
+                )
                 filtered.append(u)
 
         logger.info(f'Filtered to {len(filtered)} users')
@@ -1442,6 +1342,20 @@ class IdentityDomainsAnalysis:
                         domain_client = IdentityDomainsClient(
                             config={}, signer=self.signer, service_endpoint=domain.url
                         )
+                    elif self.session_token:
+                        logger.info('Session auth for IdentityDomainsClient')
+                        self.config = config.from_file(profile_name=self.session_token)
+                        token_file = self.config['security_token_file']
+                        token = None
+                        with open(token_file) as f:
+                            token = f.read()
+                        private_key = load_private_key_from_file(self.config['key_file'])
+                        self.signer = SecurityTokenSigner(token, private_key)
+                        domain_client = IdentityDomainsClient(
+                            {'region': self.config['region']}, signer=self.signer, service_endpoint=domain.url
+                        )
+                        self.tenancy_ocid = self.config['tenancy']
+                        logger.info('Success session auth')
                     else:
                         domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
                     self.domain_clients[domain.id] = domain_client

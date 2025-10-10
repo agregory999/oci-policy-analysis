@@ -38,6 +38,7 @@ from logic import config
 from logic.caching import CacheManager
 from logic.data_repo import AI, IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger, set_log_level
+from ui.dynamic_group_tab import DynamicGroupsTab
 from ui.policies_tab import PoliciesTab
 from ui.settings_tab import SettingsTab
 from ui.users_tab import UsersTab
@@ -134,9 +135,13 @@ class App(Window):
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis, self.policy_compartment_analysis)
+        self.dynamic_groups_tab = DynamicGroupsTab(
+            self.notebook, self, self.identity_domain_analysis, self.policy_compartment_analysis
+        )
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
+        self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
 
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -251,6 +256,7 @@ class App(Window):
         widget.bind_all('<Button-5>', _on_mousewheel)
 
     # Public API for tabs to update the bottom entry
+    # Called from any tab to set the entry text for the AI call
     def update_bottom_entry(self, text: str):
         self.bottom_entry.delete(0, tk.END)
         self.bottom_entry.insert(0, text)
@@ -305,15 +311,6 @@ class App(Window):
         else:  # Markdown
             self.md_frame.pack(fill='both', expand=True, padx=6, pady=6)
 
-    # def show_output_widget(self, fmt: str):
-    #     """Switch between Markdown (HTMLLabel) and Text (ScrolledText)."""
-    #     self.html_view.pack_forget()
-    #     self.text_view.pack_forget()
-
-    #     if fmt == "Text":
-    #         self.text_view.pack(fill="both", expand=True, padx=6, pady=6)
-    #     else:  # "Markdown"
-    #         self.html_view.pack(fill="both", expand=True, padx=6, pady=6)
     # -------------------------
     # Bottom pane toggle & sash
     # -------------------------
@@ -446,7 +443,7 @@ class App(Window):
                     if not success:
                         raise RuntimeError('Failed to initialize PolicyCompartmentAnalysis client')
                     success = self.identity_domain_analysis.initialize_client(
-                        use_instance_principal=instance_principal, profile=named_profile
+                        use_instance_principal=instance_principal, profile=named_profile, session=named_session
                     )
                     # Fail if unable to initialize client
                     if not success:
@@ -469,12 +466,6 @@ class App(Window):
                     # Write the cache
                     self.caching.save_combined_cache()
 
-                    if callback and callback.get('progress'):
-                        cb = callback.get('progress')
-                        self.after(
-                            0, lambda: cb(f'Loading data from tenancy {self.policy_compartment_analysis.tenancy_name}')
-                        )  # type: ignore
-
                 # Fail if unsuccessful
                 if not success:
                     raise Exception('Failed to initialize')
@@ -490,6 +481,7 @@ class App(Window):
                 logger.info('Tenancy Load completeReload all tabs')
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
+                self.dynamic_groups_tab.enable_controls()
 
             except Exception as e:
                 logger.error(f'❌ Failed to load tenancy: {e}')
@@ -532,6 +524,7 @@ class App(Window):
                 logger.info('Cache Load JSON complete - Reload all tabs')
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
+                self.dynamic_groups_tab.enable_controls()
 
             except Exception as e:
                 logger.error(f'Error importing policies from CSV: {e}')
@@ -603,10 +596,10 @@ class App(Window):
                     )
                     self.caching.save_cache()
                 # update UI in main thread
-                self.after(0, lambda: self.set_bottom_output(ai_markdown_response))
+                self.after(0, lambda: self.set_bottom_output(ai_markdown_response))  # type: ignore
 
                 if callback:
-                    self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
+                    self.after(0, lambda: callback(success=True, message='Set up AI successfully'))  # type: ignore
 
                 # progress label
                 self.after(
@@ -621,7 +614,7 @@ class App(Window):
                 logger.error(f'GenAI request failed: {e}')
                 self.after(0, lambda e=e: self.set_bottom_output(f'**Error:** {e}'))
                 if callback:
-                    self.after(0, lambda e=e: callback(success=False, message=f'Failed AI: {e}'))
+                    self.after(0, lambda e=e: callback(success=False, message=f'Failed AI: {e}'))  # type: ignore
 
         threading.Thread(target=worker, daemon=True).start()
 

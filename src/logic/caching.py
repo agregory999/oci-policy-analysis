@@ -1,3 +1,18 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# caching.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
+
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -97,6 +112,7 @@ class CacheManager:
             A string indicating the name of the file used
         """
         combined_cache_file = self.cache_dir / f'combined_cache_{named_cache}.json'
+        logger.info(f'Loading combined cache from: {combined_cache_file}')
         if combined_cache_file.exists():
             try:
                 with open(combined_cache_file, encoding='utf-8') as filehandle:
@@ -140,6 +156,9 @@ class CacheManager:
                 logger.error(f'Error loading combined cache file: {e}')
                 return 'no cache'
         # logger.warning(f'Unable to load data from cache: {combined_cache_file}')
+        else:
+            logger.warning(f'Unable to load data from cache: {combined_cache_file}')
+            raise ValueError('no cache')
         return str(combined_cache_file)
 
     def load_cache_from_json(self, loaded_json: dict) -> bool:

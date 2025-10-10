@@ -1,8 +1,24 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# users_tab.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
+
 import tkinter as tk
 from tkinter import ttk
 
 from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
 from logic.logger import get_logger
+from logic.models import GroupFilters, UserFilters
 from ui.data_table import DataTable
 
 # Global logger for this module
@@ -168,11 +184,14 @@ class UsersTab(ttk.Frame):
         # Frame for selection and Search
         frm_user_selection = ttk.Frame(frm_user_top)
         frm_user_selection.grid_columnconfigure(0, weight=3)
-        frm_user_selection.grid_columnconfigure(1, weight=7)
+        frm_user_selection.grid_columnconfigure(1, weight=5)
+        frm_user_selection.grid_columnconfigure(2, weight=2)
         frm_user_selection.grid(row=0, column=0, padx=5, pady=2, sticky='w')
 
         # User / Group Selection
-        ttk.Label(frm_user_selection, text='Select Groups or Users').grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_user_selection, text='Select Groups / Users').grid(
+            row=0, column=0, columnspan=2, padx=5, pady=2, sticky='w'
+        )
 
         # Selection Dropdown (users or groups)
         self.groups_option_var = tk.StringVar(value='GROUPS')
@@ -184,33 +203,36 @@ class UsersTab(ttk.Frame):
             # bootstyle='default',
             command=switch_groups_users_selection,
         )
-        self.groups_users_dropdown.grid(row=0, column=1, padx=5, pady=5)
+        self.groups_users_dropdown.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
 
         ttk.Label(frm_user_selection, text='Search').grid(row=1, column=0, padx=5, pady=2, sticky='w')
 
         # Search with trace
         self.user_group_search = tk.StringVar()
-        ttk.Entry(frm_user_selection, textvariable=self.user_group_search, width=30).grid(
-            row=1, column=1, padx=5, pady=2, sticky='w'
+        ttk.Entry(frm_user_selection, textvariable=self.user_group_search, width=35).grid(
+            row=1, column=1, columnspan=2, padx=5, pady=2, sticky='ew'
         )
         self.user_group_search.trace_add('write', update_search)
+        ttk.Label(
+            frm_user_selection, text='Search user/group name using | for logical OR\nExamples: user1|user2 grp1|grp2'
+        ).grid(row=2, column=0, columnspan=2, padx=5, pady=2, sticky='w')
         self.btn_clear_groups_users = ttk.Button(frm_user_selection, text='Clear Filter', command=clear_filter)
-        self.btn_clear_groups_users.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky='w')
+        self.btn_clear_groups_users.grid(row=2, column=2, padx=5, pady=5, sticky='ew')
 
         self.user_selected_groups = ttk.Label(frm_user_selection, text='Selected Groups: ')
-        self.user_selected_groups.grid(row=3, column=0, columnspan=2, padx=5, pady=2, sticky='w')
+        self.user_selected_groups.grid(row=3, column=0, columnspan=3, padx=5, pady=2, sticky='w')
 
         self.selected_groups_table = DataTable(
             frm_user_selection,
             columns=['Domain', 'Group'],
             display_columns=['Domain', 'Group'],
             data=[],
-            column_widths={'Domain': 150, 'Group': 200},
+            column_widths={'Domain': 200, 'Group': 300},
             # font_size=10,
             # selection_callback=users_group_selection_callback,
             # multi_select=True,
         )
-        self.selected_groups_table.grid(row=4, column=0, columnspan=2, padx=5, pady=2, sticky='w')
+        self.selected_groups_table.grid(row=4, column=0, columnspan=3, padx=5, pady=2, sticky='w')
 
         # Table for Groups on the left
         # Groups Table
@@ -269,16 +291,26 @@ class UsersTab(ttk.Frame):
             self.users_users_table.grid_forget()
             self.users_groups_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
+            # Only filter on name for now
+            group_filter: GroupFilters = GroupFilters(
+                name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+            )
             # Filter and display
-            filtered_groups = self.identity_repo.filter_groups(name_filter=self.user_group_search.get())
+            filtered_groups = self.identity_repo.filter_groups(group_filter=group_filter)
             self.users_groups_table.update_data(filtered_groups)
             logger.info(f'Loaded {len(filtered_groups)} groups into table')
         elif self.groups_option_var.get() == 'USERS':
             self.users_groups_table.grid_forget()
             self.users_users_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
+            # Only filter on username for now
+            user_filter: UserFilters = UserFilters(
+                username=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+                display_name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+            )
             # Filter and display
-            filtered_users = self.identity_repo.filter_users(name_filter=self.user_group_search.get())
+            filtered_users = self.identity_repo.filter_users(user_filter=user_filter, use_or_filter=True)
+
             self.users_users_table.update_data(filtered_users)
             logger.info(f'Loaded {len(filtered_users)} users into data')
         else:

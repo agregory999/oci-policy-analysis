@@ -1,7 +1,20 @@
-#!/usr/bin/env python3
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# mcp_server.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
+
 import argparse
 import json
-import os
 import sys
 from typing import Literal, TypedDict
 
@@ -14,27 +27,38 @@ from fastmcp.exceptions import ToolError
 # from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
+from logic.caching import CacheManager
 from logic.data_repo import (
-    DynamicGroup,
-    Group,
     IdentityDomainsAnalysis,
     PolicyCompartmentAnalysis,
+)
+from logic.logger import get_logger
+from logic.models import (
+    DefineStatement,
+    DynamicGroup,
+    Group,
     PolicyFilters,
     PolicyStatement,
     User,
 )
-from logic.logger import get_logger
 
-logger = get_logger(use_console=True)
+# Global logger for this module
+logger = get_logger(use_console=True, component='MCPServer')
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyCompartmentAnalysis | None = None
 ida: IdentityDomainsAnalysis | None = None
 
 
-# Combined filter input for policies - example
-class CombinedFilterInput(TypedDict):
+# Combined filter input for policies
+class GroupVerbFilterInput(TypedDict):
     groups: list[Group]
+    verbs: list[Literal['inspect', 'read', 'use', 'manage']]
+
+
+# Combined filter input for policies
+class UserVerbFilterInput(TypedDict):
+    users: list[User]
     verbs: list[Literal['inspect', 'read', 'use', 'manage']]
 
 
@@ -45,7 +69,7 @@ async def health_check(request):
     return JSONResponse({'status': 'healthy'})
 
 
-@mcp.resource('policies://regular', description='Return All regular policy statements in the tenancy')
+@mcp.resource('policies://regular-policy-statements', description='Return All regular policy statements in the tenancy')
 def list_policy_statements() -> list[PolicyStatement]:
     """
     All policy statements in the tenancy.
@@ -63,7 +87,9 @@ def list_policy_statements() -> list[PolicyStatement]:
     return pca.regular_statements
 
 
-@mcp.resource('policies://cross-tenancy', description='Return All cross-tenancy policy statements in the tenancy')
+@mcp.resource(
+    'policies://cross-tenancy-statements', description='Return All cross-tenancy policy statements in the tenancy'
+)
 def cross_tenancy_policy_statements() -> list[PolicyStatement]:
     """
     All cross-trenancy policy statements in the tenancy.
@@ -77,7 +103,7 @@ def cross_tenancy_policy_statements() -> list[PolicyStatement]:
 
 
 @mcp.resource(
-    'policies://compartment/root',
+    'policies://root-compartment-policy-statements',
     description='Return All regular policy statements in the root compartment of the tenancy',
 )
 def root_policy_statements() -> list[PolicyStatement]:
@@ -155,9 +181,9 @@ def list_users() -> list[User]:
 # --- Tools ---
 
 
-# Policy filter tool
+# Main Policy filter tool
 @mcp.tool(
-    name='filter_policy_statements_json',
+    name='filter_policy_statements',
     description=(
         'Filter OCI IAM policy statements using a JSON filter object. '
         'Each field is optional; OR within each field, AND across fields. '
@@ -167,13 +193,14 @@ def list_users() -> list[User]:
         '- policy_text matches anywhere in the statement text.'
     ),
 )
-def filter_policy_statements_json(filters: PolicyFilters) -> list[PolicyStatement]:
+def filter_policy_statements(filters: PolicyFilters) -> list[PolicyStatement]:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info(f'Tool Policy Filter with JSON filters: {filters}')
-    results = pca.filter_policy_statements_json(filters)
-    logger.info(f'Filter returning {len(results)} policy statements to client')
-    return results
+    raw_results = pca.filter_policy_statements_json(filters)
+    logger.debug(f'Raw Results: {raw_results}')
+    logger.info(f'Filter returning {len(raw_results)} policy statements to client')
+    return [normalize_policy_statement(r) for r in raw_results]
 
 
 # Filter by dynamic groups
@@ -191,12 +218,13 @@ def filter_policy_statements_by_dynamic_groups(dynamic_groups: list[DynamicGroup
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info(f'Tool Dynamic Group Filter with groups: {dynamic_groups}')
     # print(f'Dynamic Groups: {dynamic_groups}', flush=True)
-    results = pca.filter_policy_statements_by_dynamic_group_name(dynamic_groups)
-    logger.info(f'Filter returning {len(results)} policy statements to client')
-    return results
+    raw_results = pca.filter_policy_statements_by_dynamic_group_name(dynamic_groups)
+    logger.debug(f'Raw Results: {raw_results}')
+    logger.info(f'Filter returning {len(raw_results)} policy statements to client')
+    return [normalize_policy_statement(r) for r in raw_results]
 
 
-# Policy filter by groups tool
+# Policies by Group filter tool
 @mcp.tool(
     name='filter_policy_statements_by_groups',
     description=(
@@ -213,24 +241,77 @@ def filter_policy_statements_by_groups(groups: list[Group]) -> list[PolicyStatem
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info(f'Tool Dynamic Group Filter with groups: {groups}')
     # print(f'Dynamic Groups: {dynamic_groups}', flush=True)
-    results = pca.filter_policy_statements_by_groups(groups)
-    logger.info(f'Filter returning {len(results)} policy statements to client')
-    return results
+    raw_results = pca.filter_policy_statements_by_groups(groups)
+    logger.debug(f'Raw Results: {raw_results}')
+    logger.info(f'Filter returning {len(raw_results)} policy statements to client')
+    return [normalize_policy_statement(r) for r in raw_results]
 
 
-# Filter by groups and verbs (combined)
+# Policies by User filter tool
 @mcp.tool(
-    name='filter_policy_statements_by_group_and_verb',
+    name='filter_policy_statements_by_users',
+    description=(
+        'Filter OCI IAM policy statements by user membership in groups. '
+        "Input is a list of User with keys 'domain' (string or null) and 'name' (string). "
+        "Only applies to statements where Subject Type is 'group'. "
+        'Matches occur if any provided (domain, name) matches any group that the user belongs to in the statement.'
+        'If domain is null, it matches groups in the Default domain.'
+    ),
+)
+def filter_policy_statements_by_users(users: list[User]) -> list[PolicyStatement]:
+    if not ida or not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    logger.info(f'Tool User Filter with users: {users}')
+    groups = []
+    for user in users:
+        user_groups = ida.get_groups_for_user(user)
+        groups.extend(user_groups)
+    logger.info(f'User filter expanded to groups: {groups}')
+    raw_results = pca.filter_policy_statements_by_groups(groups)
+    logger.info(f'Filter returning {len(raw_results)} policy statements to client')
+    return [normalize_policy_statement(r) for r in raw_results]
+
+
+# Combined Filter by groups and verbs (combined)
+@mcp.tool(
+    name='filter_policy_statements_by_groups_and_verb',
     description=(
         "Filter OCI IAM policy statements where Subject Type is 'group' and Verb matches. "
         'Input includes a list of groups (domain/name) and a list of verbs.'
     ),
 )
-def filter_policy_statements_by_group_and_verb(params: CombinedFilterInput) -> list[PolicyStatement]:
+def filter_policy_statements_by_group_and_verb(params: GroupVerbFilterInput) -> list[PolicyStatement]:
     if not ida or not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    # Get groups first
     by_groups = pca.filter_policy_statements_by_groups(params['groups'])
     return [s for s in by_groups if s.get('Verb', '').lower() in [v.lower() for v in params['verbs']]]
+
+
+@mcp.tool(
+    name='filter_policy_statements_by_users_and_verb',
+    description=(
+        "Filter OCI IAM policy statements where Subject Type is 'user' and Verb matches. "
+        'Input includes a list of users (domain/name) and a list of verbs.'
+    ),
+)
+def filter_policy_statements_by_user_and_verb(params: UserVerbFilterInput) -> list[PolicyStatement]:
+    if not ida or not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    filter_users = params['users'] or []
+    # Get Groups for users first
+    logger.info(f'Tool User Filter with users: {filter_users}')
+    groups = []
+    for user in filter_users:
+        user_groups = ida.get_groups_for_user(user)
+        groups.extend(user_groups)
+    logger.info(f'User filter expanded to groups: {groups}')
+    raw_results = pca.filter_policy_statements_by_groups(groups)
+    logger.info(f'Filter returned {len(raw_results)} policy statements')
+    policies = [s for s in raw_results if s.get('Verb', '').lower() in [v.lower() for v in params['verbs']]]
+    normalized_results = [normalize_policy_statement(r) for r in policies]
+    logger.info(f'Normalized Results: {len(normalized_results)}. Example: {normalized_results[:1]}')
+    return normalized_results
 
 
 # Filter invalid policy statements
@@ -245,6 +326,9 @@ def filter_invalid_policy_statements() -> list[PolicyStatement]:
     if not ida or not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     return [s for s in pca.regular_statements if not s.get('Valid', True)]
+
+
+# User and Group tools
 
 
 @mcp.tool(
@@ -272,61 +356,105 @@ def get_users_for_group(group: Group) -> list[User]:
     try:
         logger.info(f'MCP Tool: Getting users for group {group}')
         results = ida.get_users_for_group(group)
+        logger.debug(f'Users: {results}')
+
         logger.info(f'Returning {len(results)} users for group {group}')
         return results
     except Exception as e:
         raise ToolError(f'Failed to retrieve users for group {group}: {e}') from e
 
 
-@mcp.tool(
-    name='filter_policy_statements_by_users',
-    description=(
-        'Filter OCI IAM policy statements by user membership in groups. '
-        "Input is a list of User with keys 'domain' (string or null) and 'name' (string). "
-        "Only applies to statements where Subject Type is 'group'. "
-        'Matches occur if any provided (domain, name) matches any group that the user belongs to in the statement.'
-        'If domain is null, it matches groups in the Default domain.'
-    ),
-)
-def filter_policy_statements_by_users(users: list[User]) -> list[PolicyStatement]:
-    if not ida or not pca:
+# --- CROSS TENANCY TOOLS START HERE ---
+
+
+@mcp.tool('cross-tenancy-alias-list', description='List all defined aliases stored in the DataRepository.')
+def list_cross_tenancy_aliases() -> list[DefineStatement]:
+    """
+    Retrieve all defined aliases as stored in the DataRepository.
+
+    Returns:
+        list[DefineStatement]: All aliases known to the repository.
+    """
+    if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    logger.info(f'Tool User Filter with users: {users}')
-    groups = []
-    for user in users:
-        user_groups = ida.get_groups_for_user(user)
-        groups.extend(user_groups)
-    logger.info(f'User filter expanded to groups: {groups}')
-    results = pca.filter_policy_statements_by_groups(groups)
-    logger.info(f'Filter returning {len(results)} policy statements to client')
-    return results
-
-
-# --- Initialization ---
-def initialize_and_load(use_instance_principal, profile, session, recursive):
-    global pca, ida
-    pca = PolicyCompartmentAnalysis()
-    ida = IdentityDomainsAnalysis()
-    ok_pca = pca.initialize_client(
-        use_instance_principal=use_instance_principal,
-        session=session or '',
-        recursive=recursive,
-        profile=(profile or 'DEFAULT'),
-    )
-    ok_ida = ida.initialize_client(
-        use_instance_principal=use_instance_principal,
-        profile=(profile or 'DEFAULT'),
-    )
-    if not ok_pca or not ok_ida:
-        logger.error('Failed initializing clients')
-        sys.exit(2)
     try:
-        pca.load_policies_and_compartments()
-        ida.load_complete_identity_domains()
+        raw_aliases = pca.defined_aliases
+        logger.info(f'Returning {len(raw_aliases)} aliases')
+        logger.debug(f'Aliases: {raw_aliases}')
+        return [normalize_define_statement(a) for a in raw_aliases]
     except Exception as e:
-        logger.warning(f'Policy and Identity domains load failed: {e}')
-    logger.info(
-        f'Tenancy loaded. Policies: {len(pca.regular_statements)} regular, {len(pca.cross_tenancy_statements)} cross-tenancy; Groups: {len(ida.groups)}; Users: {len(ida.users)}; Dynamic Groups: {len(ida.dynamic_groups)}'
+        logger.error(f'Failed to list aliases: {e}')
+        raise ToolError(f'Failed to list aliases: {e}') from e
+
+
+@mcp.tool('cross-tenancy-policies-by-alias', description='Filter cross-tenancy policy statements for a given alias.')
+def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
+    """
+    Retrieve all cross-tenancy policy statements that reference the provided alias.
+
+    Args:
+        alias (str): The named cross-tenancy alias to filter policy statements by.
+
+    Returns:
+        list[dict]: List of matching policy statements.
+    """
+    if not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f"Filtering cross-tenancy policies for alias '{alias}'")
+        raw_results = pca.filter_cross_tenancy_policy_statements([alias])
+        logger.info(f"Found {len(raw_results)} policy statements matching alias '{alias}'")
+        logger.debug(f'Policies: {raw_results}')
+        return [normalize_policy_statement(r) for r in raw_results]
+    except Exception as e:
+        logger.error(f'Failed to filter policies by alias: {e}')
+        raise ToolError(f'Failed to filter policies by alias: {e}') from e
+
+
+# --- Helpers ---
+def normalize_policy_statement(raw: dict) -> PolicyStatement:
+    """
+    Convert repository-native policy dict (with spaced field names)
+    into a structured PolicyStatement TypedDict for MCP output.
+    """
+    return PolicyStatement(
+        Policy_Name=raw.get('Policy Name'),  # type: ignore
+        Policy_OCID=raw.get('Policy OCID'),  # type: ignore
+        Compartment_OCID=raw.get('Compartment OCID'),  # type: ignore
+        Policy_Compartment=raw.get('Policy Compartment'),  # type: ignore
+        Statement_Text=raw.get('Statement Text'),  # type: ignore
+        Valid=raw.get('Valid') if raw.get('Valid') else False,  # type: ignore
+        Subject_Type=raw.get('Subject Type') if raw.get('Subject Type') else None,
+        Subject=raw.get('Subject') if raw.get('Subject') else None,
+        Verb=raw.get('Verb') if raw.get('Verb') else None,
+        Resource=raw.get('Resource') if raw.get('Resource') else None,
+        Permission=raw.get('Permission') if raw.get('Permission') else None,
+        Location_Type=raw.get('Location Type') if raw.get('Location Type') else None,
+        Location=raw.get('Location') if raw.get('Location') else None,
+        Effective_Compartment=raw.get('Effective Compartment') if raw.get('Effective Compartment') else None,
+        Effective_Path=raw.get('Effective Path') if raw.get('Effective Path') else None,
+        Conditions=raw.get('Conditions') if raw.get('Conditions') else None,
+        Comments=raw.get('Comments') if raw.get('Comments') else None,
+        Creation_Time=raw.get('Creation Time'),  # type: ignore
+        Parsed=raw.get('Parsed') if raw.get('Parsed') else False,  # type: ignore
+        Parsing_Notes=raw.get('Parsing Notes') if raw.get('Parsing Notes') else [],  # type: ignore
+    )
+
+
+def normalize_define_statement(raw: dict) -> DefineStatement:
+    """
+    Convert a raw repository define-statement dict (with UI-style keys)
+    into a structured DefineStatement TypedDict for MCP output.
+    """
+    return DefineStatement(
+        Policy_Name=raw.get('Policy Name'),  # type: ignore
+        Policy_OCID=raw.get('Policy OCID'),  # type: ignore
+        Policy_Description=raw.get('Policy Description'),  # type: ignore
+        Statement_Text=raw.get('Statement Text'),  # type: ignore
+        Defined_Type=raw.get('Defined Type'),  # type: ignore
+        Defined_Name=raw.get('Defined Name'),  # type: ignore
+        OCID_Alias=raw.get('OCID Alias'),  # type: ignore
+        Creation_Time=raw.get('Creation Time'),  # type: ignore
     )
 
 
@@ -335,8 +463,11 @@ def build_arg_parser():
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--profile')
     auth.add_argument('--instance-principal', action='store_true')
-    parser.add_argument('--session', default='')
-    parser.add_argument('--no-recursive', action='store_true')
+    parser.add_argument('--session', help='OCI session token for instance principal auth', default=None)
+    parser.add_argument(
+        '--recursive', action='store_true', default=True, help='Recursively load all compartments (default: True)'
+    )
+    parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1')
@@ -345,29 +476,73 @@ def build_arg_parser():
 
 def main():
     args = build_arg_parser().parse_args()
-    recursive = not args.no_recursive
-    logger.info(
-        f'Loading MCP as Server from OCI Profile {args.profile} with IP: {args.instance_principal} and Recursion: {recursive} and Transport: {args.transport}'
-    )
-    initialize_and_load(args.instance_principal, args.profile, args.session, recursive)
+    recursive = args.recursive
 
-    # mcp.run()
-    # asyncio.run(http_server(mcp, port=args.port))
+    logger.info(
+        f'Loading MCP Server using Profile={args.profile or "DEFAULT"}, '
+        f'InstancePrincipal={args.instance_principal}, '
+        f'Recursive={recursive}, Transport={args.transport}'
+    )
+
+    # --- Embedded Initialization ---
+    global pca, ida
+    pca = PolicyCompartmentAnalysis()
+    ida = IdentityDomainsAnalysis()
+
+    ok_pca = pca.initialize_client(
+        use_instance_principal=args.instance_principal,
+        session=args.session or None,
+        recursive=recursive,
+        profile=(args.profile or 'DEFAULT'),
+    )
+    ok_ida = ida.initialize_client(
+        use_instance_principal=args.instance_principal,
+        profile=(args.profile or 'DEFAULT'),
+    )
+
+    if not ok_pca or not ok_ida:
+        logger.error('Failed initializing clients')
+        sys.exit(2)
+
+    # Create Cache Manager
+    cache_manager = CacheManager(policy_analysis=pca, domains_analysis=ida)
+    try:
+        if args.use_cache:
+            if not cache_manager.load_combined_cache(named_cache=args.use_cache):
+                logger.warning(f'Failed to load cache: {args.use_cache}')
+                sys.exit(2)
+        else:
+            # Load live data from OCI
+            logger.info('Loading live data from OCI')
+            pca.load_policies_and_compartments()
+            ida.load_complete_identity_domains()
+    except Exception as e:
+        logger.warning(f'Policy and Identity domains load failed: {e}')
+        exit(2)
+
+    logger.info(
+        f'Tenancy loaded. Policies: {len(pca.regular_statements)} regular, '
+        f'{len(pca.cross_tenancy_statements)} cross-tenancy; '
+        f'Groups: {len(ida.groups)}; Users: {len(ida.users)}; '
+        f'Dynamic Groups: {len(ida.dynamic_groups)}'
+    )
+
+    # --- Start MCP Server ---
     if args.transport == 'stdio':
         mcp.run(transport='stdio')
     else:
         mcp.run(transport='streamable-http', port=args.port, host=args.host)
 
 
-# --- Inspector/Claude env bootstrap ---
-if 'OCI_PROFILE' in os.environ or 'OCI_INSTANCE_PRINCIPAL' in os.environ:
-    profile = os.getenv('OCI_PROFILE')
-    use_ip = bool(os.getenv('OCI_INSTANCE_PRINCIPAL', ''))
-    session = os.getenv('OCI_SESSION', '')
-    recursive = not bool(os.getenv('OCI_NO_RECURSIVE', ''))
-    logger.info(f'Loading MCP Dev from OCI Profile {profile} with IP: {use_ip} and Recursion: {recursive}')
+# # --- Inspector/Claude env bootstrap ---
+# if 'OCI_PROFILE' in os.environ or 'OCI_INSTANCE_PRINCIPAL' in os.environ:
+#     profile = os.getenv('OCI_PROFILE')
+#     use_ip = bool(os.getenv('OCI_INSTANCE_PRINCIPAL', ''))
+#     session = os.getenv('OCI_SESSION', '')
+#     recursive = not bool(os.getenv('OCI_NO_RECURSIVE', ''))
+#     logger.info(f'Loading MCP Dev from OCI Profile {profile} with IP: {use_ip} and Recursion: {recursive}')
 
-    initialize_and_load(use_ip, profile, session, recursive)
+#     initialize_and_load(use_ip, profile, session, recursive)
 
 if __name__ == '__main__':
     main()
