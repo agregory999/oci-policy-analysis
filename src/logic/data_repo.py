@@ -1306,7 +1306,7 @@ class IdentityDomainsAnalysis:
         logger.info(f'Filtered to {len(filtered)} users')
         return filtered
 
-    def load_complete_identity_domains(self) -> bool:  # noqa: C901
+    def load_complete_identity_domains(self, session_token: str | None = None) -> bool:  # noqa: C901
         """Loads everything into the cetntral JSON
 
         Identity Domains are loaded via the Identity Client.
