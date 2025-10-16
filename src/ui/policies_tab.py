@@ -19,8 +19,9 @@ import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
 
-from logic.data_repo import PolicyCompartmentAnalysis
+from logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
 from logic.logger import get_logger
+from logic.models import PolicySearch
 from ui.data_table import DataTable
 
 # Column data for Custom Data Table
@@ -114,7 +115,7 @@ class PoliciesTab(ttk.Frame):
         export_policy_to_csv: Exports filtered policy statements to a CSV file.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyCompartmentAnalysis, settings):  # noqa: C901
+    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):  # noqa: C901
         super().__init__(parent)
         self.app = app
         self.settings = settings
@@ -396,7 +397,7 @@ class PoliciesTab(ttk.Frame):
             self.tenancy_name_var.set('Please Load a Tenancy')
 
         # Build filter dict for new call to filter
-        filters = {}
+        filters: PolicySearch = {}
         if self.subject_filter_var.get():
             filters['subject'] = self.subject_filter_var.get().split('|') or None
         if self.verb_filter_var.get():
@@ -416,11 +417,19 @@ class PoliciesTab(ttk.Frame):
         if self.policy_filter_var.get():
             filters['policy_name'] = self.policy_filter_var.get().split('|') or None
         if self.effective_path_var.get():
-            filters['effective_path'] = [self.effective_path_var.get()]
+            filters['effective_path'] = self.effective_path_var.get().split('|') or None
 
         logger.info(f'Applying policy filters: {filters}')
-        filtered_statements = self.policy_repo.filter_policy_statements_json(filters=filters)
-        logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
+        try:
+            filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
+            logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
+        except IdentityDataNotLoaded as e:
+            logger.error(f'Cannot filter policies without identity data loaded: {e}')
+            tkmessagebox.showerror(
+                'Identity Data Not Loaded',
+                'Cannot filter policies without identity data loaded.\nPlease load identity data and try again.',
+            )
+            return
         # Apply additional filters for output
 
         # Determine which rows to show based on checkboxes

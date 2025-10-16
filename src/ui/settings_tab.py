@@ -171,6 +171,7 @@ class SettingsTab(ttk.Frame):
         self.label_cache.grid(row=1, column=1, padx=5, pady=3)
         self.cache_list = self.caching.get_available_cache(None)
         self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
+        # self.cache_var = tk.StringVar()
         self.cache_list_dropdown = ttk.OptionMenu(
             label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list
         )
@@ -350,7 +351,8 @@ class SettingsTab(ttk.Frame):
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
-            named_cache=self.cache_var.get().replace('\n', '_') if use_cache else None,
+            # named_cache=self.cache_var.get().replace('\n', '_') if use_cache else None,
+            named_cache=self.cache_var.get() if use_cache else None,
             callback={
                 'progress': self._on_load_progress,
                 'complete': self._on_load_finished,
@@ -377,7 +379,7 @@ class SettingsTab(ttk.Frame):
 
         # Schedule it to go away if clear was set
         if clear:
-            self.after(2000, lambda: self.progress_var.set(''))
+            self.after(5000, lambda: self.progress_var.set(''))
 
         # After loading, update the cache list in case new one was created
         logger.info('Updating cache list after load')

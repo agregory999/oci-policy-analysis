@@ -17,21 +17,36 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
-from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
+from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
-from logic.models import DynamicGroupFilters
+from logic.models import DynamicGroup, DynamicGroupSearch, PolicySearch
 from ui.data_table import DataTable
 
 # Column Data
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'In Use']
-ALL_DG_COLUMNS = ['Domain', 'DG Name', 'DG OCID', 'Matching Rule', 'In Use', 'Creation Time']
+ALL_DG_COLUMNS = [
+    'Domain',
+    'DG Name',
+    'Description',
+    'Matching Rule',
+    'In Use',
+    'DG OCID',
+    'DG ID',
+    'Creation Time',
+    'Created By',
+    'Created By OCID',
+]
 DG_COLUMN_WIDTHS = {
     'Domain': 150,
     'DG Name': 300,
+    'Description': 400,
     'DG OCID': 450,
+    'DG ID': 300,
     'Matching Rule': 700,
     'In Use': 80,
     'Creation Time': 150,
+    'Created By': 200,
+    'Created By OCID': 250,
 }
 ALL_POLICY_COLUMNS = [
     'Policy Name',
@@ -88,12 +103,10 @@ class DynamicGroupsTab(ttk.Frame):
         self,
         parent,
         main_app,
-        identity_domain_analysis: IdentityDomainsAnalysis,
-        policy_compartment_analysis: PolicyCompartmentAnalysis,
+        policy_compartment_analysis: PolicyAnalysisRepository,
     ):
         super().__init__(parent)
         self.main_app = main_app
-        self.identity_domain_analysis = identity_domain_analysis
         self.policy_compartment_analysis = policy_compartment_analysis
         self.create_tab()
 
@@ -135,7 +148,7 @@ class DynamicGroupsTab(ttk.Frame):
         self.dg_entry_name = tk.Entry(frm_dg_filter, textvariable=self.dg_name_var, state=tk.DISABLED, width=25)
         self.dg_entry_name.grid(row=1, column=3, padx=5, pady=2, sticky='ew')
         ttk.Label(frm_dg_filter, text='Rule Component').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        self.dg_entry_type = tk.Entry(frm_dg_filter, state=tk.DISABLED, width=40)
+        self.dg_entry_type = tk.Entry(frm_dg_filter, textvariable=self.dg_rule_var, state=tk.DISABLED, width=40)
         self.dg_entry_type.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
 
         # Buttons
@@ -196,8 +209,12 @@ class DynamicGroupsTab(ttk.Frame):
                 logger.info(f"Selected DG: {row.get('Domain')}, {row.get('DG Name')}")
                 dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
             logger.info(f'DGs for filter: {dgs_for_filter}')
-            # Call the filter
-            filtered = self.policy_compartment_analysis.filter_policy_statements_by_dynamic_group_name(dgs_for_filter)
+            # Call the main filter
+            exact_dg_filter: list[DynamicGroup] = [
+                DynamicGroup(domain_name=dg[0], dynamic_group_name=dg[1]) for dg in dgs_for_filter
+            ]  # type: ignore
+            policy_filter: PolicySearch = PolicySearch(exact_dynamic_groups=exact_dg_filter)
+            filtered = self.policy_compartment_analysis.filter_policy_statements(filters=policy_filter)
 
             logger.info(f'type: {type(filtered)} len: {len(filtered)}')
             # Set them into the next table
@@ -249,18 +266,17 @@ class DynamicGroupsTab(ttk.Frame):
     # Functions that do stuff
     def _run_dg_analysis(self):
         logger.info(
-            f'Running Dynamic Group Analysis for {len(self.identity_domain_analysis.dynamic_groups)} DGs and {len(self.policy_compartment_analysis.regular_statements)} Policies'
+            f'Running Dynamic Group Analysis for {len(self.policy_compartment_analysis.dynamic_groups)} DGs and {len(self.policy_compartment_analysis.regular_statements)} Policies'
         )
         start_time = time.perf_counter()
         # Send in the statemetns directly for DG processing.
         # TODO: Maybe the CT statements could have a dynamic group in them
-        self.identity_domain_analysis.run_dg_in_use_analysis(
+        self.policy_compartment_analysis.run_dg_in_use_analysis(
             policy_statements=self.policy_compartment_analysis.regular_statements
         )
 
         # Now set the data again, in case it changed
         self._update_dg_output()
-        # self.dg_policy_table.update_data(self.identity_domain_analysis.dynamic_groups)
         total_time = time.perf_counter() - start_time
         logger.info(f'Ran DG Analysis in {total_time:.2f}s')
 
@@ -272,25 +288,43 @@ class DynamicGroupsTab(ttk.Frame):
             if self.dg_entry_type.get() == 'instance.compartment.id|instance.id':
                 self.dg_entry_type.delete(0, tk.END)
         # Filter the dynamic groups
-        dg_filter: DynamicGroupFilters = DynamicGroupFilters(
-            domain=[self.dg_entry_domain.get()] if self.dg_entry_domain.get() != '' else None,  # type: ignore
-            name=[self.dg_entry_name.get()] if self.dg_entry_name.get() != '' else None,  # type: ignore
+        dg_filter: DynamicGroupSearch = DynamicGroupSearch(
+            domain_name=self.dg_entry_domain.get().split('|') if self.dg_entry_domain.get() else None,  # type: ignore
+            dynamic_group_name=self.dg_entry_name.get().split('|') if self.dg_entry_name.get() else None,  # type: ignore
             # Logic here - if you checked off instance principals, override the type filter
             matching_rule=['instance.compartment.id', 'instance.id']
             if self.chk_show_instance_principals.get()
-            else [self.dg_entry_type.get()]
-            if self.dg_entry_type.get() != ''
+            else self.dg_rule_var.get().split('|')
+            if self.dg_rule_var.get()
             else None,  # type: ignore
         )
+
+        def for_display(dg: DynamicGroup) -> dict:
+            """Return a dictionary suitable for display purposes."""
+            return {
+                'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',
+                'DG Name': dg['dynamic_group_name'],
+                'DG ID': dg.get('dynamic_group_id', 'N/A'),
+                'DG OCID': dg.get('dynamic_group_ocid', 'N/A'),
+                'Description': dg.get('description', 'N/A'),
+                'Matching Rule': dg.get('matching_rule', 'N/A'),
+                'In Use': dg.get('in_use', False),
+                'Creation Time': dg.get('creation_time', 'N/A'),
+                'Created By': dg.get('created_by_name', 'N/A'),
+                'Created By OCID': dg.get('created_by_ocid', 'N/A'),
+            }  # type: ignore
+
         logger.info(f'Filtering DG with {dg_filter}')
-        filtered = self.identity_domain_analysis.filter_dynamic_groups(dg_filter)
+        filtered = self.policy_compartment_analysis.filter_dynamic_groups(dg_filter)
+        display_dgs = [for_display(dg) for dg in filtered]
+
         logger.info(
-            f'Filtered dynamic groups from {len(self.identity_domain_analysis.dynamic_groups)} to {len(filtered)} using filter: {dg_filter}'
+            f'Filtered dynamic groups from {len(self.policy_compartment_analysis.dynamic_groups)} to {len(filtered)} using filter: {dg_filter}'
         )
 
         # Apply additional filter for In Use
         output_filtered = []
-        for dg in filtered:
+        for dg in display_dgs:
             if self.chk_show_not_in_use.get():
                 if not dg.get('In Use'):
                     output_filtered.append(dg)
@@ -308,7 +342,7 @@ class DynamicGroupsTab(ttk.Frame):
 
         # Update label with counts
         self.dg_label_statement_count.config(
-            text=f'Dynamic Groups (Total): {len(self.identity_domain_analysis.dynamic_groups)}\nDynamic Groups (Filtered): {len(output_filtered)}'
+            text=f'Dynamic Groups (Total): {len(self.policy_compartment_analysis.dynamic_groups)}\nDynamic Groups (Filtered): {len(output_filtered)}'
         )
 
     def enable_controls(self):

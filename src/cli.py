@@ -16,19 +16,18 @@
 import argparse
 
 from logic.caching import CacheManager
-from logic.data_repo import (
-    IdentityDomainsAnalysis,
-    PolicyCompartmentAnalysis,
-)
+from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger, set_log_level
+from logic.models import PolicySearch
 
 """Main function to parse arguments and print policies and dynamic groups."""
 parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
 parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
 parser.add_argument('--app-log', action='store_true', help='Enable app.log for logging (default is console)')
 parser.add_argument('--instance-principal', action='store_true', help='Use instance principal authentication')
-parser.add_argument('--get-caches', help='provide the names of caches', action='store_true')
+parser.add_argument('--get-caches', help='If set, provide the names of tenancy to search for caches')
 parser.add_argument('--print-all', help='Print all of the policies and DGs to screen', action='store_true')
+parser.add_argument('--recursive', help='Recursive Load across all compartments', action='store_true', default=False)
 parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
 parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
 parser.add_argument('--filter-json', help='JSON string with filter criteria', type=str, default=None)
@@ -54,23 +53,14 @@ if args.verbose:
     logger.debug('Verbose logging enabled')
 
 # Initialize PolicyCompartmentAnalysis
-policy_analysis = PolicyCompartmentAnalysis()
-if not policy_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
-    logger.error('Failed to initialize PolicyCompartmentAnalysis client')
-    exit(2)
-logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
-# Initialize IdentityDomainsAnalysis
-domains_analysis = IdentityDomainsAnalysis()
-if not domains_analysis.initialize_client(use_instance_principal=args.instance_principal, profile=args.profile):
-    logger.error('Failed to initialize IdentityDomainsAnalysis client')
-    exit(2)
-logger.info(f'Initialized IdentityDomainsAnalysis client for tenancy: {domains_analysis.tenancy_name}')
+policy_analysis = PolicyAnalysisRepository()
 
-# CacheManager
-cache_manager = CacheManager(policy_analysis=policy_analysis, domains_analysis=domains_analysis)
+# CacheManager Initializartio
+cache_manager = CacheManager(policy_analysis=policy_analysis)
 
+# Just show caches and quit
 if args.get_caches:  # If get_caches is provided, list available caches
-    available_caches = cache_manager.get_available_cache(tenancy_name=policy_analysis.tenancy_name)
+    available_caches = cache_manager.get_available_cache(tenancy_name=args.get_caches)
     if available_caches:
         logger.info('Available caches:')
         for cache in available_caches:
@@ -80,20 +70,30 @@ if args.get_caches:  # If get_caches is provided, list available caches
     logger.info('Exiting after listing caches as --get-caches was provided')
     exit(0)
 
-# Load policies and compartments
+# Load everything from named cache
 if args.use_cache:
     if not cache_manager.load_combined_cache(named_cache=args.use_cache):
         logger.error('Failed to load combined cache')
         exit(2)
 else:
+    if not policy_analysis.initialize_client(
+        use_instance_principal=args.instance_principal,
+        profile=args.profile,
+        recursive=True if args.recursive else False,
+    ):
+        logger.error('Failed to initialize PolicyCompartmentAnalysis client')
+        exit(2)
+    logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
     if not policy_analysis.load_policies_and_compartments():
         logger.error('Failed to load policies and compartments from OCI')
         exit(2)
-    if not domains_analysis.load_complete_identity_domains():
+    logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
+    if not policy_analysis.load_complete_identity_domains():
         logger.error('Failed to load identity domains, groups, and users from OCI')
         exit(2)
     # cache_file_name = cache_manager.save_combined_cache(export_file="cli.json")
     logger.info('Policies and dynamic groups saved successfully from OCI')
+
 
 # Print some basic details
 logger.info('-' * 80)
@@ -104,9 +104,10 @@ logger.info('-' * 80)
 
 # Apply JSON filter if provided
 if args.filter_json:
-    filter: dict = eval(args.filter_json)
+    filter: PolicySearch = eval(args.filter_json)
     logger.info(f'Applying filter: {filter}')
-    filtered_statements = policy_analysis.filter_policy_statements_json(filters=filter)
+    # filtered_statements = policy_analysis.filter_policy_statements_json(filters=filter)
+    filtered_statements = policy_analysis.filter_policy_statements(filters=filter)
     logger.info(f'Filtered down to {len(filtered_statements)} policy statements:')
     for i, stmt in enumerate(filtered_statements, start=1):
         logger.info(f'{i} Policy Name: {stmt.get("Policy Name")} | Statement: {stmt.get("Statement Text")}')
@@ -166,7 +167,7 @@ elif args.print_all:
     # Print dynamic groups
     logger.info('\nDynamic Groups:')
     logger.info('-' * 80)
-    for dg in domains_analysis.dynamic_groups:
+    for dg in policy_analysis.dynamic_groups:
         logger.info(f'Domain: {dg.get("Domain")}')
         logger.info(f'Name: {dg.get("DG Name")}')
         logger.info(f'Matching Rule: {dg.get("Matching Rule")}')
@@ -180,7 +181,7 @@ elif args.print_all:
 logger.info('-' * 80)
 logger.info(f'Total Regular Policies: {len(policy_analysis.regular_statements)}')
 logger.info(f'Total Cross-Tenancy Policies: {len(policy_analysis.cross_tenancy_statements)}')
-logger.info(f'Total Dynamic Groups: {len(domains_analysis.dynamic_groups)}')
-logger.info(f'Total Identity Domains: {len(domains_analysis.identity_domains)}')
-logger.info(f'Total Groups: {len(domains_analysis.groups)}')
-logger.info(f'Total Users: {len(domains_analysis.users)}')
+logger.info(f'Total Dynamic Groups: {len(policy_analysis.dynamic_groups)}')
+logger.info(f'Total Identity Domains: {len(policy_analysis.identity_domains)}')
+logger.info(f'Total Groups: {len(policy_analysis.groups)}')
+logger.info(f'Total Users: {len(policy_analysis.users)}')

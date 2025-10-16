@@ -36,8 +36,9 @@ from ttkbootstrap import Window
 
 from logic import config
 from logic.caching import CacheManager
-from logic.data_repo import AI, IdentityDomainsAnalysis, PolicyCompartmentAnalysis
+from logic.data_repo import AI, PolicyAnalysisRepository
 from logic.logger import get_logger, set_log_level
+from ui.cross_tenancy_tab import CrossTenancyTab
 from ui.dynamic_group_tab import DynamicGroupsTab
 from ui.policies_tab import PoliciesTab
 from ui.settings_tab import SettingsTab
@@ -122,26 +123,23 @@ class App(Window):
         self.notebook.pack(fill='both', expand=True)
 
         # Repository / Data
-        self.policy_compartment_analysis = PolicyCompartmentAnalysis()  # Core
-        self.identity_domain_analysis = IdentityDomainsAnalysis()  # Core
+        self.policy_compartment_analysis = PolicyAnalysisRepository()  # Core
         self.ai = AI()  # AI functionality
 
         # Caching Manager
-        self.caching = CacheManager(
-            policy_analysis=self.policy_compartment_analysis, domains_analysis=self.identity_domain_analysis
-        )
+        self.caching = CacheManager(policy_analysis=self.policy_compartment_analysis)
 
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
-        self.users_tab = UsersTab(self.notebook, self, self.identity_domain_analysis, self.policy_compartment_analysis)
-        self.dynamic_groups_tab = DynamicGroupsTab(
-            self.notebook, self, self.identity_domain_analysis, self.policy_compartment_analysis
-        )
+        self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
+        self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self, self.policy_compartment_analysis)
+        self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self, self.policy_compartment_analysis)
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
+        self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
 
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -436,14 +434,9 @@ class App(Window):
 
                     success = self.policy_compartment_analysis.initialize_client(
                         use_instance_principal=instance_principal,
-                        session=named_session,
+                        session_token=named_session,
                         recursive=recursive,
                         profile=named_profile,
-                    )
-                    if not success:
-                        raise RuntimeError('Failed to initialize PolicyCompartmentAnalysis client')
-                    success = self.identity_domain_analysis.initialize_client(
-                        use_instance_principal=instance_principal, profile=named_profile, session=named_session
                     )
                     # Fail if unable to initialize client
                     if not success:
@@ -461,7 +454,7 @@ class App(Window):
                         cb = callback.get('progress')
                         self.after(0, lambda: cb('Loading Users and Groups'))
 
-                    success = self.identity_domain_analysis.load_complete_identity_domains()
+                    success = self.policy_compartment_analysis.load_complete_identity_domains()
 
                     # Write the cache
                     self.caching.save_combined_cache()
@@ -482,6 +475,7 @@ class App(Window):
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
                 self.dynamic_groups_tab.enable_controls()
+                self.cross_tenancy_tab.update_cross_tenancy_output()
 
             except Exception as e:
                 logger.error(f'❌ Failed to load tenancy: {e}')

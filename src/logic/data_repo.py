@@ -52,13 +52,12 @@ from oci.signer import load_private_key_from_file
 from logic.logger import get_logger
 from logic.models import (
     DynamicGroup,
-    DynamicGroupFilters,
+    DynamicGroupSearch,
     Group,
-    GroupFilters,
-    PolicyFilters,
-    PolicyStatement,
+    GroupSearch,
+    PolicySearch,
     User,
-    UserFilters,
+    UserSearch,
 )
 
 # Global logger for this module
@@ -135,11 +134,12 @@ FILTER_KEY_MAP = {
     'permission': 'Permission',
     'location_type': 'Location Type',
     'location': 'Location',
+    'effective_compartment_ocid': 'Effective Compartment OCID',
+    'effective_path': 'Effective Path',
     'conditions': 'Conditions',
     'comments': 'Comments',
     'creation_time': 'Creation Time',
     'parsed': 'Parsed',
-    'effective_path': 'Effective Path',
     'dg_name': 'DG Name',
     'dg_matching_rule': 'Matching Rule',
     'group_name': 'Group Name',
@@ -147,8 +147,8 @@ FILTER_KEY_MAP = {
 }
 
 FILTER_DG_KEY_MAP = {
-    'domain': 'Domain',
-    'name': 'DG Name',
+    'domain_name': 'Domain',
+    'dynamic_group_name': 'DG Name',
     'matching_rule': 'Matching Rule',
     'in_use': 'In Use',
 }
@@ -156,8 +156,14 @@ FILTER_DG_KEY_MAP = {
 # TypedDicts for MCP - these improve the code readability and help with type checking
 
 
-class PolicyCompartmentAnalysis:
-    """This is the main data repository for Policy and Compartment data
+class IdentityDataNotLoaded(Exception):
+    """Exception raised when identity data is accessed without being loaded."""
+
+    pass
+
+
+class PolicyAnalysisRepository:
+    """This is the main data repository for Policy, Identity, and Compartment data
 
     During initialization, the entire compartment hierarchy and policy tree is loaded into a central JSON dictionary.
     This central dictionary is then referenced by functions that filter and return a subset of information for display.
@@ -168,7 +174,12 @@ class PolicyCompartmentAnalysis:
         regular_statements: A list of JSON dicts containing the individual regular policy statements within an OCI tenancy
         cross_tenancy_statements: A list of JSON dicts containing the individual cross-tenancy policy statements within an OCI tenancy
         defined_aliases: A list of JSON dicts containing the "define" statements within an OCI tenancy, used for cross-tenancy evaluation
-        data_as_of: The timestamp that this data load was completed.
+        dynamic_groups: A list of JSON dicts containing the Dyanmic Groups present in the OCI tenancy
+        identity_domains: A list of JSON dicts containing the Identity Domains in the OCI tenancy
+        groups: A list of JSON dicts containing the Groups in the OCI tenancy
+        users: A list of JSON dicts containing the Users in the OCI tenancy
+        domain_clients: A dict containing the OCI IdentityDomainClients required to collect all of the information
+         data_as_of: The timestamp that this data load was completed.
         tenancy_ocid: The OCID of the tenancy being analyzed here.
         identity_client: The OCI client that is initialized and used for all data loading purposes.
     """
@@ -178,14 +189,23 @@ class PolicyCompartmentAnalysis:
         self.regular_statements = []
         self.cross_tenancy_statements = []
         self.defined_aliases = []  # Store define statements as list of dict
-
+        self.dynamic_groups = []
+        self.identity_domains = []
+        self.groups = []
+        self.users: list[User] = []
+        self.domain_clients = {}
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
-        logger.info('Initialized PolicyCompartmentAnalysis')
+        self.identity_domains_loaded = False
+        logger.info('Initialized PolicyAnalysisRepo')
 
     def initialize_client(
-        self, use_instance_principal: bool, session: str | None = None, recursive: bool = True, profile: str = 'DEFAULT'
+        self,
+        use_instance_principal: bool,
+        session_token: str | None = None,
+        recursive: bool = True,
+        profile: str = 'DEFAULT',
     ) -> bool:
         """Initializes the OCI client to be used for all data operations
 
@@ -194,6 +214,7 @@ class PolicyCompartmentAnalysis:
         Args:
             use_instance_principal: Whether to attempt Instance Principal signer-based authentication
             recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
+            session: The named OCI Session Token Profile to use - must be present on the file system in the standard OCI location of .oci/config
             profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
 
         Returns:
@@ -201,16 +222,19 @@ class PolicyCompartmentAnalysis:
             setting up the client.
 
         """
+        self.session_token = session_token
+        self.use_instance_principal = use_instance_principal
         try:
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
+                self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
-            elif session:
+            elif session_token:
                 logger.info('Attempt session auth')
-                self.config = config.from_file(profile_name=session)
+                self.config = config.from_file(profile_name=session_token)
                 token_file = self.config['security_token_file']
                 token = None
                 with open(token_file) as f:
@@ -226,7 +250,7 @@ class PolicyCompartmentAnalysis:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
-            logger.info(f'Set up Identity Client (Policy) for tenancy: {self.tenancy_ocid}')
+            logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
 
             # Set Recursion
             self.recursive = recursive
@@ -234,11 +258,14 @@ class PolicyCompartmentAnalysis:
 
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
+
+            # Return True because we got the clients
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
+    # --- Internal Helpers ---
     def _calculate_effective_compartments_for_statements(self):
         """
         Resolve effective compartment for all statements.  Loop through all statements and calculate
@@ -277,9 +304,8 @@ class PolicyCompartmentAnalysis:
                     eff_path += f'/{p}'
                 logger.debug(f"Effective (loc) path for {st.get('Statement Text')}: {eff_path}")
                 st['Effective Path'] = eff_path
-                st['Effective Compartment'] = self.compartments_by_path.get(eff_path, {}).get('id')
+                st['Effective Compartment OCID'] = self.compartments_by_path.get(eff_path, {}).get('id')
 
-    # --- helpers (as before) ---
     def _name_path_from_ocid(self, ocid: str) -> str | None:
         """Lookup full root:...:name path from a compartment OCID."""
         comp = self.compartments_by_id.get(ocid)
@@ -549,12 +575,29 @@ class PolicyCompartmentAnalysis:
 
         return False
 
+    def _parse_dynamic_group(self, domain_name: str, dg: DynamicResourceGroup) -> DynamicGroup:
+        """Extract the contents of the DG into a dict"""
+        logger.debug(f'Created by: {dg.idcs_created_by}')
+        return DynamicGroup(
+            domain_name=domain_name,
+            dynamic_group_name=dg.display_name,
+            dynamic_group_id=dg.id,
+            description=dg.description,
+            matching_rule=dg.matching_rule,
+            in_use=True,  # Placeholder until analysis is run
+            dynamic_group_ocid=dg.ocid,
+            creation_time=str(dg.meta.created),
+            created_by_ocid=dg.idcs_created_by.ocid if dg.idcs_created_by else None,
+            created_by_name=dg.idcs_created_by.display if dg.idcs_created_by else None,
+        )
+
+    # --- Main Data Loading Functions ---
     def load_compartment_and_policies_worker(self, compartment: Compartment):
         """Worker function to load compartment and policy data as JSON object in a thread"""
         try:
             start_time = time.perf_counter()
             # Load compartment data
-            logger.debug(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
+            logger.info(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
             # Do this instead of build_compartment index
             path, ocids = self._get_compartment_path(compartment, 0, '')
             self.compartments.append(
@@ -671,7 +714,359 @@ class PolicyCompartmentAnalysis:
     def get_compartment_by_id(self, compartment_id: str) -> dict:
         return next((c for c in self.compartments if c['id'] == compartment_id), None)
 
+    def load_complete_identity_domains(self) -> bool:  # noqa: C901
+        """Loads everything into the cetntral JSON
+
+        Identity Domains are loaded via the Identity Client.
+        For each Identity Domain, load the Dynamic Groups, Groups, and Users
+
+        Args:
+            none
+
+        Returns:
+            A boolean indicating success of the data load.  False indicates there was some failure in loading data,
+            so it may be incomplete.
+        """
+        # Clean up any existing data
+        self.dynamic_groups = []
+        self.identity_domains = []
+        self.groups = []
+        self.users = []
+        try:
+            domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
+            if domain_response.data is None:  # type: ignore
+                logger.error('Failed to list identity domains')
+                return False
+            # Should we really keep the full thing?
+            self.identity_domains = domain_response.data
+            logger.info(f'Loaded {len(self.identity_domains)} identity domains')
+
+            self.domain_clients = {}
+
+            for domain in self.identity_domains:
+                try:
+                    # Get IdentityDomainsClient and hold on to it
+                    if self.use_instance_principal:
+                        domain_client = IdentityDomainsClient(
+                            config={}, signer=self.signer, service_endpoint=domain.url
+                        )
+                    elif self.session_token:
+                        logger.info('Session auth for IdentityDomainsClient')
+                        self.config = config.from_file(profile_name=self.session_token)
+                        token_file = self.config['security_token_file']
+                        token = None
+                        with open(token_file) as f:
+                            token = f.read()
+                        private_key = load_private_key_from_file(self.config['key_file'])
+                        self.signer = SecurityTokenSigner(token, private_key)
+                        domain_client = IdentityDomainsClient(
+                            {'region': self.config['region']}, signer=self.signer, service_endpoint=domain.url
+                        )
+                        self.tenancy_ocid = self.config['tenancy']
+                        logger.info('Success session auth')
+                    else:
+                        domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
+                    self.domain_clients[domain.id] = domain_client
+
+                    # Load Dynamic Groups
+                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
+                    if dg_response and dg_response.data:
+                        logger.debug(
+                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
+                        )
+                        for dg in dg_response.data.resources:
+                            logger.debug(f'DG: {dg.display_name}')
+                            # Append the Dynamic Group dict to the list
+                            self.dynamic_groups.append(
+                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
+                            )
+                    else:
+                        logger.error('Failed to list dynamic groups')
+                        return False
+
+                    # Load Groups
+                    start_index = 1
+                    limit = 1000
+                    while True:
+                        group_response = domain_client.list_groups(
+                            start_index=start_index, count=limit, sort_by='displayName', sort_order='ASCENDING'
+                        )
+                        if group_response.data is None or not group_response.data.resources:
+                            break
+                        for g in group_response.data.resources:
+                            logging.debug(f'Group: {g}')
+
+                            # Set the group into the bigger picture JSON
+                            self.groups.append(
+                                Group(
+                                    domain_name=domain.display_name,
+                                    group_name=g.display_name,
+                                    group_ocid=g.ocid,
+                                    group_id=g.id,
+                                    description='fake description',  # g.description
+                                )
+                            )
+                        # Logic to re-start new request
+                        if (
+                            len(group_response.data.resources) < limit
+                            or start_index + limit > group_response.data.total_results
+                        ):
+                            break
+                        start_index += limit
+                    logging.debug(f'All Groups: {self.groups}')
+
+                    # Load Users
+                    start_index = 1
+                    while True:
+                        user_response = domain_client.list_users(
+                            start_index=start_index,
+                            count=limit,
+                            sort_by='displayName',
+                            sort_order='ASCENDING',
+                            attribute_sets=['all'],
+                        )
+                        if user_response.data is None or not user_response.data.resources:
+                            break
+                        for u in user_response.data.resources:
+                            logging.debug(f'User: {u}')
+                            if not u.groups:
+                                logging.debug(f'No groups for user {u.display_name}')
+                                continue
+                            group_list = []
+                            for gg in u.groups:
+                                group_list.append(gg.ocid)
+
+                            email = ''
+                            for em in u.emails:
+                                if em.primary:
+                                    email = em.value
+                                    break
+                            # Set the user into the bigger picture JSON
+                            self.users.append(
+                                User(
+                                    domain_name=domain.display_name,
+                                    user_name=u.user_name,
+                                    user_ocid=u.ocid,
+                                    display_name=u.display_name,
+                                    email=email,
+                                    user_id=u.id,
+                                    groups=group_list,
+                                )
+                            )
+
+                        # Loop Logic
+                        if (
+                            len(user_response.data.resources) < limit
+                            or start_index + limit > user_response.data.total_results
+                        ):
+                            break
+                        start_index += limit
+                    logging.debug(f'All Users: {self.users}')
+
+                    self.data_as_of = str(datetime.now(UTC))
+
+                    # Indicate we loaded successfully
+                    self.identity_domains_loaded = True
+                except Exception as e:
+                    logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
+                    raise
+            logger.info(
+                f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
+            )
+            self.run_dg_in_use_analysis()
+            return True
+        except Exception as e:
+            logger.error(f'Failed to load identity domains: {e}')
+            # return False
+            raise
+
+    # --- Main Filtering Functions ---
     # Filtering logic - return a list of policy statements matching given filter
+    # Single policy filter function that resolves fuzzy search if provided, exact search if provided, and then other criteria if provided
+    # If multiple criteria are provided, they are ANDed together
+    # If multiple values are provided for a single criteria, they are ORed together
+    # If no criteria are provided, return all policy statements
+    # If no policy statements exist, return empty list
+    # Fuzzy and Exact search are mutually exclusive - if both are provided, fuzzy search is used
+    # If Identity Domains are not loaded and either fuzzy or exact search is requested, raise an error
+    def filter_policy_statements(self, filters: PolicySearch) -> list[dict]:  # noqa: C901
+        """Filter policy statements based on provided criteria.
+        Args:
+            filters (PolicySearch): An object containing filter criteria:
+                - exact_groups (list[Group]| None): Exact groups to search for policy statements.  List of Group, which includes domain_name and group_name
+                - exact_users (list[User]| None): Exact users to search for policy statements.  List of User, which contains domain_name and user_name
+                - exact_dynamic_groups (list[DynamicGroup]| None): Exact dynamic groups to search for policy statements.  List of DynamicGroup, which contains domain_name and name
+                - search_groups (GroupSearch | None): Fuzzy search string for policy statements.
+                - search_users (UserSearch | None): Fuzzy search string for policy statements.
+                - search_dynamic_groups (DynamicGroupSearch | None): Fuzzy search string for policy statements.
+                - subject_type (list[str] | None): List of subject types to filter by.
+                - verb (list[str] | None): List of verbs to filter by.
+                - resource (list[str] | None): List of resources to filter by.
+                - permission (list[str] | None): List of permissions to filter by.
+                - location_type (list[str] | None): List of location types to filter by.
+                - location (list[str] | None): List of locations to filter by.
+                - policy_compartment (list[str] | None): List of compartment names or "ROOTONLY" to filter by.
+                - effective_path (list[str] | None): List of effective compartment paths or "ROOTONLY" to filter by.
+                - effective_compartment_ocid (list[str] | None): List of effective compartment OCIDs to filter by.
+                - conditions (list[str] | None): List of conditions to filter by.
+                - valid (bool | None): Filter by validity of policy statements.
+                - creation_time_range (tuple[datetime | None, datetime | None] | None): Creation time range to filter by.
+        Returns:
+            list[PolicyStatement]: A list of policy statements matching the filter criteria.
+        Raises:
+            ValueError: If fuzzy or exact search is requested but identity domains are not loaded.
+        """
+        logger.info(f'Filtering policy statements with criteria: {filters}')
+
+        # If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error
+        if (filters.get('search_groups') or filters.get('exact_groups')) and not self.identity_domains_loaded:
+            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
+        if (filters.get('search_users') or filters.get('exact_users')) and not self.identity_domains_loaded:
+            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
+        if (
+            filters.get('search_dynamic_groups') or filters.get('exact_dynamic_groups')
+        ) and not self.identity_domains_loaded:
+            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
+
+        # If fuzzy search is provided, use it and ignore exact search.
+        self._resolve_fuzzy_search(filters=filters)
+        # If exact users were provided for filtering, resolve them to domain/name tuples
+        self._resolve_exact_users(filters=filters)
+
+        # At this point we have exact groups or exact dynamic groups to deal with
+        logger.info(f'Post-fuzzy/exact search filters: {filters}')
+        # Apply regular search - AND all provided fields except fuzzy search
+        results = []
+
+        for stmt in self.regular_statements:
+            match = True
+
+            for key, values in filters.items():
+                if key == 'exact_groups':
+                    # Get the groups from the exact filter
+                    logger.debug(f'Filtering on exact_groups with values: {values}')
+                    groups_filter = filters.get('exact_groups', None)
+                    # Only applies to statements where "Subject Type" == "group"
+                    if stmt.get('Subject Type') != 'group':
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to Subject Type not 'group'")
+                        match = False
+                        break
+                    subjects = stmt.get('Subject', [])
+                    if not isinstance(subjects, list):
+                        logger.warning(f"Unexpected Subject format in statement {stmt.get('Policy Name')}: {subjects}")
+                        match = False
+                        break
+                    if len(groups_filter) == 0:
+                        logger.info('No groups in exact_groups filter, thus no match possible')
+                        match = False
+                        break
+                    # A match occurs if any provided domain and group name combo matches any subject in the statement (case-insensitive)
+                    subj_matched = False
+                    for subj_domain, subj_name in subjects:
+                        # Now we need to iterate the provided groups and see if any match
+                        for group in groups_filter:
+                            group_domain = group.get('domain_name') or 'Default'
+                            group_name = group.get('group_name')
+                            if (
+                                subj_domain.casefold() == group_domain.casefold()
+                                and subj_name.casefold() == group_name.casefold()
+                            ):
+                                logger.debug(
+                                    f"Matched group {subj_domain}/{subj_name} in statement {stmt.get('Policy Name')} to filter group {group_domain}/{group_name}"
+                                )
+                                subj_matched = True
+                    if not subj_matched:
+                        logger.debug(
+                            f"No match found for exact_group filter in statement {stmt.get('Policy Name')} Text: {stmt.get('Statement Text')} Statement: {stmt.get('Subject')}"
+                        )
+                        match = False  # If we get here, no match found
+                        break
+
+                # For exact dynamic group, similar logic
+                elif key == 'exact_dynamic_groups' and values:
+                    logger.debug(f'Filtering on exact_dynamic_groups with values: {values}')
+                    dyn_groups_filter = filters.get('exact_dynamic_groups', [])
+                    if stmt.get('Subject Type') != 'dynamic-group':
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to Subject Type not 'dynamic-group'")
+                        match = False
+                        break
+                    subjects = stmt.get('Subject', [])
+                    if not isinstance(subjects, list):
+                        logger.warning(f"Unexpected Subject format in statement {stmt.get('Policy Name')}: {subjects}")
+                        match = False
+                        break
+                    subj_matched = False
+                    for subj_domain, subj_name in subjects:
+                        for dg in dyn_groups_filter:
+                            dg_domain = dg.get('domain_name') or 'Default'
+                            dg_name = dg.get('dynamic_group_name')
+                            if (
+                                subj_domain.casefold() == dg_domain.casefold()
+                                and subj_name.casefold() == dg_name.casefold()
+                            ):
+                                logger.debug(
+                                    f"Matched dynamic group {subj_domain}/{subj_name} in statement {stmt.get('Policy Name')} to filter group {dg_domain}/{dg_name}"
+                                )
+                                subj_matched = True
+                                subj_matched = True
+                    if not subj_matched:
+                        logger.debug(
+                            f"No match found for exact_dynamic_groups filter in statement {stmt.get('Policy Name')} Text: {stmt.get('Statement Text')} Statement: {stmt.get('Subject')}"
+                        )
+                        match = False  # If we get here, no match found
+                        break
+                # Compartment special: ROOTONLY
+                elif key == 'policy_compartment' and 'rootonly' in values:
+                    if stmt.get('Compartment OCID') != self.tenancy_ocid:
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
+                        match = False
+                        break
+
+                # Once domain cases are done, iterate remaining values
+                # Verb enum
+                elif key == 'verb':
+                    invalid = set(values) - VALID_VERBS
+                    if invalid:
+                        logger.debug(f'Invalid verbs in filter: {invalid}')
+                    field_value = str(stmt.get('Verb', '')).lower()
+                    if field_value not in values:
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to verb mismatch: {field_value}")
+                        match = False
+                        break
+
+                # # Effective path search
+                # elif key == 'effective_path':
+                #     filter_eff_value = values[0].lower()
+                #     statement_eff_value = str(stmt.get('Effective Path', '')).lower()
+                #     logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
+                #     # Logic here - if the effective path given contains the effective path of the statement,
+                #     # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
+                #     if not (filter_eff_value.startswith(statement_eff_value)):
+                #         logger.debug(
+                #             f"Rejecting {stmt.get('Policy Name')} due to effective_path mismatch: "
+                #             f"{statement_eff_value} not in {filter_eff_value}"
+                #         )
+                #         match = False
+                #         break
+                # Default lookup using column map
+                else:
+                    column = FILTER_KEY_MAP.get(key)
+                    logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
+                    if not column:
+                        logger.info(f'Unknown filter key: {key}')
+                        continue
+                    field_value = str(stmt.get(column, '')).lower()
+                    if not any(val.lower() in field_value for val in values):
+                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to {key} mismatch")
+                        match = False
+                        break
+
+            if match:
+                results.append(stmt)
+
+        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        return results
+
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[dict]:
         # Iterate cross-tenant policies
         filtered = []
@@ -685,211 +1080,365 @@ class PolicyCompartmentAnalysis:
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
 
-    def filter_policy_statements_by_groups(self, groups_filter: list[Group]) -> list[dict]:
+    # -- Identity Domain Related Filtering Functions ---
+    def get_users_for_group(self, group: Group) -> list[User]:
         """
-        Filter policy statements by group membership.
+        Return all users that belong to the specified exact group.  Membership is determined by matching the group name and domain name.
 
         Args:
-            groups_filter (list[Group]): A list of group objects, each with:
-                - domain (str | None): The group domain. If None, treated as "Default".
-                - name (str): The group name.
-
-        Behavior:
-            - Only applies to statements where "Subject Type" == "group".
-            - A statement's "Subject" field may contain one or more (domain, name) pairs.
-            - A match occurs if any provided (domain, name) tuple matches
-            any subject in the statement (case-insensitive).
+            group (Group): A dictionary with keys:
+                - 'domain': str | None
+                - 'name': str
 
         Returns:
-            list[PolicyStatement]: Matching policy statements.
+            list[User]: A list of Users that belong to the specified group. If the group does not exist or has no members, returns an empty list.
         """
-        logger.info(f'Filter policies related to groups: {groups_filter}')
-        # De-dupe the groups filter
+        group_domain = group.get('domain_name') or 'default'
+        group_name = group['group_name']
+        logger.info(f'Looking for users in group: {group_domain}/{group_name}')
+        logger.info(f'Number of groups: {len(self.groups)}  Number of users: {len(self.users)}')
+        # Get GID (as it is used by users)
+        group_ocid = None
+        for g in self.groups:
+            if (
+                g.get('group_name', '').casefold() == group_name.casefold()
+                and g.get('domain_name', '').casefold() == group_domain.casefold()
+            ):
+                group_ocid = g.get('group_ocid')
+                break
+        if not group_ocid:
+            logger.warning(f'Group not found: {group_domain}/{group_name}')
+            return []
+        logger.debug(f'Group OCID: {group_ocid}')
+        # now iterate users and see if any have that OCID in their groups field
+        matched_users = [u for u in self.users if group_ocid in u.get('groups', [])]
+
+        logger.info(f'Found {len(matched_users)} users for group {group_domain}/{group_name}')
+        return matched_users
+
+    def get_groups_for_user(self, user: User) -> list[Group]:
+        """Return the list of all Groups that a user is a member of
+
+        Args:
+            user (User): The user to find groups for.
+
+        Returns:
+            list[Group]: A list of Groups that the user is a member of.
+        """
+        groups_for_user: list[Group] = []
+        logger.info(f'User to filter: {user}')
+        logger.debug(f'Users: {self.users}')
+
+        # Iterate through users to find our user
+        for u in self.users:
+            # Match the tuple
+            if (
+                u.get('user_name', '').casefold() == user.get('user_name').casefold()
+                and u.get('domain_name', 'default').casefold() == user.get('domain_name', 'default').casefold()
+            ):
+                logger.debug(f"User found. Groups: {u.get('groups')}")
+
+                for user_group_ocid in u.get('groups', []):
+                    # Find the Group OCID in the groups and append
+                    for g in self.groups:
+                        if g.get('group_ocid') == user_group_ocid:
+                            # Now append as tuple
+                            groups_for_user.append(g)
+                            logger.debug(f"Adding Group {g.get('domain_name')} / {g.get('group_name')} ")
+        logger.info(f'Found {len(groups_for_user)} groups for user {user.get("domain_name")} / {user.get("user_name")}')
+        return groups_for_user
+
+    def _user_search_internal(self, user_filter: UserSearch) -> list[User]:
+        """
+        Search for users based on the provided filter.
+        Using the internal names in the User object
+        """
+        logger.info(f'User filter to check: {user_filter}')
+        users_return: list[User] = []
+        for u in self.users:
+            # for uu in user_filter:
+            matches_domain = not user_filter.get('domain_name') or any(
+                term.lower() in str(u.get('domain_name')).lower() for term in user_filter.get('domain_name')
+            )
+            matches_username = not user_filter.get('search') or any(
+                term.lower() in str(u.get('username')).lower() for term in user_filter.get('search')
+            )
+            matches_display = not user_filter.get('search') or any(
+                term.lower() in str(u.get('display_name')).lower() for term in user_filter.get('search')
+            )
+            matches_ocid = not user_filter.get('user_ocid') or any(
+                term.lower() in str(u.get('user_ocid')).lower() for term in user_filter.get('user_ocid')
+            )
+            # If any match (OR), then get groups and add to exact match
+            if matches_domain and (matches_username or matches_display) and matches_ocid:
+                # get groups for user
+                logger.debug(f'Found a user match: {u} / {user_filter}')
+                users_return.append(u)
+
+        logger.info(f'User Search got {len(users_return)} users')
+        return users_return
+
+    def _group_search_internal(self, group_filter: GroupSearch) -> list[Group]:
+        """
+        Search for groups based on the provided filter.
+        Using the internal names in the User object
+        """
+        logger.info(f'Group filter to check: {group_filter}')
+        groups_return: list[Group] = []
+        for g in self.groups:
+            matches_name = not group_filter.get('group_name') or any(
+                term in str(g.get('group_name')).lower() for term in group_filter.get('group_name')
+            )
+            matches_domain = not group_filter.get('domain_name') or any(
+                term in str(g.get('domain_name')).lower() for term in group_filter.get('domain_name', ['default'])
+            )
+            matches_ocid = not group_filter.get('group_ocid') or any(
+                term in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
+            )
+            if matches_name and matches_domain and matches_ocid:
+                groups_return.append(
+                    {
+                        'domain_name': g.get('domain_name'),
+                        'group_name': g.get('group_name'),
+                        'group_ocid': g.get('group_ocid'),
+                    }
+                )
+        logger.info(f'Group Search returning {len(groups_return)} groups')
+        return groups_return
+
+    def _dynamic_group_search_internal(self, dg_filter: DynamicGroupSearch) -> list[DynamicGroup]:
+        """Search for dynamic groups based on the provided filter."""
+        logger.info(f'Dynamic Group filter to check: {dg_filter}')
+        dgs_return: list[DynamicGroup] = []
+        for dg in self.dynamic_groups:
+            matches_name = not dg_filter.get('dynamic_group_name') or any(
+                term in str(dg.get('dynamic_group_name')).lower() for term in dg_filter.get('dynamic_group_name')
+            )
+            matches_domain = not dg_filter.get('domain_name') or any(
+                term in str(dg.get('domain_name')).lower() for term in dg_filter.get('domain_name', ['default'])
+            )
+            matches_ocid = not dg_filter.get('dynamic_group_ocid') or any(
+                term in str(dg.get('dynamic_group_ocid')).lower() for term in dg_filter.get('dynamic_group_ocid')
+            )
+            matches_rule = not dg_filter.get('matching_rule') or any(
+                term in str(dg.get('matching_rule')).lower() for term in dg_filter.get('matching_rule')
+            )
+            matches_description = not dg_filter.get('description') or any(
+                term in str(dg.get('description')).lower() for term in dg_filter.get('description')
+            )
+            if matches_name and matches_domain and matches_ocid and matches_rule and matches_description:
+                dgs_return.append(
+                    {
+                        'domain_name': dg.get('domain_name'),
+                        'dynamic_group_name': dg.get('dynamic_group_name'),
+                        'dynamic_group_ocid': dg.get('dynamic_group_ocid'),
+                    }
+                )
+        logger.info(f'Dynamic Group Search returning {len(dgs_return)} dynamic groups')
+        return dgs_return
+
+    def _resolve_fuzzy_search(self, filters: PolicySearch):  # noqa: C901
+        """Look for fuzzy search and turn it into an exact search"""
+        logger.info(f"Resolve fuzzy Groups: {filters.get('search_groups')}")
+        logger.info(f"Resolve fuzzy Users: {filters.get('search_users')}")
+        logger.info(f"Resolve fuzzy DG: {filters.get('search_dynamic_groups')}")
+
+        # First do fuzzy user search
+        if filters.get('search_users'):
+            user_filter: UserSearch = filters.get('search_users')
+            logger.info(f'User filter to check: {user_filter}')
+            filtered_users = self._user_search_internal(user_filter)
+            logger.info(f'User search returned {len(filtered_users)} users')
+            # Now, for each user, get their groups and add to exact groups
+            exact_groups: list[Group] = []
+            for u in filtered_users:
+                user_groups: list[Group] = self.get_groups_for_user(u)
+                exact_groups.extend(user_groups)
+
+            # De-dup exact groups
+            seen = set()
+            deduplicated_list = []
+            for group in exact_groups:
+                identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
+                if identifier not in seen:
+                    seen.add(identifier)
+                    deduplicated_list.append(group)
+            exact_groups = deduplicated_list
+            # Set exact groups into filter that was passed in
+            filters['exact_groups'] = exact_groups
+            del filters['search_users']
+            logger.info(f'Added {len(exact_groups)} exact groups to filter (removed fuzzy user search)')
+        # Next, fuzzy group search
+        elif filters.get('search_group'):
+            group_filter: GroupSearch = filters.get('search_groups')
+            exact_groups: list[Group] = self._group_search_internal(group_filter)
+
+            # De-dup exact groups
+            seen = set()
+            deduplicated_list = []
+            for group in exact_groups:
+                identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
+                if identifier not in seen:
+                    seen.add(identifier)
+                    deduplicated_list.append(group)
+            exact_groups = deduplicated_list
+            # Set exact groups into filter that was passed in
+            filters['exact_groups'] = exact_groups
+            # remove the fuzzy search
+            del filters['search_groups']
+            logger.info(f'Added {len(exact_groups)} exact groups to filter')
+        # Finally, fuzzy dynamic group search
+        elif filters.get('search_dynamic_groups'):
+            dg_filter: DynamicGroupSearch = filters.get('search_dynamic_groups')
+            exact_dgs: list[DynamicGroup] = self._dynamic_group_search_internal(dg_filter)
+
+            # Set exact DGs into filter that was passed in
+            filters['exact_dynamic_groups'] = exact_dgs
+            # Remove fuzzy search
+            del filters['search_dynamic_groups']
+            logger.info(f'Added {len(exact_dgs)} exact dynamic groups to filter (removed fuzzy dynamic group search)')
+        else:
+            logger.info('No fuzzy logic executed, search not changed.')
+
+    def _resolve_exact_users(self, filters: PolicySearch):
+        """Look for exact users and turn them into groups"""
+        if not filters.get('exact_users'):
+            return
+        user_filter: list[User] = filters.get('exact_users')
+        # Start with no groups and iterate users
+        exact_groups: list[Group] = []
+        for u in self.users:
+            # We need an exact match on domain and username
+            for filter_user in user_filter:
+                logger.debug(f"Checking user {u.get('domain_name')}/{u.get('user_name')} against filter {filter_user}")
+                if (
+                    filter_user.get('domain_name').casefold() == u.get('domain_name').casefold()
+                    and filter_user.get('user_name').casefold() == u.get('user_name').casefold()
+                ):
+                    # get groups for user
+                    logger.debug(f"Exact user match found: {u.get('domain_name')}/{u.get('user_name')}")
+                    uu: User = {'domain_name': u.get('domain_name'), 'user_name': u.get('user_name')}  # type: ignore
+                    user_groups: list[Group] = self.get_groups_for_user(uu)
+                    logger.debug(f'User groups: {user_groups}')
+                    # add groups into exact match in filter
+                    exact_groups.extend(user_groups)
+        # De-dup exact groups
         seen = set()
         deduplicated_list = []
-        for group in groups_filter:
-            identifier = (group.get('domain') or 'Default', group.get('name'))
+        for group in exact_groups:
+            identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
             if identifier not in seen:
                 seen.add(identifier)
                 deduplicated_list.append(group)
+        exact_groups = deduplicated_list
+        # Set exact groups into filter that was passed in
+        filters['exact_groups'] = exact_groups
+        del filters['exact_users']
+        logger.info(f'Exact User Search {len(exact_groups)} exact groups to filter (removed exact user search)')
 
-        filtered: list[PolicyStatement] = []
-        logger.debug(f'Deduplicated groups filter: {deduplicated_list}')
-        groups_filter = deduplicated_list
-        for statement in self.regular_statements:
-            if statement.get('Subject Type') != 'group':
-                continue
+    def filter_groups(self, group_filter: GroupSearch) -> list[Group]:
+        """Filter groups based on the provided filter.  Public function used by MCP or UI"""
+        filtered = []
+        logger.info(f'Filtering Groups based on: {group_filter}')
 
-            subjects = statement.get('Subject', [])
-            if not isinstance(subjects, list):
-                logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
-                continue
-            if not groups_filter:
-                logger.debug('No groups provided for filtering, skipping statement.')
-                continue
-            for group in groups_filter:
-                group_domain = group.get('domain') or 'Default'
-                group_name = group.get('name')
+        filtered: list[Group] = self._group_search_internal(group_filter)
 
-                for subj_domain, subj_name in subjects:
-                    logger.debug(
-                        f'Comparing Group ({group_domain}/{group_name}) '
-                        f'to Policy Subject ({subj_domain}/{subj_name})'
-                    )
-                    if (
-                        subj_domain.casefold() == group_domain.casefold()
-                        and subj_name.casefold() == group_name.casefold()
-                    ):
-                        filtered.append(statement)
-                        logger.debug(
-                            f"Adding statement for group {group_domain}/{group_name}: {statement.get('Policy Name')}"
-                        )
-                        break  # stop checking once matched
-
-        logger.info(f'Returning {len(filtered)} statements for groups: {groups_filter}')
+        logger.info(f'Filtered to {len(filtered)} groups')
         return filtered
 
-    def filter_policy_statements_by_dynamic_group_name(self, dynamic_groups: list[DynamicGroup]) -> list[dict]:
+    def filter_users(self, user_filter: UserSearch) -> list[User]:
         """
-        Filter policy statements by dynamic group membership.
-
+        Filter users based on the provided filter.  Public function used by MCP or UI
         Args:
-            dynamic_groups (list[dict]): A list of objects with keys:
-                - domain (str | None): Domain name for the dynamic group.
-                If None, treated as "Default".
-                - name (str): Dynamic group name.
-            Behavior:
-                - Only applies to statements where "Subject Type" == "dynamic-group".
-                - The "Subject" field may contain one or more (domain, name) pairs.
-                - A match occurs if any provided (domain, name) matches any subject in
-                the statement (case-insensitive).
-
+            user_filter (UserSearch): A dictionary with optional keys:
+                - 'domain_name' (list[str]): List of domain names to filter by (case-insensitive).
+                - 'search' (list[str]): List of search terms to match against usernames and display names (case-insensitive).
+                - 'user_ocid' (list[str]): List of user OCIDs to filter by (case-insensitive).
         Returns:
-            list[dict[str, str]]: Matching policy statements.
+            list[User]: A list of users that match the filter criteria. Each user is represented as a dictionary with keys:
+                - 'domain_name' (str | None): The domain name of the user.
+                - 'user_name' (str): The username.
+                - 'user_ocid' (str): The OCID of the user.
+                - 'display_name' (str): The display name of the user.
+                - 'email' (str): The email of the user.
+                - 'user_id' (str): The ID of the user.
+                - 'groups' (list[str]): List of group OCIDs the user belongs to.
         """
-        filtered: list[dict[str, str]] = []
+        logger.info(f'Filtering Users (public) based on: {user_filter}')
+        filtered_users: list[User] = self._user_search_internal(user_filter)
 
-        for statement in self.regular_statements:
-            if statement.get('Subject Type') != 'dynamic-group':
-                continue
+        logger.info(f'Filtered to {len(filtered_users)} users')
+        for u in filtered_users:
+            logger.debug(f'User: {u.get("domain_name")}/{u.get("user_name")} Name:"{u.get("display_name")}"')
+        return filtered_users
 
-            subjects = statement.get('Subject', [])
-            if not isinstance(subjects, list):
-                logger.warning(f"Unexpected Subject format in statement {statement.get('Policy Name')}: {subjects}")
-                continue
-
-            for dg in dynamic_groups:
-                domain = dg.get('domain') or 'Default'
-                name = dg.get('name')
-
-                for subj_domain, subj_name in subjects:
-                    logger.debug(f'Comparing DG ({domain}/{name}) to Policy Subject ({subj_domain}/{subj_name})')
-
-                    if subj_domain.casefold() == domain.casefold() and subj_name.casefold() == name.casefold():
-                        filtered.append(statement)
-                        logger.debug(
-                            f"Adding statement for dynamic group {domain}/{name}: {statement.get('Policy Name')}"
-                        )
-                        break  # stop checking once matched
-
-        logger.info(f'Returning {len(filtered)} statements for dynamic groups: {dynamic_groups}')
-        return filtered
-
-    def filter_policy_statements_json(self, filters: PolicyFilters) -> list[dict]:  # noqa: C901
+    def filter_dynamic_groups(self, filters: DynamicGroupSearch) -> list[DynamicGroup]:
         """
-        Filter policy statements using JSON-based filters.
+        Filter dynamic groups using JSON-based filters.
 
         Args:
-            filters (dict[PolicyFilters]): A mapping of filter keys to one or more values.
+            filters (DynamicGroupSearch): A mapping of filter keys to one or more values.
                 - OR: multiple values within a field act as logical OR.
                 - AND: multiple fields are combined as logical AND.
                 - Supported keys:
-                    * policy_name          → matches "Policy Name"
-                    * policy_ocid          → matches "Policy OCID"
-                    * compartment_ocid     → matches "Compartment OCID"
-                    * policy_compartment   → matches "Policy Compartment"
-                    * statement_text       → matches "Statement Text"
-                    * subject_type         → matches "Subject Type"
-                    * subject              → matches "Subject"
-                    * verb                 → must be one of: inspect, read, use, manage
-                    * resource             → matches "Resource"
-                    * permission           → matches "Permission"
-                    * location_type        → matches "Location Type"
-                    * location             → matches "Location"
-                    * effective_path       → matches "Effective Path"
-                    * effective_compartment→ matches "Effective Compartment"
-                    * conditions           → matches "Conditions"
-                    * comments             → matches "Comments"
-                    * creation_time        → matches "Creation Time"
-                    * parsed               → matches "Parsed"
-                - Special cases:
-                    * verb: values must be a subset of {inspect, read, use, manage}
-                    * policy_compartment: supports "ROOTONLY" (restrict to tenancy root)
+                    * domain_name      → matches "Domain"
+                    * dynamic_group_name        → matches "DG Name"
+                    * matching_rule        → matches "Matching Rule"
+                    * dynamic_group_ocid      → matches "DG OCID"
+                    * in_use      → matches "In Use" (True/False)
 
         Returns:
-            list[PolicyStatement]: A list of policy statements that satisfy the filters.
+            list[DynamicGroup]: A list of dynamic groups that satisfy the filters. Each dynamic group is represented as a dictionary with keys:
+                - 'domain_name' (str | None): The domain name of the dynamic group.
+                - 'dynamic_group_name' (str): The name of the dynamic group.
+                - 'dynamic_group_ocid' (str): The OCID of the dynamic group.
+                - 'matching_rule' (str): The matching rule of the dynamic group.
+                - 'description' (str): The description of the dynamic group.
+                - 'in_use' (bool): Whether the dynamic group is in use.
+        Raises:
+            ValueError: If an unknown filter key is provided.
         """
         results = []
+        logger.info(f'Filtering Dynamic Groups based on: {filters}')
 
-        for stmt in self.regular_statements:
+        for dg in self.dynamic_groups:
             match = True
 
             for key, values in filters.items():
-                values = [v.lower() for v in values]
-
-                # Compartment special: ROOTONLY
-                if key == 'policy_compartment' and 'rootonly' in values:
-                    if stmt.get('Compartment OCID') != self.tenancy_ocid:
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
-                        match = False
-                        break
-
-                # Verb enum
-                elif key == 'verb':
-                    invalid = set(values) - VALID_VERBS
-                    if invalid:
-                        logger.debug(f'Invalid verbs in filter: {invalid}')
-                    field_value = str(stmt.get('Verb', '')).lower()
-                    if field_value not in values:
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to verb mismatch: {field_value}")
-                        match = False
-                        break
-
-                # Effective path search
-                elif key == 'effective_path':
-                    filter_eff_value = values[0]  # only one supported
-                    statement_eff_value = str(stmt.get('Effective Path', '')).lower()
-                    logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
-                    # Logic here - if the effective path given contains the effective path of the statement,
-                    # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
-                    if not (filter_eff_value.startswith(statement_eff_value)):
+                # Check in-use first because it is special
+                if key == 'in_use':
+                    if not values and not dg.get('in_use', False):
                         logger.debug(
-                            f"Rejecting {stmt.get('Policy Name')} due to effective_path mismatch: "
-                            f"{statement_eff_value} not in {filter_eff_value}"
+                            f"DG included {dg.get('dynamic_group_name')} due to in_use match: {dg.get('in_use')} = {values}"
+                        )
+                        continue
+                    else:
+                        logger.debug(
+                            f"DG rejected {dg.get('dynamic_group_name')} in_use: {dg.get('in_use')} != {values}"
                         )
                         match = False
                         break
-                # Default lookup using column map
+                elif not values:
+                    logger.debug(f'Skipping empty filter for key: {key}')
+                    continue
                 else:
-                    column = FILTER_KEY_MAP.get(key)
-                    logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
-                    if not column:
-                        logger.warning(f'Unknown filter key: {key}')
-                        continue
-                    field_value = str(stmt.get(column, '')).lower()
-                    if not any(val in field_value for val in values):
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to {key} mismatch")
+                    values = [v.lower() for v in values]
+                    logger.debug(f'Filtering on {key} mapped to column {key} with values {values}')
+
+                    field_value = str(dg.get(key, '')).lower()
+                    logger.debug(f'Field value for {key}: {field_value}')
+                    if not any(val.lower() in field_value for val in values):
+                        logger.debug(f"Rejecting DG {dg.get('DG Name')} due to {key} mismatch")
                         match = False
                         break
 
             if match:
-                results.append(stmt)
+                results.append(dg)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
         return results
 
-    # Perform a comparison (left vs right)
-    # TODO fix this to compare any 2 full JSON
+    # --- Other Public Functions ---
     def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
         """Loads a cache set and compares with the currently loaded policy set and return changes"""
         # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
@@ -975,6 +1524,50 @@ class PolicyCompartmentAnalysis:
             return ''
         return '\n'.join(changes)
 
+    def run_dg_in_use_analysis(self) -> None:
+        """Analyzes Dynamic Group data for unused Dynamic Groups
+
+        Given a list of policy statements, iterates to see if each dynamic group is used.  If not, it
+        is marked with "In Use" = False, for later display
+
+        Args:
+            policy_statements: A list of JSON dicts containing a policy statement each
+        """
+
+        # Build a list of all subjects as list(tuple(domain,name))
+        all_subjects: list[tuple] = []
+        for st in self.regular_statements:
+            subject_list = st.get('Subject') or []
+            subject_type = st.get('Subject Type')
+            logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
+            if subject_type == 'dynamic-group':
+                logger.info(f'Add: {subject_type} Subject: {subject_list}')
+                all_subjects.extend(subject_list)
+
+        logger.info(f'all subjects: {len(all_subjects)}')
+        # all_subjects = list(set(all_subjects))
+        # logger.info(f"all subjects: {len(all_subjects)}")
+
+        # Iterate all DGs, look at their Domain and Name, then look through each statement
+        unused_dynamic_groups = 0
+        for dg in self.dynamic_groups:
+            dg_domain = dg.get('domain_name') or 'default'
+            dg_name = dg.get('dynamic_group_name')
+            in_use = False  # Will be true at end if it exists
+            # Iterate our subject list
+            for subj_domain, subj_name in all_subjects:
+                logger.debug(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
+                if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
+                    in_use = True
+                    break
+            # Now if in_use still False, change the DG itself
+            if not in_use:
+                logger.info(f'Dynamic Group {dg_domain}/{dg_name} not in use')
+                dg['in_use'] = False
+                unused_dynamic_groups += 1
+
+        logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
+
     # Not in use
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
@@ -1018,487 +1611,6 @@ class PolicyCompartmentAnalysis:
         else:
             logger.info('No policy update logs found in the last 24 hours')
         pass
-
-
-class IdentityDomainsAnalysis:
-    """This is the main data repository for Identity Domains data
-
-    During initialization, all Identity Domain data is loaded into a central JSON dictionary.
-    This central dictionary is then referenced by functions that filter and return a subset of information for display.
-    Parsing, additional analysis, and import/export are made available by additional functions exposed.
-
-    Attributes:
-        dynamic_groups: A list of JSON dicts containing the Dyanmic Groups present in the OCI tenancy
-        identity_domains: A list of JSON dicts containing the Identity Domains in the OCI tenancy
-        groups: A list of JSON dicts containing the Groups in the OCI tenancy
-        users: A list of JSON dicts containing the Users in the OCI tenancy
-        domain_clients: A dict containing the OCI IdentityDomainClients required to collect all of the information
-        data_as_of: The timestamp that this data load was completed.
-        tenancy_ocid: The OCID of the tenancy being analyzed here.
-        identity_client: The OCI client that is initialized and used for all data loading purposes.
-    """
-
-    def __init__(self):
-        self.tenancy_ocid = None
-        self.identity_client = None
-        self.signer = None
-        self.config = None
-        self.use_instance_principal = False
-        self.dynamic_groups = []
-        self.identity_domains = []
-        self.groups = []
-        self.users = []
-        self.domain_clients = {}
-        self.policies = []
-        self.data_as_of = ''
-
-        logger.info('Initialized IdentityDomainsAnalysis')
-
-    def initialize_client(
-        self, use_instance_principal: bool, session: str | None = None, profile: str = 'DEFAULT'
-    ) -> bool:
-        """Initializes the OCI client to be used for all data operations
-
-        Client can be loaded using PROFILE or Instance Principal authentication methods
-
-        Args:
-            use_instance_principal: Whether to attempt Instance Principal signer-based authentication
-            recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
-            profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
-
-        Returns:
-            A boolean indicating whether the client was created successfully.  False indicates that an unrecoverable issue occurred
-            setting up the client.
-
-        """
-        try:
-            self.use_instance_principal = use_instance_principal
-            if use_instance_principal:
-                logger.debug('Using Instance Principal Authentication')
-                self.signer = InstancePrincipalsSecurityTokenSigner()
-                self.identity_client = IdentityClient(config={}, signer=self.signer)
-                self.tenancy_ocid = self.signer.tenancy_id
-            elif session:
-                self.session_token = session
-                logger.info('Session auth')
-                self.config = config.from_file(profile_name=session)
-                token_file = self.config['security_token_file']
-                token = None
-                with open(token_file) as f:
-                    token = f.read()
-                private_key = load_private_key_from_file(self.config['key_file'])
-                self.signer = SecurityTokenSigner(token, private_key)
-                self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
-                self.tenancy_ocid = self.config['tenancy']
-                logger.info('Success session auth')
-            else:
-                logger.debug(f'Using Profile Authentication: {profile}')
-                self.config = config.from_file(profile_name=profile)
-                self.identity_client = IdentityClient(self.config)
-                self.tenancy_ocid = self.config['tenancy']
-            # Get tenancy name
-            self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
-            logger.info(f'Set up Identity Client (Domain) for tenancy: {self.tenancy_ocid}')
-            return True
-        except (ConfigFileNotFound, Exception) as exc:
-            logger.fatal(f'Authentication failed: {exc}')
-            return False
-
-    def _parse_dynamic_group(self, domain_name: str, dg: DynamicResourceGroup) -> dict:
-        """Extract the contents of the DG into a dict"""
-
-        dg_dict = {
-            'Domain': domain_name,
-            'DG Name': dg.display_name,
-            'DG Description': dg.description,
-            'Matching Rule': dg.matching_rule,
-            'In Use': True,  # Placeholder until analysis is run
-            'DG OCID': dg.ocid,
-            'Creation Time': str(dg.meta.created),
-        }
-        return dg_dict
-        # TODO: Add back invalid OCID analysis
-
-    def run_dg_in_use_analysis(self, policy_statements: list):
-        """Analyzes Dynamic Group data for unused Dynamic Groups
-
-        Given a list of policy statements, iterates to see if each dynamic group is used.  If not, it
-        is marked with "In Use" = False, for later display
-
-        Args:
-            policy_statements: A list of JSON dicts containing a policy statement each
-        """
-
-        # Build a list of all subjects as list(tuple(domain,name))
-        all_subjects: list[tuple] = []
-        for st in policy_statements:
-            subject_list = st.get('Subject') or []
-            subject_type = st.get('Subject Type')
-            logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
-            if subject_type == 'dynamic-group':
-                logger.info(f'Add: {subject_type} Subject: {subject_list}')
-                all_subjects.extend(subject_list)
-
-        logger.info(f'all subjects: {len(all_subjects)}')
-        # all_subjects = list(set(all_subjects))
-        # logger.info(f"all subjects: {len(all_subjects)}")
-
-        # Iterate all DGs, look at their Domain and Name, then look through each statement
-        unused_dynamic_groups = 0
-        for dg in self.dynamic_groups:
-            dg_domain = dg.get('Domain') or 'default'
-            dg_name = dg.get('DG Name')
-            in_use = False  # Will be true at end if it exists
-            # Iterate our subject list
-            for subj_domain, subj_name in all_subjects:
-                logger.debug(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
-                if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
-                    in_use = True
-                    break
-            # Now if in_use still False, change the DG itself
-            if not in_use:
-                logger.info(f'Dynamic Group {dg_domain}/{dg_name} not in use')
-                dg['In Use'] = False
-                unused_dynamic_groups += 1
-
-        logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
-
-    def filter_dynamic_groups(self, filters: DynamicGroupFilters) -> list[dict]:
-        """
-        Filter dynamic groups using JSON-based filters.
-
-        Args:
-            filters (dict[DynamicGroupFilters]): A mapping of filter keys to one or more values.
-                - OR: multiple values within a field act as logical OR.
-                - AND: multiple fields are combined as logical AND.
-                - Supported keys:
-                    * domain      → matches "Domain"
-                    * name        → matches "DG Name"
-                    * type        → matches "Matching Rule"
-                    * in_use      → matches "In Use" (True/False)
-
-        Returns:
-            list[dict]: A list of dynamic groups that satisfy the filters.
-        """
-        results = []
-
-        for dg in self.dynamic_groups:
-            match = True
-
-            for key, values in filters.items():
-                if not values:
-                    logger.debug(f'Skipping empty filter for key: {key}')
-                    continue
-                values = [v.lower() for v in values]
-
-                column = FILTER_DG_KEY_MAP.get(key)
-                logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
-                if not column:
-                    logger.warning(f'Unknown filter key: {key}')
-                    continue
-                field_value = str(dg.get(column, '')).lower()
-                if not any(val in field_value for val in values):
-                    logger.debug(f"Rejecting DG {dg.get('DG Name')} due to {key} mismatch")
-                    match = False
-                    break
-
-            if match:
-                results.append(dg)
-
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
-        return results
-
-    def get_users_for_group(self, group: Group) -> list[User]:
-        """
-        Return all users that belong to the specified group.
-
-        Args:
-            group (Group): A dictionary with keys:
-                - 'domain': str | None
-                - 'name': str
-
-        Returns:
-            list[User]: All matching user entries with 'user_name', 'user_id', and 'domain_name'.
-        """
-        group_domain = group.get('domain') or 'default'
-        group_name = group['name']
-        logger.info(f'Looking for users in group: {group_domain}/{group_name}')
-        logger.debug(f'Number of groups: {len(self.groups)}  Number of users: {len(self.users)}')
-
-        group_ocids = [
-            g['Group OCID']
-            for g in self.groups
-            if g.get('Group Name', '').casefold() == group_name.casefold()
-            and g.get('Domain Name', '').casefold() == group_domain.casefold()
-        ]
-
-        if not group_ocids:
-            logger.warning(f'No group found for {group_domain}/{group_name}')
-            return []
-
-        group_ocid = group_ocids[0]
-
-        # Step 2: Find users who are members of that group
-        matched_users: list[User] = []
-        for user in self.users:
-            user_groups = user.get('User Groups', [])
-            if group_ocid in user_groups:
-                matched_users.append(
-                    {
-                        'user_name': user.get('Username'),
-                        'user_id': user.get('User ID'),
-                        'domain_name': user.get('Domain Name'),
-                        'display_name': user.get('Display Name'),
-                    }
-                )
-
-        logger.info(f'Found {len(matched_users)} users for group {group_domain}/{group_name}')
-        return matched_users
-
-    def filter_groups(self, group_filter: GroupFilters) -> list[dict]:
-        filtered = []
-        logger.info(f'Filtering Groups based on: {group_filter}')
-
-        # name_terms = [term.strip().lower() for term in group_filter.get('name', [])] if group_filter.get('name') else []
-        # logger.debug(f'Filtering Groups based on Name: {name_terms}')
-        for g in self.groups:
-            matches_name = not group_filter.get('name') or any(
-                term in str(g.get('Group Name')).lower() for term in group_filter.get('name')
-            )
-            matches_domain = not group_filter.get('domain') or any(
-                term in str(g.get('Domain Name')).lower() for term in group_filter.get('domain', ['defaut'])
-            )
-            if matches_name and matches_domain:
-                logger.info(f'Adding Group: {g.get("Group Name")} due to filter match')
-                filtered.append(g)
-
-        logger.info(f'Filtered to {len(filtered)} groups')
-        return filtered
-
-    def filter_users(self, user_filter: UserFilters, use_or_filter: bool = False) -> list[dict]:
-        filtered = []
-
-        logger.info(f'Filtering Users based on: {user_filter}')
-        for u in self.users:
-            matches_domain = not user_filter.get('domain') or any(
-                term.lower() in str(u.get('Domain Name')).lower() for term in user_filter.get('domain', ['default'])
-            )
-            matches_name = not user_filter.get('username') or any(
-                term.lower() in str(u.get('Username')).lower() for term in user_filter.get('username')
-            )
-            matches_display = not user_filter.get('display_name') or any(
-                term.lower() in str(u.get('Display Name')).lower() for term in user_filter.get('display_name')
-            )
-            if use_or_filter:
-                if matches_name or matches_display:
-                    logger.debug(f'Adding User: {u.get("Username")} due to filter match (or)')
-                    logger.info(
-                        f'Adding User: {u.get("Domain Name")}/{u.get("Username")} Name:"{u.get("Display Name")}" due to filter match (or)'
-                    )
-                    filtered.append(u)
-            elif matches_domain and matches_name and matches_display:
-                logger.debug(f'Adding User: {u.get("Username")} due to filter match')
-                logger.info(
-                    f'Adding User: {u.get("Domain Name")}/{u.get("Username")} Name:"{u.get("Display Name")}" due to filter match'
-                )
-                filtered.append(u)
-
-        logger.info(f'Filtered to {len(filtered)} users')
-        return filtered
-
-    def load_complete_identity_domains(self, session_token: str | None = None) -> bool:  # noqa: C901
-        """Loads everything into the cetntral JSON
-
-        Identity Domains are loaded via the Identity Client.
-        For each Identity Domain, load the Dynamic Groups, Groups, and Users
-
-        Args:
-            none
-
-        Returns:
-            A boolean indicating success of the data load.  False indicates there was some failure in loading data,
-            so it may be incomplete.
-        """
-        # Clean up any existing data
-        self.dynamic_groups = []
-        self.identity_domains = []
-        self.groups = []
-        self.users = []
-        try:
-            domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
-            if domain_response.data is None:  # type: ignore
-                logger.error('Failed to list identity domains')
-                return False
-            # Should we really keep the full thing?
-            self.identity_domains = domain_response.data
-            logger.info(f'Loaded {len(self.identity_domains)} identity domains')
-
-            self.domain_clients = {}
-
-            for domain in self.identity_domains:
-                try:
-                    # Get IdentityDomainsClient and hold on to it
-                    if self.use_instance_principal:
-                        domain_client = IdentityDomainsClient(
-                            config={}, signer=self.signer, service_endpoint=domain.url
-                        )
-                    elif self.session_token:
-                        logger.info('Session auth for IdentityDomainsClient')
-                        self.config = config.from_file(profile_name=self.session_token)
-                        token_file = self.config['security_token_file']
-                        token = None
-                        with open(token_file) as f:
-                            token = f.read()
-                        private_key = load_private_key_from_file(self.config['key_file'])
-                        self.signer = SecurityTokenSigner(token, private_key)
-                        domain_client = IdentityDomainsClient(
-                            {'region': self.config['region']}, signer=self.signer, service_endpoint=domain.url
-                        )
-                        self.tenancy_ocid = self.config['tenancy']
-                        logger.info('Success session auth')
-                    else:
-                        domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
-                    self.domain_clients[domain.id] = domain_client
-
-                    # Load Dynamic Groups
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
-                    if dg_response and dg_response.data:
-                        logger.debug(
-                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
-                        )
-                        for dg in dg_response.data.resources:
-                            logger.debug(f'DG: {dg.display_name}')
-                            # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(
-                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
-                            )
-                    else:
-                        logger.error('Failed to list dynamic groups')
-                        return False
-
-                    # Load Groups
-                    start_index = 1
-                    limit = 1000
-                    while True:
-                        group_response = domain_client.list_groups(
-                            start_index=start_index, count=limit, sort_by='displayName', sort_order='ASCENDING'
-                        )
-                        if group_response.data is None or not group_response.data.resources:
-                            break
-                        for g in group_response.data.resources:
-                            logging.debug(f'Group: {g}')
-
-                            # Set the group into the bigger picture JSON
-                            self.groups.append(
-                                {
-                                    'Domain OCID': domain.id,
-                                    'Domain Name': domain.display_name,
-                                    'Group ID': g.id,
-                                    'Group OCID': g.ocid,
-                                    'Group Name': g.display_name,
-                                }
-                            )
-                        # Logic to re-start new request
-                        if (
-                            len(group_response.data.resources) < limit
-                            or start_index + limit > group_response.data.total_results
-                        ):
-                            break
-                        start_index += limit
-                    logging.debug(f'All Groups: {self.groups}')
-
-                    # Load Users
-                    start_index = 1
-                    while True:
-                        user_response = domain_client.list_users(
-                            start_index=start_index,
-                            count=limit,
-                            sort_by='displayName',
-                            sort_order='ASCENDING',
-                            attribute_sets=['all'],
-                        )
-                        if user_response.data is None or not user_response.data.resources:
-                            break
-                        for u in user_response.data.resources:
-                            logging.debug(f'User: {u}')
-                            if not u.groups:
-                                logging.debug(f'No groups for user {u.display_name}')
-                                continue
-                            group_list = []
-                            for gg in u.groups:
-                                group_list.append(gg.ocid)
-
-                            email = ''
-                            for em in u.emails:
-                                if em.primary:
-                                    email = em.value
-                                    break
-                            # Set the user into the bigger picture JSON
-                            self.users.append(
-                                {
-                                    'Domain Name': domain.display_name,
-                                    'User ID': u.id,
-                                    'User OCID': u.ocid,
-                                    'Username': u.user_name,
-                                    'Display Name': u.display_name,
-                                    'Primary Email': email,
-                                    'User Groups': group_list,
-                                }
-                            )
-
-                        # Loop Logic
-                        if (
-                            len(user_response.data.resources) < limit
-                            or start_index + limit > user_response.data.total_results
-                        ):
-                            break
-                        start_index += limit
-                    logging.debug(f'All Users: {self.users}')
-
-                    self.data_as_of = str(datetime.now(UTC))
-
-                except Exception as e:
-                    logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
-                    raise
-            logger.info(
-                f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
-            )
-            return True
-        except Exception as e:
-            logger.error(f'Failed to load identity domains: {e}')
-            # return False
-            raise
-
-    def get_groups_for_user(self, user: User) -> list:
-        """Return the list of all Groups that a user is a member of
-
-        Args:
-
-
-        Returns:
-            A list of Groups
-        """
-        groups_for_user: list = []
-        logger.info(f'User to filter: {user}')
-        logger.debug(f'Users: {self.users}')
-
-        # Iterate through users to find our user
-        for u in self.users:
-            # Match the tuple
-            if (
-                u.get('Username', '').casefold() == user.get('user_name').casefold()
-                and u.get('Domain Name', 'default').casefold() == user.get('domain_name', 'default').casefold()
-            ):
-                logger.info(f"User found. Groups: {u.get('User Groups')}")
-
-                for user_group_ocid in u.get('User Groups'):
-                    # Find the Group OCID in the groups and append
-                    for g in self.groups:
-                        if g.get('Group OCID') == user_group_ocid:
-                            # Now append as tuple
-                            groups_for_user.append({'domain': g.get('Domain Name'), 'name': g.get('Group Name')})
-                            logger.info(f"Adding Group {g.get('Domain Name')}/{g.get('Group Name')} ")
-        return groups_for_user
 
     def _get_domains(self) -> list:
         return [{'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains]

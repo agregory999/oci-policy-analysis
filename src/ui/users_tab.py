@@ -16,9 +16,9 @@
 import tkinter as tk
 from tkinter import ttk
 
-from logic.data_repo import IdentityDomainsAnalysis, PolicyCompartmentAnalysis
+from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
-from logic.models import GroupFilters, UserFilters
+from logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from ui.data_table import DataTable
 
 # Global logger for this module
@@ -86,11 +86,10 @@ POLICY_COLUMN_WIDTHS = {
 class UsersTab(ttk.Frame):
     """Example data-driven tab that can update the bottom entry."""
 
-    def __init__(self, parent, app, identity_repo: IdentityDomainsAnalysis, policy_repo: PolicyCompartmentAnalysis):  # noqa: C901
+    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):  # noqa: C901
         super().__init__(parent)
         self.app = app
-        self.identity_repo: IdentityDomainsAnalysis = identity_repo
-        self.policy_compartment_analysis: PolicyCompartmentAnalysis = policy_repo
+        self.policy_compartment_analysis: PolicyAnalysisRepository = policy_repo
 
         self.grid_rowconfigure(0, weight=2)
         self.grid_rowconfigure(1, weight=7)
@@ -133,7 +132,9 @@ class UsersTab(ttk.Frame):
             for row in selected_rows:
                 logger.debug(f"Selected Group: {row.get('Domain Name')} / {row.get('Group Name')}")
                 if 'Group Name' in row:
-                    groups_for_filter.append({'domain': row.get('Domain Name'), 'name': row.get('Group Name')})
+                    groups_for_filter.append(
+                        {'domain_name': row.get('Domain Name'), 'group_name': row.get('Group Name')}
+                    )
             logger.info(f'Groups for filter: {groups_for_filter}')
 
             self._update_user_analysis_policy_output(groups_for_filter=groups_for_filter, users_for_filter=None)
@@ -285,6 +286,29 @@ class UsersTab(ttk.Frame):
     def _update_user_analysis_output(self):
         # TODO: Compartment Analysis
         logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
+
+        def for_display_user(u: User) -> dict:
+            """Return a dictionary suitable for display purposes."""
+            return {
+                'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',
+                'Username': u['user_name'],
+                'User ID': u.get('user_id', 'N/A'),
+                'User OCID': u.get('user_ocid', 'N/A'),
+                'Primary Email': u.get('email', 'N/A'),
+                'Display Name': u.get('display_name', 'N/A'),
+                'User Groups': ', '.join(u.get('groups', [])) if u.get('groups') else 'N/A',  # type: ignore
+            }  # type: ignore
+
+        def for_display_group(g: Group) -> dict:
+            """Return a dictionary suitable for display purposes."""
+            return {
+                'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',
+                'Group Name': g['group_name'],
+                'Group ID': g.get('group_id', 'N/A'),
+                'Group OCID': g.get('group_ocid', 'N/A'),
+                'Description': g.get('description', 'N/A'),
+            }  # type: ignore
+
         # Grid the correct table
         if self.groups_option_var.get() == 'GROUPS':
             # Load the groups into grid and search
@@ -292,26 +316,26 @@ class UsersTab(ttk.Frame):
             self.users_groups_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
             # Only filter on name for now
-            group_filter: GroupFilters = GroupFilters(
-                name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+            group_filter: GroupSearch = GroupSearch(
+                group_name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
             )
             # Filter and display
-            filtered_groups = self.identity_repo.filter_groups(group_filter=group_filter)
-            self.users_groups_table.update_data(filtered_groups)
+            filtered_groups: list[Group] = self.policy_compartment_analysis.filter_groups(group_filter=group_filter)
+            display_groups = [for_display_group(g) for g in filtered_groups]
+            self.users_groups_table.update_data(display_groups)
             logger.info(f'Loaded {len(filtered_groups)} groups into table')
         elif self.groups_option_var.get() == 'USERS':
             self.users_groups_table.grid_forget()
             self.users_users_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
             # Only filter on username for now
-            user_filter: UserFilters = UserFilters(
-                username=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
-                display_name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+            user_filter: UserSearch = UserSearch(
+                search=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
             )
             # Filter and display
-            filtered_users = self.identity_repo.filter_users(user_filter=user_filter, use_or_filter=True)
-
-            self.users_users_table.update_data(filtered_users)
+            filtered_users: list[User] = self.policy_compartment_analysis.filter_users(user_filter=user_filter)
+            display_users = [for_display_user(u) for u in filtered_users]
+            self.users_users_table.update_data(display_users)
             logger.info(f'Loaded {len(filtered_users)} users into data')
         else:
             logger.warning('Should not get here')
@@ -319,71 +343,44 @@ class UsersTab(ttk.Frame):
     def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):
         logger.info('Getting policies for groups and users')
 
-        if users_for_filter and len(users_for_filter) > 0:
-            groups_for_filter = []
-            # If we only have users, populate the groups for those users
-            for user in users_for_filter:
-                logger.info(f'Getting groups for user: {user}')
-                groups_for_user = self.identity_repo.get_groups_for_user(user)
-                groups_for_filter.extend(groups_for_user)
+        # # Add to exact groups filter or exact_users filter
+        # if not groups_for_filter:
+        #     groups_for_filter = []
+        # if users_for_filter and len(users_for_filter) > 0:
+        #     groups_for_filter = []
+        #     # If we only have users, populate the groups for those users
+        #     for user in users_for_filter:
+        #         logger.info(f'Getting groups for user: {user}')
+        #         groups_for_user = self.policy_compartment_analysis.get_groups_for_user(user)
+        #         groups_for_filter.extend(groups_for_user)
 
         # Take the list of groups, make a group filter, and update policy table
-        logger.info(f'Searching for policies for groups: {groups_for_filter}')
-        filtered_policies = self.policy_compartment_analysis.filter_policy_statements_by_groups(
-            groups_filter=groups_for_filter
-        )
+        logger.info(f'Searching for policies for groups and users: {groups_for_filter}\n {users_for_filter}')
+        # create an exact_groups filter for filter_policy_statements
+
+        exact_groups_filter: list[Group] = groups_for_filter
+        exact_users_filter: list[User] = users_for_filter
+        exact_groups_users_filter = PolicySearch(exact_groups=exact_groups_filter, exact_users=exact_users_filter)
+        filtered_policies = self.policy_compartment_analysis.filter_policy_statements(filters=exact_groups_users_filter)
         self.users_policy_table.update_data(filtered_policies)
 
         # Update the labels and table
         # Create a list of dict for the table
+        # If all we have is users, grab the groups for them
         selected_groups_for_table = []
-        for group in groups_for_filter:
-            dom = group.get('domain') or 'Default'
-            gr = group.get('name')
-            selected_groups_for_table.append({'Domain': dom, 'Group': gr})
+        if groups_for_filter:
+            for group in groups_for_filter:
+                dom = group.get('domain_name') or 'Default'
+                gr = group.get('group_name')
+                selected_groups_for_table.append({'Domain': dom, 'Group': gr})
+        elif users_for_filter:
+            # If all we have is users, grab the groups for them
+            for user in users_for_filter:
+                groups_for_user = self.policy_compartment_analysis.get_groups_for_user(user)
+                for group in groups_for_user:
+                    dom = group.get('domain_name') or 'Default'
+                    gr = group.get('group_name')
+                    selected_groups_for_table.append({'Domain': dom, 'Group': gr})
         # Update the group and policies table
         self.selected_groups_table.update_data(selected_groups_for_table)
         self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(filtered_policies)}')
-
-    #     ttk.Label(self, text='Users').pack(anchor='w', padx=8, pady=(10, 6))
-
-    #     self.tree = ttk.Treeview(self, columns=('id', 'name', 'role'), show='headings')
-    #     self.tree.heading('id', text='ID')
-    #     self.tree.heading('name', text='Name')
-    #     self.tree.heading('role', text='Role')
-    #     self.tree.pack(fill='both', expand=True, padx=8, pady=(0, 8))
-
-    #     cmdbar = ttk.Frame(self)
-    #     cmdbar.pack(fill='x', padx=8, pady=(0, 10))
-    #     ttk.Button(cmdbar, text='Send Selected to Bottom Entry', command=self.send_selected).pack(side='left')
-
-    #     self.users_groups_table = DataTable(
-    #         self,
-    #         columns=GROUPS_COLUMNS,
-    #         display_columns=GROUPS_COLUMNS,
-    #         data=[],
-    #         column_widths=GROUPS_COLUMNS_WIDTHS,
-    #         # font_size=10,
-    #         # selection_callback=users_group_selection_callback,
-    #         multi_select=True,
-    #     )
-    #     self.users_groups_table.pack(fill='both', expand=True)
-
-    #     # Prob not nec
-    #     # self.reload_data()
-
-    # def reload_data(self):
-    #     # Load the data or filter it as needed
-    #     self.users_groups_table.update_data(self.identity_repo.groups)
-    #     logger.info(f'Loaded data for Groups: {len(self.identity_repo.groups)}')
-
-    # def send_selected(self):
-    #     sel = self.tree.selection()
-    #     if not sel:
-    #         logger.info('No user selected')
-    #         return
-    #     vals = self.tree.item(sel[0], 'values')
-    #     # Example payload to the bottom entry
-    #     text = f'{vals[0]} | {vals[1]} | {vals[2]}'
-    #     self.app.update_bottom_entry(text)
-    #     logger.info('Sent selection to bottom entry')

@@ -13,34 +13,153 @@
 # coding: utf-8
 ##########################################################################
 
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 
+# Data Models for Policies, Dynamic Groups, Users, and Groups
 class Group(TypedDict):
-    """Represents an OCI IAM group entry. Groups need a domain and name to be unique.  Domain can be None for default domain."""
+    """
+    Represents an Exact OCI IAM group entry.
+    Groups need a domain and name to be unique.
+    Domain can be None for default domain.
+    """
 
-    domain: str | None
-    name: str
+    domain_name: Annotated[str | None, 'The domain of the group. None for default domain.']
+    group_name: Annotated[str, 'The name of the group.']
+    group_id: Annotated[str | None, 'The ID of the group. Not required for filters.']
+    group_ocid: Annotated[str | None, 'The OCID of the group. Not required for filters.']
+    description: Annotated[str | None, 'The description of the group. Not required for filters.']
 
 
 class User(TypedDict):
-    """Represents an OCI IAM user entry. Users need a domain and name to be unique.  Domain can be None for default domain."""
+    """
+    Represents an Exact OCI IAM user entry.
+    Users need a domain and name to be unique.
+    Domain can be None for default domain.
+    """
 
-    user_name: str
-    user_id: str
-    display_name: str
-    domain_name: str | None
+    domain_name: Annotated[str | None, 'The domain name. None for default domain.']
+    user_name: Annotated[str, 'The user name. Required']
+    user_ocid: Annotated[str | None, 'The user OCID. Not required for filters.']
+    display_name: Annotated[str, 'The display name. Not required for filters.']
+    email: Annotated[str | None, 'The primary email address. Not required for filters.']
+    user_id: Annotated[str | None, 'The user ID. Not required for filters.']
+    groups: Annotated[list[str] | None, 'List of group OCIDs the user belongs to. Not required for filters.']
 
 
 class DynamicGroup(TypedDict):
-    """Represents an OCI IAM dynamic group entry. Dynamic groups need a domain and name to be unique.  Domain can be None for default domain."""
+    """
+    Represents an Exact OCI IAM dynamic group entry.
+    Dynamic groups need a domain and name to be unique.
+    Domain can be None for default domain.
+    """
 
-    domain: str | None
-    name: str
+    domain_name: Annotated[str | None, 'The domain of the dynamic group. None for default domain.']
+    dynamic_group_name: Annotated[str, 'The name of the dynamic group.']
+    dynamic_group_ocid: NotRequired[Annotated[str | None, 'The OCID of the dynamic group. Not required for filters.']]
+    dynamic_group_id: NotRequired[Annotated[str | None, 'The ID of the dynamic group. Not required for filters.']]
+    matching_rule: NotRequired[
+        Annotated[str | None, 'The matching rule expression for the dynamic group. Not required for filters.']
+    ]
+    description: NotRequired[Annotated[str | None, 'The description of the dynamic group. Not required for filters.']]
+    in_use: NotRequired[
+        Annotated[bool | None, 'True if the dynamic group is referenced by any policies. Not required for filters.']
+    ]
+    creation_time: NotRequired[
+        Annotated[str | None, 'The creation time of the dynamic group. Not required for filters.']
+    ]
+    created_by_ocid: NotRequired[
+        Annotated[str | None, 'The OCID of the user who created the dynamic group. Not required for filters.']
+    ]
+    created_by_name: NotRequired[
+        Annotated[str | None, 'The name of the user who created the dynamic group. Not required for filters.']
+    ]
 
 
-# Filters for MCP tools
-class PolicyFilters(TypedDict, total=False):
+# Search Models
+class GroupSearch(TypedDict, total=False):
+    """
+    Represents filters for OCI IAM groups.
+
+    This structure is used by MCP tools that query or filter cached group data.
+    Each field narrows results; lists within a field apply OR logic.
+    Providing multiple fields applies AND logic.
+    Providing no fields returns all groups.
+    """
+
+    domain_name: Annotated[
+        list[str | None] | None,
+        'Domain name(s) to filter groups by. Use None or an empty string to include groups without a domain (Default domain).',
+    ]
+
+    group_name: Annotated[list[str] | None, 'Group display name(s) to match. Accepts full or partial names.']
+
+    group_ocid: Annotated[str | None, 'The OCID of the group. ']
+
+
+class UserSearch(TypedDict, total=False):
+    """
+    Represents filters for OCI IAM users.
+
+    This structure is used by MCP tools that query or filter cached user data.
+    Each field narrows results; lists within a field apply OR logic.
+    'search' matches against either user name or display name.
+    Providing multiple fields applies AND logic.
+    Providing no fields returns all users.
+    """
+
+    domain_name: Annotated[
+        list[str | None] | None,
+        'Domain name(s) to filter users by. Use None or an empty string to include users without a domain (Default domain).',
+    ]
+
+    search: Annotated[
+        list[str] | None,
+        'User name(s) or Display Name(s) to match. Accepts full or partial names and matches display name or username.',
+    ]
+
+    user_ocid: Annotated[str | None, 'The OCID of the user.']
+
+
+class DynamicGroupSearch(TypedDict, total=False):
+    """
+    Represents filters for OCI IAM dynamic groups.
+
+    Used by MCP tools to query dynamic groups based on domain, name, or matching rule criteria.
+    Each field narrows results; lists within a field apply OR logic.
+    Providing multiple fields applies AND logic.
+    Providing no fields returns all dynamic groups.
+    """
+
+    domain_name: NotRequired[
+        Annotated[
+            list[str | None] | None,
+            'Optional domain name(s) associated with the dynamic group. If provided, use None or an empty string for groups in the Default domain.',
+        ]
+    ]
+
+    dynamic_group_name: NotRequired[
+        Annotated[list[str] | None, 'Dynamic group name(s) to filter by. Accepts full or partial names.']
+    ]
+
+    matching_rule: NotRequired[
+        Annotated[
+            list[str] | None,
+            "Matching rule expression(s) to search for (e.g., 'ALL {resource.type = instance, ...}'). Supports substring matches.",
+        ]
+    ]
+
+    dynamic_group_ocid: Annotated[str | None, 'The OCID of the dynamic group.']
+    in_use: NotRequired[
+        Annotated[
+            bool,
+            'If set to True, only return dynamic groups that are referenced by policies. If False, only those not in use. Not Required.',
+        ]
+    ]
+
+
+# Filters for MCP or UI tools
+class PolicySearch(TypedDict, total=False):
     """
     Represents filters for OCI IAM policy statements.
 
@@ -49,6 +168,26 @@ class PolicyFilters(TypedDict, total=False):
     Lists within a field apply OR logic among their entries.
     Providing no fields returns all policy statements.
     """
+
+    exact_groups: Annotated[list[Group] | None, 'Exact Group(s) to filter policies by. Requires full group name.']
+
+    exact_users: Annotated[list[User] | None, 'Exact User(s) to filter policies by. Requires full user name.']
+
+    exact_dynamic_groups: Annotated[
+        list[DynamicGroup] | None, 'Exact Dynamic Group(s) to filter policies by. Requires full or partial names.'
+    ]
+
+    search_groups: Annotated[
+        GroupSearch | None, 'Fuzzy Search Group(s) to filter policies by. Accepts full or partial names.'
+    ]
+
+    search_users: Annotated[
+        UserSearch | None, 'Fuzzy Search User(s) to filter policies by. Accepts full or partial names.'
+    ]
+
+    search_dynamic_groups: Annotated[
+        DynamicGroupSearch | None, 'Fuzzy Search Dynamic Group(s) to filter policies by. Accepts full or partial names.'
+    ]
 
     verb: Annotated[
         list[Literal['inspect', 'read', 'use', 'manage']],
@@ -74,11 +213,16 @@ class PolicyFilters(TypedDict, total=False):
 
     effective_path: Annotated[
         list[str],
-        'Computed effective compartment path(s) for scope evaluation, used to determine inheritance of permissions.',
+        'Computed effective compartment path(s) for scope evaluation, used to determine inheritance of permissions. '
+        'Always starts with ROOT  '
+        'An example is ROOT/compartment1/sub-comp'
+        'This filter can handle multiple paths as a list of strings. '
+        'Supports partial paths, e.g., ROOT/compartment1',
     ]
 
     subject_type: Annotated[
-        list[str], "Type(s) of subject: 'group', 'dynamic-group', 'any-user', 'any-group', 'service', etc."
+        list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']],
+        "Type of subject targeted by the policy. Must be one of 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
     ]
 
     subject: Annotated[list[str], 'Subject identifier(s), usually user, group, or domain/name pairs.']
@@ -90,67 +234,6 @@ class PolicyFilters(TypedDict, total=False):
     comments: Annotated[list[str], 'Comment text that appears at the end of policy statements (if any).']
 
     conditions: Annotated[list[str], "Conditional clauses ('any', 'all', etc.) used within the policy statement."]
-
-
-class GroupFilters(TypedDict, total=False):
-    """
-    Represents filters for OCI IAM groups.
-
-    This structure is used by MCP tools that query or filter cached group data.
-    Each field narrows results; lists within a field apply OR logic.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all groups.
-    """
-
-    domain: Annotated[
-        list[str | None] | None,
-        'Domain name(s) to filter groups by. Use None or an empty string to include groups without a domain (Default domain).',
-    ]
-
-    name: Annotated[list[str] | None, 'Group display name(s) to match. Accepts full or partial names.']
-
-
-class UserFilters(TypedDict, total=False):
-    """
-    Represents filters for OCI IAM users.
-
-    This structure is used by MCP tools that query or filter cached user data.
-    Each field narrows results; lists within a field apply OR logic.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all users.
-    """
-
-    domain: Annotated[
-        list[str | None] | None,
-        'Domain name(s) to filter users by. Use None or an empty string to include users without a domain (Default domain).',
-    ]
-
-    username: Annotated[list[str] | None, 'User name(s) to match. Accepts full or partial names.']
-
-    display_name: Annotated[list[str] | None, 'User display name(s) to match. Accepts full or partial names.']
-
-
-class DynamicGroupFilters(TypedDict, total=False):
-    """
-    Represents filters for OCI IAM dynamic groups.
-
-    Used by MCP tools to query dynamic groups based on domain, name, or matching rule criteria.
-    Each field narrows results; lists within a field apply OR logic.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all dynamic groups.
-    """
-
-    domain: Annotated[
-        list[str | None] | None,
-        'Domain name(s) associated with the dynamic group. Use None or an empty string for groups in the Default domain.',
-    ]
-
-    name: Annotated[list[str] | None, 'Dynamic group name(s) to filter by. Accepts full or partial names.']
-
-    matching_rule: Annotated[
-        list[str] | None,
-        "Matching rule expression(s) to search for (e.g., 'ALL {resource.type = instance, ...}'). Supports substring matches.",
-    ]
 
 
 # Return Types
@@ -214,8 +297,8 @@ class PolicyStatement(TypedDict, total=False):
 
     Location: Annotated[str | None, 'Human-readable compartment path or OCID representing where this policy applies.']
 
-    Effective_Compartment: Annotated[
-        str | None, 'Name of the effective compartment determined from policy scope analysis.'
+    Effective_Compartment_OCID: Annotated[
+        str | None, 'OCID of the effective compartment determined from policy scope analysis.'
     ]
 
     Effective_Path: Annotated[
