@@ -22,7 +22,7 @@ from logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from ui.data_table import DataTable
 
 # Global logger for this module
-logger = get_logger(component='users')
+logger = get_logger(component='users_tab')
 
 GROUPS_COLUMNS = ['Domain Name', 'Group Name', 'Group OCID']
 GROUPS_COLUMNS_WIDTHS = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 450}
@@ -341,21 +341,9 @@ class UsersTab(ttk.Frame):
             logger.warning('Should not get here')
 
     def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):
-        logger.info('Getting policies for groups and users')
-
-        # # Add to exact groups filter or exact_users filter
-        # if not groups_for_filter:
-        #     groups_for_filter = []
-        # if users_for_filter and len(users_for_filter) > 0:
-        #     groups_for_filter = []
-        #     # If we only have users, populate the groups for those users
-        #     for user in users_for_filter:
-        #         logger.info(f'Getting groups for user: {user}')
-        #         groups_for_user = self.policy_compartment_analysis.get_groups_for_user(user)
-        #         groups_for_filter.extend(groups_for_user)
-
+        """Update the policy statements based on the selected groups and/or users"""
         # Take the list of groups, make a group filter, and update policy table
-        logger.info(f'Searching for policies for groups and users: {groups_for_filter}\n {users_for_filter}')
+        logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
         # create an exact_groups filter for filter_policy_statements
 
         exact_groups_filter: list[Group] = groups_for_filter

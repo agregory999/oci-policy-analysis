@@ -1016,7 +1016,7 @@ class PolicyAnalysisRepository:
                         match = False  # If we get here, no match found
                         break
                 # Compartment special: ROOTONLY
-                elif key == 'policy_compartment' and 'rootonly' in values:
+                elif key == 'policy_compartment' and 'ROOTONLY' in values:
                     if stmt.get('Compartment OCID') != self.tenancy_ocid:
                         logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
                         match = False
@@ -1196,13 +1196,7 @@ class PolicyAnalysisRepository:
                 term in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
             )
             if matches_name and matches_domain and matches_ocid:
-                groups_return.append(
-                    {
-                        'domain_name': g.get('domain_name'),
-                        'group_name': g.get('group_name'),
-                        'group_ocid': g.get('group_ocid'),
-                    }
-                )
+                groups_return.append(g)
         logger.info(f'Group Search returning {len(groups_return)} groups')
         return groups_return
 
@@ -1239,9 +1233,9 @@ class PolicyAnalysisRepository:
 
     def _resolve_fuzzy_search(self, filters: PolicySearch):  # noqa: C901
         """Look for fuzzy search and turn it into an exact search"""
-        logger.info(f"Resolve fuzzy Groups: {filters.get('search_groups')}")
-        logger.info(f"Resolve fuzzy Users: {filters.get('search_users')}")
-        logger.info(f"Resolve fuzzy DG: {filters.get('search_dynamic_groups')}")
+        logger.debug(f"Resolve fuzzy Groups: {filters.get('search_groups')}")
+        logger.debug(f"Resolve fuzzy Users: {filters.get('search_users')}")
+        logger.debug(f"Resolve fuzzy DG: {filters.get('search_dynamic_groups')}")
 
         # First do fuzzy user search
         if filters.get('search_users'):

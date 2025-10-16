@@ -407,8 +407,8 @@ class PoliciesTab(ttk.Frame):
         if self.location_filter_var.get():
             filters['location'] = self.location_filter_var.get().split('|') or None
         if self.hierarchy_filter_var.get():
-            filters['hierarchy'] = (
-                'ROOTONLY' if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
+            filters['policy_compartment'] = (
+                ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
             )
         if self.condition_filter_var.get():
             filters['condition'] = self.condition_filter_var.get().split('|') or None

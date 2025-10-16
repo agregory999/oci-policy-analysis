@@ -400,11 +400,11 @@ def build_arg_parser():
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--profile')
     auth.add_argument('--instance-principal', action='store_true')
-    parser.add_argument('--session-token', help='OCI session token for instance principal auth', default=None)
+    auth.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
+    auth.add_argument('--session-token', help='OCI session token for instance principal auth', default=None)
     parser.add_argument(
         '--recursive', action='store_true', default=True, help='Recursively load all compartments (default: True)'
     )
-    parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1')

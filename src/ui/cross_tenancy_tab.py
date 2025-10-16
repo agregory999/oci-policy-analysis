@@ -19,7 +19,7 @@ from tkinter import ttk
 # from logic.models import CrossTenancyPolicy, DefinedAlias
 from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
-from oci_policy_dg_viewer.data_table import DataTable
+from ui.data_table import DataTable
 
 # For cross-tenancy policies, just show all details we have
 DEFINED_ALIAS_COLUMNS = ['Defined Name', 'Defined Type', 'OCID Alias']
