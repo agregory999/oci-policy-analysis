@@ -19,20 +19,14 @@ import sys
 import threading
 
 import uvicorn
-
-# from mcp.server.transport.stdio import stdio_server
-# from mcp.server.transport.http import http_server
-# from mcp.server.fastmcp import FastMCP
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-
-# from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
-from logic.caching import CacheManager
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
-from logic.models import (
+from oci_policy_analysis.logic.caching import CacheManager
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.models import (
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
@@ -44,8 +38,6 @@ from logic.models import (
 
 # Global logger for this module
 logger = get_logger(component='MCPServer')
-
-logger.info(f'[DEBUG] MCP logger name = {logger.name}, propagate={logger.propagate}')
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
@@ -360,20 +352,6 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
 
 server_thread: threading.Thread | None = None
 server_instance: uvicorn.Server | None = None
-
-
-# def get_app():
-#     """
-#     Return the FastMCP app bound to the shared data_repo.
-
-#     Keep this consistent with however you currently build your app
-#     (e.g., using create_app(data_repo)).
-#     """
-#     if not pca:
-#         logger.error("MCP get_app() called before repository (pca) was set.")
-#         raise RuntimeError("MCP repository not initialized before server start.")
-
-#     return getattr(mcp, "_app", None) or mcp.app
 
 
 def start_mcp_server_in_thread(settings: dict):

@@ -15,10 +15,10 @@
 
 import argparse
 
-from logic.caching import CacheManager
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger, set_log_level
-from logic.models import PolicySearch
+from oci_policy_analysis.logic.caching import CacheManager
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger, set_log_level
+from oci_policy_analysis.logic.models import PolicySearch
 
 """Main function to parse arguments and print policies and dynamic groups."""
 parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
@@ -40,15 +40,15 @@ args = parser.parse_args()
 # Logging and Console setup
 if args.app_log:
     # Reconfigure logger to use console
-    logger = get_logger(use_console=False, component='cli')
+    logger = get_logger(component='cli')
     logger.info('Logging to app.log')
 else:
-    logger = get_logger(use_console=True, component='cli')
+    logger = get_logger(component='cli')
     logger.info('Logging to Console')
 
 # Configure logging based on verbose flag
 if args.verbose:
-    set_log_level('DEBUG', component='main')
+    set_log_level('DEBUG')
     # logger.setLevel('DEBUG')
     logger.debug('Verbose logging enabled')
 

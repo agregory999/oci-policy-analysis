@@ -19,8 +19,8 @@ from pathlib import Path
 
 from oci.identity.models import Domain
 
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'

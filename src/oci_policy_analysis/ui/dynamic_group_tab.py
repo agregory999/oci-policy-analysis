@@ -17,11 +17,11 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
-from logic.models import DynamicGroup, DynamicGroupSearch, PolicySearch
-from ui.data_table import DataTable
-from ui.helpers import for_display_dynamic_group, for_display_policy
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.models import DynamicGroup, DynamicGroupSearch, PolicySearch
+from oci_policy_analysis.ui.data_table import DataTable
+from oci_policy_analysis.ui.helpers import for_display_dynamic_group, for_display_policy
 
 # Column Data
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'In Use']
@@ -190,7 +190,7 @@ class DynamicGroupsTab(ttk.Frame):
         ).grid(row=0, column=5, padx=5, pady=3)
 
         ttk.Separator(label_frm2, orient=tk.VERTICAL).grid(row=0, column=6, sticky='ns', pady=5)
-        self.label_policy_count = ttk.Label(label_frm2, text='Statements Shown: 0')
+        self.label_policy_count = ttk.Label(label_frm2, text='Policy Statements\n(Shown Below): 0')
         self.label_policy_count.grid(row=0, column=7, padx=5, pady=3)
 
         def dg_selection_callback(selected_rows: list[dict]) -> None:

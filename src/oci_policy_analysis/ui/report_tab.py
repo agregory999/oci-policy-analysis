@@ -17,8 +17,8 @@ import tkinter as tk
 import tkinter.filedialog as fd
 from tkinter import ttk
 
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
 
 logger = get_logger(component='report_tab')
 

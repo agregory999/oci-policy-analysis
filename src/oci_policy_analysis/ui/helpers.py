@@ -1,4 +1,4 @@
-from logic.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
+from oci_policy_analysis.logic.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
 
 
 # Return a display-friendly dict for a policy statement

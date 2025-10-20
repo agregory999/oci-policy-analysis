@@ -19,11 +19,11 @@ import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
 
-from logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
-from logic.logger import get_logger
-from logic.models import PolicySearch
-from ui.data_table import DataTable
-from ui.helpers import for_display_policy
+from oci_policy_analysis.logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.models import PolicySearch
+from oci_policy_analysis.ui.data_table import DataTable
+from oci_policy_analysis.ui.helpers import for_display_policy
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [

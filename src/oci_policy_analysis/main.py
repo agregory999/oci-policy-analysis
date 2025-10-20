@@ -12,40 +12,66 @@
 #
 # coding: utf-8
 ##########################################################################
+##########################################################################
+# Safe startup patches for PyInstaller / FastMCP builds
+##########################################################################
+import importlib.metadata  # noqa: I001
+
+
+# -- Patch importlib.metadata.version to avoid PackageNotFoundError
+def _safe_version(name: str) -> str:
+    try:
+        return importlib.metadata.version(name)
+    except Exception:
+        return '0.0.0'
+
+
+importlib.metadata.version = _safe_version
+
+# -- Ensure fake Rich package works if the real one is missing
+try:
+    import rich  # noqa: F401
+except ModuleNotFoundError:
+    import sys, os  # noqa: E401, I001
+
+    rich_path = os.path.join(os.path.dirname(__file__), 'rich')
+    if os.path.isdir(rich_path):
+        sys.path.insert(0, os.path.dirname(__file__))
+##########################################################################
 
 # Standard library imports
-import argparse
-import asyncio
-import json
-import logging
-import threading
-import time
-import tkinter as tk
-import tkinter.filedialog as tkfiledialog
-import tkinter.font as tkfont
-import webbrowser
-from datetime import datetime
-from tkinter import ttk
-from tkinter.scrolledtext import ScrolledText
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+import tkinter as tk  # noqa: E402
+import tkinter.filedialog as tkfiledialog  # noqa: E402
+import tkinter.font as tkfont  # noqa: E402
+import webbrowser  # noqa: E402
+from datetime import datetime  # noqa: E402
+from tkinter import ttk  # noqa: E402
+from tkinter.scrolledtext import ScrolledText  # noqa: E402
 
 # import markdown
-import markdown2
-from bs4 import BeautifulSoup
-from tkhtmlview import HTMLLabel
-from ttkbootstrap import Window
+import markdown2  # noqa: E402
+from bs4 import BeautifulSoup  # noqa: E402
+from tkhtmlview import HTMLLabel  # noqa: E402
+from ttkbootstrap import Window  # noqa: E402
 
-from logic import config
-from logic.caching import CacheManager
-from logic.data_repo import AI, PolicyAnalysisRepository
-from logic.logger import get_logger, set_log_level
-from ui.cross_tenancy_tab import CrossTenancyTab
-from ui.dynamic_group_tab import DynamicGroupsTab
-from ui.mcp_tab import McpTab
-from ui.policies_tab import PoliciesTab
-from ui.report_tab import ReportTab
-from ui.resource_principals_tab import ResourcePrincipalsTab
-from ui.settings_tab import SettingsTab
-from ui.users_tab import UsersTab
+from oci_policy_analysis.logic import config  # noqa: E402
+from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
+from oci_policy_analysis.logic.data_repo import AI, PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.logic.logger import get_logger, logger, set_log_level  # noqa: E402
+from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
+from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
+from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
+from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
+from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
+from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
+from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
+from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
 
 
 class TextHandler(logging.Handler):
@@ -109,6 +135,7 @@ class App(Window):
         self.style.configure('.', font=('Oracle Sans', 12))
         self.style.configure('TButton', bootstyle='round')  # all buttons get round style
         self.style.configure('TNotebook.Tab', padding=[40, 20, 40, 20])  # notebook tab [left, top, right, bottom]
+        self.style.configure('Treeview', padding=(0, 0, 8, 0))  # (left, top, right, bottom)
 
         # Apply theme & font from settings
         self.apply_theme(self.settings.get('theme', 'Light'))

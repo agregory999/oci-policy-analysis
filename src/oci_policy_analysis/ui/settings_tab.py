@@ -20,11 +20,11 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from logic import config
-from logic.caching import CacheManager
-from logic.data_repo import AI
-from logic.logger import get_logger, set_log_level
-from ui.data_table import DataTable
+from oci_policy_analysis.logic import config
+from oci_policy_analysis.logic.caching import CacheManager
+from oci_policy_analysis.logic.data_repo import AI
+from oci_policy_analysis.logic.logger import get_logger, set_log_level
+from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
 AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']

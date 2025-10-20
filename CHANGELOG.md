@@ -7,6 +7,452 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [1.10.2](https://github.com/agregory999/oci-policy-analysis/compare/v1.10.1...v1.10.2) (2025-10-22)
+
+
+### Bug Fixes
+
+* MCP Server status ([97f2cdb](https://github.com/agregory999/oci-policy-analysis/commit/97f2cdbf43d823d34315abf63ce5a6a8a9fd7463))
+
+## [1.10.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.10.0...v1.10.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* Build no longer uses spec ([760bf61](https://github.com/agregory999/oci-policy-analysis/commit/760bf61213a046bea11106e1cde95dceed7764ff))
+* Build no longer uses spec ([5497b77](https://github.com/agregory999/oci-policy-analysis/commit/5497b77b3ed4948c8d7d8acd156993a3e79eeb68))
+
+## [1.10.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.9.0...v1.10.0) (2025-10-22)
+
+
+### Features
+
+* New spec and Build ([f4d18bf](https://github.com/agregory999/oci-policy-analysis/commit/f4d18bf3e4b2347e8fb7ae8afb6c57bdfbb0ef00))
+
+## [1.9.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.8.0...v1.9.0) (2025-10-22)
+
+
+### Features
+
+* New spec and Build ([20a6c7c](https://github.com/agregory999/oci-policy-analysis/commit/20a6c7c48126541d41d36cb5131fc5f9f196646b))
+
+
+### Bug Fixes
+
+* Executable Embedded ([76a2c0b](https://github.com/agregory999/oci-policy-analysis/commit/76a2c0b1fe0c88100901c356bc606456594e06c8))
+* Executable Embedded - debug ([2246682](https://github.com/agregory999/oci-policy-analysis/commit/2246682aa3ea4fa5d277b38db051dd9cf25912e7))
+* Executable Embedded - exclude binary False ([eb0ce5c](https://github.com/agregory999/oci-policy-analysis/commit/eb0ce5ceecb85a29a84fd573652da6ce4b0a5093))
+* Packaging windows and mac ([91fb429](https://github.com/agregory999/oci-policy-analysis/commit/91fb429082e8d57030d666ee557bac9da8677be6))
+* Packaging windows and mac ([9be9a51](https://github.com/agregory999/oci-policy-analysis/commit/9be9a5155bf4b913bb15b0ea2af23fa489bf746a))
+* Python embedded ([632efea](https://github.com/agregory999/oci-policy-analysis/commit/632efeab6afc9a662fd33615112cda8f8ab541e5))
+* Windows package step ([2f84cb0](https://github.com/agregory999/oci-policy-analysis/commit/2f84cb0ab5cb5d1953a969a93506c93b4df0be6b))
+* Windows package step ([ce6fc9e](https://github.com/agregory999/oci-policy-analysis/commit/ce6fc9e25f462e0f04b059cfc6c73f757a640585))
+
+
+### Miscellaneous Chores
+
+* **release:** 1.8.1 [skip ci] ([3a8d650](https://github.com/agregory999/oci-policy-analysis/commit/3a8d65068a1f4c568d62338c010e5f696a754bab))
+* **release:** 1.8.1 [skip ci] ([b334310](https://github.com/agregory999/oci-policy-analysis/commit/b3343100629b7a7ab5af506f131d8dab6781589d))
+* **release:** 1.8.1 [skip ci] ([a6c2288](https://github.com/agregory999/oci-policy-analysis/commit/a6c2288cfe13c42318ab621c8017134dd013a202))
+* **release:** 1.8.1 [skip ci] ([05a781c](https://github.com/agregory999/oci-policy-analysis/commit/05a781c1256bce704f068e201e74f636d16c856b))
+
+## [1.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.8.0...v1.8.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* Executable Embedded ([76a2c0b](https://github.com/agregory999/oci-policy-analysis/commit/76a2c0b1fe0c88100901c356bc606456594e06c8))
+* Executable Embedded - debug ([2246682](https://github.com/agregory999/oci-policy-analysis/commit/2246682aa3ea4fa5d277b38db051dd9cf25912e7))
+* Executable Embedded - exclude binary False ([eb0ce5c](https://github.com/agregory999/oci-policy-analysis/commit/eb0ce5ceecb85a29a84fd573652da6ce4b0a5093))
+* Packaging windows and mac ([91fb429](https://github.com/agregory999/oci-policy-analysis/commit/91fb429082e8d57030d666ee557bac9da8677be6))
+* Packaging windows and mac ([9be9a51](https://github.com/agregory999/oci-policy-analysis/commit/9be9a5155bf4b913bb15b0ea2af23fa489bf746a))
+* Python embedded ([632efea](https://github.com/agregory999/oci-policy-analysis/commit/632efeab6afc9a662fd33615112cda8f8ab541e5))
+* Windows package step ([2f84cb0](https://github.com/agregory999/oci-policy-analysis/commit/2f84cb0ab5cb5d1953a969a93506c93b4df0be6b))
+* Windows package step ([ce6fc9e](https://github.com/agregory999/oci-policy-analysis/commit/ce6fc9e25f462e0f04b059cfc6c73f757a640585))
+
+
+### Miscellaneous Chores
+
+* **release:** 1.8.1 [skip ci] ([b334310](https://github.com/agregory999/oci-policy-analysis/commit/b3343100629b7a7ab5af506f131d8dab6781589d))
+* **release:** 1.8.1 [skip ci] ([a6c2288](https://github.com/agregory999/oci-policy-analysis/commit/a6c2288cfe13c42318ab621c8017134dd013a202))
+* **release:** 1.8.1 [skip ci] ([05a781c](https://github.com/agregory999/oci-policy-analysis/commit/05a781c1256bce704f068e201e74f636d16c856b))
+
+## [1.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.8.0...v1.8.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* Executable Embedded ([76a2c0b](https://github.com/agregory999/oci-policy-analysis/commit/76a2c0b1fe0c88100901c356bc606456594e06c8))
+* Executable Embedded - debug ([2246682](https://github.com/agregory999/oci-policy-analysis/commit/2246682aa3ea4fa5d277b38db051dd9cf25912e7))
+* Packaging windows and mac ([91fb429](https://github.com/agregory999/oci-policy-analysis/commit/91fb429082e8d57030d666ee557bac9da8677be6))
+* Packaging windows and mac ([9be9a51](https://github.com/agregory999/oci-policy-analysis/commit/9be9a5155bf4b913bb15b0ea2af23fa489bf746a))
+* Python embedded ([632efea](https://github.com/agregory999/oci-policy-analysis/commit/632efeab6afc9a662fd33615112cda8f8ab541e5))
+* Windows package step ([2f84cb0](https://github.com/agregory999/oci-policy-analysis/commit/2f84cb0ab5cb5d1953a969a93506c93b4df0be6b))
+* Windows package step ([ce6fc9e](https://github.com/agregory999/oci-policy-analysis/commit/ce6fc9e25f462e0f04b059cfc6c73f757a640585))
+
+
+### Miscellaneous Chores
+
+* **release:** 1.8.1 [skip ci] ([a6c2288](https://github.com/agregory999/oci-policy-analysis/commit/a6c2288cfe13c42318ab621c8017134dd013a202))
+* **release:** 1.8.1 [skip ci] ([05a781c](https://github.com/agregory999/oci-policy-analysis/commit/05a781c1256bce704f068e201e74f636d16c856b))
+
+## [1.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.8.0...v1.8.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* Executable Embedded ([76a2c0b](https://github.com/agregory999/oci-policy-analysis/commit/76a2c0b1fe0c88100901c356bc606456594e06c8))
+* Packaging windows and mac ([91fb429](https://github.com/agregory999/oci-policy-analysis/commit/91fb429082e8d57030d666ee557bac9da8677be6))
+* Packaging windows and mac ([9be9a51](https://github.com/agregory999/oci-policy-analysis/commit/9be9a5155bf4b913bb15b0ea2af23fa489bf746a))
+* Python embedded ([632efea](https://github.com/agregory999/oci-policy-analysis/commit/632efeab6afc9a662fd33615112cda8f8ab541e5))
+* Windows package step ([2f84cb0](https://github.com/agregory999/oci-policy-analysis/commit/2f84cb0ab5cb5d1953a969a93506c93b4df0be6b))
+* Windows package step ([ce6fc9e](https://github.com/agregory999/oci-policy-analysis/commit/ce6fc9e25f462e0f04b059cfc6c73f757a640585))
+
+
+### Miscellaneous Chores
+
+* **release:** 1.8.1 [skip ci] ([05a781c](https://github.com/agregory999/oci-policy-analysis/commit/05a781c1256bce704f068e201e74f636d16c856b))
+
+## [1.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.8.0...v1.8.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* Packaging windows and mac ([91fb429](https://github.com/agregory999/oci-policy-analysis/commit/91fb429082e8d57030d666ee557bac9da8677be6))
+* Packaging windows and mac ([9be9a51](https://github.com/agregory999/oci-policy-analysis/commit/9be9a5155bf4b913bb15b0ea2af23fa489bf746a))
+* Python embedded ([632efea](https://github.com/agregory999/oci-policy-analysis/commit/632efeab6afc9a662fd33615112cda8f8ab541e5))
+* Windows package step ([2f84cb0](https://github.com/agregory999/oci-policy-analysis/commit/2f84cb0ab5cb5d1953a969a93506c93b4df0be6b))
+* Windows package step ([ce6fc9e](https://github.com/agregory999/oci-policy-analysis/commit/ce6fc9e25f462e0f04b059cfc6c73f757a640585))
+
+## [1.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.7.0...v1.8.0) (2025-10-22)
+
+
+### Features
+
+* Cleaner execuables ([74b9da5](https://github.com/agregory999/oci-policy-analysis/commit/74b9da5fda55d5cca8507896c7fb896545ce7398))
+* Cleaner execuables with icon fix ([99afe09](https://github.com/agregory999/oci-policy-analysis/commit/99afe0935d6b6cc510c141f8fbb435d8c301adae))
+* Cleaner execuables with icon fix ([3550154](https://github.com/agregory999/oci-policy-analysis/commit/35501548fba328bd8d679c269fa7f099f480a269))
+
+
+### Bug Fixes
+
+* Packaging windows and mac ([e03b9ea](https://github.com/agregory999/oci-policy-analysis/commit/e03b9ead8517da5bebb6645eae86ab589e0a05f8))
+
+
+### Miscellaneous Chores
+
+* re-release ([0938132](https://github.com/agregory999/oci-policy-analysis/commit/09381327078099931c432d200be24e5dab75459c))
+* **release:** 1.8.0 [skip ci] ([d257ddc](https://github.com/agregory999/oci-policy-analysis/commit/d257ddcbb66add8edc03dda0178fe3abbb145854))
+* **release:** 1.8.0 [skip ci] ([4113512](https://github.com/agregory999/oci-policy-analysis/commit/411351208a43b06acd7b82af79d12bfb1733b7e0))
+* **release:** 1.8.0 [skip ci] ([6fc77f3](https://github.com/agregory999/oci-policy-analysis/commit/6fc77f32f1a16382e21b1dbda7b656a275d02803))
+
+## [1.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.7.0...v1.8.0) (2025-10-22)
+
+
+### Features
+
+* Cleaner execuables ([74b9da5](https://github.com/agregory999/oci-policy-analysis/commit/74b9da5fda55d5cca8507896c7fb896545ce7398))
+* Cleaner execuables with icon fix ([99afe09](https://github.com/agregory999/oci-policy-analysis/commit/99afe0935d6b6cc510c141f8fbb435d8c301adae))
+* Cleaner execuables with icon fix ([3550154](https://github.com/agregory999/oci-policy-analysis/commit/35501548fba328bd8d679c269fa7f099f480a269))
+
+
+### Miscellaneous Chores
+
+* re-release ([0938132](https://github.com/agregory999/oci-policy-analysis/commit/09381327078099931c432d200be24e5dab75459c))
+* **release:** 1.8.0 [skip ci] ([4113512](https://github.com/agregory999/oci-policy-analysis/commit/411351208a43b06acd7b82af79d12bfb1733b7e0))
+* **release:** 1.8.0 [skip ci] ([6fc77f3](https://github.com/agregory999/oci-policy-analysis/commit/6fc77f32f1a16382e21b1dbda7b656a275d02803))
+
+## [1.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.7.0...v1.8.0) (2025-10-22)
+
+
+### Features
+
+* Cleaner execuables ([74b9da5](https://github.com/agregory999/oci-policy-analysis/commit/74b9da5fda55d5cca8507896c7fb896545ce7398))
+* Cleaner execuables with icon fix ([99afe09](https://github.com/agregory999/oci-policy-analysis/commit/99afe0935d6b6cc510c141f8fbb435d8c301adae))
+* Cleaner execuables with icon fix ([3550154](https://github.com/agregory999/oci-policy-analysis/commit/35501548fba328bd8d679c269fa7f099f480a269))
+
+
+### Miscellaneous Chores
+
+* re-release ([0938132](https://github.com/agregory999/oci-policy-analysis/commit/09381327078099931c432d200be24e5dab75459c))
+* **release:** 1.8.0 [skip ci] ([6fc77f3](https://github.com/agregory999/oci-policy-analysis/commit/6fc77f32f1a16382e21b1dbda7b656a275d02803))
+
+## [1.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.7.0...v1.8.0) (2025-10-22)
+
+
+### Features
+
+* Cleaner execuables ([74b9da5](https://github.com/agregory999/oci-policy-analysis/commit/74b9da5fda55d5cca8507896c7fb896545ce7398))
+* Cleaner execuables with icon fix ([3550154](https://github.com/agregory999/oci-policy-analysis/commit/35501548fba328bd8d679c269fa7f099f480a269))
+
+
+### Miscellaneous Chores
+
+* re-release ([0938132](https://github.com/agregory999/oci-policy-analysis/commit/09381327078099931c432d200be24e5dab75459c))
+
+## [1.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.9...v1.7.0) (2025-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* release new major version
+* release new major version
+* Force 2.0\nBREAKING CHANGE: create new major
+* New packaging and Build structure
+
+### Features
+
+* New packaging and Build structure ([2362171](https://github.com/agregory999/oci-policy-analysis/commit/236217124e6e333e63ff4217d5dd58ce29a51b08))
+* Update Build number ([caa6aea](https://github.com/agregory999/oci-policy-analysis/commit/caa6aeabbc474170a1a3460ffcedf9d2aaa13a98))
+
+
+### Bug Fixes
+
+* Build python version ([4925c34](https://github.com/agregory999/oci-policy-analysis/commit/4925c342f28b4de0015640766552f2ef86a56d92))
+* Build python version ([bf7bbe8](https://github.com/agregory999/oci-policy-analysis/commit/bf7bbe8ac50c28005a9719ee8da050cd041eec13))
+* Build python version ([0e1b7f0](https://github.com/agregory999/oci-policy-analysis/commit/0e1b7f0390c0fa87b0f4ee7e3b4d936602454095))
+* new build flow for ease of use ([a350b53](https://github.com/agregory999/oci-policy-analysis/commit/a350b532d2526fe96ff03e550c2bfffbaa8c4e2f))
+* new build flow for ease of use ([dd0d39f](https://github.com/agregory999/oci-policy-analysis/commit/dd0d39f51d1942b37ab966fb92f12ab261d97dd7))
+* new build flow for ease of use ([f69a43c](https://github.com/agregory999/oci-policy-analysis/commit/f69a43c18f09ccc1e580fa27eb8e9e6ba5ea08d9))
+* Separate spec per platform ([47da940](https://github.com/agregory999/oci-policy-analysis/commit/47da940698ce90f390127d8f2c207dcaf8d130af))
+* Separate spec per platform ([a3c6ea7](https://github.com/agregory999/oci-policy-analysis/commit/a3c6ea7197e5e4bda288a4a7001b6204fb989b40))
+* spec files ([b0fc1e3](https://github.com/agregory999/oci-policy-analysis/commit/b0fc1e37f1a3991ed15571a367d1d8cd7f2f509b))
+* spec files ([f339eef](https://github.com/agregory999/oci-policy-analysis/commit/f339eef2bd2077f17c6a0b2c4cb5d568befeb7c2))
+
+
+### Miscellaneous Chores
+
+* build fix NPM ([b627749](https://github.com/agregory999/oci-policy-analysis/commit/b627749690742155884d72e36f6c3dfd995d315d))
+* Force 2.0\nBREAKING CHANGE: create new major ([e7b44cc](https://github.com/agregory999/oci-policy-analysis/commit/e7b44ccfbc6858e03d5d29242aa7f4c66f9d95c3))
+* force major bump ([adb4c53](https://github.com/agregory999/oci-policy-analysis/commit/adb4c537c8c28743d546caa0ab036379ec4f283e))
+* force major bump ([8d2f015](https://github.com/agregory999/oci-policy-analysis/commit/8d2f015c1b039c869e546aca58dc8a3b7783bb2b))
+* **release:** 1.7.0 [skip ci] ([410a723](https://github.com/agregory999/oci-policy-analysis/commit/410a7232b7db824b40c1edbe670ee035cdf5e557))
+* **release:** 1.7.0 [skip ci] ([eedebba](https://github.com/agregory999/oci-policy-analysis/commit/eedebba00298023b68f947c4259848ca460df6f3))
+* **release:** 1.7.0 [skip ci] ([6a467ca](https://github.com/agregory999/oci-policy-analysis/commit/6a467cab62cbaf6d6c8f35138361b439be73406a))
+* **release:** 1.7.0 [skip ci] ([2ef0a4b](https://github.com/agregory999/oci-policy-analysis/commit/2ef0a4bfb276421566ee64e9d1054ede95fe0b32))
+
+## [1.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.9...v1.7.0) (2025-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* release new major version
+* release new major version
+* Force 2.0\nBREAKING CHANGE: create new major
+* New packaging and Build structure
+
+### Features
+
+* New packaging and Build structure ([2362171](https://github.com/agregory999/oci-policy-analysis/commit/236217124e6e333e63ff4217d5dd58ce29a51b08))
+* Update Build number ([caa6aea](https://github.com/agregory999/oci-policy-analysis/commit/caa6aeabbc474170a1a3460ffcedf9d2aaa13a98))
+
+
+### Bug Fixes
+
+* Build python version ([4925c34](https://github.com/agregory999/oci-policy-analysis/commit/4925c342f28b4de0015640766552f2ef86a56d92))
+* Build python version ([bf7bbe8](https://github.com/agregory999/oci-policy-analysis/commit/bf7bbe8ac50c28005a9719ee8da050cd041eec13))
+* Build python version ([0e1b7f0](https://github.com/agregory999/oci-policy-analysis/commit/0e1b7f0390c0fa87b0f4ee7e3b4d936602454095))
+* new build flow for ease of use ([a350b53](https://github.com/agregory999/oci-policy-analysis/commit/a350b532d2526fe96ff03e550c2bfffbaa8c4e2f))
+* new build flow for ease of use ([dd0d39f](https://github.com/agregory999/oci-policy-analysis/commit/dd0d39f51d1942b37ab966fb92f12ab261d97dd7))
+* new build flow for ease of use ([f69a43c](https://github.com/agregory999/oci-policy-analysis/commit/f69a43c18f09ccc1e580fa27eb8e9e6ba5ea08d9))
+* Separate spec per platform ([47da940](https://github.com/agregory999/oci-policy-analysis/commit/47da940698ce90f390127d8f2c207dcaf8d130af))
+* Separate spec per platform ([a3c6ea7](https://github.com/agregory999/oci-policy-analysis/commit/a3c6ea7197e5e4bda288a4a7001b6204fb989b40))
+* spec files ([b0fc1e3](https://github.com/agregory999/oci-policy-analysis/commit/b0fc1e37f1a3991ed15571a367d1d8cd7f2f509b))
+* spec files ([f339eef](https://github.com/agregory999/oci-policy-analysis/commit/f339eef2bd2077f17c6a0b2c4cb5d568befeb7c2))
+
+
+### Miscellaneous Chores
+
+* build fix NPM ([b627749](https://github.com/agregory999/oci-policy-analysis/commit/b627749690742155884d72e36f6c3dfd995d315d))
+* Force 2.0\nBREAKING CHANGE: create new major ([e7b44cc](https://github.com/agregory999/oci-policy-analysis/commit/e7b44ccfbc6858e03d5d29242aa7f4c66f9d95c3))
+* force major bump ([adb4c53](https://github.com/agregory999/oci-policy-analysis/commit/adb4c537c8c28743d546caa0ab036379ec4f283e))
+* force major bump ([8d2f015](https://github.com/agregory999/oci-policy-analysis/commit/8d2f015c1b039c869e546aca58dc8a3b7783bb2b))
+* **release:** 1.7.0 [skip ci] ([eedebba](https://github.com/agregory999/oci-policy-analysis/commit/eedebba00298023b68f947c4259848ca460df6f3))
+* **release:** 1.7.0 [skip ci] ([6a467ca](https://github.com/agregory999/oci-policy-analysis/commit/6a467cab62cbaf6d6c8f35138361b439be73406a))
+* **release:** 1.7.0 [skip ci] ([2ef0a4b](https://github.com/agregory999/oci-policy-analysis/commit/2ef0a4bfb276421566ee64e9d1054ede95fe0b32))
+
+## [1.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.9...v1.7.0) (2025-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* release new major version
+* Force 2.0\nBREAKING CHANGE: create new major
+* New packaging and Build structure
+
+### Features
+
+* New packaging and Build structure ([2362171](https://github.com/agregory999/oci-policy-analysis/commit/236217124e6e333e63ff4217d5dd58ce29a51b08))
+* Update Build number ([caa6aea](https://github.com/agregory999/oci-policy-analysis/commit/caa6aeabbc474170a1a3460ffcedf9d2aaa13a98))
+
+
+### Bug Fixes
+
+* Build python version ([4925c34](https://github.com/agregory999/oci-policy-analysis/commit/4925c342f28b4de0015640766552f2ef86a56d92))
+* Build python version ([bf7bbe8](https://github.com/agregory999/oci-policy-analysis/commit/bf7bbe8ac50c28005a9719ee8da050cd041eec13))
+* Build python version ([0e1b7f0](https://github.com/agregory999/oci-policy-analysis/commit/0e1b7f0390c0fa87b0f4ee7e3b4d936602454095))
+* new build flow for ease of use ([a350b53](https://github.com/agregory999/oci-policy-analysis/commit/a350b532d2526fe96ff03e550c2bfffbaa8c4e2f))
+* new build flow for ease of use ([dd0d39f](https://github.com/agregory999/oci-policy-analysis/commit/dd0d39f51d1942b37ab966fb92f12ab261d97dd7))
+* new build flow for ease of use ([f69a43c](https://github.com/agregory999/oci-policy-analysis/commit/f69a43c18f09ccc1e580fa27eb8e9e6ba5ea08d9))
+* Separate spec per platform ([47da940](https://github.com/agregory999/oci-policy-analysis/commit/47da940698ce90f390127d8f2c207dcaf8d130af))
+* Separate spec per platform ([a3c6ea7](https://github.com/agregory999/oci-policy-analysis/commit/a3c6ea7197e5e4bda288a4a7001b6204fb989b40))
+* spec files ([b0fc1e3](https://github.com/agregory999/oci-policy-analysis/commit/b0fc1e37f1a3991ed15571a367d1d8cd7f2f509b))
+* spec files ([f339eef](https://github.com/agregory999/oci-policy-analysis/commit/f339eef2bd2077f17c6a0b2c4cb5d568befeb7c2))
+
+
+### Miscellaneous Chores
+
+* Force 2.0\nBREAKING CHANGE: create new major ([e7b44cc](https://github.com/agregory999/oci-policy-analysis/commit/e7b44ccfbc6858e03d5d29242aa7f4c66f9d95c3))
+* force major bump ([8d2f015](https://github.com/agregory999/oci-policy-analysis/commit/8d2f015c1b039c869e546aca58dc8a3b7783bb2b))
+* **release:** 1.7.0 [skip ci] ([6a467ca](https://github.com/agregory999/oci-policy-analysis/commit/6a467cab62cbaf6d6c8f35138361b439be73406a))
+* **release:** 1.7.0 [skip ci] ([2ef0a4b](https://github.com/agregory999/oci-policy-analysis/commit/2ef0a4bfb276421566ee64e9d1054ede95fe0b32))
+
+## [1.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.9...v1.7.0) (2025-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* Force 2.0\nBREAKING CHANGE: create new major
+* New packaging and Build structure
+
+### Features
+
+* New packaging and Build structure ([2362171](https://github.com/agregory999/oci-policy-analysis/commit/236217124e6e333e63ff4217d5dd58ce29a51b08))
+* Update Build number ([caa6aea](https://github.com/agregory999/oci-policy-analysis/commit/caa6aeabbc474170a1a3460ffcedf9d2aaa13a98))
+
+
+### Bug Fixes
+
+* Build python version ([4925c34](https://github.com/agregory999/oci-policy-analysis/commit/4925c342f28b4de0015640766552f2ef86a56d92))
+* Build python version ([bf7bbe8](https://github.com/agregory999/oci-policy-analysis/commit/bf7bbe8ac50c28005a9719ee8da050cd041eec13))
+* Build python version ([0e1b7f0](https://github.com/agregory999/oci-policy-analysis/commit/0e1b7f0390c0fa87b0f4ee7e3b4d936602454095))
+* new build flow for ease of use ([a350b53](https://github.com/agregory999/oci-policy-analysis/commit/a350b532d2526fe96ff03e550c2bfffbaa8c4e2f))
+* new build flow for ease of use ([dd0d39f](https://github.com/agregory999/oci-policy-analysis/commit/dd0d39f51d1942b37ab966fb92f12ab261d97dd7))
+* new build flow for ease of use ([f69a43c](https://github.com/agregory999/oci-policy-analysis/commit/f69a43c18f09ccc1e580fa27eb8e9e6ba5ea08d9))
+* Separate spec per platform ([47da940](https://github.com/agregory999/oci-policy-analysis/commit/47da940698ce90f390127d8f2c207dcaf8d130af))
+* Separate spec per platform ([a3c6ea7](https://github.com/agregory999/oci-policy-analysis/commit/a3c6ea7197e5e4bda288a4a7001b6204fb989b40))
+* spec files ([b0fc1e3](https://github.com/agregory999/oci-policy-analysis/commit/b0fc1e37f1a3991ed15571a367d1d8cd7f2f509b))
+* spec files ([f339eef](https://github.com/agregory999/oci-policy-analysis/commit/f339eef2bd2077f17c6a0b2c4cb5d568befeb7c2))
+
+
+### Miscellaneous Chores
+
+* Force 2.0\nBREAKING CHANGE: create new major ([e7b44cc](https://github.com/agregory999/oci-policy-analysis/commit/e7b44ccfbc6858e03d5d29242aa7f4c66f9d95c3))
+* **release:** 1.7.0 [skip ci] ([2ef0a4b](https://github.com/agregory999/oci-policy-analysis/commit/2ef0a4bfb276421566ee64e9d1054ede95fe0b32))
+
+## [1.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.9...v1.7.0) (2025-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* New packaging and Build structure
+
+### Features
+
+* New packaging and Build structure ([2362171](https://github.com/agregory999/oci-policy-analysis/commit/236217124e6e333e63ff4217d5dd58ce29a51b08))
+* Update Build number ([caa6aea](https://github.com/agregory999/oci-policy-analysis/commit/caa6aeabbc474170a1a3460ffcedf9d2aaa13a98))
+
+
+### Bug Fixes
+
+* Build python version ([4925c34](https://github.com/agregory999/oci-policy-analysis/commit/4925c342f28b4de0015640766552f2ef86a56d92))
+* Build python version ([bf7bbe8](https://github.com/agregory999/oci-policy-analysis/commit/bf7bbe8ac50c28005a9719ee8da050cd041eec13))
+* Build python version ([0e1b7f0](https://github.com/agregory999/oci-policy-analysis/commit/0e1b7f0390c0fa87b0f4ee7e3b4d936602454095))
+* new build flow for ease of use ([a350b53](https://github.com/agregory999/oci-policy-analysis/commit/a350b532d2526fe96ff03e550c2bfffbaa8c4e2f))
+* new build flow for ease of use ([dd0d39f](https://github.com/agregory999/oci-policy-analysis/commit/dd0d39f51d1942b37ab966fb92f12ab261d97dd7))
+* new build flow for ease of use ([f69a43c](https://github.com/agregory999/oci-policy-analysis/commit/f69a43c18f09ccc1e580fa27eb8e9e6ba5ea08d9))
+* Separate spec per platform ([47da940](https://github.com/agregory999/oci-policy-analysis/commit/47da940698ce90f390127d8f2c207dcaf8d130af))
+* Separate spec per platform ([a3c6ea7](https://github.com/agregory999/oci-policy-analysis/commit/a3c6ea7197e5e4bda288a4a7001b6204fb989b40))
+* spec files ([b0fc1e3](https://github.com/agregory999/oci-policy-analysis/commit/b0fc1e37f1a3991ed15571a367d1d8cd7f2f509b))
+* spec files ([f339eef](https://github.com/agregory999/oci-policy-analysis/commit/f339eef2bd2077f17c6a0b2c4cb5d568befeb7c2))
+
+## [1.6.9](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.8...v1.6.9) (2025-10-21)
+
+
+### Bug Fixes
+
+* build spec OSX ([89c0eef](https://github.com/agregory999/oci-policy-analysis/commit/89c0eefb2cb45354779641fd8430d98db6c3b5a6))
+
+## [1.6.8](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.7...v1.6.8) (2025-10-21)
+
+
+### Bug Fixes
+
+* updated macholib ([dae943f](https://github.com/agregory999/oci-policy-analysis/commit/dae943fd61d48db53eb8cd64eb728640f2aaaea7))
+
+## [1.6.7](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.6...v1.6.7) (2025-10-21)
+
+
+### Bug Fixes
+
+* build and merge ([10f6ca0](https://github.com/agregory999/oci-policy-analysis/commit/10f6ca025e3e9401af98905cc87b38f8b9b7dc79))
+* build spec merge issue ([05295f9](https://github.com/agregory999/oci-policy-analysis/commit/05295f915e13e0d30c8e6cae1b9d1288ed9bc483))
+
+## [1.6.6](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.5...v1.6.6) (2025-10-21)
+
+
+### Bug Fixes
+
+* build ([fd14f19](https://github.com/agregory999/oci-policy-analysis/commit/fd14f19927e4a237d55b2e28a95fb9c74f61033d))
+
+## [1.6.5](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.4...v1.6.5) (2025-10-21)
+
+
+### Bug Fixes
+
+* build ([dc0d6be](https://github.com/agregory999/oci-policy-analysis/commit/dc0d6be7aa7d9bf88176acdb23bb5e60a9394dc7))
+* build ([cddd2ee](https://github.com/agregory999/oci-policy-analysis/commit/cddd2ee87c68ccd56caedf51c860c0241e89e955))
+
+## [1.6.4](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.3...v1.6.4) (2025-10-21)
+
+
+### Bug Fixes
+
+* pyinstaller and fastmcp and rich play together ([29baafa](https://github.com/agregory999/oci-policy-analysis/commit/29baafa1dd1857a2da7ce1a765cd3e3b3f5798f7))
+* pyinstaller and fastmcp and rich play together ([b07d958](https://github.com/agregory999/oci-policy-analysis/commit/b07d95806cc52c3eff45775db79e45ab02f741e7))
+
+## [1.6.3](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.2...v1.6.3) (2025-10-20)
+
+
+### Bug Fixes
+
+* dependencies ([c19df6a](https://github.com/agregory999/oci-policy-analysis/commit/c19df6aec83d3b44d48839ca2ceac2e57e21e1fe))
+
+## [1.6.2](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.1...v1.6.2) (2025-10-20)
+
+
+### Bug Fixes
+
+* mac build ([ec574c6](https://github.com/agregory999/oci-policy-analysis/commit/ec574c63bf92781991f7562b77ae01dff2dddf72))
+* Project files ([13c0bf9](https://github.com/agregory999/oci-policy-analysis/commit/13c0bf9e22f7d0c8c9db2caa206b753fc93eb880))
+
+## [1.6.1](https://github.com/agregory999/oci-policy-analysis/compare/v1.6.0...v1.6.1) (2025-10-20)
+
+
+### Bug Fixes
+
+* build needs 3.12 ([9918944](https://github.com/agregory999/oci-policy-analysis/commit/9918944b738d6c975b63dc1b8a2b1a1865fd4f37))
+* Project files ([b7b1ecc](https://github.com/agregory999/oci-policy-analysis/commit/b7b1ecc8fb94c59ba7f19b354f32bb71dacac513))
+
+## [1.6.0](https://github.com/agregory999/oci-policy-analysis/compare/v1.5.2...v1.6.0) (2025-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* New code for MCP server and restructured data
+
+### Features
+
+* New code for MCP server and restructured data ([7c9c461](https://github.com/agregory999/oci-policy-analysis/commit/7c9c46181f8451dd8921caef96c912bd71e52b60))
+
+
+### Miscellaneous Chores
+
+* build with specific pyinstaller ([91600d6](https://github.com/agregory999/oci-policy-analysis/commit/91600d61cef5041c880de29e7b1bdbc0284fb91f))
+* original icons ([ce15933](https://github.com/agregory999/oci-policy-analysis/commit/ce15933a96787bc16101d4ffda24593bc1ff8d0b))
+* remove bootstyles ([f999ecb](https://github.com/agregory999/oci-policy-analysis/commit/f999ecb18865fd5ec9672fc87337e471bedc4b89))
+* tk window creation ([6dce612](https://github.com/agregory999/oci-policy-analysis/commit/6dce612194f426399ba154af8252dffc114b9457))
+
 ## [1.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v1.5.1...v1.5.2) (2025-09-27)
 
 
