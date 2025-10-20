@@ -1,0 +1,36 @@
+Filters:
+
+User (Exact):
+{"exact_users":[{"user_name":"andrew.gregory@oracle.com", "domain_name":"Default"}]}
+{"exact_users":[{"user_name":"andrew.gregory@oracle.com", "domain_name":"Default"}, {"user_name":"andrew.gregory@oracle.com", "domain_name":"Default"}]}
+{"exact_users":[{"user_name":"andrew.gregory@oracle.com", "domain_name":"Default"}, {"user_name":"andrew.gregory@oracle.com", "domain_name":"cloud-engineering-domain"}]}
+
+User (Fuzzy):
+{"search_users":{"search":["andrew.gregory"], "domain_name":["default"]}}
+{"search_users":{"search":["andrew.gregory"]}}
+{"search_users":{"search":["andrew.gregory","andrew"], "domain_name":["default"]}}
+{"search_users":{"search":["andrew.gregory"], "user_ocid":["p57w"]}}
+{"search_users":{"search":["andrew.gregory","jennings"], "user_ocid":["4qa","p57q"]}}
+
+Group (Exact):
+{"exact_groups":[{"group_name":"PolicyAuditorGroup"}]}
+{"exact_groups":[{"group_name":"PolicyAuditorGroup", "domain_name":"Default"}]}
+{"exact_groups":[{"group_name":"PolicyAuditorGroup"}], "permission":["group"]}
+
+Group (Fuzzy):
+{"search_groups":{"group_name":["PolicyAuditorGroup"], "domain_name":["default"]}}
+{"search_groups":{"group_name":["PolicyAuditorGroup","Admin"], "domain_name":["default"]}}
+{"search_groups":{"group_name":["PolicyAuditorGroup"]}}
+Dynamic Group (Exact):
+
+{"exact_dynamic_groups":[{"domain_name":"DefaulT", "dynamic_group_name":"all-osmh-instanceS"}]}
+{"exact_dynamic_groups":[{"domain_name":None, "dynamic_group_name":"all-osmh-instanceS"}]}
+
+Dynamic Group (Fuzzy):
+{"search_dynamic_groups":{"dynamic_group_name":["all-osmh-instances"], "domain_name":["default"]}}
+{"search_dynamic_groups":{"dynamic_group_name":["all-osmh-instances","all-r"], "domain_name":["default"]}}
+{"search_dynamic_groups":{"matching_rule":["suiha"], "domain_name":["cloud-engineering-domain"]}}
+
+MCP:
+search for all policy statements where the dynamic group is exactly default / all-data-catalog-dg
+search for all policy statements where the dynamic group name contains "all-" and is in the default domain

@@ -1,20 +1,43 @@
-.venv
-__pycache__
+# .gitignore — OCI Policy Analysis
+
+# --- Python cache & virtualenv ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.env/
+.venv/
+venv/
+env/
+
+# --- Build outputs ---
 build/
 dist/
-src/oci_policy_dg_viewer/_version.py
-*.egg-info/
-*.pyc
-pycache/
-icons/
-**/.DS_Store
-images/.$icon_source.drawio.bkp
+wheelhouse/
+*.spec
+*.log
 
-# Sphinx
-docs/_build/
-_build/
-docs/_autosummary/
-_autosummary/
-# Sphinx cache files
-docs/.doctrees/
-docs/.buildinfo
+# --- OS & Editor files ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.bak
+*.tmp
+
+# --- Ruff & MyPy caches ---
+.ruff_cache/
+.mypy_cache/
+
+# --- Local artifacts ---
+src/sample/
+local_build.sh
+local_build.ps1
+
+# --- GitHub & CI ---
+# Keep workflow files
+!.github/workflows/
+# Ignore everything else under .github that isn't a workflow
+.github/*
+!.github/workflows/*

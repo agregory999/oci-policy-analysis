@@ -1,0 +1,38 @@
+# MANIFEST.in — include only what is needed for builds
+
+# --- Include core source tree ---
+recursive-include src/oci_policy_analysis *.py
+recursive-include src/oci_policy_analysis/ui *
+recursive-include src/oci_policy_analysis/logic *
+
+# --- Include non-code resources if needed ---
+recursive-include icons *
+recursive-include templates *
+
+# --- Include metadata files ---
+include pyproject.toml
+include README.md
+include LICENSE*
+include CHANGELOG.md
+
+# --- Exclude local and temporary stuff ---
+exclude *.spec
+exclude *.sh
+exclude *.ps1
+exclude *.bat
+exclude *.pyc
+exclude *.pyo
+exclude *.log
+exclude .DS_Store
+exclude .env
+exclude Pipfile*
+exclude poetry.lock
+
+# --- Exclude directories that should never be packaged ---
+prune dist
+prune build
+prune .github
+prune .idea
+prune .vscode
+prune tests
+prune src/sample

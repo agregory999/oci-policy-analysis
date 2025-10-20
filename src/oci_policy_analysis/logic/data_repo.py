@@ -49,8 +49,8 @@ from oci.loggingsearch import LogSearchClient
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.signer import load_private_key_from_file
 
-from logic.logger import get_logger
-from logic.models import (
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.models import (
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,

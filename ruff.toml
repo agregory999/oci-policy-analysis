@@ -1,0 +1,23 @@
+# ruff.toml — standalone linter configuration
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = [
+    "E", "W", "F", "I", "B", "C", "UP",
+]
+ignore = ["E501"]
+
+[format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "src/sample",
+]

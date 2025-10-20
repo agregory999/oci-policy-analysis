@@ -16,11 +16,11 @@
 import tkinter as tk
 from tkinter import ttk
 
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
-from logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
-from ui.data_table import DataTable
-from ui.helpers import for_display_group, for_display_policy, for_display_user
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
+from oci_policy_analysis.ui.data_table import DataTable
+from oci_policy_analysis.ui.helpers import for_display_group, for_display_policy, for_display_user
 
 # Global logger for this module
 logger = get_logger(component='users_tab')

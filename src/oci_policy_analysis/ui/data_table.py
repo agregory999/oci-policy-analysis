@@ -12,16 +12,13 @@
 #
 # coding: utf-8
 ##########################################################################
-import logging
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
-# Configure global logger
-logging.basicConfig(
-    level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger('data_table')
+from oci_policy_analysis.logic.logger import get_logger
+
+logger = get_logger(component='data_table')
 
 
 class DataTable(tk.Frame):
@@ -322,161 +319,6 @@ class DataTable(tk.Frame):
         Args:
             new_data: List of dictionaries containing new row data.
         """
-        logger.info('Updating data with %d rows', len(new_data))
+        logger.debug('Updating data with %d rows', len(new_data))
         self.data = new_data
         self._populate_data()
-
-
-# Example usage
-if __name__ == '__main__':
-    root = tk.Tk()
-    root.title('Data Table Example')
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-
-    # External style configuration with right padding
-    style = ttk.Style()
-    style.configure('Treeview', font=('Helvetica', 8), rowheight=28, padding=(0, 0, 5, 0))
-    style.configure('Treeview.Heading', font=('Helvetica', 8))
-
-    columns = ['Name', 'Age', 'City', 'Country', 'Occupation', 'Salary']
-    display_columns = ['Name', 'City', 'Occupation']
-    data = [
-        {
-            'Name': 'Alice',
-            'Age': 25,
-            'City': 'New York\nManhattan\nTimes Square',
-            'Country': 'USA',
-            'Occupation': 'Engineer',
-            'Salary': 75000,
-        },
-        {
-            'Name': 'Bob',
-            'Age': 30,
-            'City': 'London',
-            'Country': 'UK',
-            'Occupation': 'Designer\nSenior\nLead',
-            'Salary': 65000,
-        },
-        {'Name': 'Charlie', 'Age': 35, 'City': 'Paris', 'Country': 'France', 'Occupation': 'Teacher', 'Salary': 55000},
-        {
-            'Name': 'David',
-            'Age': 28,
-            'City': 'Tokyo\nShibuya',
-            'Country': 'Japan',
-            'Occupation': 'Developer',
-            'Salary': 80000,
-        },
-    ]
-    column_widths = {
-        'Name': 150,
-        'City': 200,
-        'Occupation': 200,
-        'Country': 100,
-        'Age': 80,
-        'Salary': 100,
-    }
-
-    def row_context_menu_callback(row_index: int) -> tk.Menu:
-        menu = tk.Menu(root, tearoff=0)
-        menu.add_command(
-            label=f'View Details (Row {row_index})',
-            command=lambda: print(f'View details for row {row_index}: {data[row_index]}'),
-        )
-        menu.add_command(label=f'Delete Row {row_index}', command=lambda: print(f'Delete row {row_index}'))
-        return menu
-
-    table = DataTable(
-        root,
-        columns=columns,
-        display_columns=display_columns,
-        data=data,
-        column_widths=column_widths,
-        multi_select=True,
-        row_context_menu_callback=row_context_menu_callback,
-    )
-    table.grid(row=0, column=0, sticky='nsew')
-
-    # External controls frame
-    controls_frame = tk.Frame(root)
-    controls_frame.grid(row=1, column=0, sticky='ew', pady=5)
-    controls_frame.grid_columnconfigure(0, weight=1)
-    controls_frame.grid_columnconfigure(1, weight=1)
-    controls_frame.grid_columnconfigure(2, weight=1)
-    controls_frame.grid_columnconfigure(3, weight=1)
-
-    # Toggle selection mode
-    def toggle_selection_mode() -> None:
-        table.set_multi_select(not table.multi_select)
-        print(f"Selection mode set to: {'Multi-select' if table.multi_select else 'Single-select'}")
-
-    selection_button = tk.Button(controls_frame, text='Toggle Selection Mode', command=toggle_selection_mode)
-    selection_button.grid(row=0, column=0, sticky='ew', padx=5)
-
-    # Column toggle
-    show_all_var = tk.BooleanVar(value=False)
-
-    def toggle_columns() -> None:
-        if show_all_var.get():
-            table.set_display_columns(columns)
-        else:
-            table.set_display_columns(display_columns)
-
-    column_checkbox = tk.Checkbutton(
-        controls_frame, text='Show All Columns', variable=show_all_var, command=toggle_columns
-    )
-    column_checkbox.grid(row=0, column=1, sticky='ew', padx=5)
-
-    # Update data button
-    def update_data_example() -> None:
-        new_data = [
-            {
-                'Name': 'Eve',
-                'Age': 27,
-                'City': 'Berlin\nDowntown\nBrandenburg',
-                'Country': 'Germany',
-                'Occupation': 'Analyst\nData',
-                'Salary': 70000,
-            },
-            {
-                'Name': 'Frank',
-                'Age': 32,
-                'City': 'Sydney',
-                'Country': 'Australia',
-                'Occupation': 'Manager',
-                'Salary': 85000,
-            },
-            {
-                'Name': 'Grace',
-                'Age': 29,
-                'City': 'Toronto\nNorth\nYork',
-                'Country': 'Canada',
-                'Occupation': 'Consultant',
-                'Salary': 72000,
-            },
-        ]
-        table.update_data(new_data)
-
-    update_button = tk.Button(controls_frame, text='Update Data', command=update_data_example)
-    update_button.grid(row=0, column=2, sticky='ew', padx=5)
-
-    # Row height selector
-    row_height_var = tk.StringVar(value='28')
-    row_heights = [20, 28, 36, 44, 52, 60]
-    row_height_selector = ttk.Combobox(
-        controls_frame, textvariable=row_height_var, values=row_heights, state='readonly', width=5
-    )
-    row_height_selector.grid(row=0, column=3, sticky='ew', padx=5)
-
-    def change_row_height(event: tk.Event) -> None:
-        try:
-            row_height = int(row_height_var.get())
-            style = ttk.Style()
-            style.configure('Treeview', rowheight=row_height)
-            logger.info('Row height set to %d', row_height)
-        except ValueError:
-            logger.error('Invalid row height selected: %s', row_height_var.get())
-
-    row_height_selector.bind('<<ComboboxSelected>>', change_row_height)
-
-    root.mainloop()

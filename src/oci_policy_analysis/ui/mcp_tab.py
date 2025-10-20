@@ -1,13 +1,28 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
 # mcp_tab.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
+##########################################################################
+
+
 import logging
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-import mcp_server
-from logic.data_repo import PolicyAnalysisRepository
-from logic.logger import get_logger
-from mcp_server import start_mcp_server_in_thread, stop_mcp_server
+import oci_policy_analysis.logic.mcp_server as mcp_server
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logic.mcp_server import server_thread, start_mcp_server_in_thread, stop_mcp_server
 
 logger = get_logger(component='mcp_tab')
 
@@ -144,8 +159,6 @@ class McpTab(ttk.Frame):
     def _check_status(self):
         """Update label if MCP thread changes."""
         try:
-            from mcp_server import server_thread
-
             alive = bool(server_thread and server_thread.is_alive())
         except Exception:
             alive = False
