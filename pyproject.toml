@@ -3,7 +3,7 @@ name = "oci-policy-dg-viewer"
 dynamic = ["version"]
 description = "OCI Policy and Dynamic Group Viewer"
 authors = [{ name = "Andrew Gregory" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "oci>=2.28.0",
     "ttkbootstrap>=1.14.2",
@@ -23,7 +23,7 @@ write_to = "src/oci_policy_dg_viewer/_version.py"
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".git",
     "__pycache__",

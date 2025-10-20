@@ -1,4 +1,7 @@
 oci>=2.160.1
 deepdiff>=8.6.1
 ttkbootstrap>=1.14.2
-markdown>=3.9
+markdown2>=2.5.4
+mcp>=1.16.0
+fastmcp>=2.12.4
+tkhtmlview>=0.3.1

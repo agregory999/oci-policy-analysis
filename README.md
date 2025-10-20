@@ -1,19 +1,29 @@
-# OCI Policy and Dynamic Group Viewer
+# OCI Policy Analysis
 
-## Overview
-The **OCI Policy and Dynamic Group Viewer** is a graphical desktop application built with Python and Tkinter for Oracle Cloud Infrastructure (OCI) administrators. It allows you to analyze and visualize OCI policies, dynamic groups, and user permissions within a tenancy. Key features include:
+The **OCI Policy Analysis** tool is a graphical desktop application built with Python and Tkinter for Oracle Cloud Infrastructure (OCI) administrators. It allows you to analyze and visualize OCI policies, dynamic groups, and user permissions within a tenancy. 
+
+## Overview / Features
+
+Key features include:
 
 - **Policy Analysis**: View and filter parsed IAM policy statements across compartments, with details like subject, verb, resource, and conditions.
 - **Dynamic Group Analysis**: Display dynamic groups, their matching rules, and check for unused groups.
 - **Resource Principal Analysis**: Display resource principals and search for relevant policy statements.
 - **User Analysis**: Filter policy statements applicable to a user based on their group memberships.
-- **Advanced Analysis**: Placeholder for principal-based analysis (e.g., Instance Principal, Resource Principal).
+- **Historical Comarison**: Compare policy sets from previous loads of data in order to find discrepancies over time.
 - **Caching**: Save and load data to/from a local cache for faster access.
-- **Export**: Export filtered data to CSV or JSON for further analysis.  Good for offline usage.
+- **Export / Import**: Export filtered data to CSV or JSON for further analysis.  Good for offline usage or exchange of data from inaccessible tenancies.
 - **Cross-Platform**: Runs on Windows and Linux with a user-friendly GUI.
 - **GenAI Insights**: Takes advantage of AI to create insights that may help users understand a policy statement.
+- **MCP Server Access**: Run the program as an MCP server, so that policy questions about your tenancy can come from desktop MCP tools such as Claude and VSCode.  Use your own data and have AI tools formulate responses
 
 The application supports both Instance Principal authentication (for OCI compute instances) and OCI configuration file-based authentication (using named profiles).
+
+## Architecture
+
+Here is a simple diagram of how all of the pieces fit together:
+
+![OCI Policy Analysis Architecture](./policy-analysis.drawio.svg)
 
 ## Getting Started
 
@@ -30,25 +40,29 @@ All 3 options require either a configured OCI Profile or Instance Principal, see
 
 All of what you need to get started.  
 
-### Python 3.11+
+### Python 3.12+
 
 This is only required if you are not running the executables, which have the appropriate Python version baked in
 
 - **Windows**:
-  - Download and install Python from [python.org](https://www.python.org/downloads/). Choose the latest version (3.11 or higher).
+  - Download and install Python from [python.org](https://www.python.org/downloads/). Choose the latest version (3.12 or higher).
   - During installation, check "Add Python to PATH" to make Python accessible from the command line.
 - **Linux**:
   - Most distributions include Python. Verify with `python3 --version`.
   - If not installed or outdated, install it:
     ```bash
-    sudo apt update && sudo apt install python3.11 python3-pip  # Ubuntu/Debian
-    sudo dnf install python3.11 python3-pip  # Fedora/RHEL
+    sudo apt update && sudo apt install python3.12 python3-pip  # Ubuntu/Debian
+    sudo dnf install python3.12 python3-pip  # Fedora/RHEL
     ```
 
 ### OCI SDK and Dependencies
-   - The application requires the `oci`, `ttkbootstrap`, and `deepdiff` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for details
+The application requires the `oci`, `ttkbootstrap`, and `deepdiff` Python packages. These can be installed using `pip install` or `uv pip install`.  See below for more details.  To install all requirements:
 
-### OCI Configuration
+```bash
+pip install -r requirements.txt
+```
+
+### OCI Configuration (Required)
 
 This section is **REQUIRED** in order to use the tool, regardless of whether you use the executable, the script with UI, or the script without UI.
 
@@ -64,9 +78,20 @@ region=<your-region, e.g., us-ashburn-1>
 
 See [OCI SDK Configuration](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm) for details.
 
-For Instance Principal authentication, simply ensure the application runs on an OCI compute instance with appropriate IAM policies.
+### Instance Principal Option
 
-### OCI Permissions
+For Instance Principal authentication, simply ensure the application runs on an OCI compute instance with appropriate IAM policies.  The next section provides additional details on setting up a dynamic group for this purpose.
+
+### Session Token Option
+
+OCI Supports a session token, where you can create a special temporary token using the OCI CLI and a browser.  To start, use the CLI:
+
+```
+oci session authenticate
+```
+A browser will open and ask for authentication to OCI.  You can expedite this process by logging into OCI as the correct user prior to running the command above.  Either way, when authentication is completed, your shell will ask you the name of the **Session Token** to create.  Record this name and then present it into the UI's Settings tab before clicking "Load via Session Token".  Tenancy loading and caching will commence just like any other method.
+
+### OCI Permissions (Required)
 
 This section is **REQUIRED** in order to use the tool, regardless of whether you use the executable, the script with UI, or the script without UI.
 
@@ -81,23 +106,25 @@ allow group <your_group> to use generative-ai-family in tenancy
 
 **NOTE** If you already have read access to policies, compartments, and domains, you should be good to go.  
 
-In a new tenancy or a tenancy where you are not sure about changing existing permissions, you can have a user created for yourself by the admin, and then have them create a Group and add you (and others).  Suppose this group is called `PolicyAuditorGroup`.  Then add a policy called `PolicyAnalysisPolicy` in the tenancy root, where the only statement is what is above.
+In a new tenancy or a tenancy where you are not sure about changing existing permissions, you can have a user created for yourself by the admin, and then have them create a Group and add you (and others).  Suppose this group is called `PolicyAuditorGroup`.  Then add a policy called `PolicyAnalysisPolicy` in the tenancy root, where the only statements are what is above.
 
 If you plan to use Instance Principal via an OCI Compute Instance you run the tool from, you must have that instance part of a dynamic group.  For example, create a Dynamic Group in the Default Identity Domain called `PolicyAnalysisDynamicGroup`, defined by a matching rule `instance.id = 'your instance ocid'`.  Then, define your `PolicyAnalysisPolicy` like this:
 
 ```
 allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to use generative-ai-family in tenancy
 ```
 
 Once created, download the tool or clone the repository from your OCI instance and give it a try.
 
-### TKInter / TTKBootstrap Configuration
+### TKInter / TTKBootstrap / Deepdiff / Markdown / MCP
 
 Only required for locally running the scripts.
 
    - TKInter for UI - Detailed information is maintained here: [Python TKInter](https://docs.python.org/3/library/tkinter.html#)
    - Both `deepdiff` and `ttkbootstrap` are in addition to the core TKInter installation and are installed via PIP.
    - TTKBootstrap improves the look and feel of TKInter applications.  Many of the widgets (ie dropdowns) are based on TTKBootstrap.  More on that here: [TTKBootstrap](https://ttkbootstrap.readthedocs.io/en/latest/)
+   - MCP and FastMCP are required in order to run the MCP server
 
 ## Installation
 
@@ -198,7 +225,7 @@ Logging output may assist you with issue tracking, but it is better to leave ver
    - **Authentication**:
      - If running on an OCI compute instance, check "Instance Principal" to use instance-based authentication.
      - Otherwise, select a profile from the dropdown (e.g., `DEFAULT`) matching your OCI config file.
-     - TODO
+     - The **Recursive** option exists to load the EVERY compartment in the tenancy. To look for policies that exist only in ROOT, uncheck this.
    - **Load Data**:
      - Click "Load from Tenancy" to fetch policies, dynamic groups, and user data from OCI.
      - Click "Load from Cache" to use previously saved data (stored in `~/.oci-policy-analysis/cache/` or `%USERPROFILE%\.oci-policy-analysis\cache\`).
