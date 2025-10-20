@@ -20,6 +20,7 @@ from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
 from logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from ui.data_table import DataTable
+from ui.helpers import for_display_group, for_display_policy, for_display_user
 
 # Global logger for this module
 logger = get_logger(component='users_tab')
@@ -287,28 +288,6 @@ class UsersTab(ttk.Frame):
         # TODO: Compartment Analysis
         logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
 
-        def for_display_user(u: User) -> dict:
-            """Return a dictionary suitable for display purposes."""
-            return {
-                'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',
-                'Username': u['user_name'],
-                'User ID': u.get('user_id', 'N/A'),
-                'User OCID': u.get('user_ocid', 'N/A'),
-                'Primary Email': u.get('email', 'N/A'),
-                'Display Name': u.get('display_name', 'N/A'),
-                'User Groups': ', '.join(u.get('groups', [])) if u.get('groups') else 'N/A',  # type: ignore
-            }  # type: ignore
-
-        def for_display_group(g: Group) -> dict:
-            """Return a dictionary suitable for display purposes."""
-            return {
-                'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',
-                'Group Name': g['group_name'],
-                'Group ID': g.get('group_id', 'N/A'),
-                'Group OCID': g.get('group_ocid', 'N/A'),
-                'Description': g.get('description', 'N/A'),
-            }  # type: ignore
-
         # Grid the correct table
         if self.groups_option_var.get() == 'GROUPS':
             # Load the groups into grid and search
@@ -350,7 +329,9 @@ class UsersTab(ttk.Frame):
         exact_users_filter: list[User] = users_for_filter
         exact_groups_users_filter = PolicySearch(exact_groups=exact_groups_filter, exact_users=exact_users_filter)
         filtered_policies = self.policy_compartment_analysis.filter_policy_statements(filters=exact_groups_users_filter)
-        self.users_policy_table.update_data(filtered_policies)
+        # Use helper to normalize for display
+        display_policies = [for_display_policy(st) for st in filtered_policies]
+        self.users_policy_table.update_data(display_policies)
 
         # Update the labels and table
         # Create a list of dict for the table

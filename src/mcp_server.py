@@ -16,6 +16,9 @@
 import argparse
 import json
 import sys
+import threading
+
+import uvicorn
 
 # from mcp.server.transport.stdio import stdio_server
 # from mcp.server.transport.http import http_server
@@ -40,7 +43,9 @@ from logic.models import (
 )
 
 # Global logger for this module
-logger = get_logger(use_console=True, component='MCPServer')
+logger = get_logger(component='MCPServer')
+
+logger.info(f'[DEBUG] MCP logger name = {logger.name}, propagate={logger.propagate}')
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
@@ -210,9 +215,10 @@ def filter_policy_statements(filters: PolicySearch) -> list[PolicyStatement]:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info(f'Tool Policy Filter with JSON filters: {filters}')
     raw_results = pca.filter_policy_statements(filters)
-    logger.debug(f'Raw Results: {raw_results}')
+    for st in raw_results:
+        logger.debug(f'Raw Result: {st} \n\n')
     logger.info(f'Filter returning {len(raw_results)} policy statements to client')
-    return [normalize_policy_statement(r) for r in raw_results]
+    return raw_results
 
 
 # User and Group tools
@@ -222,7 +228,7 @@ def filter_policy_statements(filters: PolicySearch) -> list[PolicyStatement]:
     name='get_groups_for_user',
     description=(
         'Return all groups that a specified OCI IAM user belongs to. '
-        "Input must include the user's domain_name (string or null for Default) and user_name (string). "
+        'Input must include user_name but could also include domain_name. '
         "Returns a list of group dictionaries with keys 'group_name' and 'domain_name'. "
         'Only use this tool for getting groups for an exact User (no fuzzy matching). '
         'For policy filtering, use the main filter_policy_statements tool instead.'
@@ -318,7 +324,7 @@ def list_cross_tenancy_aliases() -> list[DefineStatement]:
         raw_aliases = pca.defined_aliases
         logger.info(f'Returning {len(raw_aliases)} aliases')
         logger.debug(f'Aliases: {raw_aliases}')
-        return [normalize_define_statement(a) for a in raw_aliases]
+        return raw_aliases
     except Exception as e:
         logger.error(f'Failed to list aliases: {e}')
         raise ToolError(f'Failed to list aliases: {e}') from e
@@ -342,57 +348,83 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
         raw_results = pca.filter_cross_tenancy_policy_statements([alias])
         logger.info(f"Found {len(raw_results)} policy statements matching alias '{alias}'")
         logger.debug(f'Policies: {raw_results}')
-        return [normalize_policy_statement(r) for r in raw_results]
+        return raw_results
     except Exception as e:
         logger.error(f'Failed to filter policies by alias: {e}')
         raise ToolError(f'Failed to filter policies by alias: {e}') from e
 
 
-# --- Helpers ---
-def normalize_policy_statement(raw: dict) -> PolicyStatement:
-    """
-    Convert repository-native policy dict (with spaced field names)
-    into a structured PolicyStatement TypedDict for MCP output.
-    """
-    return PolicyStatement(
-        Policy_Name=raw.get('Policy Name'),  # type: ignore
-        Policy_OCID=raw.get('Policy OCID'),  # type: ignore
-        Compartment_OCID=raw.get('Compartment OCID'),  # type: ignore
-        Policy_Compartment=raw.get('Policy Compartment'),  # type: ignore
-        Statement_Text=raw.get('Statement Text'),  # type: ignore
-        Valid=raw.get('Valid') if raw.get('Valid') else False,  # type: ignore
-        Subject_Type=raw.get('Subject Type') if raw.get('Subject Type') else None,
-        Subject=raw.get('Subject') if raw.get('Subject') else None,
-        Verb=raw.get('Verb') if raw.get('Verb') else None,
-        Resource=raw.get('Resource') if raw.get('Resource') else None,
-        Permission=raw.get('Permission') if raw.get('Permission') else None,
-        Location_Type=raw.get('Location Type') if raw.get('Location Type') else None,
-        Location=raw.get('Location') if raw.get('Location') else None,
-        Effective_Compartment=raw.get('Effective Compartment') if raw.get('Effective Compartment') else None,
-        Effective_Path=raw.get('Effective Path') if raw.get('Effective Path') else None,
-        Conditions=raw.get('Conditions') if raw.get('Conditions') else None,
-        Comments=raw.get('Comments') if raw.get('Comments') else None,
-        Creation_Time=raw.get('Creation Time'),  # type: ignore
-        Parsed=raw.get('Parsed') if raw.get('Parsed') else False,  # type: ignore
-        Parsing_Notes=raw.get('Parsing Notes') if raw.get('Parsing Notes') else [],  # type: ignore
-    )
+# ============================================================
+# EMBEDDED SERVER CONTROL (for Tkinter integration)
+# ============================================================
+
+server_thread: threading.Thread | None = None
+server_instance: uvicorn.Server | None = None
 
 
-def normalize_define_statement(raw: dict) -> DefineStatement:
+# def get_app():
+#     """
+#     Return the FastMCP app bound to the shared data_repo.
+
+#     Keep this consistent with however you currently build your app
+#     (e.g., using create_app(data_repo)).
+#     """
+#     if not pca:
+#         logger.error("MCP get_app() called before repository (pca) was set.")
+#         raise RuntimeError("MCP repository not initialized before server start.")
+
+#     return getattr(mcp, "_app", None) or mcp.app
+
+
+def start_mcp_server_in_thread(settings: dict):
     """
-    Convert a raw repository define-statement dict (with UI-style keys)
-    into a structured DefineStatement TypedDict for MCP output.
+    Start MCP server in a background thread (for Tkinter integration).
+
+    Args:
+        config (dict): MCP server config {host, port, key_path, cert_path, ...}
+        log_fn (callable): optional logger callback, e.g. PopupConsole.write_line()
     """
-    return DefineStatement(
-        Policy_Name=raw.get('Policy Name'),  # type: ignore
-        Policy_OCID=raw.get('Policy OCID'),  # type: ignore
-        Policy_Description=raw.get('Policy Description'),  # type: ignore
-        Statement_Text=raw.get('Statement Text'),  # type: ignore
-        Defined_Type=raw.get('Defined Type'),  # type: ignore
-        Defined_Name=raw.get('Defined Name'),  # type: ignore
-        OCID_Alias=raw.get('OCID Alias'),  # type: ignore
-        Creation_Time=raw.get('Creation Time'),  # type: ignore
-    )
+    global server_thread, server_instance, pca
+
+    # prevent multiple starts
+    if server_thread and server_thread.is_alive():
+        logger.info('MCP server is already running.')
+        return
+
+    logger.info(f'Starting MCP server thread with config: {settings}')
+
+    def _run():
+        try:
+            logger.info(
+                f"Starting FastMCP server on {settings.get('mcp_host', '127.0.0.1')}:{settings.get('mcp_port', 8765)}"
+            )
+            mcp.run(
+                transport='streamable-http',
+                port=settings.get('mcp_port', 8765),
+                host=settings.get('mcp_host', '127.0.0.1'),
+            )
+        except Exception as e:
+            logger.exception(f'MCP server crashed: {e}')
+        finally:
+            logger.info('MCP server thread exited.')
+
+    # run uvicorn in a daemon thread so Tkinter stays responsive
+    server_thread = threading.Thread(target=_run, daemon=True)
+    server_thread.start()
+
+
+def stop_mcp_server(log_fn=None):
+    """
+    Stop the MCP server gracefully.
+    """
+    global server_thread
+    if not server_thread or not server_thread.is_alive():
+        logger.info('MCP server is not running.')
+        return
+
+    logger.info('Attempting to stop MCP server thread (will terminate on next exit)...')
+    # FastMCP doesn’t expose a shutdown signal; you’d terminate by closing the socket or restarting the process.
+    server_thread = None
 
 
 def build_arg_parser():
@@ -422,7 +454,7 @@ def main():
     )
 
     # --- Embedded Initialization ---
-    global pca, ida
+    global pca
     pca = PolicyAnalysisRepository()
 
     ok_pca = pca.initialize_client(

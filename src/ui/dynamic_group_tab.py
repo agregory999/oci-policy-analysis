@@ -21,6 +21,7 @@ from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
 from logic.models import DynamicGroup, DynamicGroupSearch, PolicySearch
 from ui.data_table import DataTable
+from ui.helpers import for_display_dynamic_group, for_display_policy
 
 # Column Data
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'In Use']
@@ -188,18 +189,9 @@ class DynamicGroupsTab(ttk.Frame):
             command=self._update_dg_output,
         ).grid(row=0, column=5, padx=5, pady=3)
 
-        # Frames for Bottom Sheets (maybe pack?)
-        frm_dg_sheet = ttk.Frame(self)
-        # frm_dg_sheet.grid(row=1, column=0, sticky='nsew')
-        # frm_dg_sheet.grid_rowconfigure(0, weight=1)
-        # frm_dg_sheet.grid_columnconfigure(0, weight=1)
-
-        frm_dg_policy_sheet = ttk.Frame(self)
-        # frm_dg_policy_sheet.grid(row=2, column=0, sticky='nsew')
-        # frm_dg_policy_sheet.grid_rowconfigure(0, weight=1)
-        # frm_dg_policy_sheet.grid_columnconfigure(0, weight=2)
-        # frm_dg_policy_sheet.grid_columnconfigure(1, weight=6)
-        # frm_dg_policy_sheet.grid_columnconfigure(2, weight=2)
+        ttk.Separator(label_frm2, orient=tk.VERTICAL).grid(row=0, column=6, sticky='ns', pady=5)
+        self.label_policy_count = ttk.Label(label_frm2, text='Statements Shown: 0')
+        self.label_policy_count.grid(row=0, column=7, padx=5, pady=3)
 
         def dg_selection_callback(selected_rows: list[dict]) -> None:
             """When a Dynamic Group is selected, update the policy statements below"""
@@ -215,25 +207,27 @@ class DynamicGroupsTab(ttk.Frame):
             ]  # type: ignore
             policy_filter: PolicySearch = PolicySearch(exact_dynamic_groups=exact_dg_filter)
             filtered = self.policy_compartment_analysis.filter_policy_statements(filters=policy_filter)
-
-            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            # Normalize using helper
+            filtered = [for_display_policy(stmt) for stmt in filtered]
             # Set them into the next table
             self.dg_policy_table.update_data(filtered)
             logger.info(f'Policies added to policy table: {len(filtered)}')
+
+            # Update Policy shown label
+            self.label_policy_count.config(text=f'Statements Shown: {len(self.dg_policy_table.data)}')
 
         def dg_policy_selection_callback(selected_rows: list[dict]) -> None:
             """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
-                # self.policy_analyze_statement_var.set(selected_statement)
+                self.main_app.policy_query_var.set(selected_statement)
             else:
                 pass
-                # self.policy_analyze_statement_var.set('')
 
         # Dynamic Groups
         self.custom_data_dynamic_group = DataTable(
-            frm_dg_sheet,
+            self,
             columns=ALL_DG_COLUMNS,
             display_columns=BASIC_DG_COLUMNS,
             column_widths=DG_COLUMN_WIDTHS,
@@ -241,12 +235,11 @@ class DynamicGroupsTab(ttk.Frame):
             selection_callback=dg_selection_callback,
             multi_select=True,
         )
-        self.custom_data_dynamic_group.grid(row=0, column=0, sticky='nsew')
-        frm_dg_sheet.pack(fill='both', expand=True, padx=10, pady=5)
+        self.custom_data_dynamic_group.pack(fill='both', expand=True, padx=10, pady=5)
 
         # Use a Policy Table here with fields
         self.dg_policy_table = DataTable(
-            frm_dg_policy_sheet,
+            self,
             columns=ALL_POLICY_COLUMNS,
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
@@ -255,8 +248,8 @@ class DynamicGroupsTab(ttk.Frame):
             selection_callback=dg_policy_selection_callback,
             multi_select=False,
         )
-        self.dg_policy_table.grid(row=0, column=0, columnspan=3, sticky='nsew')
-        frm_dg_policy_sheet.pack(fill='both', expand=True, padx=10, pady=5)
+        # self.dg_policy_table.grid(row=0, column=0, columnspan=3, sticky='nsew')
+        self.dg_policy_table.pack(fill='both', expand=True, padx=10, pady=5)
 
         # Trace to update on change
         self.domain_filter_var.trace_add('write', lambda *args: self._update_dg_output())
@@ -299,24 +292,9 @@ class DynamicGroupsTab(ttk.Frame):
             else None,  # type: ignore
         )
 
-        def for_display(dg: DynamicGroup) -> dict:
-            """Return a dictionary suitable for display purposes."""
-            return {
-                'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',
-                'DG Name': dg['dynamic_group_name'],
-                'DG ID': dg.get('dynamic_group_id', 'N/A'),
-                'DG OCID': dg.get('dynamic_group_ocid', 'N/A'),
-                'Description': dg.get('description', 'N/A'),
-                'Matching Rule': dg.get('matching_rule', 'N/A'),
-                'In Use': dg.get('in_use', False),
-                'Creation Time': dg.get('creation_time', 'N/A'),
-                'Created By': dg.get('created_by_name', 'N/A'),
-                'Created By OCID': dg.get('created_by_ocid', 'N/A'),
-            }  # type: ignore
-
         logger.info(f'Filtering DG with {dg_filter}')
         filtered = self.policy_compartment_analysis.filter_dynamic_groups(dg_filter)
-        display_dgs = [for_display(dg) for dg in filtered]
+        display_dgs = [for_display_dynamic_group(dg) for dg in filtered]
 
         logger.info(
             f'Filtered dynamic groups from {len(self.policy_compartment_analysis.dynamic_groups)} to {len(filtered)} using filter: {dg_filter}'

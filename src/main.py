@@ -40,7 +40,10 @@ from logic.data_repo import AI, PolicyAnalysisRepository
 from logic.logger import get_logger, set_log_level
 from ui.cross_tenancy_tab import CrossTenancyTab
 from ui.dynamic_group_tab import DynamicGroupsTab
+from ui.mcp_tab import McpTab
 from ui.policies_tab import PoliciesTab
+from ui.report_tab import ReportTab
+from ui.resource_principals_tab import ResourcePrincipalsTab
 from ui.settings_tab import SettingsTab
 from ui.users_tab import UsersTab
 
@@ -53,7 +56,7 @@ class TextHandler(logging.Handler):
     """
 
     def __init__(self, text_widget: tk.Text):
-        super().__init__()
+        super().__init__(level=logging.NOTSET)
         self.text_widget = text_widget
 
     def emit(self, record):
@@ -135,11 +138,17 @@ class App(Window):
         self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self, self.policy_compartment_analysis)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self, self.policy_compartment_analysis)
+        self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
+        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
+        self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self, self.policy_compartment_analysis)
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
+        self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
+        self.notebook.add(self.report_tab, text='Reports\n& Export')
+        self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
 
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -392,7 +401,7 @@ class App(Window):
 
     def _apply_log_level(self):
         level = getattr(logging, self.log_level_var.get(), logging.INFO)
-        set_log_level(level, component='main')
+        set_log_level(level)
 
         # logger.setLevel(level)
         self.settings['log_level'] = self.log_level_var.get()
@@ -471,11 +480,13 @@ class App(Window):
                     self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
 
                 # Tell the tab to reload
-                logger.info('Tenancy Load completeReload all tabs')
+                logger.info('Tenancy Load complete. Reloading all tabs')
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
                 self.dynamic_groups_tab.enable_controls()
                 self.cross_tenancy_tab.update_cross_tenancy_output()
+                self.report_tab.update_report_output()
+                self.resource_principals_tab.update_principals_sheets()
 
             except Exception as e:
                 logger.error(f'❌ Failed to load tenancy: {e}')
@@ -662,22 +673,21 @@ class App(Window):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
-    parser.add_argument('--console-log', action='store_true', help='Log to console instead of file')
+    # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
     args = parser.parse_args()
 
-    if args.console_log:
-        # Reconfigure logger to use console
-        logger = get_logger(use_console=True, component='main')
-        logger.info('Logging to console')
-    else:
-        logger = get_logger(component='main')
-        logger.info('Logging to app.log')
+    # if args.console_log:
+    #     # Reconfigure logger to use console
+    #     logger = get_logger(use_console=True, component='main')
+    #     logger.info('Logging to console')
+    # else:
+    logger = get_logger(component='main')
+    logger.info('Logging to Console only')
 
     # Configure logging based on verbose flag
     if args.verbose:
-        set_log_level('DEBUG', component='main')
-        # logger.setLevel('DEBUG')
+        set_log_level('DEBUG')
         logger.debug('Verbose logging enabled')
 
     app = App()

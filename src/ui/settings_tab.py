@@ -18,12 +18,12 @@ import tkinter as tk
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from logic import config
 from logic.caching import CacheManager
 from logic.data_repo import AI
-from logic.logger import get_logger
+from logic.logger import get_logger, set_log_level
 from ui.data_table import DataTable
 
 # Constants for data table
@@ -57,6 +57,8 @@ class SettingsTab(ttk.Frame):
             value=self.settings.get('ai_compartment_ocid', '<use compartment or tenancy ocid with genai permission>')
         )
         self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
+        self.mcp_port_var = tk.StringVar(value=str(self.settings.get('mcp_port', '8765')))
+        self.mcp_host_var = tk.StringVar(value=self.settings.get('mcp_host', '127.0.0.1'))
 
         # Load profiles from ~/.oci/config
         self.profile_list = ['DEFAULT']
@@ -69,6 +71,10 @@ class SettingsTab(ttk.Frame):
             self.profile_list = ['NONE']
             self.ip_var.set(True)
 
+        # Build the UI
+        self._build_ui()
+
+    def _build_ui(self):
         # Display options (LabelFrame)
         disp = ttk.LabelFrame(self, text='Display Options')
         disp.pack(fill='both', padx=10, pady=10)
@@ -109,11 +115,9 @@ class SettingsTab(ttk.Frame):
 
         def set_level(_=None):
             level = getattr(logging, self.app.log_level_var.get(), logging.INFO)
-            logger.setLevel(level)
-            app.settings['log_level'] = self.app.log_level_var.get()
-            from logic import config
-
-            config.save_settings(app.settings)
+            set_log_level(level)  # Update all components
+            self.app.settings['log_level'] = self.app.log_level_var.get()
+            config.save_settings(self.app.settings)
             logger.info(f'Log level set to {self.app.log_level_var.get()}')
 
         level_combo.bind('<<ComboboxSelected>>', set_level)
@@ -330,9 +334,42 @@ class SettingsTab(ttk.Frame):
         apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
         logger.debug('Apply button created')
 
+        # Label Frame for MCP Settings
+        self.label_frm_mcp_config = ttk.Labelframe(self, text='OCI MCP')
+        self.label_frm_mcp_config.pack(fill='x', padx=5, pady=5)
+
+        # --- Config frame (host + port) ---
+        cfg_frame = ttk.LabelFrame(self.label_frm_mcp_config, text='MCP Configuration')
+        cfg_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        ttk.Label(cfg_frame, text='Host:').grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
+        # self.host_var = tk.StringVar(value=self.config["mcp"].get("host", "127.0.0.1"))
+        ttk.Entry(cfg_frame, textvariable=self.mcp_host_var, width=20).grid(row=0, column=1, sticky=tk.W, padx=5)
+
+        ttk.Label(cfg_frame, text='Port:').grid(row=0, column=2, sticky=tk.W, padx=5)
+        # self.port_var = tk.StringVar(value=str(self.config["mcp"].get("port", 8765)))
+        ttk.Entry(cfg_frame, textvariable=self.mcp_port_var, width=10).grid(row=0, column=3, sticky=tk.W, padx=5)
+
+        save_btn = ttk.Button(cfg_frame, text='Save Config', command=self._save_mcp_config)
+        save_btn.grid(row=0, column=4, sticky=tk.E, padx=10)
+
     # -------------------------
     # Loading of tenancy buttons
     # -------------------------
+    def _save_mcp_config(self):
+        """Save full settings to disk."""
+        # Update MCP settings
+        try:
+            port_val = int(self.mcp_port_var.get())
+        except ValueError:
+            messagebox.showerror('Invalid Port', 'Port must be an integer.')
+            return
+
+        self.settings['mcp_port'] = port_val
+        self.settings['mcp_host'] = self.mcp_host_var.get().strip() or '127.0.0.1'
+        config.save_settings(self.settings)
+        logger.info('MCP configuration saved to settings.')
+
     def _on_load_clicked(self, use_cache: bool):
         # Save current selections
         self.settings['tenancy_ocid'] = self.tenancy_var.get()

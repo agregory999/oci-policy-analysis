@@ -23,6 +23,7 @@ from logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
 from logic.logger import get_logger
 from logic.models import PolicySearch
 from ui.data_table import DataTable
+from ui.helpers import for_display_policy
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [
@@ -30,6 +31,7 @@ ALL_POLICY_COLUMNS = [
     'Policy OCID',
     'Compartment OCID',
     'Policy Compartment',
+    'Effective Path',
     'Statement Text',
     'Valid',
     'Invalid Reason',
@@ -40,14 +42,13 @@ ALL_POLICY_COLUMNS = [
     'Permission',
     'Location Type',
     'Location',
-    'Effective Path',
     'Conditions',
     'Comments',
     'Parsing Notes',
     'Creation Time',
     'Parsed',
 ]
-BASIC_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Effective Path', 'Valid']
+BASIC_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Effective Path', 'Statement Text', 'Valid']
 BASIC_INVALID_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Valid', 'Invalid Reason']
 POLICY_COLUMN_WIDTHS = {
     'Policy Name': 250,
@@ -430,7 +431,34 @@ class PoliciesTab(ttk.Frame):
                 'Cannot filter policies without identity data loaded.\nPlease load identity data and try again.',
             )
             return
+        # # Internal function to return a display-friendly dict for a policy statement
+        # def for_display(statement: PolicyStatement) -> dict:
+        #     return {
+        #         'Policy Name': statement['policy_name'],
+        #         'Policy OCID': statement['policy_ocid'],
+        #         'Compartment OCID': statement['compartment_ocid'],
+        #         'Policy Compartment': statement['policy_compartment'],
+        #         'Statement Text': statement['statement_text'],
+        #         'Valid': statement['valid'],
+        #         'Invalid Reason': statement['invalid_reason'] if 'invalid_reason' in statement else '',
+        #         'Subject Type': statement['subject_type'],
+        #         'Subject': statement['subject'],
+        #         'Verb': statement['verb'],
+        #         'Resource': statement['resource'],
+        #         'Permission': statement['permission'],
+        #         'Location Type': statement['location_type'],
+        #         'Location': statement['location'],
+        #         'Effective Path': statement['effective_path'],
+        #         'Conditions': statement['conditions'],
+        #         'Comments': statement['comments'],
+        #         'Parsing Notes': '; '.join(statement['parsing_notes']) if statement['parsing_notes'] else '',
+        #         'Creation Time': statement['creation_time'],
+        #         'Parsed': statement['parsed']
+        #     }
+
         # Apply additional filters for output
+        normalized_statements = [for_display_policy(st) for st in filtered_statements]
+        filtered_statements = normalized_statements
 
         # Determine which rows to show based on checkboxes
         rows_to_show: list = [

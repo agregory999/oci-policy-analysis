@@ -319,6 +319,6 @@ class DataTable(tk.Frame):
         Args:
             new_data: List of dictionaries containing new row data.
         """
-        logger.info('Updating data with %d rows', len(new_data))
+        logger.debug('Updating data with %d rows', len(new_data))
         self.data = new_data
         self._populate_data()

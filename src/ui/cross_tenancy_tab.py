@@ -20,6 +20,7 @@ from tkinter import ttk
 from logic.data_repo import PolicyAnalysisRepository
 from logic.logger import get_logger
 from ui.data_table import DataTable
+from ui.helpers import for_display_define, for_display_policy
 
 # For cross-tenancy policies, just show all details we have
 DEFINED_ALIAS_COLUMNS = ['Defined Name', 'Defined Type', 'OCID Alias']
@@ -75,7 +76,8 @@ class CrossTenancyTab(ttk.Frame):
             filtered = self.policy_compartment_analysis.filter_cross_tenancy_policy_statements(
                 defined_aliases_for_filter
             )
-
+            displayed_filtered = [for_display_policy(statement) for statement in filtered]
+            filtered = displayed_filtered
             logger.info(f'Cross-tenancy: {len(filtered)}')
             # Set them into the next table
             self.cross_tenancy_table.update_data(filtered)
@@ -86,9 +88,8 @@ class CrossTenancyTab(ttk.Frame):
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
-                # self.policy_analyze_statement_var.set(selected_statement)
+                self.main_app.policy_query_var.set(selected_statement)
             else:
-                # self.policy_analyze_statement_var.set('')
                 pass
 
         # def switch_tab_policy_analysis():
@@ -131,8 +132,10 @@ class CrossTenancyTab(ttk.Frame):
         logger.info(f'Displaying: {len(self.policy_compartment_analysis.cross_tenancy_statements)} CT Statements')
         defined_aliases = self.policy_compartment_analysis.defined_aliases
         cross_tenancy_statements = self.policy_compartment_analysis.cross_tenancy_statements
+        display_defined = [for_display_define(defined_alias) for defined_alias in defined_aliases]
+        display_statements = [for_display_policy(statement) for statement in cross_tenancy_statements]
         logger.debug(f'Defined Aliases: {defined_aliases}')
         logger.debug(f'Cross-Tenancy Statements: {cross_tenancy_statements}')
 
-        self.defined_aliases_table.update_data(defined_aliases)
-        self.cross_tenancy_table.update_data(cross_tenancy_statements)
+        self.defined_aliases_table.update_data(display_defined)
+        self.cross_tenancy_table.update_data(display_statements)

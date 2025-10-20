@@ -1,101 +1,83 @@
 ##########################################################################
 # Copyright (c) 2024, Oracle and/or its affiliates.
-# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+# Licensed under the Universal Permissive License v 1.0
+# as shown at https://oss.oracle.com/licenses/upl/
 #
-# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+# DISCLAIMER: This is not an official Oracle application and
+# is not supported by Oracle Support.
 #
-# logger.py
+# logger.py - unified global logger (stdout only)
 #
 # @author: Andrew Gregory
-#
-# Supports Python 3.11 and above
-#
-# coding: utf-8
 ##########################################################################
 
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
 
 _base_logger: logging.Logger | None = None
-_console_mode: bool | None = None
 
 
-def _setup_base_logger(use_console: bool) -> logging.Logger:
-    """Initialize the base logger with either console or file handler."""
-    global _base_logger, _console_mode
+def _setup_base_logger() -> logging.Logger:
+    """Initialize the global base logger that outputs to stdout."""
+    global _base_logger
 
-    if _base_logger and _console_mode == use_console:
+    if _base_logger:
         return _base_logger
 
     _base_logger = logging.getLogger('oci-policy-analysis')
     _base_logger.setLevel(logging.INFO)
     _base_logger.propagate = False
 
-    # Clear old handlers
+    # Clear any old handlers (prevents duplicates if reloaded)
     for h in _base_logger.handlers[:]:
         _base_logger.removeHandler(h)
         h.close()
 
-    # Create handler
-    if use_console:
-        handler = logging.StreamHandler()
-    else:
-        handler = RotatingFileHandler('app.log', maxBytes=1_000_000, backupCount=3)
-
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s')
-    handler.setFormatter(formatter)
+    # Single stdout handler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s'))
     _base_logger.addHandler(handler)
 
-    _console_mode = use_console
     return _base_logger
 
 
-def get_logger(component: str | None = None, use_console: bool | None = None) -> logging.Logger:
+def get_logger(component: str | None = None) -> logging.Logger:
     """
-    Get a named logger for a specific component.
-
-    Args:
-        component (str | None): e.g. 'data_repo', 'mcp', etc.
-        use_console (bool | None): Force console mode on first call.
+    Get a logger for a specific component.
+    All component loggers share the same stdout handler.
     """
-    global _console_mode
-
     if _base_logger is None:
-        _setup_base_logger(use_console if use_console is not None else False)
-    elif use_console is not None and _console_mode != use_console:
-        _setup_base_logger(use_console)
+        _setup_base_logger()
 
     name = f'oci-policy-analysis.{component}' if component else 'oci-policy-analysis'
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(_base_logger.level)
     logger.propagate = True
     return logger
 
 
-def set_log_level(level: str | int, component: str | None = None) -> None:
-    """
-    Dynamically set log level globally or for a specific component.
-
-    Args:
-        level (str | int): e.g. 'DEBUG', 'INFO', 'WARNING', etc. or logging.DEBUG
-        component (str | None): If provided, applies only to that logger.
-    """
-    # Convert string level to numeric
+def set_log_level(level: str | int) -> None:
     if isinstance(level, str):
         level = level.upper()
         if level not in logging._nameToLevel:
-            raise ValueError(f'Invalid log level: {level}')
+            raise ValueError(f'Invalid level: {level}')
         level_value = logging._nameToLevel[level]
     else:
         level_value = int(level)
 
-    # Target logger(s)
-    if component:
-        target = logging.getLogger(f'oci-policy-analysis.{component}')
-        target.setLevel(level_value)
-    else:
-        base = logging.getLogger('oci-policy-analysis')
-        base.setLevel(level_value)
-        for name, logger in logging.root.manager.loggerDict.items():
-            if name.startswith('oci-policy-analysis.'):
-                logger.setLevel(level_value)
+    base = logging.getLogger('oci-policy-analysis')
+    base.setLevel(level_value)
+
+    # update all handlers on base and subloggers
+    for name, lgr in logging.root.manager.loggerDict.items():
+        if isinstance(lgr, logging.Logger) and name.startswith('oci-policy-analysis'):
+            lgr.setLevel(level_value)
+            for h in lgr.handlers:
+                h.setLevel(level_value)
+
+    base.info(f'Global log level set to {logging.getLevelName(level_value)}')
+
+
+# Initialize immediately
+logger = get_logger('logger')
+logger.info('Logger initialized (stdout only).')

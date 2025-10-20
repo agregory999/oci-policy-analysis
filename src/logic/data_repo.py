@@ -51,11 +51,13 @@ from oci.signer import load_private_key_from_file
 
 from logic.logger import get_logger
 from logic.models import (
+    DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
     Group,
     GroupSearch,
     PolicySearch,
+    PolicyStatement,
     User,
     UserSearch,
 )
@@ -186,9 +188,9 @@ class PolicyAnalysisRepository:
 
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
-        self.regular_statements = []
+        self.regular_statements: list[PolicyStatement] = []
         self.cross_tenancy_statements = []
-        self.defined_aliases = []  # Store define statements as list of dict
+        self.defined_aliases: list[DefineStatement] = []  # Store define statements as list of dict
         self.dynamic_groups = []
         self.identity_domains = []
         self.groups = []
@@ -271,40 +273,40 @@ class PolicyAnalysisRepository:
         Resolve effective compartment for all statements.  Loop through all statements and calculate
         """
         for st in self.regular_statements:
-            logger.debug(f"-Statement: {st.get('Statement Text')}")
+            logger.debug(f"-Statement: {st.get('statement_text')}")
             # Case 1 - in tenancy
-            if st.get('Location Type') == 'tenancy':
-                st['Effective Compartment'] = self.tenancy_ocid
-                st['Effective Path'] = self._name_path_from_ocid(self.tenancy_ocid)
-                logger.debug(f"Effective (ten) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+            if st.get('location_type') == 'tenancy':
+                st['effective_compartment_ocid'] = self.tenancy_ocid
+                st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
+                logger.debug(f"Effective (ten) path for {st.get('statement_text')}: {st.get('effective_path')}")
             # Case 2 - Compartment ID
-            elif st.get('Location Type') == 'compartment id':
-                st['Effective Compartment'] = st.get('Location')
-                st['Effective Path'] = self._name_path_from_ocid(st.get('Location'))
-                st['Parsing Notes'].append('Compartment ID used for location')
-                logger.debug(f"Effective (id) path for {st.get('Statement Text')}: {st.get('Effective Path')}")
+            elif st.get('location_type') == 'compartment id':
+                st['effective_compartment_ocid'] = st.get('location')
+                st['effective_path'] = self._name_path_from_ocid(st.get('location'))
+                st['parsing_notes'].append('Compartment ID used for location')
+                logger.debug(f"Effective (id) path for {st.get('statement_text')}: {st.get('effective_path')}")
             # Case 3 - Compartment Name (with or without full path)
             # Note - if location refers to current compartment, we need to remove that from the path
             else:
-                logger.debug(f"Need to calc eff path for {st.get('Statement Text')}")
-                location = st.get('Location')
+                logger.debug(f"Need to calc eff path for {st.get('statement_text')}")
+                location = st.get('location')
                 parts = [p.strip() for p in location.split(':') if p.strip()]
-                policy_path = self._name_path_from_ocid(st.get('Compartment OCID'))
+                policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
                 logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
 
                 # If the first element of the path is the same as the policy compartment name, remove it from cosideration
                 eff_path = policy_path
-                comp_name = self._comp_name_path_ocid(st.get('Compartment OCID'))
+                comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
                 logger.debug(f'Compartment name for compare: {comp_name}')
                 # We need just the name of the compartment of the policy, get from
                 if parts[0].casefold() == comp_name.casefold():
-                    st['Parsing Notes'].append('Deleted compartment from effective location')
+                    st['parsing_notes'].append('Deleted compartment from effective location')
                     del parts[0]
                 for p in parts:
                     eff_path += f'/{p}'
-                logger.debug(f"Effective (loc) path for {st.get('Statement Text')}: {eff_path}")
-                st['Effective Path'] = eff_path
-                st['Effective Compartment OCID'] = self.compartments_by_path.get(eff_path, {}).get('id')
+                logger.debug(f"Effective (loc) path for {st.get('statement_text')}: {eff_path}")
+                st['effective_path'] = eff_path
+                st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
 
     def _name_path_from_ocid(self, ocid: str) -> str | None:
         """Lookup full root:...:name path from a compartment OCID."""
@@ -452,16 +454,16 @@ class PolicyAnalysisRepository:
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
         # Basic statement dict - will be augmented after parsing
-        statement_dict = {
-            'Policy Name': policy.name,
-            'Policy OCID': policy.id,
-            'Compartment OCID': comp_id,
-            'Policy Compartment': comp_string,
-            'Statement Text': statement,
-            'Creation Time': str(policy.time_created),
-            'Valid': True,  # Mark as False later if needed
-            'Parsed': False,  # Mark as True later if parsed successfully
-        }
+        statement_dict: PolicyStatement = PolicyStatement(
+            policy_name=policy.name,  # type: ignore
+            policy_ocid=policy.id,  # type: ignore
+            compartment_ocid=comp_id,
+            policy_compartment=comp_string,
+            statement_text=statement,
+            creation_time=str(policy.time_created),
+            valid=True,  # Mark as False later if needed
+            parsed=False,  # Mark as True later if parsed successfully
+        )
 
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
         logger.debug(f'Checking to see if Cross-tenancy: {statement}')
@@ -477,16 +479,17 @@ class PolicyAnalysisRepository:
                     logger.debug(
                         f"Adding to Defined Aliases - Name: {result.get('principal')}, Type: {result.get('define_type')}, OCID: {result.get('alias')}"
                     )
-                    define_dict = {
-                        'Policy Name': policy.name,
-                        'Policy OCID': policy.id,
-                        'Policy Description': policy.description,
-                        'Creation Time': str(policy.time_created),
-                        'Statement Text': statement,
-                        'Defined Type': result.get('define_type'),
-                        'Defined Name': result.get('principal'),
-                        'OCID Alias': result.get('alias'),
-                    }
+                    define_dict: DefineStatement = DefineStatement(
+                        policy_name=policy.name,
+                        policy_ocid=policy.id,
+                        policy_description=policy.description,
+                        statement_text=statement,
+                        valid=True,
+                        creation_time=str(policy.time_created),
+                        defined_type=result.get('define_type'),
+                        defined_name=result.get('principal'),
+                        ocid_alias=result.get('alias'),
+                    )
                     self.defined_aliases.append(define_dict)
 
                     return True
@@ -514,50 +517,50 @@ class PolicyAnalysisRepository:
                 logger.debug(f"Subject parsed 1: {result.get('subject')} ||| Statement: {statement}")
                 try:
                     # Populate parsed fields
-                    statement_dict['Valid'] = True  # Currently for Validity
-                    statement_dict['Subject Type'] = result.get('subjecttype')
-                    statement_dict['Subject'] = result.get('subject') or ''
-                    statement_dict['Verb'] = result.get('verb') or ''
-                    statement_dict['Resource'] = result.get('resource') or ''
-                    statement_dict['Permission'] = result.get('perm') or ''
-                    statement_dict['Location Type'] = result.get('locationtype') or ''
-                    statement_dict['Location'] = result.get('location') or ''
-                    statement_dict['Conditions'] = result.get('condition') or ''
-                    statement_dict['Comments'] = result.get('optional') or ''
-                    statement_dict['Parsing Notes'] = []
-                    statement_dict['Parsed'] = True  # Currently for parsed
+                    statement_dict['valid'] = True  # Currently for Validity
+                    statement_dict['subject_type'] = result.get('subjecttype') or 'other'
+                    statement_dict['subject'] = result.get('subject') or ''
+                    statement_dict['verb'] = result.get('verb') or ''
+                    statement_dict['resource'] = result.get('resource') or ''
+                    statement_dict['permission'] = result.get('perm') or ''
+                    statement_dict['location_type'] = result.get('locationtype') or ''
+                    statement_dict['location'] = result.get('location') or ''
+                    statement_dict['conditions'] = result.get('condition') or ''
+                    statement_dict['comments'] = result.get('optional') or ''
+                    statement_dict['parsing_notes'] = []
+                    statement_dict['parsed'] = True  # Currently for parsed
                     # Additional Subject Parsing
-                    if statement_dict['Subject Type'] in ['any-user', 'any-group']:
-                        statement_dict['Subject'] = [(None, statement_dict['Subject Type'])]
+                    if statement_dict['subject_type'] in ['any-user', 'any-group']:
+                        statement_dict['subject'] = [(None, statement_dict['subject_type'])]
                     else:
                         # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
                         # Try new subject parser
-                        subject_result = self._parse_subjects(statement_dict['Subject'])
+                        subject_result = self._parse_subjects(statement_dict['subject'])
                         logger.debug(f'Subject parsed: {subject_result}')
                         # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
                         if len(subject_result) > 1:
-                            statement_dict['Parsing Notes'].append('Multiple subjects found')
-                        statement_dict['Subject'] = subject_result
+                            statement_dict['parsing_notes'].append('Multiple subjects found')
+                        statement_dict['subject'] = subject_result
 
                     # Additional check for Location Validity
-                    if statement_dict['Location Type'].casefold() == 'compartment id':
+                    if statement_dict['location_type'].casefold() == 'compartment id':
                         # Check and change validity accordingly
-                        statement_dict['Valid'] = self._check_invalid_location(statement_dict['Location'])
-                        logger.debug(f"Checked OCID {statement_dict['Location']} - Valid: {statement_dict['Valid']}")
-                        if not statement_dict['Valid']:
-                            statement_dict['Invalid Reason'] = 'Invalid Compartment OCID'
+                        statement_dict['valid'] = self._check_invalid_location(statement_dict['location'])
+                        logger.debug(f"Checked OCID {statement_dict['location']} - Valid: {statement_dict['valid']}")
+                        if not statement_dict['valid']:
+                            statement_dict['invalid_reason'] = 'Invalid Compartment OCID'
 
                     # Additional check for Verb validity
-                    if statement_dict['Verb'] and statement_dict['Verb'].casefold() not in VALID_VERBS:
-                        logger.warning(f"Invalid Verb found: {statement_dict['Verb']}")
-                        statement_dict['Valid'] = False
-                        statement_dict['Invalid Reason'] = 'Invalid Verb'
+                    if statement_dict['verb'] and statement_dict['verb'].casefold() not in VALID_VERBS:
+                        logger.warning(f"Invalid Verb found: {statement_dict['verb']}")
+                        statement_dict['valid'] = False
+                        statement_dict['invalid_reason'] = 'Invalid Verb'
 
                     # Fake invalid (delete this)
-                    if statement_dict['Resource'] == 'orm-jobs':
-                        logger.warning(f"Fake Invalid Resource found: {statement_dict['Resource']}")
-                        statement_dict['Valid'] = False
-                        statement_dict['Invalid Reason'] = 'Fake Invalid Resource for testing'
+                    if statement_dict['resource'] == 'orm-jobs':
+                        logger.warning(f"Fake Invalid Resource found: {statement_dict['resource']}")
+                        statement_dict['valid'] = False
+                        statement_dict['invalid_reason'] = 'Fake Invalid Resource for testing'
                 except Exception as e:
                     logger.warning(f'Failed to parse statement: {e}')
 
@@ -567,8 +570,8 @@ class PolicyAnalysisRepository:
             logging.debug(f'Parsed Statement as JSON: {statement_dict}')
             self.regular_statements.append(statement_dict)
 
-            # Success or fail based on Parsed field
-            return True if statement_dict.get('Parsed') else False
+            # Success or fail based on parsed field
+            return True if statement_dict.get('parsed') else False
 
         # Catch All - should never get here
         logger.warning(f'Should not get here.  Statement not added to anything: {statement}')
@@ -647,9 +650,9 @@ class PolicyAnalysisRepository:
             a boolean indicating success or failure
         """
         self.compartments = []
-        self.regular_statements = []
-        self.cross_tenancy_statements = []
-        self.defined_aliases = []
+        self.regular_statements: list[PolicyStatement] = []
+        self.cross_tenancy_statements: list[PolicyStatement] = []
+        self.defined_aliases: list[DefineStatement] = []
         start_time = time.perf_counter()
         try:
             root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
@@ -889,7 +892,7 @@ class PolicyAnalysisRepository:
     # If no policy statements exist, return empty list
     # Fuzzy and Exact search are mutually exclusive - if both are provided, fuzzy search is used
     # If Identity Domains are not loaded and either fuzzy or exact search is requested, raise an error
-    def filter_policy_statements(self, filters: PolicySearch) -> list[dict]:  # noqa: C901
+    def filter_policy_statements(self, filters: PolicySearch) -> list[PolicyStatement]:  # noqa: C901
         """Filter policy statements based on provided criteria.
         Args:
             filters (PolicySearch): An object containing filter criteria:
@@ -946,18 +949,18 @@ class PolicyAnalysisRepository:
                     # Get the groups from the exact filter
                     logger.debug(f'Filtering on exact_groups with values: {values}')
                     groups_filter = filters.get('exact_groups', None)
-                    # Only applies to statements where "Subject Type" == "group"
-                    if stmt.get('Subject Type') != 'group':
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to Subject Type not 'group'")
+                    # Only applies to statements where "subject_type" == "group"
+                    if stmt.get('subject_type') != 'group':
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to subject_type not 'group'")
                         match = False
                         break
-                    subjects = stmt.get('Subject', [])
+                    subjects = stmt.get('subject', [])
                     if not isinstance(subjects, list):
-                        logger.warning(f"Unexpected Subject format in statement {stmt.get('Policy Name')}: {subjects}")
+                        logger.warning(f"Unexpected Subject format in statement {stmt.get('policy_name')}: {subjects}")
                         match = False
                         break
                     if len(groups_filter) == 0:
-                        logger.info('No groups in exact_groups filter, thus no match possible')
+                        logger.debug('No groups in exact_groups filter, thus no match possible')
                         match = False
                         break
                     # A match occurs if any provided domain and group name combo matches any subject in the statement (case-insensitive)
@@ -965,19 +968,19 @@ class PolicyAnalysisRepository:
                     for subj_domain, subj_name in subjects:
                         # Now we need to iterate the provided groups and see if any match
                         for group in groups_filter:
-                            group_domain = group.get('domain_name') or 'Default'
+                            group_domain = group.get('domain_name') or 'default'
                             group_name = group.get('group_name')
                             if (
                                 subj_domain.casefold() == group_domain.casefold()
                                 and subj_name.casefold() == group_name.casefold()
                             ):
                                 logger.debug(
-                                    f"Matched group {subj_domain}/{subj_name} in statement {stmt.get('Policy Name')} to filter group {group_domain}/{group_name}"
+                                    f"Matched group {subj_domain}/{subj_name} in statement {stmt.get('policy_name')} to filter group {group_domain}/{group_name}"
                                 )
                                 subj_matched = True
                     if not subj_matched:
                         logger.debug(
-                            f"No match found for exact_group filter in statement {stmt.get('Policy Name')} Text: {stmt.get('Statement Text')} Statement: {stmt.get('Subject')}"
+                            f"No match found for exact_group filter in statement {stmt.get('policy_name')} Text: {stmt.get('statement_text')} Statement: {stmt.get('subject')}"
                         )
                         match = False  # If we get here, no match found
                         break
@@ -986,78 +989,83 @@ class PolicyAnalysisRepository:
                 elif key == 'exact_dynamic_groups' and values:
                     logger.debug(f'Filtering on exact_dynamic_groups with values: {values}')
                     dyn_groups_filter = filters.get('exact_dynamic_groups', [])
-                    if stmt.get('Subject Type') != 'dynamic-group':
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to Subject Type not 'dynamic-group'")
+                    if stmt.get('subject_type') != 'dynamic-group':
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to Subject Type not 'dynamic-group'")
                         match = False
                         break
-                    subjects = stmt.get('Subject', [])
+                    subjects = stmt.get('subject', [])
                     if not isinstance(subjects, list):
-                        logger.warning(f"Unexpected Subject format in statement {stmt.get('Policy Name')}: {subjects}")
+                        logger.warning(f"Unexpected Subject format in statement {stmt.get('policy_name')}: {subjects}")
                         match = False
                         break
                     subj_matched = False
                     for subj_domain, subj_name in subjects:
                         for dg in dyn_groups_filter:
-                            dg_domain = dg.get('domain_name') or 'Default'
+                            dg_domain = dg.get('domain_name') or 'default'
                             dg_name = dg.get('dynamic_group_name')
                             if (
                                 subj_domain.casefold() == dg_domain.casefold()
                                 and subj_name.casefold() == dg_name.casefold()
                             ):
                                 logger.debug(
-                                    f"Matched dynamic group {subj_domain}/{subj_name} in statement {stmt.get('Policy Name')} to filter group {dg_domain}/{dg_name}"
+                                    f"Matched dynamic group {subj_domain}/{subj_name} in statement {stmt.get('policy_name')} to filter group {dg_domain}/{dg_name}"
                                 )
-                                subj_matched = True
                                 subj_matched = True
                     if not subj_matched:
                         logger.debug(
-                            f"No match found for exact_dynamic_groups filter in statement {stmt.get('Policy Name')} Text: {stmt.get('Statement Text')} Statement: {stmt.get('Subject')}"
+                            f"No match found for exact_dynamic_groups filter in statement {stmt.get('policy_name')} Text: {stmt.get('statement_text')} Statement: {stmt.get('subject')}"
                         )
                         match = False  # If we get here, no match found
                         break
                 # Compartment special: ROOTONLY
                 elif key == 'policy_compartment' and 'ROOTONLY' in values:
-                    if stmt.get('Compartment OCID') != self.tenancy_ocid:
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to ROOTONLY restriction")
+                    if stmt.get('compartment_ocid') != self.tenancy_ocid:
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to ROOTONLY restriction")
                         match = False
                         break
-
+                elif key == 'location' and 'tenancy' in values:
+                    if stmt.get('location_type', '').casefold() != 'tenancy':
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to location not tenancy")
+                        match = False
+                        break
                 # Once domain cases are done, iterate remaining values
                 # Verb enum
                 elif key == 'verb':
                     invalid = set(values) - VALID_VERBS
                     if invalid:
                         logger.debug(f'Invalid verbs in filter: {invalid}')
-                    field_value = str(stmt.get('Verb', '')).lower()
+                    field_value = str(stmt.get('verb', '')).lower()
                     if field_value not in values:
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to verb mismatch: {field_value}")
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to verb mismatch: {field_value}")
                         match = False
                         break
 
-                # # Effective path search
-                # elif key == 'effective_path':
-                #     filter_eff_value = values[0].lower()
-                #     statement_eff_value = str(stmt.get('Effective Path', '')).lower()
-                #     logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
-                #     # Logic here - if the effective path given contains the effective path of the statement,
-                #     # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
-                #     if not (filter_eff_value.startswith(statement_eff_value)):
-                #         logger.debug(
-                #             f"Rejecting {stmt.get('Policy Name')} due to effective_path mismatch: "
-                #             f"{statement_eff_value} not in {filter_eff_value}"
-                #         )
-                #         match = False
-                #         break
+                # Effective path search
+                elif key == 'effective_path':
+                    filter_eff_value = values[0].lower()
+                    statement_eff_value = str(stmt.get('effective_path', '')).lower()
+                    logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
+                    # Logic here - if the effective path given contains the effective path of the statement,
+                    # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
+                    if not (filter_eff_value.startswith(statement_eff_value)):
+                        logger.debug(
+                            f"Rejecting {stmt.get('policy_name')} due to effective_path mismatch: "
+                            f"{statement_eff_value} not in {filter_eff_value}"
+                        )
+                        match = False
+                        break
                 # Default lookup using column map
                 else:
-                    column = FILTER_KEY_MAP.get(key)
+                    # Should not need this
+                    # column = FILTER_KEY_MAP.get(key)
+                    column = key
                     logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
-                    if not column:
-                        logger.info(f'Unknown filter key: {key}')
+                    if not column or not values:
+                        logger.debug(f'Unknown filter key: {key} or values empty, skipping')
                         continue
                     field_value = str(stmt.get(column, '')).lower()
                     if not any(val.lower() in field_value for val in values):
-                        logger.debug(f"Rejecting {stmt.get('Policy Name')} due to {key} mismatch")
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to {key} mismatch")
                         match = False
                         break
 
@@ -1073,7 +1081,7 @@ class PolicyAnalysisRepository:
         for statement in self.cross_tenancy_statements:
             for alias_to_check in alias_filter:
                 # Check each alias to see if in statement test
-                statement_text = statement.get('Statement Text', '')
+                statement_text = statement.get('statement_text', '')
                 if alias_to_check in statement_text:
                     logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
                     filtered.append(statement)
@@ -1292,7 +1300,7 @@ class PolicyAnalysisRepository:
             del filters['search_dynamic_groups']
             logger.info(f'Added {len(exact_dgs)} exact dynamic groups to filter (removed fuzzy dynamic group search)')
         else:
-            logger.info('No fuzzy logic executed, search not changed.')
+            logger.debug('No fuzzy logic executed, search not changed.')
 
     def _resolve_exact_users(self, filters: PolicySearch):
         """Look for exact users and turn them into groups"""
@@ -1303,15 +1311,22 @@ class PolicyAnalysisRepository:
         exact_groups: list[Group] = []
         for u in self.users:
             # We need an exact match on domain and username
+            user_domain = u.get('domain_name') or 'default'
+            user_name = u.get('user_name')
             for filter_user in user_filter:
-                logger.debug(f"Checking user {u.get('domain_name')}/{u.get('user_name')} against filter {filter_user}")
+                filter_domain = filter_user.get('domain_name') or 'default'
+                filter_name = filter_user.get('user_name')
+
+                logger.debug(
+                    f'Checking actual user {user_domain}/{user_name} against filter user {filter_domain}/{filter_name}'
+                )
                 if (
-                    filter_user.get('domain_name').casefold() == u.get('domain_name').casefold()
-                    and filter_user.get('user_name').casefold() == u.get('user_name').casefold()
+                    filter_domain.casefold() == user_domain.casefold()
+                    and filter_name.casefold() == user_name.casefold()
                 ):
                     # get groups for user
-                    logger.debug(f"Exact user match found: {u.get('domain_name')}/{u.get('user_name')}")
-                    uu: User = {'domain_name': u.get('domain_name'), 'user_name': u.get('user_name')}  # type: ignore
+                    logger.debug(f'Exact user match found: {user_domain}/{user_name}')
+                    uu: User = {'domain_name': user_domain, 'user_name': user_name}  # type: ignore
                     user_groups: list[Group] = self.get_groups_for_user(uu)
                     logger.debug(f'User groups: {user_groups}')
                     # add groups into exact match in filter
@@ -1531,8 +1546,8 @@ class PolicyAnalysisRepository:
         # Build a list of all subjects as list(tuple(domain,name))
         all_subjects: list[tuple] = []
         for st in self.regular_statements:
-            subject_list = st.get('Subject') or []
-            subject_type = st.get('Subject Type')
+            subject_list = st.get('subject') or []
+            subject_type = st.get('subject_type')
             logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
             if subject_type == 'dynamic-group':
                 logger.info(f'Add: {subject_type} Subject: {subject_list}')

@@ -1,0 +1,93 @@
+from logic.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
+
+
+# Return a display-friendly dict for a policy statement
+def for_display_policy(statement: PolicyStatement) -> dict:
+    return {
+        'Policy Name': statement['policy_name'],
+        'Policy OCID': statement['policy_ocid'],
+        'Compartment OCID': statement['compartment_ocid'],
+        'Policy Compartment': statement['policy_compartment'],
+        'Statement Text': statement['statement_text'],
+        'Valid': statement['valid'],
+        'Invalid Reason': statement['invalid_reason'] if 'invalid_reason' in statement else '',
+        'Subject Type': statement['subject_type'] if 'subject_type' in statement else '',
+        'Subject': statement['subject'] if 'subject' in statement else '',
+        'Verb': statement['verb'] if 'verb' in statement else '',
+        'Resource': statement['resource'] if 'resource' in statement else '',
+        'Permission': statement['permission'] if 'permission' in statement else '',
+        'Location Type': statement['location_type'] if 'location_type' in statement else '',
+        'Location': statement['location'] if 'location' in statement else '',
+        'Effective Path': statement['effective_path'] if 'effective_path' in statement else '',
+        'Conditions': statement['conditions'] if 'conditions' in statement else '',
+        'Comments': statement['comments'] if 'comments' in statement else '',
+        'Parsing Notes': '; '.join(statement['parsing_notes']) if 'parsing_notes' in statement else '',
+        'Creation Time': statement['creation_time'] if 'creation_time' in statement else '',
+        'Parsed': statement['parsed'] if 'parsed' in statement else '',
+    }
+
+
+# Return a display-friendly dict for a user statement
+def for_display_user(u: User) -> dict:
+    """Return a dictionary suitable for display purposes."""
+    return {
+        'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',
+        'Username': u['user_name'],
+        'User ID': u.get('user_id', 'N/A'),
+        'User OCID': u.get('user_ocid', 'N/A'),
+        'Primary Email': u.get('email', 'N/A'),
+        'Display Name': u.get('display_name', 'N/A'),
+        'User Groups': ', '.join(u.get('groups', [])) if u.get('groups') else 'N/A',  # type: ignore
+    }  # type: ignore
+
+
+# Return a display-friendly dict for a group statement
+def for_display_group(g: Group) -> dict:
+    """Return a dictionary suitable for display purposes."""
+    return {
+        'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',
+        'Group Name': g['group_name'],
+        'Group ID': g.get('group_id', 'N/A'),
+        'Group OCID': g.get('group_ocid', 'N/A'),
+        'Description': g.get('description', 'N/A'),
+    }  # type: ignore
+
+
+# Return a display-friendly dict for a dynamic group
+def for_display_dynamic_group(dg: DynamicGroup) -> dict:
+    """Return a dictionary suitable for display purposes."""
+    return {
+        'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',
+        'DG Name': dg['dynamic_group_name'],
+        'DG ID': dg.get('dynamic_group_id', 'N/A'),
+        'DG OCID': dg.get('dynamic_group_ocid', 'N/A'),
+        'Description': dg.get('description', 'N/A'),
+        'Matching Rule': dg.get('matching_rule', 'N/A'),
+        'In Use': dg.get('in_use', False),
+        'Creation Time': dg.get('creation_time', 'N/A'),
+        'Created By': dg.get('created_by_name', 'N/A'),
+        'Created By OCID': dg.get('created_by_ocid', 'N/A'),
+    }  # type: ignore
+
+
+# Return a display-friendly dict for a defined alias
+def for_display_define(define: DefineStatement) -> dict:
+    return {
+        'Defined Type': define['defined_type'],
+        'Defined Name': define['defined_name'],
+        'OCID Alias': define['ocid_alias'],
+        'Statement Text': define['statement_text'],
+        'Creation Time': define['creation_time'],
+    }
+
+
+# Return a display-friendly dict for a cross-tenancy policy statement
+def for_display_cross_tenancy(statement: PolicyStatement) -> dict:
+    display_dict = {
+        'Policy Name': statement['policy_name'],
+        'Policy OCID': statement['policy_ocid'],
+        'Policy Compartment': statement['policy_compartment'],
+        'Statement Text': statement['statement_text'],
+        'Creation Time': statement['creation_time'],
+    }
+    return display_dict

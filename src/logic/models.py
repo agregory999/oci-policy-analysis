@@ -21,58 +21,56 @@ class Group(TypedDict):
     """
     Represents an Exact OCI IAM group entry.
     Groups need a domain and name to be unique.
-    Domain can be None for default domain.
+    Domain should be provided for non-default domain.
     """
 
-    domain_name: Annotated[str | None, 'The domain of the group. None for default domain.']
+    domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
     group_name: Annotated[str, 'The name of the group.']
-    group_id: Annotated[str | None, 'The ID of the group. Not required for filters.']
-    group_ocid: Annotated[str | None, 'The OCID of the group. Not required for filters.']
-    description: Annotated[str | None, 'The description of the group. Not required for filters.']
+    group_id: NotRequired[Annotated[str, 'The ID of the group. Not required for filters.']]
+    group_ocid: NotRequired[Annotated[str, 'The OCID of the group. Not required for filters.']]
+    description: NotRequired[Annotated[str, 'The description of the group. Not required for filters.']]
 
 
 class User(TypedDict):
     """
     Represents an Exact OCI IAM user entry.
-    Users need a domain and name to be unique.
-    Domain can be None for default domain.
+    Only requires a user_name to be unique within a domain.
+    Domain should be provided for non-default domain.
     """
 
-    domain_name: Annotated[str | None, 'The domain name. None for default domain.']
+    domain_name: NotRequired[Annotated[str, 'The domain of the user. If not provided, the default domain.']]
     user_name: Annotated[str, 'The user name. Required']
-    user_ocid: Annotated[str | None, 'The user OCID. Not required for filters.']
-    display_name: Annotated[str, 'The display name. Not required for filters.']
-    email: Annotated[str | None, 'The primary email address. Not required for filters.']
-    user_id: Annotated[str | None, 'The user ID. Not required for filters.']
-    groups: Annotated[list[str] | None, 'List of group OCIDs the user belongs to. Not required for filters.']
+    user_ocid: NotRequired[Annotated[str, 'The user OCID. Not required for filters.']]
+    display_name: NotRequired[Annotated[str, 'The display name. Not required for filters.']]
+    email: NotRequired[Annotated[str, 'The primary email address. Not required for filters.']]
+    user_id: NotRequired[Annotated[str, 'The user ID. Not required for filters.']]
+    groups: NotRequired[Annotated[list[str], 'List of group OCIDs the user belongs to. Not required for filters.']]
 
 
 class DynamicGroup(TypedDict):
     """
     Represents an Exact OCI IAM dynamic group entry.
     Dynamic groups need a domain and name to be unique.
-    Domain can be None for default domain.
+    Domain should be provided for non-default domain.
     """
 
-    domain_name: Annotated[str | None, 'The domain of the dynamic group. None for default domain.']
+    domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
     dynamic_group_name: Annotated[str, 'The name of the dynamic group.']
-    dynamic_group_ocid: NotRequired[Annotated[str | None, 'The OCID of the dynamic group. Not required for filters.']]
-    dynamic_group_id: NotRequired[Annotated[str | None, 'The ID of the dynamic group. Not required for filters.']]
+    dynamic_group_ocid: NotRequired[Annotated[str, 'The OCID of the dynamic group. Not required for filters.']]
+    dynamic_group_id: NotRequired[Annotated[str, 'The ID of the dynamic group. Not required for filters.']]
     matching_rule: NotRequired[
-        Annotated[str | None, 'The matching rule expression for the dynamic group. Not required for filters.']
+        Annotated[str, 'The matching rule expression for the dynamic group. Not required for filters.']
     ]
-    description: NotRequired[Annotated[str | None, 'The description of the dynamic group. Not required for filters.']]
+    description: NotRequired[Annotated[str, 'The description of the dynamic group. Not required for filters.']]
     in_use: NotRequired[
-        Annotated[bool | None, 'True if the dynamic group is referenced by any policies. Not required for filters.']
+        Annotated[bool, 'True if the dynamic group is referenced by any policies. Not required for filters.']
     ]
-    creation_time: NotRequired[
-        Annotated[str | None, 'The creation time of the dynamic group. Not required for filters.']
-    ]
+    creation_time: NotRequired[Annotated[str, 'The creation time of the dynamic group. Not required for filters.']]
     created_by_ocid: NotRequired[
-        Annotated[str | None, 'The OCID of the user who created the dynamic group. Not required for filters.']
+        Annotated[str, 'The OCID of the user who created the dynamic group. Not required for filters.']
     ]
     created_by_name: NotRequired[
-        Annotated[str | None, 'The name of the user who created the dynamic group. Not required for filters.']
+        Annotated[str, 'The name of the user who created the dynamic group. Not required for filters.']
     ]
 
 
@@ -88,13 +86,13 @@ class GroupSearch(TypedDict, total=False):
     """
 
     domain_name: Annotated[
-        list[str | None] | None,
-        'Domain name(s) to filter groups by. Use None or an empty string to include groups without a domain (Default domain).',
+        list[str],
+        'Domain name(s) to filter groups by. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
     ]
 
-    group_name: Annotated[list[str] | None, 'Group display name(s) to match. Accepts full or partial names.']
+    group_name: Annotated[list[str], 'Group display name(s) to match. Accepts full or partial names.']
 
-    group_ocid: Annotated[str | None, 'The OCID of the group. ']
+    group_ocid: Annotated[str, 'The OCID of the group. ']
 
 
 class UserSearch(TypedDict, total=False):
@@ -109,16 +107,18 @@ class UserSearch(TypedDict, total=False):
     """
 
     domain_name: Annotated[
-        list[str | None] | None,
-        'Domain name(s) to filter users by. Use None or an empty string to include users without a domain (Default domain).',
+        list[str],
+        'Domain name(s) to filter users by. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
     ]
 
     search: Annotated[
-        list[str] | None,
+        list[str],
         'User name(s) or Display Name(s) to match. Accepts full or partial names and matches display name or username.',
     ]
 
-    user_ocid: Annotated[str | None, 'The OCID of the user.']
+    user_ocid: Annotated[
+        str, 'A list of full or partial OCIDs of users to search on. The list will be treated as logical OR.'
+    ]
 
 
 class DynamicGroupSearch(TypedDict, total=False):
@@ -133,23 +133,23 @@ class DynamicGroupSearch(TypedDict, total=False):
 
     domain_name: NotRequired[
         Annotated[
-            list[str | None] | None,
-            'Optional domain name(s) associated with the dynamic group. If provided, use None or an empty string for groups in the Default domain.',
+            list[str],
+            'Domain name(s) associated with the dynamic group. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
         ]
     ]
 
     dynamic_group_name: NotRequired[
-        Annotated[list[str] | None, 'Dynamic group name(s) to filter by. Accepts full or partial names.']
+        Annotated[list[str], 'Dynamic group name(s) to filter by. Accepts full or partial names.']
     ]
 
     matching_rule: NotRequired[
         Annotated[
-            list[str] | None,
+            list[str],
             "Matching rule expression(s) to search for (e.g., 'ALL {resource.type = instance, ...}'). Supports substring matches.",
         ]
     ]
 
-    dynamic_group_ocid: Annotated[str | None, 'The OCID of the dynamic group.']
+    dynamic_group_ocid: Annotated[str, 'List of full or partial OCIDs of the dynamic group.']
     in_use: NotRequired[
         Annotated[
             bool,
@@ -169,24 +169,20 @@ class PolicySearch(TypedDict, total=False):
     Providing no fields returns all policy statements.
     """
 
-    exact_groups: Annotated[list[Group] | None, 'Exact Group(s) to filter policies by. Requires full group name.']
+    exact_groups: Annotated[list[Group], 'Exact Group(s) to filter policies by. Requires full group_name.']
 
-    exact_users: Annotated[list[User] | None, 'Exact User(s) to filter policies by. Requires full user name.']
+    exact_users: Annotated[list[User], 'Exact User(s) to filter policies by. Requires full user_name.']
 
     exact_dynamic_groups: Annotated[
-        list[DynamicGroup] | None, 'Exact Dynamic Group(s) to filter policies by. Requires full or partial names.'
+        list[DynamicGroup], 'Exact Dynamic Group(s) to filter policies by. Requires full dynamic_group_name.'
     ]
 
-    search_groups: Annotated[
-        GroupSearch | None, 'Fuzzy Search Group(s) to filter policies by. Accepts full or partial names.'
-    ]
+    search_groups: Annotated[GroupSearch, 'Fuzzy Search Group(s) to filter policies by. Accepts full or partial names.']
 
-    search_users: Annotated[
-        UserSearch | None, 'Fuzzy Search User(s) to filter policies by. Accepts full or partial names.'
-    ]
+    search_users: Annotated[UserSearch, 'Fuzzy Search User(s) to filter policies by. Accepts full or partial names.']
 
     search_dynamic_groups: Annotated[
-        DynamicGroupSearch | None, 'Fuzzy Search Dynamic Group(s) to filter policies by. Accepts full or partial names.'
+        DynamicGroupSearch, 'Fuzzy Search Dynamic Group(s) to filter policies by. Accepts full or partial names.'
     ]
 
     verb: Annotated[
@@ -218,11 +214,12 @@ class PolicySearch(TypedDict, total=False):
         'An example is ROOT/compartment1/sub-comp'
         'This filter can handle multiple paths as a list of strings. '
         'Supports partial paths, e.g., ROOT/compartment1',
+        'To match, this must be an exact match or a prefix(startswith) of the effective path of a policy statement.',
     ]
 
     subject_type: Annotated[
         list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']],
-        "Type of subject targeted by the policy. Must be one of 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
+        "Type of subject targeted by the policy. Must be one or more of 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
     ]
 
     subject: Annotated[list[str], 'Subject identifier(s), usually user, group, or domain/name pairs.']
@@ -240,15 +237,15 @@ class PolicySearch(TypedDict, total=False):
 class DefineStatement(TypedDict, total=False):
     """Parsed OCI IAM 'define' policy statement with optional metadata."""
 
-    Policy_Name: Annotated[str, 'Human-readable policy name']
-    Policy_OCID: Annotated[str, 'Unique OCID of the policy']
-    Policy_Description: Annotated[str, 'Description of the policy']
-    Statement_Text: Annotated[str, 'Full text of the define statement']
-    Valid: Annotated[bool, 'True if the statement passed parsing and validation']
-    Defined_Type: Annotated[str, 'Type of object defined (user, group, dynamic-group, etc.)']
-    Defined_Name: Annotated[str, 'Name of the defined object']
-    OCID_Alias: Annotated[str, 'Alias assigned for this definition, if any']
-    Creation_Time: Annotated[str, 'ISO timestamp when the policy was created']
+    policy_name: Annotated[str, 'Human-readable policy name']
+    policy_ocid: Annotated[str, 'Unique OCID of the policy']
+    policy_description: Annotated[str, 'Description of the policy']
+    statement_text: Annotated[str, 'Full text of the define statement']
+    valid: Annotated[bool, 'True if the statement passed parsing and validation']
+    defined_type: Annotated[str, 'Type of object defined (user, group, dynamic-group, etc.)']
+    defined_name: Annotated[str, 'Name of the defined object']
+    ocid_alias: Annotated[str, 'Alias assigned for this definition, if any']
+    creation_time: Annotated[str, 'ISO timestamp when the policy was created']
 
 
 class PolicyStatement(TypedDict, total=False):
@@ -259,63 +256,63 @@ class PolicyStatement(TypedDict, total=False):
     These structures are produced during policy parsing and returned by filter tools.
     """
 
-    Policy_Name: Annotated[str, 'Display name of the policy containing this statement.']
+    policy_name: Annotated[str, 'Display name of the policy containing this statement.']
 
-    Policy_OCID: Annotated[str, 'Unique OCID identifier of the policy.']
+    policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
 
-    Compartment_OCID: Annotated[str, 'OCID of the compartment where this policy is defined.']
+    compartment_ocid: Annotated[str, 'OCID of the compartment where this policy is defined.']
 
-    Policy_Compartment: Annotated[str, 'Name of the compartment that owns this policy.']
+    policy_compartment: Annotated[str, 'Name of the compartment that owns this policy.']
 
-    Statement_Text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
+    statement_text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
 
-    Valid: Annotated[bool, 'True if the statement successfully parsed and passed internal validation.']
+    valid: Annotated[bool, 'True if the statement successfully parsed and passed internal validation.']
 
-    Subject_Type: Annotated[
-        str | None,
+    invalid_reason: Annotated[str, 'If invalid, the reason why parsing or validation failed.']
+
+    subject_type: Annotated[
+        str,
         "Type of subject targeted by the policy, such as 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
     ]
 
-    Subject: Annotated[
-        list[tuple[str | None, str]] | str | None,
+    subject: Annotated[
+        list[tuple[str | None, str]] | str,
         'The subject(s) this policy applies to. May be a list of (domain, name) tuples or a simple string if unstructured.',
     ]
 
-    Verb: Annotated[
-        str | None, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."
+    verb: Annotated[str, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."]
+
+    resource: Annotated[
+        str, "OCI resource type targeted by this statement (e.g., 'instance-family', 'bucket', 'compartment')."
     ]
 
-    Resource: Annotated[
-        str | None, "OCI resource type targeted by this statement (e.g., 'instance-family', 'bucket', 'compartment')."
+    permission: Annotated[
+        str, "Specific permission or action derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS')."
     ]
 
-    Permission: Annotated[
-        str | None, "Specific permission or action derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS')."
-    ]
+    location_type: Annotated[str, "Indicates how the location was resolved: 'explicit', 'root', 'derived', etc."]
 
-    Location_Type: Annotated[str | None, "Indicates how the location was resolved: 'explicit', 'root', 'derived', etc."]
+    location: Annotated[str, 'Human-readable compartment path or OCID representing where this policy applies.']
 
-    Location: Annotated[str | None, 'Human-readable compartment path or OCID representing where this policy applies.']
-
-    Effective_Compartment_OCID: Annotated[
+    effective_compartment_ocid: Annotated[
         str | None, 'OCID of the effective compartment determined from policy scope analysis.'
     ]
 
-    Effective_Path: Annotated[
-        str | None,
+    effective_path: Annotated[
+        str,
         'Resolved compartment path string showing where the statement takes effect, including inherited scopes.',
     ]
 
-    Conditions: Annotated[
-        str | None, "Conditional logic (e.g., 'where any {request.user.id = ...}') if present in the statement."
+    conditions: Annotated[
+        str, "Conditional logic (e.g., 'where any {request.user.id = ...}') if present in the statement."
     ]
 
-    Comments: Annotated[str | None, 'Comments or annotations appended to the policy statement text, if any.']
+    comments: Annotated[str, 'Comments or annotations appended to the policy statement text, if any.']
 
-    Creation_Time: Annotated[str, 'Timestamp (ISO-8601) of the policy’s creation in OCI.']
+    creation_time: Annotated[str, 'Timestamp (ISO-8601) of the policy’s creation in OCI.']
 
-    Parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
+    parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
 
-    Parsing_Notes: Annotated[
+    parsing_notes: Annotated[
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
     ]
