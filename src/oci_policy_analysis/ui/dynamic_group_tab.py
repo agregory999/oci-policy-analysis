@@ -103,11 +103,11 @@ class DynamicGroupsTab(ttk.Frame):
     def __init__(
         self,
         parent,
-        main_app,
+        app,
         policy_compartment_analysis: PolicyAnalysisRepository,
     ):
         super().__init__(parent)
-        self.main_app = main_app
+        self.app = app
         self.policy_compartment_analysis = policy_compartment_analysis
         self.create_tab()
 
@@ -221,9 +221,28 @@ class DynamicGroupsTab(ttk.Frame):
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
-                self.main_app.policy_query_var.set(selected_statement)
+                self.app.policy_query_var.set(selected_statement)
             else:
                 pass
+
+        def policy_more_details_menu(row_index: int) -> tk.Menu:
+            menu = tk.Menu(self, tearoff=0)
+            row_data = self.dg_policy_table.data[row_index]
+            logger.info(f'Creating more details menu for row {row_index}: {row_data}')
+
+            # Create a policy search filter by policy name from selected row
+            def switch_tab_policy_analysis():
+                self.app.notebook.select(tab_id=1)  # Policy Analysis tab
+                # Set the policy name entry
+                logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
+                # Check the dynamic groups box and set the filter for policy name
+                self.app.policies_tab.chk_show_dynamic.set(True)
+                self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
+
+            menu.add_command(
+                label=f'View Full Policy ({row_data.get("Policy Name", "")})', command=switch_tab_policy_analysis
+            )
+            return menu
 
         # Dynamic Groups
         self.custom_data_dynamic_group = DataTable(
@@ -244,12 +263,17 @@ class DynamicGroupsTab(ttk.Frame):
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
-            # font_size=10,
+            row_context_menu_callback=policy_more_details_menu,
             selection_callback=dg_policy_selection_callback,
             multi_select=False,
         )
         # self.dg_policy_table.grid(row=0, column=0, columnspan=3, sticky='nsew')
         self.dg_policy_table.pack(fill='both', expand=True, padx=10, pady=5)
+
+        # Label for context menu
+        tk.Label(self, text='Matching Policies Table - right-click on a policy for more details').pack(
+            anchor='w', padx=15, pady=(0, 5)
+        )
 
         # Trace to update on change
         self.domain_filter_var.trace_add('write', lambda *args: self._update_dg_output())
