@@ -15,6 +15,7 @@
 ##########################################################################
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
+import importlib.metadata
 import os
 from importlib.resources import files
 
@@ -25,15 +26,16 @@ try:
 except Exception:
     __version__ = 'dev'
 
-# # -- Patch importlib.metadata.version to avoid PackageNotFoundError
-# def _safe_version(name: str) -> str:
-#     try:
-#         return importlib.metadata.version(name)
-#     except Exception:
-#         return '0.0.0'
+
+# -- Patch importlib.metadata.version to avoid PackageNotFoundError
+def _safe_version(name: str) -> str:
+    try:
+        return importlib.metadata.version(name)
+    except Exception:
+        return '0.0.0'
 
 
-# importlib.metadata.version = _safe_version
+importlib.metadata.version = _safe_version
 
 # -- Ensure fake Rich package works if the real one is missing
 try:
