@@ -15,22 +15,25 @@
 ##########################################################################
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
-import importlib.metadata
 import os
-import subprocess  # noqa: I001
+from importlib.resources import files
 
 import ttkbootstrap as ttk
 
+try:
+    __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
+except Exception:
+    __version__ = 'dev'
 
-# -- Patch importlib.metadata.version to avoid PackageNotFoundError
-def _safe_version(name: str) -> str:
-    try:
-        return importlib.metadata.version(name)
-    except Exception:
-        return '0.0.0'
+# # -- Patch importlib.metadata.version to avoid PackageNotFoundError
+# def _safe_version(name: str) -> str:
+#     try:
+#         return importlib.metadata.version(name)
+#     except Exception:
+#         return '0.0.0'
 
 
-importlib.metadata.version = _safe_version
+# importlib.metadata.version = _safe_version
 
 # -- Ensure fake Rich package works if the real one is missing
 try:
@@ -122,8 +125,7 @@ class App(tk.Tk):
         super().__init__()
 
         # --- Title with version ---
-        version = get_app_version()
-        self.title(f'OCI Policy Analysis {version}')
+        self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1400x900')
 
         # Shared config & logger
@@ -700,39 +702,6 @@ class App(tk.Tk):
     def open_link(self, link):
         logger.info(f'Opening web link: {link}')
         webbrowser.open_new(link)
-
-
-def get_app_version() -> str:
-    """Return version from env, git tag, or 'dev'."""
-    if version := os.environ.get('APP_VERSION'):
-        return version
-    try:
-        version = (
-            subprocess.check_output(['git', 'describe', '--tags'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
-        )
-        return version
-    except Exception:
-        return 'dev'
-
-
-# def get_icon_path() -> pathlib.Path | None:
-#     """Return correct icon path depending on platform and build mode."""
-#     if getattr(sys, 'frozen', False):
-#         base_path = pathlib.Path(sys._MEIPASS)
-#     else:
-#         base_path = pathlib.Path(__file__).parent
-
-#     icon_dir = base_path / 'icons'
-
-#     system = platform.system().lower()
-#     if system == 'darwin':  # macOS
-#         icon_file = icon_dir / 'oci-policy-dg-viewer.icns'
-#     elif system == 'windows':
-#         icon_file = icon_dir / 'oci-policy-dg-viewer.ico'
-#     else:  # Linux or others
-#         icon_file = icon_dir / 'oci-policy-dg-viewer.png'
-
-#     return icon_file if icon_file.exists() else None
 
 
 if __name__ == '__main__':

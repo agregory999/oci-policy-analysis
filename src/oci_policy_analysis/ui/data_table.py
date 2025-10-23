@@ -136,6 +136,7 @@ class DataTable(tk.Frame):
         self.tree.bind('<Button-1>', self._select_cell)
         self.tree.bind('<Control-c>', self._copy_cell)  # Ctrl+C for Windows/Linux
         self.tree.bind('<Command-c>', self._copy_cell)  # Command+C for macOS
+        self.tree.bind('<Button-2>', self._show_context_menu)  # Middle-click for macOS
         self.tree.bind('<Button-3>', self._show_context_menu)
 
         # Initial column update
