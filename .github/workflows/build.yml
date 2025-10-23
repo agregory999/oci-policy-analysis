@@ -93,17 +93,17 @@ jobs:
         shell: bash
         run: ruff check src || echo "⚠️ Ruff warnings ignored."
 
-      - name: Build executable
+      - name: Inject version into version.txt
         run: |
-          echo "🏗️ Building for ${{ matrix.os }} with Python $(python3 -V || python -V)"
-        shell: bash
-        if: runner.os != 'Windows'
+          echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
+          cat src/oci_policy_analysis/version.txt
 
       - name: Build (macOS & Linux)
         shell: bash
         if: runner.os != 'Windows'
         run: |
           set -e
+          echo "🏗️ Building for ${{ matrix.os }} with Python $(python3 -V || python -V)"
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             echo "🍎 macOS build..."
             PY_LIB=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
@@ -115,6 +115,7 @@ jobs:
               --clean --noconfirm --noconsole \
               --icon=icons/oci-policy-dg-viewer.icns \
               --collect-all=sys \
+              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
               --add-binary="$PY_LIB:Frameworks/Python" \
               src/oci_policy_analysis/main.py
           else
@@ -128,6 +129,7 @@ jobs:
               --clean --noconfirm \
               --noconsole \
               --icon=icons/oci-policy-dg-viewer.png \
+              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
               --collect-all=sys \
               --add-binary="$PY_SO:." \
               src/oci_policy_analysis/main.py
@@ -149,6 +151,7 @@ jobs:
             --noconsole `
             --icon "icons\oci-policy-dg-viewer.ico" `
             --collect-all sys `
+            --add-data "src\oci_policy_analysis\version.txt:oci_policy_analysis" `
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
