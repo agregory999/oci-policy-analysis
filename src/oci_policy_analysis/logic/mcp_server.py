@@ -352,6 +352,7 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
 
 server_thread: threading.Thread | None = None
 server_instance: uvicorn.Server | None = None
+server_running: bool = False
 
 
 def start_mcp_server_in_thread(settings: dict):
@@ -362,7 +363,7 @@ def start_mcp_server_in_thread(settings: dict):
         config (dict): MCP server config {host, port, key_path, cert_path, ...}
         log_fn (callable): optional logger callback, e.g. PopupConsole.write_line()
     """
-    global server_thread, server_instance, pca
+    global server_thread, server_instance, pca, server_running
 
     # prevent multiple starts
     if server_thread and server_thread.is_alive():
@@ -370,12 +371,15 @@ def start_mcp_server_in_thread(settings: dict):
         return
 
     logger.info(f'Starting MCP server thread with config: {settings}')
+    server_running = False  # reset
 
     def _run():
+        global server_running
         try:
             logger.info(
                 f"Starting FastMCP server on {settings.get('mcp_host', '127.0.0.1')}:{settings.get('mcp_port', 8765)}"
             )
+            server_running = True
             mcp.run(
                 transport='streamable-http',
                 port=settings.get('mcp_port', 8765),
@@ -385,6 +389,7 @@ def start_mcp_server_in_thread(settings: dict):
             logger.exception(f'MCP server crashed: {e}')
         finally:
             logger.info('MCP server thread exited.')
+            server_running = False
 
     # run uvicorn in a daemon thread so Tkinter stays responsive
     server_thread = threading.Thread(target=_run, daemon=True)
@@ -403,6 +408,17 @@ def stop_mcp_server(log_fn=None):
     logger.info('Attempting to stop MCP server thread (will terminate on next exit)...')
     # FastMCP doesn’t expose a shutdown signal; you’d terminate by closing the socket or restarting the process.
     server_thread = None
+
+
+def mcp_server_status() -> bool:
+    """
+    Check if the MCP server is currently running.
+
+    Returns:
+        bool: True if the server is running, False otherwise.
+    """
+    global server_thread
+    return bool(server_thread and server_thread.is_alive())
 
 
 def build_arg_parser():

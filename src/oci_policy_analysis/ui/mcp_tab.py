@@ -22,7 +22,7 @@ from tkinter.scrolledtext import ScrolledText
 import oci_policy_analysis.logic.mcp_server as mcp_server
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.logic.logger import get_logger
-from oci_policy_analysis.logic.mcp_server import server_thread, start_mcp_server_in_thread, stop_mcp_server
+from oci_policy_analysis.logic.mcp_server import mcp_server_status, start_mcp_server_in_thread, stop_mcp_server
 
 logger = get_logger(component='mcp_tab')
 
@@ -84,8 +84,9 @@ class McpTab(ttk.Frame):
         self.start_btn = ttk.Button(ctrl_frame, text='Start MCP Server', command=self.start_mcp)
         self.start_btn.pack(side=tk.LEFT, padx=5)
 
-        self.stop_btn = ttk.Button(ctrl_frame, text='Stop MCP Server', command=self.stop_mcp, state=tk.DISABLED)
-        self.stop_btn.pack(side=tk.LEFT, padx=5)
+        # Don't show stop button for now - it cannot work reliably
+        # self.stop_btn = ttk.Button(ctrl_frame, text='Stop MCP Server', command=self.stop_mcp, state=tk.DISABLED)
+        # self.stop_btn.pack(side=tk.LEFT, padx=5)
 
         ttk.Label(ctrl_frame, text='Status:').pack(side=tk.LEFT, padx=(15, 0))
         self.status_lbl = ttk.Label(ctrl_frame, text='Stopped', foreground='red')
@@ -122,7 +123,7 @@ class McpTab(ttk.Frame):
         mcp_server.pca = self.policy_repo
         logger.info('Starting MCP server...')
         start_mcp_server_in_thread(self.settings)
-        self._set_status(running=True)
+        self._set_status(True)
 
     def stop_mcp(self):
         if not self.server_running:
@@ -131,39 +132,35 @@ class McpTab(ttk.Frame):
 
         logger.info('Stopping MCP server...')
         stop_mcp_server()
-        self._set_status(running=False)
+        self._set_status(False)
 
     # ---------------------------
     # Status Handling
     # ---------------------------
 
     def _set_status(self, running: bool):
-        self.server_running = running
         if running:
             self.status_lbl.config(text='Running', foreground='green')
             self.start_btn.config(state=tk.DISABLED)
-            self.stop_btn.config(state=tk.NORMAL)
+            # self.stop_btn.config(state=tk.NORMAL)
         else:
             self.status_lbl.config(text='Stopped', foreground='red')
             self.start_btn.config(state=tk.NORMAL)
-            self.stop_btn.config(state=tk.DISABLED)
+            # self.stop_btn.config(state=tk.DISABLED)
 
     # ---------------------------
     # Poll for status
     # ---------------------------
 
     def _start_status_poll(self):
-        self._check_status()
+        self._update_status()
         self.after(3000, self._start_status_poll)
 
-    def _check_status(self):
+    def _update_status(self):
         """Update label if MCP thread changes."""
-        try:
-            alive = bool(server_thread and server_thread.is_alive())
-        except Exception:
-            alive = False
-        if alive != self.server_running:
-            self._set_status(alive)
+        is_running = mcp_server_status()
+        logger.debug(f'MCP server is {"running" if is_running else "stopped"}')
+        self._set_status(is_running)
 
     # ---------------------------
     # Log Handling

@@ -15,7 +15,11 @@
 ##########################################################################
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
-import importlib.metadata  # noqa: I001
+import importlib.metadata
+import os
+import subprocess  # noqa: I001
+
+import ttkbootstrap as ttk
 
 
 # -- Patch importlib.metadata.version to avoid PackageNotFoundError
@@ -51,14 +55,12 @@ import tkinter.filedialog as tkfiledialog  # noqa: E402
 import tkinter.font as tkfont  # noqa: E402
 import webbrowser  # noqa: E402
 from datetime import datetime  # noqa: E402
-from tkinter import ttk  # noqa: E402
 from tkinter.scrolledtext import ScrolledText  # noqa: E402
 
 # import markdown
 import markdown2  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 from tkhtmlview import HTMLLabel  # noqa: E402
-from ttkbootstrap import Window  # noqa: E402
 
 from oci_policy_analysis.logic import config  # noqa: E402
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
@@ -94,7 +96,7 @@ class TextHandler(logging.Handler):
         self.text_widget.see(tk.END)
 
 
-class App(Window):
+class App(tk.Tk):
     """Main application window for OCI Policy Analysis.
 
     This class manages the main Tkinter window, top Notebook tabs, bottom pane,
@@ -117,8 +119,11 @@ class App(Window):
     """
 
     def __init__(self):
-        super().__init__(themename='litera')
-        self.title('OCI Policy Analysis')
+        super().__init__()
+
+        # --- Title with version ---
+        version = get_app_version()
+        self.title(f'OCI Policy Analysis {version}')
         self.geometry('1400x900')
 
         # Shared config & logger
@@ -130,7 +135,7 @@ class App(Window):
         self.log_level_var = tk.StringVar(value=logging.getLevelName(logger.level))
 
         # Style / fonts
-        # self.style = ttk.Style()
+        self.style = ttk.Style(theme='litera')
         self.default_font = tkfont.nametofont('TkDefaultFont')
         self.style.configure('.', font=('Oracle Sans', 12))
         self.style.configure('TButton', bootstyle='round')  # all buttons get round style
@@ -697,6 +702,39 @@ class App(Window):
         webbrowser.open_new(link)
 
 
+def get_app_version() -> str:
+    """Return version from env, git tag, or 'dev'."""
+    if version := os.environ.get('APP_VERSION'):
+        return version
+    try:
+        version = (
+            subprocess.check_output(['git', 'describe', '--tags'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+        )
+        return version
+    except Exception:
+        return 'dev'
+
+
+# def get_icon_path() -> pathlib.Path | None:
+#     """Return correct icon path depending on platform and build mode."""
+#     if getattr(sys, 'frozen', False):
+#         base_path = pathlib.Path(sys._MEIPASS)
+#     else:
+#         base_path = pathlib.Path(__file__).parent
+
+#     icon_dir = base_path / 'icons'
+
+#     system = platform.system().lower()
+#     if system == 'darwin':  # macOS
+#         icon_file = icon_dir / 'oci-policy-dg-viewer.icns'
+#     elif system == 'windows':
+#         icon_file = icon_dir / 'oci-policy-dg-viewer.ico'
+#     else:  # Linux or others
+#         icon_file = icon_dir / 'oci-policy-dg-viewer.png'
+
+#     return icon_file if icon_file.exists() else None
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
@@ -704,11 +742,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # if args.console_log:
-    #     # Reconfigure logger to use console
-    #     logger = get_logger(use_console=True, component='main')
-    #     logger.info('Logging to console')
-    # else:
     logger = get_logger(component='main')
     logger.info('Logging to Console only')
 

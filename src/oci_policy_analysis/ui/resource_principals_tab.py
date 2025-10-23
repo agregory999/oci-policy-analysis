@@ -148,6 +148,7 @@ class ResourcePrincipalsTab(ttk.Frame):
             'stackmon',
             'cluster',
             'workloadprotectionagent',
+            'aidataplatform',
         ]
         self.resource_type_dropdown = ttk.OptionMenu(
             frm_principals_top, self.resource_type_var, self.resource_type_var.get(), *self.resource_type_list
@@ -171,7 +172,7 @@ class ResourcePrincipalsTab(ttk.Frame):
             filters: PolicySearch = PolicySearch(exact_dynamic_groups=dgs_for_filter)
             filtered = self.policy_repo.filter_policy_statements(filters)
 
-            logger.info(f'type: {type(filtered)} len: {len(filtered)}')
+            logger.debug(f'type: {type(filtered)} len: {len(filtered)}')
             # SNormalize the data
             filtered = [for_display_policy(statement) for statement in filtered]
             self.rp_policy_table.update_data(filtered)
@@ -183,6 +184,25 @@ class ResourcePrincipalsTab(ttk.Frame):
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
                 self.app.policy_query_var.set(selected_statement)
+
+        def policy_more_details_menu(row_index: int) -> tk.Menu:
+            menu = tk.Menu(self, tearoff=0)
+            row_data = self.rp_policy_table.data[row_index]
+            logger.info(f'Creating more details menu for row {row_index}: {row_data}')
+
+            # Create a policy search filter by policy name from selected row
+            def switch_tab_policy_analysis():
+                self.app.notebook.select(tab_id=1)  # Policy Analysis tab
+                # Set the policy name entry
+                logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
+                # Check the dynamic groups box and set the filter for policy name
+                self.app.policies_tab.chk_show_dynamic.set(True)
+                self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
+
+            menu.add_command(
+                label=f'View Full Policy ({row_data.get("Policy Name", "")})', command=switch_tab_policy_analysis
+            )
+            return menu
 
         # Bottom frame (row 1) for sheets using grid (bottom 2 rows if DG, bottom 1 if any-user)
         frm_principals_bottom = tk.Frame(self)
@@ -203,6 +223,10 @@ class ResourcePrincipalsTab(ttk.Frame):
         )
         self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
 
+        # Add a label above table to show instructions
+        tk.Label(frm_principals_bottom, text='Matching Policies Table - right-click on a policy for more details').grid(
+            row=4, column=0, padx=5, pady=5, sticky='w'
+        )
         # RP Policy Table
         self.rp_policy_table = DataTable(
             frm_principals_bottom,
@@ -210,11 +234,11 @@ class ResourcePrincipalsTab(ttk.Frame):
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
-            # font_size=10,
+            row_context_menu_callback=policy_more_details_menu,
             selection_callback=rp_policy_selection_callback,
             multi_select=False,
         )
-        self.rp_policy_table.grid(row=1, column=0, sticky='nsew')
+        self.rp_policy_table.grid(row=2, column=0, sticky='nsew')
 
         # Update the sheet
         self.update_principals_sheets()
@@ -239,15 +263,16 @@ class ResourcePrincipalsTab(ttk.Frame):
         self.rp_policy_table.grid_forget()
 
         if principals_style == 'any-user':
-            # Start with "any-user" style statement
+            # Enable Resource Type dropdown
+            self.resource_type_dropdown.configure(state='normal')
 
             # Re-grid RP sheet
             self.rp_policy_table.grid(row=0, column=0, rowspan=2, sticky='nsew')
-            logger.info('Added both DG and Policy tables to grid')
+            logger.info('Any-User selected - only showing Policy table with resource dropdown')
 
             # Don't care about Dynamic groups
             if resource_type == 'Any':
-                logger.info('Case 1 - Any-User with no type specified')
+                logger.info('Any-User with Any resource type selected')
                 # TODO Fixme: this filter is not working as intended
                 filters: PolicySearch = PolicySearch(conditions=['request.principal.type', 'any-user'])
                 policies: list[PolicyStatement] = self.policy_repo.filter_policy_statements(filters=filters)
@@ -258,7 +283,7 @@ class ResourcePrincipalsTab(ttk.Frame):
                 logger.info(f'Filtered to {len(policies)} policies with any principal type')
                 # self.principals_sheet_policies_instance.set_sheet_data(policies)
             else:
-                logger.info(f'Case 2 - Any-User with type {resource_type} specified')
+                logger.info(f'Any-User with type {resource_type} specified')
                 filters: PolicySearch = PolicySearch(
                     conditions=['request.principal.type'], statement_text=[resource_type]
                 )
@@ -269,7 +294,10 @@ class ResourcePrincipalsTab(ttk.Frame):
                 logger.info(f'Filtered to {len(policies)} policies with principal type {resource_type}')
 
         elif principals_style == 'Dynamic Group':
-            logger.info('Case 3 - Dynamic Group')
+            # Disable Resource Type dropdown
+            self.resource_type_dropdown.configure(state='disabled')
+
+            logger.info('Showing Dynamic Groups and Policy tables')
 
             # Re-grid DG and RP sheet
             self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
