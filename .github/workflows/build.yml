@@ -93,6 +93,14 @@ jobs:
         shell: bash
         run: ruff check src || echo "⚠️ Ruff warnings ignored."
 
+      - name: Derive build version
+        id: version
+        run: |
+          # Try to get version from latest tag, fallback to short SHA
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version: $VERSION"
+          
       - name: Inject version into version.txt
         run: |
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
