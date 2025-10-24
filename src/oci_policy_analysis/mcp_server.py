@@ -13,21 +13,38 @@
 # coding: utf-8
 ##########################################################################
 
-import argparse
-import json
 import sys
-import threading
 
 import uvicorn
 import uvicorn.config
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
-from starlette.responses import JSONResponse
 
-from oci_policy_analysis.logger import get_logger
-from oci_policy_analysis.logic.caching import CacheManager
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.models import (
+# Replace the default formatter before FastMCP ever imports uvicorn
+_cfg = uvicorn.config.LOGGING_CONFIG.copy()
+_cfg['formatters']['default'] = {
+    'format': '%(levelprefix)s %(message)s',
+    'use_colors': False,
+}
+uvicorn.config.LOGGING_CONFIG = _cfg
+
+# Defensive: ensure sys.stderr exists (PyInstaller edge case)
+import io  # noqa: E402
+
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+# --- end patch ---
+
+import argparse  # noqa: E402
+import json  # noqa: E402
+import threading  # noqa: E402
+
+from fastmcp import FastMCP  # noqa: E402
+from fastmcp.exceptions import ToolError  # noqa: E402
+from starlette.responses import JSONResponse  # noqa: E402
+
+from oci_policy_analysis.logger import get_logger  # noqa: E402
+from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.logic.models import (  # noqa: E402
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
@@ -36,16 +53,6 @@ from oci_policy_analysis.logic.models import (
     PolicyStatement,
     User,
 )
-
-# Clone and modify Uvicorn's default LOGGING_CONFIG safely
-_LOGGING_CONFIG = uvicorn.config.LOGGING_CONFIG.copy()
-_LOGGING_CONFIG['formatters']['default'] = {
-    'format': '%(levelprefix)s %(message)s',
-    'use_colors': False,
-}
-
-# Patch back the modified config
-uvicorn.config.LOGGING_CONFIG = _LOGGING_CONFIG
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
