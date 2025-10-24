@@ -49,7 +49,7 @@ from oci.loggingsearch import LogSearchClient
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.signer import load_private_key_from_file
 
-from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic.models import (
     DefineStatement,
     DynamicGroup,
@@ -268,6 +268,26 @@ class PolicyAnalysisRepository:
             return False
 
     # --- Internal Helpers ---
+    def _find_invalid_statements(self):
+        """Find invalid dynamic group statements.  Mark them as invalid with reason."""
+        # Roll through dynamic group statements and see if they reference an actual DG
+        for st in self.regular_statements:
+            if st['subject_type'] == 'dynamic-group':
+                for subject in st['subject']:
+                    dg_domain = subject[0] or 'default'
+                    dg_name = subject[1]
+                    # See if this DG exists in our loaded DGs
+                    logger.debug(f'Checking DG existence for {dg_domain}/{dg_name}')
+                    dg_found = any(
+                        dg.get('dynamic_group_name').lower() == dg_name.lower()
+                        and dg.get('domain_name', 'default').lower() == dg_domain.lower()
+                        for dg in self.dynamic_groups
+                    )
+                    if not dg_found:
+                        st['valid'] = False
+                        st['invalid_reason'] = f'Dynamic Group {dg_name} not found in tenancy'
+                        logger.warning(f"Dynamic Group {dg_name} not found for statement: {st['statement_text']}")
+
     def _calculate_effective_compartments_for_statements(self):
         """
         Resolve effective compartment for all statements.  Loop through all statements and calculate
@@ -548,6 +568,9 @@ class PolicyAnalysisRepository:
                         statement_dict['valid'] = self._check_invalid_location(statement_dict['location'])
                         logger.debug(f"Checked OCID {statement_dict['location']} - Valid: {statement_dict['valid']}")
                         if not statement_dict['valid']:
+                            logger.warning(
+                                f"Invalid Compartment OCID found in statement: {statement_dict['statement_text']}: {statement_dict['location']}"
+                            )
                             statement_dict['invalid_reason'] = 'Invalid Compartment OCID'
 
                     # Additional check for Verb validity
@@ -585,7 +608,7 @@ class PolicyAnalysisRepository:
             domain_name=domain_name,
             dynamic_group_name=dg.display_name,
             dynamic_group_id=dg.id,
-            description=dg.description,
+            description=dg.description or '',
             matching_rule=dg.matching_rule,
             in_use=True,  # Placeholder until analysis is run
             dynamic_group_ocid=dg.ocid,
@@ -702,6 +725,9 @@ class PolicyAnalysisRepository:
 
             # Now call effective compartment code - for all
             self._calculate_effective_compartments_for_statements()
+
+            # Find invalid statements
+            self._find_invalid_statements()
 
             # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.now(UTC))
@@ -1075,7 +1101,7 @@ class PolicyAnalysisRepository:
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
         return results
 
-    def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[dict]:
+    def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[PolicyStatement]:
         # Iterate cross-tenant policies
         filtered = []
         for statement in self.cross_tenancy_statements:
@@ -1400,10 +1426,14 @@ class PolicyAnalysisRepository:
             list[DynamicGroup]: A list of dynamic groups that satisfy the filters. Each dynamic group is represented as a dictionary with keys:
                 - 'domain_name' (str | None): The domain name of the dynamic group.
                 - 'dynamic_group_name' (str): The name of the dynamic group.
+                - 'dynamic_group_id' (str): The ID of the dynamic group.
                 - 'dynamic_group_ocid' (str): The OCID of the dynamic group.
                 - 'matching_rule' (str): The matching rule of the dynamic group.
                 - 'description' (str): The description of the dynamic group.
                 - 'in_use' (bool): Whether the dynamic group is in use.
+                - 'creation_time' (str): The creation timestamp of the dynamic group.
+                - 'created_by_name' (str): The name of the user who created the dynamic group.
+                - 'created_by_ocid' (str): The OCID of the user who created the dynamic group.
         Raises:
             ValueError: If an unknown filter key is provided.
         """

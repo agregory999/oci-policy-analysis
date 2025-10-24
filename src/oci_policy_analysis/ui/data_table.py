@@ -16,7 +16,7 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
-from oci_policy_analysis.logic.logger import get_logger
+from oci_policy_analysis.logger import get_logger
 
 logger = get_logger(component='data_table')
 

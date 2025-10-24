@@ -16,8 +16,8 @@
 import tkinter as tk
 from tkinter import ttk
 
+from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.logger import get_logger
 from oci_policy_analysis.logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_group, for_display_policy, for_display_user

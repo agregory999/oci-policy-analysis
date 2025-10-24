@@ -15,9 +15,9 @@
 
 import argparse
 
+from oci_policy_analysis.logger import get_logger, set_log_level
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.logger import get_logger, set_log_level
 from oci_policy_analysis.logic.models import PolicySearch
 
 """Main function to parse arguments and print policies and dynamic groups."""

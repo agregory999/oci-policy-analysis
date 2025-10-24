@@ -67,10 +67,11 @@ import markdown2  # noqa: E402
 from bs4 import BeautifulSoup  # noqa: E402
 from tkhtmlview import HTMLLabel  # noqa: E402
 
+from oci_policy_analysis.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic import config  # noqa: E402
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import AI, PolicyAnalysisRepository  # noqa: E402
-from oci_policy_analysis.logic.logger import get_logger, logger, set_log_level  # noqa: E402
+from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
@@ -79,26 +80,6 @@ from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
-
-
-class TextHandler(logging.Handler):
-    """A logging handler that redirects log messages into a Tkinter Text widget.
-
-    Attributes:
-        text_widget (tk.Text): The text widget where log messages are appended.
-    """
-
-    def __init__(self, text_widget: tk.Text):
-        super().__init__(level=logging.NOTSET)
-        self.text_widget = text_widget
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.text_widget.after(0, self._append, msg)
-
-    def _append(self, msg):
-        self.text_widget.insert(tk.END, msg + '\n')
-        self.text_widget.see(tk.END)
 
 
 class App(tk.Tk):
@@ -135,8 +116,10 @@ class App(tk.Tk):
 
         # Restore global logger level from settings (default INFO)
         level_name = self.settings.get('log_level', 'INFO')
-        logger.setLevel(getattr(logging, level_name, logging.INFO))
-        self.log_level_var = tk.StringVar(value=logging.getLevelName(logger.level))
+        # logger.setLevel(getattr(logging, level_name, logging.INFO))
+        self.log_level_var = tk.StringVar(value=level_name)
+        logger.info(f'Log level set to {logging.getLevelName(logger.level)} from settings')
+        set_log_level(level=level_name)
 
         # Style / fonts
         self.style = ttk.Style(theme='litera')
@@ -177,6 +160,8 @@ class App(tk.Tk):
         self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self, self.policy_compartment_analysis)
+        self.console_tab = ConsoleTab(self.notebook, self)
+        # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
@@ -185,6 +170,7 @@ class App(tk.Tk):
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.report_tab, text='Reports\n& Export')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
+        self.notebook.add(self.console_tab, text='Console\nLog')
 
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -199,14 +185,9 @@ class App(tk.Tk):
             # not added initially
             pass
 
-        # Console window state
-        self.console_window = None
-        self.console_handler = None
-
-        # # A small top-right bar with "Open Console"
-        # topbar = ttk.Frame(self)
-        # topbar.pack(fill='x')
-        # ttk.Button(topbar, text='Open Console', command=self.open_console).pack(side='right', padx=10, pady=6)
+        # Console tab Visibility
+        self.console_visible = False
+        self.notebook.forget(self.console_tab)
 
     # -------------------------
     # Bottom area construction
@@ -383,66 +364,15 @@ class App(tk.Tk):
             except Exception:
                 pass
 
-    # -------------------------
-    # Console window & logging
-    # -------------------------
-
-    def open_console(self):
-        if self.console_window and tk.Toplevel.winfo_exists(self.console_window):
-            self.console_window.lift()
-            return
-
-        self.console_window = tk.Toplevel(self)
-        self.console_window.title('Console Log')
-        self.console_window.geometry('900x500')
-
-        # --- Controls row at top ---
-        controls = ttk.Frame(self.console_window)
-        controls.pack(fill='x', padx=5, pady=5)
-
-        ttk.Button(controls, text='Clear', command=lambda: text.delete('1.0', tk.END)).pack(side='left', padx=(0, 10))
-
-        ttk.Label(controls, text='Log Level:').pack(side='left')
-        level_combo = ttk.Combobox(
-            controls,
-            textvariable=self.log_level_var,
-            values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            state='readonly',
-            width=10,
-        )
-        level_combo.pack(side='left')
-        level_combo.bind('<<ComboboxSelected>>', lambda e: self._apply_log_level())
-
-        # --- Text area ---
-        text = tk.Text(self.console_window, wrap='word')
-        scroll = ttk.Scrollbar(self.console_window, command=text.yview)
-        text.configure(yscrollcommand=scroll.set)
-        text.pack(side='left', fill='both', expand=True)
-        scroll.pack(side='right', fill='y')
-
-        # Attach handler
-        self.console_handler = TextHandler(text)
-        self.console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-        logger.addHandler(self.console_handler)
-
-        self.console_window.protocol('WM_DELETE_WINDOW', self.close_console)
-
-    def close_console(self):
-        if self.console_handler:
-            logger.removeHandler(self.console_handler)
-            self.console_handler = None
-        if self.console_window:
-            self.console_window.destroy()
-            self.console_window = None
-
-    def _apply_log_level(self):
-        level = getattr(logging, self.log_level_var.get(), logging.INFO)
-        set_log_level(level)
-
-        # logger.setLevel(level)
+    def _apply_log_level(self, *args):
+        """Called when log level dropdown changes."""
+        # Set the level locally in dropdown var, in the logger, and then save it to settings
         self.settings['log_level'] = self.log_level_var.get()
-        config.save_settings(self.settings)
-        logger.info(f'Log level set to {self.log_level_var.get()}')
+        set_log_level(self.log_level_var.get())
+        config.save_settings(settings=self.settings)
+        logger.info(
+            f'Log level set to {self.log_level_var.get()}. To use DEBUG, you must start from shell using --verbose'
+        )
 
     # -------------------------
     # Loading / exporting of tenancy data
@@ -490,16 +420,16 @@ class App(tk.Tk):
                     # Update the message
                     if callback and callback.get('progress'):
                         cb = callback.get('progress')
-                        self.after(0, lambda: cb('Loading Policies and Compartments'))
+                        self.after(0, lambda: cb('Loading Users and Groups'))
 
-                    success = self.policy_compartment_analysis.load_policies_and_compartments()
+                    success = self.policy_compartment_analysis.load_complete_identity_domains()
 
                     # Update the message
                     if callback and callback.get('progress'):
                         cb = callback.get('progress')
-                        self.after(0, lambda: cb('Loading Users and Groups'))
+                        self.after(0, lambda: cb('Loading Policies and Compartments'))
 
-                    success = self.policy_compartment_analysis.load_complete_identity_domains()
+                    success = self.policy_compartment_analysis.load_policies_and_compartments()
 
                     # Write the cache
                     self.caching.save_combined_cache()
@@ -719,7 +649,8 @@ if __name__ == '__main__':
     # Configure logging based on verbose flag
     if args.verbose:
         set_log_level('DEBUG')
-        logger.debug('Verbose logging enabled')
+        logger.debug('Verbose logging enabled via --verbose')
 
+    # Run the app
     app = App()
     app.mainloop()

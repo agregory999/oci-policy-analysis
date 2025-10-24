@@ -13,17 +13,16 @@
 # coding: utf-8
 ##########################################################################
 
-import logging
 import tkinter as tk
 import webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic import config
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import AI
-from oci_policy_analysis.logic.logger import get_logger, set_log_level
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
@@ -100,27 +99,30 @@ class SettingsTab(ttk.Frame):
         ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
 
         # Console
-        ttk.Button(disp, text='Open Console', command=self.app.open_console).pack(side='left', padx=10, pady=6)
-        ttk.Label(disp, text='Log Level:').pack(side='left', padx=(20, 5))
-        # self.level_var = tk.StringVar(value=logging.getLevelName(logger.level))
+        self.console_btn_var = tk.StringVar(value='Show Console Tab')
+        self.console_button = ttk.Button(disp, textvariable=self.console_btn_var, command=self._toggle_console_tab)
+        self.console_button.pack(side='left', padx=10, pady=6)
 
-        level_combo = ttk.Combobox(
-            disp,
-            textvariable=self.app.log_level_var,
-            values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-            state='readonly',
-            width=10,
-        )
-        level_combo.pack(side='left')
+        # ttk.Label(disp, text='Log Level:').pack(side='left', padx=(20, 5))
+        # # self.level_var = tk.StringVar(value=logging.getLevelName(logger.level))
 
-        def set_level(_=None):
-            level = getattr(logging, self.app.log_level_var.get(), logging.INFO)
-            set_log_level(level)  # Update all components
-            self.app.settings['log_level'] = self.app.log_level_var.get()
-            config.save_settings(self.app.settings)
-            logger.info(f'Log level set to {self.app.log_level_var.get()}')
+        # level_combo = ttk.Combobox(
+        #     disp,
+        #     textvariable=self.app.log_level_var,
+        #     values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        #     state='readonly',
+        #     width=10,
+        # )
+        # level_combo.pack(side='left')
 
-        level_combo.bind('<<ComboboxSelected>>', set_level)
+        # def set_level(_=None):
+        #     level = getattr(logging, self.app.log_level_var.get(), logging.INFO)
+        #     set_log_level(level)  # Update all components
+        #     self.app.settings['log_level'] = self.app.log_level_var.get()
+        #     config.save_settings(self.app.settings)
+        #     logger.info(f'Log level set to {self.app.log_level_var.get()}')
+
+        # level_combo.bind('<<ComboboxSelected>>', set_level)
 
         ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
 
@@ -471,3 +473,24 @@ class SettingsTab(ttk.Frame):
 
         # # Enable Query Button
         # self.app.ai_query_button.config(state=tk.NORMAL)
+
+    # -------------------------
+    # AI Enablement
+    # -------------------------
+
+    def _toggle_console_tab(self):
+        notebook = self.app.notebook
+        console_tab = self.app.console_tab
+
+        if self.app.console_visible:
+            # Hide the tab (forget removes it from display but keeps the widget)
+            notebook.forget(console_tab)
+            self.console_btn_var.set('Show Console Tab')
+            self.app.console_visible = False
+            logger.info('Console tab hidden')
+        else:
+            # Show the tab (add back at original position, e.g., last)
+            notebook.add(console_tab, text='Console\nLog')
+            self.console_btn_var.set('Hide Console Tab')
+            self.app.console_visible = True
+            logger.info('Console tab shown')
