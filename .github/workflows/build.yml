@@ -98,6 +98,8 @@ jobs:
         id: version
         shell: bash
         run: |
+          # Get the latest tags
+          git fetch --tags --force
           # Try to get version from latest tag, fallback to short SHA
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
