@@ -19,6 +19,7 @@ import sys
 import threading
 
 import uvicorn
+import uvicorn.config
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from starlette.responses import JSONResponse
@@ -35,6 +36,16 @@ from oci_policy_analysis.logic.models import (
     PolicyStatement,
     User,
 )
+
+# Fix for Windows stderr=None under PyInstaller
+if not hasattr(uvicorn.config, 'LOGGING_CONFIG_FIXED'):
+    from uvicorn.config import LOGGING_CONFIG
+
+    LOGGING_CONFIG['formatters']['default'] = {
+        'format': '%(levelprefix)s %(message)s',
+        'use_colors': False,
+    }
+    uvicorn.config.LOGGING_CONFIG_FIXED = True  # type: ignore
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')

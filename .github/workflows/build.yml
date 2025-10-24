@@ -35,6 +35,7 @@ jobs:
       - name: Determine version
         id: version
         run: |
+          git fetch --tags --force
           VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           if [[ "$VERSION" == *"-rc."* ]]; then
