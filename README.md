@@ -251,3 +251,9 @@ To run with no UI, this section is in progress.  Essentially we can run the core
 prompt: repo dir> python src/oci_policy_dg_viewer/core.py --help
 ```
 Follow the options and run again
+
+## 📘 Documentation
+
+Full API reference: [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
+
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://agregory999.github.io/oci-policy-analysis/)
