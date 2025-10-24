@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.1.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.1.1...v2.1.2) (2025-10-24)
+
+
+### Bug Fixes
+
+* logging for no console ([a9e4f94](https://github.com/agregory999/oci-policy-analysis/commit/a9e4f945e51e4e8826d01335d1792ab66ab27f30))
+
+
+### Miscellaneous Chores
+
+* Docs build and readme ([1db49fa](https://github.com/agregory999/oci-policy-analysis/commit/1db49fae6ee6ea6376e6c9f83969df3e21fb1006))
+* Docs build and readme ([0413028](https://github.com/agregory999/oci-policy-analysis/commit/04130287f5e52ce193c34a85c6c34af2e3b197ed))
+* Docs build and readme ([e5001e7](https://github.com/agregory999/oci-policy-analysis/commit/e5001e79302ca9118dce28475e3b1c90fa1147e1))
+
 ## [2.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.1.0...v2.1.1) (2025-10-24)
 
 
