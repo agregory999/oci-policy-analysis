@@ -37,15 +37,15 @@ from oci_policy_analysis.logic.models import (
     User,
 )
 
-# Fix for Windows stderr=None under PyInstaller
-if not hasattr(uvicorn.config, 'LOGGING_CONFIG_FIXED'):
-    from uvicorn.config import LOGGING_CONFIG
+# Clone and modify Uvicorn's default LOGGING_CONFIG safely
+_LOGGING_CONFIG = uvicorn.config.LOGGING_CONFIG.copy()
+_LOGGING_CONFIG['formatters']['default'] = {
+    'format': '%(levelprefix)s %(message)s',
+    'use_colors': False,
+}
 
-    LOGGING_CONFIG['formatters']['default'] = {
-        'format': '%(levelprefix)s %(message)s',
-        'use_colors': False,
-    }
-    uvicorn.config.LOGGING_CONFIG_FIXED = True  # type: ignore
+# Patch back the modified config
+uvicorn.config.LOGGING_CONFIG = _LOGGING_CONFIG
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
