@@ -13,21 +13,11 @@
 # coding: utf-8
 ##########################################################################
 
+# Defensive: ensure sys.stderr exists (PyInstaller edge case)
+import io  # noqa: E402
 import sys
 
 import uvicorn
-import uvicorn.config
-
-# Replace the default formatter before FastMCP ever imports uvicorn
-_cfg = uvicorn.config.LOGGING_CONFIG.copy()
-_cfg['formatters']['default'] = {
-    'format': '%(levelprefix)s %(message)s',
-    'use_colors': False,
-}
-uvicorn.config.LOGGING_CONFIG = _cfg
-
-# Defensive: ensure sys.stderr exists (PyInstaller edge case)
-import io  # noqa: E402
 
 if sys.stderr is None:
     sys.stderr = io.StringIO()

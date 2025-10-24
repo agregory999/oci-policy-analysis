@@ -16,11 +16,27 @@
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
 import importlib.metadata
+import io
 import os
+import sys
 from importlib.resources import files
 
 import ttkbootstrap as ttk
 
+# FastMCP No console patch
+# Patch for PyInstaller windowed executables where sys.stdout/stderr may be None
+if getattr(sys, 'frozen', False) and (sys.stdout is None or sys.stderr is None):
+
+    class DummyStream(io.StringIO):
+        def isatty(self):
+            return False  # Pretend it's not a TTY to disable color detection
+
+    if sys.stdout is None:
+        sys.stdout = DummyStream()
+    if sys.stderr is None:
+        sys.stderr = DummyStream()
+
+# Version extraction
 try:
     __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
 except Exception:
