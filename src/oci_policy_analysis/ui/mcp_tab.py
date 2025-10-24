@@ -32,7 +32,8 @@ from oci_policy_analysis.mcp_server import (
 class MCPFilter(Filter):
     def filter(self, record):
         return (
-            record.name.startswith('oci-policy-analysis.mcp') or record.name.startswith('fastmcp')
+            record.name.startswith('oci-policy-analysis.mcp')
+            # or record.name.startswith('fastmcp')
             # or record.name.startswith('uvicorn')
         )
 
@@ -146,7 +147,7 @@ class McpTab(ttk.Frame):
         set_component_level('mcp_tab', level)
 
         # Third-party families (not under our hierarchy) — set directly
-        logging.getLogger('fastmcp').setLevel(getattr(logging, level))
-        logging.getLogger('uvicorn').setLevel(getattr(logging, level))
+        # logging.getLogger('fastmcp').setLevel(getattr(logging, level))
+        # logging.getLogger('uvicorn').setLevel(getattr(logging, level))
 
         logger.info(f'Set MCP-related loggers to {level}')
