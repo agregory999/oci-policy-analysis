@@ -61,7 +61,7 @@ class DynamicGroup(TypedDict):
     matching_rule: NotRequired[
         Annotated[str, 'The matching rule expression for the dynamic group. Not required for filters.']
     ]
-    description: NotRequired[Annotated[str, 'The description of the dynamic group. Not required for filters.']]
+    description: NotRequired[Annotated[str | None, 'The description of the dynamic group. Not required for filters.']]
     in_use: NotRequired[
         Annotated[bool, 'True if the dynamic group is referenced by any policies. Not required for filters.']
     ]

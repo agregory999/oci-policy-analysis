@@ -23,9 +23,9 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from starlette.responses import JSONResponse
 
+from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.logger import get_logger
 from oci_policy_analysis.logic.models import (
     DefineStatement,
     DynamicGroup,
@@ -37,7 +37,9 @@ from oci_policy_analysis.logic.models import (
 )
 
 # Global logger for this module
-logger = get_logger(component='MCPServer')
+logger = get_logger(component='mcp_server')
+logger.info('MCP server module logger initialized.')
+
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
@@ -291,7 +293,7 @@ def search_dynamic_groups(filters: DynamicGroupSearch) -> list[DynamicGroup]:
     try:
         logger.info(f'MCP Tool: Searching dynamic groups with filters {filters}')
         results = pca.filter_dynamic_groups(filters)
-        logger.debug(f'Dynamic Groups: {results}')
+        logger.debug(f'Dynamic Groups: {json.dumps(results, indent=4)}')
 
         logger.info(f'Returning {len(results)} dynamic groups matching filters')
         return results
@@ -370,7 +372,7 @@ def start_mcp_server_in_thread(settings: dict):
         logger.info('MCP server is already running.')
         return
 
-    logger.info(f'Starting MCP server thread with config: {settings}')
+    logger.debug(f'Starting MCP server thread with config: {settings}')
     server_running = False  # reset
 
     def _run():
@@ -394,20 +396,6 @@ def start_mcp_server_in_thread(settings: dict):
     # run uvicorn in a daemon thread so Tkinter stays responsive
     server_thread = threading.Thread(target=_run, daemon=True)
     server_thread.start()
-
-
-def stop_mcp_server(log_fn=None):
-    """
-    Stop the MCP server gracefully.
-    """
-    global server_thread
-    if not server_thread or not server_thread.is_alive():
-        logger.info('MCP server is not running.')
-        return
-
-    logger.info('Attempting to stop MCP server thread (will terminate on next exit)...')
-    # FastMCP doesn’t expose a shutdown signal; you’d terminate by closing the socket or restarting the process.
-    server_thread = None
 
 
 def mcp_server_status() -> bool:

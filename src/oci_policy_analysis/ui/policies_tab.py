@@ -19,8 +19,8 @@ import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
 
+from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
-from oci_policy_analysis.logic.logger import get_logger
 from oci_policy_analysis.logic.models import PolicySearch
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_policy
