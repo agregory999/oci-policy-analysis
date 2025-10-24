@@ -103,27 +103,6 @@ class SettingsTab(ttk.Frame):
         self.console_button = ttk.Button(disp, textvariable=self.console_btn_var, command=self._toggle_console_tab)
         self.console_button.pack(side='left', padx=10, pady=6)
 
-        # ttk.Label(disp, text='Log Level:').pack(side='left', padx=(20, 5))
-        # # self.level_var = tk.StringVar(value=logging.getLevelName(logger.level))
-
-        # level_combo = ttk.Combobox(
-        #     disp,
-        #     textvariable=self.app.log_level_var,
-        #     values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        #     state='readonly',
-        #     width=10,
-        # )
-        # level_combo.pack(side='left')
-
-        # def set_level(_=None):
-        #     level = getattr(logging, self.app.log_level_var.get(), logging.INFO)
-        #     set_log_level(level)  # Update all components
-        #     self.app.settings['log_level'] = self.app.log_level_var.get()
-        #     config.save_settings(self.app.settings)
-        #     logger.info(f'Log level set to {self.app.log_level_var.get()}')
-
-        # level_combo.bind('<<ComboboxSelected>>', set_level)
-
         ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
 
         # Markup / HTML / Text
@@ -253,9 +232,10 @@ class SettingsTab(ttk.Frame):
         self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
 
         # AI Toggle
-        ttk.Button(self.label_frm_ai_config, text='Toggle AI Pane', command=self.app.toggle_bottom).grid(
-            row=0, column=0, padx=3, pady=3, sticky='ew'
+        self.ai_toggle_btn = ttk.Button(
+            self.label_frm_ai_config, state=tk.DISABLED, text='Toggle AI Pane', command=self.app.toggle_bottom
         )
+        self.ai_toggle_btn.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
 
         def populate_model_tree():
             """Populate the model Treeview with available models from list_models."""
@@ -310,13 +290,7 @@ class SettingsTab(ttk.Frame):
         )
         ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
 
-        # Configuration inputs
-        # tk.Label(self.label_frm_ai_config, text='Model ID:').grid(
-        #     row=2, column=0, padx=2, pady=3, sticky='ew'
-        # )
         self.model_id_var = tk.StringVar()
-        # self.model_id_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.model_id_var, width=80)
-        # self.model_id_entry.grid(row=2, column=1, padx=3, pady=3, sticky='ew')
 
         tk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='ew')
         self.endpoint_var = tk.StringVar()
@@ -464,15 +438,15 @@ class SettingsTab(ttk.Frame):
         """Callback from App once AI loading completes."""
         if success:
             self.ai_progress_var.set(f'✅ {message}')
+            # Enable the toggle button
+            self.ai_toggle_btn.config(state=tk.NORMAL)
+            logger.info('AI Enablement successful, toggle button enabled')
         else:
             self.ai_progress_var.set(f'❌ {message}')
 
         # Schedule it to go away if clear was set
         if clear:
             self.after(2000, lambda: self.ai_progress_var.set(''))
-
-        # # Enable Query Button
-        # self.app.ai_query_button.config(state=tk.NORMAL)
 
     # -------------------------
     # AI Enablement
