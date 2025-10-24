@@ -176,14 +176,14 @@ class App(tk.Tk):
         self.bottom_frame = ttk.Frame(self.pw, height=200)
         self._build_bottom_area(self.bottom_frame)
 
-        # Show/hide bottom according to settings
-        if self.settings.get('bottom_visible', True):
-            self.pw.add(self.bottom_frame, weight=1)
-            # Restore sash position shortly after layout
-            self.after(120, self.restore_sash)
-        else:
-            # not added initially
-            pass
+        # # Show/hide bottom according to settings
+        # if self.settings.get('bottom_visible', True):
+        #     self.pw.add(self.bottom_frame, weight=1)
+        #     # Restore sash position shortly after layout
+        #     self.after(120, self.restore_sash)
+        # else:
+        #     # not added initially
+        #     pass
 
         # Console tab Visibility
         self.console_visible = False
@@ -346,11 +346,11 @@ class App(tk.Tk):
             except Exception:
                 pass
             self.pw.forget(self.bottom_frame)
-            self.settings['bottom_visible'] = False
+            # self.settings['bottom_visible'] = False
             config.save_settings(self.settings)
         else:
             self.pw.add(self.bottom_frame, weight=1)
-            self.settings['bottom_visible'] = True
+            # self.settings['bottom_visible'] = True
             config.save_settings(self.settings)
             self.after(120, self.restore_sash)
 

@@ -1,5 +1,16 @@
 ##########################################################################
-# MCP Tab - start/stop server and display MCP/FastMCP/Uvicorn logs
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# mcp_tab.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.11 and above
+#
+# coding: utf-8
 ##########################################################################
 
 import logging
@@ -21,9 +32,8 @@ from oci_policy_analysis.mcp_server import (
 class MCPFilter(Filter):
     def filter(self, record):
         return (
-            record.name.startswith('oci-policy-analysis.mcp')
-            or record.name.startswith('fastmcp')
-            or record.name.startswith('uvicorn')
+            record.name.startswith('oci-policy-analysis.mcp') or record.name.startswith('fastmcp')
+            # or record.name.startswith('uvicorn')
         )
 
 
