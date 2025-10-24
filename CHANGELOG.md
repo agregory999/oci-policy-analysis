@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.0.3...v2.1.0) (2025-10-24)
+
+
+### Features
+
+* Console tab and streamlined logging, additional invalid check ([ab6f15e](https://github.com/agregory999/oci-policy-analysis/commit/ab6f15eeecdff072640dec116b0e6a3264836488))
+
 ## [2.0.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.0.2...v2.0.3) (2025-10-23)
 
 
