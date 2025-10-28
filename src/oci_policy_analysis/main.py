@@ -19,6 +19,7 @@ import importlib.metadata
 import io
 import os
 import sys
+from datetime import UTC
 from importlib.resources import files
 
 import ttkbootstrap as ttk
@@ -90,6 +91,7 @@ from oci_policy_analysis.logic.data_repo import AI, PolicyAnalysisRepository  # 
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
+from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
@@ -145,10 +147,6 @@ class App(tk.Tk):
         self.style.configure('TNotebook.Tab', padding=[40, 20, 40, 20])  # notebook tab [left, top, right, bottom]
         self.style.configure('Treeview', padding=(0, 0, 8, 0))  # (left, top, right, bottom)
 
-        # Apply theme & font from settings
-        self.apply_theme(self.settings.get('theme', 'Light'))
-        self.apply_font_size(self.settings.get('font_size', 'Medium'))
-
         # PanedWindow (vertical split)
         self.pw = ttk.Panedwindow(self, orient=tk.VERTICAL)
         self.pw.pack(fill='both', expand=True)
@@ -176,6 +174,7 @@ class App(tk.Tk):
         self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self, self.policy_compartment_analysis)
+        self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.console_tab = ConsoleTab(self.notebook, self)
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
@@ -186,6 +185,7 @@ class App(tk.Tk):
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.report_tab, text='Reports\n& Export')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
+        self.notebook.add(self.historical_tab, text='Historical\nComparison')
         self.notebook.add(self.console_tab, text='Console\nLog')
 
         # Bottom frame (Entry + HTML/Text area)
@@ -204,6 +204,11 @@ class App(tk.Tk):
         # Console tab Visibility
         self.console_visible = False
         self.notebook.forget(self.console_tab)
+
+        # Apply theme & font from settings - set the tab variable and then all calls to apply_theme need no args
+        self.settings_tab.theme_var.set(self.settings.get('theme', 'Light'))
+        self.apply_theme()
+        # self.apply_font_size(self.settings.get('font_size', 'Medium'))
 
     # -------------------------
     # Bottom area construction
@@ -304,31 +309,88 @@ class App(tk.Tk):
     # -------------------------
     # Theme / Font application
     # -------------------------
-    def apply_theme(self, choice: str):
+    def apply_theme(self, *args):
         """Apply either Light (litera) or Dark (darkly)."""
+        theme_choice = self.settings_tab.theme_var.get()
         mapping = {'Light': 'litera', 'Dark': 'darkly'}
-        theme_name = mapping.get(choice, 'litera')
-        try:
-            self.style.theme_use(theme_name)
-            self.settings['theme'] = choice
-            config.save_settings(self.settings)
-            logger.info(f'Theme set to {choice} ({theme_name})')
 
+        # General theme change
+        theme_name = mapping.get(theme_choice, 'litera')
+        try:
+            # Apply the theme
+            self.style.theme_use(theme_name)
+            pass
+        except tk.TclError:
+            # import traceback
+            # traceback.print_exc()
+            pass  # dont show this error
         except Exception as e:
-            logger.warning(f'Failed to apply theme {choice}: {e}')
+            logger.warning(f'Failed to apply theme {theme_choice}: {e}')
+
+        try:
+            # Set the treeview background and foreground colors appropriately
+            if theme_choice == 'Dark':
+                # Change all data_tables to dark theme
+                for table in [
+                    self.users_tab.users_policy_table,
+                    self.users_tab.users_users_table,
+                    self.users_tab.users_groups_table,
+                    self.users_tab.selected_groups_table,
+                    self.dynamic_groups_tab.custom_data_dynamic_group,
+                    self.dynamic_groups_tab.dg_policy_table,
+                    self.cross_tenancy_tab.cross_tenancy_table,
+                    self.cross_tenancy_tab.defined_aliases_table,
+                    self.resource_principals_tab.rp_dg_table,
+                    self.resource_principals_tab.rp_policy_table,
+                    self.policies_tab.policy_table,
+                    self.settings_tab.ai_model_table,
+                ]:
+                    table.apply_theme('dark')
+
+            else:
+                for table in [
+                    self.users_tab.users_policy_table,
+                    self.users_tab.users_users_table,
+                    self.dynamic_groups_tab.custom_data_dynamic_group,
+                    self.dynamic_groups_tab.dg_policy_table,
+                    self.cross_tenancy_tab.cross_tenancy_table,
+                    self.cross_tenancy_tab.defined_aliases_table,
+                    self.resource_principals_tab.rp_dg_table,
+                    self.resource_principals_tab.rp_policy_table,
+                    self.policies_tab.policy_table,
+                    self.settings_tab.ai_model_table,
+                ]:
+                    table.apply_theme('light')
+            # Scrolled Text widgets have different backgrounds
+            if theme_choice == 'Dark':
+                bg = '#2b2b2b'
+                fg = '#f0f0f0'
+                insert_bg = '#ffffff'  # cursor color
+                self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
+            else:
+                bg = 'white'
+                fg = 'black'
+                insert_bg = '#000000'  # cursor color
+                self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
+        except Exception as e:
+            logger.warning(f'Failed to apply theme {theme_choice}: {e}')
 
         # Also update HTML view colors
         if hasattr(self, 'html_view'):
-            logger.info(f'Change HTML to {choice} ({theme_name})')
-            if choice == 'Dark':
+            logger.debug(f'Change HTML to {theme_choice} ({theme_name})')
+            if theme_choice == 'Dark':
                 self.html_view.configure(background='black', foreground='white')
             else:
                 self.html_view.configure(background='white', foreground='black')
+        # Save the theme
+        self.settings['theme'] = theme_choice
+        config.save_settings(self.settings)
+        logger.info(f'Theme set to {theme_choice} ({theme_name})')
 
-    def apply_font_size(self, size_name: str):
+        # def apply_font_size(self, size_name: str):
         sizes = {'Small': 9, 'Medium': 11, 'Large': 13}
-        size = sizes.get(size_name, 11)
-
+        size = sizes.get(self.settings_tab.font_var.get(), 11)
+        logger.info(f'Applying font size: {self.settings_tab.font_var.get()} ({size}px)')
         # Choose family (Oracle Sans if installed, else fallback)
         families = tkfont.families()
         family = 'Oracle Sans' if 'Oracle Sans' in families else 'Helvetica'
@@ -337,10 +399,15 @@ class App(tk.Tk):
         font = (family, size)
         self.style.configure('.', font=font)  # "." applies to *all* widgets
 
+        # Update the table font for TreeView
+        treeview_font = size * 2
+        self.style.configure('Treeview', rowheight=treeview_font)
+        # self.historical_tab.update_row_height("small")   # or "medium" / "large"
+
         # Save & log
-        self.settings['font_size'] = size_name
+        self.settings['font_size'] = self.settings_tab.font_var.get()
         config.save_settings(self.settings)
-        logger.info(f'Font size set to {size_name} ({size}px)')
+        logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
     def show_output_widget(self, fmt: str):
         self.text_view.pack_forget()
@@ -469,6 +536,8 @@ class App(tk.Tk):
                 self.cross_tenancy_tab.update_cross_tenancy_output()
                 self.report_tab.update_report_output()
                 self.resource_principals_tab.update_principals_sheets()
+                self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
+                self.dynamic_groups_tab.enable_controls()
 
             except Exception as e:
                 logger.error(f'❌ Failed to load tenancy: {e}')
@@ -511,6 +580,11 @@ class App(tk.Tk):
                 logger.info('Cache Load JSON complete - Reload all tabs')
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
+                self.dynamic_groups_tab.enable_controls()
+                self.cross_tenancy_tab.update_cross_tenancy_output()
+                self.report_tab.update_report_output()
+                self.resource_principals_tab.update_principals_sheets()
+                self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
                 self.dynamic_groups_tab.enable_controls()
 
             except Exception as e:
@@ -578,7 +652,7 @@ class App(tk.Tk):
                             'type': 'analyze_policy_statement',
                             'query': prompt,
                             'result': ai_markdown_response,
-                            'date_ms': int(datetime.now().timestamp() * 1000),
+                            'date_ms': int(datetime.now(UTC).timestamp() * 1000),
                         }
                     )
                     self.caching.save_cache()

@@ -196,6 +196,7 @@ class PoliciesTab(ttk.Frame):
                 self.condition_filter_var,
                 self.text_filter_var,
                 self.policy_filter_var,
+                self.effective_path_var,
             ]:
                 entry.set('')
             self.use_subject_any.set(False)
@@ -238,19 +239,19 @@ class PoliciesTab(ttk.Frame):
 
         # Verb
         ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=3, padx=5, pady=2, sticky='w')
-        tk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=30).grid(
+        ttk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=30).grid(
             row=1, column=4, columnspan=2, padx=5, pady=2, sticky='ew'
         )
 
         # Resource
         ttk.Label(frm_policy_filter, text='Resource').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        tk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=30).grid(
+        ttk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=30).grid(
             row=2, column=1, columnspan=2, padx=5, pady=2, sticky='ew'
         )
 
         # Location
         ttk.Label(frm_policy_filter, text='Location').grid(row=2, column=3, padx=5, pady=2, sticky='w')
-        entry_loc = tk.Entry(frm_policy_filter, width=20, textvariable=self.location_filter_var)
+        entry_loc = ttk.Entry(frm_policy_filter, width=20, textvariable=self.location_filter_var)
         entry_loc.grid(row=2, column=4, padx=2, sticky='w')
         ttk.Checkbutton(
             frm_policy_filter,
@@ -262,7 +263,7 @@ class PoliciesTab(ttk.Frame):
         # Hierarchy
 
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        entry_hierarchy = tk.Entry(frm_policy_filter, width=30, textvariable=self.hierarchy_filter_var)
+        entry_hierarchy = ttk.Entry(frm_policy_filter, width=30, textvariable=self.hierarchy_filter_var)
         entry_hierarchy.grid(row=3, column=1, padx=5, pady=2, sticky='w')
         ttk.Checkbutton(
             frm_policy_filter,
@@ -273,24 +274,24 @@ class PoliciesTab(ttk.Frame):
 
         # Condition
         ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=3, padx=5, pady=2, sticky='w')
-        entry_condition = tk.Entry(frm_policy_filter, width=30, textvariable=self.condition_filter_var)
+        entry_condition = ttk.Entry(frm_policy_filter, width=30, textvariable=self.condition_filter_var)
         entry_condition.grid(row=3, column=4, columnspan=2, padx=5, pady=2, sticky='ew')
 
         # Text
         ttk.Label(frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
-        entry_text = tk.Entry(frm_policy_filter, width=30, textvariable=self.text_filter_var)
+        entry_text = ttk.Entry(frm_policy_filter, width=30, textvariable=self.text_filter_var)
         entry_text.grid(row=4, column=1, columnspan=2, padx=5, pady=2, sticky='ew')
 
         # Policy Name
         ttk.Label(frm_policy_filter, text='Policy Name').grid(row=4, column=3, padx=5, pady=2, sticky='w')
-        entry_policy = tk.Entry(frm_policy_filter, textvariable=self.policy_filter_var, width=30)
+        entry_policy = ttk.Entry(frm_policy_filter, textvariable=self.policy_filter_var, width=30)
         entry_policy.grid(row=4, column=4, columnspan=2, padx=5, pady=2, sticky='ew')
 
         # Effective Path
         ttk.Label(frm_policy_filter, text='Effective Path (Shows any policy that affects this compartment)').grid(
             row=5, column=0, columnspan=2, padx=5, pady=2, sticky='w'
         )
-        effective_path_text = tk.Entry(frm_policy_filter, width=30, textvariable=self.effective_path_var)
+        effective_path_text = ttk.Entry(frm_policy_filter, width=30, textvariable=self.effective_path_var)
         effective_path_text.grid(row=5, column=3, columnspan=4, padx=5, pady=2, sticky='ew')
 
         # Clear Button
@@ -353,7 +354,7 @@ class PoliciesTab(ttk.Frame):
 
         def effective_right_click(row_index: int) -> tk.Menu:
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
-            logger.info(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
+            logger.debug(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
             menu = tk.Menu(self, tearoff=0)
             menu.add_command(
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
@@ -392,7 +393,7 @@ class PoliciesTab(ttk.Frame):
 
     def update_policy_output(self, *args):  # noqa: C901
         # Tenancy Display
-        if self.policy_repo and self.policy_repo.tenancy_name:
+        if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name'):
             self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
         else:
             self.tenancy_name_var.set('Please Load a Tenancy')
@@ -419,6 +420,9 @@ class PoliciesTab(ttk.Frame):
             filters['policy_name'] = self.policy_filter_var.get().split('|') or None
         if self.effective_path_var.get():
             filters['effective_path'] = self.effective_path_var.get().split('|') or None
+        if self.chk_show_invalid.get():
+            filters['valid'] = False
+            logger.debug('Filtering for invalid policies only')
 
         logger.info(f'Applying policy filters: {filters}')
         try:
@@ -431,34 +435,27 @@ class PoliciesTab(ttk.Frame):
                 'Cannot filter policies without identity data loaded.\nPlease load identity data and try again.',
             )
             return
-        # # Internal function to return a display-friendly dict for a policy statement
-        # def for_display(statement: PolicyStatement) -> dict:
-        #     return {
-        #         'Policy Name': statement['policy_name'],
-        #         'Policy OCID': statement['policy_ocid'],
-        #         'Compartment OCID': statement['compartment_ocid'],
-        #         'Policy Compartment': statement['policy_compartment'],
-        #         'Statement Text': statement['statement_text'],
-        #         'Valid': statement['valid'],
-        #         'Invalid Reason': statement['invalid_reason'] if 'invalid_reason' in statement else '',
-        #         'Subject Type': statement['subject_type'],
-        #         'Subject': statement['subject'],
-        #         'Verb': statement['verb'],
-        #         'Resource': statement['resource'],
-        #         'Permission': statement['permission'],
-        #         'Location Type': statement['location_type'],
-        #         'Location': statement['location'],
-        #         'Effective Path': statement['effective_path'],
-        #         'Conditions': statement['conditions'],
-        #         'Comments': statement['comments'],
-        #         'Parsing Notes': '; '.join(statement['parsing_notes']) if statement['parsing_notes'] else '',
-        #         'Creation Time': statement['creation_time'],
-        #         'Parsed': statement['parsed']
-        #     }
 
         # Apply additional filters for output
         normalized_statements = [for_display_policy(st) for st in filtered_statements]
         filtered_statements = normalized_statements
+
+        # Open up all policy types if invalid is checked
+        if self.chk_show_invalid.get():
+            self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
+            self.chk_show_service.set(True)
+            self.chk_show_dynamic.set(True)
+            self.chk_show_resource.set(True)
+            self.chk_show_regular.set(True)
+            logger.debug('Setting policy table to expanded view with invalid columns and undo other output filters')
+        else:
+            self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
+            logger.debug('Setting policy table to expanded view with basic columns')
+
+        # If expanded is checked, show all columns no matter what
+        if self.chk_show_expanded.get():
+            self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
+            logger.debug('Setting policy table to expanded view with all columns')
 
         # Determine which rows to show based on checkboxes
         rows_to_show: list = [
@@ -484,17 +481,6 @@ class PoliciesTab(ttk.Frame):
         logger.debug(rows_to_show)
         self.policy_table.update_data(rows_to_show)
         logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
-
-        # Open up all columns if expanded is checked
-        if self.chk_show_expanded.get():
-            self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with all columns')
-        elif self.chk_show_invalid.get():
-            self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with invalid columns')
-        else:
-            self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with basic columns')
 
     def enable_widgets_after_load(self):
         """Enable widgets after load."""

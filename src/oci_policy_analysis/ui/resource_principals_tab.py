@@ -121,11 +121,11 @@ class ResourcePrincipalsTab(ttk.Frame):
         self.grid_columnconfigure(0, weight=1)
 
         # Frame for top
-        frm_principals_top = tk.Frame(self)
+        frm_principals_top = ttk.Frame(self)
         frm_principals_top.grid(row=0, column=0, sticky='w', padx=5, pady=5)
 
         # Principals Style dropdown
-        tk.Label(frm_principals_top, text='Principals Style:').grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_principals_top, text='Principals Style:').grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.principals_style_var = tk.StringVar(value='Dynamic Group')
         self.principals_style_list = ['Dynamic Group', 'any-user']
         self.principals_style_dropdown = ttk.OptionMenu(
@@ -134,7 +134,7 @@ class ResourcePrincipalsTab(ttk.Frame):
         self.principals_style_dropdown.grid(row=0, column=1, padx=5, pady=2, sticky='ew')
 
         # Resource Type dropdown
-        tk.Label(frm_principals_top, text='Resource Type:').grid(row=0, column=2, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_principals_top, text='Resource Type:').grid(row=0, column=2, padx=5, pady=2, sticky='w')
         self.resource_type_var = tk.StringVar(value='Any')
         self.resource_type_list = [
             'Any',
@@ -205,7 +205,7 @@ class ResourcePrincipalsTab(ttk.Frame):
             return menu
 
         # Bottom frame (row 1) for sheets using grid (bottom 2 rows if DG, bottom 1 if any-user)
-        frm_principals_bottom = tk.Frame(self)
+        frm_principals_bottom = ttk.Frame(self)
         frm_principals_bottom.grid_rowconfigure(0, weight=1)
         frm_principals_bottom.grid_rowconfigure(1, weight=1)
         frm_principals_bottom.grid_columnconfigure(0, weight=1)
@@ -224,9 +224,9 @@ class ResourcePrincipalsTab(ttk.Frame):
         self.rp_dg_table.grid(row=0, column=0, sticky='nsew')
 
         # Add a label above table to show instructions
-        tk.Label(frm_principals_bottom, text='Matching Policies Table - right-click on a policy for more details').grid(
-            row=4, column=0, padx=5, pady=5, sticky='w'
-        )
+        ttk.Label(
+            frm_principals_bottom, text='Matching Policies Table - right-click on a policy for more details'
+        ).grid(row=4, column=0, padx=5, pady=5, sticky='w')
         # RP Policy Table
         self.rp_policy_table = DataTable(
             frm_principals_bottom,

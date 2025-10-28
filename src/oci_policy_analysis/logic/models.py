@@ -232,6 +232,11 @@ class PolicySearch(TypedDict, total=False):
 
     conditions: Annotated[list[str], "Conditional clauses ('any', 'all', etc.) used within the policy statement."]
 
+    valid: Annotated[
+        bool,
+        'If set to True, only return valid policy statements that parsed and passed validation. If False, only invalid statements.',
+    ]
+
 
 # Return Types
 class DefineStatement(TypedDict, total=False):
