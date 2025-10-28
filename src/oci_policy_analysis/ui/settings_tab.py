@@ -13,9 +13,9 @@
 # coding: utf-8
 ##########################################################################
 
+import time
 import tkinter as tk
 import webbrowser
-from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -85,7 +85,7 @@ class SettingsTab(ttk.Frame):
             disp, textvariable=self.theme_var, values=['Light', 'Dark'], state='readonly', width=16
         )
         theme_combo.pack(side='left', padx=(0, 10))
-        theme_combo.bind('<<ComboboxSelected>>', lambda e: self.app.apply_theme(self.theme_var.get()))
+        theme_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
 
         # Font size
         ttk.Label(disp, text='Font Size:').pack(side='left', padx=(8, 4))
@@ -94,7 +94,7 @@ class SettingsTab(ttk.Frame):
             disp, textvariable=self.font_var, values=['Small', 'Medium', 'Large'], state='readonly', width=10
         )
         font_combo.pack(side='left')
-        font_combo.bind('<<ComboboxSelected>>', lambda e: self.app.apply_font_size(self.font_var.get()))
+        font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)  # Reuse apply_theme to also apply font size)
 
         ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
 
@@ -192,7 +192,7 @@ class SettingsTab(ttk.Frame):
         session_auth_link_label.bind('<Button-1>', open_link)
         session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
         self.session_token_var = tk.StringVar()
-        self.session_token_entry = tk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=20)
+        self.session_token_entry = ttk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=20)
         self.session_token_entry.grid(row=2, column=2, padx=5, pady=3)
         ttk.Button(
             label_frm_tenancy_config,
@@ -256,7 +256,7 @@ class SettingsTab(ttk.Frame):
                 logger.info(f'list_models returned {len(ai_models)} models')
 
                 # Put in Model Data Table
-                ai_model_table.update_data(new_data=ai_models)
+                self.ai_model_table.update_data(new_data=ai_models)
             else:
                 logger.warning('AI client not initialized, cannot list models')
 
@@ -278,7 +278,7 @@ class SettingsTab(ttk.Frame):
                 logger.info(f'Updated Model ID entry with OCID {model_ocid} from data table selection')
 
         # Data Table for models
-        ai_model_table = DataTable(
+        self.ai_model_table = DataTable(
             parent=self.label_frm_ai_config,
             columns=AI_MODEL_COLUMNS,
             display_columns=AI_MODEL_COLUMNS,
@@ -288,20 +288,22 @@ class SettingsTab(ttk.Frame):
             # row_context_menu_callback=model_ocid_right_click,
             multi_select=False,
         )
-        ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
+        self.ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
 
         self.model_id_var = tk.StringVar()
 
-        tk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='ew')
+        ttk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(
+            row=3, column=0, padx=2, pady=3, sticky='ew'
+        )
         self.endpoint_var = tk.StringVar()
-        self.endpoint_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
+        self.endpoint_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
         self.endpoint_entry.grid(row=3, column=1, padx=3, pady=3, sticky='ew')
 
-        tk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
+        ttk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
             row=4, column=0, padx=2, pady=3, sticky='ew'
         )
         self.ai_compartment_var = tk.StringVar()
-        self.ai_compartment_entry = tk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
+        self.ai_compartment_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
         self.ai_compartment_entry.grid(row=4, column=1, padx=3, pady=3, sticky='ew')
 
         apply_button = ttk.Button(
@@ -411,7 +413,7 @@ class SettingsTab(ttk.Frame):
     # -------------------------
     def apply_config(self):
         """Apply changes to Model ID and Endpoint in AI client."""
-        start_time = datetime.now()
+        start_time = time.perf_counter()
         model_id = self.model_id_var.get().strip()
         endpoint = self.endpoint_var.get().strip()
         compartment_ocid = self.ai_compartment_var.get().strip()
@@ -420,10 +422,7 @@ class SettingsTab(ttk.Frame):
 
         try:
             self.ai_repo.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)
-            logger.info(
-                'Configuration updated successfully in %s seconds',
-                (datetime.now() - start_time).total_seconds(),
-            )
+            logger.info(f'Configuration updated successfully in {time.perf_counter() - start_time:.2f} seconds')
 
             # Make AI Call to test with callback
             self.app.ask_genai_async(

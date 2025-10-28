@@ -239,9 +239,9 @@ class CacheManager:
         logger.info(f'Entries found in cache_entries.json: {len(return_entries)}')
         return return_entries
 
-    def load_cache_into_local_json(self, cached_tenancy: str, cached_date: str) -> dict:
+    def load_cache_into_local_json(self, cached_tenancy: str) -> dict:
         # Load everything into a JSON dict and return it
-        combined_cache_file = self.cache_dir / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+        combined_cache_file = self.cache_dir / f'combined_cache_{cached_tenancy}.json'
         if combined_cache_file.exists():
             try:
                 with open(combined_cache_file, encoding='utf-8') as filehandle:

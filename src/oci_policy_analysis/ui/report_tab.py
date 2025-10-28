@@ -16,6 +16,7 @@
 import tkinter as tk
 import tkinter.filedialog as fd
 from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
@@ -52,7 +53,7 @@ class ReportTab(ttk.Frame):
         frm_report_buttons = ttk.Frame(frm_report_top)
         ttk.Label(frm_report_buttons, text='Text Highlight:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
         self.highlight_entry_var = tk.StringVar()
-        tk.Entry(frm_report_buttons, textvariable=self.highlight_entry_var).grid(row=0, column=1)
+        ttk.Entry(frm_report_buttons, textvariable=self.highlight_entry_var).grid(row=0, column=1)
 
         # Export Button
         self.btn_export_report = ttk.Button(
@@ -73,11 +74,12 @@ class ReportTab(ttk.Frame):
         ttk.Label(frm_dg_report, text='Dynamic Groups', font=('TkFixedFont', 12, 'bold')).grid(
             row=0, column=0, padx=5, pady=5, sticky='w'
         )
-        self.text_dg_report = tk.Text(frm_dg_report, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
+        # self.text_dg_report = tk.Text(frm_dg_report, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
+        self.text_dg_report = ScrolledText(frm_dg_report, wrap=tk.WORD, font=('TkFixedFont'))
         self.text_dg_report.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
-        self.dg_scroll = ttk.Scrollbar(frm_dg_report, orient=tk.VERTICAL, command=self.text_dg_report.yview)
-        self.dg_scroll.grid(row=1, column=1, sticky='ns')
-        self.text_dg_report.config(yscrollcommand=self.dg_scroll.set)
+        # self.dg_scroll = ttk.Scrollbar(frm_dg_report, orient=tk.VERTICAL, command=self.text_dg_report.yview)
+        # self.dg_scroll.grid(row=1, column=1, sticky='ns')
+        # self.text_dg_report.config(yscrollcommand=self.dg_scroll.set)
 
         frm_policy_report = ttk.Frame(frm_report)
         frm_policy_report.grid(sticky='nsew')
@@ -86,11 +88,11 @@ class ReportTab(ttk.Frame):
         ttk.Label(frm_policy_report, text='Policies by Compartment', font=('TkFixedFont', 12, 'bold')).grid(
             row=0, column=0, padx=5, pady=5, sticky='w'
         )
-        self.text_policy_report = tk.Text(frm_policy_report, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
+        self.text_policy_report = ScrolledText(frm_policy_report, wrap=tk.WORD, font=('TkFixedFont'))
         self.text_policy_report.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
-        self.policy_scroll = ttk.Scrollbar(frm_policy_report, orient=tk.VERTICAL, command=self.text_policy_report.yview)
-        self.policy_scroll.grid(row=1, column=1, sticky='ns')
-        self.text_policy_report.config(yscrollcommand=self.policy_scroll.set)
+        # self.policy_scroll = ttk.Scrollbar(frm_policy_report, orient=tk.VERTICAL, command=self.text_policy_report.yview)
+        # self.policy_scroll.grid(row=1, column=1, sticky='ns')
+        # self.text_policy_report.config(yscrollcommand=self.policy_scroll.set)
 
         frm_report.add(frm_dg_report, weight=3)
         frm_report.add(frm_policy_report, weight=7)
@@ -111,9 +113,9 @@ class ReportTab(ttk.Frame):
         else:
             for dg in sorted_dgs:
                 dg_text += f'Domain: {dg.get("domain_name")}\nName: {dg.get("dynamic_group_name")}\nMatching Rule: {dg.get("matching_rule")}\nOCID: {dg.get("dynamic_group_ocid")}\nCreated: {dg.get("creation_time")}\nIn Use: {"Yes" if dg.get("in_use") else "No"}\n\n'
-        self.text_dg_report.config(state=tk.NORMAL)
+        # self.text_dg_report.config(state=tk.NORMAL)
         self.text_dg_report.insert(tk.END, dg_text)
-        self.text_dg_report.config(state=tk.DISABLED)
+        # self.text_dg_report.config(state=tk.DISABLED)
 
         logger.info(f'Compartments to sort: {len(self.policy_compartment_analysis.compartments)}')
         # Now update the policy report
@@ -144,9 +146,9 @@ class ReportTab(ttk.Frame):
                 else:
                     policy_text += '  No policies\n'
                 policy_text += '\n'
-        self.text_policy_report.config(state=tk.NORMAL)
+        # self.text_policy_report.config(state=tk.NORMAL)
         self.text_policy_report.insert(tk.END, policy_text)
-        self.text_policy_report.config(state=tk.DISABLED)
+        # self.text_policy_report.config(state=tk.DISABLED)
         logger.info('Updated Policy/Dynamic Group Report tab')
 
     def _report_text_search(self, var_name, index, mode):

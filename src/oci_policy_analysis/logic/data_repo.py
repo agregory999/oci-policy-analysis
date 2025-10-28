@@ -268,10 +268,18 @@ class PolicyAnalysisRepository:
             return False
 
     # --- Internal Helpers ---
-    def _find_invalid_statements(self):
-        """Find invalid dynamic group statements.  Mark them as invalid with reason."""
+    def _find_invalid_statements(self):  # noqa: C901
+        """
+        Find invalid statements.  Mark them as invalid with reason.
+        Currently checks for:
+        - Dynamic Groups that do not exist
+        - Groups that do not exist
+        - Locations (OCID based compartments) that do not exist
+        - Valid verbs / resources
+        """
         # Roll through dynamic group statements and see if they reference an actual DG
         for st in self.regular_statements:
+            # Dynamic Group check
             if st['subject_type'] == 'dynamic-group':
                 for subject in st['subject']:
                     dg_domain = subject[0] or 'default'
@@ -287,6 +295,34 @@ class PolicyAnalysisRepository:
                         st['valid'] = False
                         st['invalid_reason'] = f'Dynamic Group {dg_name} not found in tenancy'
                         logger.warning(f"Dynamic Group {dg_name} not found for statement: {st['statement_text']}")
+            # Group check
+            elif st['subject_type'] == 'group':
+                for subject in st['subject']:
+                    group_domain = subject[0] or 'default'
+                    group_name = subject[1]
+                    # See if this Group exists in our loaded Groups
+                    logger.debug(f'Checking Group existence for {group_domain}/{group_name}')
+                    group_found = any(
+                        g.get('group_name').lower() == group_name.lower()
+                        and g.get('domain_name', 'default').lower() == group_domain.lower()
+                        for g in self.groups
+                    )
+                    if not group_found:
+                        st['valid'] = False
+                        st['invalid_reason'] = f'Group {group_name} not found in tenancy'
+                        logger.warning(f"Group {group_name} not found for statement: {st['statement_text']}")
+            # Location check
+            if st['location_type'] == 'compartment id':
+                location_ocid = st['location']
+                if not self._check_invalid_location(location_ocid):
+                    st['valid'] = False
+                    st['invalid_reason'] = f'Compartment OCID {location_ocid} not found in tenancy'
+                    logger.warning(f"Compartment OCID {location_ocid} not found for statement: {st['statement_text']}")
+            # Verb check
+            if st['verb'] and st['verb'].casefold() not in VALID_VERBS:
+                logger.warning(f"Invalid Verb found: {st['verb']}")
+                st['valid'] = False
+                st['invalid_reason'] = 'Invalid Verb'
 
     def _calculate_effective_compartments_for_statements(self):
         """
@@ -562,28 +598,6 @@ class PolicyAnalysisRepository:
                             statement_dict['parsing_notes'].append('Multiple subjects found')
                         statement_dict['subject'] = subject_result
 
-                    # Additional check for Location Validity
-                    if statement_dict['location_type'].casefold() == 'compartment id':
-                        # Check and change validity accordingly
-                        statement_dict['valid'] = self._check_invalid_location(statement_dict['location'])
-                        logger.debug(f"Checked OCID {statement_dict['location']} - Valid: {statement_dict['valid']}")
-                        if not statement_dict['valid']:
-                            logger.warning(
-                                f"Invalid Compartment OCID found in statement: {statement_dict['statement_text']}: {statement_dict['location']}"
-                            )
-                            statement_dict['invalid_reason'] = 'Invalid Compartment OCID'
-
-                    # Additional check for Verb validity
-                    if statement_dict['verb'] and statement_dict['verb'].casefold() not in VALID_VERBS:
-                        logger.warning(f"Invalid Verb found: {statement_dict['verb']}")
-                        statement_dict['valid'] = False
-                        statement_dict['invalid_reason'] = 'Invalid Verb'
-
-                    # Fake invalid (delete this)
-                    if statement_dict['resource'] == 'orm-jobs':
-                        logger.warning(f"Fake Invalid Resource found: {statement_dict['resource']}")
-                        statement_dict['valid'] = False
-                        statement_dict['invalid_reason'] = 'Fake Invalid Resource for testing'
                 except Exception as e:
                     logger.warning(f'Failed to parse statement: {e}')
 
@@ -726,8 +740,11 @@ class PolicyAnalysisRepository:
             # Now call effective compartment code - for all
             self._calculate_effective_compartments_for_statements()
 
-            # Find invalid statements
+            # Find invalid statements - e.g., invalid dynamic groups
             self._find_invalid_statements()
+
+            # Mark Dynamic groups as invalid if not used in any statement
+            self.run_dg_in_use_analysis()
 
             # Keep track of the time of this completed data load
             self.data_as_of = str(datetime.now(UTC))
@@ -902,7 +919,7 @@ class PolicyAnalysisRepository:
             logger.info(
                 f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
             )
-            self.run_dg_in_use_analysis()
+
             return True
         except Exception as e:
             logger.error(f'Failed to load identity domains: {e}')
@@ -1065,7 +1082,15 @@ class PolicyAnalysisRepository:
                         logger.debug(f"Rejecting {stmt.get('policy_name')} due to verb mismatch: {field_value}")
                         match = False
                         break
-
+                # Validity check
+                elif key == 'valid':
+                    valid_value = values
+                    statement_valid_value = stmt.get('valid', False)
+                    logger.debug(f'Filtering on validity: {valid_value} vs {statement_valid_value}')
+                    if valid_value != statement_valid_value:
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to validity mismatch")
+                        match = False
+                        break
                 # Effective path search
                 elif key == 'effective_path':
                     filter_eff_value = values[0].lower()
@@ -1886,7 +1911,7 @@ class AI:
         """Call OCI GenAI to test AI functionality. Put the results on a Queue that is provided"""
         logger.info(f'Given Prompt: {query}, Additional Instruction: {additional_instruction}')
 
-        start_time = datetime.now()
+        start_time = time.perf_counter()
         prompt = (
             f'{query} '
             f'{additional_instruction} '
@@ -1971,25 +1996,20 @@ class AI:
 
             logger.debug('Final result type: %s, content: %s', type(result), result[:100])
 
-            logger.info('Completed test call in %s seconds', (datetime.now() - start_time).total_seconds())
+            logger.info(f'Completed test call in {time.perf_counter() - start_time:.2f} seconds')
 
         except ServiceError as e:
             if e.status == 404:
                 logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
                 result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has access to use generative-ai in tenancy.<br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if logger.level == logger.debug else ""}<p>'
-
             else:
                 logger.error('Error calling OCI GenAI for policy analysis: %s', e)
                 result = f'Error calling OCI GenAI: {str(e)}'
-            logger.info(
-                'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
-            )
         except Exception as e:
             logger.error('Error calling OCI GenAI for policy analysis: %s', e)
             result = f'Error calling OCI GenAI: {str(e)}'
-            logger.info(
-                'Completed policy analysis (error) in %s seconds', (datetime.now() - start_time).total_seconds()
-            )
+        finally:
+            logger.info('Completed policy analysis (error) in %s seconds', (time.perf_counter() - start_time))
 
         # Put on queue if it is there or return the result
         if queue:

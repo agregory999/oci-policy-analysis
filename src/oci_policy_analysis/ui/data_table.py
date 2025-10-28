@@ -21,7 +21,7 @@ from oci_policy_analysis.logger import get_logger
 logger = get_logger(component='data_table')
 
 
-class DataTable(tk.Frame):
+class DataTable(ttk.Frame):
     """A Tkinter table widget with alternating row colors, sortable columns, resizable columns, show/hide columns, row selection with callback, full space utilization, cell copy functionality, and row context menu.
 
     Note: ttk.Treeview does not natively support multi-line text wrapping. Text with newlines may appear clipped; use wider columns (via column_widths) for better visibility. Font, padding, and ttk.Style must be configured externally to include right-side cell padding (e.g., padding=(0, 0, 5, 0)) for column separation.
@@ -323,3 +323,39 @@ class DataTable(tk.Frame):
         logger.debug('Updating data with %d rows', len(new_data))
         self.data = new_data
         self._populate_data()
+
+    def apply_theme(self, theme: str) -> None:
+        """Apply light or dark theme colors to the Treeview."""
+        if theme == 'dark':
+            bg = '#2b2b2b'
+            fg = '#f0f0f0'
+            row_colors = ('#2f2f2f', '#333333')
+            selected_bg = '#444444'
+            selected_fg = '#ffffff'
+        else:
+            bg = '#ffffff'
+            fg = '#000000'
+            row_colors = ('#ffffff', '#f7f7f7')
+            selected_bg = '#e0e0e0'
+            selected_fg = '#000000'
+
+        style = ttk.Style(self)
+        style.configure(
+            'Treeview',
+            background=bg,
+            fieldbackground=bg,
+            foreground=fg,
+            bordercolor=bg,
+            borderwidth=1,
+        )
+        style.map(
+            'Treeview',
+            background=[('selected', selected_bg)],
+            foreground=[('selected', selected_fg)],
+        )
+
+        # Update alternating rows dynamically
+        self.row_colors = row_colors
+        self.tree.tag_configure('evenrow', background=row_colors[0])
+        self.tree.tag_configure('oddrow', background=row_colors[1])
+        logger.info('Applied %s theme to DataTable', theme)
