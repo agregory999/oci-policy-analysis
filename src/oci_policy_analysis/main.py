@@ -351,6 +351,8 @@ class App(tk.Tk):
                 for table in [
                     self.users_tab.users_policy_table,
                     self.users_tab.users_users_table,
+                    self.users_tab.users_groups_table,
+                    self.users_tab.selected_groups_table,
                     self.dynamic_groups_tab.custom_data_dynamic_group,
                     self.dynamic_groups_tab.dg_policy_table,
                     self.cross_tenancy_tab.cross_tenancy_table,

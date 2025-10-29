@@ -304,7 +304,7 @@ class PolicyStatement(TypedDict, total=False):
     ]
 
     effective_path: Annotated[
-        str,
+        str | None,
         'Resolved compartment path string showing where the statement takes effect, including inherited scopes.',
     ]
 
