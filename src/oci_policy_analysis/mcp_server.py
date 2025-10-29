@@ -31,7 +31,7 @@ from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
-from oci_policy_analysis.logger import get_logger  # noqa: E402
+from oci_policy_analysis.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.models import (  # noqa: E402
@@ -46,7 +46,7 @@ from oci_policy_analysis.logic.models import (  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
-logger.info('MCP server module logger initialized.')
+set_log_level('CRITICAL')
 
 
 mcp = FastMCP(name='OCI Policy MCP')
@@ -87,10 +87,19 @@ def list_policy_statements() -> list[PolicyStatement]:
         'NO Filtering is supported using this tool; it simply returns all invalid statements. '
     ),
 )
-def filter_invalid_policy_statements() -> list[PolicyStatement]:
+def filter_invalid_policy_statements() -> list[dict]:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    results = [s for s in pca.regular_statements if not s.get('Valid', True)]
+    results = [
+        {
+            'policy_name': s['policy_name'],
+            'policy_compartment': s['policy_compartment'],
+            'statement_text': s['statement_text'],
+            'invalid_reasons': s['invalid_reasons'],
+        }
+        for s in pca.regular_statements
+        if not s.get('valid', True)
+    ]
     logger.info(f'Resource returning {len(results)} invalid policy statements')
     return results
 
@@ -437,6 +446,9 @@ def main():
     args = build_arg_parser().parse_args()
     recursive = args.recursive
 
+    if args.transport == 'stdio':
+        set_log_level('ERROR')  # suppress info logs on stdio transport('ERROR')
+
     logger.info(
         f'Loading MCP Server using Profile={args.profile or "DEFAULT"}, '
         f'InstancePrincipal={args.instance_principal}, '
@@ -483,8 +495,10 @@ def main():
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':
-        mcp.run(transport='stdio')
+        logger.setLevel('ERROR')  # suppress info logs on stdio transport
+        mcp.run(transport='stdio', show_banner=False, log_level='error')
     else:
+        logger.info('MCP server module logger initialized.')
         mcp.run(transport='streamable-http', port=args.port, host=args.host)
 
 

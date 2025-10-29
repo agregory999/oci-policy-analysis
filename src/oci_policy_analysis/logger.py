@@ -5,6 +5,7 @@
 import logging
 import os
 import sys
+import warnings
 from logging.handlers import RotatingFileHandler
 
 
@@ -24,8 +25,15 @@ def _setup_logging() -> None:
         except Exception:
             pass
 
+    # Suppress DeprecationWarnings from libraries
+    warnings.filterwarnings('ignore', category=DeprecationWarning)
+
     # Add StreamHandler to root for shell console (all logs)
-    stream = logging.StreamHandler(sys.stdout)
+    # If using MCP stdio mode, log to stderr to avoid mixing with MCP stdio
+    if os.environ.get('MCP_STDIO_MODE', '0') == '1':
+        stream = logging.StreamHandler(sys.stderr)  # Use stderr for logs
+    else:
+        stream = logging.StreamHandler(sys.stdout)  # Use stdout for logs
     stream.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s'))
     root.addHandler(stream)
 
@@ -73,7 +81,7 @@ def set_log_level(level: str | int) -> None:
             obj.setLevel(level_value)
 
     # logging.getLogger().setLevel(level_value)  # Root
-    logging.getLogger().critical(f'Global (root) log level set to {logging.getLevelName(level_value)}')
+    logging.getLogger().warning(f'Global (root) log level set to {logging.getLevelName(level_value)}')
 
 
 def set_component_level(component: str, level: str | int) -> None:

@@ -120,43 +120,6 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 # For MCP-specific JSON
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
-# Covers both policies and groups/dynamic groups
-FILTER_KEY_MAP = {
-    'policy_name': 'Policy Name',
-    'policy_ocid': 'Policy OCID',
-    'compartment_ocid': 'Compartment OCID',
-    'policy_compartment': 'Policy Compartment',
-    'statement_text': 'Statement Text',
-    'valid': 'Valid',
-    'invalid_reason': 'Invalid Reason',
-    'subject_type': 'Subject Type',
-    'subject': 'Subject',
-    'verb': 'Verb',
-    'resource': 'Resource',
-    'permission': 'Permission',
-    'location_type': 'Location Type',
-    'location': 'Location',
-    'effective_compartment_ocid': 'Effective Compartment OCID',
-    'effective_path': 'Effective Path',
-    'conditions': 'Conditions',
-    'comments': 'Comments',
-    'creation_time': 'Creation Time',
-    'parsed': 'Parsed',
-    'dg_name': 'DG Name',
-    'dg_matching_rule': 'Matching Rule',
-    'group_name': 'Group Name',
-    'group_domain': 'Domain Name',
-}
-
-FILTER_DG_KEY_MAP = {
-    'domain_name': 'Domain',
-    'dynamic_group_name': 'DG Name',
-    'matching_rule': 'Matching Rule',
-    'in_use': 'In Use',
-}
-
-# TypedDicts for MCP - these improve the code readability and help with type checking
-
 
 class IdentityDataNotLoaded(Exception):
     """Exception raised when identity data is accessed without being loaded."""
@@ -277,8 +240,12 @@ class PolicyAnalysisRepository:
         - Locations (OCID based compartments) that do not exist
         - Valid verbs / resources
         """
-        # Roll through dynamic group statements and see if they reference an actual DG
+        # Policy Statements can be invalid for several reasons, maybe even more than 1.
+        # TODO: Expand this function to check more invalid cases
+
+        # Create an empty list to hold invalid reasons - only add to dict if more than 0 found
         for st in self.regular_statements:
+            invalid_reasons = []
             # Dynamic Group check
             if st['subject_type'] == 'dynamic-group':
                 for subject in st['subject']:
@@ -293,7 +260,7 @@ class PolicyAnalysisRepository:
                     )
                     if not dg_found:
                         st['valid'] = False
-                        st['invalid_reason'] = f'Dynamic Group {dg_name} not found in tenancy'
+                        invalid_reasons.append(f'Dynamic Group {dg_name} not found in tenancy')
                         logger.warning(f"Dynamic Group {dg_name} not found for statement: {st['statement_text']}")
             # Group check
             elif st['subject_type'] == 'group':
@@ -309,20 +276,24 @@ class PolicyAnalysisRepository:
                     )
                     if not group_found:
                         st['valid'] = False
-                        st['invalid_reason'] = f'Group {group_name} not found in tenancy'
+                        invalid_reasons.append(f'Group {group_name} not found in tenancy')
                         logger.warning(f"Group {group_name} not found for statement: {st['statement_text']}")
             # Location check
             if st['location_type'] == 'compartment id':
                 location_ocid = st['location']
                 if not self._check_invalid_location(location_ocid):
                     st['valid'] = False
-                    st['invalid_reason'] = f'Compartment OCID {location_ocid} not found in tenancy'
+                    invalid_reasons.append(f'Compartment OCID {location_ocid} not found in tenancy')
                     logger.warning(f"Compartment OCID {location_ocid} not found for statement: {st['statement_text']}")
             # Verb check
             if st['verb'] and st['verb'].casefold() not in VALID_VERBS:
                 logger.warning(f"Invalid Verb found: {st['verb']}")
                 st['valid'] = False
-                st['invalid_reason'] = 'Invalid Verb'
+                invalid_reasons.append(f'Invalid Verb ({st['verb']}) found')
+
+            # if there are reasons, add to the statement
+            if len(invalid_reasons) > 0:
+                st['invalid_reasons'] = invalid_reasons
 
     def _calculate_effective_compartments_for_statements(self):
         """
@@ -1107,8 +1078,6 @@ class PolicyAnalysisRepository:
                         break
                 # Default lookup using column map
                 else:
-                    # Should not need this
-                    # column = FILTER_KEY_MAP.get(key)
                     column = key
                     logger.debug(f'Filtering on {key} mapped to column {column} with values {values}')
                     if not column or not values:

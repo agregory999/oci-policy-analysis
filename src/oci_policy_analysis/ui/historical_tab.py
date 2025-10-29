@@ -200,7 +200,14 @@ class HistoricalTab(ttk.Frame):
             if 'policy_name' in obj or 'statement_text' in obj:
                 return {
                     k: obj.get(k)
-                    for k in ('policy_name', 'statement_text', 'compartment_name', 'valid', 'invalid', 'invalid_reason')
+                    for k in (
+                        'policy_name',
+                        'statement_text',
+                        'compartment_name',
+                        'valid',
+                        'invalid',
+                        'invalid_reasons',
+                    )
                     if k in obj
                 }
 
