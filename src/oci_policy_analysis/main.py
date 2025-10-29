@@ -556,6 +556,7 @@ class App(tk.Tk):
         filepath = tkfiledialog.askopenfilename(filetypes=[('JSON Files', '*.json')])
         if filepath:
             try:
+                logger.info(f'Importing cached data from file: {filepath}')
                 if callback and callback.get('progress'):
                     # Schedule safe UI update in main thread
                     cb = callback.get('progress')

@@ -273,7 +273,7 @@ class PolicyStatement(TypedDict, total=False):
 
     valid: Annotated[bool, 'True if the statement successfully parsed and passed internal validation.']
 
-    invalid_reason: Annotated[str, 'If invalid, the reason why parsing or validation failed.']
+    invalid_reasons: Annotated[list[str], 'If invalid, the reasons why parsing or validation failed.']
 
     subject_type: Annotated[
         str,

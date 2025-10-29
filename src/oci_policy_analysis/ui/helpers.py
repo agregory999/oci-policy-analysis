@@ -24,7 +24,9 @@ def for_display_policy(statement: PolicyStatement) -> dict:
         'Policy Compartment': statement['policy_compartment'],
         'Statement Text': statement['statement_text'],
         'Valid': statement['valid'],
-        'Invalid Reason': statement['invalid_reason'] if 'invalid_reason' in statement else '',
+        'Invalid Reasons': ', '.join(statement['invalid_reasons'])
+        if 'invalid_reasons' in statement and type(statement['invalid_reasons']) is list
+        else '',
         'Subject Type': statement['subject_type'] if 'subject_type' in statement else '',
         'Subject': statement['subject'] if 'subject' in statement else '',
         'Verb': statement['verb'] if 'verb' in statement else '',

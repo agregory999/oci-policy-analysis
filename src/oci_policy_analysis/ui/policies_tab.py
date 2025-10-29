@@ -34,7 +34,7 @@ ALL_POLICY_COLUMNS = [
     'Effective Path',
     'Statement Text',
     'Valid',
-    'Invalid Reason',
+    'Invalid Reasons',
     'Subject Type',
     'Subject',
     'Verb',
@@ -49,7 +49,7 @@ ALL_POLICY_COLUMNS = [
     'Parsed',
 ]
 BASIC_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Effective Path', 'Statement Text', 'Valid']
-BASIC_INVALID_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Valid', 'Invalid Reason']
+BASIC_INVALID_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Valid', 'Invalid Reasons']
 POLICY_COLUMN_WIDTHS = {
     'Policy Name': 250,
     'Policy OCID': 450,
@@ -57,7 +57,7 @@ POLICY_COLUMN_WIDTHS = {
     'Policy Compartment': 250,
     'Statement Text': 700,
     'Valid': 80,
-    'Invalid Reason': 200,
+    'Invalid Reasons': 400,
     'Effective Path': 200,
     'Subject Type': 120,
     'Subject': 200,
@@ -207,6 +207,7 @@ class PoliciesTab(ttk.Frame):
         def export_policy_to_csv():
             filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
             if filepath:
+                # TODO: Get filtered data from the table instead of re-filtering (and this is broken)
                 filtered = self.policy_repo.filter_policy_statements(
                     self.subject_filter_var.get(),
                     self.verb_filter_var.get(),

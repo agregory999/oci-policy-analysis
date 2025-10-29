@@ -164,7 +164,6 @@ class CacheManager:
 
     def load_cache_from_json(self, loaded_json: dict) -> bool:
         # Load everything from given JSON
-        logger.info(f'Loaded JSON({type(loaded_json)})')
         try:
             # Grab all of the elements of the cache
             policies = loaded_json.get('policies', [])
@@ -189,7 +188,6 @@ class CacheManager:
             self.policy_analysis.users = loaded_json.get('users', {})
             # Set the data as of time
             self.policy_analysis.data_as_of = loaded_json.get('data_as_of')
-            logger.info('Loaded combined cache from JSON')
             # Show counts of each loaded element
             logger.info(
                 f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
