@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.2.1...v2.3.0) (2025-10-29)
+
+
+### Features
+
+* Multiple reasons for invalid statement. Support for STDIO Mode ([1931daf](https://github.com/agregory999/oci-policy-analysis/commit/1931dafd3be111257e821495bb47df3abddd5925))
+
 ## [2.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.2.0...v2.2.1) (2025-10-29)
 
 
