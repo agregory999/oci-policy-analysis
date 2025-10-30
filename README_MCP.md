@@ -106,6 +106,28 @@ options:
 
 ### MCP Option 1 - Locally with STDIO and Claude
 
+```mermaid
+flowchart LR
+    subgraph LOCAL["Local Machine"]
+        CD[Claude Desktop]
+        MCP[MCP Server STDIO]
+        CACHE[(Local Cache or<br/>OCI Profile)]
+    end
+
+    subgraph OCI["OCI Cloud (Optional)"]
+        API[(OCI IAM API)]
+    end
+
+    CD -->|JSON-RPC STDIO| MCP
+    MCP -->|Reads Cache| CACHE
+    MCP -.->|Live: SDK Calls| API
+
+    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+```
+
 In order to use Claude with MCP, you update a file called `claude_desktop_config.json` and simply restart Claude after changes.  To add the MCP server using STDIO mode, you likely want to start with a cached copy of the tenancy data, from a previous run from the UI or CLI, where the cache file exists.  
 
 You can use the CLI to show caches for a given tenancy:
@@ -173,6 +195,34 @@ When Claude starts it will automatically run the code from your local git repo, 
 
 ### MCP Option 2 - Streamable HTTP and Claude
 
+```mermaid
+flowchart LR
+    subgraph LOCAL["Local Machine"]
+        CD[Claude Desktop]
+        PROXY[mcp-proxy]
+    end
+
+    subgraph SERVER["Server (Local or Remote)"]
+        MCP[MCP Server HTTP]
+        DATA[(Cache or<br/>OCI Profile or<br/>Instance Principal)]
+    end
+
+    subgraph OCI["OCI Cloud (Optional)"]
+        API[(OCI IAM API)]
+    end
+
+    CD -->|JSON-RPC| PROXY
+    PROXY -->|HTTP/HTTPS| MCP
+    MCP -->|Reads| DATA
+    MCP -.->|Live: SDK Calls| API
+
+    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+```
+
 In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Or it could be on a remote server, such as an OCI compute server with instance principals, hosting the MCP Server and exposing it via an OCI Load Balancer.  Either way, configure Claude like this:
 
 ```json
@@ -190,6 +240,28 @@ In this model, the MCP server is standalone.  It could be on your computer, usin
 When you start Claude, it will conenct if your MCP is running
 
 ### MCP Option 3 - VSCode Co-Pilot and STDIO (Local)
+
+```mermaid
+flowchart LR
+    subgraph LOCAL["Local Machine"]
+        VSC[VS Code<br/>GitHub Copilot]
+        MCP[MCP Server STDIO]
+        CACHE[(Local Cache or<br/>OCI Profile)]
+    end
+
+    subgraph OCI["OCI Cloud (Optional)"]
+        API[(OCI IAM API)]
+    end
+
+    VSC -->|JSON-RPC STDIO| MCP
+    MCP -->|Reads Cache| CACHE
+    MCP -.->|Live: SDK Calls| API
+
+    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+```
 
 Similar to Claude, VSCode will start your MCP standalone process and communicate directly with it.  To set this up, follow VSCode MCP Server setup and use the full command that you can test ahead of time:
 ```
@@ -238,6 +310,34 @@ If it starts, you will something like this in the VSCode Output:
 From there, use the chat and ask it a question like "Show me my OCI Policies that have a verb of manage"
 
 ### MCP Option 4 - VSCode Remote HTTP
+
+```mermaid
+flowchart LR
+    subgraph LOCAL["Local Machine"]
+        VSC[VS Code<br/>GitHub Copilot]
+    end
+
+    subgraph SERVER["Server (Local or Remote)"]
+        MCP[MCP Server HTTP]
+        DATA[(Cache or<br/>OCI Profile or<br/>Instance Principal)]
+    end
+
+    subgraph OCI["OCI Cloud (Optional)"]
+        LB[Load Balancer]
+        API[(OCI IAM API)]
+    end
+
+    VSC -->|HTTPS| LB
+    LB -->|HTTP| MCP
+    MCP -->|Reads| DATA
+    MCP -.->|Live: SDK Calls| API
+
+    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style LB fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+```
 
 In this case, your MCP server is already running like above, on your PC, on an OCI server with Load Balancer, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections. 
 
@@ -292,14 +392,191 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 
 ---
 
-## ✅ Example Tools
+## 🔧 Available MCP Tools
 
-| Tool | Description |
-|------|--------------|
-| `users://all` | List all users in tenancy |
-| `groups://all` | List all IAM groups |
-| `policies://filter` | Filter policy statements |
-| `findings://invalid` | List invalid policy statements |
+The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
+
+### 1. `filter_policy_statements`
+**Primary tool for policy analysis** - Filter OCI IAM policy statements with flexible criteria.
+
+**Features:**
+- OR logic within each field, AND logic across fields
+- Returns summary for large result sets (>50 statements), full details for smaller sets
+- Supports exact matching and fuzzy search
+
+**Filter Options:**
+- `verb`: ["inspect", "read", "use", "manage"]
+- `resource`: Resource types (e.g., "instance-family", "database")
+- `subject_type`: ["user", "group", "dynamic-group", "any-user"]
+- `subject`: Exact subject matches with domain and name
+- `location`: Compartment paths where resources are accessed
+- `policy_compartment`: Compartment where policy is defined (use "ROOTONLY" for root only)
+- `policy_text`: Text search within statement
+- `exact_groups`, `exact_users`, `exact_dynamic_groups`: Precise identity matching
+- `search_groups`, `search_users`, `search_dynamic_groups`: Fuzzy search with partial matches
+
+**Examples:**
+```json
+// Get all manage permissions
+{"verb": ["manage"]}
+
+// Find policies for specific group
+{"exact_groups": [{"group_name": "Administrators", "domain_name": "Default"}]}
+
+// Find database-related permissions with manage or use
+{"verb": ["manage", "use"], "resource": ["database"]}
+
+// Search for users by name
+{"search_users": {"search": ["andrew", "bob"]}}
+```
+
+**Response Types:**
+- **Summary** (>50 results): Counts, breakdowns by policy/compartment/subject/verb, sample statements
+- **Full** (≤50 results): Complete list of matching policy statements
+
+---
+
+### 2. `search_users`
+Search and retrieve OCI IAM users with optional filtering.
+
+**Filter Options:**
+- `search`: List of partial username/email strings (fuzzy match)
+- `user_ocid`: List of full or partial user OCIDs
+- `domain_name`: List of identity domain names
+
+**Examples:**
+```json
+// Get all users
+{}
+
+// Search by username
+{"search": ["andrew", "mark", "noah"]}
+
+// Find users by OCID
+{"user_ocid": ["ocid1.user.oc1..aaaaaa..."]}
+```
+
+**Response:**
+- **Summary** (>50 users): Total count, domain breakdown, sample usernames
+- **Full** (≤50 users): Complete user details with name, email, OCID, domain
+
+---
+
+### 3. `search_groups`
+Search and retrieve OCI IAM groups.
+
+**Filter Options:**
+- `group_name`: List of partial group names (fuzzy match)
+- `group_ocid`: List of full or partial group OCIDs
+- `domain_name`: List of identity domain names
+
+**Examples:**
+```json
+// Get all groups
+{}
+
+// Search by name
+{"group_name": ["admin", "developer"]}
+
+// Find specific groups by OCID
+{"group_ocid": ["ocid1.group.oc1..aaaaaa...", "ocid1.group.oc1..bbbbbb..."]}
+
+// Filter by domain
+{"domain_name": ["Default", "cloud-engineering-domain"]}
+```
+
+**Response:**
+- **Summary** (>50 groups): Total count, domain breakdown, sample group names
+- **Full** (≤50 groups): Complete group details with name, OCID, domain, description
+
+---
+
+### 4. `search_dynamic_groups`
+Search and retrieve OCI dynamic groups.
+
+**Filter Options:**
+- `dynamic_group_name`: List of partial dynamic group names (fuzzy match)
+- `matching_rule`: List of partial matching rule strings
+- `domain_name`: List of identity domain names
+
+**Examples:**
+```json
+// Get all dynamic groups
+{}
+
+// Search by name
+{"dynamic_group_name": ["compute", "function"]}
+
+// Find by matching rule content
+{"matching_rule": ["instance.compartment.id"]}
+```
+
+**Response:**
+- **Summary** (>50 groups): Total count, domain breakdown, usage breakdown, samples
+- **Full** (≤50 groups): Complete dynamic group details with rules and policy usage
+
+---
+
+### 5. `get_groups_for_user`
+Get all groups that a specific user belongs to (exact match only).
+
+**Input:**
+```json
+{
+  "user_name": "andrew.gregory@oracle.com",
+  "domain_name": "cloud-engineering-domain"
+}
+```
+
+**Response:** List of all groups the user is a member of.
+
+---
+
+### 6. `get_users_for_group`
+Get all users in a specific group (exact match only).
+
+**Input:**
+```json
+{
+  "group_name": "Administrators",
+  "domain_name": "Default"
+}
+```
+
+**Response:** List of all users who are members of the group.
+
+---
+
+### 7. `cross-tenancy-alias-list`
+List all cross-tenancy aliases defined in OCI policies.
+
+**Input:** None
+
+**Response:** List of all DEFINE statements with tenancy OCIDs and aliases.
+
+---
+
+### 8. `cross-tenancy-policies-by-alias`
+Filter cross-tenancy policy statements that reference a specific alias.
+
+**Input:**
+```json
+{
+  "alias": "partner-tenancy"
+}
+```
+
+**Response:** List of policy statements using the specified cross-tenancy alias.
+
+---
+
+## 💡 Usage Tips
+
+1. **Start broad, then filter**: Begin with empty filters `{}` to get summaries, then add specific criteria
+2. **Combine filters**: Use multiple fields together (AND logic across fields, OR within fields)
+3. **Use fuzzy search**: `search_users`, `search_groups` support partial string matching
+4. **OCID filtering**: All `*_ocid` fields support partial OCID matching
+5. **Check response type**: Large result sets return summaries - add filters to get full details
 
 ---
 

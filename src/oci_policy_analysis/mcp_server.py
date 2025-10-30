@@ -36,16 +36,15 @@ from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.models import (  # noqa: E402
     DefineStatement,
-    DynamicGroup,
     DynamicGroupSearch,
+    DynamicGroupSearchFull,
     DynamicGroupSearchResponse,
     DynamicGroupSummary,
-    DynamicGroupSearchFull,
     Group,
     GroupSearch,
+    GroupSearchFull,
     GroupSearchResponse,
     GroupSummary,
-    GroupSearchFull,
     PolicyFilterResponse,
     PolicySearch,
     PolicyStatement,
@@ -53,10 +52,9 @@ from oci_policy_analysis.logic.models import (  # noqa: E402
     PolicySummary,
     User,
     UserSearch,
+    UserSearchFull,
     UserSearchResponse,
     UserSummary,
-    UserSearchFull,
-    UserSearch,
 )
 
 # Global logger for this module
@@ -64,6 +62,12 @@ logger = get_logger(component='mcp_server')
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
+
+# Decision logic: return summary if result set is too large
+POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
+
+# Decision logic: return summary if result set is too large
+IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
 
 
 # --- Resources and Tools (unchanged) ---
@@ -73,142 +77,9 @@ async def health_check(request):
     return JSONResponse({'status': 'healthy'})
 
 
-@mcp.resource('policies://regular-policy-statements', description='Return All regular policy statements in the tenancy')
-def list_policy_statements() -> list[PolicyStatement]:
-    """
-    All policy statements in the tenancy.
-
-    Use this resource when the user asks for:
-    - A complete list of all policy statements.
-    - Raw policy data for analysis or summarization.
-    - Parsed policy data you can filter on yourself
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    logger.info(
-        f'Resource returning {len(pca.regular_statements)} regular and {len(pca.cross_tenancy_statements)} CT policy statements'
-    )
-    return pca.regular_statements
-
-
-# Filter invalid policy statements
-@mcp.resource(
-    'policies://filter_invalid_policy_statements',
-    description=(
-        "Return all policy statements where the 'Valid' field is False. "
-        'These represent invalid or unparsable policy statements. '
-        'NO Filtering is supported using this tool; it simply returns all invalid statements. '
-    ),
-)
-def filter_invalid_policy_statements() -> list[dict]:
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    results = [
-        {
-            'policy_name': s['policy_name'],  # type: ignore
-            'policy_compartment': s['policy_compartment'],  # type: ignore
-            'statement_text': s['statement_text'],  # type: ignore
-            'invalid_reasons': s['invalid_reasons'],  # type: ignore
-        }
-        for s in pca.regular_statements
-        if not s.get('valid', True)
-    ]
-    logger.info(f'Resource returning {len(results)} invalid policy statements')
-    return results
-
-
-@mcp.resource(
-    'policies://cross-tenancy-statements', description='Return All cross-tenancy policy statements in the tenancy'
-)
-def cross_tenancy_policy_statements() -> list[PolicyStatement]:
-    """
-    All cross-trenancy policy statements in the tenancy.
-
-    Use this resource when the user asks for:
-    - Cross tenancy policy statements.
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    return pca.cross_tenancy_statements
-
-
-@mcp.resource(
-    'policies://root-compartment-policy-statements',
-    description='Return All regular policy statements in the root compartment of the tenancy',
-)
-def root_policy_statements() -> list[PolicyStatement]:
-    """
-    All regular policy statements in the root compartment of the tenancy.
-
-    Use this resource when the user asks for:
-    - Root only tenancy policy statements.
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    logger.info('Tool Policy Filter for ROOT only')
-    results = pca.filter_policy_statements({'policy_compartment': ['ROOTONLY']})
-    logger.info(f'Filter for root returning {len(results)} policy statements to client')
-    return results
-
-
-@mcp.resource('groups://all', description='Return All groups in the tenancy')
-def list_groups() -> str:
-    """
-    All groups in the tenancy.
-
-    Use this resource when the user asks for:
-    - All named groups in the tenancy.
-    - Domain and group information
-    - Raw group information for cross-referencing with policies
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    try:
-        logger.info(f'Resource Groups returning {len(pca.groups)} groups')
-        return json.dumps(pca.groups)
-    except Exception as e:
-        raise ToolError(f'Failed to fetch groups: {e}') from e
-
-
-@mcp.resource('dynamic-groups://all', description='Return All dynamic groups in the tenancy')
-def list_dynamic_groups() -> list[DynamicGroup]:
-    """
-    All dynamic groups in the tenancy.
-
-    Use this resource when the user asks for:
-    - All named dynamic groups in the tenancy.
-    - Domain and dynamic group information
-    - Raw dynamic group information for cross-referencing with policies
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    try:
-        logger.info(f'Resource Dynamic Groups returning {len(pca.dynamic_groups)} groups')
-        return pca.dynamic_groups
-    except Exception as e:
-        raise ToolError(f'Failed to fetch dynamic groups: {e}') from e
-
-
-@mcp.resource('users://all', description='Return All users in the tenancy')
-def list_users() -> list[User]:
-    """
-    All users in the tenancy.
-
-    Use this resource when the user asks for:
-    - All named users in the tenancy.
-    - Domain and user information
-    - Raw user information for cross-referencing with groups
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    try:
-        logger.info(f'Resource Users returning {len(pca.users)} users')
-        return pca.users
-    except Exception as e:
-        raise ToolError(f'Failed to fetch users: {e}') from e
-
-
+# ---------------------
 # --- Tools ---
+# ---------------------
 
 
 # Main Policy filter tool
@@ -242,80 +113,71 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     logger.info(f'Tool Policy Filter with JSON filters: {filters}')
     raw_results = pca.filter_policy_statements(filters)
-    
-    # Decision logic: return summary if result set is too large
-    LARGE_RESULT_THRESHOLD = 50  # Adjust based on your needs
-    IAM_SEARCH_THRESHOLD = 50    # Threshold for IAM search operations (users, groups, dynamic groups)
-    
-    if len(raw_results) > LARGE_RESULT_THRESHOLD:
+
+    if len(raw_results) > POLICY_RESULT_THRESHOLD:
         # Generate summary response
         logger.info(f'Large result set ({len(raw_results)} statements), returning summary')
-        
+
         # Calculate breakdowns
         policy_breakdown = {}
         compartment_breakdown = {}
         subject_type_breakdown = {}
         verb_breakdown = {}
-        
+
         for statement in raw_results:
             # Policy breakdown
             policy_name = statement.get('policy_name', 'Unknown')
             policy_breakdown[policy_name] = policy_breakdown.get(policy_name, 0) + 1
-            
+
             # Compartment breakdown
             compartment = statement.get('policy_compartment', 'Unknown')
             compartment_breakdown[compartment] = compartment_breakdown.get(compartment, 0) + 1
-            
+
             # Subject type breakdown
             subject_type = statement.get('subject_type', 'Unknown')
             subject_type_breakdown[subject_type] = subject_type_breakdown.get(subject_type, 0) + 1
-            
+
             # Verb breakdown
             verb = statement.get('verb', 'Unknown')
             verb_breakdown[verb] = verb_breakdown.get(verb, 0) + 1
-        
+
         # Get sample statements (first 15)
-        sample_statements = [
-            statement.get('statement_text', '') 
-            for statement in raw_results[:15]
-        ]
-        
+        sample_statements = [statement.get('statement_text', '') for statement in raw_results[:15]]
+
         summary_response: PolicySummary = {
             'response_type': 'summary',
             'total_statements': len(raw_results),
             'truncated': True,
-            'truncation_point': LARGE_RESULT_THRESHOLD,
+            'truncation_point': POLICY_RESULT_THRESHOLD,
             'policy_breakdown': policy_breakdown,
             'compartment_breakdown': compartment_breakdown,
             'subject_type_breakdown': subject_type_breakdown,
             'verb_breakdown': verb_breakdown,
             'sample_statements': sample_statements,
-            'message': f'Result set too large ({len(raw_results)} statements). Returning summary with breakdowns. Use more specific filters to get full details.'
+            'message': f'Result set too large ({len(raw_results)} statements). Returning summary with breakdowns. Use more specific filters to get full details.',
         }
-        
+
         logger.info(f'Returning summary for {len(raw_results)} policy statements')
         return summary_response
-    
+
     else:
         # Return full results for smaller sets
         logger.info(f'Manageable result set ({len(raw_results)} statements), returning full data')
-        
+
         for st in raw_results:
             logger.debug(f'Raw Result: {st} \n\n')
-        
+
         full_response: PolicyStatementFull = {
             'response_type': 'full',
             'statements': raw_results,
-            'total_count': len(raw_results)
+            'total_count': len(raw_results),
         }
-        
+
         logger.info(f'Filter returning {len(raw_results)} full policy statements to client')
         return full_response
 
 
 # User and Group tools
-
-
 @mcp.tool(
     name='get_groups_for_user',
     description=(
@@ -381,7 +243,7 @@ def get_users_for_group(group: Group) -> list[User]:
     description=(
         'Return all users that match the specified criteria. '
         "Input may include the user's email (string) and name (string). "
-        "Returns either a summary or full user list based on result size. "
+        'Returns either a summary or full user list based on result size. '
         'Pass in no filter criteria to return all users. Any provided criteria will be combined with AND logic. '
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
@@ -394,47 +256,41 @@ def search_users(filters: UserSearch) -> UserSearchResponse:
         raw_results = pca.filter_users(filters)
         logger.debug(f'Users: {json.dumps(raw_results, indent=4)}')
 
-        # Decision logic: return summary if result set is too large
-        IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-        
         if len(raw_results) > IAM_SEARCH_THRESHOLD:
             # Generate summary response
             from collections import Counter
-            
+
             # Generate breakdowns
             domain_breakdown = Counter()
             sample_users = []
-            
+
             for user in raw_results:
                 domain_name = user.get('domain_name', 'Default')
                 domain_breakdown[domain_name] += 1
-                
+
                 # Collect sample user names (first N)
                 if len(sample_users) < 15:
                     user_name = user.get('user_name', user.get('email', 'Unknown'))
                     sample_users.append(user_name)
-            
+
             logger.info(f'Returning summary for {len(raw_results)} users (threshold: {IAM_SEARCH_THRESHOLD})')
             return UserSummary(
-                response_type="summary",
+                response_type='summary',
                 total_users=len(raw_results),
                 truncated=True,
                 truncation_point=IAM_SEARCH_THRESHOLD,
                 domain_breakdown=dict(domain_breakdown),
                 sample_users=sample_users,
-                message=f"Result set too large ({len(raw_results)} users). Returning summary with breakdowns. Use more specific filters to get full details."
+                message=f'Result set too large ({len(raw_results)} users). Returning summary with breakdowns. Use more specific filters to get full details.',
             )
         else:
             # Return full results
             logger.info(f'Returning {len(raw_results)} users (under threshold)')
-            return UserSearchFull(
-                response_type="full",
-                users=raw_results,
-                total_count=len(raw_results)
-            )
-            
+            return UserSearchFull(response_type='full', users=raw_results, total_count=len(raw_results))
+
     except Exception as e:
         raise ToolError(f'Failed to retrieve users with filters {filters}: {e}') from e
+
 
 # MCP tool to search for groups with Union type response
 @mcp.tool(
@@ -442,7 +298,7 @@ def search_users(filters: UserSearch) -> UserSearchResponse:
     description=(
         'Return all groups that match the specified criteria. '
         "Input may include the group's domain (string or null for Default) and name (string). "
-        "Returns either a summary or full group list based on result size. "
+        'Returns either a summary or full group list based on result size. '
         'Pass in no filter criteria to return all groups. Any provided criteria will be combined with AND logic. '
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
@@ -455,55 +311,52 @@ def search_groups(filters: GroupSearch) -> GroupSearchResponse:
         raw_results = pca.filter_groups(filters)
         logger.debug(f'Groups: {json.dumps(raw_results, indent=4)}')
 
-        # Decision logic: return summary if result set is too large  
+        # Decision logic: return summary if result set is too large
         IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-        
+
         if len(raw_results) > IAM_SEARCH_THRESHOLD:
             # Generate summary response
             from collections import Counter
-            
+
             # Generate breakdowns
             domain_breakdown = Counter()
             sample_groups = []
-            
+
             for group in raw_results:
                 domain_name = group.get('domain_name', 'Default')
                 domain_breakdown[domain_name] += 1
-                
+
                 # Collect sample group names (first N)
                 if len(sample_groups) < 15:
                     group_name = group.get('group_name', 'Unknown')
                     sample_groups.append(group_name)
-            
+
             logger.info(f'Returning summary for {len(raw_results)} groups (threshold: {IAM_SEARCH_THRESHOLD})')
             return GroupSummary(
-                response_type="summary",
+                response_type='summary',
                 total_groups=len(raw_results),
                 truncated=True,
                 truncation_point=IAM_SEARCH_THRESHOLD,
                 domain_breakdown=dict(domain_breakdown),
                 sample_groups=sample_groups,
-                message=f"Result set too large ({len(raw_results)} groups). Returning summary with breakdowns. Use more specific filters to get full details."
+                message=f'Result set too large ({len(raw_results)} groups). Returning summary with breakdowns. Use more specific filters to get full details.',
             )
         else:
             # Return full results
             logger.info(f'Returning {len(raw_results)} groups (under threshold)')
-            return GroupSearchFull(
-                response_type="full",
-                groups=raw_results,
-                total_count=len(raw_results)
-            )
-            
+            return GroupSearchFull(response_type='full', groups=raw_results, total_count=len(raw_results))
+
     except Exception as e:
         raise ToolError(f'Failed to retrieve groups with filters {filters}: {e}') from e
 
-# MCP tool to search for dynamic groups with Union type response  
+
+# MCP tool to search for dynamic groups with Union type response
 @mcp.tool(
     name='search_dynamic_groups',
     description=(
         'Return all dynamic groups that match the specified criteria. '
         "Input may include the dynamic group's domain (string or null for Default) and name (string). "
-        "Returns either a summary or full dynamic group list based on result size. "
+        'Returns either a summary or full dynamic group list based on result size. '
         'Pass in no filter criteria to return all dynamic groups. Any provided criteria will be combined with AND logic. '
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
@@ -518,49 +371,47 @@ def search_dynamic_groups(filters: DynamicGroupSearch) -> DynamicGroupSearchResp
 
         # Decision logic: return summary if result set is too large
         IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-        
+
         if len(raw_results) > IAM_SEARCH_THRESHOLD:
             # Generate summary response
             from collections import Counter
-            
+
             # Generate breakdowns
             domain_breakdown = Counter()
             in_use_breakdown = Counter()
             sample_dynamic_groups = []
-            
+
             for dg in raw_results:
                 domain_name = dg.get('domain_name', 'Default')
                 domain_breakdown[domain_name] += 1
-                
+
                 # Track usage status
                 in_use = dg.get('in_use', False)
                 in_use_breakdown['in_use' if in_use else 'not_in_use'] += 1
-                
+
                 # Collect sample dynamic group names (first N)
                 if len(sample_dynamic_groups) < 15:
                     dg_name = dg.get('dynamic_group_name', 'Unknown')
                     sample_dynamic_groups.append(dg_name)
-            
+
             logger.info(f'Returning summary for {len(raw_results)} dynamic groups (threshold: {IAM_SEARCH_THRESHOLD})')
             return DynamicGroupSummary(
-                response_type="summary",
+                response_type='summary',
                 total_dynamic_groups=len(raw_results),
                 truncated=True,
                 truncation_point=IAM_SEARCH_THRESHOLD,
                 domain_breakdown=dict(domain_breakdown),
                 in_use_breakdown=dict(in_use_breakdown),
                 sample_dynamic_groups=sample_dynamic_groups,
-                message=f"Result set too large ({len(raw_results)} dynamic groups). Returning summary with breakdowns. Use more specific filters to get full details."
+                message=f'Result set too large ({len(raw_results)} dynamic groups). Returning summary with breakdowns. Use more specific filters to get full details.',
             )
         else:
             # Return full results
             logger.info(f'Returning {len(raw_results)} dynamic groups (under threshold)')
             return DynamicGroupSearchFull(
-                response_type="full",
-                dynamic_groups=raw_results,
-                total_count=len(raw_results)
+                response_type='full', dynamic_groups=raw_results, total_count=len(raw_results)
             )
-            
+
     except Exception as e:
         raise ToolError(f'Failed to retrieve dynamic groups with filters {filters}: {e}') from e
 
@@ -674,6 +525,11 @@ def mcp_server_status() -> bool:
     return bool(server_thread and server_thread.is_alive())
 
 
+# ============================================================
+# Main Entry Point for standalone MCP server run
+# ============================================================
+
+
 def build_arg_parser():
     parser = argparse.ArgumentParser()
     auth = parser.add_mutually_exclusive_group(required=True)
@@ -744,6 +600,9 @@ def main():
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':
+        logger.info(
+            'Starting MCP server in stdio mode - if you get errors, please ensure you set environment variable MCP_STDIO_MODE=1'
+        )
         mcp.run(transport='stdio', show_banner=False, log_level='error')
     else:
         mcp.run(transport='streamable-http', port=args.port, host=args.host)
