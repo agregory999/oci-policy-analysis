@@ -50,17 +50,17 @@ flowchart LR
 
     subgraph SERVER["Remote Server"]
         MCP[MCP Server<br/>FastMCP HTTP]
-        CACHE[(Cache or<br/>Instance Principal)]
+        CACHE[Cache or<br/>Instance Principal]
     end
 
-    subgraph OCI["OCI Cloud (Optional)"]
-        OCI-API[(OCI IAM API)]
+    subgraph OCI["OCI Cloud"]
+        OCI-API[OCI IAM API]
     end
 
     C1 -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK (Profile or<br/>Instance Principal)| OCI-API
+    MCP -.->|Load via SDK<br/>Profile or Instance Principal)| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
