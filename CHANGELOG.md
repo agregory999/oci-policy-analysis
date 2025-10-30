@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.3.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.3.1...v2.3.2) (2025-10-30)
+
+
+### Bug Fixes
+
+* build version and MCP cleanup ([62e16a8](https://github.com/agregory999/oci-policy-analysis/commit/62e16a8419864d8cd440d2021253f5f2be4924fd))
+
 ## [2.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.3.0...v2.3.1) (2025-10-30)
 
 
