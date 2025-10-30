@@ -8,7 +8,7 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -98,7 +98,7 @@ class ConsoleTab(ttk.Frame):
             width=10,
         )
         level_combo.pack(side=tk.LEFT)
-        # level_combo.bind("<<ComboboxSelected>>", lambda e: self.app._apply_log_level(level=level_combo.get()))  # Reuse App's method
+        # Call the function in main to apply log level change
         level_combo.bind('<<ComboboxSelected>>', self.app._apply_log_level)  # Reuse App's method
 
         ttk.Label(self, text='All Logs (INFO+):').pack(anchor=tk.W, padx=10, pady=(10, 0))

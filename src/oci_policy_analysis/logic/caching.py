@@ -8,7 +8,7 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -24,7 +24,6 @@ from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
-CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 AI_CACHE_FILE = CACHE_DIR / 'oci_policy_ai_cache.json'
 
 # Global logger for this module
@@ -56,6 +55,9 @@ class CacheManager:
     def save_combined_cache(self, export_file=None) -> str:
         """Save combined cache for policies and dynamic groups. Returns file name if you care"""
 
+        # Date of the cache
+        CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
+
         # Create the file as JSON first, collecting all details
         combined_data = {
             'tenancy_name': self.policy_analysis.tenancy_name,
@@ -80,6 +82,7 @@ class CacheManager:
         else:
             # Just write to cache as normal
             # CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
             combined_cache_file = (
                 self.cache_dir / f'combined_cache_{self.policy_analysis.tenancy_name}_{CACHE_DATE}.json'
             )

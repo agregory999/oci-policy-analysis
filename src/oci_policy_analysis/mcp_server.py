@@ -8,7 +8,7 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -39,9 +39,11 @@ from oci_policy_analysis.logic.models import (  # noqa: E402
     DynamicGroup,
     DynamicGroupSearch,
     Group,
+    GroupSearch,
     PolicySearch,
     PolicyStatement,
     User,
+    UserSearch,
 )
 
 # Global logger for this module
@@ -90,10 +92,10 @@ def filter_invalid_policy_statements() -> list[dict]:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     results = [
         {
-            'policy_name': s['policy_name'],
-            'policy_compartment': s['policy_compartment'],
-            'statement_text': s['statement_text'],
-            'invalid_reasons': s['invalid_reasons'],
+            'policy_name': s['policy_name'],  # type: ignore
+            'policy_compartment': s['policy_compartment'],  # type: ignore
+            'statement_text': s['statement_text'],  # type: ignore
+            'invalid_reasons': s['invalid_reasons'],  # type: ignore
         }
         for s in pca.regular_statements
         if not s.get('valid', True)
@@ -314,6 +316,56 @@ def search_dynamic_groups(filters: DynamicGroupSearch) -> list[DynamicGroup]:
         return results
     except Exception as e:
         raise ToolError(f'Failed to retrieve dynamic groups with filters {filters}: {e}') from e
+
+
+# MCP tool to search for groups
+@mcp.tool(
+    name='search_groups',
+    description=(
+        'Return all groups that match the specified criteria. '
+        "Input may include the group's domain (string or null for Default) and name (string). "
+        "Returns a list of group dictionaries with keys 'group_name', 'domain_name', and 'description'. "
+        'Pass in no filter criteria to return all groups. Any provided criteria will be combined with AND logic. '
+        'For policy filtering, use the main filter_policy_statements tool instead.'
+    ),
+)
+def search_groups(filters: GroupSearch) -> list[Group]:
+    if not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f'MCP Tool: Searching groups with filters {filters}')
+        results = pca.filter_groups(filters)
+        logger.debug(f'Groups: {json.dumps(results, indent=4)}')
+
+        logger.info(f'Returning {len(results)} groups matching filters')
+        return results
+    except Exception as e:
+        raise ToolError(f'Failed to retrieve groups with filters {filters}: {e}') from e
+
+
+# MCP Tool to search for users
+@mcp.tool(
+    name='search_users',
+    description=(
+        'Return all users that match the specified criteria. '
+        "Input may include the user's email (string) and name (string). "
+        "Returns a list of user dictionaries with keys 'email', 'name', and 'description'. "
+        'Pass in no filter criteria to return all users. Any provided criteria will be combined with AND logic. '
+        'For policy filtering, use the main filter_policy_statements tool instead.'
+    ),
+)
+def search_users(filters: UserSearch) -> list[User]:
+    if not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    try:
+        logger.info(f'MCP Tool: Searching users with filters {filters}')
+        results = pca.filter_users(filters)
+        logger.debug(f'Users: {json.dumps(results, indent=4)}')
+
+        logger.info(f'Returning {len(results)} users matching filters')
+        return results
+    except Exception as e:
+        raise ToolError(f'Failed to retrieve users with filters {filters}: {e}') from e
 
 
 # --- CROSS TENANCY TOOLS START HERE ---

@@ -8,7 +8,7 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
@@ -46,8 +46,6 @@ class ReportTab(ttk.Frame):
         logger.info('Creating Report Tab')
         frm_report_top = ttk.Frame(self)
         frm_report_top.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
-        # tab_report.rowconfigure(1, weight=1)
-        # tab_report.columnconfigure(0, weight=1)
 
         # Top Section
         frm_report_buttons = ttk.Frame(frm_report_top)
@@ -74,12 +72,8 @@ class ReportTab(ttk.Frame):
         ttk.Label(frm_dg_report, text='Dynamic Groups', font=('TkFixedFont', 12, 'bold')).grid(
             row=0, column=0, padx=5, pady=5, sticky='w'
         )
-        # self.text_dg_report = tk.Text(frm_dg_report, wrap=tk.WORD, font=('TkFixedFont'), state=tk.DISABLED)
         self.text_dg_report = ScrolledText(frm_dg_report, wrap=tk.WORD, font=('TkFixedFont'))
         self.text_dg_report.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
-        # self.dg_scroll = ttk.Scrollbar(frm_dg_report, orient=tk.VERTICAL, command=self.text_dg_report.yview)
-        # self.dg_scroll.grid(row=1, column=1, sticky='ns')
-        # self.text_dg_report.config(yscrollcommand=self.dg_scroll.set)
 
         frm_policy_report = ttk.Frame(frm_report)
         frm_policy_report.grid(sticky='nsew')
@@ -90,9 +84,6 @@ class ReportTab(ttk.Frame):
         )
         self.text_policy_report = ScrolledText(frm_policy_report, wrap=tk.WORD, font=('TkFixedFont'))
         self.text_policy_report.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
-        # self.policy_scroll = ttk.Scrollbar(frm_policy_report, orient=tk.VERTICAL, command=self.text_policy_report.yview)
-        # self.policy_scroll.grid(row=1, column=1, sticky='ns')
-        # self.text_policy_report.config(yscrollcommand=self.policy_scroll.set)
 
         frm_report.add(frm_dg_report, weight=3)
         frm_report.add(frm_policy_report, weight=7)
