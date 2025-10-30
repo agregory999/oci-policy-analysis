@@ -105,16 +105,16 @@ flowchart LR
     subgraph LOCAL["Local Machine"]
         CD[Claude Desktop]
         MCP[MCP Server STDIO]
-        CACHE[(Local Cache)]
+        CACHE[Local Cache]
     end
 
     subgraph OCI["OCI Cloud"]
-        API[(OCI IAM API)]
+        API[OCI IAM API]
     end
 
     CD -->|JSON-RPC STDIO| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK (Profile or<br/>Session Token)| API
+    MCP -.->|Load via SDK<br/>Profile or Session Token| API
 
     style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
@@ -198,17 +198,17 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        CACHE[(Local Cache)]
+        CACHE[Local Cache]
     end
 
     subgraph OCI["OCI Cloud"]
-        API[(OCI IAM API)]
+        API[OCI IAM API]
     end
 
     CD -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK (Profile or<br/>Instance Principal)| API
+    MCP -.->|Load via SDK<br/>Profile or Instance Principal| API
 
     style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
@@ -241,11 +241,11 @@ flowchart LR
     subgraph LOCAL["Local Machine"]
         VSC[VS Code<br/>GitHub Copilot]
         MCP[MCP Server STDIO]
-        CACHE[(Local Cache)]
+        CACHE[Local Cache]
     end
 
     subgraph OCI["OCI Cloud"]
-        API[(OCI IAM API)]
+        API[OCI IAM API]
     end
 
     VSC -->|JSON-RPC STDIO| MCP
@@ -316,16 +316,16 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        CACHE[(Local Cache)]
+        CACHE[Local Cache]
     end
 
     subgraph OCI["OCI Cloud"]
-        API[(OCI IAM API)]
+        API[OCI IAM API]
     end
 
     VSC -->|HTTPS| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK (Profile or<br/>Session Token)| API
+    MCP -.->|Load via SDK<br/>Profile or Session Token| API
 
     style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
@@ -363,7 +363,7 @@ flowchart LR
     end
 
     subgraph OCI_SERVICES["OCI Services"]
-        API[(OCI IAM API)]
+        API[OCI IAM API]
     end
 
     CLIENT -->|JSON-RPC| PROXY
