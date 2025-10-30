@@ -463,6 +463,50 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
         raise ToolError(f'Failed to filter policies by alias: {e}') from e
 
 
+# ===========================================================
+# RELOAD MCP DATA TOOL
+# ===========================================================
+@mcp.tool(
+    name='reload_mcp_data',
+    description=(
+        'Reload all policy and identity data from OCI into the MCP server repository. '
+        'This allows refreshing data without restarting the server. '
+        'Use with caution as it may take time depending on tenancy size.'
+    ),
+)
+def reload_mcp_data(recursive: bool = True) -> dict:
+    """
+    Reload all policy and identity data from OCI into the MCP server repository.
+
+    Args:
+        recursive (bool): Whether to recursively load all compartments. Default is True.
+
+    Returns:
+        dict: Summary of the reload operation.
+    """
+
+    if not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+
+    try:
+        if not (args.instance_principal or args.session_token or args.profile):
+            raise ToolError(
+                'Data reload is only supported when running with a profile, instance principal, or session token'
+            )
+
+        # Assuming we have data, reload it and create a new cache
+        pca.load_complete_identity_domains()
+        pca.load_policies_and_compartments()
+        caching = CacheManager(policy_analysis=pca)
+        caching.save_combined_cache()
+
+        logger.info('Data reloaded successfully')
+        return {'status': 'success', 'message': 'Data reloaded successfully'}
+    except Exception as e:
+        logger.error(f'Failed to reload data: {e}')
+        raise ToolError(f'Failed to reload data: {e}') from e
+
+
 # ============================================================
 # EMBEDDED SERVER CONTROL (for Tkinter integration)
 # ============================================================
@@ -549,6 +593,7 @@ def build_arg_parser():
 def main():
     logger.info('MCP server module logger initialized.')
 
+    global args
     args = build_arg_parser().parse_args()
     recursive = args.recursive
 
