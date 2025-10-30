@@ -31,7 +31,7 @@ from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
-from oci_policy_analysis.logger import get_logger, set_log_level  # noqa: E402
+from oci_policy_analysis.logger import get_logger  # noqa: E402
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.models import (  # noqa: E402
@@ -46,8 +46,6 @@ from oci_policy_analysis.logic.models import (  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
-set_log_level('CRITICAL')
-
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
@@ -403,6 +401,7 @@ def start_mcp_server_in_thread(settings: dict):
                 transport='streamable-http',
                 port=settings.get('mcp_port', 8765),
                 host=settings.get('mcp_host', '127.0.0.1'),
+                show_banner=False,
             )
         except Exception as e:
             logger.exception(f'MCP server crashed: {e}')
@@ -443,11 +442,10 @@ def build_arg_parser():
 
 
 def main():
+    logger.info('MCP server module logger initialized.')
+
     args = build_arg_parser().parse_args()
     recursive = args.recursive
-
-    if args.transport == 'stdio':
-        set_log_level('ERROR')  # suppress info logs on stdio transport('ERROR')
 
     logger.info(
         f'Loading MCP Server using Profile={args.profile or "DEFAULT"}, '
@@ -480,8 +478,8 @@ def main():
         else:
             # Load live data from OCI
             logger.info('Loading live data from OCI')
-            pca.load_policies_and_compartments()
             pca.load_complete_identity_domains()
+            pca.load_policies_and_compartments()
     except Exception as e:
         logger.warning(f'Policy and Identity domains load failed: {e}')
         exit(2)
@@ -495,22 +493,10 @@ def main():
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':
-        logger.setLevel('ERROR')  # suppress info logs on stdio transport
         mcp.run(transport='stdio', show_banner=False, log_level='error')
     else:
-        logger.info('MCP server module logger initialized.')
         mcp.run(transport='streamable-http', port=args.port, host=args.host)
 
-
-# # --- Inspector/Claude env bootstrap ---
-# if 'OCI_PROFILE' in os.environ or 'OCI_INSTANCE_PRINCIPAL' in os.environ:
-#     profile = os.getenv('OCI_PROFILE')
-#     use_ip = bool(os.getenv('OCI_INSTANCE_PRINCIPAL', ''))
-#     session = os.getenv('OCI_SESSION', '')
-#     recursive = not bool(os.getenv('OCI_NO_RECURSIVE', ''))
-#     logger.info(f'Loading MCP Dev from OCI Profile {profile} with IP: {use_ip} and Recursion: {recursive}')
-
-#     initialize_and_load(use_ip, profile, session, recursive)
 
 if __name__ == '__main__':
     main()
