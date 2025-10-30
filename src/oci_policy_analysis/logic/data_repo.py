@@ -4,14 +4,11 @@
 #
 # DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
 #
-# core.py
-# core.py
+# data_repo.py
 #
 # @author: Andrew Gregory
-# @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################

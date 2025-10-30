@@ -64,6 +64,11 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
+      - name: Fetch updated tags from release job
+        run: |
+          git fetch --tags --force
+          git describe --tags
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -98,10 +103,11 @@ jobs:
         id: version
         shell: bash
         run: |
-          # Get the latest tags
-          git fetch --tags --force
-          # Try to get version from latest tag, fallback to short SHA
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          VERSION="${{ needs.release.outputs.version }}"
+          if [ -z "$VERSION" ]; then
+            git fetch --tags --force
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Version: $VERSION"
 

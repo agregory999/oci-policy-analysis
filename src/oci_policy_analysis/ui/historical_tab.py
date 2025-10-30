@@ -1,10 +1,16 @@
 ##########################################################################
-# historical_tab.py - Historical Comparison Tab (final refined version)
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
 #
-# - Maintains dropdowns, Compare button, and DeepDiff threading.
-# - Adds compartments, field-level detection, and concise/verbose logging.
-# - Displays field additions, removals, and modifications clearly.
-# - Uses logger.info() for key milestones and logger.debug() for detailed tracing.
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# historical_tab.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.12 and above
+#
+# coding: utf-8
 ##########################################################################
 
 import re
@@ -105,9 +111,6 @@ class HistoricalTab(ttk.Frame):
         def worker():
             start = time.time()
             try:
-                # logger.info("Canonicalizing known unordered lists (policies/statements/users/groups/dynamic_groups/compartments)...")
-                # left_can = self._canonicalize_for_diff(self._left_data)
-                # right_can = self._canonicalize_for_diff(self._right_data)
                 logger.info(
                     'Filtering known unordered lists (policies/statements/users/groups/dynamic_groups/compartments)...'
                 )
@@ -214,7 +217,9 @@ class HistoricalTab(ttk.Frame):
             # Identity (user/group/dynamic_group)
             if any(k in obj for k in ('user_name', 'group_name', 'dynamic_group_name')):
                 return {
-                    k: obj.get(k) for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name') if k in obj
+                    k: obj.get(k)
+                    for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups')
+                    if k in obj
                 }
 
             # Compartments
@@ -226,75 +231,6 @@ class HistoricalTab(ttk.Frame):
 
         # Primitives
         return obj
-
-    # def _canonicalize_for_diff(self, obj: Any, path_stack: tuple[str, ...] = ()) -> Any:
-    #     """
-    #     Recursively canonicalize only known unordered lists by sorting with stable keys.
-    #     All other lists keep their original order to avoid noise.
-    #     """
-    #     if isinstance(obj, dict):
-    #         return {k: self._canonicalize_for_diff(v, path_stack + (k,)) for k, v in obj.items()}
-
-    #     if isinstance(obj, list):
-    #         # figure out which list this is by the parent key (last in path_stack)
-    #         parent_key = path_stack[-1] if path_stack else None
-
-    #         # Only sort where we know the list is conceptually unordered
-    #         if parent_key in {
-    #             "policies",
-    #             "cross_tenancy_statements",
-    #             "users",
-    #             "groups",
-    #             "dynamic_groups",
-    #             "compartments",
-    #             "statements",  # policy statements
-    #         }:
-    #             # canonicalize children first, then sort by a stable key for that list type
-    #             canon = [self._canonicalize_for_diff(x, path_stack) for x in obj]
-    #             try:
-    #                 return sorted(canon, key=lambda x: self._key_for_list_item(parent_key, x))
-    #             except Exception:
-    #                 # fallback: keep original order if key extraction fails
-    #                 return canon
-    #         else:
-    #             # leave other lists exactly as-is, but canonicalize elements
-    #             return [self._canonicalize_for_diff(x, path_stack) for x in obj]
-
-    #     # primitives
-    #     return obj
-
-    def _key_for_list_item(self, parent_key: str, item: Any):
-        """
-        Stable sort keys per list type. Keep this conservative: use identity-ish fields.
-        If a field is missing, fall back to stringified item to keep sort deterministic.
-        """
-        if not isinstance(item, dict):
-            return (str(item),)
-
-        if parent_key == 'policies':
-            return (item.get('policy_name', ''),)
-        if parent_key == 'statements':  # policy statements
-            # statements sometimes stored as dicts with 'statement_text' or as plain strings
-            if 'statement_text' in item:
-                return (item.get('statement_text', ''),)
-            return (str(item),)
-
-        if parent_key == 'cross_tenancy_statements':
-            return (item.get('statement_text', str(item)),)
-
-        if parent_key == 'users':
-            return (item.get('domain_name', ''), item.get('user_name', ''))
-        if parent_key == 'groups':
-            return (item.get('domain_name', ''), item.get('group_name', ''))
-        if parent_key == 'dynamic_groups':
-            return (item.get('domain_name', ''), item.get('dynamic_group_name', ''))
-
-        if parent_key == 'compartments':
-            # hierarchy_path is a nice human stable key; fall back to id
-            return (item.get('hierarchy_path', ''), item.get('id', ''))
-
-        # fallback
-        return (str(item),)
 
     def _populate_group_section(self, tree: ttk.Treeview, section_title: str, deepdiff_subset: dict, is_policy: bool):
         if not deepdiff_subset:
