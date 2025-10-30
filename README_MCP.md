@@ -60,7 +60,7 @@ flowchart LR
     C1 -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK (Profile or<br/>Instance Principal| OCI-API
+    MCP -.->|Load via SDK (Profile or<br/>Instance Principal)| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
