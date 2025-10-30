@@ -25,7 +25,7 @@ flowchart LR
         CACHE[Local Cache]
     end
 
-    subgraph OCI["OCI Cloud (Optional)"]
+    subgraph OCI["OCI Cloud"]
         OCI-API[OCI IAM API]
     end
 
@@ -60,7 +60,7 @@ flowchart LR
     C1 -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| CACHE
-    MCP -.->|Load via SDK<br/>Profile or Instance Principal)| OCI-API
+    MCP -.->|Load via SDK<br/>Profile or Instance Principal| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
