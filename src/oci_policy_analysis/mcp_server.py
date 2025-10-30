@@ -457,27 +457,29 @@ def main():
     global pca
     pca = PolicyAnalysisRepository()
 
-    ok_pca = pca.initialize_client(
-        use_instance_principal=args.instance_principal,
-        session_token=args.session_token or None,
-        recursive=recursive,
-        profile=(args.profile or 'DEFAULT'),
-    )
-
-    if not ok_pca:
-        logger.error('Failed initializing clients')
-        sys.exit(2)
-
     # Create Cache Manager
     cache_manager = CacheManager(policy_analysis=pca)
     try:
         if args.use_cache:
+            # Load from named cache
+            logger.info(f'Loading data from cache: {args.use_cache}')
             if not cache_manager.load_combined_cache(named_cache=args.use_cache):
                 logger.warning(f'Failed to load cache: {args.use_cache}')
                 sys.exit(2)
         else:
             # Load live data from OCI
-            logger.info('Loading live data from OCI')
+            logger.info(
+                f'Loading live data from OCI tenancy using {"Instance Principal" if args.instance_principal else "Profile " + args.profile}'
+            )
+            if not pca.initialize_client(
+                use_instance_principal=args.instance_principal,
+                session_token=args.session_token or None,
+                recursive=recursive,
+                profile=(args.profile or 'DEFAULT'),
+            ):
+                logger.error('Failed initializing clients')
+                sys.exit(2)
+            # Client initialized successfully, load data
             pca.load_complete_identity_domains()
             pca.load_policies_and_compartments()
     except Exception as e:
@@ -485,7 +487,7 @@ def main():
         exit(2)
 
     logger.info(
-        f'Tenancy loaded. Policies: {len(pca.regular_statements)} regular, '
+        f'Tenancy loaded ({"from cache" if args.use_cache else "live"}). Policies: {len(pca.regular_statements)} regular, '
         f'{len(pca.cross_tenancy_statements)} cross-tenancy; '
         f'Groups: {len(pca.groups)}; Users: {len(pca.users)}; '
         f'Dynamic Groups: {len(pca.dynamic_groups)}'
