@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.4.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.4.0...v2.4.1) (2025-10-30)
+
+
+### Bug Fixes
+
+* MCP can now reload tenancy data ([c90b4b6](https://github.com/agregory999/oci-policy-analysis/commit/c90b4b6d24f7320f23aa0c73260ebc92ce7ffc74))
+
+
+### Miscellaneous Chores
+
+* MCP and Readme ([d870c52](https://github.com/agregory999/oci-policy-analysis/commit/d870c5274f9da8086d375b09dc2c950f174ac725))
+* MCP and Readme ([ccdb39b](https://github.com/agregory999/oci-policy-analysis/commit/ccdb39b2a89d1d3cf1adc1ef99f28613b1d01f0c))
+* MCP cleanup and Readme ([0ad4956](https://github.com/agregory999/oci-policy-analysis/commit/0ad495665b4d9749f580c8272c617b738e0dd810))
+
 ## [2.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.3.2...v2.4.0) (2025-10-30)
 
 
