@@ -217,9 +217,7 @@ class HistoricalTab(ttk.Frame):
             # Identity (user/group/dynamic_group)
             if any(k in obj for k in ('user_name', 'group_name', 'dynamic_group_name')):
                 return {
-                    k: obj.get(k)
-                    for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups')
-                    if k in obj
+                    k: obj.get(k) for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups') if k in obj
                 }
 
             # Compartments

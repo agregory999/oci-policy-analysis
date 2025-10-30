@@ -13,7 +13,7 @@
 # coding: utf-8
 ##########################################################################
 
-from typing import Annotated, Literal, NotRequired, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict, Union
 
 
 # Data Models for Policies, Dynamic Groups, Users, and Groups
@@ -321,3 +321,178 @@ class PolicyStatement(TypedDict, total=False):
     parsing_notes: Annotated[
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
     ]
+
+
+class PolicySummary(TypedDict):
+    """
+    Summary information for policy statements when full details would be too large.
+    
+    Used as an alternative return type when the complete list of PolicyStatement objects
+    would exceed response size limits or when the user only needs summary information.
+    """
+    
+    response_type: Literal["summary"]
+    total_statements: Annotated[int, 'Total number of policy statements that matched the filter']
+    truncated: Annotated[bool, 'True if results were truncated due to size limits']
+    truncation_point: Annotated[int, 'Number of statements included before truncation occurred']
+    policy_breakdown: Annotated[
+        dict[str, int], 
+        'Count of statements by policy name (e.g., {"CloudGuardPolicies": 29, "Arista-Policy": 7})'
+    ]
+    compartment_breakdown: Annotated[
+        dict[str, int], 
+        'Count of statements by compartment (e.g., {"ROOT": 45, "ROOT/LZ-Top": 29})'
+    ]
+    subject_type_breakdown: Annotated[
+        dict[str, int], 
+        'Count of statements by subject type (e.g., {"group": 250, "service": 50, "dynamic-group": 40})'
+    ]
+    verb_breakdown: Annotated[
+        dict[str, int], 
+        'Count of statements by verb (e.g., {"manage": 120, "read": 100, "use": 80, "inspect": 40})'
+    ]
+    sample_statements: Annotated[
+        list[str], 
+        'Sample of statement texts to give context (limited to first 10-20 statements)'
+    ]
+    message: Annotated[
+        str, 
+        'Human-readable explanation of why summary was returned instead of full data'
+    ]
+
+
+class PolicyStatementFull(TypedDict):
+    """
+    Complete policy statement data when size limits allow full response.
+    """
+    
+    response_type: Literal["full"]
+    statements: Annotated[list[PolicyStatement], 'Complete list of policy statements']
+    total_count: Annotated[int, 'Total number of statements returned']
+
+
+# Summary types for IAM search operations
+class UserSummary(TypedDict):
+    """
+    Summary information for user search when full details would be too large.
+    """
+    
+    response_type: Literal["summary"]
+    total_users: Annotated[int, 'Total number of users that matched the search criteria']
+    truncated: Annotated[bool, 'True if results were truncated due to size limits']
+    truncation_point: Annotated[int, 'Number of users included before truncation occurred']
+    domain_breakdown: Annotated[
+        dict[str, int], 
+        'Count of users by domain (e.g., {"Default": 45, "federated": 29})'
+    ]
+    sample_users: Annotated[
+        list[str], 
+        'Sample of user names to give context (limited to first 10-20 users)'
+    ]
+    message: Annotated[
+        str, 
+        'Human-readable explanation of why summary was returned instead of full data'
+    ]
+
+
+class UserSearchFull(TypedDict):
+    """
+    Complete user data when size limits allow full response.
+    """
+    
+    response_type: Literal["full"]
+    users: Annotated[list[User], 'Complete list of users']
+    total_count: Annotated[int, 'Total number of users returned']
+
+
+class GroupSummary(TypedDict):
+    """
+    Summary information for group search when full details would be too large.
+    """
+    
+    response_type: Literal["summary"]
+    total_groups: Annotated[int, 'Total number of groups that matched the search criteria']
+    truncated: Annotated[bool, 'True if results were truncated due to size limits']
+    truncation_point: Annotated[int, 'Number of groups included before truncation occurred']
+    domain_breakdown: Annotated[
+        dict[str, int], 
+        'Count of groups by domain (e.g., {"Default": 45, "federated": 29})'
+    ]
+    sample_groups: Annotated[
+        list[str], 
+        'Sample of group names to give context (limited to first 10-20 groups)'
+    ]
+    message: Annotated[
+        str, 
+        'Human-readable explanation of why summary was returned instead of full data'
+    ]
+
+
+class GroupSearchFull(TypedDict):
+    """
+    Complete group data when size limits allow full response.
+    """
+    
+    response_type: Literal["full"]
+    groups: Annotated[list[Group], 'Complete list of groups']
+    total_count: Annotated[int, 'Total number of groups returned']
+
+
+class DynamicGroupSummary(TypedDict):
+    """
+    Summary information for dynamic group search when full details would be too large.
+    """
+    
+    response_type: Literal["summary"]
+    total_dynamic_groups: Annotated[int, 'Total number of dynamic groups that matched the search criteria']
+    truncated: Annotated[bool, 'True if results were truncated due to size limits']
+    truncation_point: Annotated[int, 'Number of dynamic groups included before truncation occurred']
+    domain_breakdown: Annotated[
+        dict[str, int], 
+        'Count of dynamic groups by domain (e.g., {"Default": 45, "federated": 29})'
+    ]
+    in_use_breakdown: Annotated[
+        dict[str, int], 
+        'Count of dynamic groups by usage status (e.g., {"in_use": 25, "not_in_use": 10})'
+    ]
+    sample_dynamic_groups: Annotated[
+        list[str], 
+        'Sample of dynamic group names to give context (limited to first 10-20 dynamic groups)'
+    ]
+    message: Annotated[
+        str, 
+        'Human-readable explanation of why summary was returned instead of full data'
+    ]
+
+
+class DynamicGroupSearchFull(TypedDict):
+    """
+    Complete dynamic group data when size limits allow full response.
+    """
+    
+    response_type: Literal["full"]
+    dynamic_groups: Annotated[list[DynamicGroup], 'Complete list of dynamic groups']
+    total_count: Annotated[int, 'Total number of dynamic groups returned']
+
+
+# Union types for IAM search responses with discriminators
+UserSearchResponse = Annotated[
+    Union[UserSummary, UserSearchFull],
+    "Response from user search operations - either summary or full data based on size constraints"
+]
+
+GroupSearchResponse = Annotated[
+    Union[GroupSummary, GroupSearchFull],
+    "Response from group search operations - either summary or full data based on size constraints"
+]
+
+DynamicGroupSearchResponse = Annotated[
+    Union[DynamicGroupSummary, DynamicGroupSearchFull],
+    "Response from dynamic group search operations - either summary or full data based on size constraints"
+]
+
+# Union type for policy filter responses with discriminator
+PolicyFilterResponse = Annotated[
+    Union[PolicySummary, PolicyStatementFull],
+    "Response from policy filter operations - either summary or full data based on size constraints"
+]
