@@ -17,7 +17,6 @@
 ##########################################################################
 import importlib.metadata
 import io
-import os
 import sys
 from datetime import UTC
 from importlib.resources import files
@@ -54,16 +53,16 @@ def _safe_version(name: str) -> str:
 
 importlib.metadata.version = _safe_version
 
-# -- Ensure fake Rich package works if the real one is missing
-try:
-    import rich  # noqa: F401
-except ModuleNotFoundError:
-    import sys, os  # noqa: E401, I001
+# # -- Ensure fake Rich package works if the real one is missing
+# try:
+#     import rich  # noqa: F401
+# except ModuleNotFoundError:
+#     import sys, os  # noqa: E401, I001
 
-    rich_path = os.path.join(os.path.dirname(__file__), 'rich')
-    if os.path.isdir(rich_path):
-        sys.path.insert(0, os.path.dirname(__file__))
-##########################################################################
+#     rich_path = os.path.join(os.path.dirname(__file__), 'rich')
+#     if os.path.isdir(rich_path):
+#         sys.path.insert(0, os.path.dirname(__file__))
+# ##########################################################################
 
 # Standard library imports
 import argparse  # noqa: E402

@@ -1574,7 +1574,7 @@ class PolicyAnalysisRepository:
             subject_type = st.get('subject_type')
             logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
             if subject_type == 'dynamic-group':
-                logger.info(f'Add: {subject_type} Subject: {subject_list}')
+                logger.debug(f'Add: {subject_type} Subject: {subject_list}')
                 all_subjects.extend(subject_list)
 
         logger.info(f'all subjects: {len(all_subjects)}')
