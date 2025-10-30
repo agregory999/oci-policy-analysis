@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.3.0...v2.3.1) (2025-10-30)
+
+
+### Bug Fixes
+
+* MCP Server instance principal and cache ([5efa89c](https://github.com/agregory999/oci-policy-analysis/commit/5efa89cbab5935d50276f6844ec8acb2623e59ea))
+
 ## [2.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.2.1...v2.3.0) (2025-10-29)
 
 
