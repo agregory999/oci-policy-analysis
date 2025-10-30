@@ -808,7 +808,7 @@ class PolicyAnalysisRepository:
                         if group_response.data is None or not group_response.data.resources:
                             break
                         for g in group_response.data.resources:
-                            logging.debug(f'Group: {g}')
+                            logger.debug(f'Group: {g}')
 
                             # Set the group into the bigger picture JSON
                             self.groups.append(
@@ -817,7 +817,9 @@ class PolicyAnalysisRepository:
                                     group_name=g.display_name,
                                     group_ocid=g.ocid,
                                     group_id=g.id,
-                                    description='fake description',  # g.description
+                                    description=g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group.description
+                                    if g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group
+                                    else '',
                                 )
                             )
                         # Logic to re-start new request

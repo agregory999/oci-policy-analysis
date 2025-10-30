@@ -88,13 +88,14 @@ def main():  # noqa: C901
             logger.error('Failed to initialize PolicyCompartmentAnalysis client')
             exit(2)
         logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
+        if not policy_analysis.load_complete_identity_domains():
+            logger.error('Failed to load identity domains, groups, and users from OCI')
+            exit(2)
         if not policy_analysis.load_policies_and_compartments():
             logger.error('Failed to load policies and compartments from OCI')
             exit(2)
         logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
-        if not policy_analysis.load_complete_identity_domains():
-            logger.error('Failed to load identity domains, groups, and users from OCI')
-            exit(2)
+
         # cache_file_name = cache_manager.save_combined_cache(export_file="cli.json")
         logger.info('Policies and dynamic groups saved successfully from OCI')
 

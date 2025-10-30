@@ -31,7 +31,7 @@ flowchart LR
 
     C1 -->|JSON-RPC STDIO| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Live: SDK Calls<br/>via Profile| OCI-API
+    MCP -.->|Load via SDK (Profile)| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
@@ -60,7 +60,7 @@ flowchart LR
     C1 -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| CACHE
-    MCP -.->|Live: SDK Calls| OCI-API
+    MCP -.->|Load via SDK (Profile or<br/>Instance Principal| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
@@ -105,16 +105,16 @@ flowchart LR
     subgraph LOCAL["Local Machine"]
         CD[Claude Desktop]
         MCP[MCP Server STDIO]
-        CACHE[(Local Cache or<br/>OCI Profile)]
+        CACHE[(Local Cache)]
     end
 
-    subgraph OCI["OCI Cloud (Optional)"]
+    subgraph OCI["OCI Cloud"]
         API[(OCI IAM API)]
     end
 
     CD -->|JSON-RPC STDIO| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Live: SDK Calls| API
+    MCP -.->|Load via SDK (Profile or<br/>Session Token)| API
 
     style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
@@ -163,7 +163,7 @@ With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`),
   }
 }
 ```
-#### Flavor 2 - Live Data
+#### Flavor 2 - Load Data via SDK
 
 **Hint** Your `YOUR-OCI-NAMED-PROFILE` may be `DEFAULT` if that is the only profile on your machine.
 ```json
@@ -198,17 +198,24 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        DATA[(Cache or<br/>OCI Profile)]
+        CACHE[(Local Cache)]
+    end
+
+    subgraph OCI["OCI Cloud"]
+        API[(OCI IAM API)]
     end
 
     CD -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
-    MCP -->|Reads| DATA
+    MCP -->|Reads| CACHE
+    MCP -.->|Load via SDK (Profile or<br/>Instance Principal)| API
 
     style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+
 ```
 
 In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Either way, configure Claude like this:
@@ -225,7 +232,7 @@ In this model, the MCP server is standalone.  It could be on your computer, usin
   }
 }
 ```
-When you start Claude, it will conenct if your MCP is running
+When you start Claude, it will connect if your MCP is running at the given location.  Any time you restart the MCP server, simply close and reopen Claude to re-establish the connection.
 
 ### MCP Option 3 - VSCode Co-Pilot and STDIO (Local)
 
@@ -234,16 +241,16 @@ flowchart LR
     subgraph LOCAL["Local Machine"]
         VSC[VS Code<br/>GitHub Copilot]
         MCP[MCP Server STDIO]
-        CACHE[(Local Cache or<br/>OCI Profile)]
+        CACHE[(Local Cache)]
     end
 
-    subgraph OCI["OCI Cloud (Optional)"]
+    subgraph OCI["OCI Cloud"]
         API[(OCI IAM API)]
     end
 
     VSC -->|JSON-RPC STDIO| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Live: SDK Calls| API
+    MCP -.->|Load via SDK Calls| API
 
     style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
@@ -253,10 +260,12 @@ flowchart LR
 
 Similar to Claude, VSCode will start your MCP standalone process and communicate directly with it.  To set this up, follow VSCode MCP Server setup and use the full command that you can test ahead of time:
 ```
-full command
+mac> /Users/agregory/oci-policy-analysis/.venv/bin/python /Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py --use-cache tenancy_2025-10-29-21-05-09-UTC
 ```
 
-When done, you will have an mcp.json file with the configuration that you can try to start:
+When done, you will have an mcp.json file with the configuration that you can try to start.
+
+**NOTE:** Remember to set `MCP_STDIO_MODE` in order to suppress standard out - this forces all output to stderr
 
 #### Flavor 1 - Cached
 ```json
@@ -273,7 +282,7 @@ When done, you will have an mcp.json file with the configuration that you can tr
         ]
     }
 ```
-#### Flavor 2 - Live
+#### Flavor 2 - Load via SDK
 ```json
 		"mcp-local-stdio-live": {
 			"type": "stdio",
@@ -307,15 +316,22 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        DATA[(Cache or<br/>OCI Profile)]
+        CACHE[(Local Cache)]
+    end
+
+    subgraph OCI["OCI Cloud"]
+        API[(OCI IAM API)]
     end
 
     VSC -->|HTTPS| MCP
-    MCP -->|Reads| DATA
+    MCP -->|Reads Cache| CACHE
+    MCP -.->|Load via SDK (Profile or<br/>Session Token)| API
 
     style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+
 ```
 
 In this case, your MCP server is already running like above, on your PC or on a remote server, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections. 
@@ -342,26 +358,26 @@ flowchart LR
         
         subgraph COMPUTE["Compute Instance"]
             MCP[MCP Server HTTP:8765]
-            IP[Instance Principal]
+            CACHE[Local Cache]
         end
     end
 
     subgraph OCI_SERVICES["OCI Services"]
-        IAM[(IAM API)]
+        API[(OCI IAM API)]
     end
 
     CLIENT -->|JSON-RPC| PROXY
     PROXY -->|HTTPS:443| LB
     LB -->|HTTP:8765| MCP
-    MCP -->|Uses| IP
-    MCP -->|SDK Calls| IAM
+    MCP -->|Reads Cache| CACHE
+    MCP -.->|SDK Calls| API
 
     style CLIENT fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
     style LB fill:#ffddaa,stroke:#ff9944,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style IP fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style IAM fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
 ```
 
 In this production deployment, the MCP server runs on an OCI compute instance with instance principal authentication, behind an OCI Load Balancer with TLS termination. This provides secure, scalable access to OCI IAM data without storing credentials.
@@ -392,21 +408,13 @@ In this production deployment, the MCP server runs on an OCI compute instance wi
 }
 ```
 
-Set up VSCode for a remote MCP Server:
-```
-    "mcp-policy-remote": {
-        "url": "https://mcp-host:port/mcp",
-        "type": "http"
-    }
-```
-
-## Runing MCP Locally or on a Server
+## Setup for MCP Locally or on a Server
 
 Running locally offers similar options, around loading of data, or using cached data.  Similar to the CLI, you can run with a cached data set or load the tenancy.  For this way of running, STDIO doesn't make sense, as you are expecting a client to access via HTTP.  
 
 Load the tenancy via PROFILE:
 ```bash
-python src/oci_policy_analysis/mcp_server.py --use-cache andgre5678_2025-10-17-17-54-09-UTC --transport streamable-http --host 0.0.0.0
+python src/oci_policy_analysis/mcp_server.py --profile DEFAULT --transport streamable-http --host 0.0.0.0
 ```
 
 Load the tenancy via Instance Principal:
@@ -420,7 +428,8 @@ python src/oci_policy_analysis/mcp_server.py --use-cache andgre5678_2025-10-17-1
 ```
 
 ### Adding OCI Load Balancer
-To run behind a Load Balancer on a server, see above.  Following that, In your VCN's public subnet, run a standard Layer 7 Load Balancer, listening on port 443 (HTTPS) with health check and backend set with your private host and port (default 8765).  Once the LB is up, point Claude or VSCode (option 2 or 4 above) to the LB's public domain and port - below there is a cert running on the LB, so the https address and cert are valid.  But it points to the MCP server on the backend.
+To run behind a Load Balancer on a server, see above first.  Following that, In your VCN's public subnet, run a standard Layer 7 Load Balancer, listening on port 443 (HTTPS) with health check and backend set with your private host and port (default 8765).  Once the LB is up, point Claude or VSCode (option 2 or 4 above) to the LB's public domain and port - below there is a cert running on the LB, so the https address and cert are valid.  But it points to the MCP server on the backend.
+
 
 ```bash
 mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.app/mcp
