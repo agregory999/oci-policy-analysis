@@ -22,16 +22,16 @@ flowchart LR
     subgraph CLIENT["Client Machine"]
         C1[Claude Desktop or<br/>VS Code Copilot]
         MCP[MCP Server<br/>FastMCP STDIO]
-        CACHE[(Local Cache)]
+        CACHE[Local Cache]
     end
 
     subgraph OCI["OCI Cloud (Optional)"]
-        OCI-API[(OCI IAM API)]
+        OCI-API[OCI IAM API]
     end
 
     C1 -->|JSON-RPC STDIO| MCP
     MCP -->|Reads Cache| CACHE
-    MCP -.->|Load via SDK (Profile)| OCI-API
+    MCP -.->|Load via SDK Profile| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
