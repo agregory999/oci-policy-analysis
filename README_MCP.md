@@ -16,64 +16,58 @@ pip install -e .[mcp]
 Mermaid diagrams render automatically on **GitHub**, **GitLab**, or in MkDocs/Furo using `pymdownx.mermaid`.
 
 
-Locally (STDIO):
+### Generic Architecture - STDIO (Local):
 ```mermaid
 flowchart LR
     subgraph CLIENT["Client Machine"]
-        C1[Claude Desktop]
-        C2[VS Code Co-Pilot]
-        P1[mcp-proxy local]
-        S1[MCP Server FastMCP]
+        C1[Claude Desktop or<br/>VS Code Copilot]
+        MCP[MCP Server<br/>FastMCP STDIO]
+        CACHE[(Local Cache)]
     end
 
-    subgraph OCI["OCI Cloud"]
-        OCI-API[(OCI IAM and API Data)]
+    subgraph OCI["OCI Cloud (Optional)"]
+        OCI-API[(OCI IAM API)]
     end
 
-    C1 -->|MCP JSON-RPC| P1
-    C2 -->|MCP JSON-RPC| P1
-    P1 -->|MCP Server STDIO| S1
-    S1 -->|SDK Calls via<br/>Profile or Session token| OCI-API
+    C1 -->|JSON-RPC STDIO| MCP
+    MCP -->|Reads Cache| CACHE
+    MCP -.->|Live: SDK Calls<br/>via Profile| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style C2 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style P1 fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style OCI fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-For a Server-based architecture on OCI, this looks like
+### Generic Architecture - HTTP (Remote Server):
 ```mermaid
 flowchart LR
     subgraph CLIENT["Client Machine"]
-        C1[Claude Desktop]
-        C2[VS Code MCP]
-        P1[mcp-proxy remote]
+        C1[Claude Desktop or<br/>VS Code Copilot]
+        PROXY[mcp-proxy]
     end
 
-    subgraph SERVER["OCI LB / Instance / MCP Server"]
-        LB[(OCI HTTPS Load Balancer)]
-        S1[MCP Server FastMCP]
+    subgraph SERVER["Remote Server"]
+        MCP[MCP Server<br/>FastMCP HTTP]
+        CACHE[(Cache or<br/>Instance Principal)]
     end
 
-    subgraph OCI["OCI Cloud"]
-        OCI-API[(OCI IAM and API Data)]
+    subgraph OCI["OCI Cloud (Optional)"]
+        OCI-API[(OCI IAM API)]
     end
 
-    C1 -->|MCP JSON-RPC| P1
-    C2 -->|MCP JSON-RPC| P1
-    P1 -->|HTTPS 443| LB
-    LB -->|HTTP 8765| S1
-    S1 -->|SDK Calls via IP| OCI-API
+    C1 -->|JSON-RPC| PROXY
+    PROXY -->|HTTP/HTTPS| MCP
+    MCP -->|Reads| CACHE
+    MCP -.->|Live: SDK Calls| OCI-API
 
     %% Styles
     style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style C2 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
-    style P1 fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style S1 fill:#eaffea,stroke:#66cc66,stroke-width:2px
-    style LB fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style OCI fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
-
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
 ---
@@ -204,26 +198,20 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        DATA[(Cache or<br/>OCI Profile or<br/>Instance Principal)]
-    end
-
-    subgraph OCI["OCI Cloud (Optional)"]
-        API[(OCI IAM API)]
+        DATA[(Cache or<br/>OCI Profile)]
     end
 
     CD -->|JSON-RPC| PROXY
     PROXY -->|HTTP/HTTPS| MCP
     MCP -->|Reads| DATA
-    MCP -.->|Live: SDK Calls| API
 
     style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
     style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Or it could be on a remote server, such as an OCI compute server with instance principals, hosting the MCP Server and exposing it via an OCI Load Balancer.  Either way, configure Claude like this:
+In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Either way, configure Claude like this:
 
 ```json
 {
@@ -319,27 +307,90 @@ flowchart LR
 
     subgraph SERVER["Server (Local or Remote)"]
         MCP[MCP Server HTTP]
-        DATA[(Cache or<br/>OCI Profile or<br/>Instance Principal)]
+        DATA[(Cache or<br/>OCI Profile)]
     end
 
-    subgraph OCI["OCI Cloud (Optional)"]
-        LB[Load Balancer]
-        API[(OCI IAM API)]
-    end
-
-    VSC -->|HTTPS| LB
-    LB -->|HTTP| MCP
+    VSC -->|HTTPS| MCP
     MCP -->|Reads| DATA
-    MCP -.->|Live: SDK Calls| API
 
     style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
     style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
     style DATA fill:#f0f0f0,stroke:#aaa,stroke-width:2px
-    style LB fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
-    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-In this case, your MCP server is already running like above, on your PC, on an OCI server with Load Balancer, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections. 
+In this case, your MCP server is already running like above, on your PC or on a remote server, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections. 
+
+Set up VSCode for a remote MCP Server:
+```
+    "mcp-policy-remote": {
+        "url": "https://mcp-host:port/mcp",
+        "type": "http"
+    }
+```
+
+### MCP Option 5 - Remote OCI Deployment with Load Balancer
+
+```mermaid
+flowchart LR
+    subgraph LOCAL["Local Machine"]
+        CLIENT[Claude Desktop or<br/>VS Code Copilot]
+        PROXY[mcp-proxy]
+    end
+
+    subgraph OCI_INFRA["OCI Infrastructure"]
+        LB[Load Balancer<br/>HTTPS:443]
+        
+        subgraph COMPUTE["Compute Instance"]
+            MCP[MCP Server HTTP:8765]
+            IP[Instance Principal]
+        end
+    end
+
+    subgraph OCI_SERVICES["OCI Services"]
+        IAM[(IAM API)]
+    end
+
+    CLIENT -->|JSON-RPC| PROXY
+    PROXY -->|HTTPS:443| LB
+    LB -->|HTTP:8765| MCP
+    MCP -->|Uses| IP
+    MCP -->|SDK Calls| IAM
+
+    style CLIENT fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style LB fill:#ffddaa,stroke:#ff9944,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style IP fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style IAM fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
+```
+
+In this production deployment, the MCP server runs on an OCI compute instance with instance principal authentication, behind an OCI Load Balancer with TLS termination. This provides secure, scalable access to OCI IAM data without storing credentials.
+
+**Configuration for Claude:**
+```json
+{
+  "mcpServers": {
+    "mcp-remote": {
+      "command": "mcp-proxy",
+      "args": [
+        "https://oci-policy-analysis-mcp.ocidemo.app/mcp"
+      ]
+    }
+  }
+}
+```
+
+**Configuration for VSCode:**
+```json
+{
+  "servers": {
+    "mcp-policy-remote": {
+      "url": "https://oci-policy-analysis-mcp.ocidemo.app/mcp",
+      "type": "http"
+    }
+  }
+}
+```
 
 Set up VSCode for a remote MCP Server:
 ```
@@ -393,6 +444,30 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 ---
 
 ## 🔧 Available MCP Tools
+
+
+MCP clients such as **Claude** and **VS Code Copilot** understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.
+
+### How It Works
+- **Ask in natural language:** You can ask questions like "Show me all users in the cloud-engineering domain" or "List policies that allow manage on databases."
+- **Automatic tool selection:** The MCP client will select the right tool and build the request for you.
+- **Structured responses:** Results are returned in structured formats (summaries, lists, breakdowns) and presented clearly.
+
+### Example Natural Language Queries
+
+| User Question | Tool Used | Example Request |
+|--------------|-----------|-----------------|
+| "Show all users in the tenancy" | `search_users` | `{}` |
+| "Find all groups with 'admin' in the name" | `search_groups` | `{ "group_name": ["admin"] }` |
+| "Which policies allow manage on databases?" | `filter_policy_statements` | `{ "verb": ["manage"], "resource": ["database"] }` |
+| "List all users in group 'cloud-engineering-domain-users'" | `get_users_for_group` | `{ "group_name": "cloud-engineering-domain-users", "domain_name": "cloud-engineering-domain" }` |
+| "Show cross-tenancy aliases" | `cross-tenancy-alias-list` | `None` |
+| "Show me policies with use or manage that cover databases or instances" | `filter_policy_statements` | `{ "verb": ["use", "manage"], "resource": ["database", "instance-family"] }` |
+| "Find all groups in the Default domain with 'viewer' or 'admin' in the name" | `search_groups` | `{ "domain_name": ["Default"], "group_name": ["viewer", "admin"] }` |
+| "List users named Andrew or Mark in cloud-engineering-domain" | `search_users` | `{ "search": ["andrew", "mark"], "domain_name": ["cloud-engineering-domain"] }` |
+| "Show policies for group 'cloud-engineering-domain-users' in root compartment" | `filter_policy_statements` | `{ "exact_groups": [{"group_name": "cloud-engineering-domain-users", "domain_name": "cloud-engineering-domain"}], "policy_compartment": ["ROOTONLY"] }` |
+
+---
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
 
