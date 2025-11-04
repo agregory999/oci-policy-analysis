@@ -14,6 +14,7 @@
 ##########################################################################
 
 # Standard library imports
+import hashlib
 import json
 import logging
 import queue
@@ -53,14 +54,19 @@ from oci_policy_analysis.logic.models import (
     DynamicGroupSearch,
     Group,
     GroupSearch,
+    PolicyOverlap,
     PolicySearch,
     PolicyStatement,
     User,
     UserSearch,
 )
+from reference_data.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
+
+# Reference Data
+permission_reference_repo = ReferenceDataRepo()
 
 # Constants
 THREADS = 9
@@ -228,6 +234,15 @@ class PolicyAnalysisRepository:
             return False
 
     # --- Internal Helpers ---
+    def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
+        """Given an internal ID, return the list of PolicyOverlap entries for that statement"""
+        overlaps: list[PolicyOverlap] = []
+        for st in self.regular_statements:
+            if st.get('internal_id') == internal_id:
+                overlaps = st.get('policy_overlap', [])
+                break
+        return overlaps
+
     def _find_invalid_statements(self):  # noqa: C901
         """
         Find invalid statements.  Mark them as invalid with reason.
@@ -477,6 +492,9 @@ class PolicyAnalysisRepository:
         logger.debug(f'Parsing statement {statement} (Comp: {comp})')
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
+        # internal ID for statement, used for reference later
+        internal_id = hashlib.md5((statement + policy.id).encode()).hexdigest()
+        logger.debug(f'Internal ID for statement: {internal_id}')
         # Basic statement dict - will be augmented after parsing
         statement_dict: PolicyStatement = PolicyStatement(
             policy_name=policy.name,  # type: ignore
@@ -487,6 +505,7 @@ class PolicyAnalysisRepository:
             creation_time=str(policy.time_created),
             valid=True,  # Mark as False later if needed
             parsed=False,  # Mark as True later if parsed successfully
+            internal_id=internal_id,  # Adding this for display
         )
 
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
@@ -546,7 +565,7 @@ class PolicyAnalysisRepository:
                     statement_dict['subject'] = result.get('subject') or ''
                     statement_dict['verb'] = result.get('verb') or ''
                     statement_dict['resource'] = result.get('resource') or ''
-                    statement_dict['permission'] = result.get('perm') or ''
+                    statement_dict['permission'] = []
                     statement_dict['location_type'] = result.get('locationtype') or ''
                     statement_dict['location'] = result.get('location') or ''
                     statement_dict['conditions'] = result.get('condition') or ''
@@ -566,6 +585,18 @@ class PolicyAnalysisRepository:
                             statement_dict['parsing_notes'].append('Multiple subjects found')
                         statement_dict['subject'] = subject_result
 
+                    # If permissions are present, parse them into a list.
+                    if result.get('perm'):
+                        # permissions looks like {permission1,permission2, permission3}
+                        # Strip the braces and split , and strip whitespace
+                        perms = result.get('perm').strip('{}').split(',')
+                        perms = [p.strip() for p in perms if p.strip()]
+                        logger.info(f'Parsed permissions from {result.get("perm")} to {perms}')
+                        statement_dict['permission'] = perms
+                        statement_dict['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
+                    # If the location was wrapped in quotes, remove them
+                    if statement_dict['location']:
+                        statement_dict['location'] = statement_dict['location'].strip('\'"')
                 except Exception as e:
                     logger.warning(f'Failed to parse statement: {e}')
 
@@ -851,12 +882,15 @@ class PolicyAnalysisRepository:
                             group_list = []
                             for gg in u.groups:
                                 group_list.append(gg.ocid)
-
-                            email = ''
-                            for em in u.emails:
-                                if em.primary:
-                                    email = em.value
-                                    break
+                            # Default the email to None
+                            email = 'None'
+                            if hasattr(u, 'emails') and u.emails:
+                                for em in u.emails:
+                                    if em.primary:
+                                        email = em.value
+                                        break
+                            else:
+                                logger.debug(f'No emails for user {u.display_name}')
                             # Set the user into the bigger picture JSON
                             self.users.append(
                                 User(
@@ -894,7 +928,7 @@ class PolicyAnalysisRepository:
         except Exception as e:
             logger.error(f'Failed to load identity domains: {e}')
             # return False
-            raise
+            raise e
 
     # --- Main Filtering Functions ---
     # Filtering logic - return a list of policy statements matching given filter
@@ -1599,6 +1633,116 @@ class PolicyAnalysisRepository:
                 unused_dynamic_groups += 1
 
         logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
+
+    def analyze_policy_overlap(self) -> None:  # noqa: C901
+        """Analyze policy overlaps by comparing statements across policies."""
+        logger.info('Analyzing policy overlaps - setting up structure for comparison')
+        for st in self.regular_statements:
+            # Get effective compartment
+            effective_compartment = st.get('effective_path', '') or 'n/a'
+            statement_text = st.get('statement_text', '') or 'n/a'
+            policy_overlap = []
+            logger.info(
+                f'Analyzing statement "{statement_text}" in policy {st["policy_name"]} for overlaps - effective path: {effective_compartment}'
+            )
+            # Loop against all other statements
+            for other_st in self.regular_statements:
+                # Qualify OUT quickly - self-comparison
+                if other_st.get('internal_id', 'N/A') == st.get('internal_id', 'N/A'):
+                    continue
+                # Non-matching subject types
+                if other_st.get('subject_type') != st.get('subject_type'):
+                    continue
+                # Effective Path missing
+                # if not other_st.get('effective_path') or not other_st.get('resource') or not other_st.get('verb'):
+                #     continue
+                if not other_st.get('effective_path'):
+                    continue
+                # Effective path must be broader or same in other_st
+                # for example, if other is ROOT/A/B and this statement is ROOT/A/B/C, then continue processing
+                # if other is ROOT/A/B/C or ROOT/C and this is ROOT/A/B, then skip
+                if not effective_compartment.lower().startswith(other_st.get('effective_path', '').lower()):
+                    continue
+
+                # if there are explicit permissions, use those. otherwise get them from the repo
+                other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
+                    entity=other_st.get('resource', ''), verb=other_st.get('verb', '')
+                )
+                st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
+                    entity=st.get('resource', ''), verb=st.get('verb', '')
+                )
+
+                logger.debug(
+                    f'Checking potential overlap(1) between "{st_permissions}" and "{other_permissions}" for statements "{st["policy_name"]}:{statement_text}" and "{other_st["policy_name"]}:{other_st["statement_text"]}"'
+                )
+                # If either list is empty, assume we haven't mapped these resources yet, so compare resource itself
+                if not other_permissions or not st_permissions:
+                    if other_st.get('resource', '').lower() != st.get('resource', '').lower():
+                        continue
+                    logger.debug(
+                        f'Potential Overlap (resource) based on resource name match: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
+                    )
+                    reason = (
+                        f'Exact match on resource name ({st["resource"]}), subject_type, and at least one subject, '
+                        f'with broader effective compartment in other policy ({other_st["effective_path"]})'
+                    )
+                # The repo can find the overlaps - will be a list of permissions that overlap
+                perm_overlap = permission_reference_repo.check_overlap(st_permissions, other_permissions)
+                if len(perm_overlap) == 0:
+                    continue
+                # Permission overlap found
+                reason = (
+                    f'Permission Overlap on permissions {perm_overlap} between resource {st["resource"]} '
+                    f'and {other_st["resource"]}, subject_type, and at least one subject, '
+                    f'with broader effective compartment in other policy ({other_st["effective_path"]})'
+                )
+                logger.debug(
+                    f'Permission Overlap (permission) Check between "{st_permissions}" and "{other_permissions}": {perm_overlap}'
+                )
+
+                # Now check subjects for overlap - each statement has a list of multiple subjects that are tuples (domain,subject)
+                st_subjects = st.get('subject', [])
+                other_subjects = other_st.get('subject', [])
+                subject_overlap = False
+                for st_subj in st_subjects:
+                    for other_subj in other_subjects:
+                        if (st_subj[0] or '').lower() == (other_subj[0] or '').lower() and st_subj[
+                            1
+                        ].lower() == other_subj[1].lower():
+                            subject_overlap = True
+                            break
+                    if subject_overlap:
+                        break
+                if not subject_overlap:
+                    continue
+                logger.info(
+                    f'Potential Overlap: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
+                )
+                # Now we have a potential overlap
+                # Confidence level is lower if there is a where clause in either statement
+                confidence = 'high'
+                if st.get('conditions') or other_st.get('conditions'):
+                    logger.info(
+                        f'***Policy Overlap detected with WHERE clause: Statement "{statement_text}" in policy {st["policy_name"]} '
+                        f'is potentially superseded by statement {other_st["statement_text"]} in policy {other_st["policy_name"]}'
+                    )
+                    confidence = 'medium'
+
+                policy_overlap.append(
+                    PolicyOverlap(
+                        superseded_by=other_st['policy_name'],
+                        confidence=confidence,
+                        reason=reason,
+                        statement_text=other_st['statement_text'],
+                        internal_id=other_st['internal_id'],
+                    )
+                )
+            if len(policy_overlap) > 0:
+                st['policy_overlap'] = policy_overlap
+                logger.info(
+                    f'Policy Overlap(s) found for statement "{statement_text}" in policy {st["policy_name"]}: {len(policy_overlap)}'
+                )
+        logger.info(f'Initialized policy_overlap lists for {len(self.regular_statements)} statements')
 
     # Not in use
     def _check_history(self, policy_ocid: str, start_time: str) -> None:

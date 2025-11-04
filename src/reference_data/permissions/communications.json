@@ -1,0 +1,189 @@
+{
+  "resources": {
+    "announcements": {
+      "verbs": {
+        "inspect": [
+          "ANNOUNCEMENT_LIST"
+        ],
+        "read": [
+          "ANNOUNCEMENT_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "announcement-subscriptions": {
+      "verbs": {
+        "inspect": [
+          "ANNOUNCEMENT_SUBSCRIPTION_INSPECT"
+        ],
+        "read": [
+          "ANNOUNCEMENT_SUBSCRIPTION_READ"
+        ],
+        "use": [
+          "ANNOUNCEMENT_SUBSCRIPTION_UPDATE"
+        ],
+        "manage": [
+          "ANNOUNCEMENT_SUBSCRIPTION_CREATE",
+          "ANNOUNCEMENT_SUBSCRIPTION_DELETE",
+          "ANNOUNCEMENT_SUBSCRIPTION_MOVE"
+        ]
+      }
+    },
+    "cloudevents-rules": {
+      "verbs": {
+        "inspect": [
+          "EVENTRULE_LIST"
+        ],
+        "read": [
+          "EVENTRULE_READ"
+        ],
+        "use": [],
+        "manage": [
+          "EVENTRULE_CREATE",
+          "EVENTRULE_DELETE",
+          "EVENTRULE_MODIFY"
+        ]
+      }
+    },
+    "ons-topics": {
+      "verbs": {
+        "inspect": [
+          "ONS_TOPIC_INSPECT"
+        ],
+        "read": [
+          "ONS_TOPIC_READ"
+        ],
+        "use": [
+          "ONS_TOPIC_PUBLISH",
+          "ONS_TOPIC_SUBSCRIBE"
+        ],
+        "manage": [
+          "ONS_TOPIC_CREATE",
+          "ONS_TOPIC_MOVE",
+          "ONS_TOPIC_UPDATE",
+          "ONS_TOPIC_DELETE"
+        ]
+      }
+    },
+    "ons-subscriptions": {
+      "verbs": {
+        "inspect": [
+          "ONS_SUBSCRIPTION_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "ONS_SUBSCRIPTION_MOVE",
+          "ONS_TOPIC_SUBSCRIBE"
+        ]
+      }
+    },
+    "email-domains": {
+      "verbs": {
+        "inspect": [
+          "EMAIL_DOMAIN_INSPECT"
+        ],
+        "read": [
+          "EMAIL_DOMAIN_READ"
+        ],
+        "use": [
+          "EMAIL_DOMAIN_UPDATE"
+        ],
+        "manage": [
+          "EMAIL_DOMAIN_CREATE",
+          "EMAIL_DOMAIN_DELETE",
+          "EMAIL_DOMAIN_MOVE"
+        ]
+      }
+    },
+    "email-work-requests": {
+      "verbs": {
+        "inspect": [
+          "EMAIL_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "EMAIL_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "approved-senders": {
+      "verbs": {
+        "inspect": [
+          "APPROVED_SENDER_INSPECT"
+        ],
+        "read": [
+          "APPROVED_SENDER_READ"
+        ],
+        "use": [
+          "APPROVED_SENDER_USE"
+        ],
+        "manage": [
+          "APPROVED_SENDER_CREATE",
+          "APPROVED_SENDER_DELETE",
+          "APPROVED_SENDER_UPDATE",
+          "APPROVED_SENDER_MOVE"
+        ]
+      }
+    },
+    "suppressions": {
+      "verbs": {
+        "inspect": [
+          "SUPPRESSION_INSPECT"
+        ],
+        "read": [
+          "SUPPRESSION_READ"
+        ],
+        "use": [],
+        "manage": [
+          "SUPPRESSION_CREATE",
+          "SUPPRESSION_DELETE"
+        ]
+      }
+    },
+    "custom-return-path": {
+      "verbs": {
+        "inspect": [
+          "EMAIL_RETURN_PATH_INSPECT"
+        ],
+        "read": [
+          "EMAIL_RETURN_PATH_READ"
+        ],
+        "use": [
+          "EMAIL_RETURN_PATH_UPDATE"
+        ],
+        "manage": [
+          "EMAIL_RETURN_PATH_CREATE",
+          "EMAIL_RETURN_PATH_DELETE"
+        ]
+      }
+    }
+  },
+  "families": {
+    "events-family": {
+      "resources": [
+        "cloudevents-rules"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/cloudeventspolicyreference.htm"
+    },
+    "ons-family": {
+      "resources": [
+        "ons-topics",
+        "ons-subscriptions"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/notificationpolicyreference.htm"
+    },
+    "email-family": {
+      "resources": [
+        "approved-senders",
+        "email-domains",
+        "email-work-requests",
+        "suppressions",
+        "custom-return-path"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/emailpolicyreference.htm"
+    }
+  }
+}

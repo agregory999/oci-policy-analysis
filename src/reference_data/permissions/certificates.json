@@ -1,0 +1,121 @@
+{
+  "resources": {
+    "leaf-certificates": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_INSPECT"],
+        "read": ["CERTIFICATE_READ"],
+        "use": ["CERTIFICATE_UPDATE"],
+        "manage": ["CERTIFICATE_CREATE", "CERTIFICATE_DELETE", "CERTIFICATE_MOVE"]
+      }
+    },
+    "leaf-certificate-versions": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_VERSION_INSPECT"],
+        "read": ["CERTIFICATE_VERSION_READ"],
+        "use": [],
+        "manage": ["CERTIFICATE_VERSION_REVOKE", "CERTIFICATE_VERSION_DELETE"]
+      }
+    },
+    "leaf-certificate-bundles": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_BUNDLE_INSPECT"],
+        "read": ["CERTIFICATE_BUNDLE_READ"],
+        "use": [],
+        "manage": []
+      }
+    },
+    "certificate-authorities": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_AUTHORITY_INSPECT"],
+        "read": ["CERTIFICATE_AUTHORITY_READ"],
+        "use": ["CERTIFICATE_AUTHORITY_UPDATE"],
+        "manage": ["CERTIFICATE_AUTHORITY_CREATE", "CERTIFICATE_AUTHORITY_DELETE", "CERTIFICATE_AUTHORITY_MOVE"]
+      }
+    },
+    "certificate-authority-versions": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_AUTHORITY_VERSION_INSPECT"],
+        "read": ["CERTIFICATE_AUTHORITY_VERSION_READ"],
+        "use": [],
+        "manage": ["CERTIFICATE_AUTHORITY_VERSION_DELETE", "CERTIFICATE_AUTHORITY_VERSION_REVOKE"]
+      }
+    },
+    "certificate-authority-bundles": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_AUTHORITY_BUNDLE_INSPECT"],
+        "read": ["CERTIFICATE_AUTHORITY_BUNDLE_READ"],
+        "use": [],
+        "manage": []
+      }
+    },
+    "certificate-authority-delegates": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": ["CERTIFICATE_AUTHORITY_APPLY"],
+        "manage": []
+      }
+    },
+    "cabundles": {
+      "verbs": {
+        "inspect": ["CABUNDLE_INSPECT"],
+        "read": ["CABUNDLE_READ"],
+        "use": ["CABUNDLE_UPDATE"],
+        "manage": ["CABUNDLE_CREATE", "CABUNDLE_DELETE", "CABUNDLE_MOVE"]
+      }
+    },
+    "certificate-associations": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_ASSOCIATION_INSPECT"],
+        "read": ["CERTIFICATE_ASSOCIATION_READ"],
+        "use": [],
+        "manage": ["CERTIFICATE_ASSOCIATION_CREATE", "CERTIFICATE_ASSOCIATION_DELETE"]
+      }
+    },
+    "certificate-authority-associations": {
+      "verbs": {
+        "inspect": ["CERTIFICATE_AUTHORITY_ASSOCIATION_INSPECT"],
+        "read": ["CERTIFICATE_AUTHORITY_ASSOCIATION_READ"],
+        "use": [],
+        "manage": ["CERTIFICATE_AUTHORITY_ASSOCIATION_CREATE", "CERTIFICATE_AUTHORITY_ASSOCIATION_DELETE"]
+      }
+    },
+    "cabundle-associations": {
+      "verbs": {
+        "inspect": ["CABUNDLE_ASSOCIATION_INSPECT"],
+        "read": ["CABUNDLE_ASSOCIATION_READ"],
+        "use": [],
+        "manage": ["CABUNDLE_ASSOCIATION_CREATE", "CABUNDLE_ASSOCIATION_DELETE"]
+      }
+    }
+  },
+  "families": {
+    "leaf-certificate-family": {
+      "resources": [
+        "leaf-certificates",
+        "leaf-certificate-versions",
+        "leaf-certificate-bundles",
+        "cabundles",
+        "certificate-associations",
+        "cabundle-associations"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/certificatespolicyreference.htm"
+    },
+    "certificate-authority-family": {
+      "resources": [
+        "certificate-authorities",
+        "certificate-authority-versions",
+        "certificate-authority-bundles",
+        "certificate-authority-delegates",
+        "leaf-certificates",
+        "leaf-certificate-versions",
+        "leaf-certificate-bundles",
+        "cabundles",
+        "certificate-associations",
+        "certificate-authority-associations",
+        "cabundle-associations"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/certificatespolicyreference.htm"
+    }
+  }
+}

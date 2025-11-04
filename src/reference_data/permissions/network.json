@@ -1,0 +1,640 @@
+{
+  "resources": {
+    "byoip-ranges": {
+      "verbs": {
+        "inspect": [
+          "BYOIP_RANGE_INSPECT"
+        ],
+        "read": [
+          "BYOIP_RANGE_READ"
+        ],
+        "use": [
+          "BYOIP_RANGE_ADD_CAPACITY_FROM"
+        ],
+        "manage": [
+          "BYOIP_RANGE_CREATE",
+          "BYOIP_RANGE_DELETE",
+          "BYOIP_RANGE_UPDATE",
+          "BYOIP_RANGE_VALIDATE",
+          "BYOIP_RANGE_ADVERTISE",
+          "BYOIP_RANGE_WITHDRAW"
+        ]
+      }
+    },
+    "capture-filters": {
+      "verbs": {
+        "inspect": [
+          "CAPTURE_FILTER_INSPECT"
+        ],
+        "read": [
+          "CAPTURE_FILTER_READ"
+        ],
+        "use": [
+          "CAPTURE_FILTER_UPDATE"
+        ],
+        "manage": [
+          "CAPTURE_FILTER_CREATE",
+          "CAPTURE_FILTER_DELETE",
+          "CAPTURE_FILTER_MOVE"
+        ]
+      }
+    },
+    "cpes": {
+      "verbs": {
+        "inspect": [
+          "CPE_INSPECT"
+        ],
+        "read": [
+          "CPE_READ"
+        ],
+        "use": [
+          "CPE_UPDATE"
+        ],
+        "manage": [
+          "CPE_CREATE",
+          "CPE_DELETE"
+        ]
+      }
+    },
+    "cross-connect-groups": {
+      "verbs": {
+        "inspect": [
+          "CROSS_CONNECT_GROUP_INSPECT"
+        ],
+        "read": [
+          "CROSS_CONNECT_GROUP_READ"
+        ],
+        "use": [
+          "CROSS_CONNECT_GROUP_UPDATE"
+        ],
+        "manage": [
+          "CROSS_CONNECT_GROUP_CREATE",
+          "CROSS_CONNECT_GROUP_DELETE"
+        ]
+      }
+    },
+    "cross-connects": {
+      "verbs": {
+        "inspect": [
+          "CROSS_CONNECT_INSPECT"
+        ],
+        "read": [
+          "CROSS_CONNECT_READ"
+        ],
+        "use": [
+          "CROSS_CONNECT_UPDATE"
+        ],
+        "manage": [
+          "CROSS_CONNECT_CREATE",
+          "CROSS_CONNECT_DELETE"
+        ]
+      }
+    },
+    "dhcp-options": {
+      "verbs": {
+        "inspect": [
+          "DHCP_OPTIONS_INSPECT"
+        ],
+        "read": [
+          "DHCP_OPTIONS_READ"
+        ],
+        "use": [
+          "DHCP_OPTIONS_UPDATE"
+        ],
+        "manage": [
+          "DHCP_OPTIONS_CREATE",
+          "DHCP_OPTIONS_DELETE",
+          "DHCP_OPTIONS_MOVE"
+        ]
+      }
+    },
+    "drg-attachments": {
+      "verbs": {
+        "inspect": [
+          "DRG_ATTACHMENT_INSPECT"
+        ],
+        "read": [
+          "DRG_ATTACHMENT_READ"
+        ],
+        "use": [
+          "DRG_ATTACHMENT_UPDATE"
+        ],
+        "manage": [
+          "DRG_ATTACHMENT_CREATE",
+          "DRG_ATTACHMENT_DELETE",
+          "DRG_ATTACHMENT_MOVE"
+        ]
+      }
+    },
+    "drgs": {
+      "verbs": {
+        "inspect": [
+          "DRG_INSPECT"
+        ],
+        "read": [
+          "DRG_READ"
+        ],
+        "use": [
+          "DRG_UPDATE"
+        ],
+        "manage": [
+          "DRG_CREATE",
+          "DRG_DELETE",
+          "DRG_MOVE"
+        ]
+      }
+    },
+    "drg-route-distributions": {
+      "verbs": {
+        "inspect": [
+          "DRG_ROUTE_DISTRIBUTION_INSPECT"
+        ],
+        "read": [
+          "DRG_ROUTE_DISTRIBUTION_READ"
+        ],
+        "use": [
+          "DRG_ROUTE_DISTRIBUTION_UPDATE"
+        ],
+        "manage": [
+          "DRG_ROUTE_DISTRIBUTION_CREATE",
+          "DRG_ROUTE_DISTRIBUTION_DELETE"
+        ]
+      }
+    },
+    "drg-route-tables": {
+      "verbs": {
+        "inspect": [
+          "DRG_ROUTE_TABLE_INSPECT"
+        ],
+        "read": [
+          "DRG_ROUTE_TABLE_READ"
+        ],
+        "use": [
+          "DRG_ROUTE_TABLE_UPDATE"
+        ],
+        "manage": [
+          "DRG_ROUTE_TABLE_CREATE",
+          "DRG_ROUTE_TABLE_DELETE"
+        ]
+      }
+    },
+    "internet-gateways": {
+      "verbs": {
+        "inspect": [
+          "INTERNET_GATEWAY_INSPECT"
+        ],
+        "read": [
+          "INTERNET_GATEWAY_READ"
+        ],
+        "use": [
+          "INTERNET_GATEWAY_UPDATE"
+        ],
+        "manage": [
+          "INTERNET_GATEWAY_CREATE",
+          "INTERNET_GATEWAY_DELETE",
+          "INTERNET_GATEWAY_MOVE"
+        ]
+      }
+    },
+    "ipsec-connections": {
+      "verbs": {
+        "inspect": [
+          "IPSEC_CONNECTION_INSPECT"
+        ],
+        "read": [
+          "IPSEC_CONNECTION_READ"
+        ],
+        "use": [
+          "IPSEC_CONNECTION_UPDATE"
+        ],
+        "manage": [
+          "IPSEC_CONNECTION_CREATE",
+          "IPSEC_CONNECTION_DELETE"
+        ]
+      }
+    },
+    "ipv6s": {
+      "verbs": {
+        "inspect": [
+          "IPV6_INSPECT"
+        ],
+        "read": [
+          "IPV6_READ"
+        ],
+        "use": [
+          "IPV6_UPDATE"
+        ],
+        "manage": [
+          "IPV6_CREATE",
+          "IPV6_DELETE",
+          "IPV6_MOVE"
+        ]
+      }
+    },
+    "ipam": {
+      "verbs": {
+        "inspect": [
+          "IPAM_INSPECT"
+        ],
+        "read": [
+          "IPAM_READ"
+        ],
+        "use": [
+          "IPAM_UPDATE"
+        ],
+        "manage": [
+          "IPAM_CREATE",
+          "IPAM_DELETE"
+        ]
+      }
+    },
+    "local-peering-gateways": {
+      "verbs": {
+        "inspect": [
+          "LOCAL_PEERING_GATEWAY_INSPECT"
+        ],
+        "read": [
+          "LOCAL_PEERING_GATEWAY_READ"
+        ],
+        "use": [
+          "LOCAL_PEERING_GATEWAY_UPDATE"
+        ],
+        "manage": [
+          "LOCAL_PEERING_GATEWAY_CREATE",
+          "LOCAL_PEERING_GATEWAY_DELETE",
+          "LOCAL_PEERING_GATEWAY_MOVE"
+        ]
+      }
+    },
+    "local-peering-from": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "LOCAL_PEERING_GATEWAY_CONNECT_FROM"
+        ]
+      }
+    },
+    "local-peering-to": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "LOCAL_PEERING_GATEWAY_CONNECT_TO"
+        ]
+      }
+    },
+    "nat-gateways": {
+      "verbs": {
+        "inspect": [
+          "NAT_GATEWAY_INSPECT"
+        ],
+        "read": [
+          "NAT_GATEWAY_READ"
+        ],
+        "use": [
+          "NAT_GATEWAY_UPDATE"
+        ],
+        "manage": [
+          "NAT_GATEWAY_CREATE",
+          "NAT_GATEWAY_DELETE",
+          "NAT_GATEWAY_MOVE"
+        ]
+      }
+    },
+    "network-security-groups": {
+      "verbs": {
+        "inspect": [
+          "NETWORK_SECURITY_GROUP_INSPECT"
+        ],
+        "read": [
+          "NETWORK_SECURITY_GROUP_READ"
+        ],
+        "use": [
+          "NETWORK_SECURITY_GROUP_UPDATE"
+        ],
+        "manage": [
+          "NETWORK_SECURITY_GROUP_CREATE",
+          "NETWORK_SECURITY_GROUP_DELETE",
+          "NETWORK_SECURITY_GROUP_MOVE"
+        ]
+      }
+    },
+    "private-ips": {
+      "verbs": {
+        "inspect": [
+          "PRIVATE_IP_READ"
+        ],
+        "read": [],
+        "use": [
+          "PRIVATE_IP_UPDATE",
+          "PRIVATE_IP_ASSIGN",
+          "PRIVATE_IP_UNASSIGN"
+        ],
+        "manage": [
+          "PRIVATE_IP_DELETE",
+          "PRIVATE_IP_MOVE"
+        ]
+      }
+    },
+    "public-ip-pools": {
+      "verbs": {
+        "inspect": [
+          "PUBLIC_IP_POOL_INSPECT"
+        ],
+        "read": [
+          "PUBLIC_IP_POOL_READ"
+        ],
+        "use": [
+          "PUBLIC_IP_POOL_UPDATE"
+        ],
+        "manage": [
+          "PUBLIC_IP_POOL_CREATE",
+          "PUBLIC_IP_POOL_DELETE",
+          "PUBLIC_IP_POOL_MOVE"
+        ]
+      }
+    },
+    "public-ips": {
+      "verbs": {
+        "inspect": [
+          "PUBLIC_IP_READ"
+        ],
+        "read": [],
+        "use": [
+          "PUBLIC_IP_UPDATE",
+          "PUBLIC_IP_ASSIGN",
+          "PUBLIC_IP_UNASSIGN"
+        ],
+        "manage": [
+          "PUBLIC_IP_CREATE",
+          "PUBLIC_IP_DELETE",
+          "PUBLIC_IP_MOVE"
+        ]
+      }
+    },
+    "remote-peering-connections": {
+      "verbs": {
+        "inspect": [
+          "REMOTE_PEERING_CONNECTION_INSPECT"
+        ],
+        "read": [
+          "REMOTE_PEERING_CONNECTION_READ"
+        ],
+        "use": [
+          "REMOTE_PEERING_CONNECTION_UPDATE"
+        ],
+        "manage": [
+          "REMOTE_PEERING_CONNECTION_CREATE",
+          "REMOTE_PEERING_CONNECTION_DELETE",
+          "REMOTE_PEERING_CONNECTION_MOVE"
+        ]
+      }
+    },
+    "remote-peering-from": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "REMOTE_PEERING_CONNECTION_CONNECT_FROM"
+        ]
+      }
+    },
+    "remote-peering-to": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "REMOTE_PEERING_CONNECTION_CONNECT_TO"
+        ]
+      }
+    },
+    "route-tables": {
+      "verbs": {
+        "inspect": [
+          "ROUTE_TABLE_INSPECT"
+        ],
+        "read": [
+          "ROUTE_TABLE_READ"
+        ],
+        "use": [
+          "ROUTE_TABLE_UPDATE"
+        ],
+        "manage": [
+          "ROUTE_TABLE_CREATE",
+          "ROUTE_TABLE_DELETE",
+          "ROUTE_TABLE_MOVE"
+        ]
+      }
+    },
+    "security-lists": {
+      "verbs": {
+        "inspect": [
+          "SECURITY_LIST_INSPECT"
+        ],
+        "read": [
+          "SECURITY_LIST_READ"
+        ],
+        "use": [
+          "SECURITY_LIST_UPDATE"
+        ],
+        "manage": [
+          "SECURITY_LIST_CREATE",
+          "SECURITY_LIST_DELETE",
+          "SECURITY_LIST_MOVE"
+        ]
+      }
+    },
+    "service-gateways": {
+      "verbs": {
+        "inspect": [
+          "SERVICE_GATEWAY_INSPECT"
+        ],
+        "read": [
+          "SERVICE_GATEWAY_READ"
+        ],
+        "use": [
+          "SERVICE_GATEWAY_UPDATE"
+        ],
+        "manage": [
+          "SERVICE_GATEWAY_CREATE",
+          "SERVICE_GATEWAY_DELETE",
+          "SERVICE_GATEWAY_MOVE"
+        ]
+      }
+    },
+    "subnets": {
+      "verbs": {
+        "inspect": [
+          "SUBNET_INSPECT"
+        ],
+        "read": [
+          "SUBNET_READ"
+        ],
+        "use": [
+          "SUBNET_UPDATE"
+        ],
+        "manage": [
+          "SUBNET_CREATE",
+          "SUBNET_DELETE",
+          "SUBNET_ATTACH_NETWORK_SECURITY_GROUP",
+          "SUBNET_DETACH_NETWORK_SECURITY_GROUP",
+          "SUBNET_MOVE"
+        ]
+      }
+    },
+    "vcns": {
+      "verbs": {
+        "inspect": [
+          "VCN_INSPECT"
+        ],
+        "read": [
+          "VCN_READ"
+        ],
+        "use": [
+          "VCN_UPDATE"
+        ],
+        "manage": [
+          "VCN_CREATE",
+          "VCN_DELETE",
+          "VCN_MOVE"
+        ]
+      }
+    },
+    "virtual-circuits": {
+      "verbs": {
+        "inspect": [
+          "VIRTUAL_CIRCUIT_INSPECT"
+        ],
+        "read": [
+          "VIRTUAL_CIRCUIT_READ"
+        ],
+        "use": [
+          "VIRTUAL_CIRCUIT_UPDATE"
+        ],
+        "manage": [
+          "VIRTUAL_CIRCUIT_CREATE",
+          "VIRTUAL_CIRCUIT_DELETE",
+          "VIRTUAL_CIRCUIT_RESOURCE_MOVE"
+        ]
+      }
+    },
+    "vlans": {
+      "verbs": {
+        "inspect": [
+          "VLAN_READ"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "VLAN_CREATE",
+          "VLAN_DELETE",
+          "VLAN_ASSOCIATE_NETWORK_SECURITY_GROUP",
+          "VLAN_DISASSOCIATE_NETWORK_SECURITY_GROUP",
+          "VLAN_MOVE"
+        ]
+      }
+    },
+    "vnic-attachments": {
+      "verbs": {
+        "inspect": [
+          "VNIC_ATTACHMENT_READ"
+        ],
+        "read": [],
+        "use": [],
+        "manage": []
+      }
+    },
+    "vnics": {
+      "verbs": {
+        "inspect": [
+          "VNIC_READ"
+        ],
+        "read": [],
+        "use": [
+          "VNIC_ATTACH",
+          "VNIC_DETACH",
+          "VNIC_CREATE",
+          "VNIC_DELETE",
+          "VNIC_UPDATE",
+          "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP",
+          "VNIC_DISASSOCIATE_NETWORK_SECURITY_GROUP"
+        ],
+        "manage": []
+      }
+    },
+    "vtaps": {
+      "verbs": {
+        "inspect": [
+          "VTAP_LIST"
+        ],
+        "read": [
+          "VTAP_READ"
+        ],
+        "use": [
+          "VTAP_UPDATE"
+        ],
+        "manage": [
+          "VTAP_CREATE",
+          "VTAP_DELETE",
+          "VTAP_MOVE"
+        ]
+      }
+    }
+  },
+  "families": {
+    "virtual-network-family": {
+      "resources": [
+        "byoip-ranges",
+        "capture-filters",
+        "cpes",
+        "cross-connect-groups",
+        "cross-connects",
+        "dhcp-options",
+        "drg-attachments",
+        "drgs",
+        "drg-route-distributions",
+        "drg-route-tables",
+        "internet-gateways",
+        "ipsec-connections",
+        "ipv6s",
+        "ipam",
+        "local-peering-gateways",
+        "local-peering-from",
+        "local-peering-to",
+        "nat-gateways",
+        "network-security-groups",
+        "private-ips",
+        "public-ip-pools",
+        "public-ips",
+        "remote-peering-connections",
+        "remote-peering-from",
+        "remote-peering-to",
+        "route-tables",
+        "security-lists",
+        "service-gateways",
+        "subnets",
+        "vcns",
+        "virtual-circuits",
+        "vlans",
+        "vnic-attachments",
+        "vnics",
+        "vtaps"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+    },
+    "drgs": {
+      "resources": [
+        "drgs",
+        "drg-route-tables",
+        "drg-route-distributions",
+        "drg-attachments"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+    }
+  }
+}

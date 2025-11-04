@@ -93,6 +93,7 @@ from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E
 from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
+from oci_policy_analysis.ui.policy_overlap_tab import PolicyOverlapTab  # noqa: E402
 from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
@@ -167,6 +168,7 @@ class App(tk.Tk):
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
+        self.policy_overlap_tab = PolicyOverlapTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self, self.policy_compartment_analysis)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self, self.policy_compartment_analysis)
@@ -178,6 +180,7 @@ class App(tk.Tk):
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
+        self.notebook.add(self.policy_overlap_tab, text='Policy\nOverlap')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
@@ -190,15 +193,6 @@ class App(tk.Tk):
         # Bottom frame (Entry + HTML/Text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
         self._build_bottom_area(self.bottom_frame)
-
-        # # Show/hide bottom according to settings
-        # if self.settings.get('bottom_visible', True):
-        #     self.pw.add(self.bottom_frame, weight=1)
-        #     # Restore sash position shortly after layout
-        #     self.after(120, self.restore_sash)
-        # else:
-        #     # not added initially
-        #     pass
 
         # Console tab Visibility
         self.console_visible = False
@@ -331,6 +325,7 @@ class App(tk.Tk):
             if theme_choice == 'Dark':
                 # Change all data_tables to dark theme
                 for table in [
+                    self.policy_overlap_tab.policy_table,
                     self.users_tab.users_policy_table,
                     self.users_tab.users_users_table,
                     self.users_tab.users_groups_table,
@@ -348,6 +343,7 @@ class App(tk.Tk):
 
             else:
                 for table in [
+                    self.policy_overlap_tab.policy_table,
                     self.users_tab.users_policy_table,
                     self.users_tab.users_users_table,
                     self.users_tab.users_groups_table,
@@ -504,47 +500,49 @@ class App(tk.Tk):
                     # Update the message
                     if callback and callback.get('progress'):
                         cb = callback.get('progress')
-                        self.after(0, lambda: cb('Loading Users and Groups'))
+                        self.after(0, lambda: cb('Loading Identity Domains'))
 
+                    # Load identity domains
                     success = self.policy_compartment_analysis.load_complete_identity_domains()
-
+                    if not success:
+                        raise RuntimeError('Failed to load identity domains')
                     # Update the message
                     if callback and callback.get('progress'):
                         cb = callback.get('progress')
-                        self.after(0, lambda: cb('Loading Policies and Compartments'))
-
+                        self.after(0, lambda: cb('Loading Compartments and Policies'))
+                    # Load policies and compartments
                     success = self.policy_compartment_analysis.load_policies_and_compartments()
-
-                    # Write the cache
+                    if not success:
+                        raise RuntimeError('Failed to load policies and compartments')
+                    # Save cached data after load
                     self.caching.save_combined_cache()
 
-                # Fail if unsuccessful
-                if not success:
-                    raise Exception('Failed to initialize')
-
-                msg = f'Finished loading tenancy {tenancy_id}'
-                logger.info(f'✅ {msg}')
-
-                if callback and callback.get('complete'):
-                    cb = callback.get('complete')
-                    self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
-
-                # Tell the tab to reload
-                logger.info('Tenancy Load complete. Reloading all tabs')
-                self.users_tab._update_user_analysis_output()
-                self.policies_tab.update_policy_output()
-                self.dynamic_groups_tab.enable_controls()
-                self.cross_tenancy_tab.update_cross_tenancy_output()
-                self.report_tab.update_report_output()
-                self.resource_principals_tab.update_principals_sheets()
-                self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
-                self.dynamic_groups_tab.enable_controls()
-
             except Exception as e:
-                logger.error(f'❌ Failed to load tenancy: {e}')
+                logger.error(f'Error occurred while Loading Data: {e}')
                 if callback and callback.get('error'):
                     cb = callback.get('error')
                     self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
+                return
+
+            # We got this far, all good
+            msg = f'Finished loading tenancy {tenancy_id}'
+            logger.info(f'✅ {msg}')
+
+            if callback and callback.get('complete'):
+                cb = callback.get('complete')
+                self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
+
+            # Tell the tab to reload
+            logger.info('Tenancy Load complete. Reloading all tabs')
+            self.policy_overlap_tab.enable_widgets_after_load()
+            self.users_tab._update_user_analysis_output()
+            self.policies_tab.update_policy_output()
+            self.dynamic_groups_tab.enable_controls()
+            self.cross_tenancy_tab.update_cross_tenancy_output()
+            self.report_tab.update_report_output()
+            self.resource_principals_tab.update_principals_sheets()
+            self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
+            self.dynamic_groups_tab.enable_controls()
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -580,6 +578,7 @@ class App(tk.Tk):
 
                 # Tell the tab to reload
                 logger.info('Cache Load JSON complete - Reload all tabs')
+                self.policy_overlap_tab.enable_widgets_after_load()
                 self.users_tab._update_user_analysis_output()
                 self.policies_tab.update_policy_output()
                 self.dynamic_groups_tab.enable_controls()
