@@ -1,0 +1,225 @@
+{
+  "resources": {
+    "load-balancers": {
+      "verbs": {
+        "inspect": [
+          "LOAD_BALANCER_INSPECT"
+        ],
+        "read": [
+          "LOAD_BALANCER_READ"
+        ],
+        "use": [
+          "LOAD_BALANCER_UPDATE",
+          "LOAD_BALANCER_MOVE"
+        ],
+        "manage": [
+          "LOAD_BALANCER_CREATE",
+          "LOAD_BALANCER_DELETE"
+        ]
+      }
+    },
+    "network-load-balancers": {
+      "verbs": {
+        "inspect": [
+          "NETWORK_LOAD_BALANCER_INSPECT"
+        ],
+        "read": [
+          "NETWORK_LOAD_BALANCER_READ"
+        ],
+        "use": [
+          "NETWORK_LOAD_BALANCER_UPDATE"
+        ],
+        "manage": [
+          "NETWORK_LOAD_BALANCER_CREATE",
+          "NETWORK_LOAD_BALANCER_DELETE",
+          "NETWORK_LOAD_BALANCER_MOVE"
+        ]
+      }
+    },
+    "waas-policy": {
+      "verbs": {
+        "inspect": [
+          "WAAS_POLICY_INSPECT"
+        ],
+        "read": [
+          "WAAS_POLICY_READ"
+        ],
+        "use": [
+          "WAAS_POLICY_UPDATE"
+        ],
+        "manage": [
+          "WAAS_POLICY_CREATE",
+          "WAAS_POLICY_DELETE",
+          "WAAS_POLICY_MOVE"
+        ]
+      }
+    },
+    "waas-certificate": {
+      "verbs": {
+        "inspect": [
+          "WAAS_CERTIFICATE_INSPECT"
+        ],
+        "read": [
+          "WAAS_CERTIFICATE_READ"
+        ],
+        "use": [],
+        "manage": [
+          "WAAS_CERTIFICATE_CREATE",
+          "WAAS_CERTIFICATE_DELETE",
+          "WAAS_CERTIFICATE_MOVE"
+        ]
+      }
+    },
+    "waas-work-request": {
+      "verbs": {
+        "inspect": [
+          "WAAS_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "WAAS_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": [
+          "WAAS_WORK_REQUEST_DELETE"
+        ]
+      }
+    },
+    "waas-metering": {
+      "verbs": {
+        "inspect": [],
+        "read": [
+          "WAAS_METERING_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "waas-custom-protection-rule": {
+      "verbs": {
+        "inspect": [
+          "WAAS_CUSTOM_PROTECTION_RULE_INSPECT"
+        ],
+        "read": [
+          "WAAS_CUSTOM_PROTECTION_RULE_READ"
+        ],
+        "use": [
+          "WAAS_CUSTOM_PROTECTION_RULE_UPDATE",
+          "WAAS_CUSTOM_PROTECTION_RULE_USE"
+        ],
+        "manage": [
+          "WAAS_CUSTOM_PROTECTION_RULE_CREATE",
+          "WAAS_CUSTOM_PROTECTION_RULE_DELETE",
+          "WAAS_CUSTOM_PROTECTION_RULE_MOVE"
+        ]
+      }
+    },
+    "waas-address-list": {
+      "verbs": {
+        "inspect": [
+          "WAAS_ADDRESS_LIST_INSPECT"
+        ],
+        "read": [
+          "WAAS_ADDRESS_LIST_READ"
+        ],
+        "use": [
+          "WAAS_ADDRESS_LIST_UPDATE",
+          "WAAS_ADDRESS_LIST_USE"
+        ],
+        "manage": [
+          "WAAS_ADDRESS_LIST_CREATE",
+          "WAAS_ADDRESS_LIST_DELETE",
+          "WAAS_ADDRESS_LIST_MOVE"
+        ]
+      }
+    },
+    "http-redirects": {
+      "verbs": {
+        "inspect": [
+          "HTTPREDIRECT_INSPECT"
+        ],
+        "read": [
+          "HTTPREDIRECT_READ"
+        ],
+        "use": [
+          "HTTPREDIRECT_UPDATE"
+        ],
+        "manage": [
+          "HTTPREDIRECT_CREATE",
+          "HTTPREDIRECT_DELETE",
+          "HTTPREDIRECT_MOVE"
+        ]
+      }
+    },
+    "waa-policy": {
+      "verbs": {
+        "inspect": [
+          "WAA_POLICY_INSPECT"
+        ],
+        "read": [
+          "WAA_POLICY_READ"
+        ],
+        "use": [
+          "WAA_POLICY_ATTACH",
+          "WAA_POLICY_DETACH",
+          "WAA_POLICY_UPDATE"
+        ],
+        "manage": [
+          "WAA_POLICY_CREATE",
+          "WAA_POLICY_DELETE",
+          "WAA_POLICY_MOVE"
+        ]
+      }
+    },
+    "web-app-acceleration": {
+      "verbs": {
+        "inspect": [
+          "WEB_APP_ACCELERATION_INSPECT"
+        ],
+        "read": [
+          "WEB_APP_ACCELERATION_READ"
+        ],
+        "use": [
+          "WEB_APP_ACCELERATION_UPDATE"
+        ],
+        "manage": [
+          "WEB_APP_ACCELERATION_CREATE",
+          "WEB_APP_ACCELERATION_DELETE",
+          "WEB_APP_ACCELERATION_MOVE"
+        ]
+      }
+    }
+  },
+  "families": {
+    "load-balancer-family": {
+      "resources": [
+        "load-balancers"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/lbpolicyreference.htm"
+    },
+    "network-load-balancer-family": {
+      "resources": [
+        "network-load-balancers"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/nlbpolicyreference.htm"
+    },
+    "waf-family": {
+      "resources": [
+        "waas-policy",
+        "waas-certificate",
+        "waas-work-request",
+        "waas-metering",
+        "waas-custom-protection-rule",
+        "waas-address-list",
+        "http-redirects"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/wafpolicyreference.htm"
+    },
+    "waa-family": {
+      "resources": [
+        "waa-policy",
+        "web-app-acceleration"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/waapolicyreference.htm"
+    }
+  }
+}

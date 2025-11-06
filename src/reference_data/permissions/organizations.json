@@ -1,0 +1,246 @@
+{
+  "resources": {
+    "organizations-link": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_LINK_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_LINK_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ORGANIZATIONS_LINK_PARENT_DELETE",
+          "ORGANIZATIONS_LINK_CHILD_DELETE"
+        ]
+      }
+    },
+    "organizations-recipient-invitation": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "organizations-sender-invitation": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_SENDER_INVITATION_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
+        ],
+        "manage": [
+          "ORGANIZATIONS_SENDER_INVITATION_CREATE"
+        ]
+      }
+    },
+    "organizations-invitation": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT",
+          "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_READ",
+          "ORGANIZATIONS_SENDER_INVITATION_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE",
+          "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
+        ],
+        "manage": [
+          "ORGANIZATIONS_SENDER_INVITATION_CREATE"
+        ]
+      }
+    },
+    "organizations-domain": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_DOMAIN_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_DOMAIN_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_DOMAIN_UPDATE"
+        ],
+        "manage": [
+          "ORGANIZATIONS_DOMAIN_CREATE",
+          "ORGANIZATIONS_DOMAIN_DELETE"
+        ]
+      }
+    },
+    "organizations-domain-governance": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_DOMAIN_GOVERNANCE_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_DOMAIN_GOVERNANCE_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_DOMAIN_GOVERNANCE_UPDATE"
+        ],
+        "manage": [
+          "ORGANIZATIONS_DOMAIN_GOVERNANCE_CREATE",
+          "ORGANIZATIONS_DOMAIN_GOVERNANCE_DELETE"
+        ]
+      }
+    },
+    "organizations-entity": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_ENTITY_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_ENTITY_READ"
+        ],
+        "use": [
+          "ORGANIZATIONS_ENTITY_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "organizations-tenancy": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_TENANCY_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_TENANCY_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ORGANIZATIONS_TENANCY_CREATE",
+          "ORGANIZATIONS_TENANCY_DELETE",
+          "ORGANIZATIONS_TENANCY_RESTORE"
+        ]
+      }
+    },
+    "organizations-order": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "ORGANIZATIONS_ORDER_ACTIVATE"
+        ]
+      }
+    },
+    "organizations-subscription": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_SUBSCRIPTION_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_SUBSCRIPTION_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ORGANIZATIONS_SUBSCRIPTION_ASSIGN",
+          "ORGANIZATIONS_SUBSCRIPTION_DELETE"
+        ]
+      }
+    },
+    "organizations-subscription-mapping": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE",
+          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_DELETE"
+        ]
+      }
+    },
+    "organizations-assigned-subscription": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_INSPECT"
+        ],
+        "read": [
+          "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "organizations-subscription-region": {
+      "verbs": {
+        "inspect": [
+          "ORGANIZATIONS_SUBSCRIPTION_REGION_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": []
+      }
+    },
+    "organizations-governance-rules": {
+      "verbs": {
+        "inspect": [
+          "GOVERNANCE_RULE_INSPECT"
+        ],
+        "read": [
+          "GOVERNANCE_RULE_READ"
+        ],
+        "use": [
+          "GOVERNANCE_RULE_UPDATE",
+          "GOVERNANCE_RULE_RETRY"
+        ],
+        "manage": [
+          "GOVERNANCE_RULE_CREATE",
+          "GOVERNANCE_RULE_DELETE"
+        ]
+      }
+    },
+    "organizations-enforced-governance-rules": {
+      "verbs": {
+        "inspect": [
+          "GOVERNANCE_RULE_ENFORCED_INSPECT"
+        ],
+        "read": [
+          "GOVERNANCE_RULE_ENFORCED_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    }
+  },
+  "families": {
+    "organizations-family": {
+      "resources": [
+        "organizations-link",
+        "organizations-recipient-invitation",
+        "organizations-sender-invitation",
+        "organizations-invitation",
+        "organizations-domain",
+        "organizations-domain-governance",
+        "organizations-entity",
+        "organizations-tenancy",
+        "organizations-order",
+        "organizations-subscription",
+        "organizations-subscription-mapping",
+        "organizations-assigned-subscription",
+        "organizations-subscription-region",
+        "organizations-governance-rules",
+        "organizations-enforced-governance-rules"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/organizationsreference.htm"
+    }
+  }
+}

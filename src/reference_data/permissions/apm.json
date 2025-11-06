@@ -1,0 +1,30 @@
+{
+    "resources": {
+        "apm-domains": {
+            "verbs": {
+                "inspect": [
+                    "APM_DOMAIN_LIST"
+                ],
+                "read": [
+                    "APM_DOMAIN_READ"
+                ],
+                "use": [
+                    "APM_DOMAIN_UPDATE"
+                ],
+                "manage": [
+                    "APM_DOMAIN_CREATE",
+                    "APM_DOMAIN_DELETE",
+                    "APM_DOMAIN_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "apm-family": {
+            "resources": [
+                "apm-domains"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/apmpolicyreference.htm"
+        }
+    }
+}

@@ -24,7 +24,7 @@ from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
-AI_CACHE_FILE = CACHE_DIR / 'oci_policy_ai_cache.json'
+# AI result cache support has been removed (2025-11, per project guidance)
 
 # Global logger for this module
 logger = get_logger(component='caching')
@@ -46,10 +46,7 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f'Initialized Caching at {self.cache_dir}')
 
-        # Load the AI cache
-        # TODO: make this optional
-        # TODO: cull this bassed on date
-        self.load_cache()
+        # AI result cache functionality removed
 
     # Utility functions for loading and saving cache, using combined caching strategy
     def save_combined_cache(self, export_file=None) -> str:
@@ -260,41 +257,4 @@ class CacheManager:
         logger.warning(f'Unable to load data from cache: {combined_cache_file}')
         return {}
 
-    # AI Caching
-    def save_cache(self):
-        """Save AI query cache to persistent file each time a query occurs."""
-        logger.debug('Saving cache to %s', AI_CACHE_FILE)
-        try:
-            with open(AI_CACHE_FILE, 'w') as f:
-                json.dump(self.ai_result_cache, f, indent=4)
-            logger.info('Successfully saved cache to %s with %d entries', AI_CACHE_FILE, len(self.ai_result_cache))
-        except Exception as e:
-            logger.error('Failed to save cache to %s: %s', AI_CACHE_FILE, e)
-
-    def load_cache(self):
-        """Load AI query cache from persistent file if available, else return empty list."""
-        logger.debug('Loading cache from %s', AI_CACHE_FILE)
-        try:
-            # Ensure cache directory exists
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            with open(AI_CACHE_FILE) as f:
-                self.ai_result_cache = json.load(f)
-                if not isinstance(self.ai_result_cache, list):
-                    logger.warning('Cache file %s is not a list, returning empty list', AI_CACHE_FILE)
-                    # return []
-                logger.info('Successfully loaded cache with %d entries', len(self.ai_result_cache))
-
-            # TO-DO: remove older entries from cache
-            for entry in self.ai_result_cache:
-                if 'date_ms' in entry:
-                    # Just show the date for logging purposes
-                    logger.debug(
-                        f"Cache entry date: {datetime.fromtimestamp(entry['date_ms'] / 1000, UTC).isoformat()}"
-                    )
-
-        except FileNotFoundError:
-            logger.debug('Cache file %s not found, returning empty list', AI_CACHE_FILE)
-            self.ai_result_cache = []
-        except json.JSONDecodeError as e:
-            logger.error('Failed to parse JSON from %s: %s', AI_CACHE_FILE, e)
-            self.ai_result_cache = []
+    # All AI result cache logic and data structures have been removed, as requested.

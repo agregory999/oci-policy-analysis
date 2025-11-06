@@ -247,6 +247,8 @@ class PolicyOverlap(TypedDict):
     reason: Annotated[str, 'Explanation for the overlap detection']
     statement_text: Annotated[str, 'The statement text of the superseding statement']
     internal_id: Annotated[str, 'The internal ID of the superseding statement']
+    permission_overlap: Annotated[list[str], 'List of specific permissions that overlap between the two statements']
+    additional_notes: NotRequired[Annotated[str, 'Any additional notes about the overlap analysis.']]
 
 
 class DefineStatement(TypedDict, total=False):
