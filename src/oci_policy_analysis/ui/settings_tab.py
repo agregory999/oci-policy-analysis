@@ -21,8 +21,8 @@ from tkinter import messagebox, ttk
 
 from oci_policy_analysis.logger import get_logger
 from oci_policy_analysis.logic import config
+from oci_policy_analysis.logic.ai_repo import AI
 from oci_policy_analysis.logic.caching import CacheManager
-from oci_policy_analysis.logic.data_repo import AI
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
@@ -426,7 +426,9 @@ class SettingsTab(ttk.Frame):
 
             # Make AI Call to test with callback
             self.app.ask_genai_async(
-                prompt='What is the meaning of life?', test=True, callback=self._on_ai_enablement_finished
+                prompt='What is the meaning of life?',
+                additional_instruction='TEST',
+                callback=self._on_ai_enablement_finished,
             )
 
         except Exception as e:

@@ -1,0 +1,32 @@
+{
+    "resources": {
+        "serviceconnectors": {
+            "verbs": {
+                "inspect": [
+                    "SERVICE_CONNECTOR_INSPECT"
+                ],
+                "read": [
+                    "SERVICE_CONNECTOR_READ"
+                ],
+                "use": [
+                    "SERVICE_CONNECTOR_UPDATE",
+                    "SERVICE_CONNECTOR_ACTIVATE",
+                    "SERVICE_CONNECTOR_DEACTIVATE"
+                ],
+                "manage": [
+                    "SERVICE_CONNECTOR_CREATE",
+                    "SERVICE_CONNECTOR_DELETE",
+                    "SERVICE_CONNECTOR_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "serviceconnector-family": {
+            "resources": [
+                "serviceconnectors"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/serviceconnectorhubpolicyreference.htm"
+        }
+    }
+}

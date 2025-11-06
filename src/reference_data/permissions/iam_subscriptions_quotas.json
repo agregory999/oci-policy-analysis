@@ -1,0 +1,364 @@
+{
+  "resources": {
+    "authentication-policies": {
+      "verbs": {
+        "inspect": [
+          "AUTHENTICATION_POLICY_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "AUTHENTICATION_POLICY_UPDATE"
+        ]
+      }
+    },
+    "compartments": {
+      "verbs": {
+        "inspect": [
+          "COMPARTMENT_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "COMPARTMENT_UPDATE"
+        ],
+        "manage": [
+          "COMPARTMENT_CREATE",
+          "COMPARTMENT_DELETE",
+          "COMPARTMENT_RECOVER"
+        ]
+      }
+    },
+    "credentials": {
+      "verbs": {
+        "inspect": [
+          "CREDENTIAL_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "CREDENTIAL_ADD",
+          "CREDENTIAL_UPDATE",
+          "CREDENTIAL_REMOVE"
+        ]
+      }
+    },
+    "domains": {
+      "verbs": {
+        "inspect": [
+          "DOMAIN_INSPECT"
+        ],
+        "read": [
+          "DOMAIN_READ",
+          "DOMAIN_LICENSETYPE_READ"
+        ],
+        "use": [
+          "DOMAIN_UPDATE",
+          "IAM_WORKREQUEST_READ"
+        ],
+        "manage": [
+          "DOMAIN_CREATE",
+          "DOMAIN_DELETE",
+          "DOMAIN_MOVE",
+          "DOMAIN_REPLICATE",
+          "DOMAIN_ACTIVATE",
+          "DOMAIN_DEACTIVATE"
+        ]
+      }
+    },
+    "dynamic-groups": {
+      "verbs": {
+        "inspect": [
+          "DYNAMIC_GROUP_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "DYNAMIC_GROUP_UPDATE"
+        ],
+        "manage": [
+          "DYNAMIC_GROUP_CREATE",
+          "DYNAMIC_GROUP_DELETE"
+        ]
+      }
+    },
+    "groups": {
+      "verbs": {
+        "inspect": [
+          "GROUP_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "GROUP_UPDATE"
+        ],
+        "manage": [
+          "GROUP_CREATE",
+          "GROUP_DELETE"
+        ]
+      }
+    },
+    "identity-providers": {
+      "verbs": {
+        "inspect": [
+          "IDENTITY_PROVIDER_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "IDENTITY_PROVIDER_UPDATE",
+          "IDENTITY_PROVIDER_CREATE",
+          "IDENTITY_PROVIDER_DELETE"
+        ]
+      }
+    },
+    "network-sources": {
+      "verbs": {
+        "inspect": [
+          "NETWORK_SOURCE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "NETWORK_SOURCE_UPDATE"
+        ],
+        "manage": [
+          "NETWORK_SOURCE_CREATE",
+          "NETWORK_SOURCE_DELETE"
+        ]
+      }
+    },
+    "policies": {
+      "verbs": {
+        "inspect": [
+          "POLICY_READ"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "POLICY_UPDATE",
+          "POLICY_CREATE",
+          "POLICY_DELETE"
+        ]
+      }
+    },
+    "tag-defaults": {
+      "verbs": {
+        "inspect": [
+          "TAG_DEFAULT_INSPECT",
+          "TAG_NAMESPACE_READ"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "TAG_DEFAULT_CREATE",
+          "TAG_DEFAULT_UPDATE",
+          "TAG_DEFAULT_DELETE"
+        ]
+      }
+    },
+    "tag-namespaces": {
+      "verbs": {
+        "inspect": [
+          "TAG_NAMESPACE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "TAG_NAMESPACE_USE"
+        ],
+        "manage": [
+          "TAG_NAMESPACE_UPDATE",
+          "TAG_NAMESPACE_CREATE",
+          "TAG_NAMESPACE_MOVE",
+          "TAG_NAMESPACE_DELETE"
+        ]
+      }
+    },
+    "tenancies": {
+      "verbs": {
+        "inspect": [
+          "TENANCY_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "TENANCY_UPDATE"
+        ],
+        "manage": [
+          "TENANCY_UPDATE"
+        ]
+      }
+    },
+    "users": {
+      "verbs": {
+        "inspect": [
+          "USER_INSPECT"
+        ],
+        "read": [
+          "USER_READ"
+        ],
+        "use": [
+          "USER_UPDATE"
+        ],
+        "manage": [
+          "USER_CREATE",
+          "USER_DELETE",
+          "USER_UNBLOCK",
+          "USER_APIKEY_ADD",
+          "USER_APIKEY_REMOVE",
+          "USER_UIPASS_SET",
+          "USER_UIPASS_RESET",
+          "USER_SWIFTPASS_SET",
+          "USER_SWIFTPASS_RESET",
+          "USER_SWIFTPASS_REMOVE",
+          "USER_AUTHTOKEN_SET",
+          "USER_AUTHTOKEN_RESET",
+          "USER_AUTHTOKEN_REMOVE",
+          "USER_OAUTH2_CLIENT_CRED_CREATE",
+          "USER_OAUTH2_CLIENT_CRED_UPDATE",
+          "USER_OAUTH2_CLIENT_CRED_REMOVE",
+          "USER_SECRETKEY_ADD",
+          "USER_SECRETKEY_UPDATE",
+          "USER_SECRETKEY_REMOVE",
+          "USER_SUPPORT_ACCOUNT_LINK",
+          "USER_SUPPORT_ACCOUNT_UNLINK",
+          "USER_TOTPDEVICE_ADD",
+          "USER_TOTPDEVICE_REMOVE",
+          "USER_TOTPDEVICE_UPDATE"
+        ]
+      }
+    },
+    "billing-schedules": {
+      "verbs": {
+        "inspect": [
+          "BILLING_SCHEDULE_INSPECT"
+        ],
+        "read": [
+          "BILLING_SCHEDULE_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "computed-usages": {
+      "verbs": {
+        "inspect": [
+          "COMPUTED_USAGE_INSPECT"
+        ],
+        "read": [
+          "COMPUTED_USAGE_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "invoices": {
+      "verbs": {
+        "inspect": [
+          "INVOICE_INSPECT",
+          "INVOICE_COMPUTED_USAGE_INSPECT"
+        ],
+        "read": [
+          "INVOICE_READ"
+        ],
+        "use": [],
+        "manage": [
+          "INVOICE_MANAGE"
+        ]
+      }
+    },
+    "invoice-preferences": {
+      "verbs": {
+        "inspect": [],
+        "read": [
+          "INVOICE_PREFERENCE_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "subscription": {
+      "verbs": {
+        "inspect": [],
+        "read": [
+          "SUBSCRIPTION_INFO_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "subscribed-services": {
+      "verbs": {
+        "inspect": [
+          "SUBSCRIBED_SERVICE_INSPECT"
+        ],
+        "read": [
+          "SUBSCRIBED_SERVICE_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "rate-cards": {
+      "verbs": {
+        "inspect": [
+          "RATE_CARD_INSPECT"
+        ],
+        "read": [
+          "RATE_CARD_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "quota": {
+      "verbs": {
+        "inspect": [
+          "QUOTA_INSPECT"
+        ],
+        "read": [
+          "QUOTA_READ"
+        ],
+        "use": [],
+        "manage": [
+          "QUOTA_CREATE",
+          "QUOTA_DELETE",
+          "QUOTA_UPDATE"
+        ]
+      }
+    }
+  },
+  "families": {
+    "identity-family": {
+      "resources": [
+        "authentication-policies",
+        "compartments",
+        "credentials",
+        "domains",
+        "dynamic-groups",
+        "groups",
+        "identity-providers",
+        "network-sources",
+        "policies",
+        "tag-defaults",
+        "tag-namespaces",
+        "tenancies",
+        "users"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/iampolicyreference.htm"
+    },
+    "subscriptions-family": {
+      "resources": [
+        "billing-schedules",
+        "computed-usages",
+        "invoices",
+        "invoice-preferences",
+        "subscription",
+        "subscribed-services",
+        "rate-cards"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/subsinvoicepaymenthistoryreference.htm"
+    },
+    "quota-family": {
+      "resources": [
+        "quota"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/quotaspolicyreference.htm"
+    }
+  }
+}

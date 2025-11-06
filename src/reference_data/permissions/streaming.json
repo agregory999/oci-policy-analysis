@@ -1,0 +1,93 @@
+{
+    "resources": {
+        "streams": {
+            "verbs": {
+                "inspect": [
+                    "STREAM_INSPECT"
+                ],
+                "read": [
+                    "STREAM_READ"
+                ],
+                "use": [
+                    "STREAM_UPDATE",
+                    "STREAM_MOVE",
+                    "STREAM_PRODUCE",
+                    "STREAM_CONSUME"
+                ],
+                "manage": [
+                    "STREAM_CREATE",
+                    "STREAM_DELETE"
+                ]
+            }
+        },
+        "stream-pull": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [
+                    "STREAM_CONSUME"
+                ],
+                "manage": []
+            }
+        },
+        "stream-push": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [
+                    "STREAM_PRODUCE"
+                ],
+                "manage": []
+            }
+        },
+        "connect-harnesses": {
+            "verbs": {
+                "inspect": [
+                    "CONNECT_HARNESS_INSPECT"
+                ],
+                "read": [
+                    "CONNECT_HARNESS_READ"
+                ],
+                "use": [
+                    "CONNECT_HARNESS_UPDATE",
+                    "CONNECT_HARNESS_MOVE",
+                    "CONNECT_HARNESS_USE"
+                ],
+                "manage": [
+                    "CONNECT_HARNESS_CREATE",
+                    "CONNECT_HARNESS_DELETE"
+                ]
+            }
+        },
+        "stream-pools": {
+            "verbs": {
+                "inspect": [
+                    "STREAM_POOL_INSPECT"
+                ],
+                "read": [
+                    "STREAM_POOL_READ"
+                ],
+                "use": [
+                    "STREAM_POOL_UPDATE",
+                    "STREAM_POOL_MOVE"
+                ],
+                "manage": [
+                    "STREAM_POOL_CREATE",
+                    "STREAM_POOL_DELETE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "stream-family": {
+            "resources": [
+                "streams",
+                "stream-pull",
+                "stream-push",
+                "connect-harnesses",
+                "stream-pools"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/streamingpolicyreference.htm"
+        }
+    }
+}

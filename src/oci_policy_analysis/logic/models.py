@@ -239,6 +239,18 @@ class PolicySearch(TypedDict, total=False):
 
 
 # Return Types
+class PolicyOverlap(TypedDict):
+    """Represents overlap analysis for a policy statement."""
+
+    superseded_by: Annotated[str, 'The policy name that supersedes this statement']
+    confidence: Annotated[str, 'Confidence level of the overlap (e.g., "high", "medium", "low")']
+    reason: Annotated[str, 'Explanation for the overlap detection']
+    statement_text: Annotated[str, 'The statement text of the superseding statement']
+    internal_id: Annotated[str, 'The internal ID of the superseding statement']
+    permission_overlap: Annotated[list[str], 'List of specific permissions that overlap between the two statements']
+    additional_notes: NotRequired[Annotated[str, 'Any additional notes about the overlap analysis.']]
+
+
 class DefineStatement(TypedDict, total=False):
     """Parsed OCI IAM 'define' policy statement with optional metadata."""
 
@@ -292,7 +304,8 @@ class PolicyStatement(TypedDict, total=False):
     ]
 
     permission: Annotated[
-        str, "Specific permission or action derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS')."
+        list[str],
+        "Specific permissions or actions derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS').",
     ]
 
     location_type: Annotated[str, "Indicates how the location was resolved: 'explicit', 'root', 'derived', etc."]
@@ -321,6 +334,10 @@ class PolicyStatement(TypedDict, total=False):
     parsing_notes: Annotated[
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
     ]
+
+    internal_id: Annotated[str, 'Unique internal hash identifier for this statement.']
+
+    policy_overlap: NotRequired[Annotated[list[PolicyOverlap], 'Overlap analysis results for this policy statement.']]
 
 
 class PolicySummary(TypedDict):
