@@ -1,0 +1,469 @@
+{
+  "resources": {
+    "loganalytics-category": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_CATEGORY_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_CATEGORY_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_CATEGORY_CREATE",
+          "LOG_ANALYTICS_CATEGORY_UPDATE",
+          "LOG_ANALYTICS_CATEGORY_DELETE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-collection-warning": {
+      "verbs": {
+        "inspect": [],
+        "read": [
+          "LOG_ANALYTICS_COLLECTIONWARNING_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_COLLECTIONWARNING_SUPPRESS",
+          "LOG_ANALYTICS_COLLECTIONWARNING_UNSUPPRESS",
+          "LOG_ANALYTICS_COLLECTIONWARNING_UPLOAD"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-config-work-request": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_CONFIG_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_CONFIG_WORK_REQUEST_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_CONFIG_WORK_REQUEST_CREATE",
+          "LOG_ANALYTICS_CONFIG_WORK_REQUEST_DELETE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-discovery": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": [],
+        "manage": [
+          "LOG_ANALYTICS_DISCOVERY_UPLOAD"
+        ]
+      }
+    },
+    "loganalytics-em-bridge": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_EM_BRIDGE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_EM_BRIDGE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_EM_BRIDGE_CREATE",
+          "LOG_ANALYTICS_EM_BRIDGE_UPDATE",
+          "LOG_ANALYTICS_EM_BRIDGE_DELETE",
+          "LOG_ANALYTICS_EM_BRIDGE_MOVE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-entity": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_ENTITY_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_ENTITY_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_ENTITY_CREATE",
+          "LOG_ANALYTICS_ENTITY_DELETE",
+          "LOG_ANALYTICS_ENTITY_MOVE",
+          "LOG_ANALYTICS_ENTITY_UPDATE",
+          "LOG_ANALYTICS_ENTITY_UPLOAD_LOGS"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-entity-type": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_ENTITY_TYPE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_ENTITY_TYPE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_ENTITY_TYPE_CREATE",
+          "LOG_ANALYTICS_ENTITY_TYPE_DELETE",
+          "LOG_ANALYTICS_ENTITY_TYPE_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-field": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_FIELD_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_FIELD_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_FIELD_CREATE",
+          "LOG_ANALYTICS_FIELD_DELETE",
+          "LOG_ANALYTICS_FIELD_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-ingesttime-rule": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_INGESTTIME_RULE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_INGESTTIME_RULE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_INGESTTIME_RULE_CREATE",
+          "LOG_ANALYTICS_INGESTTIME_RULE_UPDATE",
+          "LOG_ANALYTICS_INGESTTIME_RULE_DELETE",
+          "LOG_ANALYTICS_INGESTTIME_RULE_MOVE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-label": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_LABEL_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_LABEL_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_LABEL_CREATE",
+          "LOG_ANALYTICS_LABEL_DELETE",
+          "LOG_ANALYTICS_LABEL_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-lifecycle": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_LIFECYCLE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_LIFECYCLE_READ",
+          "LOG_ANALYTICS_PREFERENCE_READ"
+        ],
+        "use": [],
+        "manage": [
+          "LOG_ANALYTICS_LIFECYCLE_HOMEPAGE_UPDATE",
+          "LOG_ANALYTICS_PREFERENCE_UPDATE",
+          "LOG_ANALYTICS_LIFECYCLE_OFFBOARD",
+          "LOG_ANALYTICS_PREFERENCE_DELETE",
+          "LOG_ANALYTICS_LIFECYCLE_ONBOARD"
+        ]
+      }
+    },
+    "loganalytics-log-group": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_LOG_GROUP_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_LOG_GROUP_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_LOG_GROUP_CREATE",
+          "LOG_ANALYTICS_LOG_GROUP_UPDATE",
+          "LOG_ANALYTICS_LOG_GROUP_UPLOAD_LOGS"
+        ],
+        "manage": [
+          "LOG_ANALYTICS_LOG_GROUP_DELETE_LOGS"
+        ]
+      }
+    },
+    "loganalytics-lookup": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_LOOKUP_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_LOOKUP_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_LOOKUP_CREATE",
+          "LOG_ANALYTICS_LOOKUP_DELETE",
+          "LOG_ANALYTICS_LOOKUP_UPDATE",
+          "LOG_ANALYTICS_LOOKUP_MOVE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-metric": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_METRIC_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_METRIC_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_METRIC_CREATE",
+          "LOG_ANALYTICS_METRIC_UPDATE",
+          "LOG_ANALYTICS_METRIC_DELETE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-object-collection-rule": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_CREATE",
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_UPDATE",
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_DELETE",
+          "LOG_ANALYTICS_OBJECT_COLLECTION_RULE_MOVE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-ondemand-upload": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_ONDEMAND_UPLOAD_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_ONDEMAND_UPLOAD_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_ONDEMAND_UPLOAD_CREATE"
+        ],
+        "manage": [
+          "LOG_ANALYTICS_ONDEMAND_UPLOAD_DELETE"
+        ]
+      }
+    },
+    "loganalytics-parser": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_PARSER_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_PARSER_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_PARSER_CREATE",
+          "LOG_ANALYTICS_PARSER_DELETE",
+          "LOG_ANALYTICS_PARSER_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "loganalytics-query": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_QUERY_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_QUERY_VIEW"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "loganalytics-queryjob-work-request": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_QUERYJOB_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_QUERYJOB_WORK_REQUEST_READ",
+          "LOG_ANALYTICS_QUERYJOB_WORK_REQUEST_DELETE"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "loganalytics-sampledata": {
+      "verbs": {
+        "inspect": [],
+        "read": [
+          "LOG_ANALYTICS_SAMPLEDATA_READ"
+        ],
+        "use": [],
+        "manage": [
+          "LOG_ANALYTICS_SAMPLEDATA_ENABLE",
+          "LOG_ANALYTICS_SAMPLEDATA_DISABLE"
+        ]
+      }
+    },
+    "loganalytics-scheduled-task": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_ACCELERATIONTASK_INSPECT",
+          "LOG_ANALYTICS_PURGETASK_INSPECT",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_ACCELERATIONTASK_READ",
+          "LOG_ANALYTICS_PURGETASK_READ",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_ACCELERATIONTASK_CREATE",
+          "LOG_ANALYTICS_ACCELERATIONTASK_DELETE",
+          "LOG_ANALYTICS_ACCELERATIONTASK_MOVE",
+          "LOG_ANALYTICS_ACCELERATIONTASK_UPDATE",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_CREATE",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_DELETE",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_MOVE",
+          "LOG_ANALYTICS_SAVEDSEARCHTASK_UPDATE"
+        ],
+        "manage": [
+          "LOG_ANALYTICS_PURGETASK_CREATE",
+          "LOG_ANALYTICS_PURGETASK_DELETE",
+          "LOG_ANALYTICS_PURGETASK_MOVE",
+          "LOG_ANALYTICS_PURGETASK_UPDATE"
+        ]
+      }
+    },
+    "loganalytics-source": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_SOURCE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_SOURCE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_SOURCE_CREATE",
+          "LOG_ANALYTICS_SOURCE_DELETE",
+          "LOG_ANALYTICS_SOURCE_ENTITY_ASSOC",
+          "LOG_ANALYTICS_SOURCE_ENTITY_DISASSOC",
+          "LOG_ANALYTICS_SOURCE_UPDATE"
+        ],
+        "manage": [
+          "LOG_ANALYTICS_SOURCE_DISABLE_AUTOASSOC",
+          "LOG_ANALYTICS_SOURCE_ENABLE_AUTOASSOC"
+        ]
+      }
+    },
+    "loganalytics-storage": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_STORAGE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_STORAGE_READ"
+        ],
+        "use": [
+          "LOG_ANALYTICS_STORAGE_ARCHIVE_RECALL",
+          "LOG_ANALYTICS_STORAGE_ARCHIVE_RELEASE"
+        ],
+        "manage": [
+          "LOG_ANALYTICS_STORAGE_ARCHIVE_DISABLE",
+          "LOG_ANALYTICS_STORAGE_ARCHIVE_ENABLE",
+          "LOG_ANALYTICS_STORAGE_PURGE",
+          "LOG_ANALYTICS_STORAGE_UPDATE"
+        ]
+      }
+    },
+    "loganalytics-storage-work-request": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_STORAGE_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_STORAGE_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": [
+          "LOG_ANALYTICS_STORAGE_WORK_REQUEST_CREATE",
+          "LOG_ANALYTICS_STORAGE_WORK_REQUEST_DELETE"
+        ]
+      }
+    },
+    "loganalytics-template": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_TEMPLATE_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_TEMPLATE_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "loganalytics-vpl": {
+      "verbs": {
+        "inspect": [
+          "LOG_ANALYTICS_VPL_INSPECT"
+        ],
+        "read": [
+          "LOG_ANALYTICS_VPL_READ"
+        ],
+        "use": [],
+        "manage": [
+          "LOG_ANALYTICS_VPL_CREATE",
+          "LOG_ANALYTICS_VPL_UPDATE",
+          "LOG_ANALYTICS_VPL_DELETE",
+          "LOG_ANALYTICS_VPL_USER_ASSOC"
+        ]
+      }
+    }
+  },
+  "families": {
+    "loganalytics-features-family": {
+      "resources": [
+        "loganalytics-category",
+        "loganalytics-collection-warning",
+        "loganalytics-discovery",
+        "loganalytics-entity-type",
+        "loganalytics-field",
+        "loganalytics-label",
+        "loganalytics-lifecycle",
+        "loganalytics-lookup",
+        "loganalytics-metric",
+        "loganalytics-ondemand-upload",
+        "loganalytics-parser",
+        "loganalytics-query",
+        "loganalytics-sampledata",
+        "loganalytics-source",
+        "loganalytics-storage",
+        "loganalytics-vpl"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/loganalyticspolicyreference.htm"
+    },
+    "loganalytics-resources-family": {
+      "resources": [
+        "loganalytics-config-work-request",
+        "loganalytics-em-bridge",
+        "loganalytics-entity",
+        "loganalytics-ingesttime-rule",
+        "loganalytics-log-group",
+        "loganalytics-object-collection-rule",
+        "loganalytics-queryjob-work-request",
+        "loganalytics-scheduled-task",
+        "loganalytics-storage-work-request",
+        "loganalytics-template"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/loganalyticspolicyreference.htm"
+    }
+  }
+}

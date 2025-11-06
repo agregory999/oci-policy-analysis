@@ -1,0 +1,38 @@
+{
+  "resources": {
+    "fn-app": {
+      "verbs": {
+        "inspect": ["FN_APP_LIST"],
+        "read": ["FN_APP_READ"],
+        "use": [],
+        "manage": ["FN_APP_CREATE", "FN_APP_DELETE", "FN_APP_UPDATE"]
+      }
+    },
+    "fn-function": {
+      "verbs": {
+        "inspect": ["FN_FUNCTION_LIST"],
+        "read": ["FN_FUNCTION_READ"],
+        "use": [],
+        "manage": ["FN_FUNCTION_CREATE", "FN_FUNCTION_DELETE", "FN_FUNCTION_UPDATE"]
+      }
+    },
+    "fn-invocation": {
+      "verbs": {
+        "inspect": [],
+        "read": [],
+        "use": ["FN_INVOCATION"],
+        "manage": []
+      }
+    }
+  },
+  "families": {
+    "functions-family": {
+      "resources": [
+        "fn-app",
+        "fn-function",
+        "fn-invocation"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/functionspolicyreference.htm"
+    }
+  }
+}

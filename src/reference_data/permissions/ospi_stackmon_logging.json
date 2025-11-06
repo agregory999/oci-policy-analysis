@@ -1,0 +1,410 @@
+{
+    "resources": {
+        "log-groups": {
+            "verbs": {
+                "inspect": [
+                    "LOG_GROUP_INSPECT"
+                ],
+                "read": [
+                    "LOG_GROUP_READ"
+                ],
+                "use": [
+                    "LOG_GROUP_UPDATE"
+                ],
+                "manage": [
+                    "LOG_GROUP_CREATE",
+                    "LOG_GROUP_DELETE"
+                ]
+            }
+        },
+        "log-content": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "LOG_CONTENT_READ"
+                ],
+                "use": [
+                    "LOG_CONTENT_PUSH",
+                    "UNIFIED_AGENT_CONFIG_GENERATE"
+                ],
+                "manage": [
+                    "LOG_CONTENT_PUSH",
+                    "UNIFIED_AGENT_CONFIG_GENERATE"
+                ]
+            }
+        },
+        "unified-configuration": {
+            "verbs": {
+                "inspect": [
+                    "UNIFIED_AGENT_CONFIG_INSPECT"
+                ],
+                "read": [
+                    "UNIFIED_AGENT_CONFIG_READ"
+                ],
+                "use": [
+                    "UNIFIED_AGENT_CONFIG_UPDATE"
+                ],
+                "manage": [
+                    "UNIFIED_AGENT_CONFIG_CREATE",
+                    "UNIFIED_AGENT_CONFIG_DELETE"
+                ]
+            }
+        },
+        "appmgmt-monitored-instance": {
+            "verbs": {
+                "inspect": [
+                    "APPMGMT_MONITORED_INSTANCE_INSPECT"
+                ],
+                "read": [
+                    "APPMGMT_MONITORED_INSTANCE_READ"
+                ],
+                "use": [
+                    "APPMGMT_MONITORED_INSTANCE_PROCESS_PUBLISH"
+                ],
+                "manage": [
+                    "APPMGMT_MONITORED_INSTANCE_ACTIVATE"
+                ]
+            }
+        },
+        "appmgmt-work-request": {
+            "verbs": {
+                "inspect": [
+                    "APPMGMT_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "APPMGMT_WORK_REQUEST_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "stack-monitoring-resource": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_RESOURCE_INSPECT",
+                    "STACK_MONITORING_RESOURCE_ASSOC_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_RESOURCE_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_RESOURCE_CREATE",
+                    "STACK_MONITORING_RESOURCE_UPDATE",
+                    "STACK_MONITORING_RESOURCE_DELETE",
+                    "STACK_MONITORING_RESOURCE_MOVE",
+                    "STACK_MONITORING_RESOURCE_ASSOC_CREATE",
+                    "STACK_MONITORING_RESOURCE_ASSOC_DELETE"
+                ]
+            }
+        },
+        "stack-monitoring-resource-type": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_RESOURCE_TYPE_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_RESOURCE_TYPE_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_RESOURCE_TYPE_CREATE",
+                    "STACK_MONITORING_RESOURCE_TYPE_UPDATE",
+                    "STACK_MONITORING_RESOURCE_TYPE_DELETE"
+                ]
+            }
+        },
+        "stack-monitoring-task": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_TASK_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_TASK_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_TASK_CREATE",
+                    "STACK_MONITORING_TASK_UPDATE",
+                    "STACK_MONITORING_TASK_DELETE",
+                    "STACK_MONITORING_TASK_MOVE"
+                ]
+            }
+        },
+        "stack-monitoring-discovery-job": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_DISCOVERY_JOB_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_DISCOVERY_JOB_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_DISCOVERY_JOB_CREATE",
+                    "STACK_MONITORING_DISCOVERY_JOB_DELETE",
+                    "STACK_MONITORING_DISCOVERY_JOB_RESULT_SUBMIT"
+                ]
+            }
+        },
+        "stack-monitoring-work-request": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_WORK_REQUEST_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "stack-monitoring-metric-extension": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_METRIC_EXTENSION_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_METRIC_EXTENSION_READ"
+                ],
+                "use": [
+                    "STACK_MONITORING_METRIC_EXTENSION_ENABLE",
+                    "STACK_MONITORING_METRIC_EXTENSION_DISABLE"
+                ],
+                "manage": [
+                    "STACK_MONITORING_METRIC_EXTENSION_CREATE",
+                    "STACK_MONITORING_METRIC_EXTENSION_UPDATE",
+                    "STACK_MONITORING_METRIC_EXTENSION_DELETE",
+                    "STACK_MONITORING_METRIC_EXTENSION_TEST",
+                    "STACK_MONITORING_METRIC_EXTENSION_PUBLISH",
+                    "STACK_MONITORING_METRIC_EXTENSION_MOVE"
+                ]
+            }
+        },
+        "stack-monitoring-config": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_CONFIG_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_CONFIG_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_CONFIG_CREATE",
+                    "STACK_MONITORING_CONFIG_UPDATE",
+                    "STACK_MONITORING_CONFIG_DELETE",
+                    "STACK_MONITORING_CONFIG_MOVE"
+                ]
+            }
+        },
+        "stack-monitoring-baselineable-metric": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_BASELINEABLE_METRIC_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_BASELINEABLE_METRIC_READ"
+                ],
+                "use": [
+                    "STACK_MONITORING_BASELINEABLE_METRIC_EVALUATE"
+                ],
+                "manage": [
+                    "STACK_MONITORING_BASELINEABLE_METRIC_CREATE",
+                    "STACK_MONITORING_BASELINEABLE_METRIC_UPDATE",
+                    "STACK_MONITORING_BASELINEABLE_METRIC_DELETE"
+                ]
+            }
+        },
+        "stack-monitoring-process-set": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_PROCESS_SET_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_PROCESS_SET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "STACK_MONITORING_PROCESS_SET_CREATE",
+                    "STACK_MONITORING_PROCESS_SET_UPDATE",
+                    "STACK_MONITORING_PROCESS_SET_DELETE",
+                    "STACK_MONITORING_PROCESS_SET_MOVE"
+                ]
+            }
+        },
+        "stack-monitoring-monitoring-template": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_MONITORING_TEMPLATE_INSPECT",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_ALARM_CONDITION_INSPECT"
+                ],
+                "read": [
+                    "STACK_MONITORING_MONITORING_TEMPLATE_READ",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_ALARM_CONDITION_READ"
+                ],
+                "use": [
+                    "STACK_MONITORING_MONITORING_TEMPLATE_APPLY",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_UNAPPLY"
+                ],
+                "manage": [
+                    "STACK_MONITORING_MONITORING_TEMPLATE_CREATE",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_UPDATE",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_DELETE",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_EXPORT",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_ALARM_CONDITION_CREATE",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_ALARM_CONDITION_UPDATE",
+                    "STACK_MONITORING_MONITORING_TEMPLATE_ALARM_CONDITION_DELETE"
+                ]
+            }
+        },
+        "stack-monitoring-defined-monitoring-template": {
+            "verbs": {
+                "inspect": [
+                    "STACK_MONITORING_DEFINED_MONITORING_TEMPLATE_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "management-agents": {
+            "verbs": {
+                "inspect": [
+                    "MGMT_AGENT_INSPECT"
+                ],
+                "read": [
+                    "MGMT_AGENT_READ"
+                ],
+                "use": [
+                    "MGMT_AGENT_UPDATE"
+                ],
+                "manage": [
+                    "MGMT_AGENT_CREATE",
+                    "MGMT_AGENT_DELETE",
+                    "MGMT_AGENT_DEPLOY_PLUGIN_CREATE"
+                ]
+            }
+        },
+        "management-agent-install-keys": {
+            "verbs": {
+                "inspect": [
+                    "MGMT_AGENT_INSTALL_KEY_INSPECT"
+                ],
+                "read": [
+                    "MGMT_AGENT_INSTALL_KEY_READ"
+                ],
+                "use": [
+                    "MGMT_AGENT_INSTALL_KEY_UPDATE"
+                ],
+                "manage": [
+                    "MGMT_AGENT_INSTALL_KEY_CREATE",
+                    "MGMT_AGENT_INSTALL_KEY_DELETE"
+                ]
+            }
+        },
+        "management-agents-named-credentials": {
+            "verbs": {
+                "inspect": [
+                    "MGMT_AGENT_NAMED_CREDENTIAL_INSPECT"
+                ],
+                "read": [
+                    "MGMT_AGENT_NAMED_CREDENTIAL_READ",
+                    "MGMT_AGENT_NAMED_CREDENTIAL_APPLY"
+                ],
+                "use": [
+                    "MGMT_AGENT_NAMED_CREDENTIAL_APPLY"
+                ],
+                "manage": [
+                    "MGMT_AGENT_NAMED_CREDENTIAL_CREATE",
+                    "MGMT_AGENT_NAMED_CREDENTIAL_UPDATE",
+                    "MGMT_AGENT_NAMED_CREDENTIAL_DELETE"
+                ]
+            }
+        },
+        "management-dashboard": {
+            "verbs": {
+                "inspect": [
+                    "MANAGEMENT_DASHBOARD_INSPECT"
+                ],
+                "read": [
+                    "MANAGEMENT_DASHBOARD_READ"
+                ],
+                "use": [
+                    "MANAGEMENT_DASHBOARD_UPDATE"
+                ],
+                "manage": [
+                    "MANAGEMENT_DASHBOARD_CREATE",
+                    "MANAGEMENT_DASHBOARD_DELETE",
+                    "MANAGEMENT_DASHBOARD_MOVE"
+                ]
+            }
+        },
+        "management-saved-search": {
+            "verbs": {
+                "inspect": [
+                    "MANAGEMENT_SAVED_SEARCH_INSPECT"
+                ],
+                "read": [
+                    "MANAGEMENT_SAVED_SEARCH_READ"
+                ],
+                "use": [
+                    "MANAGEMENT_SAVED_SEARCH_UPDATE"
+                ],
+                "manage": [
+                    "MANAGEMENT_SAVED_SEARCH_CREATE",
+                    "MANAGEMENT_SAVED_SEARCH_DELETE",
+                    "MANAGEMENT_SAVED_SEARCH_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "logging-family": {
+            "resources": [
+                "log-groups",
+                "log-content",
+                "unified-configuration"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/loggingpolicyreference.htm"
+        },
+        "appmgmt-family": {
+            "resources": [
+                "appmgmt-monitored-instance",
+                "appmgmt-work-request"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/stackmonitoringpolicyreference.htm"
+        },
+        "stack-monitoring-family": {
+            "resources": [
+                "stack-monitoring-resource",
+                "stack-monitoring-resource-type",
+                "stack-monitoring-task",
+                "stack-monitoring-discovery-job",
+                "stack-monitoring-work-request",
+                "stack-monitoring-metric-extension",
+                "stack-monitoring-config",
+                "stack-monitoring-baselineable-metric",
+                "stack-monitoring-process-set",
+                "stack-monitoring-monitoring-template",
+                "stack-monitoring-defined-monitoring-template"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/stackmonitoringpolicyreference.htm"
+        },
+        "management-agent-family": {
+            "resources": [
+                "management-agents",
+                "management-agent-install-keys",
+                "management-agents-named-credentials"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/managementagentpolicyreference.htm"
+        },
+        "management-dashboard-family": {
+            "resources": [
+                "management-dashboard",
+                "management-saved-search"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/managementdashboardpolicyreference.htm"
+        }
+    }
+}

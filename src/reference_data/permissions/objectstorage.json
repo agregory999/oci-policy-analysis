@@ -1,0 +1,74 @@
+{
+  "resources": {
+    "buckets": {
+      "verbs": {
+        "inspect": ["BUCKET_INSPECT"],
+        "read": ["BUCKET_READ"],
+        "use": ["BUCKET_UPDATE"],
+        "manage": ["BUCKET_CREATE", "BUCKET_DELETE"]
+      }
+    },
+    "objects": {
+      "verbs": {
+        "inspect": ["OBJECT_INSPECT"],
+        "read": ["OBJECT_READ"],
+        "use": ["OBJECT_OVERWRITE"],
+        "manage": ["OBJECT_CREATE", "OBJECT_DELETE", "OBJECT_VERSION_DELETE", "OBJECT_RESTORE", "OBJECT_UPDATE_TIER"]
+      }
+    },
+    "multipart-uploads": {
+      "verbs": {
+        "inspect": ["OBJECT_INSPECT"],
+        "read": ["BUCKET_READ"],
+        "use": [],
+        "manage": ["OBJECT_DELETE"]
+      }
+    },
+    "pre-authenticated-requests": {
+      "verbs": {
+        "inspect": [],
+        "read": ["BUCKET_READ"],
+        "use": [],
+        "manage": ["PAR_MANAGE"]
+      }
+    },
+    "replication-policies": {
+      "verbs": {
+        "inspect": [],
+        "read": ["BUCKET_READ"],
+        "use": [],
+        "manage": ["BUCKET_UPDATE"]
+      }
+    },
+    "retention-rules": {
+      "verbs": {
+        "inspect": [],
+        "read": ["BUCKET_READ"],
+        "use": [],
+        "manage": ["RETENTION_RULE_MANAGE", "RETENTION_RULE_LOCK"]
+      }
+    },
+    "namespace-metadata": {
+      "verbs": {
+        "inspect": [],
+        "read": ["OBJECTSTORAGE_NAMESPACE_READ"],
+        "use": [],
+        "manage": ["OBJECTSTORAGE_NAMESPACE_UPDATE"]
+      }
+    }
+  },
+  "families": {
+    "object-family": {
+      "resources": [
+        "buckets",
+        "objects",
+        "multipart-uploads",
+        "pre-authenticated-requests",
+        "replication-policies",
+        "retention-rules",
+        "namespace-metadata"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm"
+    }
+  }
+}

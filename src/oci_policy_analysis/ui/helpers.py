@@ -20,6 +20,7 @@ def for_display_policy(statement: PolicyStatement) -> dict:
     return {
         'Policy Name': statement['policy_name'],
         'Policy OCID': statement['policy_ocid'],
+        'Internal ID': statement['internal_id'],
         'Compartment OCID': statement['compartment_ocid'],
         'Policy Compartment': statement['policy_compartment'],
         'Statement Text': statement['statement_text'],
@@ -40,6 +41,9 @@ def for_display_policy(statement: PolicyStatement) -> dict:
         'Parsing Notes': '; '.join(statement['parsing_notes']) if 'parsing_notes' in statement else '',
         'Creation Time': statement['creation_time'] if 'creation_time' in statement else '',
         'Parsed': statement['parsed'] if 'parsed' in statement else '',
+        'Policy Overlap': '; '.join([str(po) for po in statement['policy_overlap']])
+        if 'policy_overlap' in statement
+        else '',
     }
 
 

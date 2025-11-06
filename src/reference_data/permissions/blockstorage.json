@@ -1,0 +1,149 @@
+{
+    "resources": {
+        "volumes": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "VOLUME_UPDATE",
+                    "VOLUME_WRITE"
+                ],
+                "manage": [
+                    "VOLUME_CREATE",
+                    "VOLUME_DELETE",
+                    "VOLUME_MOVE"
+                ]
+            }
+        },
+        "volume-attachments": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_ATTACHMENT_INSPECT"
+                ],
+                "read": [
+                    "VOLUME_ATTACHMENT_READ"
+                ],
+                "use": [
+                    "VOLUME_ATTACHMENT_UPDATE"
+                ],
+                "manage": [
+                    "VOLUME_ATTACHMENT_CREATE",
+                    "VOLUME_ATTACHMENT_DELETE"
+                ]
+            }
+        },
+        "volume-backups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_BACKUP_INSPECT"
+                ],
+                "read": [
+                    "VOLUME_BACKUP_READ"
+                ],
+                "use": [
+                    "VOLUME_BACKUP_COPY",
+                    "VOLUME_BACKUP_UPDATE"
+                ],
+                "manage": [
+                    "VOLUME_BACKUP_CREATE",
+                    "VOLUME_BACKUP_DELETE",
+                    "VOLUME_BACKUP_MOVE"
+                ]
+            }
+        },
+        "boot-volume-backups": {
+            "verbs": {
+                "inspect": [
+                    "BOOT_VOLUME_BACKUP_INSPECT"
+                ],
+                "read": [
+                    "BOOT_VOLUME_BACKUP_READ"
+                ],
+                "use": [
+                    "BOOT_VOLUME_BACKUP_UPDATE",
+                    "BOOT_VOLUME_BACKUP_COPY"
+                ],
+                "manage": [
+                    "BOOT_VOLUME_BACKUP_CREATE",
+                    "BOOT_VOLUME_BACKUP_DELETE",
+                    "BOOT_VOLUME_BACKUP_MOVE"
+                ]
+            }
+        },
+        "backup-policies": {
+            "verbs": {
+                "inspect": [
+                    "BACKUP_POLICY_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "BACKUP_POLICIES_UPDATE"
+                ],
+                "manage": [
+                    "BACKUP_POLICIES_CREATE",
+                    "BACKUP_POLICIES_DELETE"
+                ]
+            }
+        },
+        "backup-policy-assignments": {
+            "verbs": {
+                "inspect": [
+                    "BACKUP_POLICY_ASSIGNMENT_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "BACKUP_POLICY_ASSIGNMENT_CREATE",
+                    "BACKUP_POLICY_ASSIGNMENT_DELETE"
+                ]
+            }
+        },
+        "volume-groups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_GROUP_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "VOLUME_GROUP_UPDATE",
+                    "VOLUME_GROUP_CREATE",
+                    "VOLUME_GROUP_DELETE",
+                    "VOLUME_GROUP_MOVE"
+                ]
+            }
+        },
+        "volume-group-backups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_GROUP_BACKUP_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "VOLUME_GROUP_BACKUP_UPDATE",
+                    "VOLUME_GROUP_BACKUP_CREATE",
+                    "VOLUME_GROUP_BACKUP_DELETE",
+                    "VOLUME_GROUP_BACKUP_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "volume-family": {
+            "resources": [
+                "volumes",
+                "volume-attachments",
+                "volume-backups",
+                "boot-volume-backups",
+                "backup-policies",
+                "backup-policy-assignments",
+                "volume-groups",
+                "volume-group-backups"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        }
+    }
+}

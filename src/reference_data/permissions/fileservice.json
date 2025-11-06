@@ -1,0 +1,162 @@
+{
+  "resources": {
+    "export-sets": {
+      "verbs": {
+        "inspect": [
+          "EXPORT_SET_INSPECT"
+        ],
+        "read": [
+          "EXPORT_SET_READ"
+        ],
+        "use": [],
+        "manage": [
+          "EXPORT_SET_CREATE",
+          "EXPORT_SET_UPDATE",
+          "EXPORT_SET_DELETE"
+        ]
+      }
+    },
+    "file-systems": {
+      "verbs": {
+        "inspect": [
+          "FILE_SYSTEM_INSPECT"
+        ],
+        "read": [
+          "FILE_SYSTEM_READ"
+        ],
+        "use": [
+          "FILE_SYSTEM_NFSv3_EXPORT",
+          "FILE_SYSTEM_NFSv3_UNEXPORT",
+          "FILE_SYSTEM_CLONE",
+          "FILE_SYSTEM_REPLICATION_SOURCE",
+          "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
+        ],
+        "manage": [
+          "FILE_SYSTEM_CREATE",
+          "FILE_SYSTEM_UPDATE",
+          "FILE_SYSTEM_DELETE",
+          "FILE_SYSTEM_MOVE",
+          "FILE_SYSTEM_CREATE_SNAPSHOT",
+          "FILE_SYSTEM_DELETE_SNAPSHOT",
+          "FILE_SYSTEM_REPLICATION_TARGET"
+        ]
+      }
+    },
+    "filesystem-snapshot-policies": {
+      "verbs": {
+        "inspect": [
+          "FILESYSTEM_SNAPSHOT_POLICY_INSPECT"
+        ],
+        "read": [
+          "FILESYSTEM_SNAPSHOT_POLICY_READ"
+        ],
+        "use": [
+          "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
+        ],
+        "manage": [
+          "FILESYSTEM_SNAPSHOT_POLICY_CREATE",
+          "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
+          "FILESYSTEM_SNAPSHOT_POLICY_MOVE",
+          "FILESYSTEM_SNAPSHOT_POLICY_DELETE"
+        ]
+      }
+    },
+    "mount-targets": {
+      "verbs": {
+        "inspect": [
+          "MOUNT_TARGET_INSPECT"
+        ],
+        "read": [
+          "MOUNT_TARGET_READ"
+        ],
+        "use": [],
+        "manage": [
+          "MOUNT_TARGET_CREATE",
+          "MOUNT_TARGET_UPDATE",
+          "MOUNT_TARGET_SHAPE_UPGRADE",
+          "MOUNT_TARGET_SHAPE_DOWNGRADE",
+          "MOUNT_TARGET_DELETE",
+          "MOUNT_TARGET_MOVE"
+        ]
+      }
+    },
+    "outbound-connectors": {
+      "verbs": {
+        "inspect": [
+          "OUTBOUND_CONNECTOR_INSPECT"
+        ],
+        "read": [
+          "OUTBOUND_CONNECTOR_READ"
+        ],
+        "use": [],
+        "manage": [
+          "OUTBOUND_CONNECTOR_CREATE",
+          "OUTBOUND_CONNECTOR_UPDATE",
+          "OUTBOUND_CONNECTOR_DELETE",
+          "OUTBOUND_CONNECTOR_MOVE"
+        ]
+      }
+    },
+    "replications": {
+      "verbs": {
+        "inspect": [
+          "REPLICATION_INSPECT"
+        ],
+        "read": [
+          "REPLICATION_READ"
+        ],
+        "use": [],
+        "manage": [
+          "REPLICATION_CREATE",
+          "REPLICATION_UPDATE",
+          "REPLICATION_DELETE",
+          "REPLICATION_MOVE"
+        ]
+      }
+    },
+    "replication-targets": {
+      "verbs": {
+        "inspect": [
+          "REPLICATION_INSPECT"
+        ],
+        "read": [
+          "REPLICATION_READ"
+        ],
+        "use": [],
+        "manage": [
+          "REPLICATION_CREATE",
+          "REPLICATION_UPDATE",
+          "REPLICATION_DELETE",
+          "REPLICATION_MOVE"
+        ]
+      }
+    },
+    "fss-work-requests": {
+      "verbs": {
+        "inspect": [
+          "FSS_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "FSS_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+  },
+  "families": {
+    "file-family": {
+      "resources": [
+        "export-sets",
+        "file-systems",
+        "filesystem-snapshot-policies",
+        "mount-targets",
+        "outbound-connectors",
+        "replications",
+        "replication-targets",
+        "fss-work-requests"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/filestoragepolicyreference.htm"
+    }
+  }
+}

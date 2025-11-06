@@ -14,9 +14,9 @@
 ##########################################################################
 
 # Standard library imports
+import hashlib
 import json
 import logging
-import queue
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -27,17 +27,7 @@ from pathlib import Path
 from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
-from oci.exceptions import ConfigFileNotFound, ServiceError
-from oci.generative_ai import GenerativeAiClient
-from oci.generative_ai_inference import GenerativeAiInferenceClient
-from oci.generative_ai_inference.models import (
-    BaseChatRequest,
-    ChatDetails,
-    GenericChatRequest,
-    Message,
-    OnDemandServingMode,
-    TextContent,
-)
+from oci.exceptions import ConfigFileNotFound
 from oci.identity import IdentityClient
 from oci.identity.models import Compartment, Policy
 from oci.identity_domains import IdentityDomainsClient
@@ -53,14 +43,19 @@ from oci_policy_analysis.logic.models import (
     DynamicGroupSearch,
     Group,
     GroupSearch,
+    PolicyOverlap,
     PolicySearch,
     PolicyStatement,
     User,
     UserSearch,
 )
+from reference_data.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
+
+# Reference Data
+permission_reference_repo = ReferenceDataRepo()
 
 # Constants
 THREADS = 9
@@ -228,6 +223,15 @@ class PolicyAnalysisRepository:
             return False
 
     # --- Internal Helpers ---
+    def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
+        """Given an internal ID, return the list of PolicyOverlap entries for that statement"""
+        overlaps: list[PolicyOverlap] = []
+        for st in self.regular_statements:
+            if st.get('internal_id') == internal_id:
+                overlaps = st.get('policy_overlap', [])
+                break
+        return overlaps
+
     def _find_invalid_statements(self):  # noqa: C901
         """
         Find invalid statements.  Mark them as invalid with reason.
@@ -477,6 +481,9 @@ class PolicyAnalysisRepository:
         logger.debug(f'Parsing statement {statement} (Comp: {comp})')
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
+        # internal ID for statement, used for reference later
+        internal_id = hashlib.md5((statement + policy.id).encode()).hexdigest()
+        logger.debug(f'Internal ID for statement: {internal_id}')
         # Basic statement dict - will be augmented after parsing
         statement_dict: PolicyStatement = PolicyStatement(
             policy_name=policy.name,  # type: ignore
@@ -487,6 +494,7 @@ class PolicyAnalysisRepository:
             creation_time=str(policy.time_created),
             valid=True,  # Mark as False later if needed
             parsed=False,  # Mark as True later if parsed successfully
+            internal_id=internal_id,  # Adding this for display
         )
 
         # Only for ROOT compartment, check to see if there is a cross-tenancy policy
@@ -546,7 +554,7 @@ class PolicyAnalysisRepository:
                     statement_dict['subject'] = result.get('subject') or ''
                     statement_dict['verb'] = result.get('verb') or ''
                     statement_dict['resource'] = result.get('resource') or ''
-                    statement_dict['permission'] = result.get('perm') or ''
+                    statement_dict['permission'] = []
                     statement_dict['location_type'] = result.get('locationtype') or ''
                     statement_dict['location'] = result.get('location') or ''
                     statement_dict['conditions'] = result.get('condition') or ''
@@ -566,6 +574,18 @@ class PolicyAnalysisRepository:
                             statement_dict['parsing_notes'].append('Multiple subjects found')
                         statement_dict['subject'] = subject_result
 
+                    # If permissions are present, parse them into a list.
+                    if result.get('perm'):
+                        # permissions looks like {permission1,permission2, permission3}
+                        # Strip the braces and split , and strip whitespace
+                        perms = result.get('perm').strip('{}').split(',')
+                        perms = [p.strip() for p in perms if p.strip()]
+                        logger.info(f'Parsed permissions from {result.get("perm")} to {perms}')
+                        statement_dict['permission'] = perms
+                        statement_dict['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
+                    # If the location was wrapped in quotes, remove them
+                    if statement_dict['location']:
+                        statement_dict['location'] = statement_dict['location'].strip('\'"')
                 except Exception as e:
                     logger.warning(f'Failed to parse statement: {e}')
 
@@ -851,12 +871,15 @@ class PolicyAnalysisRepository:
                             group_list = []
                             for gg in u.groups:
                                 group_list.append(gg.ocid)
-
-                            email = ''
-                            for em in u.emails:
-                                if em.primary:
-                                    email = em.value
-                                    break
+                            # Default the email to None
+                            email = 'None'
+                            if hasattr(u, 'emails') and u.emails:
+                                for em in u.emails:
+                                    if em.primary:
+                                        email = em.value
+                                        break
+                            else:
+                                logger.debug(f'No emails for user {u.display_name}')
                             # Set the user into the bigger picture JSON
                             self.users.append(
                                 User(
@@ -894,7 +917,7 @@ class PolicyAnalysisRepository:
         except Exception as e:
             logger.error(f'Failed to load identity domains: {e}')
             # return False
-            raise
+            raise e
 
     # --- Main Filtering Functions ---
     # Filtering logic - return a list of policy statements matching given filter
@@ -1600,6 +1623,130 @@ class PolicyAnalysisRepository:
 
         logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
 
+    def analyze_policy_overlap(self) -> None:  # noqa: C901
+        """Analyze policy overlaps by comparing statements across policies."""
+        logger.info('Analyzing policy overlaps - setting up structure for comparison')
+        start_time = time.perf_counter()
+        for st in self.regular_statements:
+            # Get effective compartment
+            effective_compartment = st.get('effective_path', '') or 'n/a'
+            statement_text = st.get('statement_text', '') or 'n/a'
+            policy_overlap = []
+            additional_notes = ''
+            perm_overlap = []
+            reason = ''
+            logger.debug(
+                f'Analyzing statement "{statement_text}" in policy {st["policy_name"]} for overlaps - effective path: {effective_compartment}'
+            )
+            # Loop against all other statements
+            for other_st in self.regular_statements:
+                # Qualify OUT quickly - self-comparison
+                if other_st.get('internal_id', 'N/A') == st.get('internal_id', 'N/A'):
+                    continue
+                # Non-matching subject types
+                if other_st.get('subject_type') != st.get('subject_type'):
+                    continue
+                # Effective Path missing
+                # if not other_st.get('effective_path') or not other_st.get('resource') or not other_st.get('verb'):
+                #     continue
+                if not other_st.get('effective_path'):
+                    continue
+                # Effective path must be broader or same in other_st
+                # for example, if other is ROOT/A/B and this statement is ROOT/A/B/C, then continue processing
+                # if other is ROOT/A/B/C or ROOT/C and this is ROOT/A/B, then skip
+                if not effective_compartment.lower().startswith(other_st.get('effective_path', '').lower()):
+                    continue
+
+                # if there are explicit permissions, use those. otherwise get them from the repo
+                other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
+                    entity=other_st.get('resource', ''), verb=other_st.get('verb', '')
+                )
+                st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
+                    entity=st.get('resource', ''), verb=st.get('verb', '')
+                )
+
+                logger.debug(
+                    f'Checking potential overlap(1) between "{st_permissions}" and "{other_permissions}" for statements "{st["policy_name"]}:{statement_text}" and "{other_st["policy_name"]}:{other_st["statement_text"]}"'
+                )
+                # If either list is empty, assume we haven't mapped these resources yet, so compare resource itself
+                if not other_permissions or not st_permissions:
+                    if other_st.get('resource', '').lower() != st.get('resource', '').lower():
+                        continue
+                    logger.debug(
+                        f'Potential Overlap (resource) based on resource name match: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
+                    )
+                    reason = (
+                        f'Exact match on resource name ({st["resource"]}), subject_type, and at least one subject, '
+                        f'with broader effective compartment in other policy ({other_st["effective_path"]})'
+                    )
+                    perm_overlap = ['Resource:' + st.get('resource', '')]
+                else:
+                    # The repo can find the overlaps - will be a list of permissions that overlap
+                    perm_overlap = permission_reference_repo.check_overlap(st_permissions, other_permissions)
+                    if len(perm_overlap) == 0:
+                        continue
+                    # Permission overlap found
+                    reason = (
+                        f'Permission Overlap between resource {st["resource"]} '
+                        f'and {other_st["resource"]}, subject_type, and at least one subject, '
+                        f'with broader effective compartment in other policy ({other_st["effective_path"]})'
+                    )
+                    logger.debug(
+                        f'Permission Overlap (permission) Check between "{st_permissions}" and "{other_permissions}": {perm_overlap}'
+                    )
+
+                # Now check subjects for overlap - each statement has a list of multiple subjects that are tuples (domain,subject)
+                st_subjects = st.get('subject', [])
+                other_subjects = other_st.get('subject', [])
+                subject_overlap = False
+                for st_subj in st_subjects:
+                    for other_subj in other_subjects:
+                        if (st_subj[0] or '').lower() == (other_subj[0] or '').lower() and st_subj[
+                            1
+                        ].lower() == other_subj[1].lower():
+                            subject_overlap = True
+                            break
+                    if subject_overlap:
+                        break
+                if not subject_overlap:
+                    continue
+                logger.debug(
+                    f'Potential Overlap: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
+                )
+                # Now we have a potential overlap
+                # Confidence level is lower if there is a where clause in either statement
+                confidence = 'high'
+                if st.get('conditions') or other_st.get('conditions'):
+                    logger.debug(
+                        f'Policy Overlap detected with WHERE clause: Statement "{statement_text}" in policy {st["policy_name"]} '
+                        f'is potentially superseded by statement {other_st["statement_text"]} in policy {other_st["policy_name"]}'
+                    )
+                    confidence = 'medium'
+                    additional_notes = (
+                        'Runtime where clause(s) present in one or both statements may affect actual overlap.'
+                    )
+
+                policy_overlap.append(
+                    PolicyOverlap(
+                        superseded_by=other_st['policy_name'],
+                        confidence=confidence,
+                        reason=reason,
+                        statement_text=other_st['statement_text'],
+                        internal_id=other_st['internal_id'],
+                        permission_overlap=perm_overlap,
+                        additional_notes=additional_notes if 'additional_notes' in locals() else '',
+                    )
+                )
+            if len(policy_overlap) > 0:
+                st['policy_overlap'] = policy_overlap
+                logger.debug(
+                    f'Policy Overlap(s) found for statement "{statement_text}" in policy {st["policy_name"]}: {len(policy_overlap)}'
+                )
+        end_time = time.perf_counter()
+        logger.info(
+            f'Initialized policy_overlap lists for {len(self.regular_statements)} statements in {end_time - start_time:.2f} seconds'
+        )
+
     # Not in use
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
@@ -1646,341 +1793,3 @@ class PolicyAnalysisRepository:
 
     def _get_domains(self) -> list:
         return [{'id': d.id, 'display_name': d.display_name, 'url': d.url} for d in self.identity_domains]
-
-
-class AI:
-    """AI Module for OCI Policy Analysis
-
-    Contains all of the available GenAI calls that can be made to obtain additional context.
-
-    Attributes:
-        genai_client: The OCI GenAI Client.
-        genai_inference_client: The OCI GenAI Inference Client
-    """
-
-    def __init__(self):
-        """Initialize OCI GenAI client and constants."""
-        logger.info('Initialized AI Module')
-
-        # Mark not initialized
-        self.initialized = False
-
-    def initialize_client(self, use_instance_principal: bool, profile: str = 'DEFAULT') -> bool:
-        try:
-            if use_instance_principal:
-                logger.debug('Using Instance Principal Authentication for AI')
-                self.signer = InstancePrincipalsSecurityTokenSigner()
-                self.genai_client = GenerativeAiClient(config={}, signer=self.signer)
-                self.genai_inference_client = GenerativeAiInferenceClient(config={}, signer=self.signer)
-                self.tenancy_ocid = self.signer.tenancy_id
-                self.region = self.signer.region
-            else:
-                logger.debug(f'Using Profile Authentication for AI: {profile}')
-                self.config = config.from_file(profile_name=profile)
-                self.genai_client = GenerativeAiClient(self.config)
-                self.genai_inference_client = GenerativeAiInferenceClient(self.config)
-                self.tenancy_ocid = self.config['tenancy']
-                self.region = self.config['region']
-            logger.info(f'Set up GenAI and Inference Client for tenancy: {self.tenancy_ocid}')
-
-            # Set up base endpoint
-            self.base_endpoint = f'https://inference.generativeai.{self.region}.oci.oraclecloud.com'
-            self.initialized = True
-            return True
-        except (ConfigFileNotFound, Exception) as exc:
-            logger.fatal(f'Authentication failed: {exc}')
-            return False
-
-    def update_config(self, model_ocid, endpoint, compartment_ocid):
-        """Update Model ID and Endpoint, reinitializing client if endpoint changes."""
-        logger.info(
-            f'Updating AI config: Model OCID:{model_ocid}, Endpoint:{endpoint}, Compartment: {compartment_ocid}'
-        )
-        self.model_ocid = model_ocid
-        self.endpoint = endpoint
-        self.compartment_ocid = compartment_ocid
-
-    def create_chat_request(self, prompt):
-        # Create Chat Details
-        chat_detail = ChatDetails()
-        chat_detail.serving_mode = OnDemandServingMode(model_id=self.model_ocid)
-
-        content = TextContent()
-        content.text = prompt
-
-        chat_request = GenericChatRequest()
-        chat_request.api_format = BaseChatRequest.API_FORMAT_GENERIC
-        chat_request.messages = [Message(role='USER', content=[content])]
-        chat_request.max_tokens = 1500
-        chat_request.temperature = 0
-        chat_request.top_p = 0.25
-        chat_request.top_k = 0
-
-        chat_detail.chat_request = chat_request
-        chat_detail.compartment_id = self.compartment_ocid
-        logger.info(f'Created Chat Request with prompt: {prompt}')
-        logger.debug(f'Created Chat: {chat_detail}')
-        return chat_detail
-
-    def list_models(self) -> list[dict]:
-        """List available models using GenerativeAiClient.list_models."""
-        logger.info('Listing available models')
-        try:
-            # Try to list models from tenancy
-            response = self.genai_client.list_models(compartment_id=self.tenancy_ocid)
-            models = [
-                {
-                    'Model Name': model.display_name or 'Unknown',
-                    'Model OCID': model.id,
-                    'Lifecycle State': model.lifecycle_state or 'N/A',
-                    'Creation Date': model.time_created.isoformat() if model.time_created else 'N/A',
-                }
-                for model in response.data.items
-            ]
-            # for model in models:
-            #     self.model_name_cache[model['id']] = model['display_name']
-            logger.info('Retrieved %d models from list_models', len(models))
-            return models
-        except ServiceError as e:
-            logger.error('Service error listing models: %s', e)
-            raise
-        except Exception as e:
-            logger.error('Error listing models: %s', e)
-            raise
-
-    async def analyze_policy_statement(  # noqa: C901
-        self, policy_text: str, queue: queue.Queue = None, additional_instruction: str = ''
-    ):  # noqa: C901
-        """Call OCI GenAI to analyze an OCI IAM policy statement, using cache if available.
-
-        Given an OCI Policy Statement, analyze using AI. Put the results on a Queue that if provided.
-        Otherwise, return the data directly as Markdown.
-
-        Args:
-            policy_text: The OCI Policy statement string to analyze
-            queue: An initialized Queue object, on which to put the response.  None if you expect a reply directly
-            additional_instruction: An optional line of additional instruction for the AI Prompt.
-
-        Returns:
-            The result in markdown, if a queue was not provided.
-        """
-        logger.info('Analyzing policy statement: %s', policy_text)
-
-        start_time = time.perf_counter()
-        logger.info(f'Calling OCI GenAI for policy analysis: {policy_text}')
-        prompt = (
-            f"Describe OCI Policy permission '{policy_text}' in detail, including what it allows, typical use cases, and any important considerations. "
-            'Format the response in GFM markdown with clear sections using the 3rd level ### header For each section. '
-            'Avoid empty lines in lists and ensure all content is concise and relevant. '
-            'Use unordered lists (- item) for permissions and use cases, ensuring each list item has meaningful content and no empty items. '
-            'Give the original policy statement back in a fenced code block '
-            "Include a direct documentation link if available under a 'Documentation' section. "
-            f'{additional_instruction} '
-        )
-        chat_detail = self.create_chat_request(prompt=prompt)
-        # Make the request
-        try:
-            response = self.genai_inference_client.chat(chat_detail)
-            raw_content = response.data.chat_response.choices[0].message.content
-
-            logger.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
-
-            # Process result
-            if isinstance(raw_content, list):
-                logger.debug('Raw content is a list with length %d', len(raw_content))
-                if len(raw_content) > 0:
-                    first_item = raw_content[0]
-                    logger.debug('First item type: %s', type(first_item))
-                    if hasattr(first_item, 'text'):
-                        result = first_item.text
-                        logger.debug(f"Extracted 'text' attribute from first item: {policy_text} = {result[:100]}")
-                    elif isinstance(first_item, dict) and 'text' in first_item:
-                        result = first_item['text']
-                        logger.debug("Extracted 'text' key from first dict: %s", result[:100])
-                    else:
-                        logger.debug(
-                            "First item lacks 'text' attribute or key, using str(first_item) as fallback: %s",
-                            str(first_item)[:100],
-                        )
-                        result = str(first_item)
-                else:
-                    logger.debug(
-                        'List response is empty, using str(raw_content) as fallback: %s', str(raw_content)[:100]
-                    )
-                    result = str(raw_content)
-            elif isinstance(raw_content, str):
-                try:
-                    parsed_content = json.loads(raw_content)
-                    logger.debug(
-                        'Parsed JSON content type: %s, content: %s', type(parsed_content), str(parsed_content)[:1000]
-                    )
-                    if isinstance(parsed_content, dict) and 'text' in parsed_content:
-                        result = parsed_content['text']
-                        logger.debug("Extracted 'text' field from JSON: %s", result[:100])
-                    elif isinstance(parsed_content, list) and len(parsed_content) > 0:
-                        first_item = parsed_content[0]
-                        if isinstance(first_item, dict) and 'text' in first_item:
-                            result = first_item['text']
-                            logger.debug("Extracted 'text' field from JSON list: %s", result[:100])
-                        else:
-                            logger.debug(
-                                "No 'text' field in JSON list, using raw content as fallback: %s", raw_content[:100]
-                            )
-                            result = raw_content
-                    else:
-                        result = raw_content
-                        logger.debug('Treating raw content as plain string: %s', result[:100])
-                except json.JSONDecodeError:
-                    result = raw_content
-                    logger.debug('Raw content is not JSON, using as-is: %s', result[:100])
-            elif isinstance(raw_content, dict):
-                logger.debug('Raw content is dict: %s', str(raw_content)[:1000])
-                if 'text' in raw_content:
-                    result = raw_content['text']
-                    logger.debug("Extracted 'text' field from dict: %s", result[:100])
-                else:
-                    logger.debug(
-                        "Dictionary response lacks 'text' field, using str(raw_content) as fallback: %s",
-                        str(raw_content)[:100],
-                    )
-                    result = str(raw_content)
-            else:
-                logger.error('Unexpected response format: %s', type(raw_content))
-                result = f'Error: Unexpected API response format: {type(raw_content)}'
-
-            if not isinstance(result, str):
-                logger.error('Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000])
-                result = f'Error: Extracted content is not a string: {type(result)}'
-
-            logger.debug('Final result type: %s, content: %s', type(result), result[:100])
-
-        except ServiceError as e:
-            if e.status == 404:
-                logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
-                result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has \
-<code>allow group PolicyUsers to use generative-ai in tenancy</code><br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if self.verbose else ""}<p>'
-
-            else:
-                logger.error('Error calling OCI GenAI for policy analysis: %s', e)
-                result = f'Error calling OCI GenAI: {str(e)}'
-        except Exception as e:
-            logger.error('Error calling OCI GenAI for policy analysis: %s', e)
-            result = f'Error calling OCI GenAI: {str(e)}'
-        finally:
-            logger.info('Completed policy analysis in %s seconds', (time.perf_counter() - start_time))
-
-        # Put on queue if it is there or return the result
-        if queue:
-            queue.put(result)
-        else:
-            return result
-
-    async def test_ai_call(self, query: str, queue: queue.Queue, additional_instruction: str = ''):  # noqa: C901
-        """Call OCI GenAI to test AI functionality. Put the results on a Queue that is provided"""
-        logger.info(f'Given Prompt: {query}, Additional Instruction: {additional_instruction}')
-
-        start_time = time.perf_counter()
-        prompt = (
-            f'{query} '
-            f'{additional_instruction} '
-            'return strict markdown format with no empty lines.'
-            'markdown should include sections with headers (##) and unordered lists (* item).'
-            'return a web link if relevant.'
-        )
-        chat_detail = self.create_chat_request(prompt=prompt)
-        # Make the request
-        try:
-            response = self.genai_inference_client.chat(chat_detail)
-            raw_content = response.data.chat_response.choices[0].message.content
-
-            logger.debug('Raw API response type: %s, content: %s', type(raw_content), str(raw_content)[:1000])
-
-            # Process result
-            if isinstance(raw_content, list):
-                logger.debug('Raw content is a list with length %d', len(raw_content))
-                if len(raw_content) > 0:
-                    first_item = raw_content[0]
-                    logger.debug('First item type: %s', type(first_item))
-                    if hasattr(first_item, 'text'):
-                        result = first_item.text
-                        logger.debug(f"Extracted 'text' attribute from first item: {result[:100]}")
-                    elif isinstance(first_item, dict) and 'text' in first_item:
-                        result = first_item['text']
-                        logger.debug("Extracted 'text' key from first dict: %s", result[:100])
-                    else:
-                        logger.debug(
-                            "First item lacks 'text' attribute or key, using str(first_item) as fallback: %s",
-                            str(first_item)[:100],
-                        )
-                        result = str(first_item)
-                else:
-                    logger.debug(
-                        'List response is empty, using str(raw_content) as fallback: %s', str(raw_content)[:100]
-                    )
-                    result = str(raw_content)
-            elif isinstance(raw_content, str):
-                try:
-                    parsed_content = json.loads(raw_content)
-                    logger.debug(
-                        'Parsed JSON content type: %s, content: %s', type(parsed_content), str(parsed_content)[:1000]
-                    )
-                    if isinstance(parsed_content, dict) and 'text' in parsed_content:
-                        result = parsed_content['text']
-                        logger.debug("Extracted 'text' field from JSON: %s", result[:100])
-                    elif isinstance(parsed_content, list) and len(parsed_content) > 0:
-                        first_item = parsed_content[0]
-                        if isinstance(first_item, dict) and 'text' in first_item:
-                            result = first_item['text']
-                            logger.debug("Extracted 'text' field from JSON list: %s", result[:100])
-                        else:
-                            logger.debug(
-                                "No 'text' field in JSON list, using raw content as fallback: %s", raw_content[:100]
-                            )
-                            result = raw_content
-                    else:
-                        result = raw_content
-                        logger.debug('Treating raw content as plain string: %s', result[:100])
-                except json.JSONDecodeError:
-                    result = raw_content
-                    logger.debug('Raw content is not JSON, using as-is: %s', result[:100])
-            elif isinstance(raw_content, dict):
-                logger.debug('Raw content is dict: %s', str(raw_content)[:1000])
-                if 'text' in raw_content:
-                    result = raw_content['text']
-                    logger.debug("Extracted 'text' field from dict: %s", result[:100])
-                else:
-                    logger.debug(
-                        "Dictionary response lacks 'text' field, using str(raw_content) as fallback: %s",
-                        str(raw_content)[:100],
-                    )
-                    result = str(raw_content)
-            else:
-                logger.error('Unexpected response format: %s', type(raw_content))
-                result = f'Error: Unexpected API response format: {type(raw_content)}'
-
-            if not isinstance(result, str):
-                logger.error('Extracted content is not a string: type=%s, content=%s', type(result), str(result)[:1000])
-                result = f'Error: Extracted content is not a string: {type(result)}'
-
-            logger.debug('Final result type: %s, content: %s', type(result), result[:100])
-
-            logger.info(f'Completed test call in {time.perf_counter() - start_time:.2f} seconds')
-
-        except ServiceError as e:
-            if e.status == 404:
-                logger.error('OCI GenAI returned 404 for policy analysis: %s', e)
-                result = f'<p>Error: Policy analysis failed (404) - likely this is a permission issue.  Make sure that the Profile API or Instance Principal user has access to use generative-ai in tenancy.<br/>If you enable DEBUG and run again, you will see the entire message below. <br/>{e if logger.level == logger.debug else ""}<p>'
-            else:
-                logger.error('Error calling OCI GenAI for policy analysis: %s', e)
-                result = f'Error calling OCI GenAI: {str(e)}'
-        except Exception as e:
-            logger.error('Error calling OCI GenAI for policy analysis: %s', e)
-            result = f'Error calling OCI GenAI: {str(e)}'
-        finally:
-            logger.info('Completed policy analysis (error) in %s seconds', (time.perf_counter() - start_time))
-
-        # Put on queue if it is there or return the result
-        if queue:
-            queue.put(result)
-        else:
-            return result

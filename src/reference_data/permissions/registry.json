@@ -1,0 +1,61 @@
+{
+    "resources": {
+        "repos": {
+            "verbs": {
+                "inspect": [
+                    "REPOSITORY_INSPECT"
+                ],
+                "read": [
+                    "REPOSITORY_READ"
+                ],
+                "use": [
+                    "REPOSITORY_PULL",
+                    "REPOSITORY_PUSH"
+                ],
+                "manage": [
+                    "REPOSITORY_CREATE",
+                    "REPOSITORY_DELETE",
+                    "REPOSITORY_UPDATE"
+                ]
+            }
+        },
+        "container-config": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "CONTAINER_CONFIGURATION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "CONTAINER_CONFIGURATION_UPDATE"
+                ]
+            }
+        },
+        "container-scans": {
+            "verbs": {
+                "inspect": [
+                    "SCAN_RECIPE_INSPECT"
+                ],
+                "read": [
+                    "SCAN_RESULT_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "SCAN_RECIPE_CREATE",
+                    "SCAN_RECIPE_DELETE",
+                    "SCAN_RECIPE_UPDATE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "container-registry-family": {
+            "resources": [
+                "repos",
+                "container-config",
+                "container-scans"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/registrypolicyreference.htm"
+        }
+    }
+}

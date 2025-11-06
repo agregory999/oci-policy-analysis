@@ -1,0 +1,1111 @@
+{
+  "resources": {
+    "db-systems": {
+      "verbs": {
+        "inspect": [
+          "DB_SYSTEM_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "DB_SYSTEM_UPDATE"
+        ],
+        "manage": [
+          "DB_SYSTEM_CREATE",
+          "DB_SYSTEM_DELETE"
+        ]
+      }
+    },
+    "db-nodes": {
+      "verbs": {
+        "inspect": [
+          "DB_NODE_INSPECT",
+          "DB_NODE_QUERY"
+        ],
+        "read": [],
+        "use": [
+          "DB_NODE_UPDATE"
+        ],
+        "manage": [
+          "DB_NODE_POWER_ACTIONS"
+        ]
+      }
+    },
+    "db-homes": {
+      "verbs": {
+        "inspect": [
+          "DB_HOME_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "DB_HOME_UPDATE"
+        ],
+        "manage": [
+          "DB_HOME_CREATE",
+          "DB_HOME_DELETE"
+        ]
+      }
+    },
+    "databases": {
+      "verbs": {
+        "inspect": [
+          "DATABASE_INSPECT"
+        ],
+        "read": [
+          "DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "DATABASE_CONTENT_WRITE",
+          "DATABASE_UPDATE"
+        ],
+        "manage": [
+          "DATABASE_CREATE",
+          "DATABASE_DELETE"
+        ]
+      }
+    },
+    "pluggable-databases": {
+      "verbs": {
+        "inspect": [
+          "PLUGGABLE_DATABASE_INSPECT",
+          "DATABASE_INSPECT"
+        ],
+        "read": [
+          "PLUGGABLE_DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "PLUGGABLE_DATABASE_CONTENT_WRITE",
+          "PLUGGABLE_DATABASE_UPDATE",
+          "DATABASE_UPDATE"
+        ],
+        "manage": [
+          "PLUGGABLE_DATABASE_CREATE",
+          "PLUGGABLE_DATABASE_DELETE"
+        ]
+      }
+    },
+    "db-backups": {
+      "verbs": {
+        "inspect": [
+          "DB_BACKUP_INSPECT"
+        ],
+        "read": [
+          "DB_BACKUP_CONTENT_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DB_BACKUP_CREATE",
+          "DB_BACKUP_DELETE"
+        ]
+      }
+    },
+    "dbmgmt-jobs": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_JOB_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_JOB_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DBMGMT_JOB_CREATE",
+          "DBMGMT_JOB_DELETE",
+          "DBMGMT_JOB_MOVE",
+          "DBMGMT_JOB_UPDATE"
+        ]
+      }
+    },
+    "dbmgmt-managed-database-groups": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_MANAGED_DB_GROUP_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_MANAGED_DB_GROUP_READ"
+        ],
+        "use": [
+          "DBMGMT_MANAGED_DB_GROUP_DB_CONTENT_READ",
+          "DBMGMT_MANAGED_DB_GROUP_DB_CONTENT_WRITE",
+          "DBMGMT_MANAGED_DB_GROUP_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_MANAGED_DB_GROUP_ADD_DATABASE",
+          "DBMGMT_MANAGED_DB_GROUP_CREATE",
+          "DBMGMT_MANAGED_DB_GROUP_DELETE",
+          "DBMGMT_MANAGED_DB_GROUP_MOVE",
+          "DBMGMT_MANAGED_DB_GROUP_REMOVE_DATABASE"
+        ]
+      }
+    },
+    "dbmgmt-managed-databases": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_MANAGED_DB_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_MANAGED_DB_READ"
+        ],
+        "use": [
+          "DBMGMT_MANAGED_DB_CONTENT_READ",
+          "DBMGMT_MANAGED_DB_CONTENT_WRITE",
+          "DBMGMT_MANAGED_DB_UPDATE"
+        ],
+        "manage": []
+      }
+    },
+    "dbmgmt-private-endpoints": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_PRIVATE_ENDPOINT_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_PRIVATE_ENDPOINT_READ"
+        ],
+        "use": [
+          "DBMGMT_PRIVATE_ENDPOINT_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_PRIVATE_ENDPOINT_CREATE",
+          "DBMGMT_PRIVATE_ENDPOINT_DELETE",
+          "DBMGMT_PRIVATE_ENDPOINT_MOVE"
+        ]
+      }
+    },
+    "dbmgmt-work-requests": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DBMGMT_WORK_REQUEST_USE"
+        ]
+      }
+    },
+    "dbmgmt-external-dbsystem-discoveries": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_DISCOVERY_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_DISCOVERY_READ"
+        ],
+        "use": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_DISCOVERY_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_DISCOVERY_CREATE",
+          "DBMGMT_EXTERNAL_DBSYSTEM_DISCOVERY_DELETE"
+        ]
+      }
+    },
+    "dbmgmt-external-dbsystems": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_READ"
+        ],
+        "use": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_UPDATE",
+          "DBMGMT_EXTERNAL_DBSYSTEM_CONTENT_READ",
+          "DBMGMT_EXTERNAL_DBSYSTEM_CONTENT_WRITE"
+        ],
+        "manage": [
+          "DBMGMT_EXTERNAL_DBSYSTEM_CREATE",
+          "DBMGMT_EXTERNAL_DBSYSTEM_DELETE",
+          "DBMGMT_EXTERNAL_DBSYSTEM_MOVE"
+        ]
+      }
+    },
+    "dbmgmt-cloud-dbsystem-discoveries": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_CLOUD_DBSYSTEM_DISCOVERY_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_CLOUD_DBSYSTEM_DISCOVERY_READ"
+        ],
+        "use": [
+          "DBMGMT_CLOUD_DBSYSTEM_DISCOVERY_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_CLOUD_DBSYSTEM_DISCOVERY_CREATE",
+          "DBMGMT_CLOUD_DBSYSTEM_DISCOVERY_DELETE"
+        ]
+      }
+    },
+    "dbmgmt-cloud-dbsystems": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_CLOUD_DBSYSTEM_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_CLOUD_DBSYSTEM_READ"
+        ],
+        "use": [
+          "DBMGMT_CLOUD_DBSYSTEM_CONTENT_READ",
+          "DBMGMT_CLOUD_DBSYSTEM_CONTENT_WRITE",
+          "DBMGMT_CLOUD_DBSYSTEM_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_CLOUD_DBSYSTEM_CREATE",
+          "DBMGMT_CLOUD_DBSYSTEM_DELETE",
+          "DBMGMT_CLOUD_DBSYSTEM_MOVE"
+        ]
+      }
+    },
+    "dbmgmt-external-exadata": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_EXTERNAL_EXADATA_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_EXTERNAL_EXADATA_READ"
+        ],
+        "use": [
+          "DBMGMT_EXTERNAL_EXADATA_UPDATE",
+          "DBMGMT_EXTERNAL_EXADATA_CONTENT_READ",
+          "DBMGMT_EXTERNAL_EXADATA_CONTENT_WRITE"
+        ],
+        "manage": [
+          "DBMGMT_EXTERNAL_EXADATA_CREATE",
+          "DBMGMT_EXTERNAL_EXADATA_DELETE",
+          "DBMGMT_EXTERNAL_EXADATA_MOVE"
+        ]
+      }
+    },
+    "dbmgmt-named-credentials": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_NAMED_CREDENTIAL_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_NAMED_CREDENTIAL_READ"
+        ],
+        "use": [
+          "DBMGMT_NAMED_CREDENTIAL_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_NAMED_CREDENTIAL_CREATE",
+          "DBMGMT_NAMED_CREDENTIAL_DELETE",
+          "DBMGMT_NAMED_CREDENTIAL_MOVE"
+        ]
+      }
+    },
+    "dbmgmt-dblm-vulnerability": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_DBLM_VUL_ASSESSMENT_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_DBLM_VUL_ASSESSMENT_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DBMGMT_DBLM_INGEST",
+          "DBMGMT_DBLM_VUL_ASSESSMENT_CREATE",
+          "DBMGMT_DBLM_VUL_ASSESSMENT_DELETE",
+          "DBMGMT_DBLM_VUL_ASSESSMENT_UPDATE"
+        ]
+      }
+    },
+    "dbmgmt-dblm-workrequest": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_DBLM_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_DBLM_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "dbmgmt-dblm-patch-mgmt": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_CREATE",
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_DELETE",
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_MOVE",
+          "DBMGMT_DBLM_PATCH_MANAGEMENT_UPDATE"
+        ]
+      }
+    },
+    "dbmgmt-dblm-patch-operations": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_DBLM_PATCH_OPERATION_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_DBLM_PATCH_OPERATION_READ"
+        ],
+        "use": [],
+        "manage": [
+          "DBMGMT_DBLM_INGEST",
+          "DBMGMT_DBLM_PATCH_OPERATION_CREATE",
+          "DBMGMT_DBLM_PATCH_OPERATION_DELETE",
+          "DBMGMT_DBLM_PATCH_OPERATION_MOVE",
+          "DBMGMT_DBLM_PATCH_OPERATION_UPDATE"
+        ]
+      }
+    },
+    "dbmgmt-sqlwatch-fleet": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_SPA_FLEET_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_SPA_FLEET_READ",
+          "DBMGMT_SPA_FLEET_DB_READ"
+        ],
+        "use": [
+          "DBMGMT_SPA_FLEET_DB_COMPARISON_UPDATE"
+        ],
+        "manage": [
+          "DBMGMT_SPA_FLEET_DB_COMPARISON_CREATE",
+          "DBMGMT_SPA_FLEET_DB_COMPARISON_DELETE"
+        ]
+      }
+    },
+    "dbmgmt-sqlwatch-spa": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_SPA_TASK_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_SPA_TASK_READ",
+          "DBMGMT_SPA_TASK_TRIAL_READ",
+          "DBMGMT_SPA_TASK_COMPARISON_READ"
+        ],
+        "use": [
+          "DBMGMT_SPA_TASK_UPDATE",
+          "DBMGMT_SPA_TASK_INTERRUPT",
+          "DBMGMT_SPA_TASK_COMPLETE",
+          "DBMGMT_SPA_TASK_RESUME"
+        ],
+        "manage": [
+          "DBMGMT_SPA_TASK_CREATE",
+          "DBMGMT_SPA_TASK_DELETE",
+          "DBMGMT_SPA_TASK_TRIAL_CREATE",
+          "DBMGMT_SPA_TASK_TRIAL_DELETE",
+          "DBMGMT_SPA_TASK_COMPARISON_CREATE",
+          "DBMGMT_SPA_TASK_COMPARISON_DELETE",
+          "DBMGMT_SPA_TASK_PUBLISH_SQL_RESULT"
+        ]
+      }
+    },
+    "dbmgmt-managed-mysql-databases": {
+      "verbs": {
+        "inspect": [
+          "DBMGMT_MANAGED_MYSQL_DB_INSPECT"
+        ],
+        "read": [
+          "DBMGMT_MANAGED_MYSQL_DB_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "autonomous-databases": {
+      "verbs": {
+        "inspect": [
+          "AUTONOMOUS_DATABASE_INSPECT"
+        ],
+        "read": [
+          "AUTONOMOUS_DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "AUTONOMOUS_DATABASE_CONTENT_WRITE",
+          "AUTONOMOUS_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "AUTONOMOUS_DATABASE_CREATE",
+          "AUTONOMOUS_DATABASE_DELETE",
+          "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS"
+        ]
+      }
+    },
+    "autonomous-backups": {
+      "verbs": {
+        "inspect": [
+          "AUTONOMOUS_DB_BACKUP_INSPECT"
+        ],
+        "read": [
+          "AUTONOMOUS_DB_BACKUP_CONTENT_READ"
+        ],
+        "use": [],
+        "manage": [
+          "AUTONOMOUS_DB_BACKUP_CREATE",
+          "AUTONOMOUS_DB_BACKUP_DELETE"
+        ]
+      }
+    },
+    "autonomous-container-databases": {
+      "verbs": {
+        "inspect": [
+          "AUTONOMOUS_CONTAINER_DATABASE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "AUTONOMOUS_CONTAINER_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "AUTONOMOUS_CONTAINER_DATABASE_CREATE",
+          "AUTONOMOUS_CONTAINER_DATABASE_DELETE"
+        ]
+      }
+    },
+    "cloud-autonomous-vmclusters": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_AUTONOMOUS_VM_CLUSTER_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_AUTONOMOUS_VM_CLUSTER_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_AUTONOMOUS_VM_CLUSTER_CREATE",
+          "CLOUD_AUTONOMOUS_VM_CLUSTER_DELETE"
+        ]
+      }
+    },
+    "autonomous-vmclusters": {
+      "verbs": {
+        "inspect": [
+          "AUTONOMOUS_VM_CLUSTER_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "AUTONOMOUS_VM_CLUSTER_UPDATE"
+        ],
+        "manage": [
+          "AUTONOMOUS_VM_CLUSTER_CREATE",
+          "AUTONOMOUS_VM_CLUSTER_DELETE"
+        ]
+      }
+    },
+    "autonomous-virtual-machine": {
+      "verbs": {
+        "inspect": [
+          "AUTONOMOUS_VIRTUAL_MACHINE_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": []
+      }
+    },
+    "data-guard-association": {
+      "verbs": {
+        "inspect": [
+          "DATABASE_INSPECT"
+        ],
+        "read": [
+          "DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "DATABASE_UPDATE",
+          "VM_CLUSTER_UPDATE",
+          "DB_HOME_UPDATE"
+        ],
+        "manage": [
+          "DATABASE_DELETE"
+        ]
+      }
+    },
+    "database-software-image": {
+      "verbs": {
+        "inspect": [
+          "DB_SOFTWARE_IMG_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "DB_SOFTWARE_IMG_UPDATE"
+        ],
+        "manage": [
+          "DB_SOFTWARE_IMG_CREATE",
+          "DB_SOFTWARE_IMG_DELETE"
+        ]
+      }
+    },
+    "exadb-vm-clusters": {
+      "verbs": {
+        "inspect": [
+          "EXADB_VM_CLUSTER_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "EXADB_VM_CLUSTER_UPDATE"
+        ],
+        "manage": [
+          "EXADB_VM_CLUSTER_CREATE",
+          "EXADB_VM_CLUSTER_DELETE"
+        ]
+      }
+    },
+    "exascale-db-storage-vaults": {
+      "verbs": {
+        "inspect": [
+          "EXASCALE_DB_STORAGE_VAULT_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "EXASCALE_DB_STORAGE_VAULT_UPDATE"
+        ],
+        "manage": [
+          "EXASCALE_DB_STORAGE_VAULT_CREATE",
+          "EXASCALE_DB_STORAGE_VAULT_DELETE"
+        ]
+      }
+    },
+    "key-stores": {
+      "verbs": {
+        "inspect": [
+          "KEY_STORE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "KEY_STORE_UPDATE"
+        ],
+        "manage": [
+          "KEY_STORE_CREATE",
+          "KEY_STORE_DELETE"
+        ]
+      }
+    },
+    "external-container-databases": {
+      "verbs": {
+        "inspect": [
+          "EXTERNAL_CONTAINER_DATABASE_INSPECT"
+        ],
+        "read": [
+          "EXTERNAL_CONTAINER_DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "EXTERNAL_CONTAINER_DATABASE_CONTENT_WRITE",
+          "EXTERNAL_CONTAINER_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "EXTERNAL_CONTAINER_DATABASE_CREATE",
+          "EXTERNAL_CONTAINER_DATABASE_DELETE"
+        ]
+      }
+    },
+    "external-pluggable-databases": {
+      "verbs": {
+        "inspect": [
+          "EXTERNAL_PLUGGABLE_DATABASE_INSPECT"
+        ],
+        "read": [
+          "EXTERNAL_PLUGGABLE_DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "EXTERNAL_PLUGGABLE_DATABASE_CONTENT_WRITE",
+          "EXTERNAL_PLUGGABLE_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "EXTERNAL_PLUGGABLE_DATABASE_CREATE",
+          "EXTERNAL_PLUGGABLE_DATABASE_DELETE"
+        ]
+      }
+    },
+    "external-non-container-databases": {
+      "verbs": {
+        "inspect": [
+          "EXTERNAL_NON_CONTAINER_DATABASE_INSPECT"
+        ],
+        "read": [
+          "EXTERNAL_NON_CONTAINER_DATABASE_CONTENT_READ"
+        ],
+        "use": [
+          "EXTERNAL_NON_CONTAINER_DATABASE_CONTENT_WRITE",
+          "EXTERNAL_NON_CONTAINER_DATABASE_UPDATE"
+        ],
+        "manage": [
+          "EXTERNAL_NON_CONTAINER_DATABASE_CREATE",
+          "EXTERNAL_NON_CONTAINER_DATABASE_DELETE"
+        ]
+      }
+    },
+    "external-database-connectors": {
+      "verbs": {
+        "inspect": [
+          "EXTERNAL_DATABASE_CONNECTOR_INSPECT"
+        ],
+        "read": [
+          "EXTERNAL_DATABASE_CONNECTOR_CONTENT_READ"
+        ],
+        "use": [
+          "EXTERNAL_DATABASE_CONNECTOR_CONTENT_WRITE",
+          "EXTERNAL_DATABASE_CONNECTOR_UPDATE"
+        ],
+        "manage": [
+          "EXTERNAL_DATABASE_CONNECTOR_CREATE",
+          "EXTERNAL_DATABASE_CONNECTOR_DELETE"
+        ]
+      }
+    },
+    "cloud-exadata-infrastructures": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_CREATE",
+          "CLOUD_EXADATA_INFRASTRUCTURE_DELETE"
+        ]
+      }
+    },
+    "cloud-vmclusters": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_VM_CLUSTER_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_VM_CLUSTER_UPDATE",
+          "CLOUD_VM_CLUSTER_UPDATE_TAGS",
+          "CLOUD_VM_CLUSTER_UPDATE_COMPARTMENT",
+          "CLOUD_VM_CLUSTER_UPDATE_SSH_KEY",
+          "CLOUD_VM_CLUSTER_UPDATE_LICENSE",
+          "CLOUD_VM_CLUSTER_UPDATE_CPU",
+          "CLOUD_VM_CLUSTER_UPDATE_MEMORY",
+          "CLOUD_VM_CLUSTER_UPDATE_LOCAL_STORAGE",
+          "CLOUD_VM_CLUSTER_UPDATE_EXADATA_STORAGE",
+          "CLOUD_VM_CLUSTER_UPDATE_GI_SOFTWARE",
+          "CLOUD_VM_CLUSTER_UPDATE_GUEST_OS_SOFTWARE",
+          "CLOUD_VM_CLUSTER_UPDATE_FILE_SYSTEM",
+          "CLOUD_VM_CLUSTER_UPDATE_DIAGNOSTIC_LOGS",
+          "CLOUD_VM_CLUSTER_UPDATE_IORM"
+        ],
+        "manage": [
+          "CLOUD_VM_CLUSTER_CREATE",
+          "CLOUD_VM_CLUSTER_DELETE"
+        ]
+      }
+    },
+    "dbnode-console-connection": {
+      "verbs": {
+        "inspect": [
+          "DBNODE_CONSOLE_CONNECTION_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "DBNODE_CONSOLE_CONNECTION_UPDATE"
+        ],
+        "manage": [
+          "DBNODE_CONSOLE_CONNECTION_CREATE",
+          "DBNODE_CONSOLE_CONNECTION_DELETE"
+        ]
+      }
+    },
+    "dbnode-console-history": {
+      "verbs": {
+        "inspect": [
+          "DBNODE_CONSOLE_HISTORY_INSPECT"
+        ],
+        "read": [
+          "DBNODE_CONSOLE_HISTORY_CONTENT_READ"
+        ],
+        "use": [
+          "DBNODE_CONSOLE_HISTORY_UPDATE"
+        ],
+        "manage": [
+          "DBNODE_CONSOLE_HISTORY_CREATE",
+          "DBNODE_CONSOLE_HISTORY_DELETE"
+        ]
+      }
+    },
+    "application-vips": {
+      "verbs": {
+        "inspect": [
+          "APPLICATION_VIP_INSPECT"
+        ],
+        "read": [],
+        "use": [],
+        "manage": [
+          "APPLICATION_VIP_CREATE",
+          "APPLICATION_VIP_DELETE"
+        ]
+      }
+    },
+    "scheduling-policies": {
+      "verbs": {
+        "inspect": [
+          "SCHEDULING_POLICY_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "SCHEDULING_POLICY_UPDATE"
+        ],
+        "manage": [
+          "SCHEDULING_POLICY_CREATE",
+          "SCHEDULING_POLICY_DELETE"
+        ]
+      }
+    },
+    "scheduling-windows": {
+      "verbs": {
+        "inspect": [
+          "SCHEDULING_WINDOW_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "SCHEDULING_WINDOW_UPDATE"
+        ],
+        "manage": [
+          "SCHEDULING_WINDOW_CREATE",
+          "SCHEDULING_WINDOW_DELETE"
+        ]
+      }
+    },
+    "scheduling-plan": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_CREATE",
+          "CLOUD_EXADATA_INFRASTRUCTURE_DELETE"
+        ]
+      }
+    },
+    "scheduled-action": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_CREATE",
+          "CLOUD_EXADATA_INFRASTRUCTURE_DELETE"
+        ]
+      }
+    },
+    "execution-windows": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_CREATE",
+          "CLOUD_EXADATA_INFRASTRUCTURE_DELETE"
+        ]
+      }
+    },
+    "execution-action": {
+      "verbs": {
+        "inspect": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_INSPECT"
+        ],
+        "read": [],
+        "use": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_UPDATE"
+        ],
+        "manage": [
+          "CLOUD_EXADATA_INFRASTRUCTURE_CREATE",
+          "CLOUD_EXADATA_INFRASTRUCTURE_DELETE"
+        ]
+      }
+    },
+    "oracle-db-azure-connectors": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_CONNECTOR_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_CONNECTOR_READ"
+        ],
+        "use": [
+          "ORACLE_DB_AZURE_CONNECTOR_UPDATE"
+        ],
+        "manage": [
+          "ORACLE_DB_AZURE_CONNECTOR_CREATE",
+          "ORACLE_DB_AZURE_CONNECTOR_MOVE",
+          "ORACLE_DB_AZURE_CONNECTOR_DELETE"
+        ]
+      }
+    },
+    "oracle-db-azure-blob-mounts": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_BLOB_MOUNT_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_BLOB_MOUNT_READ"
+        ],
+        "use": [
+          "ORACLE_DB_AZURE_BLOB_MOUNT_UPDATE"
+        ],
+        "manage": [
+          "ORACLE_DB_AZURE_BLOB_MOUNT_CREATE",
+          "ORACLE_DB_AZURE_BLOB_MOUNT_MOVE",
+          "ORACLE_DB_AZURE_BLOB_MOUNT_DELETE"
+        ]
+      }
+    },
+    "oracle-db-azure-blob-containers": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_READ"
+        ],
+        "use": [
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_UPDATE"
+        ],
+        "manage": [
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_CREATE",
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_MOVE",
+          "ORACLE_DB_AZURE_BLOB_CONTAINER_DELETE"
+        ]
+      }
+    },
+    "oracle-db-mci-work-requests": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_MULTI_CLOUD_WORK_REQUEST_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_MULTI_CLOUD_WORK_REQUEST_READ"
+        ],
+        "use": [],
+        "manage": [
+          "ORACLE_DB_MULTI_CLOUD_WORK_REQUEST_CANCEL"
+        ]
+      }
+    },
+    "multi-cloud-resource-discoveries": {
+      "verbs": {
+        "inspect": [
+          "MULTICLOUD_DISCOVERY_INSPECT"
+        ],
+        "read": [
+          "MULTICLOUD_DISCOVERY_READ"
+        ],
+        "use": [
+          "MULTICLOUD_DISCOVERY_UPDATE"
+        ],
+        "manage": [
+          "MULTICLOUD_DISCOVERY_CREATE",
+          "MULTICLOUD_DISCOVERY_MOVE",
+          "MULTICLOUD_DISCOVERY_DELETE"
+        ]
+      }
+    },
+    "oracle-db-azure-vaults": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_VAULT_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_VAULT_READ"
+        ],
+        "use": [
+          "ORACLE_DB_AZURE_VAULT_UPDATE",
+          "ORACLE_DB_AZURE_VAULT_REFRESH"
+        ],
+        "manage": [
+          "ORACLE_DB_AZURE_VAULT_CREATE",
+          "ORACLE_DB_AZURE_VAULT_MOVE",
+          "ORACLE_DB_AZURE_VAULT_DELETE"
+        ]
+      }
+    },
+    "oracle-db-azure-keys": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_KEY_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_KEY_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    },
+    "oracle-db-azure-vault-associations": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_AZURE_ASSOCIATION_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_AZURE_ASSOCIATION_READ"
+        ],
+        "use": [
+          "ORACLE_DB_AZURE_ASSOCIATION_UPDATE"
+        ],
+        "manage": [
+          "ORACLE_DB_AZURE_ASSOCIATION_CREATE",
+          "ORACLE_DB_AZURE_ASSOCIATION_MOVE",
+          "ORACLE_DB_AZURE_ASSOCIATION_DELETE"
+        ]
+      }
+    },
+    "oracle-db-gcp-connectors": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_READ"
+        ],
+        "use": [
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_UPDATE"
+        ],
+        "manage": [
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_CREATE",
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_MOVE",
+          "ORACLE_DB_GCP_IDENTITY_CONNECTOR_DELETE"
+        ]
+      }
+    },
+    "oracle-db-gcp-keyrings": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_GCP_KEY_RING_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_GCP_KEY_RING_READ"
+        ],
+        "use": [
+          "ORACLE_DB_GCP_KEY_RING_UPDATE",
+          "ORACLE_DB_GCP_KEY_RING_REFRESH"
+        ],
+        "manage": [
+          "ORACLE_DB_GCP_KEY_RING_CREATE",
+          "ORACLE_DB_GCP_KEY_RING_MOVE",
+          "ORACLE_DB_GCP_KEY_RING_DELETE"
+        ]
+      }
+    },
+    "oracle-db-gcp-keys": {
+      "verbs": {
+        "inspect": [
+          "ORACLE_DB_GCP_KEY_INSPECT"
+        ],
+        "read": [
+          "ORACLE_DB_GCP_KEY_READ"
+        ],
+        "use": [],
+        "manage": []
+      }
+    }
+  },
+  "families": {
+    "database-family": {
+      "resources": [
+        "db-systems",
+        "db-nodes",
+        "db-homes",
+        "databases",
+        "pluggable-databases",
+        "db-backups",
+        "data-guard-association",
+        "database-software-image",
+        "exadb-vm-clusters",
+        "exascale-db-storage-vaults",
+        "key-stores",
+        "cloud-exadata-infrastructures",
+        "cloud-vmclusters",
+        "dbnode-console-connection",
+        "dbnode-console-history",
+        "application-vips",
+        "scheduling-policies",
+        "scheduling-windows",
+        "scheduling-plan",
+        "scheduled-action",
+        "execution-windows",
+        "execution-action"
+      ],
+      "source_url": "https://docs.oracle.com/en/cloud/paas/base-database/iam-policy-details/index.html"
+    },
+    "db-management-family": {
+      "resources": [
+        "dbmgmt-jobs",
+        "dbmgmt-managed-database-groups",
+        "dbmgmt-managed-databases",
+        "dbmgmt-private-endpoints",
+        "dbmgmt-work-requests",
+        "dbmgmt-external-dbsystem-discoveries",
+        "dbmgmt-external-dbsystems",
+        "dbmgmt-cloud-dbsystem-discoveries",
+        "dbmgmt-cloud-dbsystems",
+        "dbmgmt-external-exadata",
+        "dbmgmt-named-credentials",
+        "dbmgmt-dblm-vulnerability",
+        "dbmgmt-dblm-workrequest",
+        "dbmgmt-dblm-patch-mgmt",
+        "dbmgmt-dblm-patch-operations",
+        "dbmgmt-sqlwatch-fleet",
+        "dbmgmt-sqlwatch-spa",
+        "dbmgmt-managed-mysql-databases"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/database-management/doc/policy-details-database-management.html"
+    },
+    "autonomous-database-family": {
+      "resources": [
+        "autonomous-databases",
+        "autonomous-backups",
+        "autonomous-container-databases",
+        "cloud-autonomous-vmclusters",
+        "autonomous-vmclusters",
+        "autonomous-virtual-machine"
+      ],
+      "source_url": "https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/adbdf/index.html"
+    },
+    "external-database-family": {
+      "resources": [
+        "external-container-databases",
+        "external-pluggable-databases",
+        "external-non-container-databases",
+        "external-database-connectors"
+      ],
+      "source_url": "https://docs.oracle.com/en-us/iaas/external-database/doc/policy-details-external-database.html"
+    },
+    "db-multi-cloud-family": {
+      "resources": [
+        "oracle-db-azure-connectors",
+        "oracle-db-azure-blob-mounts",
+        "oracle-db-azure-blob-containers",
+        "oracle-db-mci-work-requests",
+        "multi-cloud-resource-discoveries",
+        "oracle-db-azure-vaults",
+        "oracle-db-azure-keys",
+        "oracle-db-azure-vault-associations",
+        "oracle-db-gcp-connectors",
+        "oracle-db-gcp-keyrings",
+        "oracle-db-gcp-keys"
+      ],
+      "source_url": "https://docs.oracle.com/en/engineered-systems/exadata-cloud-service/ecscm/ecs-policy-details.html#GUID-A967AE72-E18C-40ED-A928-D865618E9B9E"
+    }
+  }
+}
