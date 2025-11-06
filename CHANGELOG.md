@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.4.1...v2.5.0) (2025-11-06)
+
+
+### Features
+
+* Policy overlap feature ([#13](https://github.com/agregory999/oci-policy-analysis/issues/13)) ([5fb9dd7](https://github.com/agregory999/oci-policy-analysis/commit/5fb9dd7197d3c9e257a796248bc193b3e09ef8fc))
+
 ## [2.4.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.4.0...v2.4.1) (2025-10-30)
 
 
