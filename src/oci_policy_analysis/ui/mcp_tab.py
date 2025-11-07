@@ -20,7 +20,7 @@ from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 import oci_policy_analysis.mcp_server as mcp_server
-from oci_policy_analysis.logger import get_logger, set_component_level
+from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.mcp_server import (
     mcp_server_status,
@@ -114,7 +114,7 @@ class McpTab(ttk.Frame):
 
         # Keep a reference so GC doesn't drop it
         self._mcp_ui_handler = ui_handler
-        logger.info('MCP tab handler attached to oci-policy-analysis.mcp, fastmcp, uvicorn.')
+        logger.info('MCP tab handler attached to oci-policy-analysis.mcp, oci-policy-analysis.mcp_server')
 
     def start_mcp(self):
         if self.server_running:

@@ -20,12 +20,15 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 
 # Dedicated UI handler (unfiltered, shows everything)
 class ConsoleTextHandler(logging.Handler):
-    """Thread-safe handler for Console tab (batched, no filter)."""
+    """
+    Thread-safe handler for Console tab (batched, no filter).
+    Appends log messages to a Tkinter Text widget.
+    """
 
     def __init__(self, text_widget: ScrolledText):
         super().__init__(level=logging.INFO)  # Force INFO and above
@@ -71,7 +74,10 @@ logger = get_logger('console_tab')
 
 
 class ConsoleTab(ttk.Frame):
-    """Console Tab: Show all logs (unfiltered) with controls."""
+    """
+    Console Tab: Show all logs (unfiltered) with control of log level.
+    Debug logs go to shell only. For this reason, the level selector excludes DEBUG.
+    """
 
     def __init__(self, parent, app):
         super().__init__(parent)

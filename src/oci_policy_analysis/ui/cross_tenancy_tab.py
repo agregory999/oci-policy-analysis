@@ -16,7 +16,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 # from logic.models import CrossTenancyPolicy, DefinedAlias
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository

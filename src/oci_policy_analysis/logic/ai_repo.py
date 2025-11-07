@@ -14,7 +14,6 @@
 # coding: utf-8
 ##########################################################################
 
-# Standard library imports
 import queue
 
 from oci import config
@@ -32,7 +31,7 @@ from oci.generative_ai_inference.models import (
 )
 from oci.signer import load_private_key_from_file
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 # Global logger for this module
 logger = get_logger(component='ai_repo')
@@ -56,6 +55,14 @@ class AI:
     def initialize_client(
         self, use_instance_principal: bool, session_token: str | None = None, profile: str = 'DEFAULT'
     ) -> bool:
+        """
+        Initialize OCI GenAI Client with authentication.
+        Args:
+            use_instance_principal (bool): Whether to use Instance Principal authentication.
+            session_token (str | None): Session token profile name for authentication.
+            profile (str): Profile name for authentication if not using instance principal or session token.
+        Returns:
+            bool: True if initialization is successful, False otherwise."""
         try:
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication for AI')
@@ -97,7 +104,12 @@ class AI:
             return False
 
     def update_config(self, model_ocid, endpoint, compartment_ocid):
-        """Update Model ID and Endpoint, reinitializing client if endpoint changes."""
+        """
+        Update Model ID and Endpoint, reinitializing client if endpoint changes.
+        Args:
+            model_ocid (str): The model OCID to use.
+            endpoint (str): The endpoint URL to use.
+            compartment_ocid (str): The compartment OCID for requests."""
         logger.info(
             f'Updating AI config: Model OCID:{model_ocid}, Endpoint:{endpoint}, Compartment: {compartment_ocid}'
         )
@@ -105,8 +117,13 @@ class AI:
         self.endpoint = endpoint
         self.compartment_ocid = compartment_ocid
 
-    def create_chat_request(self, prompt):
-        # Create Chat Details
+    def _create_chat_request(self, prompt) -> ChatDetails:
+        """Create a Chat Request for the given prompt.
+        Args:
+            prompt (str): The prompt to send to the AI model.
+        Returns:
+            ChatDetails: The constructed chat request details.
+        """
         chat_detail = ChatDetails()
         chat_detail.serving_mode = OnDemandServingMode(model_id=self.model_ocid)
 
@@ -128,11 +145,22 @@ class AI:
         return chat_detail
 
     def list_models(self) -> list[dict]:
-        """List available models using GenerativeAiClient.list_models."""
+        """
+        List available models using GenerativeAiClient.list_models.
+        Returns:
+            list[dict]: A list of available GenAI models with their details.
+        """
         logger.info('Listing available models')
         try:
             # Try to list models from tenancy
             response = self.genai_client.list_models(compartment_id=self.tenancy_ocid)
+            if (
+                response is None
+                or getattr(response, 'data', None) is None
+                or getattr(response.data, 'items', None) is None
+            ):
+                logger.error('list_models response or response.data or response.data.items is None')
+                return []
             models = [
                 {
                     'Model Name': model.display_name or 'Unknown',
@@ -152,8 +180,17 @@ class AI:
             raise
 
     async def analyze_policy_statement(
-        self, policy_text: str, queue: queue.Queue = None, additional_instruction: str = ''
+        self, policy_text: str, queue: queue.Queue | None = None, additional_instruction: str = ''
     ):
+        """
+        Analyze a policy statement using the GenAI Inference Client.
+        Args:
+            policy_text (str): The policy statement text to analyze.
+            queue (queue.Queue): Optional queue to put the result into for async calls.
+            additional_instruction (str): Additional instructions to include in the prompt.
+        Returns:
+            str: The analysis result from the AI model.
+        """
         logger.info('Analyzing policy statement: %s', policy_text)
         prompt = (
             'What is the meaning of life? Return witty response quickly.  Use Strict Markdown only.'
@@ -164,12 +201,24 @@ class AI:
                 f'{additional_instruction}'
             )
         )
-        chat_detail = self.create_chat_request(prompt=prompt)
+        chat_detail = self._create_chat_request(prompt=prompt)
         try:
             response = self.genai_inference_client.chat(chat_detail)
-            content = response.data.chat_response.choices[0].message.content
-            # Always treat result as string for user display.
-            result = content if isinstance(content, str) else str(content)
+            if (
+                response is not None
+                and getattr(response, 'data', None) is not None
+                and getattr(response.data, 'chat_response', None) is not None
+                and getattr(response.data.chat_response, 'choices', None)
+                and len(response.data.chat_response.choices) > 0
+                and getattr(response.data.chat_response.choices[0], 'message', None) is not None
+                and getattr(response.data.chat_response.choices[0].message, 'content', None) is not None
+            ):
+                content = response.data.chat_response.choices[0].message.content
+                # Always treat result as string for user display.
+                result = content if isinstance(content, str) else str(content)
+            else:
+                logger.error('AI chat response was None or incomplete (missing required attributes)')
+                result = 'Error: GenAI service response incomplete or None'
         except ServiceError as e:
             logger.error(f'Ai Service error: {e}')
             result = f'Error: GenAI service error ({e.status})'

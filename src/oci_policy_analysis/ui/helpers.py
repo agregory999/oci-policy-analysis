@@ -8,15 +8,24 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
-from oci_policy_analysis.logic.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
+from oci_policy_analysis.common.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
 
 
 # Return a display-friendly dict for a policy statement
 def for_display_policy(statement: PolicyStatement) -> dict:
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        statement (PolicyStatement): The policy statement (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     return {
         'Policy Name': statement['policy_name'],
         'Policy OCID': statement['policy_ocid'],
@@ -49,7 +58,15 @@ def for_display_policy(statement: PolicyStatement) -> dict:
 
 # Return a display-friendly dict for a user statement
 def for_display_user(u: User) -> dict:
-    """Return a dictionary suitable for display purposes."""
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        u (User): The user (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     return {
         'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',
         'Username': u['user_name'],
@@ -63,7 +80,15 @@ def for_display_user(u: User) -> dict:
 
 # Return a display-friendly dict for a group statement
 def for_display_group(g: Group) -> dict:
-    """Return a dictionary suitable for display purposes."""
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        g (Group): The group (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     return {
         'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',
         'Group Name': g['group_name'],
@@ -75,7 +100,15 @@ def for_display_group(g: Group) -> dict:
 
 # Return a display-friendly dict for a dynamic group
 def for_display_dynamic_group(dg: DynamicGroup) -> dict:
-    """Return a dictionary suitable for display purposes."""
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        dg (DynamicGroup): The dynamic group (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     return {
         'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',
         'DG Name': dg['dynamic_group_name'],
@@ -92,6 +125,15 @@ def for_display_dynamic_group(dg: DynamicGroup) -> dict:
 
 # Return a display-friendly dict for a defined alias
 def for_display_define(define: DefineStatement) -> dict:
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        define (DefineStatement): The define statement (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     return {
         'Defined Type': define['defined_type'],
         'Defined Name': define['defined_name'],
@@ -103,6 +145,15 @@ def for_display_define(define: DefineStatement) -> dict:
 
 # Return a display-friendly dict for a cross-tenancy policy statement
 def for_display_cross_tenancy(statement: PolicyStatement) -> dict:
+    """
+    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
+    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
+    display-friendly names.
+    Args:
+        statement (PolicyStatement): The cross-tenancy policy statement (dict) to format.
+    Returns:
+        dict: A dictionary with keys and values formatted for display.
+    """
     display_dict = {
         'Policy Name': statement['policy_name'],
         'Policy OCID': statement['policy_ocid'],

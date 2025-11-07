@@ -19,8 +19,8 @@ import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from oci_policy_analysis.logger import get_logger
-from oci_policy_analysis.logic import config
+from oci_policy_analysis.common import config
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.ai_repo import AI
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.ui.data_table import DataTable
@@ -41,6 +41,14 @@ class SettingsTab(ttk.Frame):
     """
 
     def __init__(self, parent, app, caching: CacheManager, ai_repo: AI, settings):
+        """Initialize Settings Tab UI. Everything that the tab needs to exist in the notebook-based app.
+        Args:
+            parent (tk.Widget): The parent widget.
+            app (App): The main application instance.
+            caching (CacheManager): The caching manager instance.
+            ai_repo (AI): The AI repository instance.
+            settings (dict): The settings dictionary.
+        """
         super().__init__(parent)
         self.app = app
         self.settings = settings
@@ -91,7 +99,11 @@ class SettingsTab(ttk.Frame):
         ttk.Label(disp, text='Font Size:').pack(side='left', padx=(8, 4))
         self.font_var = tk.StringVar(value=self.settings.get('font_size', 'Medium'))
         font_combo = ttk.Combobox(
-            disp, textvariable=self.font_var, values=['Small', 'Medium', 'Large'], state='readonly', width=10
+            disp,
+            textvariable=self.font_var,
+            values=['Small', 'Medium', 'Large', 'Extra Large'],
+            state='readonly',
+            width=10,
         )
         font_combo.pack(side='left')
         font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)  # Reuse apply_theme to also apply font size)
@@ -192,7 +204,7 @@ class SettingsTab(ttk.Frame):
         session_auth_link_label.bind('<Button-1>', open_link)
         session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
         self.session_token_var = tk.StringVar()
-        self.session_token_entry = ttk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=20)
+        self.session_token_entry = ttk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=25)
         self.session_token_entry.grid(row=2, column=2, padx=5, pady=3)
         ttk.Button(
             label_frm_tenancy_config,
@@ -349,7 +361,10 @@ class SettingsTab(ttk.Frame):
         logger.info('MCP configuration saved to settings.')
 
     def _on_load_clicked(self, use_cache: bool):
-        # Save current selections
+        """Handle Load Tenancy button click.  Calls main app to load tenancy asynchronously.
+        Args:
+            use_cache (bool): Whether to load from cache or live tenancy.
+        """
         self.settings['tenancy_ocid'] = self.tenancy_var.get()
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
@@ -412,7 +427,9 @@ class SettingsTab(ttk.Frame):
     # AI Enablement
     # -------------------------
     def apply_config(self):
-        """Apply changes to Model ID and Endpoint in AI client."""
+        """
+        Apply changes to Model ID and Endpoint in AI client.
+        """
         start_time = time.perf_counter()
         model_id = self.model_id_var.get().strip()
         endpoint = self.endpoint_var.get().strip()
@@ -450,7 +467,7 @@ class SettingsTab(ttk.Frame):
             self.after(2000, lambda: self.ai_progress_var.set(''))
 
     # -------------------------
-    # AI Enablement
+    # Console Tab Toggle
     # -------------------------
 
     def _toggle_console_tab(self):

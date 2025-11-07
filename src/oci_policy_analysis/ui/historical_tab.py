@@ -23,12 +23,18 @@ from typing import Any
 
 from deepdiff import DeepDiff
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 logger = get_logger('oci-policy-analysis.historical_tab')
 
 
 class HistoricalTab(ttk.Frame):
+    """
+    Tab for comparing two cached tenancy states using DeepDiff.
+    Shows differences in policies/statements and identity/compartments.
+    Triggers a deep comparison in a background thread to keep UI responsive.
+    """
+
     def __init__(self, parent, caching, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.caching = caching
@@ -217,7 +223,9 @@ class HistoricalTab(ttk.Frame):
             # Identity (user/group/dynamic_group)
             if any(k in obj for k in ('user_name', 'group_name', 'dynamic_group_name')):
                 return {
-                    k: obj.get(k) for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups') if k in obj
+                    k: obj.get(k)
+                    for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups')
+                    if k in obj
                 }
 
             # Compartments

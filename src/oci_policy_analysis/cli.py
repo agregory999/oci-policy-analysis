@@ -8,17 +8,17 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
 
 import argparse
 
-from oci_policy_analysis.logger import get_logger, set_log_level
+from oci_policy_analysis.common.logger import get_logger, set_log_level
+from oci_policy_analysis.common.models import PolicySearch
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.models import PolicySearch
 
 
 def main():  # noqa: C901

@@ -16,7 +16,7 @@
 import json
 import os
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 SETTINGS_PATH = os.path.expanduser('~/.oci-policy-analysis/settings.json')
 
@@ -24,6 +24,10 @@ logger = get_logger(component='config')
 
 
 def load_settings():
+    """
+    Load settings from the settings file.
+    Returns an empty dict if the file does not exist or cannot be read.
+    """
     try:
         with open(SETTINGS_PATH) as f:
             logger.info(f'Loading settings from {SETTINGS_PATH}')
@@ -36,6 +40,9 @@ def load_settings():
 
 
 def save_settings(settings: dict):
+    """
+    Save settings to the settings file.
+    Silent failure is acceptable."""
     try:
         logger.info(f'Settings: {settings}')
         os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)

@@ -36,8 +36,8 @@ from oci.loggingsearch import LogSearchClient
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
 from oci.signer import load_private_key_from_file
 
-from oci_policy_analysis.logger import get_logger
-from oci_policy_analysis.logic.models import (
+from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.models import (
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
@@ -113,10 +113,7 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
 
-class IdentityDataNotLoaded(Exception):
-    """Exception raised when identity data is accessed without being loaded."""
-
-    pass
+# REMOVED: IdentityDataNotLoaded Exception (no longer needed)
 
 
 class PolicyAnalysisRepository:
@@ -154,7 +151,6 @@ class PolicyAnalysisRepository:
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
-        self.identity_domains_loaded = False
         logger.info('Initialized PolicyAnalysisRepo')
 
     def initialize_client(
@@ -224,7 +220,14 @@ class PolicyAnalysisRepository:
 
     # --- Internal Helpers ---
     def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
-        """Given an internal ID, return the list of PolicyOverlap entries for that statement"""
+        """
+        Given an internal ID, return the list of PolicyOverlap entries for that statement.
+        Args:
+            internal_id: The internal ID of the policy statement to look up.
+
+        Returns:
+            A list of PolicyOverlap entries for the specified internal ID.
+        """
         overlaps: list[PolicyOverlap] = []
         for st in self.regular_statements:
             if st.get('internal_id') == internal_id:
@@ -905,7 +908,6 @@ class PolicyAnalysisRepository:
                     self.data_as_of = str(datetime.now(UTC))
 
                     # Indicate we loaded successfully
-                    self.identity_domains_loaded = True
                 except Exception as e:
                     logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
                     raise
@@ -958,14 +960,8 @@ class PolicyAnalysisRepository:
         logger.info(f'Filtering policy statements with criteria: {filters}')
 
         # If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error
-        if (filters.get('search_groups') or filters.get('exact_groups')) and not self.identity_domains_loaded:
-            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
-        if (filters.get('search_users') or filters.get('exact_users')) and not self.identity_domains_loaded:
-            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
-        if (
-            filters.get('search_dynamic_groups') or filters.get('exact_dynamic_groups')
-        ) and not self.identity_domains_loaded:
-            raise IdentityDataNotLoaded('Identity domains must be loaded to filter policy statements.')
+        # Previously, filtering by group/user/dynamic-group required identity_domains_loaded.
+        # This check and logic has been removed per requirements; filtering will proceed regardless.
 
         # If fuzzy search is provided, use it and ignore exact search.
         self._resolve_fuzzy_search(filters=filters)
@@ -1624,7 +1620,11 @@ class PolicyAnalysisRepository:
         logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
 
     def analyze_policy_overlap(self) -> None:  # noqa: C901
-        """Analyze policy overlaps by comparing statements across policies."""
+        """Analyze policy statements for potential overlaps.
+        This method iterates through all regular policy statements and checks for potential overlaps
+        based on effective compartment paths, resources, verbs, permissions, and subjects.
+        If an overlap is detected, it records the details in the `policy_overlaps` attribute.
+        """
         logger.info('Analyzing policy overlaps - setting up structure for comparison')
         start_time = time.perf_counter()
         for st in self.regular_statements:

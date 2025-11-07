@@ -16,7 +16,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_policy
@@ -52,7 +52,11 @@ logger = get_logger(component='policy_overlap')
 
 
 class PolicyOverlapTab(ttk.Frame):
-    """Tab for displaying policies and analyzing overlaps."""
+    """
+    Tab for displaying policies and analyzing overlaps. Includes a button to trigger overlap analysis
+    and a table to display the results. Selecting a policy statement shows detailed overlap information
+    in a treeview below.
+    """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
         super().__init__(parent)
@@ -71,7 +75,7 @@ class PolicyOverlapTab(ttk.Frame):
         self.btn_analyze = ttk.Button(
             button_frame,
             text='Analyze Overlaps',
-            command=self.analyze_overlaps,
+            command=self._analyze_overlaps,
             state=tk.DISABLED,
         )
         self.btn_analyze.pack(side='left')
@@ -169,7 +173,7 @@ class PolicyOverlapTab(ttk.Frame):
         self.overlap_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
 
-    def analyze_overlaps(self):
+    def _analyze_overlaps(self):
         """Call analyze_policy_overlap and refresh the table."""
         if not self.policy_repo.regular_statements:
             logger.warning('No policies loaded for overlap analysis')

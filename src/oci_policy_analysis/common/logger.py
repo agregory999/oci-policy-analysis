@@ -1,5 +1,16 @@
 ##########################################################################
-# logger.py - unified global logger with component-level control
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
+# logger.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.12 and above
+#
+# coding: utf-8
 ##########################################################################
 
 import logging
@@ -54,6 +65,10 @@ def _setup_logging() -> None:
 def get_logger(component: str | None = None) -> logging.Logger:
     """
     Return a component logger. No handlers added (propagate to root).
+    Args:
+        component: Component name (e.g., 'cli', 'data_repo'). If None, uses base name.
+    Returns:
+        Logger instance.
     """
     name = f'oci-policy-analysis.{component}' if component else 'oci-policy-analysis'
     lgr = logging.getLogger(name)
@@ -62,7 +77,16 @@ def get_logger(component: str | None = None) -> logging.Logger:
 
 
 def set_log_level(level: str | int) -> None:
-    """Set root level (affects everything)."""
+    """
+    Set root level (affects everything). Log level int can be passed too. Options are:
+        - CRITICAL  50
+        - ERROR     40
+        - WARNING   30
+        - INFO      20
+        - DEBUG     10
+    Args:
+        level: Level name (e.g., 'DEBUG') or int.
+    """
     if isinstance(level, str):
         level_value = logging._nameToLevel.get(level.upper(), logging.INFO)
     else:
