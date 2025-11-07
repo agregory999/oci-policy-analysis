@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.5.0...v2.5.1) (2025-11-07)
+
+
+### Bug Fixes
+
+* HTML view using dark mode and re-org logger ([420fff8](https://github.com/agregory999/oci-policy-analysis/commit/420fff8da1783825a5b114e1d0c3865fe5a16aac))
+
 ## [2.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.4.1...v2.5.0) (2025-11-06)
 
 
