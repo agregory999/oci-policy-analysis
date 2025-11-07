@@ -16,7 +16,7 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 logger = get_logger(component='data_table')
 
@@ -325,7 +325,11 @@ class DataTable(ttk.Frame):
         self._populate_data()
 
     def apply_theme(self, theme: str) -> None:
-        """Apply light or dark theme colors to the Treeview."""
+        """
+        Apply light or dark theme colors to the Treeview.
+        Args:
+            theme: 'light' or 'dark'
+        """
         if theme == 'dark':
             bg = '#2b2b2b'
             fg = '#f0f0f0'
@@ -347,6 +351,7 @@ class DataTable(ttk.Frame):
             foreground=fg,
             bordercolor=bg,
             borderwidth=1,
+            padding=(0, 0, 8, 0),
         )
         style.map(
             'Treeview',

@@ -1,0 +1,54 @@
+# Cline Project Rules
+# Place this file at your project root to define global rules for
+# Cline (AI-powered code review/automation) across all contributors.
+#
+# Check this file into GitHub along with your source code.
+# Cline will use these rules to enforce project-wide standards.
+#
+# For more information, see: https://github.com/your-cline-docs-url
+#
+# ------------------------
+# Rule and configuration examples below:
+# ------------------------
+
+# Linting Rules:
+linting:
+  enabled: true
+  max_line_length: 120
+  ignore:
+    - E203  # Whitespace before ':'
+    - W503  # Line break before binary operator
+
+# Formatting:
+formatting:
+  use_tabs: false
+  indent_size: 4
+  trailing_commas: true
+  quote_style: double
+  ordered_imports: true
+
+# File/Folder Ignore Patterns (relative to project root)
+ignore_paths:
+  - build/
+  - output/
+  - docs/build/
+  - .venv/
+  - "*.egg-info/"
+  - "**/__pycache__/"
+
+# Cline Automation/Behavior Settings:
+cline:
+  auto_fix: true       # Allow Cline to auto-apply suggested fixes
+  suggest_refactor: true
+  enforce_todos: true  # Fail CI if TODOs remain
+
+# Custom Project Rules (examples; edit as needed)
+custom_rules:
+  prohibit_print_statements: true
+  prohibit_eval: true
+  require_docstrings_for_functions: true
+
+# Advanced: You may add annotation blocks for special file types
+# or override settings for test directories, etc.
+
+# End of file

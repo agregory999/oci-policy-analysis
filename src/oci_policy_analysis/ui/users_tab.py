@@ -16,9 +16,9 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_group, for_display_policy, for_display_user
 
@@ -296,7 +296,7 @@ class UsersTab(ttk.Frame):
 
             # Only filter on name for now
             group_filter: GroupSearch = GroupSearch(
-                group_name=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+                group_name=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
             # Filter and display
             filtered_groups: list[Group] = self.policy_compartment_analysis.filter_groups(group_filter=group_filter)
@@ -309,7 +309,7 @@ class UsersTab(ttk.Frame):
 
             # Only filter on username for now
             user_filter: UserSearch = UserSearch(
-                search=self.user_group_search.get().split('|') if self.user_group_search.get() else None,
+                search=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
             # Filter and display
             filtered_users: list[User] = self.policy_compartment_analysis.filter_users(user_filter=user_filter)

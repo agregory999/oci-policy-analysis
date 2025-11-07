@@ -18,10 +18,11 @@ import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
+from typing import Literal, cast  # <-- ADD for type handling
 
-from oci_policy_analysis.logger import get_logger
-from oci_policy_analysis.logic.data_repo import IdentityDataNotLoaded, PolicyAnalysisRepository
-from oci_policy_analysis.logic.models import PolicySearch
+from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.models import PolicySearch
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_policy
 
@@ -204,20 +205,40 @@ class PoliciesTab(ttk.Frame):
             self.hierarchy_filter_root.set(False)
             self.update_policy_output()
 
-        def export_policy_to_csv():
+        def export_policy_to_csv():  # noqa: C901
             filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
             if filepath:
                 # TODO: Get filtered data from the table instead of re-filtering (and this is broken)
-                filtered = self.policy_repo.filter_policy_statements(
-                    self.subject_filter_var.get(),
-                    self.verb_filter_var.get(),
-                    self.resource_filter_var.get(),
-                    self.location_filter_var.get(),
-                    self.hierarchy_filter_var.get(),
-                    self.condition_filter_var.get(),
-                    self.text_filter_var.get(),
-                    self.policy_filter_var.get(),
-                )
+                # Build filter dict for new call to filter (mirroring update_policy_output)
+                filters: PolicySearch = {}
+                if self.subject_filter_var.get():
+                    filters['subject'] = self.subject_filter_var.get().split('|')
+                if self.verb_filter_var.get():
+                    # restrict to only allowed values for verb
+                    allowed_verbs = {'inspect', 'read', 'use', 'manage'}
+                    verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
+                    if verbs:
+                        filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
+                if self.resource_filter_var.get():
+                    filters['resource'] = self.resource_filter_var.get().split('|')
+                if self.location_filter_var.get():
+                    filters['location'] = self.location_filter_var.get().split('|')
+                if self.hierarchy_filter_var.get():
+                    filters['policy_compartment'] = (
+                        ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
+                    )
+                # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
+                if self.text_filter_var.get():
+                    filters['statement_text'] = self.text_filter_var.get().split('|')
+                if self.policy_filter_var.get():
+                    filters['policy_name'] = self.policy_filter_var.get().split('|')
+                if self.effective_path_var.get():
+                    filters['effective_path'] = self.effective_path_var.get().split('|')
+                if self.chk_show_invalid.get():
+                    filters['valid'] = False
+                    logger.debug('Filtering for invalid policies only')
+
+                filtered = self.policy_repo.filter_policy_statements(filters=filters)
                 with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     # writer.writerow(self.sheet_policies.headers())
@@ -348,19 +369,21 @@ class PoliciesTab(ttk.Frame):
                 # self.policy_analyze_statement_var.set(row.get('Statement Text'))
 
         def perform_effective_path_search(effective_path: str):
-            # set the effective path variable to the selected compartment path
-            self.effective_path_var.set(effective_path)
-            # Update the output
-            self.update_policy_output()
+            # Only allow non-None values to avoid type errors
+            if isinstance(effective_path, str) and effective_path:
+                self.effective_path_var.set(effective_path)
+                # Update the output
+                self.update_policy_output()
 
-        def effective_right_click(row_index: int) -> tk.Menu:
+        def policy_table_right_click(row_index: int) -> tk.Menu:
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
             logger.debug(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
             menu = tk.Menu(self, tearoff=0)
             menu.add_command(
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
-                command=lambda: perform_effective_path_search(effective_path_text),
+                command=lambda: perform_effective_path_search(effective_path_text or ''),
             )
+            # TODO: Implement additional right-click options
             # menu.add_command(
             #     label=f"Delete Row {row_index}",
             #     command=lambda: print(f"Delete row {row_index}")
@@ -375,7 +398,7 @@ class PoliciesTab(ttk.Frame):
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
             selection_callback=selection_callback,
-            row_context_menu_callback=effective_right_click,
+            row_context_menu_callback=policy_table_right_click,
             multi_select=True,
         )
         # self.policy_table.grid(row=0, column=0, sticky="nsew")
@@ -402,40 +425,34 @@ class PoliciesTab(ttk.Frame):
         # Build filter dict for new call to filter
         filters: PolicySearch = {}
         if self.subject_filter_var.get():
-            filters['subject'] = self.subject_filter_var.get().split('|') or None
+            filters['subject'] = self.subject_filter_var.get().split('|')
         if self.verb_filter_var.get():
-            filters['verb'] = self.verb_filter_var.get().split('|') or None
+            allowed_verbs = {'inspect', 'read', 'use', 'manage'}
+            verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
+            if verbs:
+                filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
         if self.resource_filter_var.get():
-            filters['resource'] = self.resource_filter_var.get().split('|') or None
+            filters['resource'] = self.resource_filter_var.get().split('|')
         if self.location_filter_var.get():
-            filters['location'] = self.location_filter_var.get().split('|') or None
+            filters['location'] = self.location_filter_var.get().split('|')
         if self.hierarchy_filter_var.get():
             filters['policy_compartment'] = (
                 ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
             )
-        if self.condition_filter_var.get():
-            filters['condition'] = self.condition_filter_var.get().split('|') or None
+        # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
         if self.text_filter_var.get():
-            filters['statement_text'] = self.text_filter_var.get().split('|') or None
+            filters['statement_text'] = self.text_filter_var.get().split('|')
         if self.policy_filter_var.get():
-            filters['policy_name'] = self.policy_filter_var.get().split('|') or None
+            filters['policy_name'] = self.policy_filter_var.get().split('|')
         if self.effective_path_var.get():
-            filters['effective_path'] = self.effective_path_var.get().split('|') or None
+            filters['effective_path'] = self.effective_path_var.get().split('|')
         if self.chk_show_invalid.get():
             filters['valid'] = False
             logger.debug('Filtering for invalid policies only')
 
         logger.info(f'Applying policy filters: {filters}')
-        try:
-            filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
-            logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
-        except IdentityDataNotLoaded as e:
-            logger.error(f'Cannot filter policies without identity data loaded: {e}')
-            tkmessagebox.showerror(
-                'Identity Data Not Loaded',
-                'Cannot filter policies without identity data loaded.\nPlease load identity data and try again.',
-            )
-            return
+        filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
+        logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
 
         # Apply additional filters for output
         normalized_statements = [for_display_policy(st) for st in filtered_statements]

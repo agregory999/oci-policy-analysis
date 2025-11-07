@@ -16,9 +16,9 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch, PolicySearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.models import DynamicGroup, DynamicGroupSearch, PolicySearch
 from oci_policy_analysis.ui.data_table import DataTable
 from oci_policy_analysis.ui.helpers import for_display_dynamic_group, for_display_policy
 
@@ -154,15 +154,8 @@ class DynamicGroupsTab(ttk.Frame):
         self.dg_entry_type.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
 
         # Buttons
-        # self.dg_btn_update = ttk.Button(frm_dg_filter, text='Update', state=tk.DISABLED, command=self._update_dg_output)
-        # self.dg_btn_update.grid(row=1, column=4, padx=5, pady=2, sticky='ew')
         self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear Filters', state=tk.DISABLED, command=clear_dg_filters)
         self.dg_btn_clear.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
-
-        # self.dg_btn_analyze_dg = ttk.Button(
-        #     frm_dg_filter, text='Run In Use Analysis', state=tk.DISABLED, command=self._run_dg_analysis
-        # )
-        # self.dg_btn_analyze_dg.grid(row=2, column=4, rowspan=2, padx=5, pady=2, sticky='ew')
 
         # Bottom of frame
         label_frm2 = ttk.LabelFrame(self, text='Output Filters')
@@ -281,23 +274,6 @@ class DynamicGroupsTab(ttk.Frame):
         self.dg_name_var.trace_add('write', lambda *args: self._update_dg_output())
         self.dg_rule_var.trace_add('write', lambda *args: self._update_dg_output())
 
-    # # Functions that do stuff
-    # def _run_dg_analysis(self):
-    #     logger.info(
-    #         f'Running Dynamic Group Analysis for {len(self.policy_compartment_analysis.dynamic_groups)} DGs and {len(self.policy_compartment_analysis.regular_statements)} Policies'
-    #     )
-    #     start_time = time.perf_counter()
-    #     # Send in the statemetns directly for DG processing.
-    #     # TODO: Maybe the CT statements could have a dynamic group in them
-    #     self.policy_compartment_analysis.run_dg_in_use_analysis(
-    #         policy_statements=self.policy_compartment_analysis.regular_statements
-    #     )
-
-    #     # Now set the data again, in case it changed
-    #     self._update_dg_output()
-    #     total_time = time.perf_counter() - start_time
-    #     logger.info(f'Ran DG Analysis in {total_time:.2f}s')
-
     def _update_dg_output(self):
         if self.chk_show_instance_principals.get():
             self.dg_entry_type.delete(0, tk.END)
@@ -349,7 +325,9 @@ class DynamicGroupsTab(ttk.Frame):
         )
 
     def enable_controls(self):
-        """Called from main app when data is loaded to enable the controls"""
+        """
+        Called from main app when data is loaded to enable the controls
+        """
         for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type]:
             entry.config(state=tk.NORMAL)
         for btn in [self.dg_btn_clear]:

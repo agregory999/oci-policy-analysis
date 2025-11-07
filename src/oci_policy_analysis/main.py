@@ -8,13 +8,14 @@
 #
 # @author: Andrew Gregory
 #
-# Supports Python 3.11 and above
+# Supports Python 3.12 and above
 #
 # coding: utf-8
 ##########################################################################
 ##########################################################################
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
+
 import importlib.metadata
 import io
 import sys
@@ -68,8 +69,8 @@ import webbrowser  # noqa: E402
 import markdown2  # noqa: E402
 from tkhtmlview import HTMLLabel  # noqa: E402
 
-from oci_policy_analysis.logger import get_logger, set_log_level  # noqa: E402
-from oci_policy_analysis.logic import config  # noqa: E402
+from oci_policy_analysis.common import config  # noqa: E402
+from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
@@ -149,11 +150,11 @@ class App(tk.Tk):
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
-        self.notebook.add(self.policy_overlap_tab, text='Policy\nOverlap')
-        self.notebook.add(self.report_tab, text='Reports\n& Export')
+        self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Experimental)')
+        self.notebook.add(self.report_tab, text='Reports\nw/ Search')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.notebook.add(self.console_tab, text='Console\nLog')
+        self.notebook.add(self.console_tab, text='Console\nLogging')
 
         # Bottom frame (Entry + output text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -212,19 +213,6 @@ class App(tk.Tk):
         vscrollbar = ttk.Scrollbar(html_frame, orient='vertical', command=self.html_view.yview)
         self.html_view.configure(yscrollcommand=vscrollbar.set)
         vscrollbar.pack(fill='y', side='right')
-        # self._bind_mousewheel(self.html_view)
-
-    # def _bind_mousewheel(self, widget):
-    #     def _on_mousewheel(event):
-    #         if event.num == 5 or event.delta < 0:
-    #             widget.yview_scroll(1, 'units')
-    #         elif event.num == 4 or event.delta > 0:
-    #             widget.yview_scroll(-1, 'units')
-    #         return 'break'
-
-    #     widget.bind_all('<MouseWheel>', _on_mousewheel)
-    #     widget.bind_all('<Button-4>', _on_mousewheel)
-    #     widget.bind_all('<Button-5>', _on_mousewheel)
 
     def update_bottom_entry(self, text: str):
         self.bottom_entry.delete(0, tk.END)
@@ -282,16 +270,18 @@ class App(tk.Tk):
             # Scrolled Text widgets have different backgrounds
             if theme_choice == 'Dark':
                 bg = '#2b2b2b'
-                fg = '#f0f0f0'
+                fg = '#ffffff'  # Use pure white for AI html view font in dark mode
                 insert_bg = '#ffffff'
                 self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
-                self.text_view.configure(background=bg, foreground=fg, insertbackground=insert_bg)
+                # Update AI output pane (html_view) for dark theme
+                self.html_view.configure(background=bg, foreground=fg)
             else:
                 bg = 'white'
                 fg = 'black'
                 insert_bg = '#000000'
                 self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
-                self.text_view.configure(background=bg, foreground=fg, insertbackground=insert_bg)
+                # Update AI output pane (html_view) for light theme
+                self.html_view.configure(background=bg, foreground=fg)
         except Exception as e:
             logger.warning(f'Failed to apply theme {theme_choice}: {e}')
 
@@ -299,7 +289,7 @@ class App(tk.Tk):
         config.save_settings(self.settings)
         logger.info(f'Theme set to {theme_choice} ({theme_name})')
 
-        sizes = {'Small': 9, 'Medium': 11, 'Large': 13}
+        sizes = {'Small': 9, 'Medium': 11, 'Large': 13, 'Extra Large': 15}
         size = sizes.get(self.settings_tab.font_var.get(), 11)
         logger.info(f'Applying font size: {self.settings_tab.font_var.get()} ({size}px)')
         families = tkfont.families()
@@ -349,8 +339,6 @@ class App(tk.Tk):
             f'Log level set to {self.log_level_var.get()}. To use DEBUG, you must start from shell using --verbose'
         )
 
-    from typing import Optional
-
     def load_tenancy_async(  # noqa: C901
         self,
         tenancy_id: str,
@@ -361,6 +349,16 @@ class App(tk.Tk):
         named_cache: str,
         callback: dict | None = None,
     ):
+        """
+        Asynchronously loads tenancy data, policies, and compartments.
+        Args:
+            tenancy_id (str): The OCID of the tenancy to load.
+            recursive (bool): Whether to load compartments recursively.
+            instance_principal (bool): Whether to use instance principal authentication.
+            named_profile (str): The named profile to use for authentication.
+            named_session (str): The named session token if applicable.
+            named_cache (str): The named cache file to load if applicable.
+            callback (dict, optional): A dictionary of callback functions for progress, error, and completion"""
         logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
 
         def worker():  # noqa: C901
@@ -485,6 +483,14 @@ class App(tk.Tk):
             logger.info('Export cancelled by user')
 
     def ask_genai_async(self, prompt: str, additional_instruction: str = '', callback=None):
+        """
+        Asynchronously queries the GenAI model with the given prompt and additional instructions.
+
+        Args:
+            prompt (str): The main prompt to send to the GenAI model.
+            additional_instruction (str, optional): Any additional instructions to include in the query.
+            callback (dict, optional): A dictionary of callback functions for different stages of the query.
+        """
         logger.info(f'Submitting GenAI prompt: {prompt}')
         self.set_bottom_output(f'#### Querying GenAI \n\n`{prompt}`')
 
@@ -544,10 +550,19 @@ class App(tk.Tk):
             # Postprocess: add monospace CSS to code/pre blocks
             html = html.replace('<code>', '<code style="font-family:monospace,Consolas,\'Courier New\',Courier;">')
             html = html.replace('<pre>', '<pre style="font-family:monospace,Consolas,\'Courier New\',Courier;">')
+            # If theme is dark, change text color in html to white for <p>, <li>,H* etc.
+            if self.settings_tab.theme_var.get() == 'Dark':
+                html = html.replace('<p>', '<p style="color:#ffffff;">')
+                html = html.replace('<li>', '<li style="color:#ffffff;">')
+                html = html.replace('<h1>', '<h1 style="color:#ffffff;">')
+                html = html.replace('<h2>', '<h2 style="color:#ffffff;">')
+                html = html.replace('<h3>', '<h3 style="color:#ffffff;">')
+                html = html.replace('<h4>', '<h4 style="color:#ffffff;">')
             self.last_markdown = extracted_markdown
         else:
             html = content  # already HTML (could be an error message)
             self.last_markdown = ''
+        logger.info(f'Rendered markdown to HTML for AI output pane: {html}')
         self.html_view.set_html(html)
         # Enable or disable the Copy Markdown button based on if markdown available
         if self.last_markdown and self.last_markdown.strip():

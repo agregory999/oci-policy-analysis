@@ -31,10 +31,8 @@ from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
-from oci_policy_analysis.logger import get_logger  # noqa: E402
-from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
-from oci_policy_analysis.logic.models import (  # noqa: E402
+from oci_policy_analysis.common.logger import get_logger  # noqa: E402
+from oci_policy_analysis.common.models import (  # noqa: E402
     DefineStatement,
     DynamicGroupSearch,
     DynamicGroupSearchFull,
@@ -56,6 +54,8 @@ from oci_policy_analysis.logic.models import (  # noqa: E402
     UserSearchResponse,
     UserSummary,
 )
+from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
+from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
@@ -574,7 +574,7 @@ def mcp_server_status() -> bool:
 # ============================================================
 
 
-def build_arg_parser():
+def _build_arg_parser():
     parser = argparse.ArgumentParser()
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--profile')
@@ -594,7 +594,7 @@ def main():
     logger.info('MCP server module logger initialized.')
 
     global args
-    args = build_arg_parser().parse_args()
+    args = _build_arg_parser().parse_args()
     recursive = args.recursive
 
     logger.info(

@@ -14,11 +14,10 @@
 ##########################################################################
 
 import tkinter as tk
-import tkinter.filedialog as fd
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 logger = get_logger(component='report_tab')
@@ -37,11 +36,9 @@ class ReportTab(ttk.Frame):
         self.create_tab()
 
     def create_tab(self):
-        self.grid_rowconfigure(0, weight=3)
-        self.grid_rowconfigure(1, weight=6)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=9)
         self.grid_columnconfigure(0, weight=1)
-        # self.grid_columnconfigure(1, weight=6)
 
         logger.info('Creating Report Tab')
         frm_report_top = ttk.Frame(self)
@@ -53,11 +50,6 @@ class ReportTab(ttk.Frame):
         self.highlight_entry_var = tk.StringVar()
         ttk.Entry(frm_report_buttons, textvariable=self.highlight_entry_var).grid(row=0, column=1)
 
-        # Export Button
-        self.btn_export_report = ttk.Button(
-            frm_report_buttons, text='Export Report', state=tk.DISABLED, command=self._export_report_to_txt
-        )
-        self.btn_export_report.grid(row=1, column=0, columnspan=2, padx=5, pady=2, sticky='ew')
         frm_report_buttons.grid(row=0, column=0, sticky='e')
 
         # Bottom row of grid for tab
@@ -104,9 +96,7 @@ class ReportTab(ttk.Frame):
         else:
             for dg in sorted_dgs:
                 dg_text += f'Domain: {dg.get("domain_name")}\nName: {dg.get("dynamic_group_name")}\nMatching Rule: {dg.get("matching_rule")}\nOCID: {dg.get("dynamic_group_ocid")}\nCreated: {dg.get("creation_time")}\nIn Use: {"Yes" if dg.get("in_use") else "No"}\n\n'
-        # self.text_dg_report.config(state=tk.NORMAL)
         self.text_dg_report.insert(tk.END, dg_text)
-        # self.text_dg_report.config(state=tk.DISABLED)
 
         logger.info(f'Compartments to sort: {len(self.policy_compartment_analysis.compartments)}')
         # Now update the policy report
@@ -171,13 +161,3 @@ class ReportTab(ttk.Frame):
                 self.text_policy_report.tag_add('found', pos, end_index)
                 start_index = end_index
             self.text_policy_report.tag_config('found', background='yellow')
-
-    def _export_report_to_txt(self):
-        # Export the report to a text file
-        filepath = fd.asksaveasfilename(defaultextension='.txt', filetypes=[('Text Files', '*.txt')])
-        if filepath:
-            dg_content = self.text_dg_report.get(1.0, tk.END).strip()
-            policy_content = self.text_policy_report.get(1.0, tk.END).strip()
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(dg_content + '\n\n' + policy_content)
-            logger.info(f'Exported report to {filepath}')

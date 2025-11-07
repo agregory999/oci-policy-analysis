@@ -1,21 +1,63 @@
+##########################################################################
+# Copyright (c) 2024, Oracle and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+#
+# DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
+#
 # reference_data_repo.py
+#
+# @author: Andrew Gregory
+#
+# Supports Python 3.12 and above
+#
+# coding: utf-8
+##########################################################################
 
 import glob
 import json
 import os
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 
 logger = get_logger(component='reference_data_repo')
 
 
 class ReferenceDataRepo:
+    """
+    Repository for reference data on resources, families, and permissions.
+    Loads from JSON files in a specified directory.
+
+    JSON Structure Example:
+    {
+        "resources": {
+            "resource_name": {
+                "verbs": {
+                    "inspect": ["permission1", "permission2"],
+                    "read": ["permission3"],
+                    "use": ["permission4"],
+                    "manage": ["permission5"]
+                }
+            },
+            ...
+        },
+        "families": {
+            "family_name": {
+                "resources": ["resource_name1", "resource_name2"],
+                "source_url": "http://example.com/source"
+            },
+            ...
+        }
+    }
+
+    Once all files are loaded, provides methods to query permissions and check overlaps.
+    """
+
     def __init__(self, json_dir='permissions'):
         self.json_dir = os.path.join(os.path.dirname(__file__), json_dir)
         logger.info(f'Loading reference data from directory: {self.json_dir}')
-        self.data = self.load_data()
+        self.data = self._load_data()
 
-    def load_data(self):
+    def _load_data(self):
         data = {'resources': {}, 'families': {}}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             try:
@@ -30,11 +72,18 @@ class ReferenceDataRepo:
                 logger.error(f'Error loading {file_path}: {e}')
         return data
 
-    def save_data(self):
-        # Note: Saving would now need to split back to files, but for now, perhaps implement per-file save if needed.
-        pass
-
     def get_permissions(self, entity, verb):
+        """
+        Get cumulative permissions for a resource or family at a given verb level.
+        Allows querying both individual resources and families of resources.
+        Example return: ['permission1', 'permission2']
+
+        Args:
+            entity (str): Resource name or family name.
+            verb (str): Verb level ('inspect', 'read', 'use', 'manage').
+        Returns:
+            list: List of cumulative permissions.
+        """
         if entity in self.data['families']:
             all_perms = set()
             for res in self.data['families'][entity]['resources']:
@@ -59,6 +108,20 @@ class ReferenceDataRepo:
         return list(set(perms))  # Dedup
 
     def check_overlap(self, perm_set1, perm_set2):
+        """
+        Check for overlapping permissions between two permission sets.  Uses 2 lists of permissions.
+        Case-insensitive comparison performed and list of overlapping permissions returned.
+
+        Example Input:
+            perm_set1 = ['permission1', 'permission2', 'permission3']
+            perm_set2 = ['permission2', 'permission4']
+        Example return: ['permission2']
+        Args:
+            perm_set1 (list): First set of permissions.
+            perm_set2 (list): Second set of permissions.
+        Returns:
+            list: List of overlapping permissions.
+        """
         if not perm_set1 or not perm_set2:
             return []
         overlap = {p.lower() for p in perm_set1} & {p.lower() for p in perm_set2}

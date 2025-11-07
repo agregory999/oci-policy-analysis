@@ -19,7 +19,7 @@ from pathlib import Path
 
 from oci.identity.models import Domain
 
-from oci_policy_analysis.logger import get_logger
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 # Cache Directory and Date (for consistency across classes)
@@ -137,8 +137,7 @@ class CacheManager:
                     ]
                     self.policy_analysis.groups = cache_data.get('groups', {})
                     self.policy_analysis.users = cache_data.get('users', {})
-                    # TODO: see if we loaded it...
-                    self.policy_analysis.identity_domains_loaded = True
+
                     # Set the data as of time
                     self.policy_analysis.data_as_of = cache_data.get('data_as_of')
                     logger.info(f'Loaded combined cache from: {combined_cache_file}')
