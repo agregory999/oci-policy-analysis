@@ -31,6 +31,12 @@ myst_enable_extensions = [
     'replacements',
 ]
 
+autodoc_mock_imports = [
+    'tkinter',
+    'ttkbootstrap',
+    '_tkinter',
+]
+
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
