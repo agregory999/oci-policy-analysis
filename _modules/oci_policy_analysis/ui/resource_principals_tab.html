@@ -1,0 +1,442 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oci_policy_analysis.ui.resource_principals_tab &mdash; OCI Policy Analysis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            OCI Policy Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../architecture.html">Architecture</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.html">oci_policy_analysis package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.ui.html">oci_policy_analysis.ui package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.logic.html">oci_policy_analysis.logic package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">OCI Policy Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">oci_policy_analysis.ui.resource_principals_tab</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for oci_policy_analysis.ui.resource_principals_tab</h1><div class="highlight"><pre>
+<span></span><span class="c1">##########################################################################</span>
+<span class="c1"># Copyright (c) 2024, Oracle and/or its affiliates.</span>
+<span class="c1"># Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/</span>
+<span class="c1">#</span>
+<span class="c1"># DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.</span>
+<span class="c1">#</span>
+<span class="c1"># resource_principals_tab.py</span>
+<span class="c1">#</span>
+<span class="c1"># @author: Andrew Gregory</span>
+<span class="c1">#</span>
+<span class="c1"># Supports Python 3.12 and above</span>
+<span class="c1">#</span>
+<span class="c1"># coding: utf-8</span>
+<span class="c1">##########################################################################</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ttk</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DynamicGroup</span><span class="p">,</span> <span class="n">PolicySearch</span><span class="p">,</span> <span class="n">PolicyStatement</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.logic.data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolicyAnalysisRepository</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.data_table</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">for_display_dynamic_group</span><span class="p">,</span> <span class="n">for_display_policy</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="s1">&#39;resource_principals_tab&#39;</span><span class="p">)</span>
+
+<span class="n">BASIC_DG_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Domain&#39;</span><span class="p">,</span> <span class="s1">&#39;DG Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Matching Rule&#39;</span><span class="p">,</span> <span class="s1">&#39;In Use&#39;</span><span class="p">]</span>
+<span class="n">ALL_DG_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Domain&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DG Name&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Description&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Matching Rule&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;In Use&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DG OCID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DG ID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Created By&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Created By OCID&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+<span class="n">DG_COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Domain&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;DG Name&#39;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="s1">&#39;Description&#39;</span><span class="p">:</span> <span class="mi">400</span><span class="p">,</span>
+    <span class="s1">&#39;DG OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
+    <span class="s1">&#39;DG ID&#39;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="s1">&#39;Matching Rule&#39;</span><span class="p">:</span> <span class="mi">700</span><span class="p">,</span>
+    <span class="s1">&#39;In Use&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Created By&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Created By OCID&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">ALL_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy OCID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Valid&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Subject Type&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Subject&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Verb&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Resource&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Permission&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Location Type&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Location&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Conditions&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Comments&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Parsing Notes&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Parsed&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+<span class="n">BASIC_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span> <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span> <span class="s1">&#39;Valid&#39;</span><span class="p">]</span>
+<span class="n">POLICY_COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Policy Name&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Policy OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
+    <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Statement Text&#39;</span><span class="p">:</span> <span class="mi">700</span><span class="p">,</span>
+    <span class="s1">&#39;Valid&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+    <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Effective Path&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Subject Type&#39;</span><span class="p">:</span> <span class="mi">120</span><span class="p">,</span>
+    <span class="s1">&#39;Subject&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Verb&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="s1">&#39;Resource&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Permission&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Location Type&#39;</span><span class="p">:</span> <span class="mi">120</span><span class="p">,</span>
+    <span class="s1">&#39;Location&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Conditions&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Comments&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Parsing Notes&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Parsed&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="ResourcePrincipalsTab">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.ResourcePrincipalsTab">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ResourcePrincipalsTab</span><span class="p">(</span><span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Minimal Resource Principals Tab: Display filtering for RPs</span>
+<span class="sd">    Uses the already-loaded data_repo from memory.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">policy_repo</span><span class="p">:</span> <span class="n">PolicyAnalysisRepository</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            parent: parent notebook or frame</span>
+<span class="sd">            config: dict from config.json (must include mcp settings)</span>
+<span class="sd">            log_console: existing popup console (must have .write_line)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span> <span class="o">=</span> <span class="n">policy_repo</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_ui</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_ui</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>  <span class="c1"># Separate Form</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Frame for top</span>
+        <span class="n">frm_principals_top</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">frm_principals_top</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="c1"># Principals Style dropdown</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_principals_top</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Principals Style:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="s1">&#39;Dynamic Group&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_list</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dynamic Group&#39;</span><span class="p">,</span> <span class="s1">&#39;any-user&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_dropdown</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">OptionMenu</span><span class="p">(</span>
+            <span class="n">frm_principals_top</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_var</span><span class="o">.</span><span class="n">get</span><span class="p">(),</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">principals_style_list</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_dropdown</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Resource Type dropdown</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_principals_top</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Resource Type:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="s1">&#39;Any&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_list</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;Any&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;autonomousdatabase&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;function&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;apigateway&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;disworkspace&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;dataflow&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;dbmgmt&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;serviceconnector&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;stackmon&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;cluster&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;workloadprotectionagent&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;aidataplatform&#39;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_dropdown</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">OptionMenu</span><span class="p">(</span>
+            <span class="n">frm_principals_top</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_var</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_var</span><span class="o">.</span><span class="n">get</span><span class="p">(),</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">resource_type_list</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_dropdown</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">rp_dg_selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;When a Dynamic Group is selected, update the policy statements below&quot;&quot;&quot;</span>
+            <span class="n">dgs_for_filter</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DynamicGroup</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># Make the DG list (Domain,Name) for all selected rows</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">selected_rows</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Selected row: </span><span class="si">{</span><span class="n">row</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">dgs_for_filter</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">DynamicGroup</span><span class="p">(</span><span class="n">domain_name</span><span class="o">=</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Domain&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="n">dynamic_group_name</span><span class="o">=</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DG Name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+                <span class="p">)</span>
+
+                <span class="c1"># dgs_for_filter.append((row.get(&#39;Domain&#39;), row.get(&#39;DG Name&#39;)))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DGs for filter: </span><span class="si">{</span><span class="n">dgs_for_filter</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="c1"># Call the filter</span>
+            <span class="c1"># TODO: fix this filter</span>
+            <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="n">PolicySearch</span><span class="p">(</span><span class="n">exact_dynamic_groups</span><span class="o">=</span><span class="n">dgs_for_filter</span><span class="p">)</span>
+            <span class="n">filtered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">filter_policy_statements</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span><span class="si">}</span><span class="s1"> len: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="c1"># SNormalize the data</span>
+            <span class="n">filtered</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span> <span class="k">for</span> <span class="n">statement</span> <span class="ow">in</span> <span class="n">filtered</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Policies added to RP policy table: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">rp_policy_selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;When a Policy Statement is selected, update the policy statement below&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">selected_statement</span> <span class="o">=</span> <span class="n">selected_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Selected policy statement: </span><span class="si">{</span><span class="n">selected_statement</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policy_query_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">selected_statement</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">policy_more_details_menu</span><span class="p">(</span><span class="n">row_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">tk</span><span class="o">.</span><span class="n">Menu</span><span class="p">:</span>
+            <span class="n">menu</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Menu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tearoff</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">row_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">row_index</span><span class="p">]</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Creating more details menu for row </span><span class="si">{</span><span class="n">row_index</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">row_data</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Create a policy search filter by policy name from selected row</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">switch_tab_policy_analysis</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">notebook</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">tab_id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Policy Analysis tab</span>
+                <span class="c1"># Set the policy name entry</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Switching to Policy Analysis tab for policy: </span><span class="si">{</span><span class="n">row_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Policy Name&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="c1"># Check the dynamic groups box and set the filter for policy name</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policies_tab</span><span class="o">.</span><span class="n">chk_show_dynamic</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policies_tab</span><span class="o">.</span><span class="n">policy_filter_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">row_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+
+            <span class="n">menu</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span>
+                <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;View Full Policy (</span><span class="si">{</span><span class="n">row_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Policy Name&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">switch_tab_policy_analysis</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">menu</span>
+
+        <span class="c1"># Bottom frame (row 1) for sheets using grid (bottom 2 rows if DG, bottom 1 if any-user)</span>
+        <span class="n">frm_principals_bottom</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">frm_principals_bottom</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_principals_bottom</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_principals_bottom</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_principals_bottom</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="c1"># Dynamic Groups Sheet (can be ungridded when not needed)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_dg_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_principals_bottom</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">ALL_DG_COLUMNS</span><span class="p">,</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="n">BASIC_DG_COLUMNS</span><span class="p">,</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="n">DG_COLUMN_WIDTHS</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">selection_callback</span><span class="o">=</span><span class="n">rp_dg_selection_callback</span><span class="p">,</span>
+            <span class="n">multi_select</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_dg_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Add a label above table to show instructions</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span>
+            <span class="n">frm_principals_bottom</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Matching Policies Table - right-click on a policy for more details&#39;</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="c1"># RP Policy Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_principals_bottom</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">ALL_POLICY_COLUMNS</span><span class="p">,</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="n">BASIC_POLICY_COLUMNS</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="n">POLICY_COLUMN_WIDTHS</span><span class="p">,</span>
+            <span class="n">row_context_menu_callback</span><span class="o">=</span><span class="n">policy_more_details_menu</span><span class="p">,</span>
+            <span class="n">selection_callback</span><span class="o">=</span><span class="n">rp_policy_selection_callback</span><span class="p">,</span>
+            <span class="n">multi_select</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Update the sheet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_principals_sheets</span><span class="p">()</span>
+
+        <span class="c1"># # Bind dropdowns to update function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_var</span><span class="o">.</span><span class="n">trace_add</span><span class="p">(</span><span class="s1">&#39;write&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_principals_sheets</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_var</span><span class="o">.</span><span class="n">trace_add</span><span class="p">(</span><span class="s1">&#39;write&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_principals_sheets</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ResourcePrincipalsTab.update_principals_sheets">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.ResourcePrincipalsTab.update_principals_sheets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_principals_sheets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update sheets based on dropdown selections and dynamic group selection.&quot;&quot;&quot;</span>
+        <span class="n">principals_style</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="n">resource_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+
+        <span class="c1"># Enable/disable Resource Type dropdown</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_dropdown</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Enable/disable Principals Style</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">principals_style_dropdown</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Un-grid both sheets (re-grid in a sec)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_dg_table</span><span class="o">.</span><span class="n">grid_forget</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">grid_forget</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">principals_style</span> <span class="o">==</span> <span class="s1">&#39;any-user&#39;</span><span class="p">:</span>
+            <span class="c1"># Enable Resource Type dropdown</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_dropdown</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Re-grid RP sheet</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">rowspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Any-User selected - only showing Policy table with resource dropdown&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Don&#39;t care about Dynamic groups</span>
+            <span class="k">if</span> <span class="n">resource_type</span> <span class="o">==</span> <span class="s1">&#39;Any&#39;</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Any-User with Any resource type selected&#39;</span><span class="p">)</span>
+                <span class="c1"># TODO Fixme: this filter is not working as intended</span>
+                <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="n">PolicySearch</span><span class="p">(</span><span class="n">conditions</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;request.principal.type&#39;</span><span class="p">,</span> <span class="s1">&#39;any-user&#39;</span><span class="p">])</span>
+                <span class="n">policies</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PolicyStatement</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">filter_policy_statements</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
+                <span class="c1"># Normalize the data</span>
+                <span class="n">display_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span> <span class="k">for</span> <span class="n">statement</span> <span class="ow">in</span> <span class="n">policies</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">display_data</span><span class="p">)</span>
+
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filtered to </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> policies with any principal type&#39;</span><span class="p">)</span>
+                <span class="c1"># self.principals_sheet_policies_instance.set_sheet_data(policies)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Any-User with type </span><span class="si">{</span><span class="n">resource_type</span><span class="si">}</span><span class="s1"> specified&#39;</span><span class="p">)</span>
+                <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="n">PolicySearch</span><span class="p">(</span>
+                    <span class="n">conditions</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;request.principal.type&#39;</span><span class="p">],</span> <span class="n">statement_text</span><span class="o">=</span><span class="p">[</span><span class="n">resource_type</span><span class="p">]</span>
+                <span class="p">)</span>
+                <span class="n">policies</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">filter_policy_statements</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
+                <span class="c1"># Normalize the data</span>
+                <span class="n">display_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span> <span class="k">for</span> <span class="n">statement</span> <span class="ow">in</span> <span class="n">policies</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">display_data</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filtered to </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> policies with principal type </span><span class="si">{</span><span class="n">resource_type</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">principals_style</span> <span class="o">==</span> <span class="s1">&#39;Dynamic Group&#39;</span><span class="p">:</span>
+            <span class="c1"># Disable Resource Type dropdown</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">resource_type_dropdown</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="s1">&#39;disabled&#39;</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Showing Dynamic Groups and Policy tables&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Re-grid DG and RP sheet</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rp_dg_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rp_policy_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Added both DG and Policy tables to grid&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Populate dynamic group sheet</span>
+            <span class="n">filtered_dynamic_groups</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># if type_principal == &quot;Instance Principals&quot;:</span>
+            <span class="c1"># filtered_dynamic_groups = identity_domain_analysis.filter_dynamic_groups(type_filter=&quot;instance.compartment.id&quot;)</span>
+            <span class="c1"># elif type_principal == &quot;Resource Principals&quot;:</span>
+            <span class="n">filtered_dynamic_groups</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">filter_dynamic_groups</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="p">{})</span>
+            <span class="c1"># type_filter=&#39;resource.type|resource.principal|resource.id&#39;</span>
+            <span class="c1"># )</span>
+
+            <span class="c1"># Normalize the data</span>
+            <span class="n">filtered_dynamic_groups</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_dynamic_group</span><span class="p">(</span><span class="n">dg</span><span class="p">)</span> <span class="k">for</span> <span class="n">dg</span> <span class="ow">in</span> <span class="n">filtered_dynamic_groups</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rp_dg_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">filtered_dynamic_groups</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Andrew Gregory.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

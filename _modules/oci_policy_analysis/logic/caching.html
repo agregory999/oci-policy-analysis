@@ -1,0 +1,394 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oci_policy_analysis.logic.caching &mdash; OCI Policy Analysis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            OCI Policy Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../architecture.html">Architecture</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.html">oci_policy_analysis package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.ui.html">oci_policy_analysis.ui package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.logic.html">oci_policy_analysis.logic package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">OCI Policy Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">oci_policy_analysis.logic.caching</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for oci_policy_analysis.logic.caching</h1><div class="highlight"><pre>
+<span></span><span class="c1">##########################################################################</span>
+<span class="c1"># Copyright (c) 2024, Oracle and/or its affiliates.</span>
+<span class="c1"># Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/</span>
+<span class="c1">#</span>
+<span class="c1"># DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.</span>
+<span class="c1">#</span>
+<span class="c1"># caching.py</span>
+<span class="c1">#</span>
+<span class="c1"># @author: Andrew Gregory</span>
+<span class="c1">#</span>
+<span class="c1"># Supports Python 3.12 and above</span>
+<span class="c1">#</span>
+<span class="c1"># coding: utf-8</span>
+<span class="c1">##########################################################################</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci.identity.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Domain</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.logic.data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolicyAnalysisRepository</span>
+
+<span class="c1"># Cache Directory and Date (for consistency across classes)</span>
+<span class="n">CACHE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;.oci-policy-analysis&#39;</span> <span class="o">/</span> <span class="s1">&#39;cache&#39;</span>
+<span class="c1"># AI result cache support has been removed (2025-11, per project guidance)</span>
+
+<span class="c1"># Global logger for this module</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="s1">&#39;caching&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="CacheManager">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CacheManager</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Handles saving and loading cached JSON data (IAM + AI).&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">policy_analysis</span><span class="p">:</span> <span class="n">PolicyAnalysisRepository</span><span class="p">,</span>
+        <span class="c1"># domains_analysis: IdentityDomainsAnalysis,</span>
+        <span class="n">cache_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># logger = get_logger(component=&quot;caching&quot;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span> <span class="o">=</span> <span class="n">policy_analysis</span>
+        <span class="c1"># self.domains_analysis = domains_analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span> <span class="k">if</span> <span class="n">cache_dir</span> <span class="k">else</span> <span class="n">CACHE_DIR</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Initialized Caching at </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># AI result cache functionality removed</span>
+
+    <span class="c1"># Utility functions for loading and saving cache, using combined caching strategy</span>
+<div class="viewcode-block" id="CacheManager.save_combined_cache">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager.save_combined_cache">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_combined_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">export_file</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Save combined cache for policies and dynamic groups. Returns file name if you care&quot;&quot;&quot;</span>
+
+        <span class="c1"># Date of the cache</span>
+        <span class="n">CACHE_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">UTC</span><span class="p">)</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">-%H-%M-%S-%Z&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Create the file as JSON first, collecting all details</span>
+        <span class="n">combined_data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;tenancy_name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_name</span><span class="p">,</span>
+            <span class="s1">&#39;tenancy_ocid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_ocid</span><span class="p">,</span>
+            <span class="s1">&#39;policies&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">,</span>
+            <span class="s1">&#39;dynamic_groups&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">dynamic_groups</span><span class="p">,</span>
+            <span class="s1">&#39;defined_aliases&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">defined_aliases</span><span class="p">,</span>
+            <span class="s1">&#39;cross_tenancy_policies&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">cross_tenancy_statements</span><span class="p">,</span>
+            <span class="s1">&#39;compartments&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">compartments</span><span class="p">,</span>
+            <span class="s1">&#39;identity_domains&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">_get_domains</span><span class="p">(),</span>
+            <span class="s1">&#39;groups&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">groups</span><span class="p">,</span>
+            <span class="s1">&#39;users&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">users</span><span class="p">,</span>
+            <span class="s1">&#39;data_as_of&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">data_as_of</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">export_file</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">export_file</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">combined_data</span><span class="p">,</span> <span class="n">filehandle</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exported combined cache to: </span><span class="si">{</span><span class="n">export_file</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">export_file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Just write to cache as normal</span>
+            <span class="c1"># CACHE_DIR.mkdir(parents=True, exist_ok=True)</span>
+
+            <span class="n">combined_cache_file</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s1">&#39;combined_cache_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_name</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">CACHE_DATE</span><span class="si">}</span><span class="s1">.json&#39;</span>
+            <span class="p">)</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">combined_data</span><span class="p">,</span> <span class="n">filehandle</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Saved combined cache to: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Update cache entries</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;tenancy_name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_name</span><span class="p">,</span> <span class="s1">&#39;cache_date&#39;</span><span class="p">:</span> <span class="n">CACHE_DATE</span><span class="p">}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">/</span> <span class="s1">&#39;cache_entries.json&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">date_file</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">date_file</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">date_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>  <span class="c1"># Write a newline after each entry</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updated cache entries with: </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Return the name of the file</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CacheManager.load_combined_cache">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager.load_combined_cache">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_combined_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">named_cache</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Load combined cache for policies and dynamic groups.</span>
+
+<span class="sd">        Given the name and data of a cache, loads the data into both of the centralized structures</span>
+<span class="sd">        for Compartment/Policy and Identity Domain storage.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            named_cache: The tenancy_date string of the cache name to load</span>
+<span class="sd">            policy_analysis: The initialized PolicyCompartmentAnalysis class instance to use</span>
+<span class="sd">            domains_analysis: The initialized IdentityDomainsAnalysis class instance to use</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            A string indicating the name of the file used</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">combined_cache_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s1">&#39;combined_cache_</span><span class="si">{</span><span class="n">named_cache</span><span class="si">}</span><span class="s1">.json&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loading combined cache from: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">combined_cache_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
+                    <span class="n">cache_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filehandle</span><span class="p">)</span>
+                    <span class="c1"># Grab all of the elements of the cache</span>
+                    <span class="n">policies</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="n">dynamic_groups</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dynamic_groups&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="n">cross_tenancy_data</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cross_tenancy_policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="n">defined_aliases</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;defined_aliases&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="c1"># Set the data in the policy analysis object</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_name</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tenancy_name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_ocid</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tenancy_ocid&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">compartments</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;compartments&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">regular_statements</span> <span class="o">=</span> <span class="n">policies</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">defined_aliases</span> <span class="o">=</span> <span class="n">defined_aliases</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">cross_tenancy_statements</span> <span class="o">=</span> <span class="n">cross_tenancy_data</span>
+                    <span class="c1"># Set the data in the domains analysis object</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">dynamic_groups</span> <span class="o">=</span> <span class="n">dynamic_groups</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">identity_domains</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">Domain</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> <span class="n">display_name</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;display_name&#39;</span><span class="p">],</span> <span class="n">url</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">])</span>
+                        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;identity_domains&#39;</span><span class="p">,</span> <span class="p">[])</span>
+                    <span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">groups</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;groups&#39;</span><span class="p">,</span> <span class="p">{})</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">users</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;users&#39;</span><span class="p">,</span> <span class="p">{})</span>
+
+                    <span class="c1"># Set the data as of time</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">data_as_of</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_as_of&#39;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded combined cache from: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="c1"># Show counts of each loaded element</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> policies, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">dynamic_groups</span><span class="p">)</span><span class="si">}</span><span class="s1"> dynamic groups, &#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cross_tenancy_data</span><span class="p">)</span><span class="si">}</span><span class="s1"> cross-tenancy policies, &#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">identity_domains</span><span class="p">)</span><span class="si">}</span><span class="s1"> identity domains, &#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">groups</span><span class="p">)</span><span class="si">}</span><span class="s1"> groups, and </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">users</span><span class="p">)</span><span class="si">}</span><span class="s1"> users from cache.&#39;</span>
+                    <span class="p">)</span>
+
+            <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error decoding JSON from combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="s1">&#39;no cache&#39;</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error loading combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="s1">&#39;no cache&#39;</span>
+        <span class="c1"># logger.warning(f&#39;Unable to load data from cache: {combined_cache_file}&#39;)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Unable to load data from cache: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;no cache&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CacheManager.load_cache_from_json">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager.load_cache_from_json">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_cache_from_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loaded_json</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="c1"># Load everything from given JSON</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Grab all of the elements of the cache</span>
+            <span class="n">policies</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">dynamic_groups</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dynamic_groups&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">cross_tenancy_data</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cross_tenancy_policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">defined_aliases</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;defined_aliases&#39;</span><span class="p">,</span> <span class="p">[])</span>
+
+            <span class="c1"># Set the data in the policy analysis object</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_name</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tenancy_name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">tenancy_ocid</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tenancy_ocid&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">compartments</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;compartments&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">regular_statements</span> <span class="o">=</span> <span class="n">policies</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">defined_aliases</span> <span class="o">=</span> <span class="n">defined_aliases</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">cross_tenancy_statements</span> <span class="o">=</span> <span class="n">cross_tenancy_data</span>
+            <span class="c1"># Set the data in the domains analysis object</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">dynamic_groups</span> <span class="o">=</span> <span class="n">dynamic_groups</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">identity_domains</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">Domain</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> <span class="n">display_name</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;display_name&#39;</span><span class="p">],</span> <span class="n">url</span><span class="o">=</span><span class="n">d</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;identity_domains&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">groups</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;groups&#39;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">users</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;users&#39;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="c1"># Set the data as of time</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">data_as_of</span> <span class="o">=</span> <span class="n">loaded_json</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_as_of&#39;</span><span class="p">)</span>
+            <span class="c1"># Show counts of each loaded element</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> policies, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">dynamic_groups</span><span class="p">)</span><span class="si">}</span><span class="s1"> dynamic groups, &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cross_tenancy_data</span><span class="p">)</span><span class="si">}</span><span class="s1"> cross-tenancy policies, &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">identity_domains</span><span class="p">)</span><span class="si">}</span><span class="s1"> identity domains, &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">groups</span><span class="p">)</span><span class="si">}</span><span class="s1"> groups, and </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_analysis</span><span class="o">.</span><span class="n">users</span><span class="p">)</span><span class="si">}</span><span class="s1"> users from cache.&#39;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error decoding JSON from combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error loading combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="CacheManager.get_available_cache">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager.get_available_cache">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_available_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tenancy_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get available cache files for a given profile</span>
+
+<span class="sd">        If given no argument, simply return the list of all avialable cache files that</span>
+<span class="sd">        exist in the cache directory.  Entries will contain the tenancy name and date loaded.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tenancy_name: The name of an OCI tenancy, which will filter the cache list down to only</span>
+<span class="sd">            caches for that tenancy.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            a list of the available named caches</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">return_entries</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">/</span> <span class="s1">&#39;cache_entries.json&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">date_file</span><span class="p">:</span>
+                <span class="n">entries</span> <span class="o">=</span> <span class="n">date_file</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Entries found in cache_entries.json: </span><span class="si">{</span><span class="n">entries</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">entries</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>  <span class="c1"># Show most recent first</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Entries found in cache_entries.json (Reversed): </span><span class="si">{</span><span class="n">entries</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+                <span class="n">cache</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">tenancy_name</span> <span class="ow">and</span> <span class="n">cache</span><span class="p">[</span><span class="s1">&#39;tenancy_name&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">tenancy_name</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">return_entries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;tenancy_name&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">cache</span><span class="p">[</span><span class="s1">&#39;cache_date&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No cache entries found or cache_entries.json is empty.&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;cache_entries.json file not found. No cache entries available.&#39;</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Entries found in cache_entries.json: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">return_entries</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">return_entries</span></div>
+
+
+<div class="viewcode-block" id="CacheManager.load_cache_into_local_json">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.CacheManager.load_cache_into_local_json">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_cache_into_local_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cached_tenancy</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="c1"># Load everything into a JSON dict and return it</span>
+        <span class="n">combined_cache_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s1">&#39;combined_cache_</span><span class="si">{</span><span class="n">cached_tenancy</span><span class="si">}</span><span class="s1">.json&#39;</span>
+        <span class="k">if</span> <span class="n">combined_cache_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
+                    <span class="n">cache_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filehandle</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded combined cache from: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="c1"># Show counts of each loaded element</span>
+                    <span class="c1"># Return data as object</span>
+                    <span class="k">return</span> <span class="n">cache_data</span>
+            <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error decoding JSON from combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">{}</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error loading combined cache file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">{}</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Unable to load data from cache: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{}</span></div>
+</div>
+
+
+    <span class="c1"># All AI result cache logic and data structures have been removed, as requested.</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Andrew Gregory.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

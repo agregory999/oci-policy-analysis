@@ -1,0 +1,609 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oci_policy_analysis.logic package &mdash; OCI Policy Analysis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="oci_policy_analysis.ui package" href="oci_policy_analysis.ui.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            OCI Policy Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../architecture.html">Architecture</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="oci_policy_analysis.html">oci_policy_analysis package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oci_policy_analysis.ui.html">oci_policy_analysis.ui package</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">oci_policy_analysis.logic package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">OCI Policy Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">oci_policy_analysis.logic package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/oci_policy_analysis.logic.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="oci-policy-analysis-logic-package">
+<h1>oci_policy_analysis.logic package<a class="headerlink" href="#oci-policy-analysis-logic-package" title="Link to this heading"></a></h1>
+<p>Top level package for OCI Policy Analysis logic components.</p>
+<dl class="py class">
+<dt class="sig sig-object py">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oci_policy_analysis.logic.</span></span><span class="sig-name descname"><span class="pre">PolicyAnalysisRepository</span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>This is the main data repository for Policy, Identity, and Compartment data</p>
+<p>During initialization, the entire compartment hierarchy and policy tree is loaded into a central JSON dictionary.
+This central dictionary is then referenced by functions that filter and return a subset of information for display.
+Parsing, additional analysis, and import/export are made available by additional functions exposed.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">compartments</span></span></dt>
+<dd><p>A list of JSON dicts containing the compartment hierarchy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">regular_statements</span></span></dt>
+<dd><p>A list of JSON dicts containing the individual regular policy statements within an OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">cross_tenancy_statements</span></span></dt>
+<dd><p>A list of JSON dicts containing the individual cross-tenancy policy statements within an OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">defined_aliases</span></span></dt>
+<dd><p>A list of JSON dicts containing the “define” statements within an OCI tenancy, used for cross-tenancy evaluation</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">dynamic_groups</span></span></dt>
+<dd><p>A list of JSON dicts containing the Dyanmic Groups present in the OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">identity_domains</span></span></dt>
+<dd><p>A list of JSON dicts containing the Identity Domains in the OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">groups</span></span></dt>
+<dd><p>A list of JSON dicts containing the Groups in the OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">users</span></span></dt>
+<dd><p>A list of JSON dicts containing the Users in the OCI tenancy</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">domain_clients</span></span></dt>
+<dd><p>A dict containing the OCI IdentityDomainClients required to collect all of the information
+data_as_of: The timestamp that this data load was completed.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">tenancy_ocid</span></span></dt>
+<dd><p>The OCID of the tenancy being analyzed here.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">identity_client</span></span></dt>
+<dd><p>The OCI client that is initialized and used for all data loading purposes.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">analyze_policy_overlap</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.analyze_policy_overlap"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Analyze policy statements for potential overlaps.
+This method iterates through all regular policy statements and checks for potential overlaps
+based on effective compartment paths, resources, verbs, permissions, and subjects.
+If an overlap is detected, it records the details in the <cite>policy_overlaps</cite> attribute.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">compare_against_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cached_tenancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cached_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.compare_against_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Loads a cache set and compares with the currently loaded policy set and return changes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">filter_cross_tenancy_policy_statements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alias_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyStatement</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_cross_tenancy_policy_statements"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">filter_dynamic_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DynamicGroupSearch</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">DynamicGroup</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_dynamic_groups"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Filter dynamic groups using JSON-based filters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>filters</strong> (<em>DynamicGroupSearch</em>) – <p>A mapping of filter keys to one or more values.</p>
+<ul class="simple">
+<li><p><strong>OR</strong>: multiple values within a field act as logical OR.</p></li>
+<li><p><strong>AND</strong>: multiple fields are combined as logical AND.</p></li>
+</ul>
+<p><strong>Supported keys:</strong>
+* <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> → matches “Domain”
+* <code class="docutils literal notranslate"><span class="pre">dynamic_group_name</span></code> → matches “DG Name”
+* <code class="docutils literal notranslate"><span class="pre">matching_rule</span></code> → matches “Matching Rule”
+* <code class="docutils literal notranslate"><span class="pre">dynamic_group_ocid</span></code> → matches “DG OCID”
+* <code class="docutils literal notranslate"><span class="pre">in_use</span></code> → matches “In Use” (True/False)</p>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A list of dynamic groups that satisfy the filters.</p>
+<blockquote>
+<div><p>Each dynamic group is represented as a dictionary with keys:
+* <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> (str | None): The domain name of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">dynamic_group_name</span></code> (str): The name of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">dynamic_group_id</span></code> (str): The ID of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">dynamic_group_ocid</span></code> (str): The OCID of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">matching_rule</span></code> (str): The matching rule of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">description</span></code> (str): The description of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">in_use</span></code> (bool): Whether the dynamic group is in use.
+* <code class="docutils literal notranslate"><span class="pre">creation_time</span></code> (str): The creation timestamp of the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">created_by_name</span></code> (str): The name of the user who created the dynamic group.
+* <code class="docutils literal notranslate"><span class="pre">created_by_ocid</span></code> (str): The OCID of the user who created the dynamic group.</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[DynamicGroup]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If an unknown filter key is provided.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">filter_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">GroupSearch</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Group</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_groups"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Filter groups based on the provided filter.  Public function used by MCP or UI</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">filter_policy_statements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolicySearch</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyStatement</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_policy_statements"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Filter policy statements based on provided criteria.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>filters</strong> (<em>PolicySearch</em>) – <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">exact_groups</span></code> (list[Group] | None): Exact groups to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">Group</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">group_name</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exact_users</span></code> (list[User] | None): Exact users to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">User</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">user_name</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exact_dynamic_groups</span></code> (list[DynamicGroup] | None): Exact dynamic groups to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicGroup</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">name</span></code>.</p></li>
+</ul>
+<p><strong>Fuzzy-search fields</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">search_groups</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">GroupSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">search_users</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">UserSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">search_dynamic_groups</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicGroupSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
+</ul>
+<p><strong>Statement attributes</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">subject_type</span></code> (list[str] | None): Subject types to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">verb</span></code> (list[str] | None): Verbs to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resource</span></code> (list[str] | None): Resources to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">permission</span></code> (list[str] | None): Permissions to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">location_type</span></code> (list[str] | None): Location types to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">location</span></code> (list[str] | None): Locations to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">policy_compartment</span></code> (list[str] | None): Compartment names or <code class="docutils literal notranslate"><span class="pre">&quot;ROOTONLY&quot;</span></code> to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">effective_path</span></code> (list[str] | None): Effective compartment paths or <code class="docutils literal notranslate"><span class="pre">&quot;ROOTONLY&quot;</span></code> to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">effective_compartment_ocid</span></code> (list[str] | None): Effective compartment OCIDs to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">conditions</span></code> (list[str] | None): Conditions to filter by.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">valid</span></code> (bool | None): Whether to include only valid statements.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">creation_time_range</span></code> (tuple[datetime | None, datetime | None] | None): Creation-time range to filter by.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Policy statements matching the filter criteria.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[PolicyStatement]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If fuzzy or exact search is requested but identity domains are not loaded.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">filter_users</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">UserSearch</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">User</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_users"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Filter users based on the provided filter.</p>
+<p>This function is used by the MCP interface and the UI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>user_filter</strong> (<em>UserSearch</em>) – <p>A dictionary with optional keys.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">domain_name</span></code> (list[str]): Domain names to filter by (case-insensitive).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">search</span></code> (list[str]): Search terms to match against usernames and display names (case-insensitive).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_ocid</span></code> (list[str]): User OCIDs to filter by (case-insensitive).</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>Users that match the filter criteria.</p>
+<p>Each <code class="xref py py-class docutils literal notranslate"><span class="pre">User</span></code> is represented as a dictionary with keys:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">domain_name</span></code> (str | None): Domain name of the user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_name</span></code> (str): Username.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_ocid</span></code> (str): OCID of the user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">display_name</span></code> (str): Display name of the user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">email</span></code> (str): Email of the user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_id</span></code> (str): Internal ID of the user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">groups</span></code> (list[str]): Group OCIDs the user belongs to.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[User]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_compartment_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">compartment_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.get_compartment_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_groups_for_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">User</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Group</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.get_groups_for_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Return the list of all Groups that a user is a member of</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>user</strong> (<em>User</em>) – The user to find groups for.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A list of Groups that the user is a member of.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[Group]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_policy_overlaps_by_internal_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">internal_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyOverlap</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.get_policy_overlaps_by_internal_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Given an internal ID, return the list of PolicyOverlap entries for that statement.
+:param internal_id: The internal ID of the policy statement to look up.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A list of PolicyOverlap entries for the specified internal ID.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_users_for_group</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Group</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">User</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.get_users_for_group"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Return all users that belong to the specified exact group.  Membership is determined by matching the group name and domain name.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>group</strong> (<em>Group</em>) – A dictionary with keys:
+- ‘domain’: str | None
+- ‘name’: str</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A list of Users that belong to the specified group. If the group does not exist or has no members, returns an empty list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[User]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">initialize_client</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">use_instance_principal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">recursive</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'DEFAULT'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.initialize_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Initializes the OCI client to be used for all data operations</p>
+<p>Client can be loaded using PROFILE or Instance Principal authentication methods</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>use_instance_principal</strong> – Whether to attempt Instance Principal signer-based authentication</p></li>
+<li><p><strong>recursive</strong> – Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment</p></li>
+<li><p><strong>session</strong> – The named OCI Session Token Profile to use - must be present on the file system in the standard OCI location of .oci/config</p></li>
+<li><p><strong>profile</strong> – The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A boolean indicating whether the client was created successfully.  False indicates that an unrecoverable issue occurred
+setting up the client.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_compartment_and_policies_worker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">compartment</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Compartment</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.load_compartment_and_policies_worker"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Worker function to load compartment and policy data as JSON object in a thread</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_complete_identity_domains</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.load_complete_identity_domains"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Loads everything into the cetntral JSON</p>
+<p>Identity Domains are loaded via the Identity Client.
+For each Identity Domain, load the Dynamic Groups, Groups, and Users</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>none</strong></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A boolean indicating success of the data load.  False indicates there was some failure in loading data,
+so it may be incomplete.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_policies_and_compartments</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.load_policies_and_compartments"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Load all compartments and policies from a tenancy using OCI Clients.</p>
+<p>If recursive was selected, use a thread pool and the worker function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>a boolean indicating success or failure</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">run_dg_in_use_analysis</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.run_dg_in_use_analysis"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Analyzes Dynamic Group data for unused Dynamic Groups</p>
+<p>Given a list of policy statements, iterates to see if each dynamic group is used.  If not, it
+is marked with “In Use” = False, for later display</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>policy_statements</strong> – A list of JSON dicts containing a policy statement each</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oci_policy_analysis.logic.</span></span><span class="sig-name descname"><span class="pre">AI</span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/ai_repo.html#AI"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>AI Module for OCI Policy Analysis</p>
+<p>Contains all of the available GenAI calls that can be made to obtain additional context.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">genai_client</span></span></dt>
+<dd><p>The OCI GenAI Client.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">genai_inference_client</span></span></dt>
+<dd><p>The OCI GenAI Inference Client</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">analyze_policy_statement</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">policy_text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/queue.html#queue.Queue" title="(in Python v3.14)"><span class="pre">Queue</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_instruction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/ai_repo.html#AI.analyze_policy_statement"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Analyze a policy statement using the GenAI Inference Client.
+:param policy_text: The policy statement text to analyze.
+:type policy_text: str
+:param queue: Optional queue to put the result into for async calls.
+:type queue: queue.Queue
+:param additional_instruction: Additional instructions to include in the prompt.
+:type additional_instruction: str</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The analysis result from the AI model.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">initialize_client</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">use_instance_principal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_token</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'DEFAULT'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/ai_repo.html#AI.initialize_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Initialize OCI GenAI Client with authentication.
+:param use_instance_principal: Whether to use Instance Principal authentication.
+:type use_instance_principal: bool
+:param session_token: Session token profile name for authentication.
+:type session_token: str | None
+:param profile: Profile name for authentication if not using instance principal or session token.
+:type profile: str</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True if initialization is successful, False otherwise.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">list_models</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/ai_repo.html#AI.list_models"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>List available models using GenerativeAiClient.list_models.
+:returns: A list of available GenAI models with their details.
+:rtype: list[dict]</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">update_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_ocid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">endpoint</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compartment_ocid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/ai_repo.html#AI.update_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Update Model ID and Endpoint, reinitializing client if endpoint changes.
+:param model_ocid: The model OCID to use.
+:type model_ocid: str
+:param endpoint: The endpoint URL to use.
+:type endpoint: str
+:param compartment_ocid: The compartment OCID for requests.
+:type compartment_ocid: str</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oci_policy_analysis.logic.</span></span><span class="sig-name descname"><span class="pre">CacheManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">policy_analysis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolicyAnalysisRepository</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Handles saving and loading cached JSON data (IAM + AI).</p>
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">get_available_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tenancy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.get_available_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Get available cache files for a given profile</p>
+<p>If given no argument, simply return the list of all avialable cache files that
+exist in the cache directory.  Entries will contain the tenancy name and date loaded.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tenancy_name</strong> – The name of an OCI tenancy, which will filter the cache list down to only</p></li>
+<li><p><strong>tenancy.</strong> (<em>caches for that</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>a list of the available named caches</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_cache_from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">loaded_json</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_cache_from_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_cache_into_local_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cached_tenancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_cache_into_local_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">load_combined_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">named_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_combined_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Load combined cache for policies and dynamic groups.</p>
+<p>Given the name and data of a cache, loads the data into both of the centralized structures
+for Compartment/Policy and Identity Domain storage.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>named_cache</strong> – The tenancy_date string of the cache name to load</p></li>
+<li><p><strong>policy_analysis</strong> – The initialized PolicyCompartmentAnalysis class instance to use</p></li>
+<li><p><strong>domains_analysis</strong> – The initialized IdentityDomainsAnalysis class instance to use</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A string indicating the name of the file used</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">save_combined_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">export_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.save_combined_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Save combined cache for policies and dynamic groups. Returns file name if you care</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="oci_policy_analysis.ui.html" class="btn btn-neutral float-left" title="oci_policy_analysis.ui package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Andrew Gregory.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

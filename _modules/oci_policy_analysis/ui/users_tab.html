@@ -1,0 +1,475 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>oci_policy_analysis.ui.users_tab &mdash; OCI Policy Analysis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            OCI Policy Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../architecture.html">Architecture</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.html">oci_policy_analysis package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.ui.html">oci_policy_analysis.ui package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/oci_policy_analysis.logic.html">oci_policy_analysis.logic package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">OCI Policy Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">oci_policy_analysis.ui.users_tab</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for oci_policy_analysis.ui.users_tab</h1><div class="highlight"><pre>
+<span></span><span class="c1">##########################################################################</span>
+<span class="c1"># Copyright (c) 2024, Oracle and/or its affiliates.</span>
+<span class="c1"># Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/</span>
+<span class="c1">#</span>
+<span class="c1"># DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.</span>
+<span class="c1">#</span>
+<span class="c1"># users_tab.py</span>
+<span class="c1">#</span>
+<span class="c1"># @author: Andrew Gregory</span>
+<span class="c1">#</span>
+<span class="c1"># Supports Python 3.12 and above</span>
+<span class="c1">#</span>
+<span class="c1"># coding: utf-8</span>
+<span class="c1">##########################################################################</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ttk</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Group</span><span class="p">,</span> <span class="n">GroupSearch</span><span class="p">,</span> <span class="n">PolicySearch</span><span class="p">,</span> <span class="n">User</span><span class="p">,</span> <span class="n">UserSearch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.logic.data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolicyAnalysisRepository</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.data_table</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">for_display_group</span><span class="p">,</span> <span class="n">for_display_policy</span><span class="p">,</span> <span class="n">for_display_user</span>
+
+<span class="c1"># Global logger for this module</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="s1">&#39;users_tab&#39;</span><span class="p">)</span>
+
+<span class="n">GROUPS_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Group Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Group OCID&#39;</span><span class="p">]</span>
+<span class="n">GROUPS_COLUMNS_WIDTHS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span> <span class="s1">&#39;Group Name&#39;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span> <span class="s1">&#39;Group OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">}</span>
+
+<span class="n">USERS_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Username&#39;</span><span class="p">,</span> <span class="s1">&#39;Display Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Primary Email&#39;</span><span class="p">,</span> <span class="s1">&#39;User ID&#39;</span><span class="p">]</span>
+<span class="n">USERS_COLUMNS_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Username&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Display Name&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Primary Email&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;User ID&#39;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="s1">&#39;Domain Name&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">BASIC_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span> <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span> <span class="s1">&#39;Valid&#39;</span><span class="p">]</span>
+<span class="n">ALL_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy OCID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Valid&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Subject Type&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Subject&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Verb&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Resource&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Permission&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Location Type&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Location&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Conditions&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Comments&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Parsing Notes&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Parsed&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+<span class="n">POLICY_COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Policy Name&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Policy OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
+    <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Statement Text&#39;</span><span class="p">:</span> <span class="mi">700</span><span class="p">,</span>
+    <span class="s1">&#39;Valid&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+    <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Effective Path&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Subject Type&#39;</span><span class="p">:</span> <span class="mi">120</span><span class="p">,</span>
+    <span class="s1">&#39;Subject&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Verb&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="s1">&#39;Resource&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Permission&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Location Type&#39;</span><span class="p">:</span> <span class="mi">120</span><span class="p">,</span>
+    <span class="s1">&#39;Location&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Conditions&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Comments&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Parsing Notes&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
+    <span class="s1">&#39;Creation Time&#39;</span><span class="p">:</span> <span class="mi">150</span><span class="p">,</span>
+    <span class="s1">&#39;Parsed&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="UsersTab">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.UsersTab">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UsersTab</span><span class="p">(</span><span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Example data-driven tab that can update the bottom entry.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">app</span><span class="p">,</span> <span class="n">policy_repo</span><span class="p">:</span> <span class="n">PolicyAnalysisRepository</span><span class="p">):</span>  <span class="c1"># noqa: C901</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">policy_compartment_analysis</span><span class="p">:</span> <span class="n">PolicyAnalysisRepository</span> <span class="o">=</span> <span class="n">policy_repo</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+        <span class="c1"># self.grid_rowconfigure(2, weight=1)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># For this tab, on the top left, include a table for all Groups with Domain/Group.  Allow Multi-Select</span>
+        <span class="c1"># On the top right, include a table for all users, which is unfiltered, but if any group is selected on the left,</span>
+        <span class="c1"># only show users in those groups.  This table is multi-select as well.</span>
+        <span class="c1"># Depending on what is selected on the right, show all policies for those users in the bottom frame.</span>
+        <span class="c1"># Bottom Frame is a policy table, similar to the other tabs, but only showing policies for the selected users/groups.</span>
+        <span class="c1"># Similar AI analysis as well.</span>
+
+        <span class="c1"># Frame for top (left form, right table)</span>
+        <span class="n">frm_user_top</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">frm_user_top</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_user_top</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_user_top</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>  <span class="c1"># Options</span>
+        <span class="n">frm_user_top</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>  <span class="c1"># Table</span>
+        <span class="c1"># frm_user_top.grid_columnconfigure(2, weight=4)</span>
+        <span class="n">frm_user_top</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="c1"># Frame for Policy Statements (row 1)</span>
+        <span class="n">frm_users_policies</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">9</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+        <span class="n">frm_users_policies</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="c1"># Variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">BooleanVar</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">users_group_selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;When a Group is selected, update the users/groups and policy statements below&quot;&quot;&quot;</span>
+            <span class="n">groups_for_filter</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># Make the DG list (Domain,Name) for all selected rows</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">selected_rows</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Selected Group: </span><span class="si">{</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Group Name&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s1">&#39;Group Name&#39;</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+                    <span class="n">groups_for_filter</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="p">{</span><span class="s1">&#39;domain_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">),</span> <span class="s1">&#39;group_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Group Name&#39;</span><span class="p">)}</span>
+                    <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Groups for filter: </span><span class="si">{</span><span class="n">groups_for_filter</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_user_analysis_policy_output</span><span class="p">(</span><span class="n">groups_for_filter</span><span class="o">=</span><span class="n">groups_for_filter</span><span class="p">,</span> <span class="n">users_for_filter</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">users_user_selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;When a User is selected, update the users/groups and policy statements below&quot;&quot;&quot;</span>
+            <span class="n">users_for_filter</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># Make the DG list (Domain,Name) for all selected rows</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">selected_rows</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Selected User: </span><span class="si">{</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Username&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s1">&#39;Username&#39;</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+                    <span class="n">users_for_filter</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;domain_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Domain Name&#39;</span><span class="p">),</span> <span class="s1">&#39;user_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Username&#39;</span><span class="p">)})</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Users for filter: </span><span class="si">{</span><span class="n">users_for_filter</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_user_analysis_policy_output</span><span class="p">(</span><span class="n">groups_for_filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">users_for_filter</span><span class="o">=</span><span class="n">users_for_filter</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">users_policy_selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;When a Policy Statement is selected, update the policy statement below&quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">selected_statement</span> <span class="o">=</span> <span class="n">selected_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Selected policy statement: </span><span class="si">{</span><span class="n">selected_statement</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policy_query_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">selected_statement</span><span class="p">)</span>
+                <span class="c1"># self.policy_analyze_statement_var.set(selected_statement)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policy_query_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">switch_groups_users_selection</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;probably get rid of this&quot;&quot;&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Calling update for users&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_user_analysis_output</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">update_search</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;probably get rid of this&quot;&quot;&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updating search: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_user_analysis_output</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">clear_filter</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">update_user_policy_output</span><span class="p">():</span>
+            <span class="c1"># Change to more output</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">users_policy_table</span><span class="o">.</span><span class="n">set_display_columns</span><span class="p">(</span><span class="n">ALL_POLICY_COLUMNS</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">users_policy_table</span><span class="o">.</span><span class="n">set_display_columns</span><span class="p">(</span><span class="n">BASIC_POLICY_COLUMNS</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updated display for expanded output: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Frame for selection and Search</span>
+        <span class="n">frm_user_selection</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frm_user_top</span><span class="p">)</span>
+        <span class="n">frm_user_selection</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">frm_user_selection</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+        <span class="n">frm_user_selection</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">frm_user_selection</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="c1"># User / Group Selection</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Select Groups / Users&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
+            <span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Selection Dropdown (users or groups)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groups_users_dropdown</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">OptionMenu</span><span class="p">(</span>
+            <span class="n">frm_user_selection</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span><span class="o">.</span><span class="n">get</span><span class="p">(),</span>
+            <span class="o">*</span><span class="p">[</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">,</span> <span class="s1">&#39;USERS&#39;</span><span class="p">],</span>
+            <span class="c1"># bootstyle=&#39;default&#39;,</span>
+            <span class="n">command</span><span class="o">=</span><span class="n">switch_groups_users_selection</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groups_users_dropdown</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Search&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Search with trace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">35</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
+            <span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">trace_add</span><span class="p">(</span><span class="s1">&#39;write&#39;</span><span class="p">,</span> <span class="n">update_search</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span>
+            <span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Search user/group name using | for logical OR</span><span class="se">\n</span><span class="s1">Examples: user1|user2 grp1|grp2&#39;</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear_groups_users</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Clear Filter&#39;</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">clear_filter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear_groups_users</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_selected_groups</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_user_selection</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Selected Groups: &#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_selected_groups</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">selected_groups_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_user_selection</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Domain&#39;</span><span class="p">,</span> <span class="s1">&#39;Group&#39;</span><span class="p">],</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Domain&#39;</span><span class="p">,</span> <span class="s1">&#39;Group&#39;</span><span class="p">],</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Domain&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span> <span class="s1">&#39;Group&#39;</span><span class="p">:</span> <span class="mi">300</span><span class="p">},</span>
+            <span class="c1"># font_size=10,</span>
+            <span class="c1"># selection_callback=users_group_selection_callback,</span>
+            <span class="c1"># multi_select=True,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selected_groups_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Table for Groups on the left</span>
+        <span class="c1"># Groups Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">users_groups_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_user_top</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">GROUPS_COLUMNS</span><span class="p">,</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="n">GROUPS_COLUMNS</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="n">GROUPS_COLUMNS_WIDTHS</span><span class="p">,</span>
+            <span class="c1"># font_size=10,</span>
+            <span class="n">selection_callback</span><span class="o">=</span><span class="n">users_group_selection_callback</span><span class="p">,</span>
+            <span class="n">multi_select</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Users Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">users_users_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_user_top</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">USERS_COLUMNS</span><span class="p">,</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="n">USERS_COLUMNS</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="n">USERS_COLUMNS_WIDTHS</span><span class="p">,</span>
+            <span class="c1"># font_size=10,</span>
+            <span class="n">selection_callback</span><span class="o">=</span><span class="n">users_user_selection_callback</span><span class="p">,</span>
+            <span class="n">multi_select</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Users Page Policy Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_label_count</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_users_policies</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Policy Statements (Filtered): 0&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_label_count</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Separator</span><span class="p">(</span><span class="n">frm_users_policies</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">VERTICAL</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
+            <span class="n">frm_users_policies</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Parsed Output&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">update_user_policy_output</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="c1"># Policy Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">users_policy_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span>
+            <span class="n">frm_users_policies</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">ALL_POLICY_COLUMNS</span><span class="p">,</span>
+            <span class="n">display_columns</span><span class="o">=</span><span class="n">BASIC_POLICY_COLUMNS</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">column_widths</span><span class="o">=</span><span class="n">POLICY_COLUMN_WIDTHS</span><span class="p">,</span>
+            <span class="c1"># font_size=10,</span>
+            <span class="n">selection_callback</span><span class="o">=</span><span class="n">users_policy_selection_callback</span><span class="p">,</span>
+            <span class="n">multi_select</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">users_policy_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_user_analysis_output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO: Compartment Analysis</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Displaying: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="si">}</span><span class="s1"> with search of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Grid the correct table</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;GROUPS&#39;</span><span class="p">:</span>
+            <span class="c1"># Load the groups into grid and search</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_users_table</span><span class="o">.</span><span class="n">grid_forget</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_groups_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rowspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Only filter on name for now</span>
+            <span class="n">group_filter</span><span class="p">:</span> <span class="n">GroupSearch</span> <span class="o">=</span> <span class="n">GroupSearch</span><span class="p">(</span>
+                <span class="n">group_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="k">else</span> <span class="p">[],</span>
+            <span class="p">)</span>
+            <span class="c1"># Filter and display</span>
+            <span class="n">filtered_groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Group</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_compartment_analysis</span><span class="o">.</span><span class="n">filter_groups</span><span class="p">(</span><span class="n">group_filter</span><span class="o">=</span><span class="n">group_filter</span><span class="p">)</span>
+            <span class="n">display_groups</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_group</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">filtered_groups</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_groups_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">display_groups</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered_groups</span><span class="p">)</span><span class="si">}</span><span class="s1"> groups into table&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups_option_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;USERS&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_groups_table</span><span class="o">.</span><span class="n">grid_forget</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_users_table</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rowspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;nsew&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Only filter on username for now</span>
+            <span class="n">user_filter</span><span class="p">:</span> <span class="n">UserSearch</span> <span class="o">=</span> <span class="n">UserSearch</span><span class="p">(</span>
+                <span class="n">search</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_group_search</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="k">else</span> <span class="p">[],</span>
+            <span class="p">)</span>
+            <span class="c1"># Filter and display</span>
+            <span class="n">filtered_users</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">User</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_compartment_analysis</span><span class="o">.</span><span class="n">filter_users</span><span class="p">(</span><span class="n">user_filter</span><span class="o">=</span><span class="n">user_filter</span><span class="p">)</span>
+            <span class="n">display_users</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_user</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">filtered_users</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">users_users_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">display_users</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered_users</span><span class="p">)</span><span class="si">}</span><span class="s1"> users into data&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Should not get here&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_user_analysis_policy_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">groups_for_filter</span><span class="p">,</span> <span class="n">users_for_filter</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the policy statements based on the selected groups and/or users&quot;&quot;&quot;</span>
+        <span class="c1"># Take the list of groups, make a group filter, and update policy table</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Searching for policies for groups: </span><span class="si">{</span><span class="n">groups_for_filter</span><span class="si">}</span><span class="s1"> and users: </span><span class="si">{</span><span class="n">users_for_filter</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># create an exact_groups filter for filter_policy_statements</span>
+
+        <span class="n">exact_groups_filter</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Group</span><span class="p">]</span> <span class="o">=</span> <span class="n">groups_for_filter</span>
+        <span class="n">exact_users_filter</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">User</span><span class="p">]</span> <span class="o">=</span> <span class="n">users_for_filter</span>
+        <span class="n">exact_groups_users_filter</span> <span class="o">=</span> <span class="n">PolicySearch</span><span class="p">(</span><span class="n">exact_groups</span><span class="o">=</span><span class="n">exact_groups_filter</span><span class="p">,</span> <span class="n">exact_users</span><span class="o">=</span><span class="n">exact_users_filter</span><span class="p">)</span>
+        <span class="n">filtered_policies</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_compartment_analysis</span><span class="o">.</span><span class="n">filter_policy_statements</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">exact_groups_users_filter</span><span class="p">)</span>
+        <span class="c1"># Use helper to normalize for display</span>
+        <span class="n">display_policies</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">st</span><span class="p">)</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">filtered_policies</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">users_policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">display_policies</span><span class="p">)</span>
+
+        <span class="c1"># Update the labels and table</span>
+        <span class="c1"># Create a list of dict for the table</span>
+        <span class="c1"># If all we have is users, grab the groups for them</span>
+        <span class="n">selected_groups_for_table</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">groups_for_filter</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups_for_filter</span><span class="p">:</span>
+                <span class="n">dom</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;domain_name&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;Default&#39;</span>
+                <span class="n">gr</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;group_name&#39;</span><span class="p">)</span>
+                <span class="n">selected_groups_for_table</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;Domain&#39;</span><span class="p">:</span> <span class="n">dom</span><span class="p">,</span> <span class="s1">&#39;Group&#39;</span><span class="p">:</span> <span class="n">gr</span><span class="p">})</span>
+        <span class="k">elif</span> <span class="n">users_for_filter</span><span class="p">:</span>
+            <span class="c1"># If all we have is users, grab the groups for them</span>
+            <span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">users_for_filter</span><span class="p">:</span>
+                <span class="n">groups_for_user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_compartment_analysis</span><span class="o">.</span><span class="n">get_groups_for_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups_for_user</span><span class="p">:</span>
+                    <span class="n">dom</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;domain_name&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;Default&#39;</span>
+                    <span class="n">gr</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;group_name&#39;</span><span class="p">)</span>
+                    <span class="n">selected_groups_for_table</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;Domain&#39;</span><span class="p">:</span> <span class="n">dom</span><span class="p">,</span> <span class="s1">&#39;Group&#39;</span><span class="p">:</span> <span class="n">gr</span><span class="p">})</span>
+        <span class="c1"># Update the group and policies table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selected_groups_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">selected_groups_for_table</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_label_count</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Policy Statements (Filtered): </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered_policies</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Andrew Gregory.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
