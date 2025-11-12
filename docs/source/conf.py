@@ -2,7 +2,7 @@ import os
 import sys
 from datetime import datetime
 
-sys.path.insert(0, os.path.abspath('../..'))
+sys.path.insert(0, os.path.abspath(os.path.join('..', '..', 'src')))
 
 project = 'OCI Policy Analysis'
 author = 'Andrew Gregory'
