@@ -20,4 +20,4 @@ Contents
    :caption: API Reference
 
    api/oci_policy_analysis
-
+   api/oci_policy_analysis.ui
