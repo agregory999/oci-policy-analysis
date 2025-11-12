@@ -36,6 +36,7 @@ autodoc_mock_imports = [
     'ttkbootstrap',
     '_tkinter',
 ]
+myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
