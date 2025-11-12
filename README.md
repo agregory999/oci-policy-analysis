@@ -3,7 +3,7 @@
 Analyze Oracle Cloud IAM policies and identity data.
 
 📘 **Full documentation:**  
-👉 [https://andrewgregory.github.io/oci-policy-analysis](https://andrewgregory.github.io/oci-policy-analysis)
+👉 [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
 
 ## Quick Start
 ```bash
