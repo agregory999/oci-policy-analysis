@@ -3,39 +3,29 @@ name: Build and Deploy Docs
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # allows manual runs from Actions tab
 
 permissions:
-  contents: write  # required for gh-pages deploy
+  contents: write
 
 jobs:
-  build-docs:
+  docs:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
-          pip install -e .
-          pip install sphinx furo sphinx-autobuild sphinx-autodoc-typehints sphinx-rtd-theme
+          pip install -U sphinx sphinx_rtd_theme myst-parser sphinxcontrib-mermaid
 
-      - name: Build Sphinx documentation
-        run: |
-          sphinx-apidoc -o docs/source src/oci_policy_analysis
-          sphinx-build -b html docs/source docs/build/html
+      - name: Build documentation
+        run: sphinx-build -b html docs/source docs/build/html
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
           publish_dir: docs/build/html
-          force_orphan: true
