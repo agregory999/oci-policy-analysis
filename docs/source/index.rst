@@ -1,18 +1,23 @@
-.. OCI Policy Analysis documentation master file, created by
-   sphinx-quickstart on Fri Oct 24 15:52:56 2025.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-OCI Policy Analysis documentation
+OCI Policy Analysis Documentation
 =================================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+.. include:: ../../README.md
+   :parser: myst_parser.sphinx_
 
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide
 
-   api
+   overview
+   usage
+   architecture
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
+
+   api/oci_policy_analysis
+

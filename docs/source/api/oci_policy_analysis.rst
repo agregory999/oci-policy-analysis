@@ -1,18 +1,7 @@
-﻿oci\_policy\_analysis
-=====================
+oci_policy_analysis package
+===========================
 
 .. automodule:: oci_policy_analysis
-
-   
-.. rubric:: Modules
-
-.. autosummary::
-   :toctree:
-   :recursive:
-
-   cli
-   logger
-   logic
-   main
-   mcp_server
-   rich
+   :members:
+   :undoc-members:
+   :show-inheritance:

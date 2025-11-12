@@ -1,38 +1,43 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+import os
+import sys
+from datetime import datetime
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+sys.path.insert(0, os.path.abspath('../..'))
 
 project = 'OCI Policy Analysis'
-copyright = '2025, Andrew Gregory, Oracle'
-author = 'Andrew Gregory, Oracle'
-release = '${VERSION}'
-
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+author = 'Andrew Gregory'
+copyright = f'{datetime.now().year}, {author}'
+release = '2.0.0'
 
 extensions = [
+    'myst_parser',
     'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
+    'sphinx.ext.todo',
+    'sphinx.ext.intersphinx',
+    'sphinxcontrib.mermaid',
 ]
 
-templates_path = ['_templates']
-exclude_patterns = []
+source_suffix = {'.rst': 'restructuredtext', '.md': 'markdown'}
+myst_enable_extensions = [
+    'colon_fence',
+    'deflist',
+    'tasklist',
+    'substitution',
+    'attrs_block',
+    'attrs_inline',
+    'replacements',
+]
+
+html_theme = 'sphinx_rtd_theme'
+html_static_path = ['_static']
 
 autosummary_generate = True
-autodoc_typehints = 'description'
+autodoc_member_order = 'bysource'
+autodoc_default_options = {'members': True, 'undoc-members': False, 'show-inheritance': True}
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
-html_theme = 'furo'  # or "sphinx_rtd_theme"
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-
-html_theme = 'alabaster'
-html_static_path = ['_static']
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
+todo_include_todos = True
