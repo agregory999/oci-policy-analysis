@@ -24,6 +24,9 @@ jobs:
         run: |
           pip install -U sphinx sphinx_rtd_theme myst-parser sphinxcontrib-mermaid
 
+      - name: Clean docs build folder
+        run: rm -rf docs/build/html
+        
       - name: Build documentation
         run: sphinx-build -b html docs/source docs/build/html
 
