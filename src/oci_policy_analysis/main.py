@@ -176,6 +176,45 @@ class App(tk.Tk):
         cmdrow.grid_columnconfigure(2, weight=7)
         cmdrow.grid_columnconfigure(3, weight=10)
 
+        # Output mode (HTML/Text) selector
+        # Output mode (HTML/Text) selector with format persistence
+        saved_fmt = self.settings.get('result_format', 'Markdown')
+        # Map settings value to our vars (compat: "HTML"/"Markdown"/"Text" allowed)
+        if saved_fmt.strip().lower().startswith('text'):
+            default_mode = 'Text'
+        else:
+            default_mode = 'HTML'
+        self.output_mode_var = tk.StringVar(value=default_mode)
+        output_mode_frame = ttk.Frame(cmdrow)
+        output_mode_frame.grid(row=0, column=5, padx=(10, 0), pady=5, sticky='w')
+        ttk.Label(output_mode_frame, text='Output: ').pack(side='left', padx=(0, 2))
+
+        def set_format_and_render(fmt):
+            # Persist to settings dict and config
+            val = fmt if fmt in ('HTML', 'Text') else 'HTML'
+            # Save as Markdown or Text for backward compat, but always use one of these two
+            persist_val = 'Text' if val == 'Text' else 'Markdown'
+            self.settings['result_format'] = persist_val
+            config.save_settings(self.settings)
+            self.show_output_widget(val)
+
+        self.html_radio = ttk.Radiobutton(
+            output_mode_frame,
+            text='HTML',
+            variable=self.output_mode_var,
+            value='HTML',
+            command=lambda: set_format_and_render('HTML'),
+        )
+        self.html_radio.pack(side='left')
+        self.text_radio = ttk.Radiobutton(
+            output_mode_frame,
+            text='Text',
+            variable=self.output_mode_var,
+            value='Text',
+            command=lambda: set_format_and_render('Text'),
+        )
+        self.text_radio.pack(side='left')
+
         self.policy_query_var = tk.StringVar()
         ttk.Label(cmdrow, text='Policy Statement\nfor analysis:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
 
@@ -213,6 +252,14 @@ class App(tk.Tk):
         vscrollbar = ttk.Scrollbar(html_frame, orient='vertical', command=self.html_view.yview)
         self.html_view.configure(yscrollcommand=vscrollbar.set)
         vscrollbar.pack(fill='y', side='right')
+
+        # Plain text view (used in Text output mode, hidden by default)
+        self.text_view = tk.Text(
+            html_frame, wrap=tk.WORD, height=15, bg='white', fg='black', state='disabled', font=('Courier New', 11)
+        )
+        self.text_view.pack_forget()  # Only visible in Text mode
+        self._output_last_html = ''
+        self._output_last_text = ''
 
     def update_bottom_entry(self, text: str):
         self.bottom_entry.delete(0, tk.END)
@@ -306,8 +353,33 @@ class App(tk.Tk):
         logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
     def show_output_widget(self, fmt: str):
-        # No-op: always uses the text_view now.
-        pass
+        """
+        Updates the output display widget. If fmt is 'HTML', shows rendered HTML.
+        If 'Text', shows raw extracted markdown/text as plain text in a Text widget.
+        Also updates the Copy button's label.
+        """
+        # Save scroll position if needed, then switch widgets.
+        fmt = fmt.upper() if fmt else 'HTML'
+        if fmt == 'TEXT':
+            self.html_view.pack_forget()
+            self.text_view.pack(fill='both', expand=True, side='left')
+            # Set content if available
+            self.text_view.configure(state='normal')
+            self.text_view.delete('1.0', tk.END)
+            if getattr(self, '_output_last_text', ''):
+                self.text_view.insert(tk.END, self._output_last_text)
+            else:
+                self.text_view.insert(tk.END, 'Policy AI will appear here.')
+            self.text_view.configure(state='disabled')
+            # Change Copy button
+            self.copy_md_btn.configure(text='Copy Text')
+        else:
+            self.text_view.pack_forget()
+            self.html_view.pack(fill='both', expand=True, side='left')
+            if getattr(self, '_output_last_html', ''):
+                self.html_view.set_html(self._output_last_html)
+            # Change Copy button
+            self.copy_md_btn.configure(text='Copy Markdown')
 
     def toggle_bottom(self):
         if self.bottom_frame.winfo_ismapped():
@@ -383,7 +455,7 @@ class App(tk.Tk):
 
                     if callback:
                         cb = callback.get('progress')
-                        if cb is not None:
+                        if callable(cb):
                             self.after(0, lambda: cb('Loading Identity Domains'))
 
                     success = self.policy_compartment_analysis.load_complete_identity_domains()
@@ -391,7 +463,7 @@ class App(tk.Tk):
                         raise RuntimeError('Failed to load identity domains')
                     if callback:
                         cb = callback.get('progress')
-                        if cb is not None:
+                        if callable(cb):
                             self.after(0, lambda: cb('Loading Compartments and Policies'))
                     success = self.policy_compartment_analysis.load_policies_and_compartments()
                     if not success:
@@ -402,7 +474,7 @@ class App(tk.Tk):
                 logger.error(f'Error occurred while Loading Data: {e}')
                 if callback:
                     cb = callback.get('error')
-                    if cb is not None:
+                    if callable(cb):
                         self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
                 return
 
@@ -411,7 +483,7 @@ class App(tk.Tk):
 
             if callback:
                 cb = callback.get('complete')
-                if cb is not None:
+                if callable(cb):
                     self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
 
             logger.info('Tenancy Load complete. Reloading all tabs')
@@ -500,9 +572,12 @@ class App(tk.Tk):
                 self.after(0, lambda: self.ai_progress_var.set('⌛ Running AI Query'))
                 logger.debug('Starting ai.analyze_policy_statement asyncio.run in thread')
                 q = queue.Queue()
+                # Use the output_mode_var (HTML: Markdown, Text: Text)
+                cur_fmt = self.output_mode_var.get()
+                format_for_ai = 'Text' if cur_fmt.upper() == 'TEXT' else 'Markdown'
                 asyncio.run(
                     self.ai.analyze_policy_statement(
-                        policy_text=prompt, additional_instruction=additional_instruction, queue=q
+                        policy_text=prompt, format=format_for_ai, additional_instruction=additional_instruction, queue=q
                     )
                 )
                 logger.debug(
@@ -529,10 +604,54 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def set_bottom_output(self, content: str):
-        # Smartly render markdown or extract from JSON if needed for HTMLLabel output.
+    def set_bottom_output(self, content: str):  # noqa: C901
+        """
+        Render AI output in the correct view. For 'Text' mode, show the AI's text verbatim (no markdown parsing);
+        for 'HTML' mode, render markdown as HTML.
+        """
         import json
 
+        current_mode = self.output_mode_var.get().upper() if hasattr(self, 'output_mode_var') else 'HTML'
+
+        # TEXT: Show AI response as-is, no markdown processing
+        if current_mode == 'TEXT':
+            # In case response comes as a JSON-wrapped [{"text": ...}] form, extract the actual text if possible
+            extracted_text = content
+            if content and not content.startswith('<'):
+                try:
+                    maybe_json = json.loads(content)
+                    if (
+                        isinstance(maybe_json, list)
+                        and len(maybe_json) > 0
+                        and isinstance(maybe_json[0], dict)
+                        and 'text' in maybe_json[0]
+                    ):
+                        extracted_text = maybe_json[0]['text']
+                except Exception:
+                    extracted_text = content
+
+            self._output_last_text = extracted_text if extracted_text else content
+            self._output_last_html = ''  # Clear for consistency
+            self.last_markdown = ''  # Not relevant in text mode
+
+            # Display in text_view
+            self.html_view.pack_forget()
+            self.text_view.pack(fill='both', expand=True, side='left')
+            self.text_view.configure(state='normal')
+            self.text_view.delete('1.0', tk.END)
+            self.text_view.insert(
+                tk.END, self._output_last_text if self._output_last_text else 'Policy AI will appear here.'
+            )
+            self.text_view.configure(state='disabled')
+            self.copy_md_btn.configure(text='Copy Text')
+            # Copy button enable/disable
+            if self._output_last_text and self._output_last_text.strip():
+                self.copy_md_btn.configure(state='normal')
+            else:
+                self.copy_md_btn.configure(state='disabled')
+            return
+
+        # HTML/Markdown: Use previous logic
         extracted_markdown = content
         if content and not content.startswith('<'):
             try:
@@ -563,18 +682,32 @@ class App(tk.Tk):
             html = content  # already HTML (could be an error message)
             self.last_markdown = ''
         logger.info(f'Rendered markdown to HTML for AI output pane: {html}')
-        self.html_view.set_html(html)
-        # Enable or disable the Copy Markdown button based on if markdown available
+        self._output_last_html = html
+        self._output_last_text = extracted_markdown if extracted_markdown else content
+        # Show html_view
+        self.text_view.pack_forget()
+        self.html_view.pack(fill='both', expand=True, side='left')
+        self.html_view.set_html(self._output_last_html)
+        self.copy_md_btn.configure(text='Copy Markdown')
+        # Enable/disable Copy button for HTML/Markdown
         if self.last_markdown and self.last_markdown.strip():
             self.copy_md_btn.configure(state='normal')
         else:
             self.copy_md_btn.configure(state='disabled')
 
     def copy_markdown(self):
-        if self.last_markdown and self.last_markdown.strip():
-            self.clipboard_clear()
-            self.clipboard_append(self.last_markdown)
-            self.update()  # Ensures clipboard is updated
+        current_mode = self.output_mode_var.get().upper() if hasattr(self, 'output_mode_var') else 'HTML'
+        if current_mode == 'TEXT':
+            content = getattr(self, '_output_last_text', '')
+            if content and content.strip():
+                self.clipboard_clear()
+                self.clipboard_append(content)
+                self.update()
+        else:
+            if self.last_markdown and self.last_markdown.strip():
+                self.clipboard_clear()
+                self.clipboard_append(self.last_markdown)
+                self.update()  # Ensures clipboard is updated
 
     def open_link(self, link):
         logger.info(f'Opening web link: {link}')

@@ -117,22 +117,7 @@ class SettingsTab(ttk.Frame):
 
         ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
 
-        # Markup / HTML / Text
-        ttk.Label(disp, text='AI Result Format:').pack(side='left', padx=(20, 5))
-        format_combo = ttk.Combobox(
-            disp, textvariable=self.format_var, values=['Text', 'Markdown'], state='readonly', width=10
-        )
-        format_combo.pack(side='left')
-
-        def set_format(_=None):
-            """Change the output format of the AI Insights"""
-            self.settings['result_format'] = self.format_var.get()
-            config.save_settings(self.settings)
-            # Call parent
-            self.app.show_output_widget(self.format_var.get())
-            logger.info(f'Result format set to {self.format_var.get()}')
-
-        format_combo.bind('<<ComboboxSelected>>', set_format)
+        # (AI Result Format removed; now managed only by output radio buttons in main.py)
 
         # Tenancy Config (LabelFrame)
         label_frm_tenancy_config = ttk.Labelframe(self, text='Tenancy and Config')

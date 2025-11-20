@@ -27,6 +27,7 @@ import argparse  # noqa: E402
 import json  # noqa: E402
 import threading  # noqa: E402
 
+from deepdiff import DeepDiff
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
@@ -48,6 +49,7 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     PolicyStatement,
     PolicyStatementFull,
     PolicySummary,
+    ReferenceDataDiffResult,
     User,
     UserSearch,
     UserSearchFull,
@@ -461,6 +463,65 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
     except Exception as e:
         logger.error(f'Failed to filter policies by alias: {e}')
         raise ToolError(f'Failed to filter policies by alias: {e}') from e
+
+
+# ===========================================================
+# REFERENCE DATA CACHE COMPARISON TOOL
+# ===========================================================
+
+
+@mcp.tool(
+    name='compare_reference_data_caches',
+    description='Compares the last two cached reference data sets using DeepDiff and returns a summarized result of the changes.',
+)
+def compare_reference_data_caches() -> ReferenceDataDiffResult:
+    """
+    Tool that compares the last two cached reference data sets (combined cache) and summarizes changes.
+
+    Returns:
+        ReferenceDataDiffResult: Contains cache names, summary, diff details, and user-friendly message.
+    """
+    if not pca:
+        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+
+    try:
+        cache_mgr = CacheManager(policy_analysis=pca)
+        # Get available cache files for the current tenancy (most recent first)
+        cache_names = cache_mgr.get_available_cache(getattr(pca, 'tenancy_name', None))
+        if not cache_names or len(cache_names) < 2:
+            raise ToolError('At least two cached reference data sets required for comparison.')
+
+        cache_b = cache_names[0]
+        cache_a = cache_names[1]
+
+        data_a = cache_mgr.load_cache_into_local_json(cache_a)
+        data_b = cache_mgr.load_cache_into_local_json(cache_b)
+
+        if not data_a or not data_b:
+            raise ToolError('Unable to load two valid cache data sets for comparison.')
+
+        # Run DeepDiff (ignore timestamps/metadata if needed)
+        ddiff = DeepDiff(data_a, data_b, ignore_order=True, verbose_level=1)
+        diff_summary = ', '.join(f'{k}: {len(v)}' for k, v in ddiff.items() if isinstance(v, (dict, list)) or v)  # noqa: UP038
+        if not diff_summary:
+            diff_summary = 'No differences detected.'
+
+        message = f"Compared caches: '{cache_a}' (older) vs '{cache_b}' (newer). {diff_summary}"
+        logger.info(message)
+
+        result: ReferenceDataDiffResult = {
+            'response_type': 'reference_data_diff',
+            'cache_a': str(cache_a),
+            'cache_b': str(cache_b),
+            'diff_summary': diff_summary,
+            'diff_details': ddiff.to_dict() if hasattr(ddiff, 'to_dict') else dict(ddiff),
+            'message': message,
+        }
+        return result
+
+    except Exception as e:
+        logger.error(f'Error comparing reference data caches: {e}')
+        raise ToolError(f'Failed to compare reference data caches: {e}') from e
 
 
 # ===========================================================
