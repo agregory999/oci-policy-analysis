@@ -19,9 +19,9 @@
 import importlib.metadata
 import io
 import sys
+import tkinter.ttk as ttk
+import warnings
 from importlib.resources import files
-
-import ttkbootstrap as ttk
 
 # FastMCP No console patch
 # Patch for PyInstaller windowed executables where sys.stdout/stderr may be None
@@ -66,8 +66,10 @@ import tkinter.filedialog as tkfiledialog  # noqa: E402
 import tkinter.font as tkfont  # noqa: E402
 import webbrowser  # noqa: E402
 
-import markdown2  # noqa: E402
-from tkhtmlview import HTMLLabel  # noqa: E402
+# Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
+# Suppress DeprecationWarnings from libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 from oci_policy_analysis.common import config  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
@@ -105,12 +107,15 @@ class App(tk.Tk):
         logger.info(f'Log level set to {logging.getLevelName(logger.level)} from settings')
         set_log_level(level=level_name)
 
-        # Style / fonts
-        self.style = ttk.Style(theme='litera')
+        # Style / fonts (standard tkinter only)
+        self.style = ttk.Style()
+        # Native Tkinter themes: 'clam', 'alt', 'default', 'classic', ('vista' on Windows, 'xpnative') etc
+        # self.style.theme_use('aqua' if sys.platform == 'darwin' else 'vista' if sys.platform == 'win32' else 'clam')
+        self.style.theme_use('clam')
         self.default_font = tkfont.nametofont('TkDefaultFont')
         self.style.configure('.', font=('Oracle Sans', 12))
-        self.style.configure('TButton', bootstyle='round')
-        self.style.configure('TNotebook.Tab', padding=[40, 20, 40, 20])
+        # The following configs are mostly visual; omit 'bootstyle'. Use standard options only
+        # self.style.configure('TNotebook.Tab', padding=[40, 20, 40, 20])
         self.style.configure('Treeview', padding=(0, 0, 8, 0))
 
         # PanedWindow (vertical split)
@@ -158,62 +163,13 @@ class App(tk.Tk):
 
         # Bottom frame (Entry + output text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
-        self._build_bottom_area(self.bottom_frame)
-
-        # Console tab Visibility
-        self.console_visible = False
-        self.notebook.forget(self.console_tab)
-
-        self.settings_tab.theme_var.set(self.settings.get('theme', 'Light'))
-        self.apply_theme()
-
-    def _build_bottom_area(self, parent: ttk.Frame):
-        # Command row
-        cmdrow = ttk.Frame(parent)
+        # Directly build a minimal output UI: Text widget only (no HTML/Markdown modes)
+        cmdrow = ttk.Frame(self.bottom_frame)
         cmdrow.pack(fill='x', padx=8, pady=(8, 4))
         cmdrow.grid_columnconfigure(0, weight=8)
         cmdrow.grid_columnconfigure(1, weight=75)
         cmdrow.grid_columnconfigure(2, weight=7)
         cmdrow.grid_columnconfigure(3, weight=10)
-
-        # Output mode (HTML/Text) selector
-        # Output mode (HTML/Text) selector with format persistence
-        saved_fmt = self.settings.get('result_format', 'Markdown')
-        # Map settings value to our vars (compat: "HTML"/"Markdown"/"Text" allowed)
-        if saved_fmt.strip().lower().startswith('text'):
-            default_mode = 'Text'
-        else:
-            default_mode = 'HTML'
-        self.output_mode_var = tk.StringVar(value=default_mode)
-        output_mode_frame = ttk.Frame(cmdrow)
-        output_mode_frame.grid(row=0, column=5, padx=(10, 0), pady=5, sticky='w')
-        ttk.Label(output_mode_frame, text='Output: ').pack(side='left', padx=(0, 2))
-
-        def set_format_and_render(fmt):
-            # Persist to settings dict and config
-            val = fmt if fmt in ('HTML', 'Text') else 'HTML'
-            # Save as Markdown or Text for backward compat, but always use one of these two
-            persist_val = 'Text' if val == 'Text' else 'Markdown'
-            self.settings['result_format'] = persist_val
-            config.save_settings(self.settings)
-            self.show_output_widget(val)
-
-        self.html_radio = ttk.Radiobutton(
-            output_mode_frame,
-            text='HTML',
-            variable=self.output_mode_var,
-            value='HTML',
-            command=lambda: set_format_and_render('HTML'),
-        )
-        self.html_radio.pack(side='left')
-        self.text_radio = ttk.Radiobutton(
-            output_mode_frame,
-            text='Text',
-            variable=self.output_mode_var,
-            value='Text',
-            command=lambda: set_format_and_render('Text'),
-        )
-        self.text_radio.pack(side='left')
 
         self.policy_query_var = tk.StringVar()
         ttk.Label(cmdrow, text='Policy Statement\nfor analysis:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
@@ -227,9 +183,58 @@ class App(tk.Tk):
             command=lambda: self.ask_genai_async(prompt=self.policy_query_var.get()),
         ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
 
-        self.copy_md_btn = ttk.Button(cmdrow, text='Copy Markdown', command=self.copy_markdown, state='disabled')
-        self.copy_md_btn.grid(row=0, column=4, padx=(10, 0), pady=5, sticky='w')
-        self.last_markdown = ''
+        self.copy_txt_btn = ttk.Button(cmdrow, text='Copy Text', command=self.copy_output_text, state='disabled')
+        self.copy_txt_btn.grid(row=0, column=4, padx=(10, 0), pady=5, sticky='w')
+        self.last_output_text = ''
+
+        self.ai_progress_var = tk.StringVar(value='')
+        ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue', width=22).grid(
+            row=0, column=3, padx=5, pady=5, sticky='w'
+        )
+
+        # Output area
+        self.output_text = tk.Text(
+            self.bottom_frame,
+            wrap=tk.WORD,
+            height=15,
+            bg='white',
+            fg='black',
+            state='disabled',
+            font=('Courier New', 11),
+        )
+        self.output_text.pack(fill='both', expand=True, padx=8, pady=8)
+
+        # Console tab Visibility
+        self.console_visible = False
+        self.notebook.forget(self.console_tab)
+
+        # Ensure the correct font is applied from saved settings at startup
+        self.after(0, self.apply_theme)
+
+    def _build_bottom_area(self, parent: ttk.Frame):
+        # Command row
+        cmdrow = ttk.Frame(parent)
+        cmdrow.pack(fill='x', padx=8, pady=(8, 4))
+        cmdrow.grid_columnconfigure(0, weight=8)
+        cmdrow.grid_columnconfigure(1, weight=75)
+        cmdrow.grid_columnconfigure(2, weight=7)
+        cmdrow.grid_columnconfigure(3, weight=10)
+
+        # (Output mode toggles, radio buttons, and UI format settings removed)
+
+        self.policy_query_var = tk.StringVar()
+        ttk.Label(cmdrow, text='Policy Statement\nfor analysis:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
+
+        self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=90)
+        self.bottom_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+
+        ttk.Button(
+            cmdrow,
+            text='Query GenAI',
+            command=lambda: self.ask_genai_async(prompt=self.policy_query_var.get()),
+        ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
+
+        # (Copy Markdown button and variables removed)
 
         self.ai_progress_var = tk.StringVar(value='')
         ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue', width=22).grid(
@@ -239,103 +244,15 @@ class App(tk.Tk):
         self.bottom_content = ttk.Frame(parent)
         self.bottom_content.pack(fill='both', expand=True, padx=8, pady=(0, 8))
 
-        # Output HTML area (HTMLLabel in scrollable frame)
-        html_frame = ttk.Frame(self.bottom_content)
-        html_frame.pack(fill='both', expand=True, padx=6, pady=6)
-
-        self.html_view = HTMLLabel(
-            html_frame,
-            html='<h3>Welcome</h3><p>Policy AI will appear here.</p>',
-            background='white',
-        )
-        self.html_view.pack(fill='both', expand=True, side='left')
-        vscrollbar = ttk.Scrollbar(html_frame, orient='vertical', command=self.html_view.yview)
-        self.html_view.configure(yscrollcommand=vscrollbar.set)
-        vscrollbar.pack(fill='y', side='right')
-
-        # Plain text view (used in Text output mode, hidden by default)
-        self.text_view = tk.Text(
-            html_frame, wrap=tk.WORD, height=15, bg='white', fg='black', state='disabled', font=('Courier New', 11)
-        )
-        self.text_view.pack_forget()  # Only visible in Text mode
-        self._output_last_html = ''
-        self._output_last_text = ''
+        # (HTMLLabel and alternate Text widgets removed: now only self.output_text is used)
 
     def update_bottom_entry(self, text: str):
         self.bottom_entry.delete(0, tk.END)
         self.bottom_entry.insert(0, text)
 
+    # Theme switching via settings/config/combobox is removed; theme is fixed to 'clam'.
+    # The following remains solely for font size setting.
     def apply_theme(self, *args):
-        theme_choice = self.settings_tab.theme_var.get()
-        mapping = {'Light': 'litera', 'Dark': 'darkly'}
-
-        theme_name = mapping.get(theme_choice, 'litera')
-        try:
-            self.style.theme_use(theme_name)
-            pass
-        except tk.TclError:
-            pass
-        except Exception as e:
-            logger.warning(f'Failed to apply theme {theme_choice}: {e}')
-
-        try:
-            if theme_choice == 'Dark':
-                for table in [
-                    self.policy_overlap_tab.policy_table,
-                    self.users_tab.users_policy_table,
-                    self.users_tab.users_users_table,
-                    self.users_tab.users_groups_table,
-                    self.users_tab.selected_groups_table,
-                    self.dynamic_groups_tab.custom_data_dynamic_group,
-                    self.dynamic_groups_tab.dg_policy_table,
-                    self.cross_tenancy_tab.cross_tenancy_table,
-                    self.cross_tenancy_tab.defined_aliases_table,
-                    self.resource_principals_tab.rp_dg_table,
-                    self.resource_principals_tab.rp_policy_table,
-                    self.policies_tab.policy_table,
-                    self.settings_tab.ai_model_table,
-                ]:
-                    table.apply_theme('dark')
-
-            else:
-                for table in [
-                    self.policy_overlap_tab.policy_table,
-                    self.users_tab.users_policy_table,
-                    self.users_tab.users_users_table,
-                    self.users_tab.users_groups_table,
-                    self.users_tab.selected_groups_table,
-                    self.dynamic_groups_tab.custom_data_dynamic_group,
-                    self.dynamic_groups_tab.dg_policy_table,
-                    self.cross_tenancy_tab.cross_tenancy_table,
-                    self.cross_tenancy_tab.defined_aliases_table,
-                    self.resource_principals_tab.rp_dg_table,
-                    self.resource_principals_tab.rp_policy_table,
-                    self.policies_tab.policy_table,
-                    self.settings_tab.ai_model_table,
-                ]:
-                    table.apply_theme('light')
-            # Scrolled Text widgets have different backgrounds
-            if theme_choice == 'Dark':
-                bg = '#2b2b2b'
-                fg = '#ffffff'  # Use pure white for AI html view font in dark mode
-                insert_bg = '#ffffff'
-                self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
-                # Update AI output pane (html_view) for dark theme
-                self.html_view.configure(background=bg, foreground=fg)
-            else:
-                bg = 'white'
-                fg = 'black'
-                insert_bg = '#000000'
-                self.mcp_tab.mcp_log.configure(background=bg, foreground=fg, insertbackground=insert_bg)
-                # Update AI output pane (html_view) for light theme
-                self.html_view.configure(background=bg, foreground=fg)
-        except Exception as e:
-            logger.warning(f'Failed to apply theme {theme_choice}: {e}')
-
-        self.settings['theme'] = theme_choice
-        config.save_settings(self.settings)
-        logger.info(f'Theme set to {theme_choice} ({theme_name})')
-
         sizes = {'Small': 9, 'Medium': 11, 'Large': 13, 'Extra Large': 15}
         size = sizes.get(self.settings_tab.font_var.get(), 11)
         logger.info(f'Applying font size: {self.settings_tab.font_var.get()} ({size}px)')
@@ -352,34 +269,7 @@ class App(tk.Tk):
         config.save_settings(self.settings)
         logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
-    def show_output_widget(self, fmt: str):
-        """
-        Updates the output display widget. If fmt is 'HTML', shows rendered HTML.
-        If 'Text', shows raw extracted markdown/text as plain text in a Text widget.
-        Also updates the Copy button's label.
-        """
-        # Save scroll position if needed, then switch widgets.
-        fmt = fmt.upper() if fmt else 'HTML'
-        if fmt == 'TEXT':
-            self.html_view.pack_forget()
-            self.text_view.pack(fill='both', expand=True, side='left')
-            # Set content if available
-            self.text_view.configure(state='normal')
-            self.text_view.delete('1.0', tk.END)
-            if getattr(self, '_output_last_text', ''):
-                self.text_view.insert(tk.END, self._output_last_text)
-            else:
-                self.text_view.insert(tk.END, 'Policy AI will appear here.')
-            self.text_view.configure(state='disabled')
-            # Change Copy button
-            self.copy_md_btn.configure(text='Copy Text')
-        else:
-            self.text_view.pack_forget()
-            self.html_view.pack(fill='both', expand=True, side='left')
-            if getattr(self, '_output_last_html', ''):
-                self.html_view.set_html(self._output_last_html)
-            # Change Copy button
-            self.copy_md_btn.configure(text='Copy Markdown')
+    # All output is now plain text only.
 
     def toggle_bottom(self):
         if self.bottom_frame.winfo_ismapped():
@@ -484,7 +374,7 @@ class App(tk.Tk):
             if callback:
                 cb = callback.get('complete')
                 if callable(cb):
-                    self.after(0, lambda msg=msg: cb(True, msg, True))  # type: ignore
+                    self.after(0, lambda msg=msg: cb(True, msg, False))  # type: ignore
 
             logger.info('Tenancy Load complete. Reloading all tabs')
             self.policy_overlap_tab.enable_widgets_after_load()
@@ -521,7 +411,7 @@ class App(tk.Tk):
                 if callback:
                     cb = callback.get('complete')
                     if cb is not None:
-                        self.after(0, lambda: cb(True, 'Loaded from JSON file', True))  # type: ignore
+                        self.after(0, lambda: cb(True, 'Loaded from JSON file', False))  # type: ignore
                 else:
                     logger.warning('Failed to load from saved cache')
 
@@ -564,7 +454,7 @@ class App(tk.Tk):
             callback (dict, optional): A dictionary of callback functions for different stages of the query.
         """
         logger.info(f'Submitting GenAI prompt: {prompt}')
-        self.set_bottom_output(f'#### Querying GenAI \n\n`{prompt}`')
+        self.set_bottom_output(f'Querying GenAI for:\n\n{prompt}')
 
         def worker():
             try:
@@ -572,20 +462,18 @@ class App(tk.Tk):
                 self.after(0, lambda: self.ai_progress_var.set('⌛ Running AI Query'))
                 logger.debug('Starting ai.analyze_policy_statement asyncio.run in thread')
                 q = queue.Queue()
-                # Use the output_mode_var (HTML: Markdown, Text: Text)
-                cur_fmt = self.output_mode_var.get()
-                format_for_ai = 'Text' if cur_fmt.upper() == 'TEXT' else 'Markdown'
+                # Always ask for plain text output now, no more toggles
                 asyncio.run(
                     self.ai.analyze_policy_statement(
-                        policy_text=prompt, format=format_for_ai, additional_instruction=additional_instruction, queue=q
+                        policy_text=prompt, format='Text', additional_instruction=additional_instruction, queue=q
                     )
                 )
                 logger.debug(
                     'Finished ai.analyze_policy_statement asyncio.run in thread, waiting for result from queue'
                 )
-                ai_markdown_response = q.get()  # Get the result from the queue
-                logger.debug(f'Received AI result from queue, posting update to UI: {ai_markdown_response}')
-                self.after(0, lambda: self.set_bottom_output(str(ai_markdown_response)))
+                ai_text_response = q.get()  # Get the result from the queue
+                logger.debug(f'Received AI result from queue, posting update to UI: {ai_text_response}')
+                self.after(0, lambda: self.set_bottom_output(str(ai_text_response)))
 
                 if callback is not None:
                     self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
@@ -604,55 +492,14 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def set_bottom_output(self, content: str):  # noqa: C901
+    def set_bottom_output(self, content: str):
         """
-        Render AI output in the correct view. For 'Text' mode, show the AI's text verbatim (no markdown parsing);
-        for 'HTML' mode, render markdown as HTML.
+        Display the given string content as plain text in the output_text widget. Enables/disables copy button.
         """
         import json
 
-        current_mode = self.output_mode_var.get().upper() if hasattr(self, 'output_mode_var') else 'HTML'
-
-        # TEXT: Show AI response as-is, no markdown processing
-        if current_mode == 'TEXT':
-            # In case response comes as a JSON-wrapped [{"text": ...}] form, extract the actual text if possible
-            extracted_text = content
-            if content and not content.startswith('<'):
-                try:
-                    maybe_json = json.loads(content)
-                    if (
-                        isinstance(maybe_json, list)
-                        and len(maybe_json) > 0
-                        and isinstance(maybe_json[0], dict)
-                        and 'text' in maybe_json[0]
-                    ):
-                        extracted_text = maybe_json[0]['text']
-                except Exception:
-                    extracted_text = content
-
-            self._output_last_text = extracted_text if extracted_text else content
-            self._output_last_html = ''  # Clear for consistency
-            self.last_markdown = ''  # Not relevant in text mode
-
-            # Display in text_view
-            self.html_view.pack_forget()
-            self.text_view.pack(fill='both', expand=True, side='left')
-            self.text_view.configure(state='normal')
-            self.text_view.delete('1.0', tk.END)
-            self.text_view.insert(
-                tk.END, self._output_last_text if self._output_last_text else 'Policy AI will appear here.'
-            )
-            self.text_view.configure(state='disabled')
-            self.copy_md_btn.configure(text='Copy Text')
-            # Copy button enable/disable
-            if self._output_last_text and self._output_last_text.strip():
-                self.copy_md_btn.configure(state='normal')
-            else:
-                self.copy_md_btn.configure(state='disabled')
-            return
-
-        # HTML/Markdown: Use previous logic
-        extracted_markdown = content
+        # Support legacy case: AI may return [{"text": ...}] list (output from previous code path)
+        output_string = content
         if content and not content.startswith('<'):
             try:
                 maybe_json = json.loads(content)
@@ -662,52 +509,32 @@ class App(tk.Tk):
                     and isinstance(maybe_json[0], dict)
                     and 'text' in maybe_json[0]
                 ):
-                    extracted_markdown = maybe_json[0]['text']
+                    output_string = maybe_json[0]['text']
             except Exception:
-                extracted_markdown = content
-            html = markdown2.markdown(extracted_markdown)
-            # Postprocess: add monospace CSS to code/pre blocks
-            html = html.replace('<code>', '<code style="font-family:monospace,Consolas,\'Courier New\',Courier;">')
-            html = html.replace('<pre>', '<pre style="font-family:monospace,Consolas,\'Courier New\',Courier;">')
-            # If theme is dark, change text color in html to white for <p>, <li>,H* etc.
-            if self.settings_tab.theme_var.get() == 'Dark':
-                html = html.replace('<p>', '<p style="color:#ffffff;">')
-                html = html.replace('<li>', '<li style="color:#ffffff;">')
-                html = html.replace('<h1>', '<h1 style="color:#ffffff;">')
-                html = html.replace('<h2>', '<h2 style="color:#ffffff;">')
-                html = html.replace('<h3>', '<h3 style="color:#ffffff;">')
-                html = html.replace('<h4>', '<h4 style="color:#ffffff;">')
-            self.last_markdown = extracted_markdown
-        else:
-            html = content  # already HTML (could be an error message)
-            self.last_markdown = ''
-        logger.info(f'Rendered markdown to HTML for AI output pane: {html}')
-        self._output_last_html = html
-        self._output_last_text = extracted_markdown if extracted_markdown else content
-        # Show html_view
-        self.text_view.pack_forget()
-        self.html_view.pack(fill='both', expand=True, side='left')
-        self.html_view.set_html(self._output_last_html)
-        self.copy_md_btn.configure(text='Copy Markdown')
-        # Enable/disable Copy button for HTML/Markdown
-        if self.last_markdown and self.last_markdown.strip():
-            self.copy_md_btn.configure(state='normal')
-        else:
-            self.copy_md_btn.configure(state='disabled')
+                output_string = content
 
-    def copy_markdown(self):
-        current_mode = self.output_mode_var.get().upper() if hasattr(self, 'output_mode_var') else 'HTML'
-        if current_mode == 'TEXT':
-            content = getattr(self, '_output_last_text', '')
-            if content and content.strip():
-                self.clipboard_clear()
-                self.clipboard_append(content)
-                self.update()
+        self.last_output_text = output_string or ''
+        self.output_text.configure(state='normal')
+        self.output_text.delete('1.0', tk.END)
+        self.output_text.insert(
+            tk.END, self.last_output_text if self.last_output_text else 'Policy AI will appear here.'
+        )
+        self.output_text.configure(state='disabled')
+
+        # Enable or disable the copy button
+        if self.last_output_text and self.last_output_text.strip():
+            self.copy_txt_btn.configure(state='normal')
         else:
-            if self.last_markdown and self.last_markdown.strip():
-                self.clipboard_clear()
-                self.clipboard_append(self.last_markdown)
-                self.update()  # Ensures clipboard is updated
+            self.copy_txt_btn.configure(state='disabled')
+
+    def copy_output_text(self):
+        """
+        Copies the current output text to the clipboard if it is non-empty.
+        """
+        if self.last_output_text and self.last_output_text.strip():
+            self.clipboard_clear()
+            self.clipboard_append(self.last_output_text)
+            self.update()
 
     def open_link(self, link):
         logger.info(f'Opening web link: {link}')

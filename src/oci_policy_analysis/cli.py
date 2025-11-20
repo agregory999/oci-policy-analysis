@@ -14,11 +14,19 @@
 ##########################################################################
 
 import argparse
+import warnings
 
+from oci_policy_analysis.common.helpers import (
+    for_display_dynamic_group,
+    for_display_policy,
+)
 from oci_policy_analysis.common.logger import get_logger, set_log_level
 from oci_policy_analysis.common.models import PolicySearch
 from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+
+# Suppress DeprecationWarnings from libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 def main():  # noqa: C901
@@ -33,6 +41,9 @@ def main():  # noqa: C901
         '--recursive', help='Recursive Load across all compartments', action='store_true', default=False
     )
     parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
+    parser.add_argument(
+        '--dont-save-cache-after-load', help='Save the combined cache after loading from OCI', action='store_true'
+    )
     parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
     parser.add_argument('--filter-json', help='JSON string with filter criteria', type=str, default=None)
     parser.add_argument(
@@ -94,10 +105,13 @@ def main():  # noqa: C901
         if not policy_analysis.load_policies_and_compartments():
             logger.error('Failed to load policies and compartments from OCI')
             exit(2)
+        # Completed the Load
         logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
 
-        # cache_file_name = cache_manager.save_combined_cache(export_file="cli.json")
-        logger.info('Policies and dynamic groups saved successfully from OCI')
+        if not args.dont_save_cache_after_load:
+            # Save combined cache after loading from OCI
+            logger.info('Saving combined cache after loading from OCI')
+            cache_manager.save_combined_cache()
 
     # Print some basic details
     logger.info('-' * 80)
@@ -129,7 +143,9 @@ def main():  # noqa: C901
     elif args.print_all:
         # Print regular policies
         logger.info('\nRegular Policies:')
+        # Use helper to print nicely
         for stmt in policy_analysis.regular_statements:
+            stmt = for_display_policy(stmt)
             logger.info(f'Policy Name: {stmt.get("Policy Name")}')
             logger.info(f'Statement: {stmt.get("Statement Text")}')
             logger.info(f'Compartment Hierarchy: {stmt.get("Policy Compartment")}')
@@ -148,31 +164,24 @@ def main():  # noqa: C901
                 logger.info('Statement could not be parsed into components')
             logger.info('-' * 80)
 
-        # # Print cross-tenancy policies
-        # logger.info('\nCross-Tenancy Policies:')
-        # logger.info('-' * 80)
-        # for stmt in policy_analysis.cross_tenancy_statements:
-        #     logger.info(f'Policy Name: {stmt[0]}')
-        #     logger.info(f'Statement: {stmt[1]}')
-        #     logger.info(f'Created: {stmt[3]}')
-        #     logger.info(f'Parsed: {stmt[4]}')
-        #     if not stmt[4]:
-        #         logger.info('-' * 80)
-        #         continue
-        #     logger.info(f'Statement Type: {stmt[5]}')
-        #     logger.info(f'Principal: {stmt[6]}')
-        #     logger.info(f'Of Tenancy: {stmt[7]}')
-        #     logger.info(f'Action/Resource or Permission: {stmt[8]}')
-        #     logger.info(f'Location: {stmt[9]}')
-        #     logger.info(f'Where Clause: {stmt[10]}')
-        #     logger.info(f'Comment: {stmt[11]}')
-        #     logger.info('-' * 80)
+        # Print cross-tenancy policies
+        logger.info('\nCross-Tenancy Policies:')
+        logger.info('-' * 80)
+        for stmt in policy_analysis.cross_tenancy_statements:
+            stmt = for_display_policy(stmt)
+            logger.info(f'Policy Name: {stmt.get("Policy Name")}')
+            logger.info(f'Statement: {stmt.get("Statement Text")}')
+            logger.info(f'Compartment Hierarchy: {stmt.get("Policy Compartment")}')
+            logger.info('-' * 80)
 
         # Print dynamic groups
         logger.info('\nDynamic Groups:')
         logger.info('-' * 80)
         for dg in policy_analysis.dynamic_groups:
+            dg = for_display_dynamic_group(dg)
             logger.info(f'Domain: {dg.get("Domain")}')
+            logger.info(f'Dynamic Group Name: {dg.get("DG Name")}')
+            logger.info(f'Description: {dg.get("Description")}')
             logger.info(f'Name: {dg.get("DG Name")}')
             logger.info(f'Matching Rule: {dg.get("Matching Rule")}')
             logger.info(f'In Use: {dg.get("In Use")}')

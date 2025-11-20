@@ -16,7 +16,6 @@
 import logging
 import os
 import sys
-import warnings
 from logging.handlers import RotatingFileHandler
 
 
@@ -35,9 +34,6 @@ def _setup_logging() -> None:
             h.close()
         except Exception:
             pass
-
-    # Suppress DeprecationWarnings from libraries
-    warnings.filterwarnings('ignore', category=DeprecationWarning)
 
     # Add StreamHandler to root for shell console (all logs)
     # If using MCP stdio mode, log to stderr to avoid mixing with MCP stdio

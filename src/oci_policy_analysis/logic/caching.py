@@ -90,13 +90,69 @@ class CacheManager:
 
         # Update cache entries
         entry = {'tenancy_name': self.policy_analysis.tenancy_name, 'cache_date': CACHE_DATE}
-        with open(self.cache_dir / 'cache_entries.json', 'a', encoding='utf-8') as date_file:
+        entries_path = self.cache_dir / 'cache_entries.json'
+        with open(entries_path, 'a', encoding='utf-8') as date_file:
             json.dump(entry, date_file, ensure_ascii=False)
             date_file.write('\n')  # Write a newline after each entry
         logger.info(f'Updated cache entries with: {entry}')
 
+        # Cull old cache files and entries to keep only 10 most recent per tenancy
+        self._cull_old_caches(self.policy_analysis.tenancy_name)
+
         # Return the name of the file
         return str(combined_cache_file)
+
+    def _cull_old_caches(self, tenancy_name: str):  # noqa: C901
+        """Keep only the 10 most recent cache files/entries for this tenancy_name"""
+        import re
+
+        cache_files = list(self.cache_dir.glob(f'combined_cache_{tenancy_name}_*.json'))
+
+        # Match file: combined_cache_<tenancy_name>_YYYY-MM-DD-HH-MM-SS-ZZZ.json
+        def parse_date_from_file(f):
+            # Example: combined_cache_andrew_2025-11-20-16-22-49-UTC.json
+            m = re.search(r'_(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-[A-Z]+)\.json$', f.name)
+            if m:
+                try:
+                    return datetime.strptime(m.group(1), '%Y-%m-%d-%H-%M-%S-%Z')
+                except Exception:
+                    return datetime.min
+            return datetime.min
+
+        # Sort newest first
+        cache_files.sort(key=parse_date_from_file, reverse=True)
+        files_to_delete = cache_files[10:]
+        for old_file in files_to_delete:
+            try:
+                old_file.unlink()
+                logger.info(f'Pruned old cache file: {old_file}')
+            except Exception as e:
+                logger.error(f'Could not remove old cache file {old_file}: {e}')
+
+        # Cull the cache_entries.json as well
+        entries_path = self.cache_dir / 'cache_entries.json'
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            remaining = []
+            count = 0
+            # Newest to oldest, keep up to 10 for tenancy_name
+            for line in reversed(entry_lines):
+                try:
+                    cache = json.loads(line)
+                    if cache.get('tenancy_name') == tenancy_name:
+                        if count < 10:
+                            remaining.append(line)
+                            count += 1
+                        # else skip (remove)
+                    else:
+                        remaining.append(line)
+                except Exception:
+                    remaining.append(line)  # keep malformed
+            # Write updated file (restore reversed order to maintain recency at top)
+            with open(entries_path, 'w', encoding='utf-8') as f:
+                for line in reversed(remaining):
+                    f.write(line)
 
     def load_combined_cache(self, named_cache: str) -> str:
         """Load combined cache for policies and dynamic groups.
