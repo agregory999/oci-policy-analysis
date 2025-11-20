@@ -481,3 +481,16 @@ PolicyFilterResponse = Annotated[
     PolicySummary | PolicyStatementFull,
     'Response from policy filter operations - either summary or full data based on size constraints',
 ]
+
+
+class ReferenceDataDiffResult(TypedDict):
+    """
+    Result model for comparing (DeepDiff) the last two cached reference data sets.
+    """
+
+    response_type: Literal['reference_data_diff']
+    cache_a: Annotated[str, 'Name of older cache (file or key)']
+    cache_b: Annotated[str, 'Name of newer cache (file or key)']
+    diff_summary: Annotated[str, 'One-line or short summary of differences (added, changed, removed)']
+    diff_details: Annotated[dict, 'DeepDiff result details or filtered view suitable for UI display']
+    message: Annotated[str, 'Human-readable message about the diff result or info']

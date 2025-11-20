@@ -53,6 +53,18 @@ jobs:
             echo "Pages site already exists."
           fi
 
+      - name: Ensure GitHub Pages site is workflow-linked
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Ensuring Pages site is using workflow build..."
+          curl -s -X PUT \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              https://api.github.com/repos/${REPO}/pages \
+              -d '{"source":{"branch":"gh-pages","path":"/"}}'
+
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

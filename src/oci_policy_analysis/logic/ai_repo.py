@@ -180,27 +180,43 @@ class AI:
             raise
 
     async def analyze_policy_statement(
-        self, policy_text: str, queue: queue.Queue | None = None, additional_instruction: str = ''
+        self,
+        policy_text: str,
+        format: str = 'Markdown',
+        queue: queue.Queue | None = None,
+        additional_instruction: str = '',
     ):
         """
         Analyze a policy statement using the GenAI Inference Client.
+
         Args:
             policy_text (str): The policy statement text to analyze.
-            queue (queue.Queue): Optional queue to put the result into for async calls.
+            format (str): The result format to use. "Markdown" means the GenAI should return markdown, "Text" means plain text using newlines for paragraphs and no bullet points, no markdown, no HTML.
+            queue (queue.Queue|None): Optional queue to put the result into for async calls.
             additional_instruction (str): Additional instructions to include in the prompt.
         Returns:
             str: The analysis result from the AI model.
         """
-        logger.info('Analyzing policy statement: %s', policy_text)
-        prompt = (
-            'What is the meaning of life? Return witty response quickly.  Use Strict Markdown only.'
-            if additional_instruction == 'TEST'
-            else (
-                f"Describe OCI Policy permission '{policy_text}' in detail with clear markdown sections. "
-                'Always return strict markdown with #### for sections, one level of un-ordered lists, no new lines, and documentation link if possible. '
-                f'{additional_instruction}'
-            )
-        )
+        logger.info(f'Analyzing policy statement: {policy_text} (Format={format})')
+        if additional_instruction == 'TEST':
+            if format.upper() == 'TEXT':
+                prompt = 'What is the meaning of life? Return witty response quickly, in plain text only, no markdown, no bullets, no lists, newlines as paragraph markers.'
+            else:
+                prompt = 'What is the meaning of life? Return witty response quickly.  Use Strict Markdown only.'
+        else:
+            if format.upper() == 'TEXT':
+                prompt = (
+                    f"Describe OCI Policy permission '{policy_text}' in detail using only plain text with clear, well-separated paragraphs. "
+                    'Do not use any markdown, bullet points, lists, HTML, or formatting: just pure readable text, and use blank lines (double newlines) for paragraph breaks. '
+                    'If you include any reference link, write the full https://... on its own line. '
+                    f'{additional_instruction}'
+                )
+            else:
+                prompt = (
+                    f"Describe OCI Policy permission '{policy_text}' in detail with clear markdown sections. "
+                    'Always return strict markdown with #### for sections, one level of un-ordered lists, no new lines except for semantic breaks, and documentation link if possible. '
+                    f'{additional_instruction}'
+                )
         chat_detail = self._create_chat_request(prompt=prompt)
         try:
             response = self.genai_inference_client.chat(chat_detail)
