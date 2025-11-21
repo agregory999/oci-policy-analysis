@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.6.0...v2.7.0) (2025-11-21)
+
+
+### Features
+
+* build updates ([1e5e474](https://github.com/agregory999/oci-policy-analysis/commit/1e5e4749d13753872897371eb770efb50cadfe16))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
