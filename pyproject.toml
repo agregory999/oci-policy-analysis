@@ -31,35 +31,3 @@ write_to_template = "__version__ = '{version}'\n"
 fallback_version = "2.6.0"
 version_scheme = "post-release"
 local_scheme = "no-local-version"
-
-[tool.semantic_release]
-version_toml = []  # do NOT overwrite pyproject.toml
-branch = "main"
-upload_to_pypi = true
-upload_to_release = true
-build_command = "pip install build && python -m build"
-
-[tool.semantic_release.changelog]
-template_dir = "templates"
-changelog_file = "CHANGELOG.md"
-
-[tool.semantic_release.changelog.environment]
-block_start_string = "{%"
-block_end_string = "%}"
-variable_start_string = "{{"
-variable_end_string = "}}"
-comment_start_string = "{#"
-comment_end_string = "#}"
-trim_blocks = false
-lstrip_blocks = false
-
-[tool.semantic_release.branches.main]
-match = "(main|master)"
-prerelease_token = "rc"
-prerelease = false
-
-[tool.semantic_release.commit_parser_options]
-allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf"]
-major_tags = []
