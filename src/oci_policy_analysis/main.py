@@ -95,7 +95,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title(f'OCI Policy Analysis {__version__}')
+        self.title(f'(dev testing)OCI Policy Analysis {__version__}')
         self.geometry('1400x900')
 
         # Shared config & logger
