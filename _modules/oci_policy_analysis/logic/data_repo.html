@@ -392,7 +392,6 @@ window.addEventListener("load", initFullscreen);
 
 <span class="c1"># Standard library imports</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
@@ -401,7 +400,6 @@ window.addEventListener("load", initFullscreen);
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="c1"># Third-party imports</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">deepdiff</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeepDiff</span><span class="p">,</span> <span class="n">parse_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span><span class="p">,</span> <span class="n">pagination</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci.auth.signers</span><span class="w"> </span><span class="kn">import</span> <span class="n">InstancePrincipalsSecurityTokenSigner</span><span class="p">,</span> <span class="n">SecurityTokenSigner</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConfigFileNotFound</span>
@@ -530,6 +528,7 @@ window.addEventListener("load", initFullscreen);
         <span class="bp">self</span><span class="o">.</span><span class="n">data_as_of</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tenancy_ocid</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">identity_client</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loaded_from_tenancy</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Initialized PolicyAnalysisRepo&#39;</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PolicyAnalysisRepository.initialize_client">
@@ -594,6 +593,7 @@ window.addEventListener("load", initFullscreen);
             <span class="bp">self</span><span class="o">.</span><span class="n">tenancy_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">identity_client</span><span class="o">.</span><span class="n">get_compartment</span><span class="p">(</span><span class="n">compartment_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tenancy_ocid</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">name</span>
 
             <span class="c1"># Return True because we got the clients</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">loaded_from_tenancy</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="kc">True</span>
         <span class="k">except</span> <span class="p">(</span><span class="n">ConfigFileNotFound</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">fatal</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Authentication failed: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
@@ -1940,94 +1940,7 @@ window.addEventListener("load", initFullscreen);
         <span class="k">return</span> <span class="n">results</span></div>
 
 
-    <span class="c1"># --- Other Public Functions ---</span>
-<div class="viewcode-block" id="PolicyAnalysisRepository.compare_against_cache">
-<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.compare_against_cache">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">compare_against_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cached_tenancy</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cached_date</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Loads a cache set and compares with the currently loaded policy set and return changes&quot;&quot;&quot;</span>
-        <span class="c1"># What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory</span>
-        <span class="c1"># Loading the cache is similar to the main loading, but do not want these in memory</span>
-        <span class="n">changes</span> <span class="o">=</span> <span class="p">[]</span>
-
-        <span class="c1"># Load the referenced cache</span>
-        <span class="n">CACHE_DIR</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">combined_cache_file</span> <span class="o">=</span> <span class="n">CACHE_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s1">&#39;combined_cache_</span><span class="si">{</span><span class="n">cached_tenancy</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">cached_date</span><span class="si">}</span><span class="s1">.json&#39;</span>
-        <span class="c1"># Load policies</span>
-        <span class="k">if</span> <span class="n">combined_cache_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
-                <span class="n">cache_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filehandle</span><span class="p">)</span>
-            <span class="n">cached_policies</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cached_dynamic_groups</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dynamic_groups&#39;</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cached_cross_tenency_policies</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cross_tenancy_policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cached_policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements from cache: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Currently </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements in memory from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_as_of</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
-            <span class="c1"># Do the comparison with deepdiff (do we need to sort the policies first?)</span>
-            <span class="c1"># Include paths for the maximum length</span>
-            <span class="c1"># max_len = max(len(self.regular_statements), len(cached_policies))</span>
-            <span class="c1"># include_paths = [f&quot;root[{i}][&#39;statement_text&#39;]&quot; for i in range(max_len)]</span>
-            <span class="n">diff</span> <span class="o">=</span> <span class="n">DeepDiff</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">,</span>
-                <span class="n">cached_policies</span><span class="p">,</span>
-                <span class="n">ignore_order</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                <span class="n">verbose_level</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-                <span class="c1"># include_paths=include_paths,</span>
-                <span class="c1"># exclude_paths=[&quot;root[&#39;data&#39;]&quot;]</span>
-                <span class="c1"># include_paths=&quot;root[*][&#39;statement_text&#39;]&quot;  # Only compare the statement text</span>
-                <span class="c1"># group_by=</span>
-            <span class="p">)</span>
-
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s1">&#39;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;iterable_item_added&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> added, &#39;</span>
-                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;iterable_item_removed&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> removed, &#39;</span>
-                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;values_changed&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> changed policies&#39;</span>
-            <span class="p">)</span>
-            <span class="k">for</span> <span class="n">change_type</span><span class="p">,</span> <span class="n">changes_list</span> <span class="ow">in</span> <span class="n">diff</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Change Type: </span><span class="si">{</span><span class="n">change_type</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;values_changed&#39;</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
-                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Changed</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">: Index:</span><span class="si">{</span><span class="n">change</span><span class="si">}</span><span class="s1"> Parsed: </span><span class="si">{</span><span class="n">change_index_parsed</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">change_index_parsed</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;statement_text&#39;</span><span class="p">:</span>
-                            <span class="c1"># Change to statement</span>
-                            <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
-                            <span class="c1"># logger.info(f&#39;- New: {this_change[&quot;new_value&quot;]}\n&#39;)</span>
-                            <span class="c1"># logger.info(f&#39;- Old: {this_change[&quot;old_value&quot;]}\n&#39;)</span>
-                            <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                                <span class="sa">f</span><span class="s1">&#39;Changed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;old_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;new_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
-                            <span class="p">)</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                                <span class="sa">f</span><span class="s1">&#39;Changed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;old_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;new_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
-                            <span class="p">)</span>
-                        <span class="k">else</span><span class="p">:</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Change: </span><span class="si">{</span><span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-
-                <span class="k">elif</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;iterable_item_removed&#39;</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
-                        <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
-                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
-                        <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s1">&#39;Removed Statement</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1"> #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
-                        <span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Removed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
-                        <span class="c1"># logger.info(f&#39;Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n&#39;)</span>
-                <span class="k">elif</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;iterable_item_added&#39;</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
-                        <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
-                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
-                        <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s1">&#39;Added Statement</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1"> #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
-                        <span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Added Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
-                        <span class="c1"># logger.info(f&#39;Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n&#39;)</span>
-
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Policies cache file not found: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">changes</span><span class="p">)</span></div>
-
+    <span class="c1"># (Removed: compare_against_cache; centralized diff logic is now in logic/diff_utils.py)</span>
 
 <div class="viewcode-block" id="PolicyAnalysisRepository.run_dg_in_use_analysis">
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.run_dg_in_use_analysis">[docs]</a>

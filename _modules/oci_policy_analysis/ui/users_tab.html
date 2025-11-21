@@ -393,11 +393,11 @@ window.addEventListener("load", initFullscreen);
 <span class="kn">import</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tk</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tkinter</span><span class="w"> </span><span class="kn">import</span> <span class="n">ttk</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">for_display_group</span><span class="p">,</span> <span class="n">for_display_policy</span><span class="p">,</span> <span class="n">for_display_user</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Group</span><span class="p">,</span> <span class="n">GroupSearch</span><span class="p">,</span> <span class="n">PolicySearch</span><span class="p">,</span> <span class="n">User</span><span class="p">,</span> <span class="n">UserSearch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.logic.data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolicyAnalysisRepository</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.data_table</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataTable</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.ui.helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">for_display_group</span><span class="p">,</span> <span class="n">for_display_policy</span><span class="p">,</span> <span class="n">for_display_user</span>
 
 <span class="c1"># Global logger for this module</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="s1">&#39;users_tab&#39;</span><span class="p">)</span>
