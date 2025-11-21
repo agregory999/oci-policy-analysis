@@ -105,7 +105,7 @@ jobs:
 
           echo "🔨 Building wheels from source..."
           mkdir -p wheels
-          pip wheel --no-binary=:all: --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
+          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
 
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
