@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.6.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.5.1...v2.6.0) (2025-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* Simplify package imports (#14)
+
+### Features
+
+* Simplify package imports ([#14](https://github.com/agregory999/oci-policy-analysis/issues/14)) ([dafd41c](https://github.com/agregory999/oci-policy-analysis/commit/dafd41ca94efc9296f6b88056f884410cf53142d))
+
+
+### Miscellaneous Chores
+
+* docs ([6a78d81](https://github.com/agregory999/oci-policy-analysis/commit/6a78d8100c621b6dae2132e24b6ef60216056a1b))
+* docs re-build ([39c62e4](https://github.com/agregory999/oci-policy-analysis/commit/39c62e4241c7b1293462ad444188539e2bfae3e2))
+* docs update ([0d37c33](https://github.com/agregory999/oci-policy-analysis/commit/0d37c337370a9489fba3a57db8bd6d997625a4b6))
+* get the docs correct in terms of packaging ([9f85679](https://github.com/agregory999/oci-policy-analysis/commit/9f85679dc34c5508223929dca98e342865dbf017))
+* rebuild docs ([7d992db](https://github.com/agregory999/oci-policy-analysis/commit/7d992db7db257d32783a0e3ae3f3bf83b424a462))
+
 ## [2.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.5.0...v2.5.1) (2025-11-07)
 
 
