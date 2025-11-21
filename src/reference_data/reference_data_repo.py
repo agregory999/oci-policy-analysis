@@ -59,17 +59,28 @@ class ReferenceDataRepo:
 
     def _load_data(self):
         data = {'resources': {}, 'families': {}}
+        files_loaded = 0
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
+            logger.debug(f'Loading reference data file: {file_path}')
             try:
                 with open(file_path) as f:
                     file_data = json.load(f)
-                    data['resources'].update(file_data.get('resources', {}))
-                    data['families'].update(file_data.get('families', {}))
-                    logger.info(
-                        f'Loaded reference data file: {file_path}. Total resources: {len(data["resources"])}, families: {len(data["families"])}'
+                    debug_resources = file_data.get('resources', {})
+                    debug_families = file_data.get('families', {})
+                    logger.debug(
+                        f'File {file_path}: contains {len(debug_resources)} resources, {len(debug_families)} families'
                     )
+                    data['resources'].update(debug_resources)
+                    data['families'].update(debug_families)
+                    logger.debug(
+                        f'File {file_path} loaded/merged. Cumulative resources: {len(data["resources"])}, families: {len(data["families"])}'
+                    )
+                    files_loaded += 1
             except Exception as e:
                 logger.error(f'Error loading {file_path}: {e}')
+        logger.info(
+            f'Loaded {files_loaded} reference data files. Total resources: {len(data["resources"])}, families: {len(data["families"])}'
+        )
         return data
 
     def get_permissions(self, entity, verb):

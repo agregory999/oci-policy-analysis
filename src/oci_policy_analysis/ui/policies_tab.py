@@ -20,11 +20,11 @@ import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
 from typing import Literal, cast  # <-- ADD for type handling
 
+from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicySearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
-from oci_policy_analysis.ui.helpers import for_display_policy
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [

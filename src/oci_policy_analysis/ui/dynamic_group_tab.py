@@ -16,11 +16,11 @@
 import tkinter as tk
 from tkinter import ttk
 
+from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch, PolicySearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
-from oci_policy_analysis.ui.helpers import for_display_dynamic_group, for_display_policy
 
 # Column Data
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'In Use']

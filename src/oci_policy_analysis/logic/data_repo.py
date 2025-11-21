@@ -15,7 +15,6 @@
 
 # Standard library imports
 import hashlib
-import json
 import logging
 import re
 import time
@@ -24,7 +23,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Third-party imports
-from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
@@ -151,6 +149,7 @@ class PolicyAnalysisRepository:
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
+        self.loaded_from_tenancy = False
         logger.info('Initialized PolicyAnalysisRepo')
 
     def initialize_client(
@@ -213,6 +212,7 @@ class PolicyAnalysisRepository:
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
 
             # Return True because we got the clients
+            self.loaded_from_tenancy = True
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
@@ -1522,91 +1522,7 @@ class PolicyAnalysisRepository:
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
         return results
 
-    # --- Other Public Functions ---
-    def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
-        """Loads a cache set and compares with the currently loaded policy set and return changes"""
-        # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
-        # Loading the cache is similar to the main loading, but do not want these in memory
-        changes = []
-
-        # Load the referenced cache
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
-        # Load policies
-        if combined_cache_file.exists():
-            with open(combined_cache_file, encoding='utf-8') as filehandle:
-                cache_data = json.load(filehandle)
-            cached_policies = cache_data.get('policies', [])
-            self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
-            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
-            logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
-            logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
-
-            # Do the comparison with deepdiff (do we need to sort the policies first?)
-            # Include paths for the maximum length
-            # max_len = max(len(self.regular_statements), len(cached_policies))
-            # include_paths = [f"root[{i}]['statement_text']" for i in range(max_len)]
-            diff = DeepDiff(
-                self.regular_statements,
-                cached_policies,
-                ignore_order=True,
-                verbose_level=2,
-                # include_paths=include_paths,
-                # exclude_paths=["root['data']"]
-                # include_paths="root[*]['statement_text']"  # Only compare the statement text
-                # group_by=
-            )
-
-            logger.info(
-                f'Found {len(diff.get("iterable_item_added", []))} added, '
-                f'{len(diff.get("iterable_item_removed", []))} removed, '
-                f'{len(diff.get("values_changed", []))} changed policies'
-            )
-            for change_type, changes_list in diff.items():
-                logger.info(f'Change Type: {change_type}')
-                if change_type == 'values_changed':
-                    for i, change in enumerate(changes_list):
-                        change_index_parsed = parse_path(change)
-                        logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
-                        if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
-                            # Change to statement
-                            this_change = changes_list[change]
-                            # logger.info(f'- New: {this_change["new_value"]}\n')
-                            # logger.info(f'- Old: {this_change["old_value"]}\n')
-                            changes.append(
-                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
-                            )
-                            logger.info(
-                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
-                            )
-                        else:
-                            logger.info(f'Change: {changes_list[change]}\n')
-
-                elif change_type == 'iterable_item_removed':
-                    for i, change in enumerate(changes_list):
-                        this_change = changes_list[change]
-                        change_index_parsed = parse_path(change)
-                        changes.append(
-                            f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
-                        )
-                        logger.info(f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
-
-                        # logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
-                elif change_type == 'iterable_item_added':
-                    for i, change in enumerate(changes_list):
-                        this_change = changes_list[change]
-                        change_index_parsed = parse_path(change)
-                        changes.append(
-                            f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
-                        )
-                        logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
-
-                        # logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
-
-        else:
-            logger.warning(f'Policies cache file not found: {combined_cache_file}')
-            return ''
-        return '\n'.join(changes)
+    # (Removed: compare_against_cache; centralized diff logic is now in logic/diff_utils.py)
 
     def run_dg_in_use_analysis(self) -> None:
         """Analyzes Dynamic Group data for unused Dynamic Groups

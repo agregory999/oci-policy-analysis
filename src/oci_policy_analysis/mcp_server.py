@@ -58,6 +58,7 @@ from oci_policy_analysis.common.models import (  # noqa: E402
 )
 from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.logic.diff_utils import canonical_filter
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
@@ -472,47 +473,88 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
 
 @mcp.tool(
     name='compare_reference_data_caches',
-    description='Compares the last two cached reference data sets using DeepDiff and returns a summarized result of the changes.',
+    description='Compares the previous reference data cache for this tenancy to the current in-memory state using DeepDiff and returns a summarized result of the changes.',
 )
 def compare_reference_data_caches() -> ReferenceDataDiffResult:
     """
-    Tool that compares the last two cached reference data sets (combined cache) and summarizes changes.
+    Compares the in-memory current repository state ("right") to the previous-dated cache ("left") for this tenancy.
 
     Returns:
-        ReferenceDataDiffResult: Contains cache names, summary, diff details, and user-friendly message.
+        ReferenceDataDiffResult: diff information and a summary
     """
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
 
     try:
         cache_mgr = CacheManager(policy_analysis=pca)
-        # Get available cache files for the current tenancy (most recent first)
         cache_names = cache_mgr.get_available_cache(getattr(pca, 'tenancy_name', None))
-        if not cache_names or len(cache_names) < 2:
-            raise ToolError('At least two cached reference data sets required for comparison.')
+        if not cache_names or len(cache_names) < 1:
+            raise ToolError('No cached reference data sets available for comparison.')
 
-        cache_b = cache_names[0]
-        cache_a = cache_names[1]
+        # Newest cache is current state, so previous is the "left" for comparison (if available)
+        if len(cache_names) == 1:
+            raise ToolError('At least one previous cached data set required for comparison.')
 
-        data_a = cache_mgr.load_cache_into_local_json(cache_a)
-        data_b = cache_mgr.load_cache_into_local_json(cache_b)
+        # The most recent (cache_names[0]) may be the just-now-saved one (equivalent to in-memory);
+        # we want to compare the previous cache file against in-memory as of now.
+        previous_cache_name = cache_names[1]
+        data_a = cache_mgr.load_cache_into_local_json(previous_cache_name)
+
+        # Prepare the current repo state as would be saved to cache by current CacheManager logic
+        combined_data = {
+            'tenancy_name': pca.tenancy_name,
+            'tenancy_ocid': pca.tenancy_ocid,
+            'policies': pca.regular_statements,
+            'dynamic_groups': pca.dynamic_groups,
+            'defined_aliases': pca.defined_aliases,
+            'cross_tenancy_policies': pca.cross_tenancy_statements,
+            'compartments': pca.compartments,
+            'identity_domains': pca._get_domains(),
+            'groups': pca.groups,
+            'users': pca.users,
+            'data_as_of': pca.data_as_of,
+        }
+        data_b = combined_data
+
+        # Show counts for each section for debug
+        logger.info(
+            f'Previous cache data counts: policies={len(data_a.get("policies", []))}, '
+            f'dynamic_groups={len(data_a.get("dynamic_groups", []))}, '
+            f'defined_aliases={len(data_a.get("defined_aliases", []))}, '
+            f'cross_tenancy_policies={len(data_a.get("cross_tenancy_policies", []))}, '
+            f'compartments={len(data_a.get("compartments", []))}, '
+            f'identity_domains={len(data_a.get("identity_domains", []))}, '
+            f'groups={len(data_a.get("groups", []))}, '
+            f'users={len(data_a.get("users", []))}'
+        )
+        logger.info(
+            f'Current in-memory data counts: policies={len(data_b.get("policies", []))}, '
+            f'dynamic_groups={len(data_b.get("dynamic_groups", []))}, '
+            f'defined_aliases={len(data_b.get("defined_aliases", []))}, '
+            f'cross_tenancy_policies={len(data_b.get("cross_tenancy_policies", []))}, '
+            f'compartments={len(data_b.get("compartments", []))}, '
+            f'identity_domains={len(data_b.get("identity_domains", []))}, '
+            f'groups={len(data_b.get("groups", []))}, '
+            f'users={len(data_b.get("users", []))}'
+        )
 
         if not data_a or not data_b:
-            raise ToolError('Unable to load two valid cache data sets for comparison.')
+            raise ToolError('Unable to access previous cache and/or current state for comparison.')
 
-        # Run DeepDiff (ignore timestamps/metadata if needed)
-        ddiff = DeepDiff(data_a, data_b, ignore_order=True, verbose_level=1)
+        left_filtered = canonical_filter(data_a)
+        right_filtered = canonical_filter(data_b)
+
+        ddiff = DeepDiff(left_filtered, right_filtered, ignore_order=True, verbose_level=2)
         diff_summary = ', '.join(f'{k}: {len(v)}' for k, v in ddiff.items() if isinstance(v, (dict, list)) or v)  # noqa: UP038
         if not diff_summary:
             diff_summary = 'No differences detected.'
-
-        message = f"Compared caches: '{cache_a}' (older) vs '{cache_b}' (newer). {diff_summary}"
+        message = f"Compared previous cache '{previous_cache_name}' vs current memory. {diff_summary}"
         logger.info(message)
 
         result: ReferenceDataDiffResult = {
             'response_type': 'reference_data_diff',
-            'cache_a': str(cache_a),
-            'cache_b': str(cache_b),
+            'cache_a': str(previous_cache_name),
+            'cache_b': 'in-memory current state',
             'diff_summary': diff_summary,
             'diff_details': ddiff.to_dict() if hasattr(ddiff, 'to_dict') else dict(ddiff),
             'message': message,
@@ -535,7 +577,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
         'Use with caution as it may take time depending on tenancy size.'
     ),
 )
-def reload_mcp_data(recursive: bool = True) -> dict:
+def reload_mcp_data() -> dict:
     """
     Reload all policy and identity data from OCI into the MCP server repository.
 
@@ -550,7 +592,7 @@ def reload_mcp_data(recursive: bool = True) -> dict:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
 
     try:
-        if not (args.instance_principal or args.session_token or args.profile):
+        if not (pca.loaded_from_tenancy):
             raise ToolError(
                 'Data reload is only supported when running with a profile, instance principal, or session token'
             )
@@ -559,10 +601,16 @@ def reload_mcp_data(recursive: bool = True) -> dict:
         pca.load_complete_identity_domains()
         pca.load_policies_and_compartments()
         caching = CacheManager(policy_analysis=pca)
+        logger.info('Saving new combined cache after data reload')
         caching.save_combined_cache()
 
         logger.info('Data reloaded successfully')
-        return {'status': 'success', 'message': 'Data reloaded successfully'}
+        return {
+            'status': 'success',
+            'message': 'Data reloaded successfully',
+            'total_policies': len(pca.regular_statements),
+            'data_as_of': pca.data_as_of,
+        }
     except Exception as e:
         logger.error(f'Failed to reload data: {e}')
         raise ToolError(f'Failed to reload data: {e}') from e
@@ -645,6 +693,9 @@ def _build_arg_parser():
     parser.add_argument(
         '--recursive', action='store_true', default=True, help='Recursively load all compartments (default: True)'
     )
+    parser.add_argument(
+        '--dont-save-cache-after-load', help='Save the combined cache after loading from OCI', action='store_true'
+    )
     parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1')
@@ -697,6 +748,12 @@ def main():
         logger.warning(f'Policy and Identity domains load failed: {e}')
         exit(2)
 
+    # Save the cache after load unless disabled
+    if not args.dont_save_cache_after_load:
+        # Save combined cache after loading from OCI
+        logger.info('Saving combined cache after loading from OCI')
+        cache_manager.save_combined_cache()
+
     logger.info(
         f'Tenancy loaded ({"from cache" if args.use_cache else "live"}). Policies: {len(pca.regular_statements)} regular, '
         f'{len(pca.cross_tenancy_statements)} cross-tenancy; '
@@ -709,7 +766,8 @@ def main():
         logger.info(
             'Starting MCP server in stdio mode - if you get errors, please ensure you set environment variable MCP_STDIO_MODE=1'
         )
-        mcp.run(transport='stdio', show_banner=False, log_level='error')
+        # mcp.run(transport='stdio', show_banner=False, log_level='error')
+        mcp.run(transport='stdio', show_banner=False)
     else:
         mcp.run(transport='streamable-http', port=args.port, host=args.host)
 

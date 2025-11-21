@@ -24,6 +24,7 @@ from typing import Any
 from deepdiff import DeepDiff
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.diff_utils import canonical_filter
 
 logger = get_logger('oci-policy-analysis.historical_tab')
 
@@ -120,8 +121,8 @@ class HistoricalTab(ttk.Frame):
                 logger.info(
                     'Filtering known unordered lists (policies/statements/users/groups/dynamic_groups/compartments)...'
                 )
-                left_filtered = self._filter_for_comparison(self._left_data)
-                right_filtered = self._filter_for_comparison(self._right_data)
+                left_filtered = canonical_filter(self._left_data)
+                right_filtered = canonical_filter(self._right_data)
 
                 logger.debug('Canonicalization complete; starting DeepDiff (ignore_order=False).')
 
@@ -195,49 +196,7 @@ class HistoricalTab(ttk.Frame):
                 f'{len(self.identity_tree.get_children())} identity nodes.'
             )
 
-    # ------------------------------------------------------------------
-    def _filter_for_comparison(self, obj: Any) -> Any:
-        """
-        Reduce large OCI structures to only the relevant fields before diffing.
-        Keeps only semantically meaningful keys to avoid noise and performance hits.
-        """
-        if isinstance(obj, list):
-            return [self._filter_for_comparison(x) for x in obj]
-
-        if isinstance(obj, dict):
-            # Policy-like objects
-            if 'policy_name' in obj or 'statement_text' in obj:
-                return {
-                    k: obj.get(k)
-                    for k in (
-                        'policy_name',
-                        'statement_text',
-                        'compartment_name',
-                        'valid',
-                        'invalid',
-                        'invalid_reasons',
-                    )
-                    if k in obj
-                }
-
-            # Identity (user/group/dynamic_group)
-            if any(k in obj for k in ('user_name', 'group_name', 'dynamic_group_name')):
-                return {
-                    k: obj.get(k)
-                    for k in ('domain_name', 'user_name', 'group_name', 'dynamic_group_name', 'groups')
-                    if k in obj
-                }
-
-            # Compartments
-            if 'hierarchy_path' in obj:
-                return {k: obj.get(k) for k in ('id', 'name', 'hierarchy_path', 'parent_id') if k in obj}
-
-            # Generic dict — recurse
-            return {k: self._filter_for_comparison(v) for k, v in obj.items()}
-
-        # Primitives
-        return obj
-
+    # (Removed: _filter_for_comparison, replaced by canonical_filter)
     def _populate_group_section(self, tree: ttk.Treeview, section_title: str, deepdiff_subset: dict, is_policy: bool):
         if not deepdiff_subset:
             return
