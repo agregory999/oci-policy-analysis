@@ -2,9 +2,7 @@ name: Build and Release OCI Policy Analysis
 
 on:
   push:
-    branches: [ main, develop, simplify-package-imports ]
-  pull_request:
-    branches: [ main, develop, simplify-package-imports ]
+    branches: [ main, develop ]
   workflow_dispatch:
 
 permissions:

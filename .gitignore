@@ -12,6 +12,7 @@ env/
 
 # --- Build outputs ---
 build/
+wheels/
 dist/
 wheelhouse/
 *.spec
