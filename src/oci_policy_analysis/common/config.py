@@ -44,7 +44,7 @@ def save_settings(settings: dict):
     Save settings to the settings file.
     Silent failure is acceptable."""
     try:
-        logger.info(f'Settings: {settings}')
+        logger.debug(f'Settings: {settings}')
         os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
         with open(SETTINGS_PATH, 'w') as f:
             logger.info(f'Saving settings to {SETTINGS_PATH}')

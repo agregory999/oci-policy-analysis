@@ -32,8 +32,7 @@ from oci_policy_analysis.mcp_server import (
 class MCPFilter(Filter):
     def filter(self, record):
         return (
-            record.name.startswith('oci-policy-analysis.mcp')
-            # or record.name.startswith('fastmcp')
+            record.name.startswith('oci-policy-analysis.mcp') or record.name.startswith('mcp.server')
             # or record.name.startswith('uvicorn')
         )
 

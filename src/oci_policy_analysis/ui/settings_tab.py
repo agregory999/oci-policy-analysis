@@ -82,20 +82,19 @@ class SettingsTab(ttk.Frame):
         self._build_ui()
 
     def _build_ui(self):
-        # Display options (LabelFrame)
-        disp = ttk.LabelFrame(self, text='Display Options')
-        disp.pack(fill='both', padx=10, pady=10)
+        # ---- Top Row: Display + MCP ----
+        top_row = ttk.Frame(self)
+        top_row.pack(fill='x', padx=10, pady=10)
 
-        # Theme
-        ttk.Label(disp, text='Theme:').pack(side='left', padx=(8, 4))
-        self.theme_var = tk.StringVar(value=self.settings.get('theme', 'Light'))
-        theme_combo = ttk.Combobox(
-            disp, textvariable=self.theme_var, values=['Light', 'Dark'], state='readonly', width=16
-        )
-        theme_combo.pack(side='left', padx=(0, 10))
-        theme_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
+        # Display options (LabelFrame, LEFT)
+        disp = ttk.LabelFrame(top_row, text='Display Options')
+        disp.pack(side='left', fill='both', expand=True, padx=(0, 8), pady=0)
 
-        # Font size
+        # MCP Config (LabelFrame, RIGHT of display)
+        label_frm_mcp_config = ttk.LabelFrame(top_row, text='Embedded MCP')
+        label_frm_mcp_config.pack(side='left', fill='both', expand=True)
+
+        # Font size (in Display Panel)
         ttk.Label(disp, text='Font Size:').pack(side='left', padx=(8, 4))
         self.font_var = tk.StringVar(value=self.settings.get('font_size', 'Medium'))
         font_combo = ttk.Combobox(
@@ -106,20 +105,40 @@ class SettingsTab(ttk.Frame):
             width=10,
         )
         font_combo.pack(side='left')
-        font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)  # Reuse apply_theme to also apply font size)
+        font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
 
-        ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
-
-        # Console
         self.console_btn_var = tk.StringVar(value='Show Console Tab')
         self.console_button = ttk.Button(disp, textvariable=self.console_btn_var, command=self._toggle_console_tab)
         self.console_button.pack(side='left', padx=10, pady=6)
 
-        ttk.Separator(disp, orient=tk.VERTICAL).pack(side='left', padx=20)
+        # --- MCP Configuration (RIGHT of Display Options) ---
+        ttk.Label(label_frm_mcp_config, text='Host:').grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
+        ttk.Entry(label_frm_mcp_config, textvariable=self.mcp_host_var, width=20).grid(
+            row=0, column=1, sticky=tk.W, padx=5
+        )
+        ttk.Label(label_frm_mcp_config, text='Port:').grid(row=0, column=2, sticky=tk.W, padx=5)
+        ttk.Entry(label_frm_mcp_config, textvariable=self.mcp_port_var, width=10).grid(
+            row=0, column=3, sticky=tk.W, padx=5
+        )
 
-        # (AI Result Format removed; now managed only by output radio buttons in main.py)
+        # Autosave for Host and Port
+        def autosave_mcp_var(*args):
+            try:
+                port_val = int(self.mcp_port_var.get())
+            except ValueError:
+                # Don't autosave until a valid integer - could add error state if desired
+                return
+            self.settings['mcp_port'] = port_val
+            self.settings['mcp_host'] = self.mcp_host_var.get().strip() or '127.0.0.1'
+            config.save_settings(self.settings)
+            logger.info('MCP configuration AUTOSAVED.')
 
-        # Tenancy Config (LabelFrame)
+        self.mcp_host_var.trace_add('write', autosave_mcp_var)
+        self.mcp_port_var.trace_add('write', autosave_mcp_var)
+
+        # Remove Save Config button (no longer needed)
+
+        # --- Tenancy Config (LabelFrame) ---
         label_frm_tenancy_config = ttk.Labelframe(self, text='Tenancy and Config')
         label_frm_tenancy_config.pack(fill='x', padx=10, pady=10)
 
@@ -205,24 +224,24 @@ class SettingsTab(ttk.Frame):
         # Import / Export buttons
         ttk.Button(
             label_frm_tenancy_config,
-            width=40,
-            text='Import from JSON\n(load previously saved JSON)',
+            width=30,
+            text='Import JSON (share/backup)',
             command=lambda: self.app._import_cache_from_json(callback={'complete': self._on_load_finished}),
         ).grid(row=0, column=5, padx=5, pady=5, sticky='w')
 
         ttk.Button(
             label_frm_tenancy_config,
-            width=40,
-            text='Export to JSON\n(allows sharing with others)',
+            width=30,
+            text='Export JSON (share/backup)',
             command=lambda: self.app._export_cache_to_json(),
         ).grid(row=1, column=5, padx=5, pady=5, sticky='w')
 
         ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
 
-        # Progress indicator
+        # Progress indicator - move to its own row below buttons, at right
         self.progress_var = tk.StringVar(value='')
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
-        self.progress_label.grid(row=0, column=7, padx=5, pady=5, sticky='w')
+        self.progress_label.grid(row=2, column=5, padx=5, pady=(1, 5), sticky='w')
 
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
@@ -309,24 +328,7 @@ class SettingsTab(ttk.Frame):
         apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
         logger.debug('Apply button created')
 
-        # Label Frame for MCP Settings
-        self.label_frm_mcp_config = ttk.Labelframe(self, text='OCI MCP')
-        self.label_frm_mcp_config.pack(fill='x', padx=5, pady=5)
-
-        # --- Config frame (host + port) ---
-        cfg_frame = ttk.LabelFrame(self.label_frm_mcp_config, text='MCP Configuration')
-        cfg_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        ttk.Label(cfg_frame, text='Host:').grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
-        # self.host_var = tk.StringVar(value=self.config["mcp"].get("host", "127.0.0.1"))
-        ttk.Entry(cfg_frame, textvariable=self.mcp_host_var, width=20).grid(row=0, column=1, sticky=tk.W, padx=5)
-
-        ttk.Label(cfg_frame, text='Port:').grid(row=0, column=2, sticky=tk.W, padx=5)
-        # self.port_var = tk.StringVar(value=str(self.config["mcp"].get("port", 8765)))
-        ttk.Entry(cfg_frame, textvariable=self.mcp_port_var, width=10).grid(row=0, column=3, sticky=tk.W, padx=5)
-
-        save_btn = ttk.Button(cfg_frame, text='Save Config', command=self._save_mcp_config)
-        save_btn.grid(row=0, column=4, sticky=tk.E, padx=10)
+        # (Moved MCP block to top and made autosave; original section removed)
 
     # -------------------------
     # Loading of tenancy buttons
@@ -384,7 +386,21 @@ class SettingsTab(ttk.Frame):
     def _on_load_finished(self, success: bool, message: str, clear: bool = False):
         """Callback from App once tenancy loading completes."""
         if success:
+            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"
+            data_as_of = getattr(getattr(self.app, 'policy_compartment_analysis', None), 'data_as_of', None)
+            if data_as_of:
+                import datetime
+
+                try:
+                    dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
+                    date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
+                except Exception:
+                    date_str = str(data_as_of)
+                date_note = f' 📆 Data as of: {date_str}'
+            else:
+                date_note = ''
             self.progress_var.set(f'✅ {message}')
+            self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
             logger.info('Updating UI after load')
             self.app.policies_tab.update_policy_output()
             self.app.policies_tab.enable_widgets_after_load()
