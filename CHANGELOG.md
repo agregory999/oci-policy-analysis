@@ -1,3 +1,10 @@
+## [2.7.1-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.0...v2.7.1-dev.1) (2025-11-21)
+
+
+### Bug Fixes
+
+* Create a dev release - meaningless change ([64d8aa1](https://github.com/agregory999/oci-policy-analysis/commit/64d8aa1ce4e1baddee19fea029b63c133f57fe25))
+
 # [2.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.6.0...v2.7.0) (2025-11-21)
 
 
