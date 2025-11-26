@@ -16,13 +16,13 @@
 import argparse
 import warnings
 
+from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.helpers import (
     for_display_dynamic_group,
     for_display_policy,
 )
 from oci_policy_analysis.common.logger import get_logger, set_log_level
 from oci_policy_analysis.common.models import PolicySearch
-from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 # Suppress DeprecationWarnings from libraries

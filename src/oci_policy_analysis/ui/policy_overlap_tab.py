@@ -26,6 +26,7 @@ POLICY_OVERLAP_ALL_COLUMNS = [
     'Policy Name',
     'Policy Compartment',
     'Effective Path',
+    'Action',
     'Statement Text',
     'Valid',
     'Internal ID',
@@ -35,9 +36,11 @@ POLICY_OVERLAP_DISPLAY_COLUMNS = [
     'Policy Name',
     'Policy Compartment',
     'Effective Path',
+    'Action',
     'Statement Text',
 ]
 POLICY_OVERLAP_COLUMN_WIDTHS = {
+    'Action': 80,
     'Policy Name': 250,
     'Policy Compartment': 250,
     'Effective Path': 200,
@@ -64,6 +67,10 @@ class PolicyOverlapTab(ttk.Frame):
         self.settings = settings
         self.policy_repo = policy_repo
 
+        # Effective Compartment and Resource filter states
+        self.effective_compartment_filter = 'ALL'
+        self.resource_filter = 'ALL'
+
         # Configure tab
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -79,6 +86,30 @@ class PolicyOverlapTab(ttk.Frame):
             state=tk.DISABLED,
         )
         self.btn_analyze.pack(side='left')
+
+        # Effective Compartment dropdown (will be initialized after data/table loads)
+        self.compartment_values = ['ALL']
+        self.combobox_compartment = ttk.Combobox(
+            button_frame,
+            state='readonly',
+            values=self.compartment_values,
+            width=30,
+        )
+        self.combobox_compartment.set('ALL')
+        self.combobox_compartment.pack(side='left', padx=(10, 0))
+        self.combobox_compartment.bind('<<ComboboxSelected>>', self._on_effective_compartment_selected)
+
+        # Resource dropdown (will be initialized after data/table loads)
+        self.resource_values = ['ALL']
+        self.combobox_resource = ttk.Combobox(
+            button_frame,
+            state='readonly',
+            values=self.resource_values,
+            width=30,
+        )
+        self.combobox_resource.set('ALL')
+        self.combobox_resource.pack(side='left', padx=(6, 0))
+        self.combobox_resource.bind('<<ComboboxSelected>>', self._on_resource_selected)
 
         # Label with instructions
         ttk.Label(button_frame, text='After analysis, select a policy statement to view overlaps below:').pack(
@@ -119,10 +150,12 @@ class PolicyOverlapTab(ttk.Frame):
                         'end',
                         text=f'Statement Text: {statement_text}',
                     )
+                    # Always display permission_overlap as uppercase
+                    perms_upper = [p.upper() for p in permission_overlap] if permission_overlap else []
                     self.overlap_tree.insert(
                         parent,
                         'end',
-                        text=f'Overlapping Permissions: {permission_overlap}',
+                        text=f'Overlapping Permissions: {perms_upper}',
                     )
                     self.overlap_tree.insert(
                         parent,
@@ -150,6 +183,7 @@ class PolicyOverlapTab(ttk.Frame):
             column_widths=POLICY_OVERLAP_COLUMN_WIDTHS,
             selection_callback=on_overlap_select,
             multi_select=True,
+            highlights=[('Action', 'deny', '#FF0000')],
         )
         self.policy_table.pack(fill='both', expand=True, padx=10, pady=(10, 0))
 
@@ -179,22 +213,78 @@ class PolicyOverlapTab(ttk.Frame):
             logger.warning('No policies loaded for overlap analysis')
             return
         self.policy_repo.analyze_policy_overlap()
-        self.update_table()
+        self.effective_compartment_filter = 'ALL'
+        self.update_overlap_output()
         logger.info('Policy overlap analysis completed and table refreshed')
 
-    def update_table(self):
-        """Update the policy table with current statements including policy_overlap."""
+    def update_overlap_output(self):  # noqa: C901
+        """Update the policy overlap table using repository filtering, similar to update_policy_output in PoliciesTab."""
         if not self.policy_repo.regular_statements:
             self.policy_table.update_data([])
+            self.combobox_compartment['values'] = ['ALL']
+            self.combobox_compartment.set('ALL')
+            self.combobox_resource['values'] = ['ALL']
+            self.combobox_resource.set('ALL')
             return
 
-        # Get all statements
-        statements = [for_display_policy(st) for st in self.policy_repo.regular_statements if 'policy_overlap' in st]
+        # Always build dropdowns from ALL available values among regular_statements (not filtered)
+        statements_all = [
+            for_display_policy(st) for st in self.policy_repo.regular_statements if 'policy_overlap' in st
+        ]
 
-        self.policy_table.update_data(statements)
-        logger.info(f'Updated policy overlap table with {len(statements)} statements')
+        # Effective Path dropdown
+        paths_raw = {st.get('Effective Path') for st in statements_all}
+        paths = {p for p in paths_raw if isinstance(p, str)}
+        compartment_list = ['ALL'] + sorted(paths)
+        self.combobox_compartment['values'] = compartment_list
+        if self.effective_compartment_filter not in compartment_list:
+            self.effective_compartment_filter = 'ALL'
+            self.combobox_compartment.set('ALL')
+
+        # Resource dropdown: gather from all statements, deduped, skip None, flatten if multiple-per-row
+        resources_raw = set()
+        for st in statements_all:
+            val = st.get('Resource')
+            if isinstance(val, list):
+                for v in val:
+                    if isinstance(v, str):
+                        resources_raw.add(v)
+            elif isinstance(val, str):
+                resources_raw.add(val)
+        resource_list = ['ALL'] + sorted(resources_raw)
+        self.combobox_resource['values'] = resource_list
+        if self.resource_filter not in resource_list:
+            self.resource_filter = 'ALL'
+            self.combobox_resource.set('ALL')
+
+        # Build filter for repo (not client-side filter)
+        from oci_policy_analysis.common.models import PolicySearch
+
+        filters: PolicySearch = {}
+        if self.effective_compartment_filter != 'ALL':
+            filters['effective_path'] = [self.effective_compartment_filter]
+        if self.resource_filter != 'ALL':
+            filters['resource'] = [self.resource_filter]
+
+        filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
+        normalized = [for_display_policy(st) for st in filtered_statements if 'policy_overlap' in st]
+
+        self.policy_table.update_data(normalized)
+        logger.info(f'Updated policy overlap table with {len(normalized)} statements (filter = {filters})')
+
+    def _on_effective_compartment_selected(self, event=None):
+        """Callback for compartment dropdown selection."""
+        selected = self.combobox_compartment.get()
+        self.effective_compartment_filter = selected if selected != 'ALL' else 'ALL'
+        self.update_overlap_output()
+
+    def _on_resource_selected(self, event=None):
+        """Callback for resource dropdown selection."""
+        selected = self.combobox_resource.get()
+        self.resource_filter = selected if selected != 'ALL' else 'ALL'
+        self.update_overlap_output()
 
     def enable_widgets_after_load(self):
         """Enable widgets after data load."""
         self.btn_analyze.configure(state='normal')
-        self.update_table()
+        self.update_overlap_output()

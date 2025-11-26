@@ -15,6 +15,7 @@
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
+from typing import Any
 
 from oci_policy_analysis.common.logger import get_logger
 
@@ -50,6 +51,7 @@ class DataTable(ttk.Frame):
         selection_callback: Callable[[list[dict]], None] | None = None,
         multi_select: bool = False,
         column_widths: dict[str, int] | None = None,
+        highlights: list[tuple[str, Any, str]] | None = None,
         row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
     ) -> None:
         super().__init__(parent)
@@ -65,6 +67,7 @@ class DataTable(ttk.Frame):
         self.column_widths: dict[str, int] = (
             column_widths if column_widths is not None else {col: 100 for col in columns}
         )
+        self.highlight_rules = highlights or []
         self.min_width = 50
         self.max_width = 300
         self.resizing_column: str | None = None
@@ -143,15 +146,35 @@ class DataTable(ttk.Frame):
         self._update_columns()
 
     def _populate_data(self) -> None:
-        """Populate the table with data, applying alternating row colors."""
+        """Populate the table with data, applying alternating row colors and optional highlight rules."""
         logger.debug('Populating table with %d rows', len(self.data))
+
+        # Clear existing
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.data_map.clear()
+
+        # Populate new rows
         for i, row in enumerate(self.data):
-            tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            # Start with no tags
+            tags = []
+
+            # Apply highlight rules
+            for col, expected_value, color in getattr(self, 'highlight_rules', []):
+                if row.get(col) == expected_value:
+                    logger.info('Highlighting row %d, column %s for value %s', i, col, expected_value)
+                    tag_name = f'highlight_{col}_{expected_value}'
+                    # Only configure the tag once
+                    if not self.tree.tag_has(tag_name):
+                        self.tree.tag_configure(tag_name, background=color)
+                    tags.append(tag_name)
+
+            # Normal alternating row color
+            if len(tags) == 0:
+                tags.append('evenrow' if i % 2 == 0 else 'oddrow')
+
             values = [row.get(col, '') for col in self.tree['columns']]
-            item_id = self.tree.insert('', 'end', values=values, tags=(tag,))
+            item_id = self.tree.insert('', 'end', values=values, tags=tags)
             self.data_map[item_id] = i
 
     def _sort_column(self, col: str) -> None:

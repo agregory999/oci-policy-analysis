@@ -55,6 +55,7 @@ class DynamicGroup(TypedDict):
     """
 
     domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
+    domain_ocid: NotRequired[Annotated[str, 'The OCID of the domain. Not required for filters.']]
     dynamic_group_name: Annotated[str, 'The name of the dynamic group.']
     dynamic_group_ocid: NotRequired[Annotated[str, 'The OCID of the dynamic group. Not required for filters.']]
     dynamic_group_id: NotRequired[Annotated[str, 'The ID of the dynamic group. Not required for filters.']]
@@ -169,6 +170,8 @@ class PolicySearch(TypedDict, total=False):
     Providing no fields returns all policy statements.
     """
 
+    action: Annotated[list[str], "Restrict results to statements of a given action: ['allow'], ['deny'], or both."]
+
     exact_groups: Annotated[list[Group], 'Exact Group(s) to filter policies by. Requires full group_name.']
 
     exact_users: Annotated[list[User], 'Exact User(s) to filter policies by. Requires full user_name.']
@@ -273,6 +276,11 @@ class PolicyStatement(TypedDict, total=False):
     These structures are produced during policy parsing and returned by filter tools.
     """
 
+    # Literal - allow or deny
+    action: Annotated[
+        Literal['allow', 'deny'], "The IAM action specified in the policy statement: either 'allow' or 'deny'."
+    ]
+
     policy_name: Annotated[str, 'Display name of the policy containing this statement.']
 
     policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
@@ -355,6 +363,7 @@ class PolicySummary(TypedDict):
     policy_breakdown: Annotated[
         dict[str, int], 'Count of statements by policy name (e.g., {"CloudGuardPolicies": 29, "Arista-Policy": 7})'
     ]
+    action_breakdown: Annotated[dict[str, int], 'Count of statements by action (e.g., {"allow": 82, "deny": 33})']
     compartment_breakdown: Annotated[
         dict[str, int], 'Count of statements by compartment (e.g., {"ROOT": 45, "ROOT/LZ-Top": 29})'
     ]

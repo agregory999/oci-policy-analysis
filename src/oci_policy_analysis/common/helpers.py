@@ -27,13 +27,14 @@ def for_display_policy(statement: PolicyStatement) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
-        'Policy Name': statement['policy_name'],
-        'Policy OCID': statement['policy_ocid'],
-        'Internal ID': statement['internal_id'],
-        'Compartment OCID': statement['compartment_ocid'],
-        'Policy Compartment': statement['policy_compartment'],
-        'Statement Text': statement['statement_text'],
-        'Valid': statement['valid'],
+        'Action': statement.get('action', 'allow'),
+        'Policy Name': statement['policy_name'],  # type: ignore
+        'Policy OCID': statement['policy_ocid'],  # type: ignore
+        'Internal ID': statement['internal_id'],  # type: ignore
+        'Compartment OCID': statement['compartment_ocid'],  # type: ignore
+        'Policy Compartment': statement['policy_compartment'],  # type: ignore
+        'Statement Text': statement['statement_text'],  # type: ignore
+        'Valid': statement['valid'],  # type: ignore
         'Invalid Reasons': ', '.join(statement['invalid_reasons'])
         if 'invalid_reasons' in statement and type(statement['invalid_reasons']) is list
         else '',
@@ -68,7 +69,7 @@ def for_display_user(u: User) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
-        'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',
+        'Domain Name': u['domain_name'] if u['domain_name'] else 'Default',  # type: ignore
         'Username': u['user_name'],
         'User ID': u.get('user_id', 'N/A'),
         'User OCID': u.get('user_ocid', 'N/A'),
@@ -90,7 +91,7 @@ def for_display_group(g: Group) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
-        'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',
+        'Domain Name': g['domain_name'] if g['domain_name'] else 'Default',  # type: ignore
         'Group Name': g['group_name'],
         'Group ID': g.get('group_id', 'N/A'),
         'Group OCID': g.get('group_ocid', 'N/A'),
@@ -110,7 +111,8 @@ def for_display_dynamic_group(dg: DynamicGroup) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
-        'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',
+        'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',  # type: ignore
+        'Domain OCID': dg.get('domain_ocid', 'N/A'),
         'DG Name': dg['dynamic_group_name'],
         'DG ID': dg.get('dynamic_group_id', 'N/A'),
         'DG OCID': dg.get('dynamic_group_ocid', 'N/A'),
@@ -135,11 +137,11 @@ def for_display_define(define: DefineStatement) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
-        'Defined Type': define['defined_type'],
-        'Defined Name': define['defined_name'],
-        'OCID Alias': define['ocid_alias'],
-        'Statement Text': define['statement_text'],
-        'Creation Time': define['creation_time'],
+        'Defined Type': define['defined_type'],  # type: ignore
+        'Defined Name': define['defined_name'],  # type: ignore
+        'OCID Alias': define['ocid_alias'],  # type: ignore
+        'Statement Text': define['statement_text'],  # type: ignore
+        'Creation Time': define['creation_time'],  # type: ignore
     }
 
 

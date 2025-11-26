@@ -43,3 +43,6 @@ old/
 # Ignore everything else under .github that isn't a workflow
 .github/*
 !.github/workflows/*
+
+# --- Cline ---
+.cline/

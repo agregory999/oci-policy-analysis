@@ -14,6 +14,7 @@
 ##########################################################################
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -31,7 +32,13 @@ logger = get_logger(component='caching')
 
 
 class CacheManager:
-    """Handles saving and loading cached JSON data (IAM + AI)."""
+    """
+    Handles saving and loading cached JSON data (IAM + AI).
+    Also is able to list caches, remove caches, and rename caches.
+    Each cache is tied to a tenancy name and date.
+    The cache directory is ~/.oci-policy-analysis/cache by default, but can be overridden.
+    Caches have the concept of being "preserved" to avoid automatic deletion during culling.
+    """
 
     def __init__(
         self,
@@ -49,7 +56,7 @@ class CacheManager:
         # AI result cache functionality removed
 
     # Utility functions for loading and saving cache, using combined caching strategy
-    def save_combined_cache(self, export_file=None) -> str:
+    def save_combined_cache(self, export_file=None, preserved: bool = False) -> str:
         """Save combined cache for policies and dynamic groups. Returns file name if you care"""
 
         # Date of the cache
@@ -89,7 +96,11 @@ class CacheManager:
             logger.info(f'Saved combined cache to: {combined_cache_file}')
 
         # Update cache entries
-        entry = {'tenancy_name': self.policy_analysis.tenancy_name, 'cache_date': CACHE_DATE}
+        entry = {
+            'tenancy_name': self.policy_analysis.tenancy_name,
+            'cache_date': CACHE_DATE,
+            'preserved': preserved,
+        }
         entries_path = self.cache_dir / 'cache_entries.json'
         with open(entries_path, 'a', encoding='utf-8') as date_file:
             json.dump(entry, date_file, ensure_ascii=False)
@@ -103,10 +114,24 @@ class CacheManager:
         return str(combined_cache_file)
 
     def _cull_old_caches(self, tenancy_name: str):  # noqa: C901
-        """Keep only the 10 most recent cache files/entries for this tenancy_name"""
-        import re
+        """Keep only the 10 most recent cache files/entries for this tenancy_name.
+        Preserved caches are never deleted."""
 
         cache_files = list(self.cache_dir.glob(f'combined_cache_{tenancy_name}_*.json'))
+
+        # Gather preserved cache file names from entries
+        preserved_files = set()
+        entries_path = self.cache_dir / 'cache_entries.json'
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            for line in entry_lines:
+                try:
+                    cache = json.loads(line)
+                    if cache.get('tenancy_name') == tenancy_name and cache.get('preserved'):
+                        preserved_files.add(f"combined_cache_{cache['tenancy_name']}_{cache['cache_date']}.json")
+                except Exception:
+                    continue
 
         # Match file: combined_cache_<tenancy_name>_YYYY-MM-DD-HH-MM-SS-ZZZ.json
         def parse_date_from_file(f):
@@ -121,27 +146,31 @@ class CacheManager:
 
         # Sort newest first
         cache_files.sort(key=parse_date_from_file, reverse=True)
-        files_to_delete = cache_files[10:]
+        pruned = 0
+        # Do not delete preserved files
+        files_to_delete = [f for f in cache_files[10:] if f.name not in preserved_files]
         for old_file in files_to_delete:
             try:
                 old_file.unlink()
                 logger.info(f'Pruned old cache file: {old_file}')
+                pruned += 1
             except Exception as e:
                 logger.error(f'Could not remove old cache file {old_file}: {e}')
 
         # Cull the cache_entries.json as well
-        entries_path = self.cache_dir / 'cache_entries.json'
         if entries_path.exists():
             with open(entries_path, encoding='utf-8') as f:
                 entry_lines = f.readlines()
             remaining = []
             count = 0
-            # Newest to oldest, keep up to 10 for tenancy_name
+            # Newest to oldest, keep up to 10 for tenancy_name, but never remove preserved
             for line in reversed(entry_lines):
                 try:
                     cache = json.loads(line)
                     if cache.get('tenancy_name') == tenancy_name:
-                        if count < 10:
+                        if cache.get('preserved', False):
+                            remaining.append(line)
+                        elif count < 10:
                             remaining.append(line)
                             count += 1
                         # else skip (remove)
@@ -293,7 +322,10 @@ class CacheManager:
         return return_entries
 
     def load_cache_into_local_json(self, cached_tenancy: str) -> dict:
-        # Load everything into a JSON dict and return it
+        """
+        Takes a named cache (tenancy_date) and returns the loaded JSON data as a dict.
+        Used for exporting or other purposes.
+        """
         combined_cache_file = self.cache_dir / f'combined_cache_{cached_tenancy}.json'
         if combined_cache_file.exists():
             try:
@@ -312,4 +344,88 @@ class CacheManager:
         logger.warning(f'Unable to load data from cache: {combined_cache_file}')
         return {}
 
-    # All AI result cache logic and data structures have been removed, as requested.
+    def remove_cache_entry(self, named_cache: str) -> bool:
+        """Remove specified cache file AND its entry from cache_entries.json."""
+        cache_file = self.cache_dir / f'combined_cache_{named_cache}.json'
+        removed_file = False
+        if cache_file.exists():
+            try:
+                cache_file.unlink()
+                removed_file = True
+                logger.info(f'Removed cache file: {cache_file}')
+            except Exception as e:
+                logger.error(f'Could not remove cache file {cache_file}: {e}')
+        # Remove entry from cache_entries.json
+        entries_path = self.cache_dir / 'cache_entries.json'
+        updated = False
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            with open(entries_path, 'w', encoding='utf-8') as f:
+                for line in entry_lines:
+                    try:
+                        cache = json.loads(line)
+                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        if entry_name == named_cache:
+                            updated = True
+                            continue  # Skip (remove) this entry
+                    except Exception:
+                        pass
+                    f.write(line)
+        return removed_file and updated
+
+    def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:
+        """Rename both the cache file and its entry in cache_entries.json."""
+        old_file = self.cache_dir / f'combined_cache_{old_named_cache}.json'
+        new_file = self.cache_dir / f'combined_cache_{new_named_cache}.json'
+        renamed_file = False
+        if old_file.exists():
+            try:
+                old_file.rename(new_file)
+                renamed_file = True
+                logger.info(f'Renamed cache file {old_file} -> {new_file}')
+            except Exception as e:
+                logger.error(f'Could not rename cache file {old_file}: {e}')
+        # Update cache_entries.json
+        entries_path = self.cache_dir / 'cache_entries.json'
+        updated = False
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            with open(entries_path, 'w', encoding='utf-8') as f:
+                for line in entry_lines:
+                    try:
+                        cache = json.loads(line)
+                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        if entry_name == old_named_cache:
+                            # Must split new_named_cache into tenancy_name, cache_date
+                            tn, cd = new_named_cache.split('_', 1)
+                            cache['tenancy_name'] = tn
+                            cache['cache_date'] = cd
+                            line = json.dumps(cache, ensure_ascii=False) + '\n'
+                            updated = True
+                    except Exception:
+                        pass
+                    f.write(line)
+        return renamed_file and updated
+
+    def preserve_cache_entry(self, named_cache: str, preserve: bool = True) -> bool:
+        """Mark or unmark a cache entry as preserved in cache_entries.json."""
+        entries_path = self.cache_dir / 'cache_entries.json'
+        updated = False
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            with open(entries_path, 'w', encoding='utf-8') as f:
+                for line in entry_lines:
+                    try:
+                        cache = json.loads(line)
+                        entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                        if entry_name == named_cache:
+                            cache['preserved'] = preserve
+                            line = json.dumps(cache, ensure_ascii=False) + '\n'
+                            updated = True
+                    except Exception:
+                        pass
+                    f.write(line)
+        return updated

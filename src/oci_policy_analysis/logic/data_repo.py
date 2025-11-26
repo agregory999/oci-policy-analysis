@@ -15,6 +15,7 @@
 
 # Standard library imports
 import hashlib
+import json
 import logging
 import re
 import time
@@ -23,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Third-party imports
+from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
@@ -47,7 +49,7 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
-from reference_data.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
@@ -57,7 +59,7 @@ permission_reference_repo = ReferenceDataRepo()
 
 # Constants
 THREADS = 9
-POLICY_REGEX = r"""^\s*allow\s+ # Start with allow (and whitespace at front)
+POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny action (and whitespace at front)
     (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
     (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
     ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
@@ -221,12 +223,13 @@ class PolicyAnalysisRepository:
     # --- Internal Helpers ---
     def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
         """
-        Given an internal ID, return the list of PolicyOverlap entries for that statement.
+        Get all PolicyOverlap entries for a given statement internal ID.
+
         Args:
-            internal_id: The internal ID of the policy statement to look up.
+            internal_id (str): The internal ID of the policy statement.
 
         Returns:
-            A list of PolicyOverlap entries for the specified internal ID.
+            list[PolicyOverlap]: List of PolicyOverlap entries for the statement.
         """
         overlaps: list[PolicyOverlap] = []
         for st in self.regular_statements:
@@ -237,17 +240,13 @@ class PolicyAnalysisRepository:
 
     def _find_invalid_statements(self):  # noqa: C901
         """
-        Find invalid statements.  Mark them as invalid with reason.
-        Currently checks for:
-        - Dynamic Groups that do not exist
-        - Groups that do not exist
-        - Locations (OCID based compartments) that do not exist
-        - Valid verbs / resources
-        """
-        # Policy Statements can be invalid for several reasons, maybe even more than 1.
-        # TODO: Expand this function to check more invalid cases
+        Mark regular policy statements as invalid if they fail various validity checks, such as:
+        - Nonexistent Dynamic Groups or Groups
+        - Invalid compartment OCIDs
+        - Invalid verbs/resources
 
-        # Create an empty list to hold invalid reasons - only add to dict if more than 0 found
+        This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.
+        """
         for st in self.regular_statements:
             invalid_reasons = []
             # Dynamic Group check
@@ -265,7 +264,7 @@ class PolicyAnalysisRepository:
                     if not dg_found:
                         st['valid'] = False
                         invalid_reasons.append(f'Dynamic Group {dg_name} not found in tenancy')
-                        logger.warning(f'Dynamic Group {dg_name} not found for statement: {st["statement_text"]}')
+                        logger.debug(f'Dynamic Group {dg_name} not found for statement: {st["statement_text"]}')
             # Group check
             elif st['subject_type'] == 'group':
                 for subject in st['subject']:
@@ -281,21 +280,20 @@ class PolicyAnalysisRepository:
                     if not group_found:
                         st['valid'] = False
                         invalid_reasons.append(f'Group {group_name} not found in tenancy')
-                        logger.warning(f'Group {group_name} not found for statement: {st["statement_text"]}')
+                        logger.debug(f'Group {group_name} not found for statement: {st["statement_text"]}')
             # Location check
             if st['location_type'] == 'compartment id':
                 location_ocid = st['location']
                 if not self._check_invalid_location(location_ocid):
                     st['valid'] = False
                     invalid_reasons.append(f'Compartment OCID {location_ocid} not found in tenancy')
-                    logger.warning(f'Compartment OCID {location_ocid} not found for statement: {st["statement_text"]}')
+                    logger.debug(f'Compartment OCID {location_ocid} not found for statement: {st["statement_text"]}')
             # Verb check
             if st['verb'] and st['verb'].casefold() not in VALID_VERBS:
-                logger.warning(f'Invalid Verb found: {st["verb"]}')
+                logger.debug(f'Invalid Verb found: {st["verb"]}')
                 st['valid'] = False
                 invalid_reasons.append(f'Invalid Verb ({st["verb"]}) found')
 
-            # if there are reasons, add to the statement
             if len(invalid_reasons) > 0:
                 st['invalid_reasons'] = invalid_reasons
 
@@ -309,11 +307,15 @@ class PolicyAnalysisRepository:
             if st.get('location_type') == 'tenancy':
                 st['effective_compartment_ocid'] = self.tenancy_ocid
                 st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
+                if st['effective_path']:
+                    st['effective_path'] = st['effective_path'].lower()
                 logger.debug(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
             # Case 2 - Compartment ID
             elif st.get('location_type') == 'compartment id':
                 st['effective_compartment_ocid'] = st.get('location')
                 st['effective_path'] = self._name_path_from_ocid(st.get('location'))
+                if st['effective_path']:
+                    st['effective_path'] = st['effective_path'].lower()
                 st['parsing_notes'].append('Compartment ID used for location')
                 logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
             # Case 3 - Compartment Name (with or without full path)
@@ -335,6 +337,8 @@ class PolicyAnalysisRepository:
                     del parts[0]
                 for p in parts:
                     eff_path += f'/{p}'
+                if eff_path:
+                    eff_path = eff_path.lower()
                 logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
                 st['effective_path'] = eff_path
                 st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
@@ -553,6 +557,9 @@ class PolicyAnalysisRepository:
                 try:
                     # Populate parsed fields
                     statement_dict['valid'] = True  # Currently for Validity
+                    statement_dict['action'] = (
+                        result.get('action', 'allow').lower() if result.get('action') else 'allow'
+                    )
                     statement_dict['subject_type'] = result.get('subjecttype') or 'other'
                     statement_dict['subject'] = result.get('subject') or ''
                     statement_dict['verb'] = result.get('verb') or ''
@@ -582,7 +589,7 @@ class PolicyAnalysisRepository:
                         # permissions looks like {permission1,permission2, permission3}
                         # Strip the braces and split , and strip whitespace
                         perms = result.get('perm').strip('{}').split(',')
-                        perms = [p.strip() for p in perms if p.strip()]
+                        perms = [p.strip().upper() for p in perms if p.strip()]
                         logger.info(f'Parsed permissions from {result.get("perm")} to {perms}')
                         statement_dict['permission'] = perms
                         statement_dict['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
@@ -606,11 +613,12 @@ class PolicyAnalysisRepository:
 
         return False
 
-    def _parse_dynamic_group(self, domain_name: str, dg: DynamicResourceGroup) -> DynamicGroup:
+    def _parse_dynamic_group(self, domain, dg: DynamicResourceGroup) -> DynamicGroup:
         """Extract the contents of the DG into a dict"""
         logger.debug(f'Created by: {dg.idcs_created_by}')
         return DynamicGroup(
-            domain_name=domain_name,
+            domain_name=domain.display_name,
+            domain_ocid=domain.id,
             dynamic_group_name=dg.display_name,
             dynamic_group_id=dg.id,
             description=dg.description or '',
@@ -818,9 +826,7 @@ class PolicyAnalysisRepository:
                         for dg in dg_response.data.resources:
                             logger.debug(f'DG: {dg.display_name}')
                             # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(
-                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
-                            )
+                            self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
                     else:
                         logger.error('Failed to list dynamic groups')
                         return False
@@ -936,44 +942,15 @@ class PolicyAnalysisRepository:
     # If Identity Domains are not loaded and either fuzzy or exact search is requested, raise an error
     def filter_policy_statements(self, filters: PolicySearch) -> list[PolicyStatement]:  # noqa: C901
         """
-        Filter policy statements based on provided criteria.
+        Filter policy statements by one or more criteria.
 
         Args:
-            filters (PolicySearch):
-
-                * ``exact_groups`` (list[Group] | None): Exact groups to search for policy statements. Each :class:`Group` includes ``domain_name`` and ``group_name``.
-                * ``exact_users`` (list[User] | None): Exact users to search for policy statements. Each :class:`User` includes ``domain_name`` and ``user_name``.
-                * ``exact_dynamic_groups`` (list[DynamicGroup] | None): Exact dynamic groups to search for policy statements. Each :class:`DynamicGroup` includes ``domain_name`` and ``name``.
-
-                **Fuzzy-search fields**
-
-                * ``search_groups`` (:class:`GroupSearch` | None): Fuzzy search string for policy statements.
-                * ``search_users`` (:class:`UserSearch` | None): Fuzzy search string for policy statements.
-                * ``search_dynamic_groups`` (:class:`DynamicGroupSearch` | None): Fuzzy search string for policy statements.
-
-                **Statement attributes**
-
-                * ``subject_type`` (list[str] | None): Subject types to filter by.
-                * ``verb`` (list[str] | None): Verbs to filter by.
-                * ``resource`` (list[str] | None): Resources to filter by.
-                * ``permission`` (list[str] | None): Permissions to filter by.
-                * ``location_type`` (list[str] | None): Location types to filter by.
-                * ``location`` (list[str] | None): Locations to filter by.
-                * ``policy_compartment`` (list[str] | None): Compartment names or ``"ROOTONLY"`` to filter by.
-                * ``effective_path`` (list[str] | None): Effective compartment paths or ``"ROOTONLY"`` to filter by.
-                * ``effective_compartment_ocid`` (list[str] | None): Effective compartment OCIDs to filter by.
-                * ``conditions`` (list[str] | None): Conditions to filter by.
-                * ``valid`` (bool | None): Whether to include only valid statements.
-                * ``creation_time_range`` (tuple[datetime | None, datetime | None] | None): Creation-time range to filter by.
+            filters (PolicySearch): Dictionary of filter keys and their values (e.g. verb, resource, permission, group, etc).
 
         Returns:
-            list[PolicyStatement]: Policy statements matching the filter criteria.
-
-        Raises:
-            ValueError: If fuzzy or exact search is requested but identity domains are not loaded.
+            list[PolicyStatement]: List of statements matching the filter.
         """
-
-        logger.info(f'Filtering policy statements with criteria: {filters}')
+        logger.debug(f'Filtering policy statements with criteria: {filters}')
 
         # If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error
         # Previously, filtering by group/user/dynamic-group required identity_domains_loaded.
@@ -1126,18 +1103,26 @@ class PolicyAnalysisRepository:
             if match:
                 results.append(stmt)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        logger.debug(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
         return results
 
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[PolicyStatement]:
-        # Iterate cross-tenant policies
+        """
+        Filter cross-tenancy policy statements containing any provided alias.
+
+        Args:
+            alias_filter (list[str]): List of aliases to look for in statement text.
+
+        Returns:
+            list[PolicyStatement]: Filtered cross-tenancy policy statements.
+        """
         filtered = []
         for statement in self.cross_tenancy_statements:
             for alias_to_check in alias_filter:
-                # Check each alias to see if in statement test
+                # Check each alias to see if in statement text
                 statement_text = statement.get('statement_text', '')
                 if alias_to_check in statement_text:
-                    logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
+                    logger.debug(f'Adding statement (alias={alias_to_check}): {statement_text}')
                     filtered.append(statement)
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered
@@ -1522,7 +1507,91 @@ class PolicyAnalysisRepository:
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
         return results
 
-    # (Removed: compare_against_cache; centralized diff logic is now in logic/diff_utils.py)
+    # --- Other Public Functions ---
+    def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
+        """Loads a cache set and compares with the currently loaded policy set and return changes"""
+        # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
+        # Loading the cache is similar to the main loading, but do not want these in memory
+        changes = []
+
+        # Load the referenced cache
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+        # Load policies
+        if combined_cache_file.exists():
+            with open(combined_cache_file, encoding='utf-8') as filehandle:
+                cache_data = json.load(filehandle)
+            cached_policies = cache_data.get('policies', [])
+            self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
+            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
+            logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
+            logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
+
+            # Do the comparison with deepdiff (do we need to sort the policies first?)
+            # Include paths for the maximum length
+            # max_len = max(len(self.regular_statements), len(cached_policies))
+            # include_paths = [f"root[{i}]['statement_text']" for i in range(max_len)]
+            diff = DeepDiff(
+                self.regular_statements,
+                cached_policies,
+                ignore_order=True,
+                verbose_level=2,
+                # include_paths=include_paths,
+                # exclude_paths=["root['data']"]
+                # include_paths="root[*]['statement_text']"  # Only compare the statement text
+                # group_by=
+            )
+
+            logger.info(
+                f'Found {len(diff.get("iterable_item_added", []))} added, '
+                f'{len(diff.get("iterable_item_removed", []))} removed, '
+                f'{len(diff.get("values_changed", []))} changed policies'
+            )
+            for change_type, changes_list in diff.items():
+                logger.info(f'Change Type: {change_type}')
+                if change_type == 'values_changed':
+                    for i, change in enumerate(changes_list):
+                        change_index_parsed = parse_path(change)
+                        logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
+                        if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
+                            # Change to statement
+                            this_change = changes_list[change]
+                            # logger.info(f'- New: {this_change["new_value"]}\n')
+                            # logger.info(f'- Old: {this_change["old_value"]}\n')
+                            changes.append(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
+                            )
+                            logger.info(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
+                            )
+                        else:
+                            logger.info(f'Change: {changes_list[change]}\n')
+
+                elif change_type == 'iterable_item_removed':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        logger.info(f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+
+                        # logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+                elif change_type == 'iterable_item_added':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+
+                        # logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+
+        else:
+            logger.warning(f'Policies cache file not found: {combined_cache_file}')
+            return ''
+        return '\n'.join(changes)
 
     def run_dg_in_use_analysis(self) -> None:
         """Analyzes Dynamic Group data for unused Dynamic Groups
@@ -1608,10 +1677,12 @@ class PolicyAnalysisRepository:
 
                 # if there are explicit permissions, use those. otherwise get them from the repo
                 other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
-                    entity=other_st.get('resource', ''), verb=other_st.get('verb', '')
+                    entity=other_st.get('resource', ''),
+                    verb=other_st.get('verb', ''),
+                    action=other_st.get('action', 'allow'),
                 )
                 st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
-                    entity=st.get('resource', ''), verb=st.get('verb', '')
+                    entity=st.get('resource', ''), verb=st.get('verb', ''), action=st.get('action', 'allow')
                 )
 
                 logger.debug(
