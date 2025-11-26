@@ -1,3 +1,11 @@
+# [2.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.0...v2.8.0) (2025-11-26)
+
+
+### Features
+
+* Add in Maintenance Tab, Permissions Reference, cleanup ([#15](https://github.com/agregory999/oci-policy-analysis/issues/15)) ([0c848df](https://github.com/agregory999/oci-policy-analysis/commit/0c848df8cf163795a5fe1900fea53565351766ea))
+* New tabs and cleanup from develop branch ([f9d936d](https://github.com/agregory999/oci-policy-analysis/commit/f9d936d81e832a254d0ebca9cd66c6371b0045fa))
+
 # [2.8.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.4...v2.8.0-dev.5) (2025-11-26)
 
 
