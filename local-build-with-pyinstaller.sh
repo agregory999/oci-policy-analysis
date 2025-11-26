@@ -73,7 +73,7 @@ print(matches[0] if matches else '')")
       --collect-all=sys \
       --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-      --add-data "src/reference_data:reference_data" \
+      --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
       --add-binary="$PY_LIB:Frameworks/Python" \
       src/oci_policy_analysis/main.py
 
