@@ -16,27 +16,52 @@
       <script src="../../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
       <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
       <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
       <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
 
-const style = document.createElement('style');
-style.textContent = `.mermaid-container {
-    position: relative !important;
-    display: inline-block;
+const defaultStyle = document.createElement('style');
+defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
     width: 100%;
 }
 
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+`;
+document.head.appendChild(defaultStyle);
+
+const fullscreenStyle = document.createElement('style');
+fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
 .mermaid-fullscreen-btn {
-    position: absolute !important;
     width: 28px;
     height: 28px;
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     cursor: pointer;
-    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -71,7 +96,7 @@ style.textContent = `.mermaid-container {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw;
+    width: 95vw;
     height: 100vh;
     background: rgba(255, 255, 255, 0.98);
     z-index: 9999;
@@ -89,7 +114,7 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content {
+.mermaid-container-fullscreen {
     position: relative;
     width: 95vw;
     height: 90vh;
@@ -105,12 +130,12 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content.dark-theme {
+.mermaid-container-fullscreen.dark-theme {
     background: #1a1a1a;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
 }
 
-.mermaid-fullscreen-content .mermaid {
+.mermaid-container-fullscreen pre.mermaid {
     width: 100%;
     height: 100%;
     display: flex;
@@ -118,11 +143,9 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content .mermaid svg {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: 85vh;
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
     cursor: grab;
 }
 
@@ -166,9 +189,8 @@ style.textContent = `.mermaid-container {
 
 .mermaid-fullscreen-modal .mermaid-fullscreen-btn {
     display: none !important;
-}
-`;
-document.head.appendChild(style);
+}`;
+document.head.appendChild(fullscreenStyle);
 
 // Detect if page has dark background
 const isDarkTheme = () => {
@@ -184,19 +206,44 @@ const isDarkTheme = () => {
     return false;
 };
 
-const initFullscreen = async () => {
+const load = async () => {
     await mermaid.run();
 
     const all_mermaids = document.querySelectorAll(".mermaid");
     const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
 
-    if(all_mermaids.length !== mermaids_processed.length) {
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(load, 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(load, 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
         // Wait for mermaid to process all diagrams
-        setTimeout(initFullscreen, 200);
+        setTimeout(load, 200);
         return;
     }
 
     const darkTheme = isDarkTheme();
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
 
     const modal = document.createElement('div');
     modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
@@ -205,17 +252,20 @@ const initFullscreen = async () => {
     modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
     modal.innerHTML = `
         <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
-        <div class="mermaid-fullscreen-content${darkTheme ? ' dark-theme' : ''}"></div>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
     `;
     document.body.appendChild(modal);
 
-    const modalContent = modal.querySelector('.mermaid-fullscreen-content');
+    const modalContent = modal.querySelector('.mermaid-container-fullscreen');
     const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    let previousScrollOffset = [window.scrollX, window.scrollY];
 
     const closeModal = () => {
         modal.classList.remove('active');
         modalContent.innerHTML = '';
-        document.body.style.overflow = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
     };
 
     closeBtn.addEventListener('click', closeModal);
@@ -245,6 +295,7 @@ const initFullscreen = async () => {
         fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
         fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
         fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
 
         // Calculate dynamic position based on diagram's margin and padding
         const diagramStyle = window.getComputedStyle(mermaidDiv);
@@ -256,6 +307,7 @@ const initFullscreen = async () => {
         fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
 
         fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
             const clone = mermaidDiv.cloneNode(true);
             modalContent.innerHTML = '';
             modalContent.appendChild(clone);
@@ -267,7 +319,22 @@ const initFullscreen = async () => {
                 svg.style.width = '100%';
                 svg.style.height = 'auto';
                 svg.style.maxWidth = '100%';
-                svg.style.display = 'block';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
             }
 
             modal.classList.add('active');
@@ -311,7 +378,7 @@ const initFullscreen = async () => {
     });
 };
 
-window.addEventListener("load", initFullscreen);
+window.addEventListener("load", load);
 </script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -403,6 +470,7 @@ window.addEventListener("load", initFullscreen);
     <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Valid&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Internal ID&#39;</span><span class="p">,</span>
@@ -412,9 +480,11 @@ window.addEventListener("load", initFullscreen);
     <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span>
 <span class="p">]</span>
 <span class="n">POLICY_OVERLAP_COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
     <span class="s1">&#39;Policy Name&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
     <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
     <span class="s1">&#39;Effective Path&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
@@ -443,6 +513,10 @@ window.addEventListener("load", initFullscreen);
         <span class="bp">self</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="n">settings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span> <span class="o">=</span> <span class="n">policy_repo</span>
 
+        <span class="c1"># Effective Compartment and Resource filter states</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="o">=</span> <span class="s1">&#39;ALL&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span> <span class="o">=</span> <span class="s1">&#39;ALL&#39;</span>
+
         <span class="c1"># Configure tab</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">grid_rowconfigure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
@@ -458,6 +532,30 @@ window.addEventListener("load", initFullscreen);
             <span class="n">state</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">DISABLED</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">btn_analyze</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Effective Compartment dropdown (will be initialized after data/table loads)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compartment_values</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Combobox</span><span class="p">(</span>
+            <span class="n">button_frame</span><span class="p">,</span>
+            <span class="n">state</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">,</span>
+            <span class="n">values</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compartment_values</span><span class="p">,</span>
+            <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;&lt;ComboboxSelected&gt;&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_effective_compartment_selected</span><span class="p">)</span>
+
+        <span class="c1"># Resource dropdown (will be initialized after data/table loads)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_values</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Combobox</span><span class="p">(</span>
+            <span class="n">button_frame</span><span class="p">,</span>
+            <span class="n">state</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">,</span>
+            <span class="n">values</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">resource_values</span><span class="p">,</span>
+            <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;&lt;ComboboxSelected&gt;&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_resource_selected</span><span class="p">)</span>
 
         <span class="c1"># Label with instructions</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">button_frame</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;After analysis, select a policy statement to view overlaps below:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span>
@@ -498,10 +596,12 @@ window.addEventListener("load", initFullscreen);
                         <span class="s1">&#39;end&#39;</span><span class="p">,</span>
                         <span class="n">text</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Statement Text: </span><span class="si">{</span><span class="n">statement_text</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="c1"># Always display permission_overlap as uppercase</span>
+                    <span class="n">perms_upper</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">permission_overlap</span><span class="p">]</span> <span class="k">if</span> <span class="n">permission_overlap</span> <span class="k">else</span> <span class="p">[]</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">overlap_tree</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span>
                         <span class="n">parent</span><span class="p">,</span>
                         <span class="s1">&#39;end&#39;</span><span class="p">,</span>
-                        <span class="n">text</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Overlapping Permissions: </span><span class="si">{</span><span class="n">permission_overlap</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="n">text</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Overlapping Permissions: </span><span class="si">{</span><span class="n">perms_upper</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
                     <span class="p">)</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">overlap_tree</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span>
                         <span class="n">parent</span><span class="p">,</span>
@@ -529,6 +629,7 @@ window.addEventListener("load", initFullscreen);
             <span class="n">column_widths</span><span class="o">=</span><span class="n">POLICY_OVERLAP_COLUMN_WIDTHS</span><span class="p">,</span>
             <span class="n">selection_callback</span><span class="o">=</span><span class="n">on_overlap_select</span><span class="p">,</span>
             <span class="n">multi_select</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">highlights</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;Action&#39;</span><span class="p">,</span> <span class="s1">&#39;deny&#39;</span><span class="p">,</span> <span class="s1">&#39;#FF0000&#39;</span><span class="p">)],</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
 
@@ -558,30 +659,86 @@ window.addEventListener("load", initFullscreen);
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No policies loaded for overlap analysis&#39;</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">analyze_policy_overlap</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">update_table</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="o">=</span> <span class="s1">&#39;ALL&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_overlap_output</span><span class="p">()</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Policy overlap analysis completed and table refreshed&#39;</span><span class="p">)</span>
 
-<div class="viewcode-block" id="PolicyOverlapTab.update_table">
-<a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.PolicyOverlapTab.update_table">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">update_table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the policy table with current statements including policy_overlap.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="PolicyOverlapTab.update_overlap_output">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.PolicyOverlapTab.update_overlap_output">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_overlap_output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: C901</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update the policy overlap table using repository filtering, similar to update_policy_output in PoliciesTab.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">([])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="c1"># Get all statements</span>
-        <span class="n">statements</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">st</span><span class="p">)</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">regular_statements</span> <span class="k">if</span> <span class="s1">&#39;policy_overlap&#39;</span> <span class="ow">in</span> <span class="n">st</span><span class="p">]</span>
+        <span class="c1"># Always build dropdowns from ALL available values among regular_statements (not filtered)</span>
+        <span class="n">statements_all</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">for_display_policy</span><span class="p">(</span><span class="n">st</span><span class="p">)</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">regular_statements</span> <span class="k">if</span> <span class="s1">&#39;policy_overlap&#39;</span> <span class="ow">in</span> <span class="n">st</span>
+        <span class="p">]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">statements</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updated policy overlap table with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">statements</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements&#39;</span><span class="p">)</span></div>
+        <span class="c1"># Effective Path dropdown</span>
+        <span class="n">paths_raw</span> <span class="o">=</span> <span class="p">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Effective Path&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">statements_all</span><span class="p">}</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths_raw</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">str</span><span class="p">)}</span>
+        <span class="n">compartment_list</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compartment_list</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">compartment_list</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="o">=</span> <span class="s1">&#39;ALL&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
 
+        <span class="c1"># Resource dropdown: gather from all statements, deduped, skip None, flatten if multiple-per-row</span>
+        <span class="n">resources_raw</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">statements_all</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Resource&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                        <span class="n">resources_raw</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">resources_raw</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="n">resource_list</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">resources_raw</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">resource_list</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">resource_list</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span> <span class="o">=</span> <span class="s1">&#39;ALL&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ALL&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Build filter for repo (not client-side filter)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.common.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolicySearch</span>
+
+        <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="o">!=</span> <span class="s1">&#39;ALL&#39;</span><span class="p">:</span>
+            <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span> <span class="o">!=</span> <span class="s1">&#39;ALL&#39;</span><span class="p">:</span>
+            <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;resource&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span><span class="p">]</span>
+
+        <span class="n">filtered_statements</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_repo</span><span class="o">.</span><span class="n">filter_policy_statements</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">[</span><span class="n">for_display_policy</span><span class="p">(</span><span class="n">st</span><span class="p">)</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">filtered_statements</span> <span class="k">if</span> <span class="s1">&#39;policy_overlap&#39;</span> <span class="ow">in</span> <span class="n">st</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">update_data</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updated policy overlap table with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements (filter = </span><span class="si">{</span><span class="n">filters</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_effective_compartment_selected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Callback for compartment dropdown selection.&quot;&quot;&quot;</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">combobox_compartment</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">effective_compartment_filter</span> <span class="o">=</span> <span class="n">selected</span> <span class="k">if</span> <span class="n">selected</span> <span class="o">!=</span> <span class="s1">&#39;ALL&#39;</span> <span class="k">else</span> <span class="s1">&#39;ALL&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_overlap_output</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_resource_selected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Callback for resource dropdown selection.&quot;&quot;&quot;</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">combobox_resource</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter</span> <span class="o">=</span> <span class="n">selected</span> <span class="k">if</span> <span class="n">selected</span> <span class="o">!=</span> <span class="s1">&#39;ALL&#39;</span> <span class="k">else</span> <span class="s1">&#39;ALL&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_overlap_output</span><span class="p">()</span>
 
 <div class="viewcode-block" id="PolicyOverlapTab.enable_widgets_after_load">
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.ui.html#oci_policy_analysis.ui.PolicyOverlapTab.enable_widgets_after_load">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">enable_widgets_after_load</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable widgets after data load.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">btn_analyze</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="s1">&#39;normal&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">update_table</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_overlap_output</span><span class="p">()</span></div>
 </div>
 
 </pre></div>

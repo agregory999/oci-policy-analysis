@@ -167,8 +167,26 @@ If an overlap is detected, it records the details in the <cite>policy_overlaps</
 
 <dl class="py method">
 <dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">compare_against_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cached_tenancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cached_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.compare_against_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
+<dd><p>Loads a cache set and compares with the currently loaded policy set and return changes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
 <span class="sig-name descname"><span class="pre">filter_cross_tenancy_policy_statements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alias_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyStatement</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_cross_tenancy_policy_statements"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd></dd></dl>
+<dd><p>Filter cross-tenancy policy statements containing any provided alias.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>alias_filter</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><em>list</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>]</em>) – List of aliases to look for in statement text.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered cross-tenancy policy statements.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[PolicyStatement]</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py">
@@ -224,45 +242,16 @@ If an overlap is detected, it records the details in the <cite>policy_overlaps</
 <dl class="py method">
 <dt class="sig sig-object py">
 <span class="sig-name descname"><span class="pre">filter_policy_statements</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolicySearch</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyStatement</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.filter_policy_statements"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Filter policy statements based on provided criteria.</p>
+<dd><p>Filter policy statements by one or more criteria.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>filters</strong> (<em>PolicySearch</em>) – <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">exact_groups</span></code> (list[Group] | None): Exact groups to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">Group</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">group_name</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">exact_users</span></code> (list[User] | None): Exact users to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">User</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">user_name</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">exact_dynamic_groups</span></code> (list[DynamicGroup] | None): Exact dynamic groups to search for policy statements. Each <code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicGroup</span></code> includes <code class="docutils literal notranslate"><span class="pre">domain_name</span></code> and <code class="docutils literal notranslate"><span class="pre">name</span></code>.</p></li>
-</ul>
-<p><strong>Fuzzy-search fields</strong></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">search_groups</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">GroupSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">search_users</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">UserSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">search_dynamic_groups</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicGroupSearch</span></code> | None): Fuzzy search string for policy statements.</p></li>
-</ul>
-<p><strong>Statement attributes</strong></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">subject_type</span></code> (list[str] | None): Subject types to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">verb</span></code> (list[str] | None): Verbs to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">resource</span></code> (list[str] | None): Resources to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">permission</span></code> (list[str] | None): Permissions to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">location_type</span></code> (list[str] | None): Location types to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">location</span></code> (list[str] | None): Locations to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">policy_compartment</span></code> (list[str] | None): Compartment names or <code class="docutils literal notranslate"><span class="pre">&quot;ROOTONLY&quot;</span></code> to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">effective_path</span></code> (list[str] | None): Effective compartment paths or <code class="docutils literal notranslate"><span class="pre">&quot;ROOTONLY&quot;</span></code> to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">effective_compartment_ocid</span></code> (list[str] | None): Effective compartment OCIDs to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">conditions</span></code> (list[str] | None): Conditions to filter by.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">valid</span></code> (bool | None): Whether to include only valid statements.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">creation_time_range</span></code> (tuple[datetime | None, datetime | None] | None): Creation-time range to filter by.</p></li>
-</ul>
-</p>
+<dd class="field-odd"><p><strong>filters</strong> (<em>PolicySearch</em>) – Dictionary of filter keys and their values (e.g. verb, resource, permission, group, etc).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Policy statements matching the filter criteria.</p>
+<dd class="field-even"><p>List of statements matching the filter.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[PolicyStatement]</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If fuzzy or exact search is requested but identity domains are not loaded.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -327,11 +316,16 @@ If an overlap is detected, it records the details in the <cite>policy_overlaps</
 <dl class="py method">
 <dt class="sig sig-object py">
 <span class="sig-name descname"><span class="pre">get_policy_overlaps_by_internal_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">internal_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">PolicyOverlap</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/data_repo.html#PolicyAnalysisRepository.get_policy_overlaps_by_internal_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Given an internal ID, return the list of PolicyOverlap entries for that statement.
-:param internal_id: The internal ID of the policy statement to look up.</p>
+<dd><p>Get all PolicyOverlap entries for a given statement internal ID.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A list of PolicyOverlap entries for the specified internal ID.</p>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>internal_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The internal ID of the policy statement.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of PolicyOverlap entries for the statement.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[PolicyOverlap]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -504,68 +498,6 @@ is marked with “In Use” = False, for later display</p>
 :type endpoint: str
 :param compartment_ocid: The compartment OCID for requests.
 :type compartment_ocid: str</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oci_policy_analysis.logic.</span></span><span class="sig-name descname"><span class="pre">CacheManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">policy_analysis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PolicyAnalysisRepository</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<p>Handles saving and loading cached JSON data (IAM + AI).</p>
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">get_available_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tenancy_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.get_available_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Get available cache files for a given profile</p>
-<p>If given no argument, simply return the list of all avialable cache files that
-exist in the cache directory.  Entries will contain the tenancy name and date loaded.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>tenancy_name</strong> – The name of an OCI tenancy, which will filter the cache list down to only</p></li>
-<li><p><strong>tenancy.</strong> (<em>caches for that</em>)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>a list of the available named caches</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">load_cache_from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">loaded_json</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_cache_from_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">load_cache_into_local_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cached_tenancy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_cache_into_local_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">load_combined_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">named_cache</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.load_combined_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Load combined cache for policies and dynamic groups.</p>
-<p>Given the name and data of a cache, loads the data into both of the centralized structures
-for Compartment/Policy and Identity Domain storage.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>named_cache</strong> – The tenancy_date string of the cache name to load</p></li>
-<li><p><strong>policy_analysis</strong> – The initialized PolicyCompartmentAnalysis class instance to use</p></li>
-<li><p><strong>domains_analysis</strong> – The initialized IdentityDomainsAnalysis class instance to use</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A string indicating the name of the file used</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py">
-<span class="sig-name descname"><span class="pre">save_combined_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">export_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/oci_policy_analysis/logic/caching.html#CacheManager.save_combined_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a></dt>
-<dd><p>Save combined cache for policies and dynamic groups. Returns file name if you care</p>
 </dd></dl>
 
 </dd></dl>

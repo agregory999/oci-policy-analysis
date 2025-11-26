@@ -16,304 +16,6 @@
       <script src="_static/documentation_options.js?v=51b770b3"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
-      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
-
-const style = document.createElement('style');
-style.textContent = `.mermaid-container {
-    position: relative !important;
-    display: inline-block;
-    width: 100%;
-}
-
-.mermaid-fullscreen-btn {
-    position: absolute !important;
-    width: 28px;
-    height: 28px;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
-    cursor: pointer;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    font-size: 14px;
-    line-height: 1;
-    padding: 0;
-    color: #333;
-}
-
-.mermaid-fullscreen-btn:hover {
-    opacity: 100% !important;
-    background: rgba(255, 255, 255, 1);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-    transform: scale(1.1);
-}
-
-.mermaid-fullscreen-btn.dark-theme {
-    background: rgba(50, 50, 50, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #e0e0e0;
-}
-
-.mermaid-fullscreen-btn.dark-theme:hover {
-    background: rgba(60, 60, 60, 1);
-    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
-}
-
-.mermaid-fullscreen-modal {
-    display: none;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(255, 255, 255, 0.98);
-    z-index: 9999;
-    padding: 20px;
-    overflow: auto;
-}
-
-.mermaid-fullscreen-modal.dark-theme {
-    background: rgba(0, 0, 0, 0.98);
-}
-
-.mermaid-fullscreen-modal.active {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.mermaid-fullscreen-content {
-    position: relative;
-    width: 95vw;
-    height: 90vh;
-    max-width: 95vw;
-    max-height: 90vh;
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    overflow: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.mermaid-fullscreen-content.dark-theme {
-    background: #1a1a1a;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-}
-
-.mermaid-fullscreen-content .mermaid {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.mermaid-fullscreen-content .mermaid svg {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: 85vh;
-    cursor: grab;
-}
-
-.mermaid-fullscreen-close {
-    position: fixed !important;
-    top: 20px !important;
-    right: 20px !important;
-    width: 40px;
-    height: 40px;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    transition: all 0.2s;
-    font-size: 24px;
-    line-height: 1;
-    color: #333;
-}
-
-.mermaid-fullscreen-close:hover {
-    background: white;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-    transform: scale(1.1);
-}
-
-.mermaid-fullscreen-close.dark-theme {
-    background: rgba(50, 50, 50, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #e0e0e0;
-}
-
-.mermaid-fullscreen-close.dark-theme:hover {
-    background: rgba(60, 60, 60, 1);
-    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
-}
-
-.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
-    display: none !important;
-}
-`;
-document.head.appendChild(style);
-
-// Detect if page has dark background
-const isDarkTheme = () => {
-    const bgColor = window.getComputedStyle(document.body).backgroundColor;
-    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
-    if (match) {
-        const r = parseInt(match[1]);
-        const g = parseInt(match[2]);
-        const b = parseInt(match[3]);
-        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-        return brightness < 128;
-    }
-    return false;
-};
-
-const initFullscreen = async () => {
-    await mermaid.run();
-
-    const all_mermaids = document.querySelectorAll(".mermaid");
-    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
-
-    if(all_mermaids.length !== mermaids_processed.length) {
-        // Wait for mermaid to process all diagrams
-        setTimeout(initFullscreen, 200);
-        return;
-    }
-
-    const darkTheme = isDarkTheme();
-
-    const modal = document.createElement('div');
-    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
-    modal.innerHTML = `
-        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
-        <div class="mermaid-fullscreen-content${darkTheme ? ' dark-theme' : ''}"></div>
-    `;
-    document.body.appendChild(modal);
-
-    const modalContent = modal.querySelector('.mermaid-fullscreen-content');
-    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
-
-    const closeModal = () => {
-        modal.classList.remove('active');
-        modalContent.innerHTML = '';
-        document.body.style.overflow = '';
-    };
-
-    closeBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-    });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            closeModal();
-        }
-    });
-
-    const allButtons = [];
-
-    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
-        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
-            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
-            return;
-        }
-
-        const container = document.createElement('div');
-        container.className = 'mermaid-container';
-        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
-        container.appendChild(mermaidDiv);
-
-        const fullscreenBtn = document.createElement('button');
-        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
-        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
-        fullscreenBtn.textContent = '⛶';
-
-        // Calculate dynamic position based on diagram's margin and padding
-        const diagramStyle = window.getComputedStyle(mermaidDiv);
-        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
-        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
-        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
-        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
-        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
-        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
-
-        fullscreenBtn.addEventListener('click', () => {
-            const clone = mermaidDiv.cloneNode(true);
-            modalContent.innerHTML = '';
-            modalContent.appendChild(clone);
-
-            const svg = clone.querySelector('svg');
-            if (svg) {
-                svg.removeAttribute('width');
-                svg.removeAttribute('height');
-                svg.style.width = '100%';
-                svg.style.height = 'auto';
-                svg.style.maxWidth = '100%';
-                svg.style.display = 'block';
-            }
-
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        });
-
-        container.appendChild(fullscreenBtn);
-        allButtons.push(fullscreenBtn);
-    });
-
-    // Update theme classes when theme changes
-    const updateTheme = () => {
-        const dark = isDarkTheme();
-        allButtons.forEach(btn => {
-            if (dark) {
-                btn.classList.add('dark-theme');
-            } else {
-                btn.classList.remove('dark-theme');
-            }
-        });
-        if (dark) {
-            modal.classList.add('dark-theme');
-            modalContent.classList.add('dark-theme');
-            closeBtn.classList.add('dark-theme');
-        } else {
-            modal.classList.remove('dark-theme');
-            modalContent.classList.remove('dark-theme');
-            closeBtn.classList.remove('dark-theme');
-        }
-    };
-
-    // Watch for theme changes
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class', 'style', 'data-theme']
-    });
-    observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ['class', 'style']
-    });
-};
-
-window.addEventListener("load", initFullscreen);
-</script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -342,7 +44,11 @@ window.addEventListener("load", initFullscreen);
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#core-features">Core Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
 </ul>
@@ -379,39 +85,29 @@ window.addEventListener("load", initFullscreen);
              
   <section id="overview">
 <h1>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h1>
-<p><strong>OCI Policy Analysis</strong> helps explore and visualize OCI IAM policies.  Key features include:</p>
+<p><strong>OCI Policy Analysis</strong> is a graphical desktop application built with Python and Tkinter for Oracle Cloud Infrastructure (OCI) administrators. It allows you to analyze and visualize OCI policies, dynamic groups, and user permissions within a tenancy—across all compartments and users.</p>
+<section id="core-features">
+<h2>Core Features<a class="headerlink" href="#core-features" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><strong>Policy Analysis</strong>: View and filter parsed IAM policy statements across compartments, with details like subject, verb, resource, and conditions.</p></li>
-<li><p><strong>Dynamic Group Analysis</strong>: Display dynamic groups, their matching rules, and check for unused groups.</p></li>
-<li><p><strong>Resource Principal Analysis</strong>: Display resource principals and search for relevant policy statements.</p></li>
-<li><p><strong>User Analysis</strong>: Filter policy statements applicable to a user based on their group memberships.</p></li>
-<li><p><strong>Historical Comarison</strong>: Compare policy sets from previous loads of data in order to find discrepancies over time.</p></li>
-<li><p><strong>Caching</strong>: Save and load data to/from a local cache for faster access.</p></li>
-<li><p><strong>Export / Import</strong>: Export filtered data to CSV or JSON for further analysis.  Good for offline usage or exchange of data from inaccessible tenancies.</p></li>
-<li><p><strong>Cross-Platform</strong>: Runs on Windows and Linux with a user-friendly GUI.</p></li>
-<li><p><strong>GenAI Insights</strong>: Takes advantage of AI to create insights that may help users understand a policy statement.</p></li>
-<li><p><strong>MCP Server Access</strong>: Run the program as an MCP server, so that policy questions about your tenancy can come from desktop MCP tools such as Claude and VSCode.  Use your own data and have AI tools formulate responses</p></li>
+<li><p><strong>Policy Analysis</strong>: View and filter parsed IAM policy statements across compartments, seeing key fields like subject, verb, resource, and conditions.</p></li>
+<li><p><strong>Dynamic Group Analysis</strong>: Display dynamic groups, review their matching rules, and check for unused groups.</p></li>
+<li><p><strong>Resource Principal &amp; User Analysis</strong>: Explore resource principals and analyze policy statements applicable to a user’s group memberships.</p></li>
+<li><p><strong>Historical Comparison</strong>: Find differences between policy sets from current vs previous data loads.</p></li>
+<li><p><strong>Caching</strong>: Save/load all policy and identity data to local cache for fast/remote use.</p></li>
+<li><p><strong>Export &amp; Import</strong>: Export filtered analysis results to CSV or JSON for sharing or offline audit.</p></li>
+<li><p><strong>Cross-Platform GUI</strong>: Runs on Windows and Linux with an easy-to-use GUI.</p></li>
+<li><p><strong>AI Insights</strong>: Get GenAI explanations to help interpret each policy statement.</p></li>
+<li><p><strong>MCP Server</strong>: Expose your tenancy as an MCP server and answer policy questions from tools like Claude or VSCode using your real data.</p></li>
 </ul>
-<p>The application supports both Instance Principal authentication (for OCI compute instances) and OCI configuration file-based authentication (using named profiles).</p>
-<pre  class="mermaid">
-        graph TD
-    A[Tenancy Root] --&gt; B[Compartment Hierarchy]
-    A --&gt; E[Users / Groups / Dynamic Groups]
-    B --&gt; C[Policies]
-    C --&gt; M[Parsed Policies]
-    C --&gt; D[Effective Permissions]
-    C --&gt; L[Additional Checks]
-    M --&gt; G[OCI Policy Analysis Repo]
-    D --&gt; G[OCI Policy Analysis Repo]
-    E --&gt; G[OCI Policy Analysis Repo]
-    L --&gt; G[OCI Policy Analysis Repo]
-    G --&gt; H[UI App - Sort, Filter, Search]
-    G --&gt; I[MCP Server]
-    G --&gt; K[CLI]
-    H --&gt; J[AI Insights]
-    I --&gt; N[Claude, Co-Pilot, Oracle Code Assist]
-    K --&gt; O[Nightly Cron, Automation]
-    </pre></section>
+<p>The application supports both Instance Principal authentication (OCI compute instances) and OCI CLI/config file-based authentication (using named profiles).</p>
+</section>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h2>
+<p>A high-level diagram of how all the major pieces fit together in this tool:</p>
+<p><img alt="OCI Policy Analysis Architecture" src="../policy-analysis.drawio.svg" /></p>
+<p>See <a class="reference internal" href="usage.html"><span class="std std-doc">Usage</span></a> for installation, configuration instructions, and full platform support details.</p>
+</section>
+</section>
 
 
            </div>

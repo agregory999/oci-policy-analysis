@@ -16,27 +16,52 @@
       <script src="../../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
       <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
       <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
       <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
 
-const style = document.createElement('style');
-style.textContent = `.mermaid-container {
-    position: relative !important;
-    display: inline-block;
+const defaultStyle = document.createElement('style');
+defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
     width: 100%;
 }
 
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+`;
+document.head.appendChild(defaultStyle);
+
+const fullscreenStyle = document.createElement('style');
+fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
 .mermaid-fullscreen-btn {
-    position: absolute !important;
     width: 28px;
     height: 28px;
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     cursor: pointer;
-    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -71,7 +96,7 @@ style.textContent = `.mermaid-container {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw;
+    width: 95vw;
     height: 100vh;
     background: rgba(255, 255, 255, 0.98);
     z-index: 9999;
@@ -89,7 +114,7 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content {
+.mermaid-container-fullscreen {
     position: relative;
     width: 95vw;
     height: 90vh;
@@ -105,12 +130,12 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content.dark-theme {
+.mermaid-container-fullscreen.dark-theme {
     background: #1a1a1a;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
 }
 
-.mermaid-fullscreen-content .mermaid {
+.mermaid-container-fullscreen pre.mermaid {
     width: 100%;
     height: 100%;
     display: flex;
@@ -118,11 +143,9 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content .mermaid svg {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: 85vh;
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
     cursor: grab;
 }
 
@@ -166,9 +189,8 @@ style.textContent = `.mermaid-container {
 
 .mermaid-fullscreen-modal .mermaid-fullscreen-btn {
     display: none !important;
-}
-`;
-document.head.appendChild(style);
+}`;
+document.head.appendChild(fullscreenStyle);
 
 // Detect if page has dark background
 const isDarkTheme = () => {
@@ -184,19 +206,44 @@ const isDarkTheme = () => {
     return false;
 };
 
-const initFullscreen = async () => {
+const load = async () => {
     await mermaid.run();
 
     const all_mermaids = document.querySelectorAll(".mermaid");
     const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
 
-    if(all_mermaids.length !== mermaids_processed.length) {
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(load, 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(load, 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
         // Wait for mermaid to process all diagrams
-        setTimeout(initFullscreen, 200);
+        setTimeout(load, 200);
         return;
     }
 
     const darkTheme = isDarkTheme();
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
 
     const modal = document.createElement('div');
     modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
@@ -205,17 +252,20 @@ const initFullscreen = async () => {
     modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
     modal.innerHTML = `
         <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
-        <div class="mermaid-fullscreen-content${darkTheme ? ' dark-theme' : ''}"></div>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
     `;
     document.body.appendChild(modal);
 
-    const modalContent = modal.querySelector('.mermaid-fullscreen-content');
+    const modalContent = modal.querySelector('.mermaid-container-fullscreen');
     const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    let previousScrollOffset = [window.scrollX, window.scrollY];
 
     const closeModal = () => {
         modal.classList.remove('active');
         modalContent.innerHTML = '';
-        document.body.style.overflow = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
     };
 
     closeBtn.addEventListener('click', closeModal);
@@ -245,6 +295,7 @@ const initFullscreen = async () => {
         fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
         fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
         fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
 
         // Calculate dynamic position based on diagram's margin and padding
         const diagramStyle = window.getComputedStyle(mermaidDiv);
@@ -256,6 +307,7 @@ const initFullscreen = async () => {
         fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
 
         fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
             const clone = mermaidDiv.cloneNode(true);
             modalContent.innerHTML = '';
             modalContent.appendChild(clone);
@@ -267,7 +319,22 @@ const initFullscreen = async () => {
                 svg.style.width = '100%';
                 svg.style.height = 'auto';
                 svg.style.maxWidth = '100%';
-                svg.style.display = 'block';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
             }
 
             modal.classList.add('active');
@@ -311,7 +378,7 @@ const initFullscreen = async () => {
     });
 };
 
-window.addEventListener("load", initFullscreen);
+window.addEventListener("load", load);
 </script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -392,6 +459,7 @@ window.addEventListener("load", initFullscreen);
 
 <span class="c1"># Standard library imports</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
@@ -400,6 +468,7 @@ window.addEventListener("load", initFullscreen);
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="c1"># Third-party imports</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">deepdiff</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeepDiff</span><span class="p">,</span> <span class="n">parse_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci</span><span class="w"> </span><span class="kn">import</span> <span class="n">config</span><span class="p">,</span> <span class="n">pagination</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci.auth.signers</span><span class="w"> </span><span class="kn">import</span> <span class="n">InstancePrincipalsSecurityTokenSigner</span><span class="p">,</span> <span class="n">SecurityTokenSigner</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">oci.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConfigFileNotFound</span>
@@ -424,7 +493,7 @@ window.addEventListener("load", initFullscreen);
     <span class="n">User</span><span class="p">,</span>
     <span class="n">UserSearch</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">reference_data.reference_data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReferenceDataRepo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">oci_policy_analysis.logic.reference_data_repo</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReferenceDataRepo</span>
 
 <span class="c1"># Global logger for this module</span>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="n">component</span><span class="o">=</span><span class="s1">&#39;data_repo&#39;</span><span class="p">)</span>
@@ -434,7 +503,7 @@ window.addEventListener("load", initFullscreen);
 
 <span class="c1"># Constants</span>
 <span class="n">THREADS</span> <span class="o">=</span> <span class="mi">9</span>
-<span class="n">POLICY_REGEX</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;&quot;&quot;^\s*allow\s+ # Start with allow (and whitespace at front)</span>
+<span class="n">POLICY_REGEX</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;&quot;&quot;^\s*(?P&lt;action&gt;allow|deny)\s+ # Start with allow or deny action (and whitespace at front)</span>
 <span class="s2">    (?P&lt;subjecttype&gt;service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type</span>
 <span class="s2">    (?P&lt;subject&gt;([\w\/\&#39;\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)</span>
 <span class="s2">    ((?P&lt;verb&gt;read|inspect|use|manage)\s+(?P&lt;resource&gt;[\w-]+)|(?P&lt;perm&gt;{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set</span>
@@ -605,12 +674,13 @@ window.addEventListener("load", initFullscreen);
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.get_policy_overlaps_by_internal_id">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_policy_overlaps_by_internal_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">internal_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PolicyOverlap</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Given an internal ID, return the list of PolicyOverlap entries for that statement.</span>
+<span class="sd">        Get all PolicyOverlap entries for a given statement internal ID.</span>
+
 <span class="sd">        Args:</span>
-<span class="sd">            internal_id: The internal ID of the policy statement to look up.</span>
+<span class="sd">            internal_id (str): The internal ID of the policy statement.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            A list of PolicyOverlap entries for the specified internal ID.</span>
+<span class="sd">            list[PolicyOverlap]: List of PolicyOverlap entries for the statement.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">overlaps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PolicyOverlap</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">:</span>
@@ -622,17 +692,13 @@ window.addEventListener("load", initFullscreen);
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_find_invalid_statements</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: C901</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Find invalid statements.  Mark them as invalid with reason.</span>
-<span class="sd">        Currently checks for:</span>
-<span class="sd">        - Dynamic Groups that do not exist</span>
-<span class="sd">        - Groups that do not exist</span>
-<span class="sd">        - Locations (OCID based compartments) that do not exist</span>
-<span class="sd">        - Valid verbs / resources</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Policy Statements can be invalid for several reasons, maybe even more than 1.</span>
-        <span class="c1"># TODO: Expand this function to check more invalid cases</span>
+<span class="sd">        Mark regular policy statements as invalid if they fail various validity checks, such as:</span>
+<span class="sd">        - Nonexistent Dynamic Groups or Groups</span>
+<span class="sd">        - Invalid compartment OCIDs</span>
+<span class="sd">        - Invalid verbs/resources</span>
 
-        <span class="c1"># Create an empty list to hold invalid reasons - only add to dict if more than 0 found</span>
+<span class="sd">        This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">:</span>
             <span class="n">invalid_reasons</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="c1"># Dynamic Group check</span>
@@ -650,7 +716,7 @@ window.addEventListener("load", initFullscreen);
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">dg_found</span><span class="p">:</span>
                         <span class="n">st</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
                         <span class="n">invalid_reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Dynamic Group </span><span class="si">{</span><span class="n">dg_name</span><span class="si">}</span><span class="s1"> not found in tenancy&#39;</span><span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Dynamic Group </span><span class="si">{</span><span class="n">dg_name</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Dynamic Group </span><span class="si">{</span><span class="n">dg_name</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="c1"># Group check</span>
             <span class="k">elif</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;subject_type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;group&#39;</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">subject</span> <span class="ow">in</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]:</span>
@@ -666,21 +732,20 @@ window.addEventListener("load", initFullscreen);
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">group_found</span><span class="p">:</span>
                         <span class="n">st</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
                         <span class="n">invalid_reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Group </span><span class="si">{</span><span class="n">group_name</span><span class="si">}</span><span class="s1"> not found in tenancy&#39;</span><span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Group </span><span class="si">{</span><span class="n">group_name</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Group </span><span class="si">{</span><span class="n">group_name</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="c1"># Location check</span>
             <span class="k">if</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;location_type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;compartment id&#39;</span><span class="p">:</span>
                 <span class="n">location_ocid</span> <span class="o">=</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;location&#39;</span><span class="p">]</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_invalid_location</span><span class="p">(</span><span class="n">location_ocid</span><span class="p">):</span>
                     <span class="n">st</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
                     <span class="n">invalid_reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Compartment OCID </span><span class="si">{</span><span class="n">location_ocid</span><span class="si">}</span><span class="s1"> not found in tenancy&#39;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Compartment OCID </span><span class="si">{</span><span class="n">location_ocid</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Compartment OCID </span><span class="si">{</span><span class="n">location_ocid</span><span class="si">}</span><span class="s1"> not found for statement: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="c1"># Verb check</span>
             <span class="k">if</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;verb&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;verb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">casefold</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">VALID_VERBS</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid Verb found: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;verb&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid Verb found: </span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;verb&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="n">invalid_reasons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid Verb (</span><span class="si">{</span><span class="n">st</span><span class="p">[</span><span class="s2">&quot;verb&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">) found&#39;</span><span class="p">)</span>
 
-            <span class="c1"># if there are reasons, add to the statement</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">invalid_reasons</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;invalid_reasons&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">invalid_reasons</span>
 
@@ -694,11 +759,15 @@ window.addEventListener("load", initFullscreen);
             <span class="k">if</span> <span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;tenancy&#39;</span><span class="p">:</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_compartment_ocid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tenancy_ocid</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name_path_from_ocid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tenancy_ocid</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]:</span>
+                    <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Effective (ten) path for </span><span class="si">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;statement_text&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;effective_path&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="c1"># Case 2 - Compartment ID</span>
             <span class="k">elif</span> <span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;location_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;compartment id&#39;</span><span class="p">:</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_compartment_ocid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;location&#39;</span><span class="p">)</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name_path_from_ocid</span><span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;location&#39;</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]:</span>
+                    <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;parsing_notes&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;Compartment ID used for location&#39;</span><span class="p">)</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Effective (id) path for </span><span class="si">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;statement_text&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;effective_path&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="c1"># Case 3 - Compartment Name (with or without full path)</span>
@@ -720,6 +789,8 @@ window.addEventListener("load", initFullscreen);
                     <span class="k">del</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
                     <span class="n">eff_path</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;/</span><span class="si">{</span><span class="n">p</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="k">if</span> <span class="n">eff_path</span><span class="p">:</span>
+                    <span class="n">eff_path</span> <span class="o">=</span> <span class="n">eff_path</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Effective (loc) path for </span><span class="si">{</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;statement_text&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">eff_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">eff_path</span>
                 <span class="n">st</span><span class="p">[</span><span class="s1">&#39;effective_compartment_ocid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compartments_by_path</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">eff_path</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">)</span>
@@ -938,6 +1009,9 @@ window.addEventListener("load", initFullscreen);
                 <span class="k">try</span><span class="p">:</span>
                     <span class="c1"># Populate parsed fields</span>
                     <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Currently for Validity</span>
+                    <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">,</span> <span class="s1">&#39;allow&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;allow&#39;</span>
+                    <span class="p">)</span>
                     <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;subject_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;subjecttype&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;other&#39;</span>
                     <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;subject&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
                     <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;verb&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verb&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
@@ -967,7 +1041,7 @@ window.addEventListener("load", initFullscreen);
                         <span class="c1"># permissions looks like {permission1,permission2, permission3}</span>
                         <span class="c1"># Strip the braces and split , and strip whitespace</span>
                         <span class="n">perms</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;perm&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-                        <span class="n">perms</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+                        <span class="n">perms</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Parsed permissions from </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;perm&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">perms</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                         <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;permission&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">perms</span>
                         <span class="n">statement_dict</span><span class="p">[</span><span class="s1">&#39;parsing_notes&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Parsed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">perms</span><span class="p">)</span><span class="si">}</span><span class="s1"> permissions from permission set.&#39;</span><span class="p">)</span>
@@ -991,11 +1065,12 @@ window.addEventListener("load", initFullscreen);
 
         <span class="k">return</span> <span class="kc">False</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_dynamic_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">domain_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dg</span><span class="p">:</span> <span class="n">DynamicResourceGroup</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DynamicGroup</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_dynamic_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">dg</span><span class="p">:</span> <span class="n">DynamicResourceGroup</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DynamicGroup</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract the contents of the DG into a dict&quot;&quot;&quot;</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Created by: </span><span class="si">{</span><span class="n">dg</span><span class="o">.</span><span class="n">idcs_created_by</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">DynamicGroup</span><span class="p">(</span>
-            <span class="n">domain_name</span><span class="o">=</span><span class="n">domain_name</span><span class="p">,</span>
+            <span class="n">domain_name</span><span class="o">=</span><span class="n">domain</span><span class="o">.</span><span class="n">display_name</span><span class="p">,</span>
+            <span class="n">domain_ocid</span><span class="o">=</span><span class="n">domain</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
             <span class="n">dynamic_group_name</span><span class="o">=</span><span class="n">dg</span><span class="o">.</span><span class="n">display_name</span><span class="p">,</span>
             <span class="n">dynamic_group_id</span><span class="o">=</span><span class="n">dg</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
             <span class="n">description</span><span class="o">=</span><span class="n">dg</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
@@ -1214,9 +1289,7 @@ window.addEventListener("load", initFullscreen);
                         <span class="k">for</span> <span class="n">dg</span> <span class="ow">in</span> <span class="n">dg_response</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">resources</span><span class="p">:</span>
                             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;DG: </span><span class="si">{</span><span class="n">dg</span><span class="o">.</span><span class="n">display_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                             <span class="c1"># Append the Dynamic Group dict to the list</span>
-                            <span class="bp">self</span><span class="o">.</span><span class="n">dynamic_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                                <span class="bp">self</span><span class="o">.</span><span class="n">_parse_dynamic_group</span><span class="p">(</span><span class="n">domain_name</span><span class="o">=</span><span class="n">domain</span><span class="o">.</span><span class="n">display_name</span><span class="p">,</span> <span class="n">dg</span><span class="o">=</span><span class="n">dg</span><span class="p">)</span>
-                            <span class="p">)</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">dynamic_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parse_dynamic_group</span><span class="p">(</span><span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span> <span class="n">dg</span><span class="o">=</span><span class="n">dg</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Failed to list dynamic groups&#39;</span><span class="p">)</span>
                         <span class="k">return</span> <span class="kc">False</span>
@@ -1335,44 +1408,15 @@ window.addEventListener("load", initFullscreen);
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.filter_policy_statements">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">filter_policy_statements</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PolicyStatement</span><span class="p">]:</span>  <span class="c1"># noqa: C901</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Filter policy statements based on provided criteria.</span>
+<span class="sd">        Filter policy statements by one or more criteria.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            filters (PolicySearch):</span>
-
-<span class="sd">                * ``exact_groups`` (list[Group] | None): Exact groups to search for policy statements. Each :class:`Group` includes ``domain_name`` and ``group_name``.</span>
-<span class="sd">                * ``exact_users`` (list[User] | None): Exact users to search for policy statements. Each :class:`User` includes ``domain_name`` and ``user_name``.</span>
-<span class="sd">                * ``exact_dynamic_groups`` (list[DynamicGroup] | None): Exact dynamic groups to search for policy statements. Each :class:`DynamicGroup` includes ``domain_name`` and ``name``.</span>
-
-<span class="sd">                **Fuzzy-search fields**</span>
-
-<span class="sd">                * ``search_groups`` (:class:`GroupSearch` | None): Fuzzy search string for policy statements.</span>
-<span class="sd">                * ``search_users`` (:class:`UserSearch` | None): Fuzzy search string for policy statements.</span>
-<span class="sd">                * ``search_dynamic_groups`` (:class:`DynamicGroupSearch` | None): Fuzzy search string for policy statements.</span>
-
-<span class="sd">                **Statement attributes**</span>
-
-<span class="sd">                * ``subject_type`` (list[str] | None): Subject types to filter by.</span>
-<span class="sd">                * ``verb`` (list[str] | None): Verbs to filter by.</span>
-<span class="sd">                * ``resource`` (list[str] | None): Resources to filter by.</span>
-<span class="sd">                * ``permission`` (list[str] | None): Permissions to filter by.</span>
-<span class="sd">                * ``location_type`` (list[str] | None): Location types to filter by.</span>
-<span class="sd">                * ``location`` (list[str] | None): Locations to filter by.</span>
-<span class="sd">                * ``policy_compartment`` (list[str] | None): Compartment names or ``&quot;ROOTONLY&quot;`` to filter by.</span>
-<span class="sd">                * ``effective_path`` (list[str] | None): Effective compartment paths or ``&quot;ROOTONLY&quot;`` to filter by.</span>
-<span class="sd">                * ``effective_compartment_ocid`` (list[str] | None): Effective compartment OCIDs to filter by.</span>
-<span class="sd">                * ``conditions`` (list[str] | None): Conditions to filter by.</span>
-<span class="sd">                * ``valid`` (bool | None): Whether to include only valid statements.</span>
-<span class="sd">                * ``creation_time_range`` (tuple[datetime | None, datetime | None] | None): Creation-time range to filter by.</span>
+<span class="sd">            filters (PolicySearch): Dictionary of filter keys and their values (e.g. verb, resource, permission, group, etc).</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            list[PolicyStatement]: Policy statements matching the filter criteria.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If fuzzy or exact search is requested but identity domains are not loaded.</span>
+<span class="sd">            list[PolicyStatement]: List of statements matching the filter.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filtering policy statements with criteria: </span><span class="si">{</span><span class="n">filters</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filtering policy statements with criteria: </span><span class="si">{</span><span class="n">filters</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
 
         <span class="c1"># If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error</span>
         <span class="c1"># Previously, filtering by group/user/dynamic-group required identity_domains_loaded.</span>
@@ -1525,21 +1569,29 @@ window.addEventListener("load", initFullscreen);
             <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
                 <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stmt</span><span class="p">)</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filter applied. </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="si">}</span><span class="s1"> matched out of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Filter applied. </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="si">}</span><span class="s1"> matched out of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">results</span></div>
 
 
 <div class="viewcode-block" id="PolicyAnalysisRepository.filter_cross_tenancy_policy_statements">
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.filter_cross_tenancy_policy_statements">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">filter_cross_tenancy_policy_statements</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias_filter</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PolicyStatement</span><span class="p">]:</span>
-        <span class="c1"># Iterate cross-tenant policies</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Filter cross-tenancy policy statements containing any provided alias.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            alias_filter (list[str]): List of aliases to look for in statement text.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list[PolicyStatement]: Filtered cross-tenancy policy statements.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">filtered</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">statement</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cross_tenancy_statements</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">alias_to_check</span> <span class="ow">in</span> <span class="n">alias_filter</span><span class="p">:</span>
-                <span class="c1"># Check each alias to see if in statement test</span>
+                <span class="c1"># Check each alias to see if in statement text</span>
                 <span class="n">statement_text</span> <span class="o">=</span> <span class="n">statement</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;statement_text&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">alias_to_check</span> <span class="ow">in</span> <span class="n">statement_text</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Adding statement (alias=</span><span class="si">{</span><span class="n">alias_to_check</span><span class="si">}</span><span class="s1">): </span><span class="si">{</span><span class="n">statement_text</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Adding statement (alias=</span><span class="si">{</span><span class="n">alias_to_check</span><span class="si">}</span><span class="s1">): </span><span class="si">{</span><span class="n">statement_text</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                     <span class="n">filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Returning </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span><span class="si">}</span><span class="s1"> Cross-Tenancy Results&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">filtered</span></div>
@@ -1940,7 +1992,94 @@ window.addEventListener("load", initFullscreen);
         <span class="k">return</span> <span class="n">results</span></div>
 
 
-    <span class="c1"># (Removed: compare_against_cache; centralized diff logic is now in logic/diff_utils.py)</span>
+    <span class="c1"># --- Other Public Functions ---</span>
+<div class="viewcode-block" id="PolicyAnalysisRepository.compare_against_cache">
+<a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.compare_against_cache">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compare_against_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cached_tenancy</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cached_date</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Loads a cache set and compares with the currently loaded policy set and return changes&quot;&quot;&quot;</span>
+        <span class="c1"># What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory</span>
+        <span class="c1"># Loading the cache is similar to the main loading, but do not want these in memory</span>
+        <span class="n">changes</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Load the referenced cache</span>
+        <span class="n">CACHE_DIR</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">combined_cache_file</span> <span class="o">=</span> <span class="n">CACHE_DIR</span> <span class="o">/</span> <span class="sa">f</span><span class="s1">&#39;combined_cache_</span><span class="si">{</span><span class="n">cached_tenancy</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">cached_date</span><span class="si">}</span><span class="s1">.json&#39;</span>
+        <span class="c1"># Load policies</span>
+        <span class="k">if</span> <span class="n">combined_cache_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">combined_cache_file</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">filehandle</span><span class="p">:</span>
+                <span class="n">cache_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filehandle</span><span class="p">)</span>
+            <span class="n">cached_policies</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cached_dynamic_groups</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dynamic_groups&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cached_cross_tenency_policies</span> <span class="o">=</span> <span class="n">cache_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cross_tenancy_policies&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Loaded </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cached_policies</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements from cache: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Currently </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">)</span><span class="si">}</span><span class="s1"> statements in memory from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">data_as_of</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Do the comparison with deepdiff (do we need to sort the policies first?)</span>
+            <span class="c1"># Include paths for the maximum length</span>
+            <span class="c1"># max_len = max(len(self.regular_statements), len(cached_policies))</span>
+            <span class="c1"># include_paths = [f&quot;root[{i}][&#39;statement_text&#39;]&quot; for i in range(max_len)]</span>
+            <span class="n">diff</span> <span class="o">=</span> <span class="n">DeepDiff</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">regular_statements</span><span class="p">,</span>
+                <span class="n">cached_policies</span><span class="p">,</span>
+                <span class="n">ignore_order</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">verbose_level</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                <span class="c1"># include_paths=include_paths,</span>
+                <span class="c1"># exclude_paths=[&quot;root[&#39;data&#39;]&quot;]</span>
+                <span class="c1"># include_paths=&quot;root[*][&#39;statement_text&#39;]&quot;  # Only compare the statement text</span>
+                <span class="c1"># group_by=</span>
+            <span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;iterable_item_added&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> added, &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;iterable_item_removed&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> removed, &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;values_changed&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">[]))</span><span class="si">}</span><span class="s1"> changed policies&#39;</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">change_type</span><span class="p">,</span> <span class="n">changes_list</span> <span class="ow">in</span> <span class="n">diff</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Change Type: </span><span class="si">{</span><span class="n">change_type</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;values_changed&#39;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
+                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Changed</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">: Index:</span><span class="si">{</span><span class="n">change</span><span class="si">}</span><span class="s1"> Parsed: </span><span class="si">{</span><span class="n">change_index_parsed</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">change_index_parsed</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;statement_text&#39;</span><span class="p">:</span>
+                            <span class="c1"># Change to statement</span>
+                            <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
+                            <span class="c1"># logger.info(f&#39;- New: {this_change[&quot;new_value&quot;]}\n&#39;)</span>
+                            <span class="c1"># logger.info(f&#39;- Old: {this_change[&quot;old_value&quot;]}\n&#39;)</span>
+                            <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s1">&#39;Changed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;old_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;new_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="p">)</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s1">&#39;Changed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;old_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;new_value&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Change: </span><span class="si">{</span><span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;iterable_item_removed&#39;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
+                        <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
+                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
+                        <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s1">&#39;Removed Statement</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1"> #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Removed Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                        <span class="c1"># logger.info(f&#39;Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n&#39;)</span>
+                <span class="k">elif</span> <span class="n">change_type</span> <span class="o">==</span> <span class="s1">&#39;iterable_item_added&#39;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">change</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">changes_list</span><span class="p">):</span>
+                        <span class="n">this_change</span> <span class="o">=</span> <span class="n">changes_list</span><span class="p">[</span><span class="n">change</span><span class="p">]</span>
+                        <span class="n">change_index_parsed</span> <span class="o">=</span> <span class="n">parse_path</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
+                        <span class="n">changes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s1">&#39;Added Statement</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1"> #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Added Statement #</span><span class="si">{</span><span class="n">change_index_parsed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> - </span><span class="si">{</span><span class="n">this_change</span><span class="p">[</span><span class="s2">&quot;statement_text&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                        <span class="c1"># logger.info(f&#39;Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n&#39;)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Policies cache file not found: </span><span class="si">{</span><span class="n">combined_cache_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">changes</span><span class="p">)</span></div>
+
 
 <div class="viewcode-block" id="PolicyAnalysisRepository.run_dg_in_use_analysis">
 <a class="viewcode-back" href="../../../api/oci_policy_analysis.logic.html#oci_policy_analysis.logic.PolicyAnalysisRepository.run_dg_in_use_analysis">[docs]</a>
@@ -2031,10 +2170,12 @@ window.addEventListener("load", initFullscreen);
 
                 <span class="c1"># if there are explicit permissions, use those. otherwise get them from the repo</span>
                 <span class="n">other_permissions</span> <span class="o">=</span> <span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permission&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">permission_reference_repo</span><span class="o">.</span><span class="n">get_permissions</span><span class="p">(</span>
-                    <span class="n">entity</span><span class="o">=</span><span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;resource&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="n">verb</span><span class="o">=</span><span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verb&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                    <span class="n">entity</span><span class="o">=</span><span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;resource&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+                    <span class="n">verb</span><span class="o">=</span><span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verb&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+                    <span class="n">action</span><span class="o">=</span><span class="n">other_st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">,</span> <span class="s1">&#39;allow&#39;</span><span class="p">),</span>
                 <span class="p">)</span>
                 <span class="n">st_permissions</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permission&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">permission_reference_repo</span><span class="o">.</span><span class="n">get_permissions</span><span class="p">(</span>
-                    <span class="n">entity</span><span class="o">=</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;resource&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="n">verb</span><span class="o">=</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verb&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                    <span class="n">entity</span><span class="o">=</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;resource&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="n">verb</span><span class="o">=</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verb&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="n">action</span><span class="o">=</span><span class="n">st</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">,</span> <span class="s1">&#39;allow&#39;</span><span class="p">)</span>
                 <span class="p">)</span>
 
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>

@@ -16,27 +16,52 @@
       <script src="../../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
       <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
       <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
       <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
 
-const style = document.createElement('style');
-style.textContent = `.mermaid-container {
-    position: relative !important;
-    display: inline-block;
+const defaultStyle = document.createElement('style');
+defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
     width: 100%;
 }
 
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+`;
+document.head.appendChild(defaultStyle);
+
+const fullscreenStyle = document.createElement('style');
+fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
 .mermaid-fullscreen-btn {
-    position: absolute !important;
     width: 28px;
     height: 28px;
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     cursor: pointer;
-    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -71,7 +96,7 @@ style.textContent = `.mermaid-container {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw;
+    width: 95vw;
     height: 100vh;
     background: rgba(255, 255, 255, 0.98);
     z-index: 9999;
@@ -89,7 +114,7 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content {
+.mermaid-container-fullscreen {
     position: relative;
     width: 95vw;
     height: 90vh;
@@ -105,12 +130,12 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content.dark-theme {
+.mermaid-container-fullscreen.dark-theme {
     background: #1a1a1a;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
 }
 
-.mermaid-fullscreen-content .mermaid {
+.mermaid-container-fullscreen pre.mermaid {
     width: 100%;
     height: 100%;
     display: flex;
@@ -118,11 +143,9 @@ style.textContent = `.mermaid-container {
     justify-content: center;
 }
 
-.mermaid-fullscreen-content .mermaid svg {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: 85vh;
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
     cursor: grab;
 }
 
@@ -166,9 +189,8 @@ style.textContent = `.mermaid-container {
 
 .mermaid-fullscreen-modal .mermaid-fullscreen-btn {
     display: none !important;
-}
-`;
-document.head.appendChild(style);
+}`;
+document.head.appendChild(fullscreenStyle);
 
 // Detect if page has dark background
 const isDarkTheme = () => {
@@ -184,19 +206,44 @@ const isDarkTheme = () => {
     return false;
 };
 
-const initFullscreen = async () => {
+const load = async () => {
     await mermaid.run();
 
     const all_mermaids = document.querySelectorAll(".mermaid");
     const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
 
-    if(all_mermaids.length !== mermaids_processed.length) {
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(load, 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(load, 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
         // Wait for mermaid to process all diagrams
-        setTimeout(initFullscreen, 200);
+        setTimeout(load, 200);
         return;
     }
 
     const darkTheme = isDarkTheme();
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
 
     const modal = document.createElement('div');
     modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
@@ -205,17 +252,20 @@ const initFullscreen = async () => {
     modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
     modal.innerHTML = `
         <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
-        <div class="mermaid-fullscreen-content${darkTheme ? ' dark-theme' : ''}"></div>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
     `;
     document.body.appendChild(modal);
 
-    const modalContent = modal.querySelector('.mermaid-fullscreen-content');
+    const modalContent = modal.querySelector('.mermaid-container-fullscreen');
     const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    let previousScrollOffset = [window.scrollX, window.scrollY];
 
     const closeModal = () => {
         modal.classList.remove('active');
         modalContent.innerHTML = '';
-        document.body.style.overflow = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
     };
 
     closeBtn.addEventListener('click', closeModal);
@@ -245,6 +295,7 @@ const initFullscreen = async () => {
         fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
         fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
         fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
 
         // Calculate dynamic position based on diagram's margin and padding
         const diagramStyle = window.getComputedStyle(mermaidDiv);
@@ -256,6 +307,7 @@ const initFullscreen = async () => {
         fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
 
         fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
             const clone = mermaidDiv.cloneNode(true);
             modalContent.innerHTML = '';
             modalContent.appendChild(clone);
@@ -267,7 +319,22 @@ const initFullscreen = async () => {
                 svg.style.width = '100%';
                 svg.style.height = 'auto';
                 svg.style.maxWidth = '100%';
-                svg.style.display = 'block';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
             }
 
             modal.classList.add('active');
@@ -311,7 +378,7 @@ const initFullscreen = async () => {
     });
 };
 
-window.addEventListener("load", initFullscreen);
+window.addEventListener("load", load);
 </script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -405,6 +472,7 @@ window.addEventListener("load", initFullscreen);
 
 <span class="c1"># Column data for Custom Data Table</span>
 <span class="n">ALL_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Policy OCID&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">,</span>
@@ -426,9 +494,17 @@ window.addEventListener("load", initFullscreen);
     <span class="s1">&#39;Creation Time&#39;</span><span class="p">,</span>
     <span class="s1">&#39;Parsed&#39;</span><span class="p">,</span>
 <span class="p">]</span>
-<span class="n">BASIC_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span> <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span> <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;Valid&#39;</span><span class="p">]</span>
-<span class="n">BASIC_INVALID_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span> <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;Valid&#39;</span><span class="p">,</span> <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">]</span>
+<span class="n">BASIC_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Action&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span> <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span> <span class="s1">&#39;Effective Path&#39;</span><span class="p">,</span> <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span> <span class="s1">&#39;Valid&#39;</span><span class="p">]</span>
+<span class="n">BASIC_INVALID_POLICY_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Name&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Policy Compartment&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Statement Text&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Valid&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Invalid Reasons&#39;</span><span class="p">,</span>
+<span class="p">]</span>
 <span class="n">POLICY_COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Action&#39;</span><span class="p">:</span> <span class="mi">75</span><span class="p">,</span>
     <span class="s1">&#39;Policy Name&#39;</span><span class="p">:</span> <span class="mi">250</span><span class="p">,</span>
     <span class="s1">&#39;Policy OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
     <span class="s1">&#39;Compartment OCID&#39;</span><span class="p">:</span> <span class="mi">450</span><span class="p">,</span>
@@ -507,21 +583,28 @@ window.addEventListener("load", initFullscreen);
         <span class="bp">self</span><span class="o">.</span><span class="n">grid_columnconfigure</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="c1"># Filter options (LabelFrame)</span>
-        <span class="n">label_frm</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">LabelFrame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Policy Filters&#39;</span><span class="p">)</span>
-        <span class="n">label_frm</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        <span class="c1"># Locate top left</span>
+        <span class="n">label_frm_filters</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">LabelFrame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Policy Filters - use | in fields for logical OR&#39;</span><span class="p">)</span>
+        <span class="n">label_frm_filters</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+        <span class="c1"># Buttons</span>
+        <span class="c1"># Locate top right</span>
+        <span class="n">label_frm_actions</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">LabelFrame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Actions&#39;</span><span class="p">)</span>
+        <span class="n">label_frm_actions</span><span class="o">.</span><span class="n">place</span><span class="p">(</span><span class="n">relx</span><span class="o">=</span><span class="mf">0.90</span><span class="p">,</span> <span class="n">rely</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">anchor</span><span class="o">=</span><span class="s1">&#39;ne&#39;</span><span class="p">)</span>
 
         <span class="c1"># Create the policy filter frame</span>
-        <span class="n">frm_policy_filter</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">label_frm</span><span class="p">)</span>
+        <span class="n">frm_policy_filter</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">label_frm_filters</span><span class="p">)</span>
         <span class="n">frm_policy_filter</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
-        <span class="n">frm_policy_filter</span><span class="o">.</span><span class="n">columnconfigure</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Filters - use | in fields for OR)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
-            <span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
-        <span class="p">)</span>
+        <span class="n">frm_policy_filter</span><span class="o">.</span><span class="n">columnconfigure</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">7</span><span class="p">],</span> <span class="n">weight</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># ttk.Label(frm_policy_filter, text=&#39;Filters - use | in fields for OR)&#39;).grid(</span>
+        <span class="c1">#     row=0, column=0, columnspan=8, pady=2, sticky=&#39;w&#39;</span>
+        <span class="c1"># )</span>
 
         <span class="c1"># Variables for policy and output filters</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">use_subject_any</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">BooleanVar</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">verb_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="s1">&#39;Both&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">location_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">resource_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">hierarchy_filter_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
@@ -592,6 +675,14 @@ window.addEventListener("load", initFullscreen);
                 <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="p">{}</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
                     <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span>
+                <span class="c1"># Action filter for export</span>
+                <span class="n">action_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">action_value</span> <span class="o">==</span> <span class="s1">&#39;allow&#39;</span><span class="p">:</span>
+                    <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;allow&#39;</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">action_value</span> <span class="o">==</span> <span class="s1">&#39;deny&#39;</span><span class="p">:</span>
+                    <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;deny&#39;</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>  <span class="c1"># both</span>
+                    <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;allow&#39;</span><span class="p">,</span> <span class="s1">&#39;deny&#39;</span><span class="p">]</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verb_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
                     <span class="c1"># restrict to only allowed values for verb</span>
                     <span class="n">allowed_verbs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;inspect&#39;</span><span class="p">,</span> <span class="s1">&#39;read&#39;</span><span class="p">,</span> <span class="s1">&#39;use&#39;</span><span class="p">,</span> <span class="s1">&#39;manage&#39;</span><span class="p">}</span>
@@ -631,121 +722,133 @@ window.addEventListener("load", initFullscreen);
 
         <span class="c1"># Within the policy filter frame, create the filter fields and buttons</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Subject&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
-            <span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
+            <span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
         <span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
             <span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Any-User/Group&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_subject_any</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">toggle_any_subject</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 
         <span class="c1"># Verb</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Verb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Verb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verb_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
-            <span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span>
+            <span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
         <span class="p">)</span>
 
         <span class="c1"># Resource</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Resource&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">resource_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
-            <span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">resource_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
+            <span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
         <span class="p">)</span>
 
         <span class="c1"># Location</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Location&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Location&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">entry_loc</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">location_filter_var</span><span class="p">)</span>
-        <span class="n">entry_loc</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">entry_loc</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
             <span class="n">frm_policy_filter</span><span class="p">,</span>
             <span class="n">text</span><span class="o">=</span><span class="s1">&#39;in tenancy?&#39;</span><span class="p">,</span>
             <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">location_filter_tenancy</span><span class="p">,</span>
             <span class="n">command</span><span class="o">=</span><span class="n">toggle_location_tenancy</span><span class="p">,</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 
         <span class="c1"># Hierarchy</span>
-
         <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Hierarchy&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
-        <span class="n">entry_hierarchy</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hierarchy_filter_var</span><span class="p">)</span>
-        <span class="n">entry_hierarchy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">entry_hierarchy</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hierarchy_filter_var</span><span class="p">)</span>
+        <span class="n">entry_hierarchy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
             <span class="n">frm_policy_filter</span><span class="p">,</span>
             <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Tenancy Root Only&#39;</span><span class="p">,</span>
             <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hierarchy_filter_root</span><span class="p">,</span>
             <span class="n">command</span><span class="o">=</span><span class="n">toggle_hierarchy_root</span><span class="p">,</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 
         <span class="c1"># Condition</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Condition&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Condition&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">entry_condition</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">condition_filter_var</span><span class="p">)</span>
-        <span class="n">entry_condition</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+        <span class="n">entry_condition</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
         <span class="c1"># Text</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Text&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
-        <span class="n">entry_text</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">text_filter_var</span><span class="p">)</span>
-        <span class="n">entry_text</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+        <span class="n">entry_text</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">text_filter_var</span><span class="p">)</span>
+        <span class="n">entry_text</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
         <span class="c1"># Policy Name</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Policy Name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
         <span class="n">entry_policy</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_filter_var</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
-        <span class="n">entry_policy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+        <span class="n">entry_policy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
         <span class="c1"># Effective Path</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Effective Path (Shows any policy that affects this compartment)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span>
-            <span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Effective Path&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">effective_path_text</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">effective_path_var</span><span class="p">)</span>
+        <span class="n">effective_path_text</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Action dropdown</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Action (allow|deny)&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">action_combo</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Combobox</span><span class="p">(</span>
+            <span class="n">frm_policy_filter</span><span class="p">,</span>
+            <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_filter_var</span><span class="p">,</span>
+            <span class="n">values</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Both&#39;</span><span class="p">,</span> <span class="s1">&#39;Allow&#39;</span><span class="p">,</span> <span class="s1">&#39;Deny&#39;</span><span class="p">],</span>
+            <span class="n">state</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">,</span>
+            <span class="n">width</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">effective_path_text</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frm_policy_filter</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">effective_path_var</span><span class="p">)</span>
-        <span class="n">effective_path_text</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;ew&#39;</span><span class="p">)</span>
+        <span class="n">action_combo</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">action_combo</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;&lt;ComboboxSelected&gt;&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span><span class="p">)</span>
 
         <span class="c1"># Clear Button</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">label_frm</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Clear Filters&#39;</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">DISABLED</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">clear_policy_filters</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span>
+            <span class="n">label_frm_actions</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Clear Filters&#39;</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">DISABLED</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">clear_policy_filters</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btn_clear</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">btn_export_policy</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span>
-            <span class="n">label_frm</span><span class="p">,</span>
+            <span class="n">label_frm_actions</span><span class="p">,</span>
             <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Export Filtered</span><span class="se">\n</span><span class="s1">Statements to CSV&#39;</span><span class="p">,</span>
             <span class="n">state</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">DISABLED</span><span class="p">,</span>
             <span class="n">command</span><span class="o">=</span><span class="n">export_policy_to_csv</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">btn_export_policy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btn_export_policy</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
         <span class="c1"># Output Filter options (LabelFrame)</span>
-        <span class="n">label_frm2</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">LabelFrame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Output Filters&#39;</span><span class="p">)</span>
-        <span class="n">label_frm2</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        <span class="n">label_frm_filters2</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">LabelFrame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Output Filters&#39;</span><span class="p">)</span>
+        <span class="n">label_frm_filters2</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 
         <span class="c1"># Show Tenancy Name and Statements count</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tenancy_name_var</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">StringVar</span><span class="p">()</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm2</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tenancy_name_var</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Separator</span><span class="p">(</span><span class="n">label_frm2</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">VERTICAL</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">label_policy_count</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Statements (Filtered): 0&#39;</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">textvariable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tenancy_name_var</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Separator</span><span class="p">(</span><span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">VERTICAL</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label_policy_count</span> <span class="o">=</span> <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Statements (Filtered): 0&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">label_policy_count</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
 
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Separator</span><span class="p">(</span><span class="n">label_frm2</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">VERTICAL</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Separator</span><span class="p">(</span><span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">VERTICAL</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="c1"># Display Output Selection</span>
-        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Statement Type</span><span class="se">\n</span><span class="s1">to display:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">ttk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Statement Type</span><span class="se">\n</span><span class="s1">to display:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Service&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_service</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Service&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_service</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Dynamic Group&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_dynamic</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Dynamic Group&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_dynamic</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Resource&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_resource</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Resource&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_resource</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Regular&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_regular</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Regular&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_regular</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Invalid Only&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_invalid</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Invalid Only&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_invalid</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
         <span class="n">ttk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span>
-            <span class="n">label_frm2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Parsed Output&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
+            <span class="n">label_frm_filters2</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Parsed Output&#39;</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chk_show_expanded</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_policy_output</span>
         <span class="p">)</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pady</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">selection_callback</span><span class="p">(</span><span class="n">selected_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">selected_rows</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Selected policy statement: </span><span class="si">{</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Statement Text&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="c1"># Update the policy box</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">ai_additional_instructions</span> <span class="o">=</span> <span class="s1">&#39;Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policy_query_label_text</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;Policy Statement Lookup:&#39;</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">policy_query_var</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Statement Text&#39;</span><span class="p">))</span>
-                <span class="c1"># self.policy_analyze_statement_var.set(row.get(&#39;Statement Text&#39;))</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">perform_effective_path_search</span><span class="p">(</span><span class="n">effective_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
             <span class="c1"># Only allow non-None values to avoid type errors</span>
@@ -756,17 +859,19 @@ window.addEventListener("load", initFullscreen);
 
         <span class="k">def</span><span class="w"> </span><span class="nf">policy_table_right_click</span><span class="p">(</span><span class="n">row_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">tk</span><span class="o">.</span><span class="n">Menu</span><span class="p">:</span>
             <span class="n">effective_path_text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">row_index</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Effective Path&#39;</span><span class="p">)</span>
+            <span class="n">policy_ocid_text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">row_index</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Policy OCID&#39;</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Right click on row </span><span class="si">{</span><span class="n">row_index</span><span class="si">}</span><span class="s1">. Row data: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">policy_table</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">row_index</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
             <span class="n">menu</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Menu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tearoff</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
             <span class="n">menu</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span>
                 <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Show all Policies with same Effective Path (</span><span class="si">{</span><span class="n">effective_path_text</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">,</span>
                 <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">perform_effective_path_search</span><span class="p">(</span><span class="n">effective_path_text</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
             <span class="p">)</span>
-            <span class="c1"># TODO: Implement additional right-click options</span>
-            <span class="c1"># menu.add_command(</span>
-            <span class="c1">#     label=f&quot;Delete Row {row_index}&quot;,</span>
-            <span class="c1">#     command=lambda: print(f&quot;Delete row {row_index}&quot;)</span>
-            <span class="c1"># )</span>
+            <span class="n">menu</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span>
+                <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Show Policy in logged-in Browser&#39;</span><span class="p">,</span>
+                <span class="n">command</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">open_link</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;https://cloud.oracle.com/identity/domains/policies/</span><span class="si">{</span><span class="n">policy_ocid_text</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
             <span class="k">return</span> <span class="n">menu</span>
 
         <span class="c1"># Use the Data Table here with fields</span>
@@ -807,6 +912,14 @@ window.addEventListener("load", initFullscreen);
         <span class="n">filters</span><span class="p">:</span> <span class="n">PolicySearch</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
             <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;subject&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subject_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span>
+        <span class="c1"># Action filter</span>
+        <span class="n">action_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">action_value</span> <span class="o">==</span> <span class="s1">&#39;allow&#39;</span><span class="p">:</span>
+            <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;allow&#39;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">action_value</span> <span class="o">==</span> <span class="s1">&#39;deny&#39;</span><span class="p">:</span>
+            <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;deny&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># both</span>
+            <span class="n">filters</span><span class="p">[</span><span class="s1">&#39;action&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;allow&#39;</span><span class="p">,</span> <span class="s1">&#39;deny&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verb_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
             <span class="n">allowed_verbs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;inspect&#39;</span><span class="p">,</span> <span class="s1">&#39;read&#39;</span><span class="p">,</span> <span class="s1">&#39;use&#39;</span><span class="p">,</span> <span class="s1">&#39;manage&#39;</span><span class="p">}</span>
             <span class="n">verbs</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">verb_filter_var</span><span class="o">.</span><span class="n">get</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">allowed_verbs</span><span class="p">]</span>

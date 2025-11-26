@@ -46,9 +46,16 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#from-source">From source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#run-from-a-release-executable">Run from a release executable</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#main-tabs">Main Tabs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#prerequisites">1. Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#installation">2. Installation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#checking-that-tkinter-is-working">Checking that TKInter is working</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#authentication-and-session-token-setup">3. Authentication and Session Token Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-using-the-app">4. Running/Using the App</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
@@ -86,33 +93,112 @@
              
   <section id="usage">
 <h1>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h1>
-<section id="from-source">
-<h2>From source<a class="headerlink" href="#from-source" title="Link to this heading"></a></h2>
+<section id="getting-started">
+<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
+<p>This section will help you set up and run OCI Policy Analysis regardless of platform.</p>
+<section id="prerequisites">
+<h3>1. Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h3>
+<ul>
+<li><p><strong>Python 3.12+</strong> if running from source. (Not needed for platform executables.)</p>
+<ul class="simple">
+<li><p>Get Python from <a class="reference external" href="https://www.python.org/downloads/">python.org</a>, or use your OS package manager.</p></li>
+</ul>
+</li>
+<li><p><strong>OCI Configuration</strong> (<code class="docutils literal notranslate"><span class="pre">~/.oci/config</span></code> or <code class="docutils literal notranslate"><span class="pre">%USERPROFILE%\.oci\config</span></code>)</p>
+<ul>
+<li><p>Example:</p>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[DEFAULT]</span>
+<span class="na">user</span><span class="o">=</span><span class="s">ocid1.user.oc1..&lt;your-user-ocid&gt;</span>
+<span class="na">fingerprint</span><span class="o">=</span><span class="s">&lt;your-api-key-fingerprint&gt;</span>
+<span class="na">key_file</span><span class="o">=</span><span class="s">&lt;path-to-private-key.pem&gt;</span>
+<span class="na">tenancy</span><span class="o">=</span><span class="s">ocid1.tenancy.oc1..&lt;your-tenancy-ocid&gt;</span>
+<span class="na">region</span><span class="o">=</span><span class="s">&lt;your-region&gt;</span>
+</pre></div>
+</div>
+</li>
+<li><p>See <a class="reference external" href="https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm">OCI Configuration Docs</a></p></li>
+</ul>
+</li>
+<li><p><strong>OCI IAM Policy Permissions</strong></p>
+<ul>
+<li><p>Minimal permissions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
+<span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
+</pre></div>
+</div>
+</li>
+<li><p>See <a class="reference internal" href="overview.html"><span class="std std-doc">Permissions Section</span></a> for instance principal option and dynamic group setup.</p></li>
+</ul>
+</li>
+<li><p><strong>Install Dependencies if running from source</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>oci<span class="w"> </span>ttkbootstrap<span class="w"> </span>deepdiff<span class="w"> </span>markdown
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="installation">
+<h3>2. Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h3>
+<p><strong>Option A: Run as a platform executable</strong></p>
+<ul class="simple">
+<li><p>Download the appropriate binary (.exe for Windows, .app for macOS, Linux build) from the <a class="reference external" href="https://github.com/agregory999/oci-policy-analysis/releases">releases page</a>.</p></li>
+<li><p>Double-click/run as any other application.</p></li>
+</ul>
+<p><strong>Option B: Run from source (recommended for advanced users/developers)</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
-<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">    </span><span class="c1"># On Win: .venv\Scripts\activate</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 python<span class="w"> </span>-m<span class="w"> </span>oci_policy_analysis
 </pre></div>
 </div>
-</section>
-<section id="run-from-a-release-executable">
-<h2>Run from a release executable<a class="headerlink" href="#run-from-a-release-executable" title="Link to this heading"></a></h2>
-<p>Simply run the executable from the release secion</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Windows</span>
-oci-policy-analysis.exe
-
-<span class="c1"># macOS</span>
-./oci-policy-analysis.app
+<p><strong>Option C: Command-line only (no UI, experimental)</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_dg_viewer/core.py<span class="w"> </span>--help
+<span class="c1"># (see CLI options)</span>
 </pre></div>
 </div>
+<section id="checking-that-tkinter-is-working">
+<h4>Checking that TKInter is working<a class="headerlink" href="#checking-that-tkinter-is-working" title="Link to this heading"></a></h4>
+<p>After installing prerequisites:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<p>If you get a popup window, you’re set.</p>
 </section>
-<section id="main-tabs">
-<h2>Main Tabs<a class="headerlink" href="#main-tabs" title="Link to this heading"></a></h2>
-<p>Policies — browse &amp; filter parsed policy statements</p>
-<p>Users / Groups / Dynamic Groups — explore relationships and memberships</p>
-<p>Overlap Detection — find potential redundant/conflicting statements</p>
-<p>Historical Comparison — diff cached tenancy snapshots</p>
-<p>MCP / AI — built-in FastMCP server + AI results pane</p>
+</section>
+<section id="authentication-and-session-token-setup">
+<h3>3. Authentication and Session Token Setup<a class="headerlink" href="#authentication-and-session-token-setup" title="Link to this heading"></a></h3>
+<p>You can authenticate using:</p>
+<ul class="simple">
+<li><p>Named OCI Profile</p></li>
+<li><p>Instance Principal on OCI Compute</p></li>
+<li><p>Session Token (<code class="docutils literal notranslate"><span class="pre">oci</span> <span class="pre">session</span> <span class="pre">authenticate</span></code>, see Settings tab for input)</p></li>
+</ul>
+<p>See <a class="reference external" href="https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm">OCI Authentication</a> for more.</p>
+</section>
+<section id="running-using-the-app">
+<h3>4. Running/Using the App<a class="headerlink" href="#running-using-the-app" title="Link to this heading"></a></h3>
+<p><strong>Load Data</strong>:</p>
+<ul class="simple">
+<li><p>Choose authentication in the Settings tab.</p></li>
+<li><p>Use <strong>Load from Tenancy</strong> or <strong>Load from Cache</strong>.</p></li>
+</ul>
+<p><strong>Tabs</strong>:</p>
+<ul class="simple">
+<li><p><strong>Policies</strong> — Browse &amp; filter policy statements.</p></li>
+<li><p><strong>Users / Groups / Dynamic Groups</strong> — Explore relationships/memberships.</p></li>
+<li><p><strong>Overlap Detection</strong> — Find potential redundant/conflicting statements.</p></li>
+<li><p><strong>Historical Comparison</strong> — Compare cached snapshots.</p></li>
+<li><p><strong>MCP / AI</strong> — Run as FastMCP server and get GenAI analysis.</p></li>
+</ul>
+<p><strong>Export/Import</strong>:</p>
+<ul class="simple">
+<li><p>Use Export/Import buttons for CSV/JSON as needed.</p></li>
+</ul>
+<p><strong>See also</strong>:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="overview.html"><span class="std std-doc">Overview</span></a> for a feature/architecture summary.</p></li>
+</ul>
+</section>
 </section>
 </section>
 
