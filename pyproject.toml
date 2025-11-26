@@ -8,9 +8,9 @@ license = { text = "UPL-1.0" }
 dynamic = ["version"]
 
 dependencies = [
-    "oci==2.144.1",
-    "deepdiff==8.5.0",
-    "fastmcp==2.12.3",
+    "oci>=2.144.1",
+    "deepdiff>=8.5.0",
+    "fastmcp>=2.12.3",
 ]
 
 classifiers = [

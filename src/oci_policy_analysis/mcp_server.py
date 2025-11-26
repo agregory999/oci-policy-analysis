@@ -32,6 +32,7 @@ from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 
+from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
 from oci_policy_analysis.common.models import (  # noqa: E402
     DefineStatement,
@@ -56,7 +57,6 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     UserSearchResponse,
     UserSummary,
 )
-from oci_policy_analysis.logic.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter
 
@@ -123,6 +123,7 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
 
         # Calculate breakdowns
         policy_breakdown = {}
+        action_breakdown = {}
         compartment_breakdown = {}
         subject_type_breakdown = {}
         verb_breakdown = {}
@@ -131,6 +132,10 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
             # Policy breakdown
             policy_name = statement.get('policy_name', 'Unknown')
             policy_breakdown[policy_name] = policy_breakdown.get(policy_name, 0) + 1
+
+            # Action breakdown (allow/deny)
+            action = statement.get('action', 'allow').lower()
+            action_breakdown[action] = action_breakdown.get(action, 0) + 1
 
             # Compartment breakdown
             compartment = statement.get('policy_compartment', 'Unknown')
@@ -153,6 +158,7 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
             'truncated': True,
             'truncation_point': POLICY_RESULT_THRESHOLD,
             'policy_breakdown': policy_breakdown,
+            'action_breakdown': action_breakdown,
             'compartment_breakdown': compartment_breakdown,
             'subject_type_breakdown': subject_type_breakdown,
             'verb_breakdown': verb_breakdown,
@@ -766,10 +772,10 @@ def main():
         logger.info(
             'Starting MCP server in stdio mode - if you get errors, please ensure you set environment variable MCP_STDIO_MODE=1'
         )
-        # mcp.run(transport='stdio', show_banner=False, log_level='error')
-        mcp.run(transport='stdio', show_banner=False)
+        mcp.run(transport='stdio', show_banner=False, log_level='error')
+        # mcp.run(transport='stdio', show_banner=False)
     else:
-        mcp.run(transport='streamable-http', port=args.port, host=args.host)
+        mcp.run(transport='streamable-http', port=args.port, host=args.host, log_level='info', show_banner=False)
 
 
 if __name__ == '__main__':

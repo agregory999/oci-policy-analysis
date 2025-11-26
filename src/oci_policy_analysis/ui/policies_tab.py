@@ -28,6 +28,7 @@ from oci_policy_analysis.ui.data_table import DataTable
 
 # Column data for Custom Data Table
 ALL_POLICY_COLUMNS = [
+    'Action',
     'Policy Name',
     'Policy OCID',
     'Compartment OCID',
@@ -49,9 +50,17 @@ ALL_POLICY_COLUMNS = [
     'Creation Time',
     'Parsed',
 ]
-BASIC_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Effective Path', 'Statement Text', 'Valid']
-BASIC_INVALID_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Valid', 'Invalid Reasons']
+BASIC_POLICY_COLUMNS = ['Action', 'Policy Name', 'Policy Compartment', 'Effective Path', 'Statement Text', 'Valid']
+BASIC_INVALID_POLICY_COLUMNS = [
+    'Action',
+    'Policy Name',
+    'Policy Compartment',
+    'Statement Text',
+    'Valid',
+    'Invalid Reasons',
+]
 POLICY_COLUMN_WIDTHS = {
+    'Action': 75,
     'Policy Name': 250,
     'Policy OCID': 450,
     'Compartment OCID': 450,
@@ -128,21 +137,28 @@ class PoliciesTab(ttk.Frame):
         self.grid_columnconfigure(0, weight=1)
 
         # Filter options (LabelFrame)
-        label_frm = ttk.LabelFrame(self, text='Policy Filters')
-        label_frm.pack(fill='both', padx=10, pady=10)
+        # Locate top left
+        label_frm_filters = ttk.LabelFrame(self, text='Policy Filters - use | in fields for logical OR')
+        label_frm_filters.pack(fill='both', padx=10, pady=10)
+
+        # Buttons
+        # Locate top right
+        label_frm_actions = ttk.LabelFrame(self, text='Actions')
+        label_frm_actions.place(relx=0.90, rely=0.05, anchor='ne')
 
         # Create the policy filter frame
-        frm_policy_filter = ttk.Frame(label_frm)
+        frm_policy_filter = ttk.Frame(label_frm_filters)
         frm_policy_filter.grid(row=0, column=0, sticky='w', padx=10, pady=10)
-        frm_policy_filter.columnconfigure([0, 5], weight=1)
-        ttk.Label(frm_policy_filter, text='Filters - use | in fields for OR)').grid(
-            row=0, column=0, columnspan=6, pady=2, sticky='w'
-        )
+        frm_policy_filter.columnconfigure([0, 7], weight=1)
+        # ttk.Label(frm_policy_filter, text='Filters - use | in fields for OR)').grid(
+        #     row=0, column=0, columnspan=8, pady=2, sticky='w'
+        # )
 
         # Variables for policy and output filters
         self.subject_filter_var = tk.StringVar()
         self.use_subject_any = tk.BooleanVar()
         self.verb_filter_var = tk.StringVar()
+        self.action_filter_var = tk.StringVar(value='Both')
         self.location_filter_var = tk.StringVar()
         self.resource_filter_var = tk.StringVar()
         self.hierarchy_filter_var = tk.StringVar()
@@ -213,6 +229,14 @@ class PoliciesTab(ttk.Frame):
                 filters: PolicySearch = {}
                 if self.subject_filter_var.get():
                     filters['subject'] = self.subject_filter_var.get().split('|')
+                # Action filter for export
+                action_value = self.action_filter_var.get().lower()
+                if action_value == 'allow':
+                    filters['action'] = ['allow']
+                elif action_value == 'deny':
+                    filters['action'] = ['deny']
+                else:  # both
+                    filters['action'] = ['allow', 'deny']
                 if self.verb_filter_var.get():
                     # restrict to only allowed values for verb
                     allowed_verbs = {'inspect', 'read', 'use', 'manage'}
@@ -252,113 +276,124 @@ class PoliciesTab(ttk.Frame):
 
         # Within the policy filter frame, create the filter fields and buttons
         ttk.Label(frm_policy_filter, text='Subject').grid(row=1, column=0, padx=5, pady=2, sticky='w')
-        ttk.Entry(frm_policy_filter, textvariable=self.subject_filter_var, width=20).grid(
-            row=1, column=1, padx=2, sticky='ew'
+        ttk.Entry(frm_policy_filter, textvariable=self.subject_filter_var, width=25).grid(
+            row=1, column=1, columnspan=2, padx=2, sticky='w'
         )
         ttk.Checkbutton(
             frm_policy_filter, text='Any-User/Group', variable=self.use_subject_any, command=toggle_any_subject
-        ).grid(row=1, column=2, padx=2)
+        ).grid(row=1, column=3, padx=2)
 
         # Verb
-        ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=3, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=4, padx=5, pady=2, sticky='w')
         ttk.Entry(frm_policy_filter, textvariable=self.verb_filter_var, width=30).grid(
-            row=1, column=4, columnspan=2, padx=5, pady=2, sticky='ew'
+            row=1, column=5, columnspan=3, padx=5, pady=2, sticky='w'
         )
 
         # Resource
         ttk.Label(frm_policy_filter, text='Resource').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        ttk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=30).grid(
-            row=2, column=1, columnspan=2, padx=5, pady=2, sticky='ew'
+        ttk.Entry(frm_policy_filter, textvariable=self.resource_filter_var, width=40).grid(
+            row=2, column=1, columnspan=3, padx=5, pady=2, sticky='w'
         )
 
         # Location
-        ttk.Label(frm_policy_filter, text='Location').grid(row=2, column=3, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_policy_filter, text='Location').grid(row=2, column=4, padx=5, pady=2, sticky='w')
         entry_loc = ttk.Entry(frm_policy_filter, width=20, textvariable=self.location_filter_var)
-        entry_loc.grid(row=2, column=4, padx=2, sticky='w')
+        entry_loc.grid(row=2, column=5, columnspan=2, padx=2, sticky='w')
         ttk.Checkbutton(
             frm_policy_filter,
             text='in tenancy?',
             variable=self.location_filter_tenancy,
             command=toggle_location_tenancy,
-        ).grid(row=2, column=5, padx=2)
+        ).grid(row=2, column=7, padx=2)
 
         # Hierarchy
-
         ttk.Label(frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        entry_hierarchy = ttk.Entry(frm_policy_filter, width=30, textvariable=self.hierarchy_filter_var)
-        entry_hierarchy.grid(row=3, column=1, padx=5, pady=2, sticky='w')
+        entry_hierarchy = ttk.Entry(frm_policy_filter, width=25, textvariable=self.hierarchy_filter_var)
+        entry_hierarchy.grid(row=3, column=1, columnspan=2, padx=5, pady=2, sticky='w')
         ttk.Checkbutton(
             frm_policy_filter,
             text='Tenancy Root Only',
             variable=self.hierarchy_filter_root,
             command=toggle_hierarchy_root,
-        ).grid(row=3, column=2, padx=5, pady=2)
+        ).grid(row=3, column=3, padx=5, pady=2)
 
         # Condition
-        ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=3, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=4, padx=5, pady=2, sticky='w')
         entry_condition = ttk.Entry(frm_policy_filter, width=30, textvariable=self.condition_filter_var)
-        entry_condition.grid(row=3, column=4, columnspan=2, padx=5, pady=2, sticky='ew')
+        entry_condition.grid(row=3, column=5, columnspan=3, padx=5, pady=2, sticky='w')
 
         # Text
         ttk.Label(frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
-        entry_text = ttk.Entry(frm_policy_filter, width=30, textvariable=self.text_filter_var)
-        entry_text.grid(row=4, column=1, columnspan=2, padx=5, pady=2, sticky='ew')
+        entry_text = ttk.Entry(frm_policy_filter, width=40, textvariable=self.text_filter_var)
+        entry_text.grid(row=4, column=1, columnspan=3, padx=5, pady=2, sticky='w')
 
         # Policy Name
-        ttk.Label(frm_policy_filter, text='Policy Name').grid(row=4, column=3, padx=5, pady=2, sticky='w')
+        ttk.Label(frm_policy_filter, text='Policy Name').grid(row=4, column=4, padx=5, pady=2, sticky='w')
         entry_policy = ttk.Entry(frm_policy_filter, textvariable=self.policy_filter_var, width=30)
-        entry_policy.grid(row=4, column=4, columnspan=2, padx=5, pady=2, sticky='ew')
+        entry_policy.grid(row=4, column=5, columnspan=3, padx=5, pady=2, sticky='w')
 
         # Effective Path
-        ttk.Label(frm_policy_filter, text='Effective Path (Shows any policy that affects this compartment)').grid(
-            row=5, column=0, columnspan=2, padx=5, pady=2, sticky='w'
+        ttk.Label(frm_policy_filter, text='Effective Path').grid(row=5, column=0, padx=5, pady=2, sticky='w')
+        effective_path_text = ttk.Entry(frm_policy_filter, width=40, textvariable=self.effective_path_var)
+        effective_path_text.grid(row=5, column=1, columnspan=3, padx=5, pady=2, sticky='w')
+
+        # Action dropdown
+        ttk.Label(frm_policy_filter, text='Action (allow|deny)').grid(row=5, column=4, padx=5, pady=2, sticky='w')
+        action_combo = ttk.Combobox(
+            frm_policy_filter,
+            textvariable=self.action_filter_var,
+            values=['Both', 'Allow', 'Deny'],
+            state='readonly',
+            width=10,
         )
-        effective_path_text = ttk.Entry(frm_policy_filter, width=30, textvariable=self.effective_path_var)
-        effective_path_text.grid(row=5, column=3, columnspan=4, padx=5, pady=2, sticky='ew')
+        action_combo.grid(row=5, column=5, padx=2, sticky='w')
+        action_combo.bind('<<ComboboxSelected>>', self.update_policy_output)
 
         # Clear Button
-        self.btn_clear = ttk.Button(label_frm, text='Clear Filters', state=tk.DISABLED, command=clear_policy_filters)
-        self.btn_clear.grid(row=0, column=1, padx=5, pady=2, sticky='w')
+        self.btn_clear = ttk.Button(
+            label_frm_actions, text='Clear Filters', state=tk.DISABLED, command=clear_policy_filters
+        )
+        self.btn_clear.grid(row=0, column=0, padx=5, pady=2, sticky='w')
 
         self.btn_export_policy = ttk.Button(
-            label_frm,
+            label_frm_actions,
             text='Export Filtered\nStatements to CSV',
             state=tk.DISABLED,
             command=export_policy_to_csv,
         )
-        self.btn_export_policy.grid(row=0, column=2, padx=5, pady=2, sticky='w')
+        self.btn_export_policy.grid(row=1, column=0, padx=5, pady=2, sticky='w')
 
         # Output Filter options (LabelFrame)
-        label_frm2 = ttk.LabelFrame(self, text='Output Filters')
-        label_frm2.pack(fill='both', padx=10, pady=10)
+        label_frm_filters2 = ttk.LabelFrame(self, text='Output Filters')
+        label_frm_filters2.pack(fill='both', padx=10, pady=10)
 
         # Show Tenancy Name and Statements count
         self.tenancy_name_var = tk.StringVar()
-        ttk.Label(label_frm2, textvariable=self.tenancy_name_var).grid(row=0, column=0, padx=5, pady=3)
-        ttk.Separator(label_frm2, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
-        self.label_policy_count = ttk.Label(label_frm2, text='Statements (Filtered): 0')
+        ttk.Label(label_frm_filters2, textvariable=self.tenancy_name_var).grid(row=0, column=0, padx=5, pady=3)
+        ttk.Separator(label_frm_filters2, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
+        self.label_policy_count = ttk.Label(label_frm_filters2, text='Statements (Filtered): 0')
         self.label_policy_count.grid(row=0, column=2, padx=5, pady=3, sticky='w')
 
-        ttk.Separator(label_frm2, orient=tk.VERTICAL).grid(row=0, column=3, padx=5, pady=3)
+        ttk.Separator(label_frm_filters2, orient=tk.VERTICAL).grid(row=0, column=3, padx=5, pady=3)
         # Display Output Selection
-        ttk.Label(label_frm2, text='Statement Type\nto display:').grid(row=0, column=4, padx=5, pady=3)
+        ttk.Label(label_frm_filters2, text='Statement Type\nto display:').grid(row=0, column=4, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Service', variable=self.chk_show_service, command=self.update_policy_output
+            label_frm_filters2, text='Service', variable=self.chk_show_service, command=self.update_policy_output
         ).grid(row=0, column=5, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Dynamic Group', variable=self.chk_show_dynamic, command=self.update_policy_output
+            label_frm_filters2, text='Dynamic Group', variable=self.chk_show_dynamic, command=self.update_policy_output
         ).grid(row=0, column=6, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Resource', variable=self.chk_show_resource, command=self.update_policy_output
+            label_frm_filters2, text='Resource', variable=self.chk_show_resource, command=self.update_policy_output
         ).grid(row=0, column=7, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Regular', variable=self.chk_show_regular, command=self.update_policy_output
+            label_frm_filters2, text='Regular', variable=self.chk_show_regular, command=self.update_policy_output
         ).grid(row=0, column=8, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Invalid Only', variable=self.chk_show_invalid, command=self.update_policy_output
+            label_frm_filters2, text='Invalid Only', variable=self.chk_show_invalid, command=self.update_policy_output
         ).grid(row=0, column=9, padx=5, pady=3)
         ttk.Checkbutton(
-            label_frm2, text='Parsed Output', variable=self.chk_show_expanded, command=self.update_policy_output
+            label_frm_filters2, text='Parsed Output', variable=self.chk_show_expanded, command=self.update_policy_output
         ).grid(row=0, column=10, padx=5, pady=3)
 
         def selection_callback(selected_rows: list[dict]) -> None:
@@ -377,17 +412,19 @@ class PoliciesTab(ttk.Frame):
 
         def policy_table_right_click(row_index: int) -> tk.Menu:
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
+            policy_ocid_text = self.policy_table.data[row_index].get('Policy OCID')
             logger.debug(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
             menu = tk.Menu(self, tearoff=0)
             menu.add_command(
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
                 command=lambda: perform_effective_path_search(effective_path_text or ''),
             )
-            # TODO: Implement additional right-click options
-            # menu.add_command(
-            #     label=f"Delete Row {row_index}",
-            #     command=lambda: print(f"Delete row {row_index}")
-            # )
+            menu.add_command(
+                label='Show Policy in logged-in Browser',
+                command=lambda: self.app.open_link(
+                    f'https://cloud.oracle.com/identity/domains/policies/{policy_ocid_text}'
+                ),
+            )
             return menu
 
         # Use the Data Table here with fields
@@ -426,6 +463,14 @@ class PoliciesTab(ttk.Frame):
         filters: PolicySearch = {}
         if self.subject_filter_var.get():
             filters['subject'] = self.subject_filter_var.get().split('|')
+        # Action filter
+        action_value = self.action_filter_var.get().lower()
+        if action_value == 'allow':
+            filters['action'] = ['allow']
+        elif action_value == 'deny':
+            filters['action'] = ['deny']
+        else:  # both
+            filters['action'] = ['allow', 'deny']
         if self.verb_filter_var.get():
             allowed_verbs = {'inspect', 'read', 'use', 'manage'}
             verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]

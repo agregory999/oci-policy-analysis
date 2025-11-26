@@ -83,29 +83,33 @@ class ReferenceDataRepo:
         )
         return data
 
-    def get_permissions(self, entity, verb):
+    def get_permissions(self, entity, verb, action='allow'):
         """
-        Get cumulative permissions for a resource or family at a given verb level.
-        Allows querying both individual resources and families of resources.
-        Example return: ['permission1', 'permission2']
+        Get cumulative permissions for a resource or family at a given verb level and action.
+        For "allow": behavior is as before.
+        For "deny": logic is inverted -- broader verbs (like 'inspect') deny more permissions.
 
         Args:
             entity (str): Resource name or family name.
             verb (str): Verb level ('inspect', 'read', 'use', 'manage').
+            action (str): "allow" or "deny" (default: "allow")
         Returns:
             list: List of cumulative permissions.
         """
         if entity in self.data['families']:
             all_perms = set()
             for res in self.data['families'][entity]['resources']:
-                perms = self._get_cumulative_permissions(res, verb)
+                perms = self._get_cumulative_permissions(res, verb, action)
                 if perms:
                     all_perms.update(perms)
-            return list(all_perms)
+            return [p.upper() for p in all_perms]
         else:
-            return self._get_cumulative_permissions(entity, verb)
+            perms = self._get_cumulative_permissions(entity, verb, action)
+            if perms:
+                return [p.upper() for p in perms]
+            return perms
 
-    def _get_cumulative_permissions(self, resource, verb):
+    def _get_cumulative_permissions(self, resource, verb, action='allow'):
         if resource not in self.data['resources']:
             return None
         verbs_order = ['inspect', 'read', 'use', 'manage']
@@ -114,29 +118,38 @@ class ReferenceDataRepo:
         except ValueError:
             return None
         perms = []
-        for v in verbs_order[: index + 1]:
-            perms.extend(self.data['resources'][resource]['verbs'].get(v, []))
-        return list(set(perms))  # Dedup
+        if action == 'deny':
+            # For deny, we deny verb and everything MORE powerful (up the privilege ladder)
+            for v in verbs_order[index:]:
+                perms.extend(self.data['resources'][resource]['verbs'].get(v, []))
+        else:
+            # For allow, we allow verb and everything LESS powerful
+            for v in verbs_order[: index + 1]:
+                perms.extend(self.data['resources'][resource]['verbs'].get(v, []))
+        return list({p.upper() for p in perms})  # Dedup and uppercase
 
     def check_overlap(self, perm_set1, perm_set2):
         """
         Check for overlapping permissions between two permission sets.  Uses 2 lists of permissions.
-        Case-insensitive comparison performed and list of overlapping permissions returned.
-
-        Example Input:
-            perm_set1 = ['permission1', 'permission2', 'permission3']
-            perm_set2 = ['permission2', 'permission4']
-        Example return: ['permission2']
-        Args:
-            perm_set1 (list): First set of permissions.
-            perm_set2 (list): Second set of permissions.
-        Returns:
-            list: List of overlapping permissions.
+        Always compares and returns upper case permissions (display, logic, and reporting).
         """
         if not perm_set1 or not perm_set2:
             return []
-        overlap = {p.lower() for p in perm_set1} & {p.lower() for p in perm_set2}
+        overlap = {p.upper() for p in perm_set1} & {p.upper() for p in perm_set2}
         return list(overlap)
+
+    def check_overlap_params(self, entity1, verb1, action1, entity2, verb2, action2):
+        """
+        Check overlapped permissions by specifying both sides as entity/verb/action.
+        Args:
+            entity1 (str), verb1 (str), action1 (str)
+            entity2 (str), verb2 (str), action2 (str)
+        Returns:
+            list: List of overlapping permissions.
+        """
+        perms1 = self.get_permissions(entity1, verb1, action1)
+        perms2 = self.get_permissions(entity2, verb2, action2)
+        return self.check_overlap(perms1, perms2)
 
     def get_source(self, entity):
         sources = set()

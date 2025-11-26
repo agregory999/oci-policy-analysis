@@ -15,6 +15,7 @@
 
 # Standard library imports
 import hashlib
+import json
 import logging
 import re
 import time
@@ -23,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Third-party imports
+from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
@@ -57,7 +59,7 @@ permission_reference_repo = ReferenceDataRepo()
 
 # Constants
 THREADS = 9
-POLICY_REGEX = r"""^\s*allow\s+ # Start with allow (and whitespace at front)
+POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny action (and whitespace at front)
     (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
     (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
     ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
@@ -309,11 +311,15 @@ class PolicyAnalysisRepository:
             if st.get('location_type') == 'tenancy':
                 st['effective_compartment_ocid'] = self.tenancy_ocid
                 st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
+                if st['effective_path']:
+                    st['effective_path'] = st['effective_path'].lower()
                 logger.debug(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
             # Case 2 - Compartment ID
             elif st.get('location_type') == 'compartment id':
                 st['effective_compartment_ocid'] = st.get('location')
                 st['effective_path'] = self._name_path_from_ocid(st.get('location'))
+                if st['effective_path']:
+                    st['effective_path'] = st['effective_path'].lower()
                 st['parsing_notes'].append('Compartment ID used for location')
                 logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
             # Case 3 - Compartment Name (with or without full path)
@@ -335,6 +341,8 @@ class PolicyAnalysisRepository:
                     del parts[0]
                 for p in parts:
                     eff_path += f'/{p}'
+                if eff_path:
+                    eff_path = eff_path.lower()
                 logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
                 st['effective_path'] = eff_path
                 st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
@@ -553,6 +561,9 @@ class PolicyAnalysisRepository:
                 try:
                     # Populate parsed fields
                     statement_dict['valid'] = True  # Currently for Validity
+                    statement_dict['action'] = (
+                        result.get('action', 'allow').lower() if result.get('action') else 'allow'
+                    )
                     statement_dict['subject_type'] = result.get('subjecttype') or 'other'
                     statement_dict['subject'] = result.get('subject') or ''
                     statement_dict['verb'] = result.get('verb') or ''
@@ -582,7 +593,7 @@ class PolicyAnalysisRepository:
                         # permissions looks like {permission1,permission2, permission3}
                         # Strip the braces and split , and strip whitespace
                         perms = result.get('perm').strip('{}').split(',')
-                        perms = [p.strip() for p in perms if p.strip()]
+                        perms = [p.strip().upper() for p in perms if p.strip()]
                         logger.info(f'Parsed permissions from {result.get("perm")} to {perms}')
                         statement_dict['permission'] = perms
                         statement_dict['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
@@ -606,11 +617,12 @@ class PolicyAnalysisRepository:
 
         return False
 
-    def _parse_dynamic_group(self, domain_name: str, dg: DynamicResourceGroup) -> DynamicGroup:
+    def _parse_dynamic_group(self, domain, dg: DynamicResourceGroup) -> DynamicGroup:
         """Extract the contents of the DG into a dict"""
         logger.debug(f'Created by: {dg.idcs_created_by}')
         return DynamicGroup(
-            domain_name=domain_name,
+            domain_name=domain.display_name,
+            domain_ocid=domain.id,
             dynamic_group_name=dg.display_name,
             dynamic_group_id=dg.id,
             description=dg.description or '',
@@ -818,9 +830,7 @@ class PolicyAnalysisRepository:
                         for dg in dg_response.data.resources:
                             logger.debug(f'DG: {dg.display_name}')
                             # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(
-                                self._parse_dynamic_group(domain_name=domain.display_name, dg=dg)
-                            )
+                            self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
                     else:
                         logger.error('Failed to list dynamic groups')
                         return False
@@ -1522,7 +1532,91 @@ class PolicyAnalysisRepository:
         logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)}')
         return results
 
-    # (Removed: compare_against_cache; centralized diff logic is now in logic/diff_utils.py)
+    # --- Other Public Functions ---
+    def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
+        """Loads a cache set and compares with the currently loaded policy set and return changes"""
+        # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
+        # Loading the cache is similar to the main loading, but do not want these in memory
+        changes = []
+
+        # Load the referenced cache
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
+        # Load policies
+        if combined_cache_file.exists():
+            with open(combined_cache_file, encoding='utf-8') as filehandle:
+                cache_data = json.load(filehandle)
+            cached_policies = cache_data.get('policies', [])
+            self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
+            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
+            logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
+            logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
+
+            # Do the comparison with deepdiff (do we need to sort the policies first?)
+            # Include paths for the maximum length
+            # max_len = max(len(self.regular_statements), len(cached_policies))
+            # include_paths = [f"root[{i}]['statement_text']" for i in range(max_len)]
+            diff = DeepDiff(
+                self.regular_statements,
+                cached_policies,
+                ignore_order=True,
+                verbose_level=2,
+                # include_paths=include_paths,
+                # exclude_paths=["root['data']"]
+                # include_paths="root[*]['statement_text']"  # Only compare the statement text
+                # group_by=
+            )
+
+            logger.info(
+                f'Found {len(diff.get("iterable_item_added", []))} added, '
+                f'{len(diff.get("iterable_item_removed", []))} removed, '
+                f'{len(diff.get("values_changed", []))} changed policies'
+            )
+            for change_type, changes_list in diff.items():
+                logger.info(f'Change Type: {change_type}')
+                if change_type == 'values_changed':
+                    for i, change in enumerate(changes_list):
+                        change_index_parsed = parse_path(change)
+                        logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
+                        if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
+                            # Change to statement
+                            this_change = changes_list[change]
+                            # logger.info(f'- New: {this_change["new_value"]}\n')
+                            # logger.info(f'- Old: {this_change["old_value"]}\n')
+                            changes.append(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
+                            )
+                            logger.info(
+                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
+                            )
+                        else:
+                            logger.info(f'Change: {changes_list[change]}\n')
+
+                elif change_type == 'iterable_item_removed':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        logger.info(f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+
+                        # logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+                elif change_type == 'iterable_item_added':
+                    for i, change in enumerate(changes_list):
+                        this_change = changes_list[change]
+                        change_index_parsed = parse_path(change)
+                        changes.append(
+                            f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
+                        )
+                        logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
+
+                        # logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
+
+        else:
+            logger.warning(f'Policies cache file not found: {combined_cache_file}')
+            return ''
+        return '\n'.join(changes)
 
     def run_dg_in_use_analysis(self) -> None:
         """Analyzes Dynamic Group data for unused Dynamic Groups
@@ -1608,10 +1702,12 @@ class PolicyAnalysisRepository:
 
                 # if there are explicit permissions, use those. otherwise get them from the repo
                 other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
-                    entity=other_st.get('resource', ''), verb=other_st.get('verb', '')
+                    entity=other_st.get('resource', ''),
+                    verb=other_st.get('verb', ''),
+                    action=other_st.get('action', 'allow'),
                 )
                 st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
-                    entity=st.get('resource', ''), verb=st.get('verb', '')
+                    entity=st.get('resource', ''), verb=st.get('verb', ''), action=st.get('action', 'allow')
                 )
 
                 logger.debug(

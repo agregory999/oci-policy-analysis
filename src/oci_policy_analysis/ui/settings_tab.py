@@ -20,9 +20,9 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from oci_policy_analysis.common import config
+from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.ai_repo import AI
-from oci_policy_analysis.logic.caching import CacheManager
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
@@ -110,6 +110,13 @@ class SettingsTab(ttk.Frame):
         self.console_btn_var = tk.StringVar(value='Show Console Tab')
         self.console_button = ttk.Button(disp, textvariable=self.console_btn_var, command=self._toggle_console_tab)
         self.console_button.pack(side='left', padx=10, pady=6)
+
+        # --- Maintenance Button next to Console ---
+        self.maintenance_btn_var = tk.StringVar(value='Show Maintenance Tab')
+        self.maintenance_button = ttk.Button(
+            disp, textvariable=self.maintenance_btn_var, command=self._toggle_maintenance_tab
+        )
+        self.maintenance_button.pack(side='left', padx=10, pady=6)
 
         # --- MCP Configuration (RIGHT of Display Options) ---
         ttk.Label(label_frm_mcp_config, text='Host:').grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
@@ -476,14 +483,31 @@ class SettingsTab(ttk.Frame):
         console_tab = self.app.console_tab
 
         if self.app.console_visible:
-            # Hide the tab (forget removes it from display but keeps the widget)
             notebook.forget(console_tab)
             self.console_btn_var.set('Show Console Tab')
             self.app.console_visible = False
             logger.info('Console tab hidden')
         else:
-            # Show the tab (add back at original position, e.g., last)
             notebook.add(console_tab, text='Console\nLog')
             self.console_btn_var.set('Hide Console Tab')
             self.app.console_visible = True
             logger.info('Console tab shown')
+
+    # -------------------------
+    # Maintenance Tab Toggle
+    # -------------------------
+
+    def _toggle_maintenance_tab(self):
+        notebook = self.app.notebook
+        maintenance_tab = self.app.maintenance_tab
+
+        if self.app.maintenance_visible:
+            notebook.forget(maintenance_tab)
+            self.maintenance_btn_var.set('Show Maintenance Tab')
+            self.app.maintenance_visible = False
+            logger.info('Maintenance tab hidden')
+        else:
+            notebook.add(maintenance_tab, text='Maintenance\n(Admin)')
+            self.maintenance_btn_var.set('Hide Maintenance Tab')
+            self.app.maintenance_visible = True
+            logger.info('Maintenance tab shown')
