@@ -1,3 +1,10 @@
+# [2.8.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.2...v2.8.0-dev.3) (2025-11-26)
+
+
+### Bug Fixes
+
+* remove setuptools scm ([713d0e4](https://github.com/agregory999/oci-policy-analysis/commit/713d0e4bb29763bc174cd59568cd4a1712470757))
+
 # [2.8.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.1...v2.8.0-dev.2) (2025-11-26)
 
 
