@@ -1,3 +1,10 @@
+# [2.8.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.3...v2.8.0-dev.4) (2025-11-26)
+
+
+### Bug Fixes
+
+* build and fex small cleanup ([a77e9a7](https://github.com/agregory999/oci-policy-analysis/commit/a77e9a76168ca0f993a6b9a7e3f25420a54ea43e))
+
 # [2.8.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.2...v2.8.0-dev.3) (2025-11-26)
 
 
