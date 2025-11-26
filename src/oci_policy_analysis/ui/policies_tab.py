@@ -400,8 +400,9 @@ class PoliciesTab(ttk.Frame):
             for row in selected_rows:
                 logger.info(f"Selected policy statement: {row.get('Statement Text')}")
                 # Update the policy box
+                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
+                self.app.policy_query_label_text.set('Policy Statement Lookup:')
                 self.app.policy_query_var.set(row.get('Statement Text'))
-                # self.policy_analyze_statement_var.set(row.get('Statement Text'))
 
         def perform_effective_path_search(effective_path: str):
             # Only allow non-None values to avoid type errors

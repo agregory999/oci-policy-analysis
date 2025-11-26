@@ -71,7 +71,9 @@ print(matches[0] if matches else '')")
       --clean --noconfirm --noconsole \
       --icon=icons/oci-policy-dg-viewer.icns \
       --collect-all=sys \
+      --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+      --add-data "src/reference_data:reference_data" \
       --add-binary="$PY_LIB:Frameworks/Python" \
       src/oci_policy_analysis/main.py
 
@@ -96,7 +98,9 @@ print(matches[0] if matches else '')")
       --clean --noconfirm --noconsole \
       --icon=icons/oci-policy-dg-viewer.png \
       --collect-all=sys \
+      --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+      --add-data "src/reference_data:reference_data" \
       --add-binary="$PY_SO:." \
       src/oci_policy_analysis/main.py
 
@@ -124,7 +128,9 @@ EOF
       --clean --noconfirm --noconsole \
       --icon "icons/oci-policy-dg-viewer.ico" \
       --collect-all sys \
+      --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt;oci_policy_analysis" \
+      --add-data "src/reference_data;reference_data" \
       --add-binary "$PY_DLL;." \
       src/oci_policy_analysis/main.py
 

@@ -16,62 +16,26 @@
 # Safe startup patches for PyInstaller / FastMCP builds
 ##########################################################################
 
-import importlib.metadata
-import io
-import sys
-import tkinter.ttk as ttk
-import warnings
-from importlib.resources import files
-
-from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
-
-# FastMCP No console patch
-# Patch for PyInstaller windowed executables where sys.stdout/stderr may be None
-if getattr(sys, 'frozen', False) and (sys.stdout is None or sys.stderr is None):
-
-    class DummyStream(io.StringIO):
-        def isatty(self):
-            return False  # Pretend it's not a TTY to disable color detection
-
-    if sys.stdout is None:
-        sys.stdout = DummyStream()
-    if sys.stderr is None:
-        sys.stderr = DummyStream()
-
-# Version extraction
-try:
-    __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
-except Exception:
-    __version__ = 'dev'
-
-
-# -- Patch importlib.metadata.version to avoid PackageNotFoundError
-def _safe_version(name: str) -> str:
-    try:
-        return importlib.metadata.version(name)
-    except Exception:
-        return '0.0.0'
-
-
-importlib.metadata.version = _safe_version
-
 # Standard library imports
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
+
+# import importlib.metadata
+# import io
 import json  # noqa: E402
 import logging  # noqa: E402
 import queue  # noqa: E402
+
+# import sys
 import threading  # noqa: E402
 import time  # noqa: E402
 import tkinter as tk  # noqa: E402
 import tkinter.filedialog as tkfiledialog  # noqa: E402
 import tkinter.font as tkfont  # noqa: E402
+import tkinter.ttk as ttk
+import warnings
 import webbrowser  # noqa: E402
-
-# Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
-warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
-# Suppress DeprecationWarnings from libraries
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+from importlib.resources import files
 
 from oci_policy_analysis.common import config  # noqa: E402
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
@@ -82,6 +46,7 @@ from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
 from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
+from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
 from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
@@ -91,7 +56,20 @@ from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
 
+# ----------- POST-IMPORT SETUP ------------
+# Version extraction
+try:
+    __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
+except Exception:
+    __version__ = 'dev'
 
+# Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
+# Suppress DeprecationWarnings from libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+
+# ----------- MAIN APPLICATION CLASS ------------
 class App(tk.Tk):
     """Main application window for OCI Policy Analysis."""
 
@@ -225,45 +203,6 @@ class App(tk.Tk):
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
-
-    # def _build_bottom_area(self, parent: ttk.Frame):
-    #     # Command row
-    #     cmdrow = ttk.Frame(parent)
-    #     cmdrow.pack(fill='x', padx=8, pady=(8, 4))
-    #     cmdrow.grid_columnconfigure(0, weight=8)
-    #     cmdrow.grid_columnconfigure(1, weight=75)
-    #     cmdrow.grid_columnconfigure(2, weight=7)
-    #     cmdrow.grid_columnconfigure(3, weight=10)
-
-    #     # (Output mode toggles, radio buttons, and UI format settings removed)
-
-    #     self.policy_query_var = tk.StringVar()
-    #     ttk.Label(cmdrow, text='Policy Statement\nfor analysis 2:').grid(row=0, column=0, padx=5, pady=5, sticky='w')
-
-    #     self.bottom_entry = ttk.Entry(cmdrow, textvariable=self.policy_query_var, width=90)
-    #     self.bottom_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
-
-    #     ttk.Button(
-    #         cmdrow,
-    #         text='Query GenAI 2',
-    #         command=lambda: self.ask_genai_async(prompt=self.policy_query_var.get()),
-    #     ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
-
-    #     # (Copy Markdown button and variables removed)
-
-    #     self.ai_progress_var = tk.StringVar(value='')
-    #     ttk.Label(cmdrow, textvariable=self.ai_progress_var, foreground='blue', width=22).grid(
-    #         row=0, column=3, padx=5, pady=5, sticky='w'
-    #     )
-
-    #     self.bottom_content = ttk.Frame(parent)
-    #     self.bottom_content.pack(fill='both', expand=True, padx=8, pady=(0, 8))
-
-    #     # (HTMLLabel and alternate Text widgets removed: now only self.output_text is used)
-
-    # def update_bottom_entry(self, text: str):
-    #     self.bottom_entry.delete(0, tk.END)
-    #     self.bottom_entry.insert(0, text)
 
     # Theme switching via settings/config/combobox is removed; theme is fixed to 'clam'.
     # The following remains solely for font size setting.
