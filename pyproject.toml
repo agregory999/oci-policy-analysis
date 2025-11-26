@@ -9,9 +9,9 @@ dynamic = []
 version = "2.8.0"
 
 dependencies = [
-    "oci>=2.144.1",
-    "deepdiff>=8.5.0",
-    "fastmcp>=2.12.3",
+    "oci==2.144.1",
+    "deepdiff==8.5.0",
+    "fastmcp==2.12.3",
 ]
 
 classifiers = [
