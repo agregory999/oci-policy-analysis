@@ -9,6 +9,7 @@ else
 fi
 
 source .venv/bin/activate
+# source mypythonvenv/bin/activate
 
 echo "🔄 Ensuring pip + tools are installed..."
 uv pip install pip setuptools wheel build pyinstaller ruff

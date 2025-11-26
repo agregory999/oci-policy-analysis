@@ -238,6 +238,19 @@ class DynamicGroupsTab(ttk.Frame):
             )
             return menu
 
+        def dg_table_right_click(row_index: int) -> tk.Menu:
+            dg_domain_ocid_text = self.custom_data_dynamic_group.data[row_index].get('Domain OCID')
+            dg_ocid_text = self.custom_data_dynamic_group.data[row_index].get('DG OCID')
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label='Show Dynamic Group in logged-in Browser',
+                # https://cloud.oracle.com/identity/domains/ocid1.domain.oc1..aaaaaaaaefn7ucmzvtwxh6dz4hytruqafkrl2ryhbuxotrhx4kntezbqll3q/dynamic-groups?region=us-ashburn-1
+                command=lambda: self.app.open_link(
+                    f'https://cloud.oracle.com/identity/domains/{dg_domain_ocid_text}/dynamic-groups/{dg_ocid_text}'
+                ),
+            )
+            return menu
+
         # Dynamic Groups
         self.custom_data_dynamic_group = DataTable(
             self,
@@ -246,6 +259,7 @@ class DynamicGroupsTab(ttk.Frame):
             column_widths=DG_COLUMN_WIDTHS,
             data=[],
             selection_callback=dg_selection_callback,
+            row_context_menu_callback=dg_table_right_click,
             multi_select=True,
         )
         self.custom_data_dynamic_group.pack(fill='both', expand=True, padx=10, pady=5)

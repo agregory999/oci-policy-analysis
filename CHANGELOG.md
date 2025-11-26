@@ -1,3 +1,45 @@
+# [2.8.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.4...v2.8.0-dev.5) (2025-11-26)
+
+
+### Bug Fixes
+
+* logging and docs ([38a30dc](https://github.com/agregory999/oci-policy-analysis/commit/38a30dc32b19283e6fe95008e5cfcb0482f42051))
+
+# [2.8.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.3...v2.8.0-dev.4) (2025-11-26)
+
+
+### Bug Fixes
+
+* build and fex small cleanup ([a77e9a7](https://github.com/agregory999/oci-policy-analysis/commit/a77e9a76168ca0f993a6b9a7e3f25420a54ea43e))
+
+# [2.8.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.2...v2.8.0-dev.3) (2025-11-26)
+
+
+### Bug Fixes
+
+* remove setuptools scm ([713d0e4](https://github.com/agregory999/oci-policy-analysis/commit/713d0e4bb29763bc174cd59568cd4a1712470757))
+
+# [2.8.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.1...v2.8.0-dev.2) (2025-11-26)
+
+
+### Bug Fixes
+
+* semantic ([7114786](https://github.com/agregory999/oci-policy-analysis/commit/71147869fc7eafa605e930affde311af33bd9856))
+
+# [2.8.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.1-dev.1...v2.8.0-dev.1) (2025-11-26)
+
+
+### Features
+
+* New Deny functions, maintenance tab, links as right-click ([5acb314](https://github.com/agregory999/oci-policy-analysis/commit/5acb3144c4f87f6ceaa4633a6e86a8de59fa875f))
+
+## [2.7.1-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.0...v2.7.1-dev.1) (2025-11-21)
+
+
+### Bug Fixes
+
+* Create a dev release - meaningless change ([64d8aa1](https://github.com/agregory999/oci-policy-analysis/commit/64d8aa1ce4e1baddee19fea029b63c133f57fe25))
+
 # [2.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.6.0...v2.7.0) (2025-11-21)
 
 

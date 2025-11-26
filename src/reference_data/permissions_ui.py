@@ -4,7 +4,7 @@ import json
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from reference_data.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 repo = ReferenceDataRepo()
 
