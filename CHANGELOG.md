@@ -1,3 +1,10 @@
+# [2.8.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.1-dev.1...v2.8.0-dev.1) (2025-11-26)
+
+
+### Features
+
+* New Deny functions, maintenance tab, links as right-click ([5acb314](https://github.com/agregory999/oci-policy-analysis/commit/5acb3144c4f87f6ceaa4633a6e86a8de59fa875f))
+
 ## [2.7.1-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.0...v2.7.1-dev.1) (2025-11-21)
 
 
