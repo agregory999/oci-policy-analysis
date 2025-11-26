@@ -1,3 +1,10 @@
+# [2.8.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0-dev.1...v2.8.0-dev.2) (2025-11-26)
+
+
+### Bug Fixes
+
+* semantic ([7114786](https://github.com/agregory999/oci-policy-analysis/commit/71147869fc7eafa605e930affde311af33bd9856))
+
 # [2.8.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.1-dev.1...v2.8.0-dev.1) (2025-11-26)
 
 
