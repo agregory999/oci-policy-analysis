@@ -49,7 +49,7 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
-from reference_data.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
@@ -223,12 +223,13 @@ class PolicyAnalysisRepository:
     # --- Internal Helpers ---
     def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
         """
-        Given an internal ID, return the list of PolicyOverlap entries for that statement.
+        Get all PolicyOverlap entries for a given statement internal ID.
+
         Args:
-            internal_id: The internal ID of the policy statement to look up.
+            internal_id (str): The internal ID of the policy statement.
 
         Returns:
-            A list of PolicyOverlap entries for the specified internal ID.
+            list[PolicyOverlap]: List of PolicyOverlap entries for the statement.
         """
         overlaps: list[PolicyOverlap] = []
         for st in self.regular_statements:
@@ -239,17 +240,13 @@ class PolicyAnalysisRepository:
 
     def _find_invalid_statements(self):  # noqa: C901
         """
-        Find invalid statements.  Mark them as invalid with reason.
-        Currently checks for:
-        - Dynamic Groups that do not exist
-        - Groups that do not exist
-        - Locations (OCID based compartments) that do not exist
-        - Valid verbs / resources
-        """
-        # Policy Statements can be invalid for several reasons, maybe even more than 1.
-        # TODO: Expand this function to check more invalid cases
+        Mark regular policy statements as invalid if they fail various validity checks, such as:
+        - Nonexistent Dynamic Groups or Groups
+        - Invalid compartment OCIDs
+        - Invalid verbs/resources
 
-        # Create an empty list to hold invalid reasons - only add to dict if more than 0 found
+        This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.
+        """
         for st in self.regular_statements:
             invalid_reasons = []
             # Dynamic Group check
@@ -267,7 +264,7 @@ class PolicyAnalysisRepository:
                     if not dg_found:
                         st['valid'] = False
                         invalid_reasons.append(f'Dynamic Group {dg_name} not found in tenancy')
-                        logger.warning(f'Dynamic Group {dg_name} not found for statement: {st["statement_text"]}')
+                        logger.debug(f'Dynamic Group {dg_name} not found for statement: {st["statement_text"]}')
             # Group check
             elif st['subject_type'] == 'group':
                 for subject in st['subject']:
@@ -283,21 +280,20 @@ class PolicyAnalysisRepository:
                     if not group_found:
                         st['valid'] = False
                         invalid_reasons.append(f'Group {group_name} not found in tenancy')
-                        logger.warning(f'Group {group_name} not found for statement: {st["statement_text"]}')
+                        logger.debug(f'Group {group_name} not found for statement: {st["statement_text"]}')
             # Location check
             if st['location_type'] == 'compartment id':
                 location_ocid = st['location']
                 if not self._check_invalid_location(location_ocid):
                     st['valid'] = False
                     invalid_reasons.append(f'Compartment OCID {location_ocid} not found in tenancy')
-                    logger.warning(f'Compartment OCID {location_ocid} not found for statement: {st["statement_text"]}')
+                    logger.debug(f'Compartment OCID {location_ocid} not found for statement: {st["statement_text"]}')
             # Verb check
             if st['verb'] and st['verb'].casefold() not in VALID_VERBS:
-                logger.warning(f'Invalid Verb found: {st["verb"]}')
+                logger.debug(f'Invalid Verb found: {st["verb"]}')
                 st['valid'] = False
                 invalid_reasons.append(f'Invalid Verb ({st["verb"]}) found')
 
-            # if there are reasons, add to the statement
             if len(invalid_reasons) > 0:
                 st['invalid_reasons'] = invalid_reasons
 
@@ -946,44 +942,15 @@ class PolicyAnalysisRepository:
     # If Identity Domains are not loaded and either fuzzy or exact search is requested, raise an error
     def filter_policy_statements(self, filters: PolicySearch) -> list[PolicyStatement]:  # noqa: C901
         """
-        Filter policy statements based on provided criteria.
+        Filter policy statements by one or more criteria.
 
         Args:
-            filters (PolicySearch):
-
-                * ``exact_groups`` (list[Group] | None): Exact groups to search for policy statements. Each :class:`Group` includes ``domain_name`` and ``group_name``.
-                * ``exact_users`` (list[User] | None): Exact users to search for policy statements. Each :class:`User` includes ``domain_name`` and ``user_name``.
-                * ``exact_dynamic_groups`` (list[DynamicGroup] | None): Exact dynamic groups to search for policy statements. Each :class:`DynamicGroup` includes ``domain_name`` and ``name``.
-
-                **Fuzzy-search fields**
-
-                * ``search_groups`` (:class:`GroupSearch` | None): Fuzzy search string for policy statements.
-                * ``search_users`` (:class:`UserSearch` | None): Fuzzy search string for policy statements.
-                * ``search_dynamic_groups`` (:class:`DynamicGroupSearch` | None): Fuzzy search string for policy statements.
-
-                **Statement attributes**
-
-                * ``subject_type`` (list[str] | None): Subject types to filter by.
-                * ``verb`` (list[str] | None): Verbs to filter by.
-                * ``resource`` (list[str] | None): Resources to filter by.
-                * ``permission`` (list[str] | None): Permissions to filter by.
-                * ``location_type`` (list[str] | None): Location types to filter by.
-                * ``location`` (list[str] | None): Locations to filter by.
-                * ``policy_compartment`` (list[str] | None): Compartment names or ``"ROOTONLY"`` to filter by.
-                * ``effective_path`` (list[str] | None): Effective compartment paths or ``"ROOTONLY"`` to filter by.
-                * ``effective_compartment_ocid`` (list[str] | None): Effective compartment OCIDs to filter by.
-                * ``conditions`` (list[str] | None): Conditions to filter by.
-                * ``valid`` (bool | None): Whether to include only valid statements.
-                * ``creation_time_range`` (tuple[datetime | None, datetime | None] | None): Creation-time range to filter by.
+            filters (PolicySearch): Dictionary of filter keys and their values (e.g. verb, resource, permission, group, etc).
 
         Returns:
-            list[PolicyStatement]: Policy statements matching the filter criteria.
-
-        Raises:
-            ValueError: If fuzzy or exact search is requested but identity domains are not loaded.
+            list[PolicyStatement]: List of statements matching the filter.
         """
-
-        logger.info(f'Filtering policy statements with criteria: {filters}')
+        logger.debug(f'Filtering policy statements with criteria: {filters}')
 
         # If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error
         # Previously, filtering by group/user/dynamic-group required identity_domains_loaded.
@@ -1136,18 +1103,26 @@ class PolicyAnalysisRepository:
             if match:
                 results.append(stmt)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
+        logger.debug(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)}')
         return results
 
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[PolicyStatement]:
-        # Iterate cross-tenant policies
+        """
+        Filter cross-tenancy policy statements containing any provided alias.
+
+        Args:
+            alias_filter (list[str]): List of aliases to look for in statement text.
+
+        Returns:
+            list[PolicyStatement]: Filtered cross-tenancy policy statements.
+        """
         filtered = []
         for statement in self.cross_tenancy_statements:
             for alias_to_check in alias_filter:
-                # Check each alias to see if in statement test
+                # Check each alias to see if in statement text
                 statement_text = statement.get('statement_text', '')
                 if alias_to_check in statement_text:
-                    logger.info(f'Adding statement (alias={alias_to_check}): {statement_text}')
+                    logger.debug(f'Adding statement (alias={alias_to_check}): {statement_text}')
                     filtered.append(statement)
         logger.info(f'Returning {len(filtered)} Cross-Tenancy Results')
         return filtered

@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import simpledialog, ttk
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='maintenance')
@@ -199,8 +200,6 @@ class MaintenanceTab(ttk.Frame):
     def _maintenance_permissions_load_data(self):
         # Load reference data
         try:
-            from reference_data.reference_data_repo import ReferenceDataRepo
-
             self._ref_repo = ReferenceDataRepo()
             data = self._ref_repo.data
             all_items = sorted(data['resources'].keys()) + [f'Family: {f}' for f in sorted(data['families'].keys())]

@@ -21,8 +21,8 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.ui.data_table import DataTable
-from reference_data.reference_data_repo import ReferenceDataRepo
 
 logger = get_logger(component='permissions_report')
 permission_reference_repo = ReferenceDataRepo()
