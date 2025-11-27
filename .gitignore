@@ -43,6 +43,8 @@ old/
 # Ignore everything else under .github that isn't a workflow
 .github/*
 !.github/workflows/*
+# Keep Copilot instructions
+!.github/copilot-instructions.md
 
 # --- Cline ---
 .cline/
