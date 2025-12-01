@@ -1,3 +1,10 @@
+## [2.8.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.1...v2.8.2) (2025-12-01)
+
+
+### Bug Fixes
+
+* Windows MCP logging ([9962ddf](https://github.com/agregory999/oci-policy-analysis/commit/9962ddf481cd2e2de1a0c3ff52bb682108d9b255))
+
 # 1.0.0 (2025-12-01)
 
 
