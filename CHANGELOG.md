@@ -1,3 +1,10 @@
+## [2.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0...v2.8.1) (2025-12-01)
+
+
+### Bug Fixes
+
+* Windows FastMCP version ([cdbd67c](https://github.com/agregory999/oci-policy-analysis/commit/cdbd67ca928a60e6c69b2ee66eb43a297545242f))
+
 # [2.8.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.7.0...v2.8.0) (2025-11-26)
 
 
