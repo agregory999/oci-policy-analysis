@@ -1,3 +1,57 @@
+# 1.0.0 (2025-12-01)
+
+
+### Bug Fixes
+
+* build ([de351bc](https://github.com/agregory999/oci-policy-analysis/commit/de351bc82c17f2d5c4573e7fca1353d19a4070b4))
+* build ([f075876](https://github.com/agregory999/oci-policy-analysis/commit/f075876dcc4e6dc1fbe5edba6feae3cf644a08e6))
+* Build semantic-version debug and changelog ([62f0af9](https://github.com/agregory999/oci-policy-analysis/commit/62f0af958fc652961143b4b206a43025ddc1bcf4))
+* build version and MCP cleanup ([abfaf00](https://github.com/agregory999/oci-policy-analysis/commit/abfaf00bcc7332a14732720ea591c8e34cf6c83f))
+* build version and mcp workaround ([9dd9613](https://github.com/agregory999/oci-policy-analysis/commit/9dd961321e86a63f43e76c6d5b6fc78537e21622))
+* build yml for semantic version ([987b481](https://github.com/agregory999/oci-policy-analysis/commit/987b4817343535fc292722eb502d65e25fef759c))
+* build yml for semantic version (pain) ([fe8a6bc](https://github.com/agregory999/oci-policy-analysis/commit/fe8a6bc54ca56c986becda270ba483d009f00aea))
+* build yml for semantic version (pain) ([a6b8b24](https://github.com/agregory999/oci-policy-analysis/commit/a6b8b24a111cd41119f0352d7d73da9970d86ce7))
+* build yml for semantic version (pain) ([ab55681](https://github.com/agregory999/oci-policy-analysis/commit/ab55681ee4450f1ed3cb7d099932cc543caed40d))
+* changelog tracking with build ([e647849](https://github.com/agregory999/oci-policy-analysis/commit/e647849763329b16247f01f28b8f1ab503c361ac))
+* Do not import toast ([f0422be](https://github.com/agregory999/oci-policy-analysis/commit/f0422be3770830d0cb560317d05df9768a696f10))
+* Few UI bugs and Comparison ([828f29d](https://github.com/agregory999/oci-policy-analysis/commit/828f29daa449a3141b7dc3746ec0bd1c2e1d1c1e))
+* HTML view using dark mode and re-org logger ([dee64da](https://github.com/agregory999/oci-policy-analysis/commit/dee64daf76127dbc6aa75cfeba64235d3b25c779))
+* logger and merge ([4450833](https://github.com/agregory999/oci-policy-analysis/commit/4450833c2c5da873afb68447be68d0efae7c1a61))
+* logging for core uses logger ([0369de7](https://github.com/agregory999/oci-policy-analysis/commit/0369de7d8814293a3a69d9660df56df19a72020d))
+* logging for no console ([a935344](https://github.com/agregory999/oci-policy-analysis/commit/a935344a11cd17e978a5b6549ceb686a5ab31fc1))
+* MCP can now reload tenancy data ([958d56d](https://github.com/agregory999/oci-policy-analysis/commit/958d56d9fea4a10ab8e8a7ae70cc75ea2919db41))
+* MCP Server instance principal and cache ([4e2ada2](https://github.com/agregory999/oci-policy-analysis/commit/4e2ada279d1d000fa6eab493ba95a7f2db5cefb2))
+* rebuild with different structure ([1cb6b2a](https://github.com/agregory999/oci-policy-analysis/commit/1cb6b2a6300f2a4430f6290f9909bfd50cb1740e))
+* Tenancy root, docstrings and tidy ([567207e](https://github.com/agregory999/oci-policy-analysis/commit/567207ef6a1ddbdc0266cf1137cfaae8d0e85dd5))
+* theme apply and MCP model ([7d8f8f3](https://github.com/agregory999/oci-policy-analysis/commit/7d8f8f3f81920ff75cfec13d473937480060d960))
+* try to get changelog correct. ([8958925](https://github.com/agregory999/oci-policy-analysis/commit/8958925310111783ddbc086036203a796a2c63a6))
+* try to get changelog correct. ([602fa2d](https://github.com/agregory999/oci-policy-analysis/commit/602fa2d66df5b40ea5f221956ad9cc6335c90aa2))
+* using NPM Semantic versioning ([23bc471](https://github.com/agregory999/oci-policy-analysis/commit/23bc4713cba64de6f9e95f86379748c36821d30e))
+* Version in title, MCP status, Table right-clicks ([fb17f45](https://github.com/agregory999/oci-policy-analysis/commit/fb17f453d32ba170773210ed95f9c5992e33b279))
+* version number ([e8b5428](https://github.com/agregory999/oci-policy-analysis/commit/e8b542830ddd257eb5b663b2277a38cd73f9ce50))
+* version number 2 ([2ad0516](https://github.com/agregory999/oci-policy-analysis/commit/2ad05161ebec0aaf5c8d47ad52ce1b44ed970e0d))
+* version number 2 ([1be2f21](https://github.com/agregory999/oci-policy-analysis/commit/1be2f21b0d0b107c8b4e244fcaa6ff1b9f7865b4))
+* Windows FastMCP version ([fdeb3ca](https://github.com/agregory999/oci-policy-analysis/commit/fdeb3ca14d36de06187e01fddaf4dce02484b53d))
+
+
+### Features
+
+* Add in Maintenance Tab, Permissions Reference, cleanup ([#15](https://github.com/agregory999/oci-policy-analysis/issues/15)) ([b595a62](https://github.com/agregory999/oci-policy-analysis/commit/b595a62af2381a84c1b8ca2ebc3bd20140c6b4f1))
+* Better docstrings and Tenancy Root ([d507461](https://github.com/agregory999/oci-policy-analysis/commit/d507461f06dff408b5f5282ff5be5a68e1e1d9da))
+* build updates ([4dfe403](https://github.com/agregory999/oci-policy-analysis/commit/4dfe4031798d1ef9c1c7f85528b1f2002242740b))
+* Comparison of cache ([9249292](https://github.com/agregory999/oci-policy-analysis/commit/9249292f5b4a55bcf4ceafcf00c0b81b51a70b21))
+* Console tab and streamlined logging, additional invalid check ([497c215](https://github.com/agregory999/oci-policy-analysis/commit/497c21567e7aa4f09ccf50ccf61f222546fbf687))
+* MCP Models for summary ([d4ed707](https://github.com/agregory999/oci-policy-analysis/commit/d4ed70711252814046a87652aac15029eea9736c))
+* Multiple reasons for invalid statement. Support for STDIO Mode ([ff1dee9](https://github.com/agregory999/oci-policy-analysis/commit/ff1dee9b09fd35153e6d29079a106e0d10def6fd))
+* New tabs and cleanup from develop branch ([822029a](https://github.com/agregory999/oci-policy-analysis/commit/822029a173ab20c27074d74a51432ee406256adc))
+* new user and group analysis ([f70bcf2](https://github.com/agregory999/oci-policy-analysis/commit/f70bcf2c08fca64786e4a3277d30c2795d7bf191))
+* Policy overlap feature ([#13](https://github.com/agregory999/oci-policy-analysis/issues/13)) ([5f51fda](https://github.com/agregory999/oci-policy-analysis/commit/5f51fda63e335f390982469de76a67e704ea8383))
+* Restructure and add AI features ([615b5b3](https://github.com/agregory999/oci-policy-analysis/commit/615b5b3ad0a63ad9a193209d6547d079f020f8df))
+* **test:** add test feature for changelog ([9d197ee](https://github.com/agregory999/oci-policy-analysis/commit/9d197ee3ace410d1f7fd4ce18f5af76b395ba832))
+* **test:** add test feature for changelog ([8ff6b24](https://github.com/agregory999/oci-policy-analysis/commit/8ff6b24e0d5cfd4e31cd4622351081ebe816aad4))
+* themes work now and comparison page ([8ab369d](https://github.com/agregory999/oci-policy-analysis/commit/8ab369dfcd78d125727ca1e17777581fc283148b))
+* Updated Logging, Table struct, AI Loading ([44ff7bb](https://github.com/agregory999/oci-policy-analysis/commit/44ff7bb79b15eef5e91e5ea3cf9a34c159d8ef06))
+
 ## [2.8.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.0...v2.8.1) (2025-12-01)
 
 
