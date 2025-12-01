@@ -17,21 +17,32 @@
 import io  # noqa: E402
 import sys
 
-import uvicorn
+# ---- PATCH STDOUT/STDERR FOR UVICORN + PYINSTALLER ----
+# This must run before any logging config is loaded by uvicorn.
+
+
+class DummyStream(io.StringIO):
+    def isatty(self):
+        return False
+
+
+# PyInstaller windowed application gives None for stdout/stderr
+if sys.stdout is None:
+    sys.stdout = DummyStream()
 
 if sys.stderr is None:
-    sys.stderr = io.StringIO()
-# --- end patch ---
+    sys.stderr = DummyStream()
+# -------------------------------------------------------
 
 import argparse  # noqa: E402
 import json  # noqa: E402
 import threading  # noqa: E402
 
-import uvicorn.logging
-from deepdiff import DeepDiff
+from deepdiff import DeepDiff  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
+from uvicorn import Server  # noqa: E402
 
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
@@ -59,13 +70,10 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     UserSummary,
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
-from oci_policy_analysis.logic.diff_utils import canonical_filter
+from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
-
-# Disable Uvicorn colors
-uvicorn.logging.DefaultFormatter.use_colors = False
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
@@ -631,7 +639,7 @@ def reload_mcp_data() -> dict:
 # ============================================================
 
 server_thread: threading.Thread | None = None
-server_instance: uvicorn.Server | None = None
+server_instance: Server | None = None
 server_running: bool = False
 
 
