@@ -1,3 +1,10 @@
+## [2.8.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.2...v2.8.3) (2025-12-01)
+
+
+### Bug Fixes
+
+* Windows build with Uvicorn ([28805d7](https://github.com/agregory999/oci-policy-analysis/commit/28805d7fe12c4d41c01d617dc67935df0ec3f520))
+
 ## [2.8.2](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.1...v2.8.2) (2025-12-01)
 
 
