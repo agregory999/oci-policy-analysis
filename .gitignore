@@ -17,6 +17,7 @@ dist/
 wheelhouse/
 *.spec
 *.log
+docs/build/
 
 # --- OS & Editor files ---
 .DS_Store
@@ -33,8 +34,6 @@ Thumbs.db
 
 # --- Local artifacts ---
 src/sample/
-local_build.sh
-local_build.ps1
 old/
 
 # --- GitHub & CI ---
