@@ -1,5 +1,4 @@
 {
-  "initialVersion": "2.8.1",
   "tagFormat": "v${version}",
   "repositoryUrl": "https://github.com/agregory999/oci-policy-analysis.git",
   "branches": [
