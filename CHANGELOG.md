@@ -1,3 +1,10 @@
+## [2.8.4](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.3...v2.8.4) (2025-12-01)
+
+
+### Bug Fixes
+
+* Windows STDERR ([0034481](https://github.com/agregory999/oci-policy-analysis/commit/003448184a2e64aa750dfc295e6307d58e9e52d7))
+
 ## [2.8.3](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.2...v2.8.3) (2025-12-01)
 
 
