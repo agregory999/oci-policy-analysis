@@ -1,4 +1,5 @@
 {
+  "initialVersion": "2.8.1",
   "branches": [
     "main",
     { "name": "develop", "prerelease": "dev" }
