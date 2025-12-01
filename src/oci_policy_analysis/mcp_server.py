@@ -661,7 +661,6 @@ def start_mcp_server_in_thread(settings: dict):
                 port=settings.get('mcp_port', 8765),
                 host=settings.get('mcp_host', '127.0.0.1'),
                 show_banner=False,
-                uvicorn_config={'log_level': None},
             )
         except Exception as e:
             logger.exception(f'MCP server crashed: {e}')
