@@ -24,7 +24,9 @@ import asyncio  # noqa: E402
 # import io
 import json  # noqa: E402
 import logging  # noqa: E402
+import os  # noqa: E402
 import queue  # noqa: E402
+import sys  # noqa: E402
 
 # import sys
 import threading  # noqa: E402
@@ -68,6 +70,9 @@ warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datet
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+# -------- PyInstaller stderr fix for Windows GUI apps ------------
+getattr(sys, 'frozen', False) and sys.stderr is None and setattr(sys, 'stderr', open(os.devnull, 'w'))  # type: ignore
+
 
 # ----------- MAIN APPLICATION CLASS ------------
 class App(tk.Tk):
@@ -76,7 +81,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title(f'(dev testing)OCI Policy Analysis {__version__}')
+        self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1400x900')
 
         # Shared config & logger
