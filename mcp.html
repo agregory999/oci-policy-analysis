@@ -1,0 +1,1153 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCI Policy Analysis MCP Server &mdash; OCI Policy Analysis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=51b770b3"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2.0/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+const defaultStyle = document.createElement('style');
+defaultStyle.textContent = `pre.mermaid {
+    /* Same as .mermaid-container > pre */
+    display: block;
+    width: 100%;
+}
+
+pre.mermaid > svg {
+    /* Same as .mermaid-container > pre > svg */
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+`;
+document.head.appendChild(defaultStyle);
+
+const fullscreenStyle = document.createElement('style');
+fullscreenStyle.textContent = `.mermaid-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+}
+
+.mermaid-container > pre {
+    display: block;
+    width: 100%;
+}
+
+.mermaid-container > pre > svg {
+    height: 500px;
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.mermaid-fullscreen-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    color: #333;
+}
+
+.mermaid-fullscreen-btn:hover {
+    opacity: 100% !important;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-btn.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-btn.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 95vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 9999;
+    padding: 20px;
+    overflow: auto;
+}
+
+.mermaid-fullscreen-modal.dark-theme {
+    background: rgba(0, 0, 0, 0.98);
+}
+
+.mermaid-fullscreen-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen {
+    position: relative;
+    width: 95vw;
+    height: 90vh;
+    max-width: 95vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen.dark-theme {
+    background: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.mermaid-container-fullscreen pre.mermaid {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mermaid-container-fullscreen .mermaid svg {
+    height: 100% !important;
+    width: 100% !important;
+    cursor: grab;
+}
+
+.mermaid-fullscreen-close {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    color: #333;
+}
+
+.mermaid-fullscreen-close:hover {
+    background: white;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.mermaid-fullscreen-close.dark-theme {
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+}
+
+.mermaid-fullscreen-close.dark-theme:hover {
+    background: rgba(60, 60, 60, 1);
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-fullscreen-modal .mermaid-fullscreen-btn {
+    display: none !important;
+}`;
+document.head.appendChild(fullscreenStyle);
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness < 128;
+    }
+    return false;
+};
+
+const load = async () => {
+    await mermaid.run();
+
+    const all_mermaids = document.querySelectorAll(".mermaid");
+    const mermaids_processed = document.querySelectorAll(".mermaid[data-processed='true']");
+
+    if ("False" === "True") {
+        const mermaids_to_add_zoom = -1 === -1 ? all_mermaids.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("");
+            if(all_mermaids.length !== mermaids_processed.length) {
+                setTimeout(load, 200);
+                return;
+            } else if(svgs.size() !== mermaids_to_add_zoom) {
+                setTimeout(load, 200);
+                return;
+            } else {
+                svgs.each(function() {
+                    var svg = d3.select(this);
+                    svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+                    var inner = svg.select("g");
+                    var zoom = d3.zoom().on("zoom", function(event) {
+                        inner.attr("transform", event.transform);
+                    });
+                    svg.call(zoom);
+                });
+            }
+        }
+    } else if(all_mermaids.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(load, 200);
+        return;
+    }
+
+    const darkTheme = isDarkTheme();
+
+    // Stop here if not adding fullscreen capability
+    if ("True" !== "True") return;
+
+    const modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    const modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    let previousScrollOffset = [window.scrollX, window.scrollY];
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    const allButtons = [];
+
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.opacity = '50%';
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scroll, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.sdisplay = 'block';
+
+                if ("False" === "True") {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+
+        container.appendChild(fullscreenBtn);
+        allButtons.push(fullscreenBtn);
+    });
+
+    // Update theme classes when theme changes
+    const updateTheme = () => {
+        const dark = isDarkTheme();
+        allButtons.forEach(btn => {
+            if (dark) {
+                btn.classList.add('dark-theme');
+            } else {
+                btn.classList.remove('dark-theme');
+            }
+        });
+        if (dark) {
+            modal.classList.add('dark-theme');
+            modalContent.classList.add('dark-theme');
+            closeBtn.classList.add('dark-theme');
+        } else {
+            modal.classList.remove('dark-theme');
+            modalContent.classList.remove('dark-theme');
+            closeBtn.classList.remove('dark-theme');
+        }
+    };
+
+    // Watch for theme changes
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style']
+    });
+};
+
+window.addEventListener("load", load);
+</script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            OCI Policy Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/oci_policy_analysis.html">oci_policy_analysis package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/oci_policy_analysis.ui.html">oci_policy_analysis.ui package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/oci_policy_analysis.logic.html">oci_policy_analysis.logic package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">OCI Policy Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">OCI Policy Analysis MCP Server</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/mcp.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="oci-policy-analysis-mcp-server">
+<h1>OCI Policy Analysis MCP Server<a class="headerlink" href="#oci-policy-analysis-mcp-server" title="Link to this heading"></a></h1>
+<p>This repository provides a <strong>Model Context Protocol (MCP)</strong> server exposing OCI IAM data (users, groups, dynamic groups, and policy analysis) as structured tools and resources consumable by <strong>Claude</strong>, <strong>VS Code MCP</strong>, or any MCP-compliant proxy client.</p>
+<p>MCP Integration can be done in several ways, depending on the client or situation.  The following diagrams show how MCP can be used to expose OCI policy data.   <a class="reference external" href="https://gofastmcp.com/getting-started/welcome">Python FastMCP</a> is used for each of these methods.</p>
+<p>Here are the methods that OCI Policy Analysis supports for MCP:</p>
+<ol class="arabic simple">
+<li><p>Standalone MCP Server – In this method, the MCP server loads live or cached tenancy IAM and Policy data, then uses FastMCP to stand up an MCP Server.  This works in 2 possible ways:</p>
+<ul class="simple">
+<li><p>If using FastMCP and STDIO, it is expected to be called from a calling process.</p></li>
+<li><p>If using Streamable HTTP, the server can be invoked via any MCP Client supporting HTTP.  More details below</p></li>
+</ul>
+</li>
+<li><p>Embedded MCP Server – In this method, the OCI Policy Analysis UI is used.  From the UI, the data is loaded from a tenancy or cache.  Then the UI tab “Embedded MCP Server” controls an HTTP-based server which is invoked from desktop MCP tools.</p></li>
+</ol>
+<p>In the case of the standalone MCP Server, command line options are available, which control where to load the data from.  For example, to load data from a specific OCI Profile or from a local cache.  Also, there is a a switch to control STDIO or Streamable HTTP</p>
+<section id="mcp-using-stdio">
+<h2>MCP using STDIO<a class="headerlink" href="#mcp-using-stdio" title="Link to this heading"></a></h2>
+<p>Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Here is the architecture for this:</p>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph CLIENT[&quot;Client Machine&quot;]
+        C1[Claude Desktop or&lt;br/&gt;VS Code Copilot]
+        MCP[MCP Server&lt;br/&gt;FastMCP STDIO]
+        CACHE[Local Cache]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        OCI-API[OCI IAM API]
+    end
+
+    C1 --&gt;|JSON-RPC STDIO| MCP
+    MCP --&gt;|Reads Cache| CACHE
+    MCP -.-&gt;|Load via SDK Profile| OCI-API
+
+    %% Styles
+    style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+    </pre><section id="mcp-as-http-remote-server">
+<h3>MCP as HTTP (Remote Server):<a class="headerlink" href="#mcp-as-http-remote-server" title="Link to this heading"></a></h3>
+<p>Desktop tools such as VSCode and Claude can consume MCP endpoints running locally or remotely on a secure port.</p>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph CLIENT[&quot;Client Machine&quot;]
+        C1[Claude Desktop or&lt;br/&gt;VS Code Copilot]
+        PROXY[mcp-proxy]
+    end
+
+    subgraph SERVER[&quot;Remote Server&quot;]
+        MCP[MCP Server&lt;br/&gt;FastMCP HTTP]
+        CACHE[Cache or&lt;br/&gt;Instance Principal]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        OCI-API[OCI IAM API]
+    end
+
+    C1 --&gt;|JSON-RPC| PROXY
+    PROXY --&gt;|HTTP/HTTPS| MCP
+    MCP --&gt;|Reads| CACHE
+    MCP -.-&gt;|Load via SDK&lt;br/&gt;Profile or Instance Principal| OCI-API
+
+    %% Styles
+    style C1 fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+    </pre></section>
+</section>
+<hr class="docutils" />
+<section id="running-mcp">
+<h2>Running MCP<a class="headerlink" href="#running-mcp" title="Link to this heading"></a></h2>
+<p>MCP Servers have 2 basic modes: STDIO and Streamable-HTTP.  STDIO mode is good for embedding in an AI Desktop client such as Claude, Oracle Code Assist, or VSCode.  More details on setups later on in the document.</p>
+<p>Streamable HTTP is good for a server, where MCP is not local to the client, or in the OCI Policy Analysis Embedded MCP tab, the clients connect to the app over HTTP on the configured port.</p>
+<p>In either case, the OCI Policy Analysis tool has a handful of options that can be applied.  See the usage for details:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage:<span class="w"> </span>mcp_server.py<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">(</span>--profile<span class="w"> </span>PROFILE<span class="w"> </span><span class="p">|</span><span class="w"> </span>--instance-principal<span class="w"> </span><span class="p">|</span><span class="w"> </span>--use-cache<span class="w"> </span>USE_CACHE<span class="w"> </span><span class="p">|</span><span class="w"> </span>--session-token<span class="w"> </span>SESSION_TOKEN<span class="o">)</span><span class="w"> </span><span class="o">[</span>--recursive<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dont-save-cache-after-load<span class="o">]</span><span class="w"> </span><span class="o">[</span>--transport<span class="w"> </span><span class="o">{</span>stdio,streamable-http<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>HOST<span class="o">]</span>
+
+options:
+<span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<span class="w">  </span>--profile<span class="w"> </span>PROFILE
+<span class="w">  </span>--instance-principal
+<span class="w">  </span>--use-cache<span class="w"> </span>USE_CACHE
+<span class="w">                        </span>provide<span class="w"> </span>the<span class="w"> </span>combined<span class="w"> </span>cache<span class="w"> </span>date<span class="w"> </span>to<span class="w"> </span>use
+<span class="w">  </span>--session-token<span class="w"> </span>SESSION_TOKEN
+<span class="w">                        </span>OCI<span class="w"> </span>session<span class="w"> </span>token<span class="w"> </span><span class="k">for</span><span class="w"> </span>instance<span class="w"> </span>principal<span class="w"> </span>auth
+<span class="w">  </span>--recursive<span class="w">           </span>Recursively<span class="w"> </span>load<span class="w"> </span>all<span class="w"> </span>compartments<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>True<span class="o">)</span>
+<span class="w">  </span>--dont-save-cache-after-load
+<span class="w">                        </span>Save<span class="w"> </span>the<span class="w"> </span>combined<span class="w"> </span>cache<span class="w"> </span>after<span class="w"> </span>loading<span class="w"> </span>from<span class="w"> </span>OCI
+<span class="w">  </span>--transport<span class="w"> </span><span class="o">{</span>stdio,streamable-http<span class="o">}</span>
+<span class="w">  </span>--port<span class="w"> </span>PORT
+<span class="w">  </span>--host<span class="w"> </span>HOST
+</pre></div>
+</div>
+<section id="mcp-option-1-locally-with-stdio-and-claude">
+<h3>MCP Option 1 - Locally with STDIO and Claude<a class="headerlink" href="#mcp-option-1-locally-with-stdio-and-claude" title="Link to this heading"></a></h3>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph LOCAL[&quot;Local Machine&quot;]
+        CD[Claude Desktop]
+        MCP[MCP Server STDIO]
+        CACHE[Local Cache]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        API[OCI IAM API]
+    end
+
+    CD --&gt;|JSON-RPC STDIO| MCP
+    MCP --&gt;|Reads Cache| CACHE
+    MCP -.-&gt;|Load via SDK&lt;br/&gt;Profile or Session Token| API
+
+    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+    </pre><p>In order to use Claude with MCP, you update a file called <code class="docutils literal notranslate"><span class="pre">claude_desktop_config.json</span></code> and simply restart Claude after changes.  To add the MCP server using STDIO mode, you likely want to start with a cached copy of the tenancy data, from a previous run from the UI or CLI, where the cache file exists.</p>
+<p>You can use the CLI to show caches for a given tenancy:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">agregory</span><span class="nd">@agregory</span><span class="o">-</span><span class="n">mac</span> <span class="o">~</span> <span class="o">%</span> <span class="n">MCP_STDIO_MODE</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">agregory</span><span class="o">/</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">/.</span><span class="n">venv</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">python</span> <span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">agregory</span><span class="o">/</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">oci_policy_analysis</span><span class="o">/</span><span class="n">cli</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">get</span><span class="o">-</span><span class="n">caches</span> <span class="n">naceoci01</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">260</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="n">Root</span> <span class="n">logger</span> <span class="n">initialized</span> <span class="p">(</span><span class="n">stdout</span> <span class="o">+</span> <span class="n">app</span><span class="o">.</span><span class="n">log</span><span class="p">)</span><span class="o">.</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">385</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">.</span><span class="n">circuit_breaker</span><span class="p">]</span> <span class="n">Default</span> <span class="n">Auth</span> <span class="n">client</span> <span class="n">Circuit</span> <span class="n">breaker</span> <span class="n">strategy</span> <span class="n">enabled</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">Logging</span> <span class="n">to</span> <span class="n">Console</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">data_repo</span><span class="p">]</span> <span class="n">Initialized</span> <span class="n">PolicyAnalysisRepo</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">caching</span><span class="p">]</span> <span class="n">Initialized</span> <span class="n">Caching</span> <span class="n">at</span> <span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">agregory</span><span class="o">/.</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">/</span><span class="n">cache</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">caching</span><span class="p">]</span> <span class="n">Successfully</span> <span class="n">loaded</span> <span class="n">cache</span> <span class="k">with</span> <span class="mi">7</span> <span class="n">entries</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">caching</span><span class="p">]</span> <span class="n">Entries</span> <span class="n">found</span> <span class="ow">in</span> <span class="n">cache_entries</span><span class="o">.</span><span class="n">json</span><span class="p">:</span> <span class="mi">4</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">Available</span> <span class="n">caches</span><span class="p">:</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">naceoci01_2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span><span class="o">-</span><span class="mi">16</span><span class="o">-</span><span class="mi">52</span><span class="o">-</span><span class="mi">22</span><span class="o">-</span><span class="n">UTC</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">naceoci01_2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">14</span><span class="o">-</span><span class="mi">47</span><span class="o">-</span><span class="n">UTC</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">naceoci01_2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">28</span><span class="o">-</span><span class="mi">20</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="mi">55</span><span class="o">-</span><span class="n">UTC</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">540</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">naceoci01_2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">28</span><span class="o">-</span><span class="mi">19</span><span class="o">-</span><span class="mi">26</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="n">UTC</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">16</span><span class="p">:</span><span class="mi">10</span><span class="p">:</span><span class="mi">45</span><span class="p">,</span><span class="mi">541</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">.</span><span class="n">cli</span><span class="p">]</span> <span class="n">Exiting</span> <span class="n">after</span> <span class="n">listing</span> <span class="n">caches</span> <span class="k">as</span> <span class="o">--</span><span class="n">get</span><span class="o">-</span><span class="n">caches</span> <span class="n">was</span> <span class="n">provided</span>
+</pre></div>
+</div>
+<p>With the cache name and date (for example, <code class="docutils literal notranslate"><span class="pre">naceoci01_2025-10-28-19-26-08-UTC</span></code>), set up MCP within the Claude config file.</p>
+<section id="flavor-1-cached-data">
+<h4>Flavor 1 - Cached Data<a class="headerlink" href="#flavor-1-cached-data" title="Link to this heading"></a></h4>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;oci-policy-local&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/.venv/bin/python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;--use-cache&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;tenancy_2025-10-29-16-52-22-UTC&quot;</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;MCP_STDIO_MODE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="flavor-2-load-data-via-sdk">
+<h4>Flavor 2 - Load Data via SDK<a class="headerlink" href="#flavor-2-load-data-via-sdk" title="Link to this heading"></a></h4>
+<p><strong>Hint</strong> Your <code class="docutils literal notranslate"><span class="pre">YOUR-OCI-NAMED-PROFILE</span></code> may be <code class="docutils literal notranslate"><span class="pre">DEFAULT</span></code> if that is the only profile on your machine.</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;oci-policy-local&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/.venv/bin/python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;--profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;YOUR-OCI-NAMED-PROFILE&quot;</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;MCP_STDIO_MODE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>When Claude starts it will automatically run the code from your local git repo, assuming you set up a virtual environment similar to the path above.</p>
+</section>
+</section>
+<section id="mcp-option-2-streamable-http-and-claude">
+<h3>MCP Option 2 - Streamable HTTP and Claude<a class="headerlink" href="#mcp-option-2-streamable-http-and-claude" title="Link to this heading"></a></h3>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph LOCAL[&quot;Local Machine&quot;]
+        CD[Claude Desktop]
+        PROXY[mcp-proxy]
+    end
+
+    subgraph SERVER[&quot;Server (Local or Remote)&quot;]
+        MCP[MCP Server HTTP]
+        CACHE[Local Cache]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        API[OCI IAM API]
+    end
+
+    CD --&gt;|JSON-RPC| PROXY
+    PROXY --&gt;|HTTP/HTTPS| MCP
+    MCP --&gt;|Reads| CACHE
+    MCP -.-&gt;|Load via SDK&lt;br/&gt;Profile or Instance Principal| API
+
+    style CD fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+
+    </pre><p>In this model, the MCP server is standalone.  It could be on your computer, using the MCP Server standalone server, or via the embedded MCP tab in the OCI Policy Analysis UI.  Either way, configure Claude like this:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;mcp-remote&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mcp-proxy&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;http://url-or-ip:port/mcp&quot;</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>When you start Claude, it will connect if your MCP is running at the given location.  Any time you restart the MCP server, simply close and reopen Claude to re-establish the connection.</p>
+</section>
+<section id="mcp-option-3-vscode-co-pilot-and-stdio-local">
+<h3>MCP Option 3 - VSCode Co-Pilot and STDIO (Local)<a class="headerlink" href="#mcp-option-3-vscode-co-pilot-and-stdio-local" title="Link to this heading"></a></h3>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph LOCAL[&quot;Local Machine&quot;]
+        VSC[VS Code&lt;br/&gt;GitHub Copilot]
+        MCP[MCP Server STDIO]
+        CACHE[Local Cache]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        API[OCI IAM API]
+    end
+
+    VSC --&gt;|JSON-RPC STDIO| MCP
+    MCP --&gt;|Reads Cache| CACHE
+    MCP -.-&gt;|Load via SDK Calls| API
+
+    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+    </pre><p>Similar to Claude, VSCode will start your MCP standalone process and communicate directly with it.  To set this up, follow VSCode MCP Server setup and use the full command that you can test ahead of time:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mac</span><span class="o">&gt;</span> <span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">agregory</span><span class="o">/</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">/.</span><span class="n">venv</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">python</span> <span class="o">/</span><span class="n">Users</span><span class="o">/</span><span class="n">agregory</span><span class="o">/</span><span class="n">oci</span><span class="o">-</span><span class="n">policy</span><span class="o">-</span><span class="n">analysis</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">oci_policy_analysis</span><span class="o">/</span><span class="n">mcp_server</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">use</span><span class="o">-</span><span class="n">cache</span> <span class="n">tenancy_2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span><span class="o">-</span><span class="mi">21</span><span class="o">-</span><span class="mi">05</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="n">UTC</span>
+</pre></div>
+</div>
+<p>When done, you will have an mcp.json file with the configuration that you can try to start.</p>
+<p><strong>NOTE:</strong> Remember to set <code class="docutils literal notranslate"><span class="pre">MCP_STDIO_MODE</span></code> in order to suppress standard out - this forces all output to stderr</p>
+<section id="flavor-1-cached">
+<h4>Flavor 1 - Cached<a class="headerlink" href="#flavor-1-cached" title="Link to this heading"></a></h4>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="w">    </span><span class="nt">&quot;mcp-local-stdio&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/.venv/bin/python&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;MCP_STDIO_MODE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s2">&quot;--use-cache&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s2">&quot;tenancy_2025-10-29-16-52-22-UTC&quot;</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="flavor-2-load-via-sdk">
+<h4>Flavor 2 - Load via SDK<a class="headerlink" href="#flavor-2-load-via-sdk" title="Link to this heading"></a></h4>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="w">		</span><span class="nt">&quot;mcp-local-stdio-live&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">			</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span><span class="p">,</span>
+<span class="w">			</span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/.venv/bin/python&quot;</span><span class="p">,</span>
+<span class="w">			</span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">				</span><span class="nt">&quot;MCP_STDIO_MODE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span>
+<span class="w">			</span><span class="p">},</span>
+<span class="w">			</span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">				</span><span class="s2">&quot;/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py&quot;</span><span class="p">,</span>
+<span class="w">				</span><span class="s2">&quot;--profile&quot;</span><span class="p">,</span>
+<span class="w">				</span><span class="s2">&quot;POLICY-ANDGRE-5678&quot;</span>
+<span class="w">			</span><span class="p">]</span>
+<span class="w">		</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>If it starts, you will something like this in the VSCode Output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">20</span><span class="p">:</span><span class="mi">06</span><span class="p">:</span><span class="mf">33.711</span> <span class="p">[</span><span class="n">warning</span><span class="p">]</span> <span class="p">[</span><span class="n">server</span> <span class="n">stderr</span><span class="p">]</span> <span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">20</span><span class="p">:</span><span class="mi">06</span><span class="p">:</span><span class="mi">33</span><span class="p">,</span><span class="mi">710</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="n">Root</span> <span class="n">logger</span> <span class="n">initialized</span> <span class="p">(</span><span class="n">stdout</span> <span class="o">+</span> <span class="n">app</span><span class="o">.</span><span class="n">log</span><span class="p">)</span><span class="o">.</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">20</span><span class="p">:</span><span class="mi">06</span><span class="p">:</span><span class="mf">33.912</span> <span class="p">[</span><span class="n">warning</span><span class="p">]</span> <span class="p">[</span><span class="n">server</span> <span class="n">stderr</span><span class="p">]</span> <span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">20</span><span class="p">:</span><span class="mi">06</span><span class="p">:</span><span class="mi">33</span><span class="p">,</span><span class="mi">911</span> <span class="p">[</span><span class="n">INFO</span><span class="p">]</span> <span class="p">[</span><span class="n">oci</span><span class="o">.</span><span class="n">circuit_breaker</span><span class="p">]</span> <span class="n">Default</span> <span class="n">Auth</span> <span class="n">client</span> <span class="n">Circuit</span> <span class="n">breaker</span> <span class="n">strategy</span> <span class="n">enabled</span>
+<span class="mi">2025</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">29</span> <span class="mi">20</span><span class="p">:</span><span class="mi">06</span><span class="p">:</span><span class="mf">34.835</span> <span class="p">[</span><span class="n">info</span><span class="p">]</span> <span class="n">Discovered</span> <span class="mi">6</span> <span class="n">tools</span>
+</pre></div>
+</div>
+<p>From there, use the chat and ask it a question like “Show me my OCI Policies that have a verb of manage”</p>
+</section>
+</section>
+<section id="mcp-option-4-vscode-remote-http">
+<h3>MCP Option 4 - VSCode Remote HTTP<a class="headerlink" href="#mcp-option-4-vscode-remote-http" title="Link to this heading"></a></h3>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph LOCAL[&quot;Local Machine&quot;]
+        VSC[VS Code&lt;br/&gt;GitHub Copilot]
+    end
+
+    subgraph SERVER[&quot;Server (Local or Remote)&quot;]
+        MCP[MCP Server HTTP]
+        CACHE[Local Cache]
+    end
+
+    subgraph OCI[&quot;OCI Cloud&quot;]
+        API[OCI IAM API]
+    end
+
+    VSC --&gt;|HTTPS| MCP
+    MCP --&gt;|Reads Cache| CACHE
+    MCP -.-&gt;|Load via SDK&lt;br/&gt;Profile or Session Token| API
+
+    style VSC fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#f0f0f0,stroke:#aaa,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
+
+    </pre><p>In this case, your MCP server is already running like above, on your PC or on a remote server, or in the OCI Policy Analysis tool in the embedded MCP tab.  The host and port are available and open for connections.</p>
+<p>Set up VSCode for a remote MCP Server:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>    <span class="s2">&quot;mcp-policy-remote&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;https://mcp-host:port/mcp&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;http&quot;</span>
+    <span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="mcp-option-5-remote-oci-deployment-with-load-balancer">
+<h3>MCP Option 5 - Remote OCI Deployment with Load Balancer<a class="headerlink" href="#mcp-option-5-remote-oci-deployment-with-load-balancer" title="Link to this heading"></a></h3>
+<pre  class="mermaid">
+        flowchart LR
+    subgraph LOCAL[&quot;Local Machine&quot;]
+        CLIENT[Claude Desktop or&lt;br/&gt;VS Code Copilot]
+        PROXY[mcp-proxy]
+    end
+
+    subgraph OCI_INFRA[&quot;OCI Infrastructure&quot;]
+        LB[Load Balancer&lt;br/&gt;HTTPS:443]
+        
+        subgraph COMPUTE[&quot;Compute Instance&quot;]
+            MCP[MCP Server HTTP:8765]
+            CACHE[Local Cache]
+        end
+    end
+
+    subgraph OCI_SERVICES[&quot;OCI Services&quot;]
+        API[OCI IAM API]
+    end
+
+    CLIENT --&gt;|JSON-RPC| PROXY
+    PROXY --&gt;|HTTPS:443| LB
+    LB --&gt;|HTTP:8765| MCP
+    MCP --&gt;|Reads Cache| CACHE
+    MCP -.-&gt;|SDK Calls| API
+
+    style CLIENT fill:#eaf2ff,stroke:#7ea6ff,stroke-width:2px
+    style PROXY fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style LB fill:#ffddaa,stroke:#ff9944,stroke-width:2px
+    style MCP fill:#eaffea,stroke:#66cc66,stroke-width:2px
+    style CACHE fill:#fff8e5,stroke:#ffcc00,stroke-width:2px
+    style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px
+    </pre><p>In this production deployment, the MCP server runs on an OCI compute instance with instance principal authentication, behind an OCI Load Balancer with TLS termination. This provides secure, scalable access to OCI IAM data without storing credentials.</p>
+<p><strong>Configuration for Claude:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;mcp-remote&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mcp-proxy&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;https://oci-policy-analysis-mcp.ocidemo.app/mcp&quot;</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Configuration for VSCode:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;servers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;mcp-policy-remote&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://oci-policy-analysis-mcp.ocidemo.app/mcp&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="setup-for-mcp-locally-or-on-a-server">
+<h2>Setup for MCP Locally or on a Server<a class="headerlink" href="#setup-for-mcp-locally-or-on-a-server" title="Link to this heading"></a></h2>
+<p>Running locally offers similar options, around loading of data, or using cached data.  Similar to the CLI, you can run with a cached data set or load the tenancy.  For this way of running, STDIO doesn’t make sense, as you are expecting a client to access via HTTP.</p>
+<p>Load the tenancy via PROFILE:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_analysis/mcp_server.py<span class="w"> </span>--profile<span class="w"> </span>DEFAULT<span class="w"> </span>--transport<span class="w"> </span>streamable-http<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0
+</pre></div>
+</div>
+<p>Load the tenancy via Instance Principal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_analysis/mcp_server.py<span class="w"> </span>--instance-principal<span class="w"> </span>--transport<span class="w"> </span>streamable-http<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0
+</pre></div>
+</div>
+<p>Use a cached data set from a previous load:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_analysis/mcp_server.py<span class="w"> </span>--use-cache<span class="w"> </span>andgre5678_2025-10-17-17-54-09-UTC<span class="w"> </span>--transport<span class="w"> </span>streamable-http<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0
+</pre></div>
+</div>
+<section id="adding-oci-load-balancer">
+<h3>Adding OCI Load Balancer<a class="headerlink" href="#adding-oci-load-balancer" title="Link to this heading"></a></h3>
+<p>To run behind a Load Balancer on a server, see above first.  Following that, In your VCN’s public subnet, run a standard Layer 7 Load Balancer, listening on port 443 (HTTPS) with health check and backend set with your private host and port (default 8765).  Once the LB is up, point Claude or VSCode (option 2 or 4 above) to the LB’s public domain and port - below there is a cert running on the LB, so the https address and cert are valid.  But it points to the MCP server on the backend.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mcp-proxy<span class="w"> </span>add<span class="w"> </span>oci-policy-analysis<span class="w"> </span>--url<span class="w"> </span>https://oci-policy-analysis-mcp.ocidemo.app/mcp
+</pre></div>
+</div>
+<section id="secure-deployment-on-oci-steps">
+<h4>🔐 Secure Deployment on OCI (Steps)<a class="headerlink" href="#secure-deployment-on-oci-steps" title="Link to this heading"></a></h4>
+<ol class="arabic">
+<li><p>Deploy Compute Instance (OL9, Instance Principal)</p></li>
+<li><p>Configure Dynamic Group and Policy:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Allow dynamic-group my-mcp-dg to read all-resources in tenancy
+</pre></div>
+</div>
+</li>
+<li><p>Launch service behind OCI Load Balancer (port 443 → 8000)</p></li>
+<li><p>Add TLS (Let’s Encrypt or OCI Certificate)</p></li>
+<li><p>Verify endpoint:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-vk<span class="w"> </span>https://oci-policy-analysis-mcp.ocidemo.app/mcp
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+</section>
+<hr class="docutils" />
+<section id="available-mcp-tools">
+<h2>🔧 Available MCP Tools<a class="headerlink" href="#available-mcp-tools" title="Link to this heading"></a></h2>
+<p>MCP clients such as <strong>Claude</strong> and <strong>VS Code Copilot</strong> understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.</p>
+<section id="how-it-works">
+<h3>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Ask in natural language:</strong> You can ask questions like “Show me all users in the cloud-engineering domain” or “List policies that allow manage on databases.”</p></li>
+<li><p><strong>Automatic tool selection:</strong> The MCP client will select the right tool and build the request for you.</p></li>
+<li><p><strong>Structured responses:</strong> Results are returned in structured formats (summaries, lists, breakdowns) and presented clearly.</p></li>
+</ul>
+</section>
+<section id="example-natural-language-queries">
+<h3>Example Natural Language Queries<a class="headerlink" href="#example-natural-language-queries" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>User Question</p></th>
+<th class="head"><p>Tool Used</p></th>
+<th class="head"><p>Example Request</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>“Show all users in the tenancy”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">search_users</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>“Find all groups with ‘admin’ in the name”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">search_groups</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;group_name&quot;:</span> <span class="pre">[&quot;admin&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>“Which policies allow manage on databases?”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">filter_policy_statements</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;verb&quot;:</span> <span class="pre">[&quot;manage&quot;],</span> <span class="pre">&quot;resource&quot;:</span> <span class="pre">[&quot;database&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>“List all users in group ‘cloud-engineering-domain-users’”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">get_users_for_group</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;group_name&quot;:</span> <span class="pre">&quot;cloud-engineering-domain-users&quot;,</span> <span class="pre">&quot;domain_name&quot;:</span> <span class="pre">&quot;cloud-engineering-domain&quot;</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>“Show cross-tenancy aliases”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cross-tenancy-alias-list</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>“Show me policies with use or manage that cover databases or instances”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">filter_policy_statements</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;verb&quot;:</span> <span class="pre">[&quot;use&quot;,</span> <span class="pre">&quot;manage&quot;],</span> <span class="pre">&quot;resource&quot;:</span> <span class="pre">[&quot;database&quot;,</span> <span class="pre">&quot;instance-family&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>“Find all groups in the Default domain with ‘viewer’ or ‘admin’ in the name”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">search_groups</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;domain_name&quot;:</span> <span class="pre">[&quot;Default&quot;],</span> <span class="pre">&quot;group_name&quot;:</span> <span class="pre">[&quot;viewer&quot;,</span> <span class="pre">&quot;admin&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>“List users named Andrew or Mark in cloud-engineering-domain”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">search_users</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;search&quot;:</span> <span class="pre">[&quot;andrew&quot;,</span> <span class="pre">&quot;mark&quot;],</span> <span class="pre">&quot;domain_name&quot;:</span> <span class="pre">[&quot;cloud-engineering-domain&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>“Show policies for group ‘cloud-engineering-domain-users’ in root compartment”</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">filter_policy_statements</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{</span> <span class="pre">&quot;exact_groups&quot;:</span> <span class="pre">[{&quot;group_name&quot;:</span> <span class="pre">&quot;cloud-engineering-domain-users&quot;,</span> <span class="pre">&quot;domain_name&quot;:</span> <span class="pre">&quot;cloud-engineering-domain&quot;}],</span> <span class="pre">&quot;policy_compartment&quot;:</span> <span class="pre">[&quot;ROOTONLY&quot;]</span> <span class="pre">}</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+<p>The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:</p>
+</section>
+<section id="filter-policy-statements">
+<h3>1. <code class="docutils literal notranslate"><span class="pre">filter_policy_statements</span></code><a class="headerlink" href="#filter-policy-statements" title="Link to this heading"></a></h3>
+<p><strong>Primary tool for policy analysis</strong> - Filter OCI IAM policy statements with flexible criteria.</p>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>OR logic within each field, AND logic across fields</p></li>
+<li><p>Returns summary for large result sets (&gt;50 statements), full details for smaller sets</p></li>
+<li><p>Supports exact matching and fuzzy search</p></li>
+</ul>
+<p><strong>Filter Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">verb</span></code>: [“inspect”, “read”, “use”, “manage”]</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resource</span></code>: Resource types (e.g., “instance-family”, “database”)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">subject_type</span></code>: [“user”, “group”, “dynamic-group”, “any-user”]</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">subject</span></code>: Exact subject matches with domain and name</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">location</span></code>: Compartment paths where resources are accessed</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">policy_compartment</span></code>: Compartment where policy is defined (use “ROOTONLY” for root only)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">policy_text</span></code>: Text search within statement</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exact_groups</span></code>, <code class="docutils literal notranslate"><span class="pre">exact_users</span></code>, <code class="docutils literal notranslate"><span class="pre">exact_dynamic_groups</span></code>: Precise identity matching</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">search_groups</span></code>, <code class="docutils literal notranslate"><span class="pre">search_users</span></code>, <code class="docutils literal notranslate"><span class="pre">search_dynamic_groups</span></code>: Fuzzy search with partial matches</p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// Get all manage permissions</span>
+<span class="p">{</span><span class="nt">&quot;verb&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;manage&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Find policies for specific group</span>
+<span class="p">{</span><span class="nt">&quot;exact_groups&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;group_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Administrators&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;domain_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Default&quot;</span><span class="p">}]}</span>
+
+<span class="c1">// Find database-related permissions with manage or use</span>
+<span class="p">{</span><span class="nt">&quot;verb&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;manage&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;use&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;resource&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;database&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Search for users by name</span>
+<span class="p">{</span><span class="nt">&quot;search_users&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;search&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;andrew&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;bob&quot;</span><span class="p">]}}</span>
+</pre></div>
+</div>
+<p><strong>Response Types:</strong></p>
+<ul class="simple">
+<li><p><strong>Summary</strong> (&gt;50 results): Counts, breakdowns by policy/compartment/subject/verb, sample statements</p></li>
+<li><p><strong>Full</strong> (≤50 results): Complete list of matching policy statements</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="search-users">
+<h3>2. <code class="docutils literal notranslate"><span class="pre">search_users</span></code><a class="headerlink" href="#search-users" title="Link to this heading"></a></h3>
+<p>Search and retrieve OCI IAM users with optional filtering.</p>
+<p><strong>Filter Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">search</span></code>: List of partial username/email strings (fuzzy match)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_ocid</span></code>: List of full or partial user OCIDs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">domain_name</span></code>: List of identity domain names</p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// Get all users</span>
+<span class="p">{}</span>
+
+<span class="c1">// Search by username</span>
+<span class="p">{</span><span class="nt">&quot;search&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;andrew&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mark&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;noah&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Find users by OCID</span>
+<span class="p">{</span><span class="nt">&quot;user_ocid&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ocid1.user.oc1..aaaaaa...&quot;</span><span class="p">]}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong></p>
+<ul class="simple">
+<li><p><strong>Summary</strong> (&gt;50 users): Total count, domain breakdown, sample usernames</p></li>
+<li><p><strong>Full</strong> (≤50 users): Complete user details with name, email, OCID, domain</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="search-groups">
+<h3>3. <code class="docutils literal notranslate"><span class="pre">search_groups</span></code><a class="headerlink" href="#search-groups" title="Link to this heading"></a></h3>
+<p>Search and retrieve OCI IAM groups.</p>
+<p><strong>Filter Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">group_name</span></code>: List of partial group names (fuzzy match)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_ocid</span></code>: List of full or partial group OCIDs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">domain_name</span></code>: List of identity domain names</p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// Get all groups</span>
+<span class="p">{}</span>
+
+<span class="c1">// Search by name</span>
+<span class="p">{</span><span class="nt">&quot;group_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;developer&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Find specific groups by OCID</span>
+<span class="p">{</span><span class="nt">&quot;group_ocid&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ocid1.group.oc1..aaaaaa...&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;ocid1.group.oc1..bbbbbb...&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Filter by domain</span>
+<span class="p">{</span><span class="nt">&quot;domain_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Default&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;cloud-engineering-domain&quot;</span><span class="p">]}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong></p>
+<ul class="simple">
+<li><p><strong>Summary</strong> (&gt;50 groups): Total count, domain breakdown, sample group names</p></li>
+<li><p><strong>Full</strong> (≤50 groups): Complete group details with name, OCID, domain, description</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="search-dynamic-groups">
+<h3>4. <code class="docutils literal notranslate"><span class="pre">search_dynamic_groups</span></code><a class="headerlink" href="#search-dynamic-groups" title="Link to this heading"></a></h3>
+<p>Search and retrieve OCI dynamic groups.</p>
+<p><strong>Filter Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dynamic_group_name</span></code>: List of partial dynamic group names (fuzzy match)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">matching_rule</span></code>: List of partial matching rule strings</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">domain_name</span></code>: List of identity domain names</p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="c1">// Get all dynamic groups</span>
+<span class="p">{}</span>
+
+<span class="c1">// Search by name</span>
+<span class="p">{</span><span class="nt">&quot;dynamic_group_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;compute&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;function&quot;</span><span class="p">]}</span>
+
+<span class="c1">// Find by matching rule content</span>
+<span class="p">{</span><span class="nt">&quot;matching_rule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;instance.compartment.id&quot;</span><span class="p">]}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong></p>
+<ul class="simple">
+<li><p><strong>Summary</strong> (&gt;50 groups): Total count, domain breakdown, usage breakdown, samples</p></li>
+<li><p><strong>Full</strong> (≤50 groups): Complete dynamic group details with rules and policy usage</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="get-groups-for-user">
+<h3>5. <code class="docutils literal notranslate"><span class="pre">get_groups_for_user</span></code><a class="headerlink" href="#get-groups-for-user" title="Link to this heading"></a></h3>
+<p>Get all groups that a specific user belongs to (exact match only).</p>
+<p><strong>Input:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;user_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;andrew.gregory@oracle.com&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;domain_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cloud-engineering-domain&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong> List of all groups the user is a member of.</p>
+</section>
+<hr class="docutils" />
+<section id="get-users-for-group">
+<h3>6. <code class="docutils literal notranslate"><span class="pre">get_users_for_group</span></code><a class="headerlink" href="#get-users-for-group" title="Link to this heading"></a></h3>
+<p>Get all users in a specific group (exact match only).</p>
+<p><strong>Input:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;group_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Administrators&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;domain_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Default&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong> List of all users who are members of the group.</p>
+</section>
+<hr class="docutils" />
+<section id="cross-tenancy-alias-list">
+<h3>7. <code class="docutils literal notranslate"><span class="pre">cross-tenancy-alias-list</span></code><a class="headerlink" href="#cross-tenancy-alias-list" title="Link to this heading"></a></h3>
+<p>List all cross-tenancy aliases defined in OCI policies.</p>
+<p><strong>Input:</strong> None</p>
+<p><strong>Response:</strong> List of all DEFINE statements with tenancy OCIDs and aliases.</p>
+</section>
+<hr class="docutils" />
+<section id="cross-tenancy-policies-by-alias">
+<h3>8. <code class="docutils literal notranslate"><span class="pre">cross-tenancy-policies-by-alias</span></code><a class="headerlink" href="#cross-tenancy-policies-by-alias" title="Link to this heading"></a></h3>
+<p>Filter cross-tenancy policy statements that reference a specific alias.</p>
+<p><strong>Input:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;alias&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;partner-tenancy&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Response:</strong> List of policy statements using the specified cross-tenancy alias.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="usage-tips">
+<h2>💡 Usage Tips<a class="headerlink" href="#usage-tips" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Start broad, then filter</strong>: Begin with empty filters <code class="docutils literal notranslate"><span class="pre">{}</span></code> to get summaries, then add specific criteria</p></li>
+<li><p><strong>Combine filters</strong>: Use multiple fields together (AND logic across fields, OR within fields)</p></li>
+<li><p><strong>Use fuzzy search</strong>: <code class="docutils literal notranslate"><span class="pre">search_users</span></code>, <code class="docutils literal notranslate"><span class="pre">search_groups</span></code> support partial string matching</p></li>
+<li><p><strong>OCID filtering</strong>: All <code class="docutils literal notranslate"><span class="pre">*_ocid</span></code> fields support partial OCID matching</p></li>
+<li><p><strong>Check response type</strong>: Large result sets return summaries - add filters to get full details</p></li>
+</ol>
+<hr class="docutils" />
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Andrew Gregory.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

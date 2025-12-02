@@ -412,6 +412,10 @@ window.addEventListener("load", load);
 <li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#data-model">Data Model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#policy-parsing">Policy Parsing</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#layers">Layers</a></li>
 </ul>
 </li>
@@ -449,28 +453,41 @@ window.addEventListener("load", load);
              
   <section id="architecture">
 <h1>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h1>
+<p>The OCI Policy Analysis tool has the following overall architecture:</p>
+<p><img alt="Overall Architecture" src="_images/policy-analysis.drawio.svg" /></p>
+<p>Each tier works together to form a clean separation between presentation, data repository, and associated tools and helpers.  3rd party projects, such as DeepDiff are used for comparisons, which FastMCP is used to expose MCP to clients.  All access to OCI is via the OCI official Python SDK and the supported tenancy configurations.</p>
+<section id="data-model">
+<h2>Data Model<a class="headerlink" href="#data-model" title="Link to this heading"></a></h2>
+<p>The data model starts out as an empty JSON object, and then is populated via OCI SDK (API Calls) to build a picture
+of the IAM environment for the tenancy, as well as all of the policy statements.  This is required, because the the evaluation
+of OCI Policy statements required knowledge of compartments, groups, dynamic groups, and many other runtime settings in order to
+“allow” or “deny” the caller from the resource.</p>
+<p>Here is a representation of the data:</p>
 <pre  class="mermaid">
-        graph TD
-    subgraph Data Layer
-        A[CacheManager] --&gt; B[PolicyCompartmentAnalysis]
-        A --&gt; C[IdentityDomainsAnalysis]
-    end
-    subgraph MCP Layer
-        D[FastMCP Server] --&gt; E[filter_policy_statements]
-        D --&gt; F[search_users_by_groups]
-    end
-    subgraph UI Layer
-        G[Tkinter Main Window] --&gt; H[DataTable Widgets]
-        H --&gt; I[AI Output Pane]
-    end
-    B --&gt; D
-    C --&gt; D
-    D --&gt; G
-    </pre><section id="layers">
+        flowchart TD
+    A[Root Compartment] --&gt; B[Compartments]
+    B --&gt; C[Policies]
+    C --&gt; D[Effective Permissions]
+    A --&gt; E[Users / Groups / Dynamic Groups]
+    E --&gt; F[MCP + AI Insights]
+    </pre><section id="policy-parsing">
+<h3>Policy Parsing<a class="headerlink" href="#policy-parsing" title="Link to this heading"></a></h3>
+<p>As part of parsing each policy statement, more data is generated about each statement, and is stored in the resulting JSON
+structure for use by the UI and MCP layers of the tool.   Any new fields which are derived during parsing represent new
+data for use with analysis.  Examples of this:</p>
+<p><strong>Effective Path</strong> - Consider that each policy statement is part of a policy that lives in a compartment, maybe root, and maybe further down the compartment tree.  When statements in that compartment refer to a
+location, that location must be within (below) the current compartment.   Thus, the “Effective Path” helps us understand at which level this policy statement is applicable.</p>
+<p><strong>Valid</strong> - Policy statements can become invalid for a variety of reasons, so it makes sense to check and store this information.  An example of an ivalid policy statement is when a location was referred to as “compartment id ocid1.xx.yy.zzz”, and then the compartment is later deleted.</p>
+</section>
+</section>
+<section id="layers">
 <h2>Layers<a class="headerlink" href="#layers" title="Link to this heading"></a></h2>
-<p>Data Layer
-Caches and normalizes tenancy data (policies, users, groups, dynamic groups); exposes efficient queries.</p>
-<p>MCP Layer
+<p><strong>Data Layer</strong>
+Loads, caches, parses and normalizes tenancy data, including:</p>
+<ul class="simple">
+<li><p>policy statements, users, groups, dynamic groups); exposes efficient queries.</p></li>
+</ul>
+<p><strong>MCP Layer</strong>
 FastMCP server exposing typed tools/resources (e.g., filter_policy_statements, search_users_by_groups) for AI clients.</p>
 <p>UI Layer
 Tkinter app with tabs, resizable panes, and an AI output area; integrates tightly with analysis and MCP results.</p>

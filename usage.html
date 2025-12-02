@@ -46,16 +46,15 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#prerequisites">1. Prerequisites</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#installation">2. Installation</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#checking-that-tkinter-is-working">Checking that TKInter is working</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation-details">Installation Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#authentication-and-session-token-setup">Authentication and Session Token Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#permissions-required">Permissions (REQUIRED)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#group-or-dynamic-group">Group or Dynamic Group</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#authentication-and-session-token-setup">3. Authentication and Session Token Setup</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#running-using-the-app">4. Running/Using the App</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#running-using-the-app">Running/Using the App</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
@@ -96,8 +95,9 @@
 <section id="getting-started">
 <h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
 <p>This section will help you set up and run OCI Policy Analysis regardless of platform.</p>
+</section>
 <section id="prerequisites">
-<h3>1. Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h3>
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
 <ul>
 <li><p><strong>Python 3.12+</strong> if running from source. (Not needed for platform executables.)</p>
 <ul class="simple">
@@ -130,43 +130,32 @@
 <li><p>See <a class="reference internal" href="overview.html"><span class="std std-doc">Permissions Section</span></a> for instance principal option and dynamic group setup.</p></li>
 </ul>
 </li>
-<li><p><strong>Install Dependencies if running from source</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>oci<span class="w"> </span>ttkbootstrap<span class="w"> </span>deepdiff<span class="w"> </span>markdown
+<li><p><strong>Install Dependencies if running from source</strong></p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">oci</span><span class="o">==</span><span class="m">2</span>.164.0<span class="w"> </span><span class="nv">deepdiff</span><span class="o">==</span><span class="m">8</span>.5.0<span class="w"> </span><span class="nv">fastmcp</span><span class="o">==</span><span class="m">2</span>.12.5
 </pre></div>
 </div>
-</li>
-</ul>
+<p>NOTE – if not using PIP via Python Virtual Environment, it is still possible, but you may need to add these packages to your system directly.</p>
 </section>
-<section id="installation">
-<h3>2. Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h3>
+<section id="installation-details">
+<h2>Installation Details<a class="headerlink" href="#installation-details" title="Link to this heading"></a></h2>
+<p>Here are the options for running the code.   This will work from your desktop or from an OCI instance running Windows or Linux (Desktop).   If on OCI, you will be able to use the “Instance Principal” mechanism to authenticate.</p>
 <p><strong>Option A: Run as a platform executable</strong></p>
 <ul class="simple">
 <li><p>Download the appropriate binary (.exe for Windows, .app for macOS, Linux build) from the <a class="reference external" href="https://github.com/agregory999/oci-policy-analysis/releases">releases page</a>.</p></li>
 <li><p>Double-click/run as any other application.</p></li>
 </ul>
 <p><strong>Option B: Run from source (recommended for advanced users/developers)</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
-<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">    </span><span class="c1"># On Win: .venv\Scripts\activate</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-V<span class="w">              </span><span class="c1"># Should be 3.12.x</span>
+python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">    </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 python<span class="w"> </span>-m<span class="w"> </span>oci_policy_analysis
 </pre></div>
 </div>
-<p><strong>Option C: Command-line only (no UI, experimental)</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_dg_viewer/core.py<span class="w"> </span>--help
-<span class="c1"># (see CLI options)</span>
-</pre></div>
-</div>
-<section id="checking-that-tkinter-is-working">
-<h4>Checking that TKInter is working<a class="headerlink" href="#checking-that-tkinter-is-working" title="Link to this heading"></a></h4>
-<p>After installing prerequisites:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>
-</pre></div>
-</div>
-<p>If you get a popup window, you’re set.</p>
-</section>
 </section>
 <section id="authentication-and-session-token-setup">
-<h3>3. Authentication and Session Token Setup<a class="headerlink" href="#authentication-and-session-token-setup" title="Link to this heading"></a></h3>
+<h2>Authentication and Session Token Setup<a class="headerlink" href="#authentication-and-session-token-setup" title="Link to this heading"></a></h2>
 <p>You can authenticate using:</p>
 <ul class="simple">
 <li><p>Named OCI Profile</p></li>
@@ -175,30 +164,31 @@ python<span class="w"> </span>-m<span class="w"> </span>oci_policy_analysis
 </ul>
 <p>See <a class="reference external" href="https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm">OCI Authentication</a> for more.</p>
 </section>
+<section id="permissions-required">
+<h2>Permissions (REQUIRED)<a class="headerlink" href="#permissions-required" title="Link to this heading"></a></h2>
+<p>In order for the OCI Policy Analysis app to pull the data it needs from the OCI tenancy, it must have a minimal set of permissions.  If using your OCI Admin (not recommended) user, the permissions will already be there.  It is recommended to use a non-privileged account or create a new user if you aren’t sure.</p>
+<p>The minimal policy statement looks like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
+<span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
+</pre></div>
+</div>
+<p>If you plan to use instance principals on an OCI instance with a dynamic group, the permissions look like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">dynamic</span><span class="o">-</span><span class="n">group</span> <span class="s1">&#39;Default&#39;</span><span class="o">/</span><span class="s1">&#39;PolicyAnalysisDynamicGroup&#39;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
+<span class="n">allow</span> <span class="n">dynamic</span><span class="o">-</span><span class="n">group</span> <span class="s1">&#39;Default&#39;</span><span class="o">/</span><span class="s1">&#39;PolicyAnalysisDynamicGroup&#39;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
+</pre></div>
+</div>
+<section id="group-or-dynamic-group">
+<h3>Group or Dynamic Group<a class="headerlink" href="#group-or-dynamic-group" title="Link to this heading"></a></h3>
+<p>If you have an existing group or dynamic group for your instance or compartment, you may already have all of the permissions needed.  If you need to create a new user and group, the set of permissions above dictate what policy should exist for that user.</p>
+</section>
+</section>
 <section id="running-using-the-app">
-<h3>4. Running/Using the App<a class="headerlink" href="#running-using-the-app" title="Link to this heading"></a></h3>
-<p><strong>Load Data</strong>:</p>
-<ul class="simple">
-<li><p>Choose authentication in the Settings tab.</p></li>
-<li><p>Use <strong>Load from Tenancy</strong> or <strong>Load from Cache</strong>.</p></li>
-</ul>
-<p><strong>Tabs</strong>:</p>
-<ul class="simple">
-<li><p><strong>Policies</strong> — Browse &amp; filter policy statements.</p></li>
-<li><p><strong>Users / Groups / Dynamic Groups</strong> — Explore relationships/memberships.</p></li>
-<li><p><strong>Overlap Detection</strong> — Find potential redundant/conflicting statements.</p></li>
-<li><p><strong>Historical Comparison</strong> — Compare cached snapshots.</p></li>
-<li><p><strong>MCP / AI</strong> — Run as FastMCP server and get GenAI analysis.</p></li>
-</ul>
-<p><strong>Export/Import</strong>:</p>
-<ul class="simple">
-<li><p>Use Export/Import buttons for CSV/JSON as needed.</p></li>
-</ul>
+<h2>Running/Using the App<a class="headerlink" href="#running-using-the-app" title="Link to this heading"></a></h2>
+<p>This section is W.I.P.</p>
 <p><strong>See also</strong>:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="overview.html"><span class="std std-doc">Overview</span></a> for a feature/architecture summary.</p></li>
 </ul>
-</section>
 </section>
 </section>
 
