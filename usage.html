@@ -19,8 +19,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Architecture" href="architecture.html" />
-    <link rel="prev" title="Overview" href="overview.html" /> 
+    <link rel="next" title="OCI Policy Analysis MCP Server" href="mcp.html" />
+    <link rel="prev" title="Architecture" href="architecture.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,19 +45,32 @@
               <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#installation-details">Installation Details</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#authentication-and-session-token-setup">Authentication and Session Token Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#permissions-required">Permissions (REQUIRED)</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#group-or-dynamic-group">Group or Dynamic Group</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#running-using-the-app">Running/Using the App</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#starting-the-ui">Starting the UI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#settings-tab-start-here">Settings Tab (Start Here)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tenancy-and-config">Tenancy and Config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#import-and-export">Import and Export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#generative-ai-enablement">Generative AI Enablement</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#display-options">Display Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#embedded-mcp-server">Embedded MCP Server</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#policy-tab">Policy Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#groups-users-tab">Groups / Users Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dynamic-groups-tab">Dynamic Groups Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#resource-principals-tab">Resource Principals Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cross-tenancy-tab">Cross Tenancy Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#policy-overlap-tab">Policy Overlap Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#permissions-report-tab">Permissions Report Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reports-w-search-tab">Reports w/Search Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#embedded-mcp-tab">Embedded MCP Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#console-tab">Console Tab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#maintenance-tab">Maintenance Tab</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mcp.html">OCI Policy Analysis MCP Server</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
@@ -92,103 +105,106 @@
              
   <section id="usage">
 <h1>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h1>
-<section id="getting-started">
-<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
-<p>This section will help you set up and run OCI Policy Analysis regardless of platform.</p>
-</section>
-<section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
-<ul>
-<li><p><strong>Python 3.12+</strong> if running from source. (Not needed for platform executables.)</p>
-<ul class="simple">
-<li><p>Get Python from <a class="reference external" href="https://www.python.org/downloads/">python.org</a>, or use your OS package manager.</p></li>
-</ul>
-</li>
-<li><p><strong>OCI Configuration</strong> (<code class="docutils literal notranslate"><span class="pre">~/.oci/config</span></code> or <code class="docutils literal notranslate"><span class="pre">%USERPROFILE%\.oci\config</span></code>)</p>
-<ul>
-<li><p>Example:</p>
-<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[DEFAULT]</span>
-<span class="na">user</span><span class="o">=</span><span class="s">ocid1.user.oc1..&lt;your-user-ocid&gt;</span>
-<span class="na">fingerprint</span><span class="o">=</span><span class="s">&lt;your-api-key-fingerprint&gt;</span>
-<span class="na">key_file</span><span class="o">=</span><span class="s">&lt;path-to-private-key.pem&gt;</span>
-<span class="na">tenancy</span><span class="o">=</span><span class="s">ocid1.tenancy.oc1..&lt;your-tenancy-ocid&gt;</span>
-<span class="na">region</span><span class="o">=</span><span class="s">&lt;your-region&gt;</span>
-</pre></div>
-</div>
-</li>
-<li><p>See <a class="reference external" href="https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm">OCI Configuration Docs</a></p></li>
-</ul>
-</li>
-<li><p><strong>OCI IAM Policy Permissions</strong></p>
-<ul>
-<li><p>Minimal permissions:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
-<span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
-</pre></div>
-</div>
-</li>
-<li><p>See <a class="reference internal" href="overview.html"><span class="std std-doc">Permissions Section</span></a> for instance principal option and dynamic group setup.</p></li>
-</ul>
-</li>
-<li><p><strong>Install Dependencies if running from source</strong></p></li>
-</ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">oci</span><span class="o">==</span><span class="m">2</span>.164.0<span class="w"> </span><span class="nv">deepdiff</span><span class="o">==</span><span class="m">8</span>.5.0<span class="w"> </span><span class="nv">fastmcp</span><span class="o">==</span><span class="m">2</span>.12.5
-</pre></div>
-</div>
-<p>NOTE – if not using PIP via Python Virtual Environment, it is still possible, but you may need to add these packages to your system directly.</p>
-</section>
-<section id="installation-details">
-<h2>Installation Details<a class="headerlink" href="#installation-details" title="Link to this heading"></a></h2>
-<p>Here are the options for running the code.   This will work from your desktop or from an OCI instance running Windows or Linux (Desktop).   If on OCI, you will be able to use the “Instance Principal” mechanism to authenticate.</p>
-<p><strong>Option A: Run as a platform executable</strong></p>
-<ul class="simple">
-<li><p>Download the appropriate binary (.exe for Windows, .app for macOS, Linux build) from the <a class="reference external" href="https://github.com/agregory999/oci-policy-analysis/releases">releases page</a>.</p></li>
-<li><p>Double-click/run as any other application.</p></li>
-</ul>
-<p><strong>Option B: Run from source (recommended for advanced users/developers)</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-V<span class="w">              </span><span class="c1"># Should be 3.12.x</span>
-python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
-<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">    </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
-pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-python<span class="w"> </span>-m<span class="w"> </span>oci_policy_analysis
+<p>There are 3 main entry points to the OCI Policy Analysis application:</p>
+<ol class="arabic simple">
+<li><p>User Interface – the main UI</p></li>
+<li><p>Command Line access – the CLI</p></li>
+<li><p>Model Context Protocol – the MCP Server</p></li>
+</ol>
+<p>MCP is covered in its <img alt="own document" src="mcp.html" />, so keep reading for what the main application is capable of and how to use it.</p>
+<section id="starting-the-ui">
+<h2>Starting the UI<a class="headerlink" href="#starting-the-ui" title="Link to this heading"></a></h2>
+<p>This page does not cover building the application or setting up Python and the libraries.  For that, see the complete <img alt="Setup Guide" src="setup.html" />.</p>
+<p>The UI can be started from a downloaded executable file simply by double-clicking on it.  For Mac and Windows you will need to give permission for the app to run locally until which time the python executable can be shipped as a trusted publisher.</p>
+<p>From the command line, after building the application, start via python:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/oci_policy_analysis/main.py
 </pre></div>
 </div>
 </section>
-<section id="authentication-and-session-token-setup">
-<h2>Authentication and Session Token Setup<a class="headerlink" href="#authentication-and-session-token-setup" title="Link to this heading"></a></h2>
-<p>You can authenticate using:</p>
-<ul class="simple">
-<li><p>Named OCI Profile</p></li>
-<li><p>Instance Principal on OCI Compute</p></li>
-<li><p>Session Token (<code class="docutils literal notranslate"><span class="pre">oci</span> <span class="pre">session</span> <span class="pre">authenticate</span></code>, see Settings tab for input)</p></li>
-</ul>
-<p>See <a class="reference external" href="https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm">OCI Authentication</a> for more.</p>
+<section id="settings-tab-start-here">
+<h2>Settings Tab (Start Here)<a class="headerlink" href="#settings-tab-start-here" title="Link to this heading"></a></h2>
+<p>All settings and loading of tenancy information is controlled on this tab.</p>
+<section id="tenancy-and-config">
+<h3>Tenancy and Config<a class="headerlink" href="#tenancy-and-config" title="Link to this heading"></a></h3>
+<p>Tenancy data consists of IAM data (users, groups, dynamic groups) and policy data (statements).  The compartment hierarchy is also loaded here.  Loading involves the program making API calls to OCI, and thus the configuration section surfaces multiple means of accessing the tenancy.</p>
+<ol class="arabic simple">
+<li><p>Profile-based – Load all available profiles from the machine the UI is started from, and allow the choice of a profile to load from.  Profiles are tied to an OCI User, which must be in a Group where the required permissions to load IAM and Policy data exist.  See <img alt="Setup / Permissions" src="setup.html" /> for more detail.</p></li>
+<li><p>Instance Principal – If you have an Instance Principal, you must have a Dynamic Group with permissions.  This only works on an OCI Compute Instance.</p></li>
+<li><p>Session Token – If you use session tokens for temporary access, you can define the token and load data, provided that the OCI User has the appropriate Group and Permission to load data.</p></li>
+</ol>
+<p><strong>Recursion Option</strong> – This allows you to avoid loading the entire tenancy compartment hierarchy.  It will only load Policy data from the root compartment.  If your tenancy has all policies in the root compartment and 100s or 1000s of nested compartements with no policy data at lower levels, this will help with loading time.</p>
+<p>Once one of the loading options is selected, you can watch the progress using the indicator under the export button, or look at the logs from your console or the UI option for “Console Tab”.  Once loaded, the date of the data load is displayed and other tabs will display data.</p>
 </section>
-<section id="permissions-required">
-<h2>Permissions (REQUIRED)<a class="headerlink" href="#permissions-required" title="Link to this heading"></a></h2>
-<p>In order for the OCI Policy Analysis app to pull the data it needs from the OCI tenancy, it must have a minimal set of permissions.  If using your OCI Admin (not recommended) user, the permissions will already be there.  It is recommended to use a non-privileged account or create a new user if you aren’t sure.</p>
-<p>The minimal policy statement looks like this:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
-<span class="n">allow</span> <span class="n">group</span> <span class="o">&lt;</span><span class="n">your_group</span><span class="o">&gt;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
-</pre></div>
-</div>
-<p>If you plan to use instance principals on an OCI instance with a dynamic group, the permissions look like this:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">allow</span> <span class="n">dynamic</span><span class="o">-</span><span class="n">group</span> <span class="s1">&#39;Default&#39;</span><span class="o">/</span><span class="s1">&#39;PolicyAnalysisDynamicGroup&#39;</span> <span class="n">to</span> <span class="p">{</span><span class="n">POLICY_READ</span><span class="p">,</span> <span class="n">COMPARTMENT_INSPECT</span><span class="p">,</span> <span class="n">DOMAIN_INSPECT</span><span class="p">,</span> <span class="n">DYNAMIC_GROUP_INSPECT</span><span class="p">,</span> <span class="n">GROUP_INSPECT</span><span class="p">,</span> <span class="n">USER_INSPECT</span><span class="p">}</span> <span class="ow">in</span> <span class="n">tenancy</span>
-<span class="n">allow</span> <span class="n">dynamic</span><span class="o">-</span><span class="n">group</span> <span class="s1">&#39;Default&#39;</span><span class="o">/</span><span class="s1">&#39;PolicyAnalysisDynamicGroup&#39;</span> <span class="n">to</span> <span class="n">use</span> <span class="n">generative</span><span class="o">-</span><span class="n">ai</span><span class="o">-</span><span class="n">family</span> <span class="ow">in</span> <span class="n">tenancy</span>
-</pre></div>
-</div>
-<section id="group-or-dynamic-group">
-<h3>Group or Dynamic Group<a class="headerlink" href="#group-or-dynamic-group" title="Link to this heading"></a></h3>
-<p>If you have an existing group or dynamic group for your instance or compartment, you may already have all of the permissions needed.  If you need to create a new user and group, the set of permissions above dictate what policy should exist for that user.</p>
+<section id="import-and-export">
+<h3>Import and Export<a class="headerlink" href="#import-and-export" title="Link to this heading"></a></h3>
+<p>The UI allows for import and export of data.  Internally and within the cache, a large JSON object is stored, containing all available data.  This can be exported into a JSON file, for example if required by Oracle personnel to look at a policy problem.</p>
+<p>For import, this can be used instead of loading data from a tenancy or cache.  In cases where a user has no tenancy access but aims to help a customer, the export is imported and can be looked at using the tool as if it was loaded locally.</p>
 </section>
+<section id="generative-ai-enablement">
+<h3>Generative AI Enablement<a class="headerlink" href="#generative-ai-enablement" title="Link to this heading"></a></h3>
+<p>GenAI is optional.   To use it, you must use the Settings tab and follow the steps here.</p>
+<ol class="arabic simple">
+<li><p>Refresh the GenAI Models.  Choose one that makes sense, such as “Grok 4 - fast, non-reasoning”.  Others work as well, but not all have been tested.</p></li>
+<li><p>Confirm Regional Endpoint – this defaults to your OCI home region, so it is unlikely to change, but could if necessary.</p></li>
+<li><p>Confirm Compartment (for GenAI) – this defaults to your tenancy OCID, so it is unlikely to change, but could if necessary.</p></li>
+<li><p>Apply and Test GenAI – Run a test AI call, which should succeed if permissions are set up properly and the model works</p></li>
+<li><p>Toggle AI Pane – Adds the AI pane to the bottom of the window, which then appears on all tabs and can be used.</p></li>
+</ol>
+<p>Once AI has been enabled and the AI pane is toggled, each tab in the UI will have varying uses for it.  For example, on the Policy tab, it is used to generate additional insights about a specific policy statement.</p>
 </section>
-<section id="running-using-the-app">
-<h2>Running/Using the App<a class="headerlink" href="#running-using-the-app" title="Link to this heading"></a></h2>
-<p>This section is W.I.P.</p>
+<section id="display-options">
+<h3>Display Options<a class="headerlink" href="#display-options" title="Link to this heading"></a></h3>
+<p>Settings for font size, additional tabs.</p>
+</section>
+<section id="embedded-mcp-server">
+<h3>Embedded MCP Server<a class="headerlink" href="#embedded-mcp-server" title="Link to this heading"></a></h3>
+<p>The only options here are a host and port.  If the MCP embedded server is started, it will use these settings to start.  Provided there isn’t a listening service on the selected port, the service will start from the “Embedded MCP” tab using these.</p>
+<p><strong>0.0.0.0</strong> - Listens on all addresses for the machine, including publicly accessible IP addresses
+<strong>127.0.0.1</strong> - Listens only on <code class="docutils literal notranslate"><span class="pre">localhost</span></code> on the machine, only accessible from other local processes.  For example, VSCode or Claude Desktop on your machine.</p>
 <p><strong>See also</strong>:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="overview.html"><span class="std std-doc">Overview</span></a> for a feature/architecture summary.</p></li>
 </ul>
+</section>
+</section>
+<section id="policy-tab">
+<h2>Policy Tab<a class="headerlink" href="#policy-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="groups-users-tab">
+<h2>Groups / Users Tab<a class="headerlink" href="#groups-users-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="dynamic-groups-tab">
+<h2>Dynamic Groups Tab<a class="headerlink" href="#dynamic-groups-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="resource-principals-tab">
+<h2>Resource Principals Tab<a class="headerlink" href="#resource-principals-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="cross-tenancy-tab">
+<h2>Cross Tenancy Tab<a class="headerlink" href="#cross-tenancy-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="policy-overlap-tab">
+<h2>Policy Overlap Tab<a class="headerlink" href="#policy-overlap-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="permissions-report-tab">
+<h2>Permissions Report Tab<a class="headerlink" href="#permissions-report-tab" title="Link to this heading"></a></h2>
+</section>
+<section id="reports-w-search-tab">
+<h2>Reports w/Search Tab<a class="headerlink" href="#reports-w-search-tab" title="Link to this heading"></a></h2>
+<p>Displays all Policy data in text form with a search box.  The search highlights in yellow anywhere a given string is found in the data.</p>
+</section>
+<section id="embedded-mcp-tab">
+<h2>Embedded MCP Tab<a class="headerlink" href="#embedded-mcp-tab" title="Link to this heading"></a></h2>
+<p>Starts (cannot stop) the embedded MCP server.  Logs which are MCP-specific appear here</p>
+<p>The Debug option allows for the logs to display more information as each call is recieved and processed.</p>
+</section>
+<section id="console-tab">
+<h2>Console Tab<a class="headerlink" href="#console-tab" title="Link to this heading"></a></h2>
+<p>If enabled, shows the <code class="docutils literal notranslate"><span class="pre">sysout</span></code> information.  This is helpful when starting from an executable file, where there is no log output.</p>
+</section>
+<section id="maintenance-tab">
+<h2>Maintenance Tab<a class="headerlink" href="#maintenance-tab" title="Link to this heading"></a></h2>
+<p>Allows for rename, delete, or preservation of cache files.  Caches are rotated as new data is loaded, but if they are preserved here, they can remain after they normally would be pruned.</p>
+<p>Also here are permissions information, with the ability to query the loaded permission reference files.  TODO: in a future release, adding permission to resource mappings may be possible via this tab.</p>
 </section>
 </section>
 
@@ -196,8 +212,8 @@ python<span class="w"> </span>-m<span class="w"> </span>oci_policy_analysis
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="overview.html" class="btn btn-neutral float-left" title="Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="architecture.html" class="btn btn-neutral float-right" title="Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="architecture.html" class="btn btn-neutral float-left" title="Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mcp.html" class="btn btn-neutral float-right" title="OCI Policy Analysis MCP Server" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Usage" href="usage.html" />
+    <link rel="next" title="Setup" href="setup.html" />
     <link rel="prev" title="OCI Policy Analysis Documentation" href="index.html" /> 
 </head>
 
@@ -46,11 +46,12 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#core-features">Core Features</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mcp.html">OCI Policy Analysis MCP Server</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
@@ -93,6 +94,7 @@
 <li><p><strong>Dynamic Group Analysis</strong>: Display dynamic groups, review their matching rules, and check for unused groups.</p></li>
 <li><p><strong>Resource Principal &amp; User Analysis</strong>: Explore resource principals and analyze policy statements applicable to a user’s group memberships.</p></li>
 <li><p><strong>Historical Comparison</strong>: Find differences between policy sets from current vs previous data loads.</p></li>
+<li><p><strong>Policy Overlap</strong>: See where policy statements overlap in what they are granting</p></li>
 <li><p><strong>Caching</strong>: Save/load all policy and identity data to local cache for fast/remote use.</p></li>
 <li><p><strong>Export &amp; Import</strong>: Export filtered analysis results to CSV or JSON for sharing or offline audit.</p></li>
 <li><p><strong>Cross-Platform GUI</strong>: Runs on Windows and Linux with an easy-to-use GUI.</p></li>
@@ -101,12 +103,6 @@
 </ul>
 <p>The application supports both Instance Principal authentication (OCI compute instances) and OCI CLI/config file-based authentication (using named profiles).</p>
 </section>
-<section id="architecture">
-<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h2>
-<p>A high-level diagram of how all the major pieces fit together in this tool:</p>
-<p><img alt="OCI Policy Analysis Architecture" src="../policy-analysis.drawio.svg" /></p>
-<p>See <a class="reference internal" href="usage.html"><span class="std std-doc">Usage</span></a> for installation, configuration instructions, and full platform support details.</p>
-</section>
 </section>
 
 
@@ -114,7 +110,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="OCI Policy Analysis Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="usage.html" class="btn btn-neutral float-right" title="Usage" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="setup.html" class="btn btn-neutral float-right" title="Setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
