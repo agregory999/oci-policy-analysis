@@ -12,9 +12,10 @@ Contents
    :caption: User Guide
 
    overview
-   usage
+   setup
    architecture
-   MCP
+   usage
+   mcp
 
 .. toctree::
    :maxdepth: 2

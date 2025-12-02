@@ -8,6 +8,7 @@
 - **Dynamic Group Analysis**: Display dynamic groups, review their matching rules, and check for unused groups.
 - **Resource Principal & User Analysis**: Explore resource principals and analyze policy statements applicable to a user's group memberships.
 - **Historical Comparison**: Find differences between policy sets from current vs previous data loads.
+- **Policy Overlap**: See where policy statements overlap in what they are granting
 - **Caching**: Save/load all policy and identity data to local cache for fast/remote use.
 - **Export & Import**: Export filtered analysis results to CSV or JSON for sharing or offline audit.
 - **Cross-Platform GUI**: Runs on Windows and Linux with an easy-to-use GUI.
@@ -16,10 +17,4 @@
 
 The application supports both Instance Principal authentication (OCI compute instances) and OCI CLI/config file-based authentication (using named profiles).
 
-## Architecture
 
-A high-level diagram of how all the major pieces fit together in this tool:
-
-![OCI Policy Analysis Architecture](../policy-analysis.drawio.svg)
-
-See [Usage](usage.md) for installation, configuration instructions, and full platform support details.
