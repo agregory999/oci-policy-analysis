@@ -1,3 +1,10 @@
+## [2.8.5](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.4...v2.8.5) (2025-12-02)
+
+
+### Bug Fixes
+
+* Use OCI 2.164.0 and FastMCP 2.12.5 ([51b6aee](https://github.com/agregory999/oci-policy-analysis/commit/51b6aeecfae1456d862227cdf35adeb1ed84c508))
+
 ## [2.8.4](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.3...v2.8.4) (2025-12-01)
 
 
