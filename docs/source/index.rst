@@ -14,6 +14,7 @@ Contents
    overview
    usage
    architecture
+   MCP
 
 .. toctree::
    :maxdepth: 2
