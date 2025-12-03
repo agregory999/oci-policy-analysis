@@ -102,6 +102,13 @@ If the AI Insights is toggled on (see above), then by clicking on a row in the o
 
 ## Groups / Users Tab
 
+Allows searching for policy statements by either Group or User.  All Policy Statements refer to groups, not users, so in order to determine the statements pertinent to a specific user or set of individual users (who may be in multiple and different groups), the selection of a user causes the program to determine the groups that user (or if multiple users are selected) is a member of, and then the policy statements for that collective set of groups is displayed.
+
+Searching for users or groups is supported by username or user display name if the selector is ser to Users.  If set to groups, the name of the group is searched.
+
+### GenAI Insights
+Similar to other tabs, if AI Insights is toggled on, the selection of a policy statement will allow the user to generate insights as to the meaning of the policy statement.
+
 ## Dynamic Groups Tab
 
 Lists all dynamic groups in all identity domains, with filters available.  Choosing a dynamic group will update the policy list below with policy statements pertaining to the selected dynamic group.  

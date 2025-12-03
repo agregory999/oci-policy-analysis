@@ -179,9 +179,8 @@ jobs:
           cat src/oci_policy_analysis/version.txt
 
       - name: Build (macOS & Linux)
-        if: steps.skip_build.outputs.skip != 'true'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
-        if: runner.os != 'Windows'
         run: |
           set -e
           echo "🏗️ Building for ${{ matrix.os }} with Python $(python3 -V || python -V)"
@@ -221,8 +220,7 @@ jobs:
           fi
 
       - name: Build (Windows)
-        if: steps.skip_build.outputs.skip != 'true'
-        if: runner.os == 'Windows'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
@@ -275,8 +273,7 @@ jobs:
           ls -lh dist
 
       - name: Package artifact for Windows
-        if: steps.skip_build.outputs.skip != 'true'
-        if: runner.os == 'Windows'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
           $VERSION = "${{ needs.release.outputs.version }}"
