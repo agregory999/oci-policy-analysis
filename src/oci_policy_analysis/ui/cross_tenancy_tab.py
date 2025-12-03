@@ -36,6 +36,14 @@ logger = get_logger(component='cross_tenancy_tab')
 
 
 class CrossTenancyTab(ttk.Frame):
+    """
+    Cross-Tenancy Tab for OCI Policy Analysis UI.
+    Allows viewing defined aliases and associated cross-tenancy policy statements.
+    Methods:
+         __init__: Initializes the CrossTenancyTab with UI components and callbacks.
+         update_cross_tenancy_output: Updates the defined aliases and cross-tenancy policy statements displayed.  Called from main app and when selections are changed.
+    """
+
     def __init__(
         self,
         parent,

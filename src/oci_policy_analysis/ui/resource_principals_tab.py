@@ -96,9 +96,14 @@ POLICY_COLUMN_WIDTHS = {
 
 
 class ResourcePrincipalsTab(ttk.Frame):
+    # Document with multi-line google-style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
     """
-    Minimal Resource Principals Tab: Display filtering for RPs
-    Uses the already-loaded data_repo from memory.
+    Resource Principals Tab for OCI Policy Analysis UI.
+    Allows viewing Dynamic Groups and associated policy statements.
+    Methods:
+         __init__: Initializes the ResourcePrincipalsTab with UI components and callbacks.
+         _build_ui: (Internal) Builds the UI components for the tab.
+        update_principals_sheets: Updates sheets based on dropdown selections and dynamic group selection.  Called from main app and when dropdowns change or DG selection changes.
     """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):

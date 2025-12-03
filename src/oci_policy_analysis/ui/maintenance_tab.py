@@ -22,6 +22,21 @@ logger = get_logger(component='maintenance')
 
 
 class MaintenanceTab(ttk.Frame):
+    # Document with multi-line google-style napoleon comments for the class with public methods
+    """
+    Maintenance Tab for OCI Policy Analysis UI.
+    Provides cache management and permissions testing tools.
+    Methods:
+        __init__: Initializes the MaintenanceTab with UI components and callbacks.
+        _refresh_maintenance_cache_list: (Internal) Refreshes the cache list display.
+        _maintenance_remove_selected_cache: (Internal) Removes the selected cache entry.
+        _maintenance_rename_selected_cache: (Internal) Renames the selected cache entry.
+        _maintenance_preserve_selected_cache: (Internal) Toggles the preserve status of the selected cache entry.
+        _maintenance_permissions_load_data: (Internal) Loads reference data for permissions testing.
+        _maintenance_get_permission: (Internal) Retrieves permissions for the selected resource/family and verb.
+        _maintenance_check_overlap: (Internal) Checks for overlap between two permission statements.
+    """
+
     def __init__(self, parent, caching):
         super().__init__(parent)
         self.caching = caching

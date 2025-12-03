@@ -3,6 +3,7 @@
 from .console_tab import ConsoleTab
 from .data_table import DataTable
 from .dynamic_group_tab import DynamicGroupsTab
+from .maintenance_tab import MaintenanceTab
 from .mcp_tab import McpTab
 from .policies_tab import PoliciesTab
 from .policy_overlap_tab import PolicyOverlapTab
@@ -22,4 +23,7 @@ __all__ = [
     'McpTab',
     'ResourcePrincipalsTab',
     'DataTable',
+    'MaintenanceTab',
+    'PolicyOverlapTab',
+    'ConsoleTab',
 ]

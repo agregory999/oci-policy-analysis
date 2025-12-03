@@ -23,8 +23,8 @@ import oci_policy_analysis.mcp_server as mcp_server
 from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.mcp_server import (
+    _start_mcp_server_in_thread,
     mcp_server_status,
-    start_mcp_server_in_thread,
 )
 
 
@@ -62,7 +62,13 @@ logger = get_logger('mcp_tab')
 
 
 class McpTab(ttk.Frame):
-    """MCP Tab: Start/Stop MCP server and show log output."""
+    """
+    MCP Tab for OCI Policy Analysis UI.
+    Allows starting/stopping the MCP server and viewing its logs.
+    Methods:
+        __init__: Initializes the McpTab with UI components and callbacks.
+        _start_mcp: (Internal) Starts the MCP server in a separate thread.
+    """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
         super().__init__(parent)
@@ -80,7 +86,7 @@ class McpTab(ttk.Frame):
         ctrl_frame = ttk.Frame(self)
         ctrl_frame.pack(pady=10)
 
-        self.start_btn = ttk.Button(ctrl_frame, text='Start MCP Server', command=self.start_mcp)
+        self.start_btn = ttk.Button(ctrl_frame, text='Start MCP Server', command=self._start_mcp)
         self.start_btn.pack(side=tk.LEFT, padx=5)
 
         ttk.Label(ctrl_frame, text='Status:').pack(side=tk.LEFT, padx=(15, 0))
@@ -115,13 +121,13 @@ class McpTab(ttk.Frame):
         self._mcp_ui_handler = ui_handler
         logger.info('MCP tab handler attached to oci-policy-analysis.mcp, oci-policy-analysis.mcp_server')
 
-    def start_mcp(self):
+    def _start_mcp(self):
         if self.server_running:
             messagebox.showinfo('MCP', 'MCP server is already running.')
             return
         mcp_server.pca = self.policy_repo
         logger.info('Starting MCP server...')
-        start_mcp_server_in_thread(self.settings)
+        _start_mcp_server_in_thread(self.settings)
         self._set_status(True)
 
     def _set_status(self, running: bool):

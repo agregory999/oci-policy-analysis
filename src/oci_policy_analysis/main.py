@@ -71,7 +71,21 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 # ----------- MAIN APPLICATION CLASS ------------
 class App(tk.Tk):
-    """Main application window for OCI Policy Analysis."""
+    # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
+    """Main entry point for OCI Policy Analysis application.
+    Inherits from tk.Tk to create the main application window.
+    Methods:
+        __init__: Initializes the main application window, UI components, and shared resources.
+        apply_theme: Applies the selected theme and font size to the UI components.
+        toggle_bottom: Toggles the visibility of the bottom output frame.
+        restore_sash: (Internal) Restores the sash position of the PanedWindow from settings.
+        _apply_log_level: (Internal) Applies the selected log level from settings.
+        load_tenancy_async: Asynchronously loads tenancy data, policies, and compartments.
+        _import_cache_from_json: (Internal) Imports cached data from a JSON file.
+        _export_cache_to_json: (Internal) Exports cached data to a JSON file.
+        ask_genai_async: Asynchronously queries the GenAI model with the given prompt and additional instructions.
+        set_bottom_output: Displays the given string content as plain text in the output_text widget. Enables/disables copy button.
+    """
 
     def __init__(self):
         super().__init__()
@@ -372,7 +386,7 @@ class App(tk.Tk):
 
                 logger.info('Cache Load JSON complete - Reload all tabs')
                 self.policy_overlap_tab.enable_widgets_after_load()
-                self.users_tab._update_user_analysis_output()
+                self.users_tab.update_user_analysis_output()
                 self.policies_tab.update_policy_output()
                 self.dynamic_groups_tab.enable_controls()
                 self.cross_tenancy_tab.update_cross_tenancy_output()
@@ -506,6 +520,7 @@ class App(tk.Tk):
 
 
 if __name__ == '__main__':
+    """Main entry point for OCI Policy Analysis application."""
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)

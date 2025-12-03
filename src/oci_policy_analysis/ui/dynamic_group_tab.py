@@ -99,6 +99,17 @@ logger = get_logger(component='dynamic_group_tab')
 
 
 class DynamicGroupsTab(ttk.Frame):
+    # Document with multi-line google-style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
+    """
+    Dynamic Groups Tab for OCI Policy Analysis UI.
+    Supports filtering and detailed policy statement views.
+    Methods:
+        __init__: Initializes the DynamicGroupsTab with UI components and callbacks.
+        enable_controls: Enables the controls once data is loaded.  Called from main app.
+        _build_ui: (Internal) Creates the tab UI components.
+        _update_dg_output: (Internal) Updates the dynamic group table based on filters.
+    """
+
     def __init__(
         self,
         parent,
@@ -108,9 +119,9 @@ class DynamicGroupsTab(ttk.Frame):
         super().__init__(parent)
         self.app = app
         self.policy_compartment_analysis = policy_compartment_analysis
-        self.create_tab()
+        self._build_ui()
 
-    def create_tab(self):
+    def _build_ui(self):
         # Configure grid
         self.grid_rowconfigure(0, weight=2)
         self.grid_rowconfigure(1, weight=4)

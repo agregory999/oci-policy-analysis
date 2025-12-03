@@ -85,7 +85,15 @@ POLICY_COLUMN_WIDTHS = {
 
 
 class UsersTab(ttk.Frame):
-    """Example data-driven tab that can update the bottom entry."""
+    """
+    Users Tab for OCI Policy Analysis UI.
+    Allows selection of Groups or Users, and displays associated policy statements.
+    Supports filtering and detailed policy statement views.
+    Methods:
+        __init__: Initializes the UsersTab with UI components and callbacks.
+        update_user_analysis_output: Updates the user/group table based on selection and search.
+        _update_user_analysis_policy_output: (Internal) Updates the policy statements based on selected groups/users.
+    """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):  # noqa: C901
         super().__init__(parent)
@@ -165,12 +173,12 @@ class UsersTab(ttk.Frame):
         def switch_groups_users_selection(*args):
             """probably get rid of this"""
             logger.debug('Calling update for users')
-            self._update_user_analysis_output()
+            self.update_user_analysis_output()
 
         def update_search(*args):
             """probably get rid of this"""
             logger.debug(f'Updating search: {self.user_group_search.get()}')
-            self._update_user_analysis_output()
+            self.update_user_analysis_output()
 
         def clear_filter():
             self.user_group_search.set('')
@@ -284,8 +292,11 @@ class UsersTab(ttk.Frame):
         )
         self.users_policy_table.grid(row=1, column=0, columnspan=4, sticky='nsew')
 
-    def _update_user_analysis_output(self):
-        # TODO: Compartment Analysis
+    def update_user_analysis_output(self):
+        """
+        Update the user/group table based on selection and search.
+        Called initially after load from main class and when search or selection changes.
+        """
         logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
 
         # Grid the correct table
