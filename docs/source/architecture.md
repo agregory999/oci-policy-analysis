@@ -16,11 +16,18 @@ of OCI Policy statements required knowledge of compartments, groups, dynamic gro
 Here is a representation of the data:
 ```mermaid
 flowchart TD
-    A[Root Compartment] --> B[Compartments]
+    A[Tenancy] --> B[Compartment Hierarchy]
     B --> C[Policies]
-    C --> D[Effective Permissions]
+    C --> D[Effective Permissions
+    Validity
+    Parsing]
     A --> E[Users / Groups / Dynamic Groups]
-    E --> F[MCP + AI Insights]
+    C --> R[Policy Repo]
+    D --> R
+    E --> R
+    R --> F[User Interface + AI Insights]
+    R --> M[MCP Server]
+    R --> CL[Command Line]
 ```
 
 ### Policy Parsing
@@ -34,7 +41,9 @@ location, that location must be within (below) the current compartment.   Thus, 
 
 **Valid** - Policy statements can become invalid for a variety of reasons, so it makes sense to check and store this information.  An example of an ivalid policy statement is when a location was referred to as "compartment id ocid1.xx.yy.zzz", and then the compartment is later deleted.  
 
+**Invalid Reasons** - If a policy statement is determined (post-parsing) to be invalid, the reason(s) are made available to the data model for display and analysis.
 
+**Policy Overlap** - Using OCI Resource -> Permissions mapping data, the program attempts to infer which policy statements overlap with each statement, and make that available for display.  For example, if 2 statements cover the same underlying permission, it is considered an overlap.
 
 ## Layers
 

@@ -5,12 +5,12 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
 jobs:
-  docs:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,48 +27,22 @@ jobs:
           pip install -e .
           pip install oci
 
-      - name: Clean docs build folder
-        run: rm -rf docs/build/html
-
       - name: Build documentation
         run: sphinx-build -b html docs/source docs/build/html
 
-      - name: Ensure GitHub Pages site exists
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          echo "Checking if Pages site exists..."
-          resp=$(curl -s -H "Accept: application/vnd.github+json" \
-                      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                      https://api.github.com/repos/${REPO}/pages)
-          if echo "$resp" | grep -q "not been enabled"; then
-            echo "Pages not enabled — creating..."
-            curl -s -X POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                https://api.github.com/repos/${REPO}/pages \
-                -d '{"source":{"branch":"gh-pages","path":"/"}}'
-          else
-            echo "Pages site already exists."
-          fi
-
-      - name: Ensure GitHub Pages site is workflow-linked
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          echo "Ensuring Pages site is using workflow build..."
-          curl -s -X PUT \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              https://api.github.com/repos/${REPO}/pages \
-              -d '{"source":{"branch":"gh-pages","path":"/"}}'
-
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: docs/build/html
+          path: docs/build/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

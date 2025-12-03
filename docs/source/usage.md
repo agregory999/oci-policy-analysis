@@ -28,7 +28,7 @@ All settings and loading of tenancy information is controlled on this tab.
 
 Tenancy data consists of IAM data (users, groups, dynamic groups) and policy data (statements).  The compartment hierarchy is also loaded here.  Loading involves the program making API calls to OCI, and thus the configuration section surfaces multiple means of accessing the tenancy.  
 
-1) Profile-based -- Load all available profiles from the machine the UI is started from, and allow the choice of a profile to load from.  Profiles are tied to an OCI User, which must be in a Group where the required permissions to load IAM and Policy data exist.  See ![Setup / Permissions](./setup.html) for more detail.
+1) Profile-based -- Load all available profiles from the machine the UI is started from, and allow the choice of a profile to load from.  Profiles are tied to an OCI User, which must be in a Group where the required permissions to load IAM and Policy data exist.  See [Setup / Permissions](./setup.html) for more detail.
 
 2) Instance Principal -- If you have an Instance Principal, you must have a Dynamic Group with permissions.  This only works on an OCI Compute Instance.
 
@@ -71,6 +71,34 @@ The only options here are a host and port.  If the MCP embedded server is starte
 - [Overview](overview.md) for a feature/architecture summary.
 
 ## Policy Tab
+
+Searching, sorting and filtering of all policy statements in a tenancy is available on this page.  When the policies are parsed into parts, each field is available in this tab.  Filters can be chained by simply by setting multiple fields and looking at the results.
+
+### Sorting
+
+Click the column headers to sort the results by that column
+
+### Output Filters
+
+Use the checkboxes to further filter the results by category.  For example, if the search in the top was for resource of `database`, statements returned could be for user, service, or dynamic groups.  The output filters control what is displayed.
+
+### Invalid Only
+
+The invalid only checkbox controls whether to show only invalid statements (and reasons) matching the filter at the top.
+
+### Expanded Output
+
+The parsed output from each policy is not shown by default, but can be enabled with this checkbox.  All available data is shown in the table, which will involve scrolling to the right.
+
+### Policy Display
+
+The list of matching policies is shown in a table format with columns determined by the output filters.  Additionally, there are some right-click options, such as a means to go to the OCI Console in a logged-in broweser, or further filter by similar effective path.  
+
+Copy (Ctrl-C or Command-C on Mac) is available by clicking on a field in the output first.
+
+### AI Insights
+
+If the AI Insights is toggled on (see above), then by clicking on a row in the output of the policy data, the statement is placed in the AI policy analysis display input.  Clicking on the button below to generate insights runs a GenAI call to ask for the potential meaning and impact of the policy statement, which is then shown in the output area.
 
 ## Groups / Users Tab
 

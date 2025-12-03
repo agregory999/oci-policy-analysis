@@ -431,7 +431,16 @@ class App(tk.Tk):
                 self.after(0, lambda: self.set_bottom_output(str(ai_text_response)))
 
                 if callback is not None:
-                    self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
+                    if ai_text_response.startswith('Error:'):
+                        self.after(
+                            0,
+                            lambda: callback(
+                                success=False,
+                                message=f'GenAI query failed: {ai_text_response.lstrip("**Error:** ")}',  # noqa: B005
+                            ),  # type: ignore
+                        )
+                    else:
+                        self.after(0, lambda: callback(success=True, message='Set up AI successfully'))
 
                 self.after(
                     0,
