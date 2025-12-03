@@ -1,3 +1,10 @@
+## [2.8.6](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.5...v2.8.6) (2025-12-03)
+
+
+### Bug Fixes
+
+* GenAI error detection and docs update ([5f786e5](https://github.com/agregory999/oci-policy-analysis/commit/5f786e5fdf6a7ec8db4e8bb05fe031b3f1865b1b))
+
 ## [2.8.5](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.4...v2.8.5) (2025-12-02)
 
 
