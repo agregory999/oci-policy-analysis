@@ -216,8 +216,15 @@ class DynamicGroupsTab(ttk.Frame):
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
                 self.app.policy_query_var.set(selected_statement)
-            else:
-                pass
+                self.app.ai_additional_instructions = (
+                    'Analyze the selected OCI policy statement.',
+                    'Explain how the dynamic group must exist in the specified identity domain.  Show how the statement ',
+                    'breaks down into its components such as action (allow or deny), subject, verb (read, inspect, use, manage), resource, locations,',
+                    'conditions, and effective path. Explain its implications on, permissions within the',
+                    'OCI environment.',
+                )
+                self.app.policy_query_label_text.set('DG Policy Statement Insights:')
+                self.app.policy_query_var.set(selected_statement)
 
         def policy_more_details_menu(row_index: int) -> tk.Menu:
             menu = tk.Menu(self, tearoff=0)
