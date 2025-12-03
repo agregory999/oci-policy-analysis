@@ -6,11 +6,11 @@ There are 3 main entry points to the OCI Policy Analysis application:
 2) Command Line access -- the CLI
 3) Model Context Protocol -- the MCP Server
 
-MCP is covered in its [own document](./mcp.html), so keep reading for what the main application is capable of and how to use it.
+MCP is covered in its [own document](./mcp.md), so keep reading for what the main application is capable of and how to use it.
 
 ## Starting the UI
 
-This page does not cover building the application or setting up Python and the libraries.  For that, see the complete [Setup Guide](./setup.html).
+This page does not cover building the application or setting up Python and the libraries.  For that, see the complete [Setup Guide](./setup.md).
 
 The UI can be started from a downloaded executable file simply by double-clicking on it.  For Mac and Windows you will need to give permission for the app to run locally until which time the python executable can be shipped as a trusted publisher.
 
@@ -152,6 +152,8 @@ By selecting a define statement, the related cross-tenancy statements are shown.
 ## Policy Overlap Tab
 
 ## Permissions Report Tab
+
+Allows for a report of permissions granted by compartment and principal (group, service, dynamic group).  This information is generated using the policy data, the IAM data, and a set of reference data containing resource to permission mappings.  These mappings form the basis of actually is checked at runtime.  
 
 ## Reports w/Search Tab
 
