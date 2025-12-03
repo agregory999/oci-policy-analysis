@@ -1,4 +1,4 @@
-# OCI Policy Analysis MCP Server
+# MCP Server
 
 This repository provides a **Model Context Protocol (MCP)** server exposing OCI IAM data (users, groups, dynamic groups, and policy analysis) as structured tools and resources consumable by **Claude**, **VS Code MCP**, or any MCP-compliant proxy client.
 
@@ -667,6 +667,4 @@ Filter cross-tenancy policy statements that reference a specific alias.
 3. **Use fuzzy search**: `search_users`, `search_groups` support partial string matching
 4. **OCID filtering**: All `*_ocid` fields support partial OCID matching
 5. **Check response type**: Large result sets return summaries - add filters to get full details
-
----
 

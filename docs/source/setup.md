@@ -48,7 +48,7 @@ Here are the options for running the code.   This will work from your desktop or
   python3 -m venv .venv
   source .venv/bin/activate    # On Windows: .venv\Scripts\activate
   pip install -e .
-  python -m oci_policy_analysis
+  python -m oci_policy_analysis.main
   ```
 
 ## Authentication and Session Token Setup

@@ -89,10 +89,7 @@ class UsersTab(ttk.Frame):
     Users Tab for OCI Policy Analysis UI.
     Allows selection of Groups or Users, and displays associated policy statements.
     Supports filtering and detailed policy statement views.
-    Methods:
-        __init__: Initializes the UsersTab with UI components and callbacks.
-        update_user_analysis_output: Updates the user/group table based on selection and search.
-        _update_user_analysis_policy_output: (Internal) Updates the policy statements based on selected groups/users.
+
     """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):  # noqa: C901
@@ -165,6 +162,8 @@ class UsersTab(ttk.Frame):
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
+                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain how users or groups are affected by this statement within the OCI environment.'
+                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
                 self.app.policy_query_var.set(selected_statement)
                 # self.policy_analyze_statement_var.set(selected_statement)
             else:

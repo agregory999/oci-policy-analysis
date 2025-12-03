@@ -99,10 +99,10 @@ logger = get_logger(component='dynamic_group_tab')
 
 
 class DynamicGroupsTab(ttk.Frame):
-    # Document with multi-line google-style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
     """
     Dynamic Groups Tab for OCI Policy Analysis UI.
     Supports filtering and detailed policy statement views.
+
     Methods:
         __init__: Initializes the DynamicGroupsTab with UI components and callbacks.
         enable_controls: Enables the controls once data is loaded.  Called from main app.
@@ -234,7 +234,7 @@ class DynamicGroupsTab(ttk.Frame):
                     'conditions, and effective path. Explain its implications on, permissions within the',
                     'OCI environment.',
                 )
-                self.app.policy_query_label_text.set('DG Policy Statement Insights:')
+                self.app.policy_query_label_text.set('DG Policy Statement\nInsights:')
                 self.app.policy_query_var.set(selected_statement)
 
         def policy_more_details_menu(row_index: int) -> tk.Menu:

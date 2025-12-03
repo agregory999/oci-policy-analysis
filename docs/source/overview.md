@@ -9,6 +9,7 @@
 - **Resource Principal & User Analysis**: Explore resource principals and analyze policy statements applicable to a user's group memberships.
 - **Historical Comparison**: Find differences between policy sets from current vs previous data loads.
 - **Policy Overlap**: See where policy statements overlap in what they are granting
+- **Permissions Hierarchy**: Show all granted or denied underlying OCI permissions by compartment and principal
 - **Caching**: Save/load all policy and identity data to local cache for fast/remote use.
 - **Export & Import**: Export filtered analysis results to CSV or JSON for sharing or offline audit.
 - **Cross-Platform GUI**: Runs on Windows and Linux with an easy-to-use GUI.

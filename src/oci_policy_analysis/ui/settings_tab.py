@@ -34,10 +34,10 @@ logger = get_logger(component='settings')
 
 
 class SettingsTab(ttk.Frame):
-    """Settings UI:
-    - Display Options (theme + font size) in a LabelFrame
-    - Toggle Bottom Pane button
-    - (extend here with more settings later)
+    """
+    Settings Tab for OCI Policy Analysis UI.
+    Allows configuration of tenancy, profile, MCP server, and AI settings.
+    All tenancy data is loaded via this tab.
     """
 
     def __init__(self, parent, app, caching: CacheManager, ai_repo: AI, settings):
@@ -411,7 +411,7 @@ class SettingsTab(ttk.Frame):
             logger.info('Updating UI after load')
             self.app.policies_tab.update_policy_output()
             self.app.policies_tab.enable_widgets_after_load()
-            self.app.users_tab._update_user_analysis_output()
+            self.app.users_tab.update_user_analysis_output()
         else:
             self.progress_var.set(f'❌ {message}')
 
@@ -459,9 +459,15 @@ class SettingsTab(ttk.Frame):
         except Exception as e:
             logger.error('Failed to update configuration: %s', e)
 
-    # TODO - improve this callback to show more detail in the UI and more if failed
     def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):
-        """Callback from App once AI loading completes."""
+        """
+        Callback from App once AI loading completes. Used to enable AI toggle button if successful.
+
+        Args:
+            success (bool): Whether the AI call was successful.
+            message (str): Message to display.
+            clear (bool): Whether to clear the message after a delay.
+        """
         if success:
             self.ai_progress_var.set(f'✅ {message}')
             # Enable the toggle button
@@ -479,6 +485,7 @@ class SettingsTab(ttk.Frame):
     # -------------------------
 
     def _toggle_console_tab(self):
+        """Toggle the visibility of the console tab in the notebook."""
         notebook = self.app.notebook
         console_tab = self.app.console_tab
 
@@ -488,7 +495,7 @@ class SettingsTab(ttk.Frame):
             self.app.console_visible = False
             logger.info('Console tab hidden')
         else:
-            notebook.add(console_tab, text='Console\nLog')
+            notebook.add(console_tab, text='Console Logging\n(Admin)')
             self.console_btn_var.set('Hide Console Tab')
             self.app.console_visible = True
             logger.info('Console tab shown')
@@ -498,6 +505,7 @@ class SettingsTab(ttk.Frame):
     # -------------------------
 
     def _toggle_maintenance_tab(self):
+        """Toggle the visibility of the maintenance tab in the notebook."""
         notebook = self.app.notebook
         maintenance_tab = self.app.maintenance_tab
 

@@ -23,8 +23,8 @@ import oci_policy_analysis.mcp_server as mcp_server
 from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.mcp_server import (
-    _start_mcp_server_in_thread,
     mcp_server_status,
+    start_mcp_server_in_thread,
 )
 
 
@@ -127,7 +127,7 @@ class McpTab(ttk.Frame):
             return
         mcp_server.pca = self.policy_repo
         logger.info('Starting MCP server...')
-        _start_mcp_server_in_thread(self.settings)
+        start_mcp_server_in_thread(self.settings)
         self._set_status(True)
 
     def _set_status(self, running: bool):

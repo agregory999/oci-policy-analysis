@@ -70,21 +70,28 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 # ----------- MAIN APPLICATION CLASS ------------
+"""
+Main Tkinter UI application for OCI Policy Analysis.
+
+This module can be executed directly:
+
+    python -m oci_policy_analysis.main
+
+or via the script entrypoint (if configured):
+
+    oci-policy-analysis
+
+When run as a script, the `__main__` block launches the full desktop UI.
+"""
+
+
 class App(tk.Tk):
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
-    """Main entry point for OCI Policy Analysis application.
-    Inherits from tk.Tk to create the main application window.
-    Methods:
-        __init__: Initializes the main application window, UI components, and shared resources.
-        apply_theme: Applies the selected theme and font size to the UI components.
-        toggle_bottom: Toggles the visibility of the bottom output frame.
-        restore_sash: (Internal) Restores the sash position of the PanedWindow from settings.
-        _apply_log_level: (Internal) Applies the selected log level from settings.
-        load_tenancy_async: Asynchronously loads tenancy data, policies, and compartments.
-        _import_cache_from_json: (Internal) Imports cached data from a JSON file.
-        _export_cache_to_json: (Internal) Exports cached data to a JSON file.
-        ask_genai_async: Asynchronously queries the GenAI model with the given prompt and additional instructions.
-        set_bottom_output: Displays the given string content as plain text in the output_text widget. Enables/disables copy button.
+    """
+    Main User Interface entry point for OCI Policy Analysis application.
+    Inherits from tk.Tk (TKinter) to create the main application window.
+    Tabbed interface with multiple tabs for different analysis features.
+    Helper classes and Repositories for data management and AI integration.
     """
 
     def __init__(self):
@@ -153,12 +160,12 @@ class App(tk.Tk):
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
-        self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Experimental)')
-        self.notebook.add(self.permissions_report_tab, text='Permissions\nReport')
         self.notebook.add(self.report_tab, text='Reports\nw/ Search')
-        self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.notebook.add(self.console_tab, text='Console\nLogging')
+        self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
+        self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
+        self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
+        self.notebook.add(self.console_tab, text='Console Logging\n(Admin)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Admin)')
 
         # Bottom frame (Entry + output text area)
@@ -221,6 +228,16 @@ class App(tk.Tk):
     # Theme switching via settings/config/combobox is removed; theme is fixed to 'clam'.
     # The following remains solely for font size setting.
     def apply_theme(self, *args):
+        """
+        Apply the selected font size from settings to the application style.
+        Not currently exposed in UI, but used at startup to set font size from saved settings.
+
+        TODO: Expand to full theme support if desired.
+
+        Args:
+
+            *args: Optional arguments (not used).
+        """
         sizes = {'Small': 9, 'Medium': 11, 'Large': 13, 'Extra Large': 15}
         size = sizes.get(self.settings_tab.font_var.get(), 11)
         logger.info(f'Applying font size: {self.settings_tab.font_var.get()} ({size}px)')
@@ -240,6 +257,9 @@ class App(tk.Tk):
     # All output is now plain text only.
 
     def toggle_bottom(self):
+        """
+        Toggle the visibility of the bottom output frame. Only available after AI is set up.
+        """
         if self.bottom_frame.winfo_ismapped():
             try:
                 self.settings['sashpos'] = self.pw.sashpos(0)
@@ -250,9 +270,12 @@ class App(tk.Tk):
         else:
             self.pw.add(self.bottom_frame, weight=1)
             config.save_settings(self.settings)
-            self.after(120, self.restore_sash)
+            self.after(120, self._restore_sash)
 
-    def restore_sash(self):
+    def _restore_sash(self):
+        """
+        Restore the sash position of the PanedWindow from saved settings.
+        """
         pos = self.settings.get('sashpos')
         if pos is not None:
             try:
@@ -280,7 +303,8 @@ class App(tk.Tk):
         callback: dict | None = None,
     ):
         """
-        Asynchronously loads tenancy data, policies, and compartments.
+        Asynchronously loads tenancy data, policies, and compartments.  Requires parameters for authentication method, whether to load compartments recursively, and optional named profile/session/cache.
+
         Args:
             tenancy_id (str): The OCID of the tenancy to load.
             recursive (bool): Whether to load compartments recursively.
@@ -288,10 +312,12 @@ class App(tk.Tk):
             named_profile (str): The named profile to use for authentication.
             named_session (str): The named session token if applicable.
             named_cache (str): The named cache file to load if applicable.
-            callback (dict, optional): A dictionary of callback functions for progress, error, and completion"""
+            callback (dict, optional): A dictionary of callback functions for progress, error, and completion
+        """
         logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
 
         def worker():  # noqa: C901
+            """Worker thread to load tenancy data."""
             try:
                 success = False
 
@@ -346,7 +372,7 @@ class App(tk.Tk):
 
             logger.info('Tenancy Load complete. Reloading all tabs')
             self.policy_overlap_tab.enable_widgets_after_load()
-            self.users_tab._update_user_analysis_output()
+            self.users_tab.update_user_analysis_output()
             self.policies_tab.update_policy_output()
             self.dynamic_groups_tab.enable_controls()
             self.cross_tenancy_tab.update_cross_tenancy_output()
@@ -359,6 +385,12 @@ class App(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     def _import_cache_from_json(self, callback: dict | None = None):  # noqa: C901
+        """
+        Imports cached policy analysis data from a JSON file selected by the user.
+
+        Args:
+            callback (dict, optional): A dictionary of callback functions for progress, error, and completion.
+        """
         if callback is None:
             callback = {}
         filepath = tkfiledialog.askopenfilename(filetypes=[('JSON Files', '*.json')])
@@ -405,6 +437,9 @@ class App(tk.Tk):
                 pass
 
     def _export_cache_to_json(self):
+        """
+        Exports the current cached policy analysis data to a JSON file selected by the user.
+        """
         filepath = tkfiledialog.asksaveasfile(filetypes=[('JSON Files', '*.json')])
         if filepath:
             logger.info(f'Writing file: {type(filepath)} {filepath.name}')
@@ -472,7 +507,10 @@ class App(tk.Tk):
 
     def set_bottom_output(self, content: str):
         """
-        Display the given string content as plain text in the output_text widget. Enables/disables copy button.
+        Display the given string content as plain text in the output_text widget.
+
+        Args:
+            content (str): The text content to display in the output area.
         """
         import json
 
@@ -515,6 +553,12 @@ class App(tk.Tk):
             self.update()
 
     def open_link(self, link):
+        """
+        Opens the given web link in the default browser.
+
+        Args:
+            link (str): The URL to open.
+        """
         logger.info(f'Opening web link: {link}')
         webbrowser.open_new(link)
 

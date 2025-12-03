@@ -721,6 +721,38 @@ def _build_arg_parser():
 
 
 def main():
+    """
+    Entry point for the OCI Policy Analysis Standalone MCP Server.
+
+    Parses command-line arguments to load, filter, display, or export OCI identity and policy information
+    from Oracle Cloud Infrastructure (OCI) using cached or live data.
+
+    MCP Server will be started in either stdio or streamable-http mode based on the provided arguments.
+
+    NOTE: If RUNNING IN STDIO MODE, ENSURE THE ENVIRONMENT VARIABLE MCP_STDIO_MODE=1 MUST BE SET TO AVOID ERRORS.
+
+    Parameters
+    ----------
+    --profile : str, optional
+        OCI CLI profile name to use for authentication (default is 'DEFAULT').
+    --instance-principal : bool, optional
+        Use instance principal authentication (mutually exclusive with --profile).
+    --use-cache : str, optional
+        Name of the combined cache to load data from (mutually exclusive with --profile and --instance-principal).
+    --session-token : str, optional
+        OCI session token for instance principal authentication.
+    --recursive : bool, optional
+        Recursively load all compartments (default is True).
+    --dont-save-cache-after-load : bool, optional
+        If set, do not save the combined cache after loading from OCI.
+    --transport : str, optional
+        Transport mode for MCP server ('stdio' or 'streamable-http', default is 'stdio').
+    --port : int, optional
+        Port number for streamable-http transport (default is 8765).
+    --host : str, optional
+        Host address for streamable-http transport (default is '127.0.0.1').
+
+    """
     logger.info('MCP server module logger initialized.')
 
     global args

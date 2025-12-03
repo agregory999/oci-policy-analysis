@@ -1,5 +1,5 @@
-oci_policy_analysis.logic package
-=================================
+OCI Policy Analysis Data and Logic
+======================================
 
 .. automodule:: oci_policy_analysis.logic
    :members:

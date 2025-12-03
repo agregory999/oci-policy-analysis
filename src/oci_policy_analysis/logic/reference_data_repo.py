@@ -93,6 +93,7 @@ class ReferenceDataRepo:
             entity (str): Resource name or family name.
             verb (str): Verb level ('inspect', 'read', 'use', 'manage').
             action (str): "allow" or "deny" (default: "allow")
+
         Returns:
             list: List of cumulative permissions.
         """
@@ -141,9 +142,11 @@ class ReferenceDataRepo:
     def check_overlap_params(self, entity1, verb1, action1, entity2, verb2, action2):
         """
         Check overlapped permissions by specifying both sides as entity/verb/action.
+
         Args:
             entity1 (str), verb1 (str), action1 (str)
             entity2 (str), verb2 (str), action2 (str)
+
         Returns:
             list: List of overlapping permissions.
         """

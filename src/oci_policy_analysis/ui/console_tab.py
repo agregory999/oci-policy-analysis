@@ -87,7 +87,7 @@ class ConsoleTab(ttk.Frame):
         self._attach_console_log_handler()
 
     def _build_ui(self):
-        ttk.Label(self, text='Console Log').pack(pady=10)
+        # ttk.Label(self, text='Console Log').pack(pady=10)
         ctrl_frame = ttk.Frame(self)
         ctrl_frame.pack(pady=10)
 

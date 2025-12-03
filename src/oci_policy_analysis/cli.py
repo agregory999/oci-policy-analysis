@@ -30,7 +30,58 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 def main():  # noqa: C901
-    """Main function to parse arguments and print policies and dynamic groups."""
+    """
+    Entry point for the OCI Policy and Dynamic Group Viewer CLI.
+
+    Parses command-line arguments to load, filter, display, or export OCI identity and policy information
+    from Oracle Cloud Infrastructure (OCI) using cached or live data.
+
+    Parameters
+    ----------
+    --verbose : bool
+        Enable verbose logging.
+    --app-log : bool
+        Log output to app.log instead of console.
+    --instance-principal : bool
+        Use instance principal authentication.
+    --get-caches : str
+        List available caches for the given tenancy.
+    --print-all : bool
+        Print all policies and dynamic groups.
+    --recursive : bool
+        Recursively load policies across all compartments.
+    --use-cache : str, optional
+        Load data from a specified combined cache file.
+    --dont-save-cache-after-load : bool
+        Prevent saving a new combined cache after loading from OCI.
+    --profile : str
+        OCI CLI profile to use (default ``DEFAULT``).
+    --filter-json : str, optional
+        A JSON filter expression for policies.
+    --export-json : str, optional
+        Write collected data to a JSON file.
+
+    Usage Examples:
+        To print all policies and dynamic groups using the ADMIN profile with verbose logging:
+
+        ``python -m oci_policy_analysis.cli --verbose --profile ADMIN --print-all``
+
+        To list available caches for a tenancy named "example-tenancy":
+
+        ``python -m oci_policy_analysis.cli --get-caches example-tenancy``
+
+        To load data from a specific cache and export to JSON:
+
+        ``python -m oci_policy_analysis.cli --use-cache 2024-11-17T10-43-08+00-00``
+
+        To filter policies with a JSON expression:
+
+        ``python -m oci_policy_analysis.cli --filter-json '{"Subject": "group1", "Verb": "read"}'``
+
+    Returns:
+        None. Provides console output and/or writes files as specified.
+
+    """
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     parser.add_argument('--app-log', action='store_true', help='Enable app.log for logging (default is console)')
