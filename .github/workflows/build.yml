@@ -17,6 +17,7 @@ jobs:
     steps:
       - name: Skip release if docs-only commit
         id: skip_release
+        shell: bash
         run: |
           if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -76,6 +77,7 @@ jobs:
     steps:
       - name: Skip build if docs-only commit
         id: skip_build
+        shell: bash
         run: |
           if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -303,6 +305,7 @@ jobs:
     steps:
       - name: Skip publish if docs-only commit
         id: skip_publish
+        shell: bash
         run: |
           if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT

@@ -6,11 +6,11 @@ There are 3 main entry points to the OCI Policy Analysis application:
 2) Command Line access -- the CLI
 3) Model Context Protocol -- the MCP Server
 
-MCP is covered in its ![own document](./mcp.html), so keep reading for what the main application is capable of and how to use it.
+MCP is covered in its [own document](./mcp.html), so keep reading for what the main application is capable of and how to use it.
 
 ## Starting the UI
 
-This page does not cover building the application or setting up Python and the libraries.  For that, see the complete ![Setup Guide](./setup.html).
+This page does not cover building the application or setting up Python and the libraries.  For that, see the complete [Setup Guide](./setup.html).
 
 The UI can be started from a downloaded executable file simply by double-clicking on it.  For Mac and Windows you will need to give permission for the app to run locally until which time the python executable can be shipped as a trusted publisher.
 
@@ -115,7 +115,39 @@ Lists all dynamic groups in all identity domains, with filters available.  Choos
 
 ## Resource Principals Tab
 
+Shows statements that are scoped by resource principal.  OCI Resource Principals are a specific ways to allow non-humans to perform actions within OCI.  Consider a [Autonomous Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/resource-principal.html) needing to access Object Storage.  The Resource in this case is defined as `resource.type = 'autonomousdatabase'`.  The syntax allows for 2 methods of defining and using Resource Principals, each with syntax that the tool can detect.
+
+### Dynamic Group Resource Principals
+
+A dynamic group is required, and in that dynamic group, the matching rule may contain the resource type or be chained with multiple other conditions.  Membership in the dynamic group is based on all or any rules, as per dynamic group syntax.
+
+### Any-User Resource Principals
+
+Resource Principals can also be defined using policy statements that avoid the need for Dynamic Groups.  The general format if using multiple conditions (per the ADB doc):
+
+```
+allow any-user to <verb> <resource> in <location> where ALL {resource.type = 'autonomousdatabase', resource.id = 'ocid.xx.yy'}
+```
+or if a single condition (for example, all ADB instances):
+```
+allow any-user to <verb> <resource> in <location> where resource.type = 'autonomousdatabase'
+
+```
+When searching for policy statements by the `any-user` style, the Resource Type selector allows selection of a specific type.  So for example all statements where `autonomousdatabase` is referenced in the resource principal statement.
+
 ## Cross Tenancy Tab
+
+Shows the [cross-tenancy statements](https://docs.public.content.oci.oraclecloud.com/en-us/iaas/Content/Identity/policieshow/iam-cross-domain.htm), which are separated from "normal" policy statements.  These contain the following:
+
+- **Define** - Gives a friendly name to an OCID from another tenancy.  This could refer to the tenancy OCID, compartment OCID, group OCID, or dynamic group OCID.  The friendly name (or alias) is used in cross-tenancy statements.
+
+- **endorse or deny endorse** - Allows (or denies) a group or user from YOUR tenancy to access resources in ANOTHER tenancy using an alias  from a define statement 
+
+- **admit or deny admit** - Allows (or denies) a named alias from ANOTHER tenancy to access resources in YOUR tenancy 
+
+By selecting a define statement, the related cross-tenancy statements are shown.  
+
+**NOTE:** No parsing is being done at this time - it is a TODO.
 
 ## Policy Overlap Tab
 
