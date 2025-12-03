@@ -1,4 +1,7 @@
 {
+  "releaseRules": [
+    { "type": "docs", "release": false }
+  ],
   "tagFormat": "v${version}",
   "repositoryUrl": "https://github.com/agregory999/oci-policy-analysis.git",
   "branches": [

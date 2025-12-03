@@ -104,6 +104,8 @@ If the AI Insights is toggled on (see above), then by clicking on a row in the o
 
 ## Dynamic Groups Tab
 
+Lists all dynamic groups in all identity domains, with filters available.  Choosing a dynamic group will update the policy list below with policy statements pertaining to the selected dynamic group.  
+
 ## Resource Principals Tab
 
 ## Cross Tenancy Tab

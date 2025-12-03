@@ -15,22 +15,37 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
+      - name: Skip release if docs-only commit
+        id: skip_release
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping release for docs commit."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.skip_release.outputs.skip != 'true'
         with: { fetch-depth: 0 }
 
       - name: Install Node and semantic-release
+        if: steps.skip_release.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with: { node-version: '20' }
 
       - run: |
           npm install -g semantic-release@22 @semantic-release/changelog@6 @semantic-release/git@10 @semantic-release/github@9 conventional-changelog-conventionalcommits@7 @semantic-release/exec@6
+        if: steps.skip_release.outputs.skip != 'true'
 
       - name: Run semantic-release
+        if: steps.skip_release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: semantic-release
 
       - name: Determine version
+        if: steps.skip_release.outputs.skip != 'true'
         id: version
         run: |
           git fetch --tags --force
@@ -59,20 +74,34 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Skip build if docs-only commit
+        id: skip_build
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping build for docs commit."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.skip_build.outputs.skip != 'true'
         with: { fetch-depth: 0 }
 
       - name: Install uv
+        if: steps.skip_build.outputs.skip != 'true'
         uses: astral-sh/setup-uv@v2
         with:
           version: "latest"
 
       - name: Fetch updated tags from release job
+        if: steps.skip_build.outputs.skip != 'true'
         run: |
           git fetch --tags --force
           git describe --tags
 
       - name: Set up Python
+        if: steps.skip_build.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -81,6 +110,7 @@ jobs:
           architecture: 'x64' 
         
       - name: Build wheels from source (uv + pip)
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
@@ -114,6 +144,7 @@ jobs:
 
 
       - name: Build package
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
@@ -124,10 +155,12 @@ jobs:
           pip install -e .
 
       - name: Run Ruff check
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: ruff check src || echo "⚠️ Ruff warnings ignored."
 
       - name: Derive build version
+        if: steps.skip_build.outputs.skip != 'true'
         id: version
         shell: bash
         run: |
@@ -140,11 +173,13 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Inject version into version.txt
+        if: steps.skip_build.outputs.skip != 'true'
         run: |
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
       - name: Build (macOS & Linux)
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         if: runner.os != 'Windows'
         run: |
@@ -186,6 +221,7 @@ jobs:
           fi
 
       - name: Build (Windows)
+        if: steps.skip_build.outputs.skip != 'true'
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -208,6 +244,7 @@ jobs:
             src\oci_policy_analysis\main.py
 
       - name: Package artifact
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: |
           VERSION=${{ needs.release.outputs.version }}
@@ -238,6 +275,7 @@ jobs:
           ls -lh dist
 
       - name: Package artifact for Windows
+        if: steps.skip_build.outputs.skip != 'true'
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -252,6 +290,7 @@ jobs:
 
 
       - name: Upload artifact
+        if: steps.skip_build.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: oci-policy-analysis-${{ matrix.platform }}
@@ -265,19 +304,33 @@ jobs:
     needs: [release, build]
     runs-on: ubuntu-latest
     steps:
+      - name: Skip publish if docs-only commit
+        id: skip_publish
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping publish for docs commit."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout
+        if: steps.skip_publish.outputs.skip != 'true'
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
       - name: Download all artifacts
+        if: steps.skip_publish.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           path: dist
 
       - name: Show collected artifacts
+        if: steps.skip_publish.outputs.skip != 'true'
         run: ls -lhR dist
 
       - name: Create GitHub Release
+        if: steps.skip_publish.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.release.outputs.version }}
