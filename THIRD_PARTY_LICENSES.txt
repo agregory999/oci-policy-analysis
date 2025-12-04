@@ -1,4 +1,4 @@
-OCI toolkit for Python Third Party License File
+OCI Policy Analysis Third Party License File
 
 
 ------------------------ Third Party Components ------------------------
