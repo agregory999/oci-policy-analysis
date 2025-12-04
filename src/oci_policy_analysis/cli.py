@@ -93,7 +93,9 @@ def main():  # noqa: C901
     )
     parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument(
-        '--dont-save-cache-after-load', help='Save the combined cache after loading from OCI', action='store_true'
+        '--dont-save-cache-after-load',
+        help='Do not save the combined cache after loading from OCI',
+        action='store_true',
     )
     parser.add_argument('--profile', default='DEFAULT', help='OCI CLI profile to use (default: DEFAULT)')
     parser.add_argument('--filter-json', help='JSON string with filter criteria', type=str, default=None)

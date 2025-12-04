@@ -86,11 +86,11 @@ Click the column headers to sort the results by that column
 
 Use the checkboxes to further filter the results by category.  For example, if the search in the top was for resource of `database`, statements returned could be for user, service, or dynamic groups.  The output filters control what is displayed.
 
-### Invalid Only
+#### Invalid Only
 
 The invalid only checkbox controls whether to show only invalid statements (and reasons) matching the filter at the top.
 
-### Expanded Output
+#### Expanded Output
 
 The parsed output from each policy is not shown by default, but can be enabled with this checkbox.  All available data is shown in the table, which will involve scrolling to the right.
 
@@ -115,7 +115,18 @@ Similar to other tabs, if AI Insights is toggled on, the selection of a policy s
 
 ## Dynamic Groups Tab
 
-Lists all dynamic groups in all identity domains, with filters available.  Choosing a dynamic group will update the policy list below with policy statements pertaining to the selected dynamic group.  
+Lists all dynamic groups in all identity domains, with filters available.  Choosing a dynamic group will update the policy list below with policy statements pertaining to the selected dynamic group.
+
+### Unused Dynamic Groups
+This tab also allows you to see which Dynamic Groups are unused.  If hte Dynamic Group is not referenced in any policy statement, it is considered unused.  This isn't a problem, but can cause confusion.
+
+If a dynamic group is show as unused but you think it shouldn't be, it is likely that the policy statement or dynamic group is not referring to correct identity domain.  Policy statements granting permission to a dynamic group within an identity domain MUST refer to the domain name in the policy statement like this:
+```
+allow dynamic-group 'id-domain-name'/'dynamic-group-name' to <verb> <resource> in <location>
+```
+
+### GenAI Insights
+For Dynamic Groups, if AI Insights is toggled on, the selection of a policy statement will allow the user to generate insights as to the meaning of the policy statement, with the additional dynamic group detail as context.  
 
 ## Resource Principals Tab
 
@@ -154,6 +165,12 @@ By selecting a define statement, the related cross-tenancy statements are shown.
 **NOTE:** No parsing is being done at this time - it is a TODO.
 
 ## Policy Overlap Tab
+
+Allows for inspection of overlapping policies for each policy statement.  Each policy statement references a given list of subjects, applies to a specific effective path, and covers a verb/resource or set of individual permissions.  If any other policy has an overlap, this can be detected.  
+
+Resources in OCI are comprised of underlying permissions, so it is possible to conflict where a resource from one policy statement and a permission from another conflict.
+
+When there are conflicts, it is not necessarily a problem.  However, if a statement is removed, the permission may still be covered by another statement.  Seeing this information can help detect what will happen if changes are made.
 
 ## Permissions Report Tab
 

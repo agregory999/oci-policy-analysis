@@ -15,9 +15,13 @@ Here are the methods that OCI Policy Analysis supports for MCP:
 
 In the case of the standalone MCP Server, command line options are available, which control where to load the data from.  For example, to load data from a specific OCI Profile or from a local cache.  Also, there is a a switch to control STDIO or Streamable HTTP
 
-## MCP using STDIO
+## MCP Architectures
 
-Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Here is the architecture for this:
+Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Others expect you to have an MCP Server running and they will conenct.  Both architectures are shown here:
+
+### MCP via STDIO:
+
+MCP Clients start the subprocess for MCP, and it loads its data, runs as an embedded python process, and the client sends and receives over Standard IO.
 
 ```mermaid
 flowchart LR
@@ -75,15 +79,14 @@ flowchart LR
     style OCI-API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
----
-
-## Running MCP
+## Running MCP from OCI Policy Analysis
 
 MCP Servers have 2 basic modes: STDIO and Streamable-HTTP.  STDIO mode is good for embedding in an AI Desktop client such as Claude, Oracle Code Assist, or VSCode.  More details on setups later on in the document.
 
 Streamable HTTP is good for a server, where MCP is not local to the client, or in the OCI Policy Analysis Embedded MCP tab, the clients connect to the app over HTTP on the configured port.
 
 In either case, the OCI Policy Analysis tool has a handful of options that can be applied.  See the usage for details:
+
 ```bash
 usage: mcp_server.py [-h] (--profile PROFILE | --instance-principal | --use-cache USE_CACHE | --session-token SESSION_TOKEN) [--recursive] [--dont-save-cache-after-load] [--transport {stdio,streamable-http}] [--port PORT] [--host HOST]
 
@@ -97,14 +100,55 @@ options:
                         OCI session token for instance principal auth
   --recursive           Recursively load all compartments (default: True)
   --dont-save-cache-after-load
-                        Save the combined cache after loading from OCI
+                        Dont save the combined cache after loading from OCI
   --transport {stdio,streamable-http}
   --port PORT
   --host HOST
   ```
 
+The options listed below cover the supported configurations.
+
+(finding-the-available-caches)=
+### Finding the Available Caches
+
+If you want to use an existing cache from OCI Policy Analysis, for example, after having run the UI and loading data from any tenancy, you can use the command line first, to show the named caches available by tenancy and date of data load:
+
+You can use the CLI to show caches for a given tenancy.  Ensure that the application is built locally first, and that the correct virtual environment is loaded:
+```
+agregory@agregory-mac ~ % python -m oci_policy_analysis.cli --get-caches andgre5678
+
+2025-12-04 16:32:48,895 [INFO] [root] Root logger initialized (stdout + app.log).
+2025-12-04 16:32:49,006 [INFO] [oci-policy-analysis.reference_data_repo] Loading reference data from directory: /Users/agregory/oci-policy-analysis/.venv/lib/python3.12/site-packages/oci_policy_analysis/logic/permissions
+2025-12-04 16:32:49,008 [INFO] [oci-policy-analysis.reference_data_repo] Loaded 23 reference data files. Total resources: 303, families: 46
+2025-12-04 16:32:49,339 [INFO] [oci-policy-analysis.reference_data_repo] Loading reference data from directory: /Users/agregory/oci-policy-analysis/.venv/lib/python3.12/site-packages/oci_policy_analysis/logic/permissions
+2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.reference_data_repo] Loaded 23 reference data files. Total resources: 303, families: 46
+<frozen runpy>:128: RuntimeWarning: 'oci_policy_analysis.cli' found in sys.modules after import of package 'oci_policy_analysis', but prior to execution of 'oci_policy_analysis.cli'; this may result in unpredictable behaviour
+2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.cli] Logging to Console
+2025-12-04 16:32:49,341 [INFO] [oci-policy-analysis.data_repo] Initialized PolicyAnalysisRepo
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.caching] Initialized Caching at /Users/agregory/.oci-policy-analysis/cache
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.caching] Entries found in cache_entries.json: 11
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] Available caches:
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-56-50-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-56-04-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-53-40-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-23-49-04-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-03-14-15-24-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-12-02-19-04-53-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-16-43-15-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-16-40-46-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-15-19-59-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-15-04-29-UTC
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] andgre5678_2025-11-26-saved
+2025-12-04 16:32:49,342 [INFO] [oci-policy-analysis.cli] Exiting after listing caches as --get-caches was provided
+``` 
+
+With the cache name and date (for example, `andgre5678_2025-12-03-23-56-50-UTC`), you can set up MCP within the Claude or VSCode config file.
 
 ### MCP Option 1 - Locally with STDIO and Claude
+
+In order to use Claude with MCP, you update a file called `claude_desktop_config.json` and simply restart Claude after changes.  To add the MCP server using STDIO mode, you likely want to start with a cached copy of the tenancy data, from a previous run from the UI or CLI, where the cache file exists.  See [above](#finding-the-available-caches) for more details on getting the cache name.
+
+Claude Desktop and MCP over STDIO Architecture:
 
 ```mermaid
 flowchart LR
@@ -128,27 +172,7 @@ flowchart LR
     style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-In order to use Claude with MCP, you update a file called `claude_desktop_config.json` and simply restart Claude after changes.  To add the MCP server using STDIO mode, you likely want to start with a cached copy of the tenancy data, from a previous run from the UI or CLI, where the cache file exists.  
-
-You can use the CLI to show caches for a given tenancy:
-```
-agregory@agregory-mac ~ % MCP_STDIO_MODE=1 /Users/agregory/oci-policy-analysis/.venv/bin/python /Users/agregory/oci-policy-analysis/src/oci_policy_analysis/cli.py --get-caches naceoci01
-2025-10-29 16:10:45,260 [INFO] [root] Root logger initialized (stdout + app.log).
-2025-10-29 16:10:45,385 [INFO] [oci.circuit_breaker] Default Auth client Circuit breaker strategy enabled
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] Logging to Console
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.data_repo] Initialized PolicyAnalysisRepo
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.caching] Initialized Caching at /Users/agregory/.oci-policy-analysis/cache
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.caching] Successfully loaded cache with 7 entries
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.caching] Entries found in cache_entries.json: 4
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] Available caches:
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] naceoci01_2025-10-29-16-52-22-UTC
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] naceoci01_2025-10-29-12-14-47-UTC
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] naceoci01_2025-10-28-20-30-55-UTC
-2025-10-29 16:10:45,540 [INFO] [oci-policy-analysis.cli] naceoci01_2025-10-28-19-26-08-UTC
-2025-10-29 16:10:45,541 [INFO] [oci-policy-analysis.cli] Exiting after listing caches as --get-caches was provided
-``` 
-
-With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`), set up MCP within the Claude config file.
+Following are 2 examples.
 
 #### Flavor 1 - Cached Data
 ```json
@@ -157,9 +181,10 @@ With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`),
     "oci-policy-local": {
       "command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
       "args": [
-        "/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py",
+        "-m",
+        "oci_policy_analysis.mcp_server",
         "--use-cache",
-        "tenancy_2025-10-29-16-52-22-UTC"
+        "andgre5678_2025-12-03-23-56-50-UTC"
       ],
       "env": {
         "MCP_STDIO_MODE": "1"
@@ -169,7 +194,7 @@ With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`),
   }
 }
 ```
-#### Flavor 2 - Load Data via SDK
+#### Flavor 2 - Load Data via SDK (Live)
 
 **Hint** Your `YOUR-OCI-NAMED-PROFILE` may be `DEFAULT` if that is the only profile on your machine.
 ```json
@@ -178,7 +203,8 @@ With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`),
     "oci-policy-local": {
       "command": "/Users/agregory/oci-policy-analysis/.venv/bin/python",
       "args": [
-        "/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py",
+        "-m",
+        "oci_policy_analysis.mcp_server",
         "--profile",
         "YOUR-OCI-NAMED-PROFILE"
       ],
@@ -191,9 +217,13 @@ With the cache name and date (for example, `naceoci01_2025-10-28-19-26-08-UTC`),
 }
 ```
 
-When Claude starts it will automatically run the code from your local git repo, assuming you set up a virtual environment similar to the path above.
+**NOTE** If you want to load live tenancy data but NOT create a new cache each time, add in the `--dont-save-cache-after-load` flag on a new line in the configuration above.
+
+When Claude starts it will automatically run the code from your locally built application, assuming you set up a virtual environment similar to the path above.
 
 ### MCP Option 2 - Streamable HTTP and Claude
+
+In this model, Claude requires an installed [MCP Proxy](https://github.com/sparfenyuk/mcp-proxy) on your machine.  The MCP Server can be started as a standalone Python process or from the OCI Policy Analysis UI with the Embedded MCP tab.  Either way, it will be listening on host:port and then the MCP Proxy connects to it.
 
 ```mermaid
 flowchart LR
@@ -242,6 +272,8 @@ When you start Claude, it will connect if your MCP is running at the given locat
 
 ### MCP Option 3 - VSCode Co-Pilot and STDIO (Local)
 
+VSCode Configuration is similar to, but different from Claude.  The architecture for STDIO is very similar:
+
 ```mermaid
 flowchart LR
     subgraph LOCAL["Local Machine"]
@@ -264,16 +296,10 @@ flowchart LR
     style API fill:#f7e9ff,stroke:#a37aff,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-Similar to Claude, VSCode will start your MCP standalone process and communicate directly with it.  To set this up, follow VSCode MCP Server setup and use the full command that you can test ahead of time:
-```
-mac> /Users/agregory/oci-policy-analysis/.venv/bin/python /Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py --use-cache tenancy_2025-10-29-21-05-09-UTC
-```
+#### Flavor 1 - Cached Data
 
-When done, you will have an mcp.json file with the configuration that you can try to start.
+Use the command line to get the [name of the cache](#finding-the-available-caches) to use.  Then configure VSCode to add it to the startup command.
 
-**NOTE:** Remember to set `MCP_STDIO_MODE` in order to suppress standard out - this forces all output to stderr
-
-#### Flavor 1 - Cached
 ```json
     "mcp-local-stdio": {
         "type": "stdio",
@@ -282,13 +308,20 @@ When done, you will have an mcp.json file with the configuration that you can tr
             "MCP_STDIO_MODE": "1"
         },
         "args": [
-            "/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py",
+            "-m",
+            "oci_policy_analysis.mcp_server.",
             "--use-cache",
             "tenancy_2025-10-29-16-52-22-UTC"
         ]
     }
 ```
-#### Flavor 2 - Load via SDK
+
+VSCode logs and output should show communication with MCP.
+
+#### Flavor 2 - Load via OCI SDK (Live Data)
+
+Without the cache, it will conenct to the tenancy and load the data.
+
 ```json
 		"mcp-local-stdio-live": {
 			"type": "stdio",
@@ -297,7 +330,8 @@ When done, you will have an mcp.json file with the configuration that you can tr
 				"MCP_STDIO_MODE": "1"
 			},
 			"args": [
-				"/Users/agregory/oci-policy-analysis/src/oci_policy_analysis/mcp_server.py",
+        "-m"
+				"oci_policy_analysis.mcp_server",
 				"--profile",
 				"POLICY-ANDGRE-5678"
 			]
@@ -310,9 +344,9 @@ If it starts, you will something like this in the VSCode Output:
 2025-10-29 20:06:34.835 [info] Discovered 6 tools
 ```
 
-From there, use the chat and ask it a question like "Show me my OCI Policies that have a verb of manage"
-
 ### MCP Option 4 - VSCode Remote HTTP
+
+VSCode will also connect to any running MCP server, and does not need the MCP Proxy that Claude requires.  Simply connect to the running MCP Server, either running Standalone or Embedded within the UI.
 
 ```mermaid
 flowchart LR
@@ -416,33 +450,33 @@ In this production deployment, the MCP server runs on an OCI compute instance wi
 
 ## Setup for MCP Locally or on a Server
 
-Running locally offers similar options, around loading of data, or using cached data.  Similar to the CLI, you can run with a cached data set or load the tenancy.  For this way of running, STDIO doesn't make sense, as you are expecting a client to access via HTTP.  
+Running locally allows you to build OCI Policy Analysis, connect to live or cached data, and avoid using the UI.  Similar to the CLI, you can run with a cached data set or load the tenancy.  For this way of running, STDIO doesn't make sense, as you are expecting a client to access via HTTP.  
 
-Load the tenancy via PROFILE:
+Example 5 above talks about running on a server with a load balancer.  You can use the method described here to run OCI Policy Analysis on an OCI Virtual Machine with Instance Principal, and then expose using a Load Balancer.  Then desktop clients can connect MCP tools with stopping and starting the server.
+
+### Load the tenancy via PROFILE
 ```bash
-python src/oci_policy_analysis/mcp_server.py --profile DEFAULT --transport streamable-http --host 0.0.0.0
+python  -m oci_policy_analysis.mcp_server --profile DEFAULT --transport streamable-http --host 0.0.0.0
 ```
 
-Load the tenancy via Instance Principal:
+### Load the tenancy via Instance Principal
 ```bash
-python src/oci_policy_analysis/mcp_server.py --instance-principal --transport streamable-http --host 0.0.0.0
+python -m oci_policy_analysis.mcp_server --instance-principal --transport streamable-http --host 0.0.0.0
 ```
 
-Use a cached data set from a previous load:
+### Using Cached Data
 ```bash
-python src/oci_policy_analysis/mcp_server.py --use-cache andgre5678_2025-10-17-17-54-09-UTC --transport streamable-http --host 0.0.0.0
+python -m oci_policy_analysis.mcp_server --use-cache andgre5678_2025-10-17-17-54-09-UTC --transport streamable-http --host 0.0.0.0
 ```
 
 ### Adding OCI Load Balancer
 To run behind a Load Balancer on a server, see above first.  Following that, In your VCN's public subnet, run a standard Layer 7 Load Balancer, listening on port 443 (HTTPS) with health check and backend set with your private host and port (default 8765).  Once the LB is up, point Claude or VSCode (option 2 or 4 above) to the LB's public domain and port - below there is a cert running on the LB, so the https address and cert are valid.  But it points to the MCP server on the backend.
 
-
 ```bash
 mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.app/mcp
 ```
 
-
-#### 🔐 Secure Deployment on OCI (Steps)
+## Secure Deployment on OCI (Outline Steps)
 
 1. Deploy Compute Instance (OL9, Instance Principal)
 2. Configure Dynamic Group and Policy:
@@ -456,9 +490,7 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
    curl -vk https://oci-policy-analysis-mcp.ocidemo.app/mcp
    ```
 
----
-
-## 🔧 Available MCP Tools
+## Available MCP Tools
 
 
 MCP clients such as **Claude** and **VS Code Copilot** understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.
@@ -485,6 +517,63 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 ---
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
+
+### 9. `compare_reference_data_caches`
+Compare the previous reference data cache for this tenancy to the current in-memory state.
+
+**Features:**
+- Compares the saved ("previous") cache to current in-memory IAM and policy data.
+- Returns a summary and details on what has changed (added, removed, modified), using a deep structural diff.
+- Useful for diagnosing updates to policies, dynamic groups, groups, users, etc.
+
+**Input:** None
+
+**Response:**
+- `response_type`: Always `"reference_data_diff"`
+- `cache_a`: Name of previous cache used for comparison
+- `cache_b`: `"in-memory current state"`
+- `diff_summary`: Concise description of what changed (e.g., "policies: 2 changed, groups: 1 removed")
+- `diff_details`: Structured diff compatible with [DeepDiff](https://zepworks.com/deepdiff/current/) output
+- `message`: Human-readable summary
+
+**Example:**
+```json
+{
+  "response_type": "reference_data_diff",
+  "cache_a": "andgre5678_2025-11-30-13-37-50-UTC",
+  "cache_b": "in-memory current state",
+  "diff_summary": "policies: 2 new, users: 1 removed, dynamic_groups: 1 changed",
+  "message": "Compared previous cache 'andgre5678_2025-11-30-13-37-50-UTC' vs current memory. policies: 2 new."
+}
+```
+
+---
+
+### 10. `reload_mcp_data`
+Reload all policy and identity data from OCI into the in-memory MCP server repository.
+
+**Features:**
+- Live reloads the full OCI tenancy policy and identity data (requires running server with profile or instance principal, not just cache mode).
+- Also saves a new combined cache after reload, unless `--dont-save-cache-after-load` is set.
+- Useful for refreshing the data visible to MCP clients without restarting the server process.
+
+**Input:** None
+
+**Response:**
+- `status`: "success" or "error"
+- `message`: Result summary ("Data reloaded successfully")
+- `total_policies`: Number of policies loaded after reload
+- `data_as_of`: Timestamp for new data snapshot
+
+**Example:**
+```json
+{
+  "status": "success",
+  "message": "Data reloaded successfully",
+  "total_policies": 374,
+  "data_as_of": "2025-12-04T15:45:21Z"
+}
+```
 
 ### 1. `filter_policy_statements`
 **Primary tool for policy analysis** - Filter OCI IAM policy statements with flexible criteria.
@@ -667,4 +756,3 @@ Filter cross-tenancy policy statements that reference a specific alias.
 3. **Use fuzzy search**: `search_users`, `search_groups` support partial string matching
 4. **OCID filtering**: All `*_ocid` fields support partial OCID matching
 5. **Check response type**: Large result sets return summaries - add filters to get full details
-

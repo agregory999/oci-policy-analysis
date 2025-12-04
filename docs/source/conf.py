@@ -40,7 +40,7 @@ myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-
+html_theme_options = {'navigation_depth': 3}  # only show H1 and H2 and H3 in sidebar
 autosummary_generate = True
 autodoc_member_order = 'bysource'
 autodoc_default_options = {'members': True, 'undoc-members': False, 'show-inheritance': True}

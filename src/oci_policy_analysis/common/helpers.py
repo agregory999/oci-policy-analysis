@@ -21,8 +21,10 @@ def for_display_policy(statement: PolicyStatement) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         statement (PolicyStatement): The policy statement (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
@@ -63,8 +65,10 @@ def for_display_user(u: User) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         u (User): The user (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
@@ -85,8 +89,10 @@ def for_display_group(g: Group) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         g (Group): The group (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
@@ -105,8 +111,10 @@ def for_display_dynamic_group(dg: DynamicGroup) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         dg (DynamicGroup): The dynamic group (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
@@ -131,8 +139,10 @@ def for_display_define(define: DefineStatement) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         define (DefineStatement): The define statement (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
@@ -151,8 +161,10 @@ def for_display_cross_tenancy(statement: PolicyStatement) -> dict:
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
     display-friendly names.
+
     Args:
         statement (PolicyStatement): The cross-tenancy policy statement (dict) to format.
+
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
