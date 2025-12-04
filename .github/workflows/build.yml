@@ -113,7 +113,7 @@ jobs:
           python -m pip install --upgrade pip
 
           # ensure build toolchain (pip uses wheels, but this is allowed)
-          pip install build wheel setuptools pyinstaller==6.14.2 ruff
+          pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
           echo "🔒 Locking dependencies with pip-compile..."
           pip-compile --generate-hashes --output-file frozen.txt pyproject.toml
