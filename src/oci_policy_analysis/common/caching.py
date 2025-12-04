@@ -57,7 +57,15 @@ class CacheManager:
 
     # Utility functions for loading and saving cache, using combined caching strategy
     def save_combined_cache(self, export_file=None, preserved: bool = False) -> str:
-        """Save combined cache for policies and dynamic groups. Returns file name if you care"""
+        """
+        Save combined cache for policies and dynamic groups. Returns file name.
+
+        Args:
+            export_file: Optional file handle to export to instead of saving to cache directory
+            preserved: Whether to mark this cache as preserved (not auto-deleted)
+
+        Returns:
+            The name of the file saved"""
 
         # Date of the cache
         CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
@@ -187,12 +195,11 @@ class CacheManager:
         """Load combined cache for policies and dynamic groups.
 
         Given the name and data of a cache, loads the data into both of the centralized structures
-        for Compartment/Policy and Identity Domain storage.
+        for Compartment/Policy JSON storage.
 
         Args:
             named_cache: The tenancy_date string of the cache name to load
-            policy_analysis: The initialized PolicyCompartmentAnalysis class instance to use
-            domains_analysis: The initialized IdentityDomainsAnalysis class instance to use
+
         Returns:
             A string indicating the name of the file used
         """
@@ -247,7 +254,14 @@ class CacheManager:
         return str(combined_cache_file)
 
     def load_cache_from_json(self, loaded_json: dict) -> bool:
-        # Load everything from given JSON
+        """
+        Load combined cache data from a given JSON dict.
+        Given loaded JSON data, loads the data into both of the centralized structures
+        for Compartment/Policy JSON storage.
+
+        Args:
+            loaded_json: The loaded JSON data as a dict
+        """
         try:
             # Grab all of the elements of the cache
             policies = loaded_json.get('policies', [])
@@ -325,6 +339,12 @@ class CacheManager:
         """
         Takes a named cache (tenancy_date) and returns the loaded JSON data as a dict.
         Used for exporting or other purposes.
+
+        Args:
+            cached_tenancy: The tenancy_date string of the cache name to load
+
+        Returns:
+            The loaded cache data as a dict
         """
         combined_cache_file = self.cache_dir / f'combined_cache_{cached_tenancy}.json'
         if combined_cache_file.exists():
@@ -345,7 +365,15 @@ class CacheManager:
         return {}
 
     def remove_cache_entry(self, named_cache: str) -> bool:
-        """Remove specified cache file AND its entry from cache_entries.json."""
+        """
+        Remove specified cache file AND its entry from cache_entries.json.
+
+        Args:
+            named_cache: The tenancy_date string of the cache name to remove
+
+        Returns:
+            True if both file and entry were removed, False otherwise
+        """
         cache_file = self.cache_dir / f'combined_cache_{named_cache}.json'
         removed_file = False
         if cache_file.exists():
@@ -375,7 +403,16 @@ class CacheManager:
         return removed_file and updated
 
     def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:
-        """Rename both the cache file and its entry in cache_entries.json."""
+        """
+        Rename both the cache file and its entry in cache_entries.json.
+
+        Args:
+            old_named_cache: The current tenancy_date string of the cache name
+            new_named_cache: The new tenancy_date string of the cache name
+
+        Returns:
+            True if both file and entry were renamed, False otherwise
+        """
         old_file = self.cache_dir / f'combined_cache_{old_named_cache}.json'
         new_file = self.cache_dir / f'combined_cache_{new_named_cache}.json'
         renamed_file = False
@@ -410,7 +447,16 @@ class CacheManager:
         return renamed_file and updated
 
     def preserve_cache_entry(self, named_cache: str, preserve: bool = True) -> bool:
-        """Mark or unmark a cache entry as preserved in cache_entries.json."""
+        """
+        Mark or unmark a cache entry as preserved in cache_entries.json.
+
+        Args:
+            named_cache: The tenancy_date string of the cache name to update
+            preserve: True to mark as preserved, False to unmark
+
+        Returns:
+            True if the entry was updated, False otherwise
+        """
         entries_path = self.cache_dir / 'cache_entries.json'
         updated = False
         if entries_path.exists():

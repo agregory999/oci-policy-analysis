@@ -117,25 +117,18 @@ VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
 
 class PolicyAnalysisRepository:
-    """This is the main data repository for Policy, Identity, and Compartment data
+    """
+    This is the main data repository for Policy, Identity, and Compartment data
 
     During initialization, the entire compartment hierarchy and policy tree is loaded into a central JSON dictionary.
     This central dictionary is then referenced by functions that filter and return a subset of information for display.
     Parsing, additional analysis, and import/export are made available by additional functions exposed.
 
-    Attributes:
-        compartments: A list of JSON dicts containing the compartment hierarchy
-        regular_statements: A list of JSON dicts containing the individual regular policy statements within an OCI tenancy
-        cross_tenancy_statements: A list of JSON dicts containing the individual cross-tenancy policy statements within an OCI tenancy
-        defined_aliases: A list of JSON dicts containing the "define" statements within an OCI tenancy, used for cross-tenancy evaluation
-        dynamic_groups: A list of JSON dicts containing the Dyanmic Groups present in the OCI tenancy
-        identity_domains: A list of JSON dicts containing the Identity Domains in the OCI tenancy
-        groups: A list of JSON dicts containing the Groups in the OCI tenancy
-        users: A list of JSON dicts containing the Users in the OCI tenancy
-        domain_clients: A dict containing the OCI IdentityDomainClients required to collect all of the information
-         data_as_of: The timestamp that this data load was completed.
-        tenancy_ocid: The OCID of the tenancy being analyzed here.
-        identity_client: The OCI client that is initialized and used for all data loading purposes.
+    Loading of data starts from `load_policies_and_compartments`, which loads all compartments and policies recursively
+
+    Filtering functions return lists of dataclass objects defined in models.py for easy consumption by UI or CLI layers.
+
+    See `filter_policy_statements` for an example of filtering and returning PolicyStatement objects.
     """
 
     def __init__(self):
@@ -220,7 +213,6 @@ class PolicyAnalysisRepository:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
-    # --- Internal Helpers ---
     def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
         """
         Get all PolicyOverlap entries for a given statement internal ID.
@@ -484,7 +476,7 @@ class PolicyAnalysisRepository:
         An example of post-parsing would be to separate the subject list into an actual list of tuples
         representing the domain and group or dynamic group.
         """
-        comp = self.get_compartment_by_id(comp_id)
+        comp = self._get_compartment_by_id(comp_id)
         logger.debug(f'Parsing statement {statement} (Comp: {comp})')
         comp_string = comp['hierarchy_path'] if comp else 'ROOT'
 
@@ -631,7 +623,7 @@ class PolicyAnalysisRepository:
         )
 
     # --- Main Data Loading Functions ---
-    def load_compartment_and_policies_worker(self, compartment: Compartment):
+    def _load_compartment_and_policies_worker(self, compartment: Compartment):
         """Worker function to load compartment and policy data as JSON object in a thread"""
         try:
             start_time = time.perf_counter()
@@ -682,7 +674,8 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
 
     def load_policies_and_compartments(self) -> bool:
-        """Load all compartments and policies from a tenancy using OCI Clients.
+        """
+        Load all compartments and policies from a tenancy using OCI Clients.
 
         If recursive was selected, use a thread pool and the worker function.
 
@@ -727,10 +720,10 @@ class PolicyAnalysisRepository:
             if self.recursive:
                 # Use a thread pool
                 with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
-                    executor.map(self.load_compartment_and_policies_worker, comp_list)
+                    executor.map(self._load_compartment_and_policies_worker, comp_list)
             else:
                 # Call the worker on its own with just the root compartment
-                self.load_compartment_and_policies_worker(compartment=root_comp)
+                self._load_compartment_and_policies_worker(compartment=root_comp)
 
             # Now self.compartments exists. If we build the index from it, won't be as slow
             self._build_compartment_index()
@@ -760,7 +753,7 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load policies and compartments: {e}')
             return False
 
-    def get_compartment_by_id(self, compartment_id: str) -> dict:
+    def _get_compartment_by_id(self, compartment_id: str) -> dict:
         return next((c for c in self.compartments if c['id'] == compartment_id), None)
 
     def load_complete_identity_domains(self) -> bool:  # noqa: C901
@@ -768,9 +761,6 @@ class PolicyAnalysisRepository:
 
         Identity Domains are loaded via the Identity Client.
         For each Identity Domain, load the Dynamic Groups, Groups, and Users
-
-        Args:
-            none
 
         Returns:
             A boolean indicating success of the data load.  False indicates there was some failure in loading data,

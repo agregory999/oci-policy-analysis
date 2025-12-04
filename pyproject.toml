@@ -22,7 +22,17 @@ classifiers = [
     "Topic :: Software Development :: Tools",
 ]
 
+[project.optional-dependencies]
+docs = [
+    "sphinx>=7",
+    "sphinx-rtd-theme>=2",
+    "myst-parser>=2",
+]
+commit = [
+    "pipdeptree>=2.30.0",
+    "pre_commit>=4.5.0",
+]
+
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
-

@@ -15,5 +15,5 @@ python -m oci_policy_analysis.main
 Or run a packaged release right feom your desktop:
 ```bash
 oci-policy-analysis.exe   # Windows
-oci-policy-analysis.app # macOS
+oci-policy-analysis.app   # macOS
 ```

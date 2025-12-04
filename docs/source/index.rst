@@ -24,3 +24,4 @@ Contents
    api/oci_policy_analysis
    api/oci_policy_analysis.ui
    api/oci_policy_analysis.logic
+   api/oci_policy_analysis.common

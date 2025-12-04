@@ -61,8 +61,10 @@ def _setup_logging() -> None:
 def get_logger(component: str | None = None) -> logging.Logger:
     """
     Return a component logger. No handlers added (propagate to root).
+
     Args:
         component: Component name (e.g., 'cli', 'data_repo'). If None, uses base name.
+
     Returns:
         Logger instance.
     """
@@ -80,6 +82,7 @@ def set_log_level(level: str | int) -> None:
         - WARNING   30
         - INFO      20
         - DEBUG     10
+
     Args:
         level: Level name (e.g., 'DEBUG') or int.
     """
@@ -105,7 +108,15 @@ def set_log_level(level: str | int) -> None:
 
 
 def set_component_level(component: str, level: str | int) -> None:
-    """Set level for a specific logger (app or third-party)."""
+    """
+    Set level for a specific logger (app or third-party).
+    Component can be full logger name (with dots) or just base name.
+    Example: set_component_level('cli', 'DEBUG')
+
+    Args:
+        component: Component/logger name (e.g., 'cli', 'data_repo', 'requests')
+        level: Level name (e.g., 'DEBUG') or int.
+    """
     if isinstance(level, str):
         level_value = logging._nameToLevel.get(level.upper(), logging.INFO)
     else:
@@ -113,18 +124,6 @@ def set_component_level(component: str, level: str | int) -> None:
     lgr = logging.getLogger(component) if '.' in component else get_logger(component)
     lgr.setLevel(level_value)
     logging.getLogger().info(f"Component log level for '{component}' set to {logging.getLevelName(level_value)}")
-
-
-def dump_loggers():
-    print('\n--- ACTIVE LOGGERS ---')
-    root = logging.getLogger()
-    handlers = [type(h).__name__ for h in root.handlers]
-    print(f'root  level={logging.getLevelName(root.level)}  handlers={handlers}')
-    for name, obj in logging.root.manager.loggerDict.items():
-        if isinstance(obj, logging.Logger):
-            handlers = [type(h).__name__ for h in obj.handlers]
-            print(f'{name}  level={logging.getLevelName(obj.level)}  handlers={handlers}')
-    print('-----------------------\n')
 
 
 # This will get called whenever it is imported

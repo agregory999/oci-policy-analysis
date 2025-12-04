@@ -14,10 +14,14 @@ This page does not cover building the application or setting up Python and the l
 
 The UI can be started from a downloaded executable file simply by double-clicking on it.  For Mac and Windows you will need to give permission for the app to run locally until which time the python executable can be shipped as a trusted publisher.
 
-From the command line, after building the application, start via python:
+The UI can also be run the command line, after building the application, start via python:
 
 ```bash
-python src/oci_policy_analysis/main.py
+python3 -V              # Should be 3.12.x
+python3 -m venv .venv
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+pip install -e .
+python -m oci_policy_analysis.main
 ```
 
 ## Settings Tab (Start Here)
@@ -28,7 +32,7 @@ All settings and loading of tenancy information is controlled on this tab.
 
 Tenancy data consists of IAM data (users, groups, dynamic groups) and policy data (statements).  The compartment hierarchy is also loaded here.  Loading involves the program making API calls to OCI, and thus the configuration section surfaces multiple means of accessing the tenancy.  
 
-1) Profile-based -- Load all available profiles from the machine the UI is started from, and allow the choice of a profile to load from.  Profiles are tied to an OCI User, which must be in a Group where the required permissions to load IAM and Policy data exist.  See [Setup / Permissions](./setup.html) for more detail.
+1) Profile-based -- Load all available profiles from the machine the UI is started from, and allow the choice of a profile to load from.  Profiles are tied to an OCI User, which must be in a Group where the required permissions to load IAM and Policy data exist.  See [Setup / Permissions](./setup.md) for more detail.
 
 2) Instance Principal -- If you have an Instance Principal, you must have a Dynamic Group with permissions.  This only works on an OCI Compute Instance.
 
