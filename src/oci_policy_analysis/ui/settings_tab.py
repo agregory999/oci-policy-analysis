@@ -386,7 +386,7 @@ class SettingsTab(ttk.Frame):
 
     def _on_load_progress(self, message: str, clear: bool = False):
         """Callback from App to update progress during tenancy loading."""
-        self.progress_var.set(f'🔄 {message}')
+        self.progress_var.set(f'{message}')
         if clear:
             self.after(2000, lambda: self.progress_var.set(''))
 
@@ -403,17 +403,17 @@ class SettingsTab(ttk.Frame):
                     date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
                 except Exception:
                     date_str = str(data_as_of)
-                date_note = f' 📆 Data as of: {date_str}'
+                date_note = f'Data as of: {date_str}'
             else:
                 date_note = ''
-            self.progress_var.set(f'✅ {message}')
+            self.progress_var.set(f'[OK]{message}')
             self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
             logger.info('Updating UI after load')
             self.app.policies_tab.update_policy_output()
             self.app.policies_tab.enable_widgets_after_load()
             self.app.users_tab.update_user_analysis_output()
         else:
-            self.progress_var.set(f'❌ {message}')
+            self.progress_var.set(f'[X]{message}')
 
         # Schedule it to go away if clear was set
         if clear:
@@ -469,12 +469,12 @@ class SettingsTab(ttk.Frame):
             clear (bool): Whether to clear the message after a delay.
         """
         if success:
-            self.ai_progress_var.set(f'✅ {message}')
+            self.ai_progress_var.set(f'[OK] {message}')
             # Enable the toggle button
             self.ai_toggle_btn.config(state=tk.NORMAL)
             logger.info('AI Enablement successful, toggle button enabled')
         else:
-            self.ai_progress_var.set(f'❌ {message}')
+            self.ai_progress_var.set(f'[X] {message}')
 
         # Schedule it to go away if clear was set
         if clear:

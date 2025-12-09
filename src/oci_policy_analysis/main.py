@@ -325,8 +325,13 @@ class App(tk.Tk):
                     logger.info(f'Using named cache: {named_cache}')
                     success = self.caching.load_combined_cache(named_cache=named_cache)
 
-                elif named_profile:
-                    logger.info(f'Using named profile: {named_profile}')
+                elif named_profile or instance_principal or named_session:
+                    if instance_principal:
+                        logger.info(f'Using Instance Principal: {instance_principal}')
+                    elif named_session:
+                        logger.info(f'Using named session: {named_session}')
+                    else:
+                        logger.info(f'Using named profile: {named_profile}')
 
                     success = self.policy_compartment_analysis.initialize_client(
                         use_instance_principal=instance_principal,
@@ -363,7 +368,7 @@ class App(tk.Tk):
                 return
 
             msg = f'Finished loading tenancy {tenancy_id}'
-            logger.info(f'✅ {msg}')
+            logger.info(f'[OK] {msg}')
 
             if callback:
                 cb = callback.get('complete')
@@ -463,7 +468,7 @@ class App(tk.Tk):
         def worker():
             try:
                 start_time = time.perf_counter()
-                self.after(0, lambda: self.ai_progress_var.set('⌛ Running AI Query'))
+                self.after(0, lambda: self.ai_progress_var.set('[...] Running AI Query'))
                 logger.debug('Starting ai.analyze_policy_statement asyncio.run in thread')
                 q = queue.Queue()
                 # Always ask for plain text output now, no more toggles
