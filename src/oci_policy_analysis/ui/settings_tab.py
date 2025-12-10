@@ -13,11 +13,12 @@
 # coding: utf-8
 ##########################################################################
 
+import os
 import time
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
@@ -74,14 +75,14 @@ class SettingsTab(ttk.Frame):
             with open(Path.home() / '.oci' / 'config') as fp:
                 self.profile_list = [line[1:-2] for line in fp if line.startswith('[') and line.endswith(']\n')]
         except FileNotFoundError:
-            logger.warning('OCI config file not found')
-            self.profile_list = ['NONE']
+            logger.warning('OCI config file not found - default to instance principal only')
+            self.profile_list = []
             self.ip_var.set(True)
 
         # Build the UI
         self._build_ui()
 
-    def _build_ui(self):
+    def _build_ui(self):  # noqa: C901
         # ---- Top Row: Display + MCP ----
         top_row = ttk.Frame(self)
         top_row.pack(fill='x', padx=10, pady=10)
@@ -171,7 +172,7 @@ class SettingsTab(ttk.Frame):
         self.input_profile = ttk.OptionMenu(
             label_frm_tenancy_config, self.profile_var, self.profile_var.get(), *self.profile_list
         )
-        self.input_profile.config(width=20)
+        self.input_profile.config(width=20, state='normal' if len(self.profile_list) > 0 else 'disabled')
         self.input_profile.grid(row=0, column=2, padx=5, pady=3)
 
         # Get available cached copies
@@ -243,12 +244,40 @@ class SettingsTab(ttk.Frame):
             command=lambda: self.app._export_cache_to_json(),
         ).grid(row=1, column=5, padx=5, pady=5, sticky='w')
 
+        # --- New Button: Load from Compliance Output Data ---
+        def _on_load_compliance_output():
+            # from tkinter import filedialog
+            # import os
+
+            folder_selected = filedialog.askdirectory(title='Select Compliance Output Directory')
+            if not folder_selected or not os.path.isdir(folder_selected):
+                messagebox.showinfo('Load Compliance Output', 'No directory was selected or path is invalid.')
+                return
+            # Show quick UI progress
+            self.progress_var.set(f'Loading compliance data from: {folder_selected}')
+            # Call the app method (must exist/app-supports), use same callbacks as tenancy load
+            self.app.load_compliance_output_async(
+                folder_selected,
+                callback={
+                    'progress': self._on_load_progress,
+                    'complete': self._on_load_finished,
+                    'error': self._on_load_finished,
+                },
+            )
+
+        ttk.Button(
+            label_frm_tenancy_config,
+            width=30,
+            text='Load from Compliance Output Data',
+            command=_on_load_compliance_output,
+        ).grid(row=2, column=5, padx=5, pady=5, sticky='w')
+
         ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
 
         # Progress indicator - move to its own row below buttons, at right
         self.progress_var = tk.StringVar(value='')
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
-        self.progress_label.grid(row=2, column=5, padx=5, pady=(1, 5), sticky='w')
+        self.progress_label.grid(row=1, column=6, padx=5, pady=(1, 5), sticky='w')
 
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')

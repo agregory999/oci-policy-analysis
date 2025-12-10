@@ -389,6 +389,49 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def load_compliance_output_async(self, dir_path: str, callback: dict | None = None):
+        """
+        Asynchronously loads policy, compartment, group, user, dynamic group, and domain data from compliance output .csv files.
+        Args:
+            dir_path (str): The directory containing compliance output files as per spec.
+            callback (dict, optional): Callbacks for progress, error, and complete.
+        """
+        logger.info(f'[ASYNC] Loading compliance analysis data from directory: {dir_path}')
+
+        def worker():
+            try:
+                self.after(
+                    0,
+                    lambda: callback
+                    and callable(callback.get('progress'))
+                    and callback['progress']('Loading compliance output data'),
+                )
+                success = self.policy_compartment_analysis.load_from_compliance_output_dir(dir_path)
+                msg = f'Finished loading compliance data from {dir_path}'
+                logger.info(msg)
+                if callback and callable(callback.get('complete')):
+                    self.after(0, lambda: callback['complete'](success, msg, not success))
+                if success:
+                    logger.info('[OK] Compliance Output Load complete. Reloading all tabs.')
+                    self.policy_overlap_tab.enable_widgets_after_load()
+                    self.users_tab.update_user_analysis_output()
+                    self.policies_tab.update_policy_output()
+                    self.dynamic_groups_tab.enable_controls()
+                    self.cross_tenancy_tab.update_cross_tenancy_output()
+                    self.report_tab.update_report_output()
+                    self.resource_principals_tab.update_principals_sheets()
+                    self.historical_tab.populate_cache_dropdowns(
+                        tenancy_name=getattr(self.policy_compartment_analysis, 'tenancy_name', '')
+                    )
+                    self.dynamic_groups_tab.enable_controls()
+                    self.permissions_report_tab.enable_widgets_after_load()
+            except Exception as e:
+                logger.error(f'Error occurred during compliance output load: {e}')
+                if callback and callable(callback.get('error')):
+                    self.after(0, lambda e=e: callback['error'](False, f'Compliance load failed: {e}', True))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _import_cache_from_json(self, callback: dict | None = None):  # noqa: C901
         """
         Imports cached policy analysis data from a JSON file selected by the user.
@@ -499,7 +542,7 @@ class App(tk.Tk):
                 self.after(
                     0,
                     lambda: self.ai_progress_var.set(
-                        f'✅ Finished AI Call in ({time.perf_counter()-start_time:.2f}ms)'
+                        f'[OK] Finished AI Call in ({time.perf_counter()-start_time:.2f}ms)'
                     ),
                 )
             except Exception as e:

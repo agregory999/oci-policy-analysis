@@ -12,11 +12,18 @@
 #
 # coding: utf-8
 ##########################################################################
-from oci_policy_analysis.common.models import DefineStatement, DynamicGroup, Group, PolicyStatement, User
+from oci_policy_analysis.common.models import (
+    BasePolicyStatement,
+    DefineStatement,
+    DynamicGroup,
+    Group,
+    RegularPolicyStatement,
+    User,
+)
 
 
 # Return a display-friendly dict for a policy statement
-def for_display_policy(statement: PolicyStatement) -> dict:
+def for_display_policy(statement: RegularPolicyStatement) -> dict:
     """
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with
@@ -34,7 +41,7 @@ def for_display_policy(statement: PolicyStatement) -> dict:
         'Policy OCID': statement['policy_ocid'],  # type: ignore
         'Internal ID': statement['internal_id'],  # type: ignore
         'Compartment OCID': statement['compartment_ocid'],  # type: ignore
-        'Policy Compartment': statement['policy_compartment'],  # type: ignore
+        'Policy Compartment': statement['compartment_path'],  # type: ignore
         'Statement Text': statement['statement_text'],  # type: ignore
         'Valid': statement['valid'],  # type: ignore
         'Invalid Reasons': ', '.join(statement['invalid_reasons'])
@@ -147,6 +154,7 @@ def for_display_define(define: DefineStatement) -> dict:
         dict: A dictionary with keys and values formatted for display.
     """
     return {
+        'Policy Name': define['policy_name'],  # type: ignore
         'Defined Type': define['defined_type'],  # type: ignore
         'Defined Name': define['defined_name'],  # type: ignore
         'OCID Alias': define['ocid_alias'],  # type: ignore
@@ -156,7 +164,7 @@ def for_display_define(define: DefineStatement) -> dict:
 
 
 # Return a display-friendly dict for a cross-tenancy policy statement
-def for_display_cross_tenancy(statement: PolicyStatement) -> dict:
+def for_display_cross_tenancy(statement: BasePolicyStatement) -> dict:
     """
     Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
     may not be present depending on how the statement was parsed. Display dict includes all possible fields with

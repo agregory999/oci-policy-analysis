@@ -47,6 +47,7 @@ from uvicorn import Server  # noqa: E402
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
 from oci_policy_analysis.common.models import (  # noqa: E402
+    BasePolicyStatement,
     DefineStatement,
     DynamicGroupSearch,
     DynamicGroupSearchFull,
@@ -59,7 +60,6 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     GroupSummary,
     PolicyFilterResponse,
     PolicySearch,
-    PolicyStatement,
     PolicyStatementFull,
     PolicySummary,
     ReferenceDataDiffResult,
@@ -461,7 +461,7 @@ def list_cross_tenancy_aliases() -> list[DefineStatement]:
 
 
 @mcp.tool('cross-tenancy-policies-by-alias', description='Filter cross-tenancy policy statements for a given alias.')
-def filter_cross_tenancy_policies_by_alias(alias: str) -> list[PolicyStatement]:
+def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStatement]:
     """
     Retrieve all cross-tenancy policy statements that reference the provided alias.
 

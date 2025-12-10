@@ -45,3 +45,4 @@ old/
 
 # --- Cline ---
 .cline/
+node_modules

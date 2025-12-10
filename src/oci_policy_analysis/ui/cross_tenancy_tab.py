@@ -22,9 +22,9 @@ from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
 # For cross-tenancy policies, just show all details we have
-DEFINED_ALIAS_COLUMNS = ['Defined Name', 'Defined Type', 'OCID Alias']
+DEFINED_ALIAS_COLUMNS = ['Policy Name', 'Defined Name', 'Defined Type', 'OCID Alias']
 CROSS_TENANCY_POLICY_COLUMNS = ['Policy Name', 'Policy OCID', 'Statement Text', 'Creation Time']
-DEFINED_ALIAS_COLUMN_WIDTHS = {'Defined Name': 150, 'Defined Type': 150, 'OCID Alias': 500}
+DEFINED_ALIAS_COLUMN_WIDTHS = {'Policy Name': 200, 'Defined Name': 150, 'Defined Type': 150, 'OCID Alias': 500}
 CROSS_TENANCY_POLICY_COLUMN_WIDTHS = {
     'Policy Name': 150,
     'Policy OCID': 300,

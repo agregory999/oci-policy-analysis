@@ -346,10 +346,10 @@ class DynamicGroupsTab(ttk.Frame):
         # If expanded, show all columns, else show a subset
         if self.chk_show_dg_ocid.get():
             self.custom_data_dynamic_group.set_display_columns(ALL_DG_COLUMNS)
-            logger.info('Setting dynamic group table to expanded view with all columns')
+            logger.debug('Setting dynamic group table to expanded view with all columns')
         else:
             self.custom_data_dynamic_group.set_display_columns(BASIC_DG_COLUMNS)
-            logger.info('Setting dynamic group table to basic view with key columns')
+            logger.debug('Setting dynamic group table to basic view with key columns')
 
         # Update label with counts
         self.dg_label_statement_count.config(

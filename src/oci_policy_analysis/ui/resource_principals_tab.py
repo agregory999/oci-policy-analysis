@@ -17,7 +17,7 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, PolicySearch, PolicyStatement
+from oci_policy_analysis.common.models import DynamicGroup, PolicySearch, RegularPolicyStatement
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -282,7 +282,7 @@ class ResourcePrincipalsTab(ttk.Frame):
                 logger.info('Any-User with Any resource type selected')
                 # TODO Fixme: this filter is not working as intended
                 filters: PolicySearch = PolicySearch(conditions=['request.principal.type', 'any-user'])
-                policies: list[PolicyStatement] = self.policy_repo.filter_policy_statements(filters=filters)
+                policies: list[RegularPolicyStatement] = self.policy_repo.filter_policy_statements(filters=filters)
                 # Normalize the data
                 display_data = [for_display_policy(statement) for statement in policies]
                 self.rp_policy_table.update_data(display_data)

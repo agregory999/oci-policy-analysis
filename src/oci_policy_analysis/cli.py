@@ -18,7 +18,6 @@ import warnings
 
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.helpers import (
-    for_display_dynamic_group,
     for_display_policy,
 )
 from oci_policy_analysis.common.logger import get_logger, set_log_level
@@ -93,6 +92,12 @@ def main():  # noqa: C901
     )
     parser.add_argument('--use-cache', help='provide the combined cache date to use', required=False, default=None)
     parser.add_argument(
+        '--load-from-compliance',
+        help='provide the directory containing compliance output CSVs',
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         '--dont-save-cache-after-load',
         help='Do not save the combined cache after loading from OCI',
         action='store_true',
@@ -122,49 +127,58 @@ def main():  # noqa: C901
 
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyAnalysisRepository()
-
-    # CacheManager Initializartio
     cache_manager = CacheManager(policy_analysis=policy_analysis)
 
-    # Just show caches and quit
-    if args.get_caches:  # If get_caches is provided, list available caches
-        available_caches = cache_manager.get_available_cache(tenancy_name=args.get_caches)
-        if available_caches:
-            logger.info('Available caches:')
-            for cache in available_caches:
-                logger.info(cache)
-        else:
-            logger.info('No caches available.')
-        logger.info('Exiting after listing caches as --get-caches was provided')
-        exit(0)
-
-    # Load everything from named cache
-    if args.use_cache:
-        if not cache_manager.load_combined_cache(named_cache=args.use_cache):
-            logger.error('Failed to load combined cache')
-            exit(2)
+    # 1. Load from compliance CSVs if requested
+    if args.load_from_compliance:
+        logger.info(f'[CLI] Loading compliance output from directory: {args.load_from_compliance}')
+        result = policy_analysis.load_from_compliance_output_dir(args.load_from_compliance)
+        logger.info(f'[CLI] Compliance output load success: {result}')
+        logger.info(
+            f'[CLI] Entities loaded: {len(policy_analysis.identity_domains)} identity_domains, '
+            f'{len(policy_analysis.dynamic_groups)} dynamic_groups, {len(policy_analysis.users)} users, '
+            f'{len(policy_analysis.groups)} groups, {len(policy_analysis.compartments)} compartments, '
+            f'{len(policy_analysis.regular_statements)} policy statements'
+        )
     else:
-        if not policy_analysis.initialize_client(
-            use_instance_principal=args.instance_principal,
-            profile=args.profile,
-            recursive=True if args.recursive else False,
-        ):
-            logger.error('Failed to initialize PolicyCompartmentAnalysis client')
-            exit(2)
-        logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
-        if not policy_analysis.load_complete_identity_domains():
-            logger.error('Failed to load identity domains, groups, and users from OCI')
-            exit(2)
-        if not policy_analysis.load_policies_and_compartments():
-            logger.error('Failed to load policies and compartments from OCI')
-            exit(2)
-        # Completed the Load
-        logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
+        # Just show caches and quit
+        if args.get_caches:  # If get_caches is provided, list available caches
+            available_caches = cache_manager.get_available_cache(tenancy_name=args.get_caches)
+            if available_caches:
+                logger.info('Available caches:')
+                for cache in available_caches:
+                    logger.info(cache)
+            else:
+                logger.info('No caches available.')
+            logger.info('Exiting after listing caches as --get-caches was provided')
+            exit(0)
 
-        if not args.dont_save_cache_after_load:
-            # Save combined cache after loading from OCI
-            logger.info('Saving combined cache after loading from OCI')
-            cache_manager.save_combined_cache()
+        # Load everything from named cache
+        if args.use_cache:
+            if not cache_manager.load_combined_cache(named_cache=args.use_cache):
+                logger.error('Failed to load combined cache')
+                exit(2)
+        else:
+            if not policy_analysis.initialize_client(
+                use_instance_principal=args.instance_principal,
+                profile=args.profile,
+                recursive=True if args.recursive else False,
+            ):
+                logger.error('Failed to initialize PolicyCompartmentAnalysis client')
+                exit(2)
+            logger.info(f'Initialized PolicyCompartmentAnalysis client for tenancy: {policy_analysis.tenancy_name}')
+            if not policy_analysis.load_complete_identity_domains():
+                logger.error('Failed to load identity domains, groups, and users from OCI')
+                exit(2)
+            if not policy_analysis.load_policies_and_compartments():
+                logger.error('Failed to load policies and compartments from OCI')
+                exit(2)
+            # Completed the Load
+            logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
+
+            if not args.dont_save_cache_after_load:
+                logger.info('Saving combined cache after loading from OCI')
+                cache_manager.save_combined_cache()
 
     # Print some basic details
     logger.info('-' * 80)
@@ -231,15 +245,25 @@ def main():  # noqa: C901
         logger.info('\nDynamic Groups:')
         logger.info('-' * 80)
         for dg in policy_analysis.dynamic_groups:
-            dg = for_display_dynamic_group(dg)
-            logger.info(f'Domain: {dg.get("Domain")}')
-            logger.info(f'Dynamic Group Name: {dg.get("DG Name")}')
-            logger.info(f'Description: {dg.get("Description")}')
-            logger.info(f'Name: {dg.get("DG Name")}')
-            logger.info(f'Matching Rule: {dg.get("Matching Rule")}')
-            logger.info(f'In Use: {dg.get("In Use")}')
-            logger.info(f'OCID: {dg.get("DG OCID")}')
-            logger.info(f'Created: {dg.get("Creation Time")}')
+            # for_display_dynamic_group expects a class or TypedDict, but compliance loads produce plain dicts
+            # Defensive: pass only keys that exist in both
+            safe_keys = [
+                'domain_name',
+                'dynamic_group_name',
+                'description',
+                'matching_rule',
+                'in_use',
+                'dynamic_group_ocid',
+                'creation_time',
+            ]
+            dg_struct = {k: dg.get(k) for k in safe_keys}
+            logger.info(f'Domain: {dg_struct.get("domain_name")}')
+            logger.info(f'Dynamic Group Name: {dg_struct.get("dynamic_group_name")}')
+            logger.info(f'Description: {dg_struct.get("description")}')
+            logger.info(f'Matching Rule: {dg_struct.get("matching_rule")}')
+            logger.info(f'In Use: {dg_struct.get("in_use")}')
+            logger.info(f'OCID: {dg_struct.get("dynamic_group_ocid")}')
+            logger.info(f'Created: {dg_struct.get("creation_time")}')
             logger.info('-' * 80)
         # Print summary counts
 

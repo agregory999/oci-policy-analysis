@@ -75,6 +75,19 @@ class DynamicGroup(TypedDict):
     ]
 
 
+class BasePolicy(TypedDict):
+    """
+    Represents an Exact OCI IAM policy entry with no statements.
+    Policies are unique by their name within a compartment.
+    """
+
+    policy_name: Annotated[str, 'The name of the policy.']
+    policy_ocid: Annotated[str, 'The OCID of the policy. Not required for filters.']
+    description: Annotated[str | None, 'The description of the policy. Not required for filters.']
+    compartment_ocid: Annotated[str, 'The OCID of the compartment containing the policy. Not required for filters.']
+    creation_time: Annotated[str, 'The creation time of the policy. Not required for filters.']
+
+
 # Search Models
 class GroupSearch(TypedDict, total=False):
     """
@@ -159,7 +172,6 @@ class DynamicGroupSearch(TypedDict, total=False):
     ]
 
 
-# Filters for MCP or UI tools
 class PolicySearch(TypedDict, total=False):
     """
     Represents filters for OCI IAM policy statements.
@@ -241,7 +253,6 @@ class PolicySearch(TypedDict, total=False):
     ]
 
 
-# Return Types
 class PolicyOverlap(TypedDict):
     """Represents overlap analysis for a policy statement."""
 
@@ -254,21 +265,49 @@ class PolicyOverlap(TypedDict):
     additional_notes: NotRequired[Annotated[str, 'Any additional notes about the overlap analysis.']]
 
 
-class DefineStatement(TypedDict, total=False):
+class BasePolicyStatement(TypedDict):
+    """
+    Base class for policy statements to share common fields.
+    """
+
+    policy_name: Annotated[str, 'Display name of the policy containing this statement.']
+    policy_description: Annotated[str, 'Description of the policy containing this statement.']
+    policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
+    compartment_ocid: Annotated[str, 'OCID of the compartment where this policy is defined.']
+    compartment_path: Annotated[str, 'Path of the compartment that owns this policy.']
+    statement_text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
+    creation_time: Annotated[str, 'Timestamp (ISO-8601) of the policy creation in OCI.']
+    internal_id: Annotated[str, 'Unique internal hash identifier for this statement.']
+
+
+class DefineStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'define' policy statement with optional metadata."""
 
-    policy_name: Annotated[str, 'Human-readable policy name']
-    policy_ocid: Annotated[str, 'Unique OCID of the policy']
-    policy_description: Annotated[str, 'Description of the policy']
-    statement_text: Annotated[str, 'Full text of the define statement']
     valid: Annotated[bool, 'True if the statement passed parsing and validation']
     defined_type: Annotated[str, 'Type of object defined (user, group, dynamic-group, etc.)']
     defined_name: Annotated[str, 'Name of the defined object']
     ocid_alias: Annotated[str, 'Alias assigned for this definition, if any']
-    creation_time: Annotated[str, 'ISO timestamp when the policy was created']
 
 
-class PolicyStatement(TypedDict, total=False):
+class EndorseStatement(BasePolicyStatement, total=False):
+    """Parsed OCI IAM 'endorse' cross-tenancy policy statement with optional metadata."""
+
+    valid: Annotated[bool, 'True if the statement passed parsing and validation']
+    target_tenancy_ocid: Annotated[str, 'OCID of the target tenancy being endorsed']
+    target_tenancy_name: Annotated[str, 'Name of the target tenancy being endorsed']
+    endorsed_permissions: Annotated[list[str], 'List of permissions being endorsed to the target tenancy']
+
+
+class AdmitStatement(BasePolicyStatement, total=False):
+    """Parsed OCI IAM 'admit' cross-tenancy policy statement with optional metadata."""
+
+    valid: Annotated[bool, 'True if the statement passed parsing and validation']
+    source_tenancy_ocid: Annotated[str, 'OCID of the source tenancy being admitted']
+    source_tenancy_name: Annotated[str, 'Name of the source tenancy being admitted']
+    admitted_permissions: Annotated[list[str], 'List of permissions being admitted from the source tenancy']
+
+
+class RegularPolicyStatement(BasePolicyStatement, total=False):
     """
     Represents a parsed OCI IAM policy statement.
 
@@ -280,46 +319,26 @@ class PolicyStatement(TypedDict, total=False):
     action: Annotated[
         Literal['allow', 'deny'], "The IAM action specified in the policy statement: either 'allow' or 'deny'."
     ]
-
-    policy_name: Annotated[str, 'Display name of the policy containing this statement.']
-
-    policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
-
-    compartment_ocid: Annotated[str, 'OCID of the compartment where this policy is defined.']
-
-    policy_compartment: Annotated[str, 'Name of the compartment that owns this policy.']
-
-    statement_text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
-
     valid: Annotated[bool, 'True if the statement successfully parsed and passed internal validation.']
-
     invalid_reasons: Annotated[list[str], 'If invalid, the reasons why parsing or validation failed.']
-
     subject_type: Annotated[
         str,
         "Type of subject targeted by the policy, such as 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
     ]
-
     subject: Annotated[
         list[tuple[str | None, str]] | str,
         'The subject(s) this policy applies to. May be a list of (domain, name) tuples or a simple string if unstructured.',
     ]
-
     verb: Annotated[str, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."]
-
     resource: Annotated[
         str, "OCI resource type targeted by this statement (e.g., 'instance-family', 'bucket', 'compartment')."
     ]
-
     permission: Annotated[
         list[str],
         "Specific permissions or actions derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS').",
     ]
-
     location_type: Annotated[str, "Indicates how the location was resolved: 'explicit', 'root', 'derived', etc."]
-
     location: Annotated[str, 'Human-readable compartment path or OCID representing where this policy applies.']
-
     effective_compartment_ocid: Annotated[
         str | None, 'OCID of the effective compartment determined from policy scope analysis.'
     ]
@@ -335,15 +354,11 @@ class PolicyStatement(TypedDict, total=False):
 
     comments: Annotated[str, 'Comments or annotations appended to the policy statement text, if any.']
 
-    creation_time: Annotated[str, 'Timestamp (ISO-8601) of the policy’s creation in OCI.']
-
     parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
 
     parsing_notes: Annotated[
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
     ]
-
-    internal_id: Annotated[str, 'Unique internal hash identifier for this statement.']
 
     policy_overlap: NotRequired[Annotated[list[PolicyOverlap], 'Overlap analysis results for this policy statement.']]
 
@@ -385,7 +400,7 @@ class PolicyStatementFull(TypedDict):
     """
 
     response_type: Literal['full']
-    statements: Annotated[list[PolicyStatement], 'Complete list of policy statements']
+    statements: Annotated[list[RegularPolicyStatement], 'Complete list of policy statements']
     total_count: Annotated[int, 'Total number of statements returned']
 
 

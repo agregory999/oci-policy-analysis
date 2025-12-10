@@ -87,6 +87,9 @@ class PolicyOverlapTab(ttk.Frame):
         )
         self.btn_analyze.pack(side='left')
 
+        # Label for compartments and resources
+        ttk.Label(button_frame, text='Filter by Effective Compartment:').pack(side='left', padx=(10, 0))
+
         # Effective Compartment dropdown (will be initialized after data/table loads)
         self.compartment_values = ['ALL']
         self.combobox_compartment = ttk.Combobox(
@@ -98,6 +101,9 @@ class PolicyOverlapTab(ttk.Frame):
         self.combobox_compartment.set('ALL')
         self.combobox_compartment.pack(side='left', padx=(10, 0))
         self.combobox_compartment.bind('<<ComboboxSelected>>', self._on_effective_compartment_selected)
+
+        # Label for compartments and resources
+        ttk.Label(button_frame, text='Filter by Resource:').pack(side='left', padx=(10, 0))
 
         # Resource dropdown (will be initialized after data/table loads)
         self.resource_values = ['ALL']
