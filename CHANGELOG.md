@@ -1,3 +1,11 @@
+# [2.9.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.6...v2.9.0) (2025-12-10)
+
+
+### Features
+
+* Import from CIS Compliance and internal model updates ([310c72f](https://github.com/agregory999/oci-policy-analysis/commit/310c72f07fdeb3e7542face9de5776d46406393e))
+* Import from CIS Compliance and internal model updates ([aa52f91](https://github.com/agregory999/oci-policy-analysis/commit/aa52f91fb943e752661313867f8ff0e8ea2791d8))
+
 ## [2.8.6](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.5...v2.8.6) (2025-12-03)
 
 
