@@ -60,19 +60,30 @@ jobs:
 
   build:
     needs: release
+
     strategy:
       matrix:
         include:
+          # 🔧 Linux now builds inside Amazon Linux 2 (GLIBC 2.26)
           - os: ubuntu-latest
+            container_image: amazonlinux:2
             platform: linux
             spec: oci_policy_analysis_linux.spec
+
+          # macOS unchanged
           - os: macos-latest
             platform: macos
             spec: oci_policy_analysis_macos.spec
+
+          # Windows unchanged
           - os: windows-latest
             platform: windows
             spec: oci_policy_analysis_windows.spec
+
     runs-on: ${{ matrix.os }}
+
+    # Only Linux gets container=amazonlinux:2, others = empty string
+    container: ${{ matrix.container_image || '' }}
 
     steps:
       - name: Skip build if docs-only commit
@@ -96,15 +107,43 @@ jobs:
           git fetch --tags --force
           git describe --tags
 
+      ###############################################################
+      # 🔧 Linux-only system dependencies for Amazon Linux 2
+      ###############################################################
+      - name: Install system deps (Linux only)
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
+        run: |
+          yum groupinstall -y "Development Tools"
+          yum install -y python3 python3-devel python3-pip
+          python3 -m pip install --upgrade pip
+
+      ###############################################################
+      # Python setup: SKIP actions/setup-python on Linux
+      ###############################################################
       - name: Set up Python
-        if: steps.skip_build.outputs.skip != 'true'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: pyproject.toml
-          architecture: 'x64' 
-        
+          architecture: 'x64'
+
+      ###############################################################
+      # Linux environment fixups (aliases)
+      ###############################################################
+      - name: Linux Python alias
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
+        run: |
+          echo "alias python=python3" >> ~/.bashrc
+          echo "alias pip=pip3" >> ~/.bashrc
+          source ~/.bashrc
+          python --version
+          pip --version
+
+      ###############################################################
+      # Build wheels from source (pip)
+      ###############################################################
       - name: Build wheels from source (pip)
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
@@ -112,7 +151,6 @@ jobs:
           echo "🐍 Setting up build environment..."
           python -m pip install --upgrade pip
 
-          # ensure build toolchain (pip uses wheels, but this is allowed)
           pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
           echo "🔒 Locking dependencies with pip-compile..."
@@ -133,8 +171,6 @@ jobs:
 
           echo "📦 Installing your project..."
           pip install -e .
-                
-
 
       - name: Build package
         if: steps.skip_build.outputs.skip != 'true'
@@ -171,6 +207,9 @@ jobs:
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
+      ###############################################################
+      # Linux/macOS build logic (unchanged except Python path)
+      ###############################################################
       - name: Build (macOS & Linux)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
@@ -212,12 +251,15 @@ jobs:
               src/oci_policy_analysis/main.py
           fi
 
+      ###############################################################
+      # Windows build (unchanged)
+      ###############################################################
       - name: Build (Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-          $pyDll = python -c "import sysconfig, glob, os; b=sysconfig.get_config_var('BINDIR'); \
+          $pyDll = python -c "import sysconfig, glob, os; b=sysconfig.get_config_var('BINDDIR'); \
             matches=glob.glob(os.path.join(b, 'python3*.dll')); print(matches[0] if matches else '')"
           Write-Host "Found Python DLL: $pyDll"
 
@@ -234,6 +276,9 @@ jobs:
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
+      ###############################################################
+      # Packaging
+      ###############################################################
       - name: Package artifact
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
@@ -247,7 +292,6 @@ jobs:
 
           case "$PLATFORM" in
             macos)
-              # Quote name with spaces to include entire .app bundle
               cd dist
               tar -czf "${NAME}.app.tar.gz" "OCI Policy Analysis.app"
               cd ..
@@ -278,14 +322,12 @@ jobs:
           Write-Host "🔍 Checking for Python DLL inside EXE..."
           strings "dist\OCI Policy Analysis.exe" | Select-String python3
 
-
       - name: Upload artifact
         if: steps.skip_build.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: oci-policy-analysis-${{ matrix.platform }}
           path: |
-            # dist/oci-policy-analysis.exe
             dist/oci-policy-analysis-*.tar.gz
             dist/oci-policy-analysis-*.zip
           retention-days: 30
