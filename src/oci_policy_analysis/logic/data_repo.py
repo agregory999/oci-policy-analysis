@@ -17,7 +17,6 @@
 import csv
 import hashlib
 import json
-import logging
 import os
 import re
 import time
@@ -586,7 +585,7 @@ class PolicyAnalysisRepository:
         else:
             logger.warning(f'No regex match for statement: |{statement_text}|')
 
-        logging.debug(f'Parsed Statement as JSON: {statement}')
+        logger.debug(f'Parsed Statement as JSON: {statement}')
         self.regular_statements.append(statement)
 
         # Success or fail based on parsed field
@@ -897,7 +896,7 @@ class PolicyAnalysisRepository:
                         ):
                             break
                         start_index += limit
-                    logging.debug(f'All Groups: {self.groups}')
+                    logger.debug(f'All Groups: {self.groups}')
 
                     # Load Users
                     start_index = 1
@@ -912,15 +911,15 @@ class PolicyAnalysisRepository:
                         if user_response.data is None or not user_response.data.resources:
                             break
                         for u in user_response.data.resources:
-                            logging.debug(f'User: {u}')
+                            logger.debug(f'User: {u}')
                             groups_list = []
                             # If there are groups, loop them
                             if u.groups:
-                                logging.debug(f'User {u.display_name} Groups: {u.groups}')
+                                logger.debug(f'User {u.display_name} Groups: {u.groups}')
                                 for gg in u.groups:
                                     groups_list.append(gg.ocid)
                             else:
-                                logging.info(f'No groups for user {u.display_name}')
+                                logger.debug(f'No groups for user {u.display_name}')
                             # Default the email to None
                             email = 'None'
                             if hasattr(u, 'emails') and u.emails:
@@ -950,7 +949,7 @@ class PolicyAnalysisRepository:
                         ):
                             break
                         start_index += limit
-                    logging.info(f'All Users: {self.users}')
+                    logger.debug(f'All Users: {self.users}')
 
                     self.data_as_of = str(datetime.now(UTC))
 
