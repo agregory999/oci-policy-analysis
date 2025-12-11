@@ -179,6 +179,8 @@ jobs:
               mkdir -p /workspace/.cache/pip
               chmod -R 777 /workspace/.cache
 
+              yum install -y libffi-devel openssl-devel
+
               \$PYTHON_BIN -m pip install --upgrade pip
               \$PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
