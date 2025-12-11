@@ -288,8 +288,12 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-          $pyDll = python -c "import sysconfig, glob, os; b=sysconfig.get_config_var('BINDDIR'); \
-            matches=glob.glob(os.path.join(b, 'python3*.dll')); print(matches[0] if matches else '')"
+          $pyDll = python - <<'PYCODE'
+import sys, pathlib, glob
+base = pathlib.Path(sys.executable).parent
+matches = list(base.glob("python3*.dll")) + list(base.glob("python*.dll"))
+print(matches[0] if matches else "")
+PYCODE
           Write-Host "Found Python DLL: $pyDll"
 
           pyinstaller `
@@ -300,8 +304,8 @@ jobs:
             --icon "icons\oci-policy-dg-viewer.ico" `
             --collect-all sys `
             --copy-metadata fastmcp `
-            --add-data "src\oci_policy_analysis\version.txt:oci_policy_analysis" `
-            --add-data "src\oci_policy_analysis\logic\permissions:oci_policy_analysis\logic\permissions" `
+            --add-data "src\oci_policy_analysis\version.txt;oci_policy_analysis" `
+            --add-data "src\oci_policy_analysis\logic\permissions;oci_policy_analysis\logic\permissions" `
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
