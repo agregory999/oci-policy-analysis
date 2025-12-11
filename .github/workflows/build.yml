@@ -179,7 +179,11 @@ jobs:
               mkdir -p /workspace/.cache/pip
               chmod -R 777 /workspace/.cache
 
-              yum install -y libffi-devel openssl-devel rust cargo
+              yum install -y libffi-devel openssl-devel curl
+
+              # Install up-to-date Rust toolchain for cryptography/maturin builds
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+              source \$HOME/.cargo/env
 
               \$PYTHON_BIN -m pip install --upgrade pip
               \$PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
