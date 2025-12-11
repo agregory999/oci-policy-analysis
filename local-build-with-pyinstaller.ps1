@@ -6,8 +6,8 @@ Write-Host "     LOCAL BUILD + PYINSTALLER (SOURCE ONLY)   "
 Write-Host "==============================================="
 
 if (-not (Test-Path ".venv")) {
-    Write-Host "🐍 Creating fresh uv venv..."
-    uv venv --python=3.12
+    Write-Host "🐍 Creating fresh venv..."
+    python -m venv .venv
 } else {
     Write-Host "♻️ Reusing existing .venv"
 }
@@ -15,15 +15,13 @@ if (-not (Test-Path ".venv")) {
 & .venv\Scripts\Activate.ps1
 
 Write-Host "🔄 Ensuring pip + tools are installed..."
-uv pip install pip setuptools wheel build pyinstaller ruff
+python -m pip install --upgrade pip
+python -m pip install setuptools wheel build pip-tools pyinstaller ruff
 
-Write-Host "🔒 Locking dependencies with uv..."
-uv lock
+Write-Host "🔒 Locking dependencies with pip-compile..."
+python -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
 
-Write-Host "📦 Exporting dependencies (no dev)..."
-uv export --no-dev | Out-File -Encoding utf8 frozen.txt
-
-Write-Host "🧹 Removing local project (-e .) and hash entries..."
+Write-Host "📦 Cleaning dependency list (no dev dependencies)..."
 (Get-Content frozen.txt) | Where-Object { $_ -notmatch '^-e \.' -and $_ -notmatch '--hash=' } | Set-Content frozen.txt
 
 Write-Host "🔨 Building wheels from source..."

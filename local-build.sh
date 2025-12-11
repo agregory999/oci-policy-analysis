@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 set -e
 
+PYTHON_BIN=${PYTHON_BIN:-python3}
+
 if [ ! -d ".venv" ]; then
-    echo "🐍 Creating fresh uv venv..."
-    uv venv --python=3.12
+    echo "🐍 Creating fresh venv with ${PYTHON_BIN}..."
+    "${PYTHON_BIN}" -m venv .venv
 else
     echo "♻️ Reusing existing .venv"
 fi
 
 source .venv/bin/activate
-# source mypythonvenv/bin/activate
 
 echo "🔄 Ensuring pip + tools are installed..."
-uv pip install pip setuptools wheel build pyinstaller ruff
+python -m pip install --upgrade pip
+python -m pip install setuptools wheel build pip-tools pyinstaller ruff
 
 echo "🔒 Locking dependencies..."
-uv lock
+python -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
 
 echo "📦 Exporting dependency list (no dev dependencies)..."
-uv export --no-dev > frozen.txt
-
-echo "🧹 Removing local project entry..."
 grep -v '^-e .' frozen.txt > deps.txt
-grep -v -- "--hash=" deps.txt > deps2.txt
-mv deps2.txt frozen.txt
+grep -v -- "--hash=" deps.txt > frozen2.txt
+mv frozen2.txt frozen.txt
+rm deps.txt
 
 echo "🔨 Building wheels from source..."
 mkdir -p wheels

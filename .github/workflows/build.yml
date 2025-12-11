@@ -98,6 +98,17 @@ jobs:
           git fetch --tags --force
           git describe --tags
 
+      - name: Restore pip cache for Linux build
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/pip
+            wheels
+          key: linux-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            linux-pip-
+
       #####################################################################
       # PYTHON SETUP (macOS & Windows) – Linux uses Dockerized AL2 Python
       #####################################################################
@@ -151,6 +162,10 @@ jobs:
         run: |
           echo "🐧 Starting Amazon Linux 2 PyInstaller build..."
 
+          # Reuse pip cache and wheels across runs
+          export PIP_CACHE_DIR="/workspace/.cache/pip"
+          mkdir -p "$PIP_CACHE_DIR" wheels
+
           docker run --rm \
             -v "$PWD":/workspace \
             -w /workspace \
@@ -161,24 +176,22 @@ jobs:
               yum groupinstall -y 'Development Tools'
               yum install -y python3 python3-devel python3-pip
 
-              alias python=python3
-              alias pip=pip3
+              export PIP_CACHE_DIR=\"$PIP_CACHE_DIR\"
 
-              python -m pip install --upgrade pip
-              pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
+              python3 -m pip install --upgrade pip
+              python3 -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
               echo '🔒 Running pip-compile...'
-              pip-compile --generate-hashes --output-file frozen.txt pyproject.toml
+              python3 -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
 
               grep -v '^-e .' frozen.txt > deps.txt
               grep -v -- '--hash=' deps.txt > frozen2.txt
               mv frozen2.txt frozen.txt
 
-              mkdir -p wheels
-              pip wheel --no-binary=:all: -r frozen.txt -w wheels/
+              python3 -m pip wheel --no-binary=:all: -r frozen.txt -w wheels/
 
-              pip install --no-index --find-links=./wheels -r frozen.txt
-              pip install -e .
+              python3 -m pip install --no-index --find-links=./wheels -r frozen.txt
+              python3 -m pip install -e .
 
               PY_SO=\$(python3 -c \"import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')\")
 
