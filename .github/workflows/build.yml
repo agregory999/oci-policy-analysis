@@ -288,12 +288,7 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-          $pyDll = python - <<'PYCODE'
-import sys, pathlib, glob
-base = pathlib.Path(sys.executable).parent
-matches = list(base.glob("python3*.dll")) + list(base.glob("python*.dll"))
-print(matches[0] if matches else "")
-PYCODE
+          $pyDll = python -c "import sys, pathlib; base = pathlib.Path(sys.executable).parent; import glob; matches = list(base.glob('python3*.dll')) + list(base.glob('python*.dll')); print(matches[0] if matches else '')"
           Write-Host "Found Python DLL: $pyDll"
 
           pyinstaller `
