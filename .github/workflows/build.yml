@@ -195,12 +195,12 @@ jobs:
               \$PYTHON_BIN -m pip install -e .
 
               PY_SO=\$(\$PYTHON_BIN - <<'PYCODE'
-import sysconfig, glob, os
-libdir = sysconfig.get_config_var('LIBDIR')
-matches = glob.glob(os.path.join(libdir, 'libpython*.so*'))
-print(matches[0] if matches else '')
-PYCODE
-)
+                import sysconfig, glob, os
+                libdir = sysconfig.get_config_var('LIBDIR')
+                matches = glob.glob(os.path.join(libdir, 'libpython*.so*'))
+                print(matches[0] if matches else '')
+              PYCODE
+              )
 
               echo '📦 Building PyInstaller binary...'
               pyinstaller \
