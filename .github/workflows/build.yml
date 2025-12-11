@@ -64,26 +64,17 @@ jobs:
     strategy:
       matrix:
         include:
-          # 🔧 Linux now builds inside Amazon Linux 2 (GLIBC 2.26)
           - os: ubuntu-latest
-            container_image: amazonlinux:2
             platform: linux
             spec: oci_policy_analysis_linux.spec
-
-          # macOS unchanged
           - os: macos-latest
             platform: macos
             spec: oci_policy_analysis_macos.spec
-
-          # Windows unchanged
           - os: windows-latest
             platform: windows
             spec: oci_policy_analysis_windows.spec
 
     runs-on: ${{ matrix.os }}
-
-    # Only Linux gets container=amazonlinux:2, others = empty string
-    container: ${{ matrix.container_image || '' }}
 
     steps:
       - name: Skip build if docs-only commit
@@ -107,19 +98,9 @@ jobs:
           git fetch --tags --force
           git describe --tags
 
-      ###############################################################
-      # 🔧 Linux-only system dependencies for Amazon Linux 2
-      ###############################################################
-      - name: Install system deps (Linux only)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        run: |
-          yum groupinstall -y "Development Tools"
-          yum install -y python3 python3-devel python3-pip
-          python3 -m pip install --upgrade pip
-
-      ###############################################################
-      # Python setup: SKIP actions/setup-python on Linux
-      ###############################################################
+      #####################################################################
+      # PYTHON SETUP (macOS & Windows) – Linux uses Dockerized AL2 Python
+      #####################################################################
       - name: Set up Python
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         uses: actions/setup-python@v5
@@ -129,23 +110,11 @@ jobs:
           cache-dependency-path: pyproject.toml
           architecture: 'x64'
 
-      ###############################################################
-      # Linux environment fixups (aliases)
-      ###############################################################
-      - name: Linux Python alias
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        run: |
-          echo "alias python=python3" >> ~/.bashrc
-          echo "alias pip=pip3" >> ~/.bashrc
-          source ~/.bashrc
-          python --version
-          pip --version
-
-      ###############################################################
-      # Build wheels from source (pip)
-      ###############################################################
+      #####################################################################
+      # BUILD WHEELS FROM SOURCE — reused by all platforms except Linux
+      #####################################################################
       - name: Build wheels from source (pip)
-        if: steps.skip_build.outputs.skip != 'true'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
@@ -164,7 +133,8 @@ jobs:
 
           echo "🔨 Building wheels from source..."
           mkdir -p wheels
-          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
+          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython \
+            -r frozen.txt -w wheels/
 
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
@@ -172,8 +142,70 @@ jobs:
           echo "📦 Installing your project..."
           pip install -e .
 
+      #####################################################################
+      # Linux Build — INSIDE Amazon Linux 2 using Docker
+      #####################################################################
+      - name: Linux build inside Amazon Linux 2
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "🐧 Starting Amazon Linux 2 PyInstaller build..."
+
+          docker run --rm \
+            -v "$PWD":/workspace \
+            -w /workspace \
+            amazonlinux:2 \
+            bash -c "
+              set -e
+
+              yum groupinstall -y 'Development Tools'
+              yum install -y python3 python3-devel python3-pip
+
+              alias python=python3
+              alias pip=pip3
+
+              python -m pip install --upgrade pip
+              pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
+
+              echo '🔒 Running pip-compile...'
+              pip-compile --generate-hashes --output-file frozen.txt pyproject.toml
+
+              grep -v '^-e .' frozen.txt > deps.txt
+              grep -v -- '--hash=' deps.txt > frozen2.txt
+              mv frozen2.txt frozen.txt
+
+              mkdir -p wheels
+              pip wheel --no-binary=:all: -r frozen.txt -w wheels/
+
+              pip install --no-index --find-links=./wheels -r frozen.txt
+              pip install -e .
+
+              PY_SO=\$(python3 -c \"import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')\")
+
+              echo '📦 Building PyInstaller binary...'
+              pyinstaller \
+                --name='oci-policy-analysis' \
+                --onefile \
+                --clean --noconfirm \
+                --noconsole \
+                --icon=icons/oci-policy-dg-viewer.png \
+                --add-data 'src/oci_policy_analysis/version.txt:oci_policy_analysis' \
+                --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
+                --collect-all=sys \
+                --copy-metadata fastmcp \
+                --add-binary=\"\$PY_SO:.\" \
+                src/oci_policy_analysis/main.py
+            "
+
+          echo "🎉 Amazon Linux 2 build complete."
+          ls -lh dist
+
+      #####################################################################
+      # Normal macOS & Windows Build
+      #####################################################################
+
       - name: Build package
-        if: steps.skip_build.outputs.skip != 'true'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         shell: bash
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
@@ -184,7 +216,7 @@ jobs:
           pip install -e .
 
       - name: Run Ruff check
-        if: steps.skip_build.outputs.skip != 'true'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         shell: bash
         run: ruff check src || echo "⚠️ Ruff warnings ignored."
 
@@ -207,53 +239,30 @@ jobs:
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
-      ###############################################################
-      # Linux/macOS build logic (unchanged except Python path)
-      ###############################################################
+      #########################################################
+      # macOS & Windows PyInstaller ---------------------------------
+      #########################################################
+
       - name: Build (macOS & Linux)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'macOS'
         shell: bash
         run: |
           set -e
-          echo "🏗️ Building for ${{ matrix.os }} with Python $(python3 -V || python -V)"
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            echo "🍎 macOS build..."
-            PY_LIB=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
-              matches=glob.glob(os.path.join(libdir, 'libpython*.dylib')); print(matches[0] if matches else '')")
-            echo "Found Python dylib: $PY_LIB"
-            pyinstaller \
-              --name="OCI Policy Analysis" \
-              --windowed \
-              --clean --noconfirm --noconsole \
-              --icon=icons/oci-policy-dg-viewer.icns \
-              --collect-all=sys \
-              --copy-metadata fastmcp \
-              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-              --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
-              --add-binary="$PY_LIB:Frameworks/Python" \
-              src/oci_policy_analysis/main.py
-          else
-            echo "🐧 Linux build..."
-            PY_SO=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
-              matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
-            echo "Found Python so: $PY_SO"
-            pyinstaller \
-              --name="oci-policy-analysis" \
-              --onefile \
-              --clean --noconfirm \
-              --noconsole \
-              --icon=icons/oci-policy-dg-viewer.png \
-              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-              --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
-              --collect-all=sys \
-              --copy-metadata fastmcp \
-              --add-binary="$PY_SO:." \
-              src/oci_policy_analysis/main.py
-          fi
+          PY_LIB=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
+            matches=glob.glob(os.path.join(libdir, 'libpython*.dylib')); print(matches[0] if matches else '')")
+          echo "Found Python dylib: $PY_LIB"
+          pyinstaller \
+            --name="OCI Policy Analysis" \
+            --windowed \
+            --clean --noconfirm --noconsole \
+            --icon=icons/oci-policy-dg-viewer.icns \
+            --collect-all=sys \
+            --copy-metadata fastmcp \
+            --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+            --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+            --add-binary="$PY_LIB:Frameworks/Python" \
+            src/oci_policy_analysis/main.py
 
-      ###############################################################
-      # Windows build (unchanged)
-      ###############################################################
       - name: Build (Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
@@ -276,9 +285,10 @@ jobs:
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
-      ###############################################################
-      # Packaging
-      ###############################################################
+      #####################################################################
+      # Artifact Packaging
+      #####################################################################
+
       - name: Package artifact
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
@@ -302,7 +312,6 @@ jobs:
               cd ..
               ;;
             windows)
-              echo "Windows packaging handled in separate step."
               ;;
           esac
 
@@ -316,11 +325,8 @@ jobs:
           $VERSION = "${{ needs.release.outputs.version }}"
           $PLATFORM = "${{ matrix.platform }}"
           $NAME = "oci-policy-analysis-${PLATFORM}-${VERSION}"
-          echo "Compressing and renaming Windows executable to dist/${NAME}.zip"
           Compress-Archive -Path "dist/OCI Policy Analysis.exe" -Destination dist/${NAME}.zip -Force
           dir dist
-          Write-Host "🔍 Checking for Python DLL inside EXE..."
-          strings "dist\OCI Policy Analysis.exe" | Select-String python3
 
       - name: Upload artifact
         if: steps.skip_build.outputs.skip != 'true'
