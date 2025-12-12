@@ -19,10 +19,10 @@ from tkinter.scrolledtext import ScrolledText
 
 # ANTLR + condition parser imports inlined and used in place of condition_tester.run_condition_test
 from antlr4 import CommonTokenStream, InputStream
-
 from condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
 from condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
 from condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
+
 from oci_policy_analysis.common.logger import get_logger
 
 logger = get_logger('condition_tester_tab')
@@ -83,6 +83,10 @@ class ConditionTesterTab(ttk.Frame):
         self.results_text = ScrolledText(results_group, height=12, width=100, wrap=tk.WORD, font=('Consolas', 10))
         self.results_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.results_text.insert(tk.END, 'Result details will appear here.\n')
+        # Setup tags for colored logging
+        self.results_text.tag_configure('log_granted', foreground='green')
+        self.results_text.tag_configure('log_denied', foreground='red')
+        self.results_text.tag_configure('log_head', foreground='#006699', font=('Consolas', 11, 'bold'))
 
     def set_clause_text(self, text):
         """Programmatically set the contents of the where clause input."""
@@ -442,11 +446,18 @@ class ConditionTesterTab(ttk.Frame):
         return result
 
     def _show_result(self, result_dict):
-        self.results_text.delete('1.0', tk.END)
-        # Basic outcome
-        self.results_text.insert(tk.END, f"Condition: {result_dict.get('Condition String')}\n")
-        self.results_text.insert(tk.END, f"Access Result: {result_dict.get('Policy Result')}\n")
-        # Details/log
+        # Do NOT clear previous log; append a timestamped header and result.
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.results_text.insert(tk.END, f"\n{'='*20} {now} {'='*20}\n", 'log_head')
+        cond_str = result_dict.get('Condition String')
+        self.results_text.insert(tk.END, f'Condition: {cond_str}\n', 'log_head')
+        # Color result
+        outcome_str = f"Access Result: {result_dict.get('Policy Result')}\n"
+        if result_dict.get('Policy Result') == 'GRANTED':
+            self.results_text.insert(tk.END, outcome_str, 'log_granted')
+        else:
+            self.results_text.insert(tk.END, outcome_str, 'log_denied')
+        # Details/log - plain text
         self.results_text.insert(tk.END, '--- Comparison Log ---\n')
         log = result_dict.get('Log', [])
         if log:
