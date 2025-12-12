@@ -155,14 +155,8 @@ jobs:
           export PIP_CACHE_DIR="$PWD/.cache/pip"
           mkdir -p "$PIP_CACHE_DIR" wheels dist build
 
-          docker run --rm \
-            -v "$PWD":/workspace \
-            -v "$PWD/dist":/out \
-            -v "$PWD/build":/build \
-            -w /workspace \
-            -e PIP_CACHE_DIR="/workspace/.cache/pip" \
-            quay.io/pypa/manylinux2014_x86_64 \
-            bash - <<'AL2'
+          # Write the container build script to the workspace so the container can read it
+          cat > linux-build.sh <<'AL2'
           set -ex
           export PATH="/opt/python/cp312-cp312/bin:$PATH"
           PYTHON_BIN=/opt/python/cp312-cp312/bin/python3.12
@@ -209,8 +203,18 @@ jobs:
           echo '📂 Contents of /out after PyInstaller:'
           ls -lh /out || true
           echo '📂 Contents of /workspace/dist:'
-          ls -lh dist || true
+          ls -lh /workspace/dist || true
           AL2
+          chmod +x linux-build.sh
+
+          docker run --rm \
+            -v "$PWD":/workspace \
+            -v "$PWD/dist":/out \
+            -v "$PWD/build":/build \
+            -w /workspace \
+            -e PIP_CACHE_DIR="/workspace/.cache/pip" \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash /workspace/linux-build.sh
 
           echo "🎉 Amazon Linux 2 build complete."
           ls -lh dist
