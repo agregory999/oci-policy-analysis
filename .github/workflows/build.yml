@@ -196,19 +196,21 @@ jobs:
           $PYTHON_BIN -m pip install -e .
 
           PY_SO=$($PYTHON_BIN - <<'PYCODE'
-          import sysconfig, glob, os
+          import sysconfig, glob, os, sys
+          prefix = os.path.dirname(os.path.dirname(sys.executable))
           libdir = sysconfig.get_config_var('LIBDIR') or ""
           ldlib = sysconfig.get_config_var('LDLIBRARY') or ""
-          candidates = []
-          if libdir and ldlib:
-              candidates.append(os.path.join(libdir, ldlib))
-          for pattern in (
+          patterns = [
+              os.path.join(prefix, "lib", "libpython*.so*"),
+              os.path.join(prefix, "lib64", "libpython*.so*"),
               os.path.join(libdir, "libpython*.so*"),
-              "/opt/python/cp312-cp312/lib/libpython*.so*",
               "/usr/lib64/libpython*.so*",
-          ):
-              candidates.extend(glob.glob(pattern))
-          # Prefer shared objects, ignore static archives
+          ]
+          if libdir and ldlib:
+              patterns.insert(0, os.path.join(libdir, ldlib))
+          candidates = []
+          for pat in patterns:
+              candidates.extend(glob.glob(pat))
           candidates = [c for c in candidates if os.path.isfile(c) and ".a" not in os.path.basename(c)]
           print(candidates[0] if candidates else "")
           PYCODE
