@@ -163,7 +163,7 @@ jobs:
             -e PIP_CACHE_DIR="/workspace/.cache/pip" \
             quay.io/pypa/manylinux2014_x86_64 \
             bash - <<'AL2'
-          set -e
+          set -ex
           export PATH="/opt/python/cp312-cp312/bin:$PATH"
           PYTHON_BIN=/opt/python/cp312-cp312/bin/python3.12
 
@@ -191,7 +191,7 @@ jobs:
           PY_SO=$($PYTHON_BIN -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
 
           echo '📦 Building PyInstaller binary...'
-          pyinstaller \
+          $PYTHON_BIN -m PyInstaller \
             --name='oci-policy-analysis' \
             --onefile \
             --clean --noconfirm \
