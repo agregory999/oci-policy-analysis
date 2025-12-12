@@ -28,14 +28,12 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.skip_release.outputs.skip != 'true'
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Install Node and semantic-release
         if: steps.skip_release.outputs.skip != 'true'
         uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        with: { node-version: '20' }
 
       - run: |
           npm install -g semantic-release@22 @semantic-release/changelog@6 @semantic-release/git@10 @semantic-release/github@9 conventional-changelog-conventionalcommits@7 @semantic-release/exec@6
@@ -63,15 +61,17 @@ jobs:
   build:
     needs: release
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux
+            spec: oci_policy_analysis_linux.spec
           - os: macos-latest
             platform: macos
+            spec: oci_policy_analysis_macos.spec
           - os: windows-latest
             platform: windows
+            spec: oci_policy_analysis_windows.spec
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -88,38 +88,13 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.skip_build.outputs.skip != 'true'
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Fetch updated tags from release job
         if: steps.skip_build.outputs.skip != 'true'
         run: |
           git fetch --tags --force
           git describe --tags
-
-      - name: Prepare version file
-        if: steps.skip_build.outputs.skip != 'true'
-        shell: bash
-        run: |
-          VERSION="${{ needs.release.outputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          mkdir -p src/oci_policy_analysis
-          echo "$VERSION" > src/oci_policy_analysis/version.txt
-          cat src/oci_policy_analysis/version.txt
-
-      - name: Restore pip cache for Linux build
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        uses: actions/cache@v4
-        with:
-          path: |
-            .cache/pip
-            wheels
-          key: linux-pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            linux-pip-
 
       - name: Set up Python
         if: steps.skip_build.outputs.skip != 'true'
@@ -128,15 +103,16 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: pyproject.toml
-          architecture: 'x64'
-
+          architecture: 'x64' 
+        
       - name: Build wheels from source (pip)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
           python -m pip install --upgrade pip
 
+          # ensure build toolchain (pip uses wheels, but this is allowed)
           pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
           echo "🔒 Locking dependencies with pip-compile..."
@@ -150,59 +126,18 @@ jobs:
 
           echo "🔨 Building wheels from source..."
           mkdir -p wheels
-          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython \
-            -r frozen.txt -w wheels/
+          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
 
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
 
           echo "📦 Installing your project..."
           pip install -e .
+                
 
-      - name: Build (Linux)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -ex
-          PY_SO=$(python3 - <<'PYCODE'
-            import sysconfig, glob, os, sys
-            libdir = sysconfig.get_config_var('LIBDIR') or ""
-            ldlib = sysconfig.get_config_var('LDLIBRARY') or ""
-            candidates = []
-            if libdir and ldlib:
-                candidates.append(os.path.join(libdir, ldlib))
-            for pat in (
-                os.path.join(libdir, "libpython*.so*"),
-                "/usr/lib/x86_64-linux-gnu/libpython*.so*",
-                "/usr/lib64/libpython*.so*",
-            ):
-                candidates.extend(glob.glob(pat))
-            candidates = [c for c in candidates if os.path.isfile(c) and ".a" not in os.path.basename(c)]
-            print(candidates[0] if candidates else "")
-          PYCODE
-          )
-          ADD_BIN_ARG=""
-          if [ -n "$PY_SO" ]; then
-            ADD_BIN_ARG="--add-binary=$PY_SO:."
-          else
-            echo "⚠️ No libpython shared library found; continuing without --add-binary"
-          fi
-
-          pyinstaller \
-            --name='oci-policy-analysis' \
-            --onefile \
-            --clean --noconfirm \
-            --noconsole \
-            --icon=icons/oci-policy-dg-viewer.png \
-            --add-data 'src/oci_policy_analysis/version.txt:oci_policy_analysis' \
-            --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
-            --collect-all=sys \
-            --copy-metadata fastmcp \
-            $ADD_BIN_ARG \
-            src/oci_policy_analysis/main.py
 
       - name: Build package
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
@@ -213,7 +148,7 @@ jobs:
           pip install -e .
 
       - name: Run Ruff check
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
+        if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: ruff check src || echo "⚠️ Ruff warnings ignored."
 
@@ -236,32 +171,54 @@ jobs:
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
-      - name: Build (macOS)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'macOS'
+      - name: Build (macOS & Linux)
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
         run: |
           set -e
-          PY_LIB=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
-            matches=glob.glob(os.path.join(libdir, 'libpython*.dylib')); print(matches[0] if matches else '')")
-          echo "Found Python dylib: $PY_LIB"
-          pyinstaller \
-            --name="OCI Policy Analysis" \
-            --windowed \
-            --clean --noconfirm --noconsole \
-            --icon=icons/oci-policy-dg-viewer.icns \
-            --collect-all=sys \
-            --copy-metadata fastmcp \
-            --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-            --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
-            --add-binary="$PY_LIB:Frameworks/Python" \
-            src/oci_policy_analysis/main.py
+          echo "🏗️ Building for ${{ matrix.os }} with Python $(python3 -V || python -V)"
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            echo "🍎 macOS build..."
+            PY_LIB=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
+              matches=glob.glob(os.path.join(libdir, 'libpython*.dylib')); print(matches[0] if matches else '')")
+            echo "Found Python dylib: $PY_LIB"
+            pyinstaller \
+              --name="OCI Policy Analysis" \
+              --windowed \
+              --clean --noconfirm --noconsole \
+              --icon=icons/oci-policy-dg-viewer.icns \
+              --collect-all=sys \
+              --copy-metadata fastmcp \
+              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+              --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+              --add-binary="$PY_LIB:Frameworks/Python" \
+              src/oci_policy_analysis/main.py
+          else
+            echo "🐧 Linux build..."
+            PY_SO=$(python3 -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); \
+              matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
+            echo "Found Python so: $PY_SO"
+            pyinstaller \
+              --name="oci-policy-analysis" \
+              --onefile \
+              --clean --noconfirm \
+              --noconsole \
+              --icon=icons/oci-policy-dg-viewer.png \
+              --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
+              --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+              --collect-all=sys \
+              --copy-metadata fastmcp \
+              --add-binary="$PY_SO:." \
+              src/oci_policy_analysis/main.py
+          fi
 
       - name: Build (Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-          $pyDll = python -c "import sys, pathlib; base = pathlib.Path(sys.executable).parent; import glob; matches = list(base.glob('python3*.dll')) + list(base.glob('python*.dll')); print(matches[0] if matches else '')"
+          $pyDll = python -c "import sysconfig, glob, os; b=sysconfig.get_config_var('BINDIR'); \
+            matches=glob.glob(os.path.join(b, 'python3*.dll')); print(matches[0] if matches else '')"
           Write-Host "Found Python DLL: $pyDll"
 
           pyinstaller `
@@ -272,8 +229,8 @@ jobs:
             --icon "icons\oci-policy-dg-viewer.ico" `
             --collect-all sys `
             --copy-metadata fastmcp `
-            --add-data "src\oci_policy_analysis\version.txt;oci_policy_analysis" `
-            --add-data "src\oci_policy_analysis\logic\permissions;oci_policy_analysis\logic\permissions" `
+            --add-data "src\oci_policy_analysis\version.txt:oci_policy_analysis" `
+            --add-data "src\oci_policy_analysis\logic\permissions:oci_policy_analysis\logic\permissions" `
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
@@ -288,27 +245,20 @@ jobs:
           echo "📦 Packaging for ${PLATFORM} (version ${VERSION})"
           ls -lh dist
 
-          # Show tree for debugging missing artifacts
-          find dist -maxdepth 2 -type f -print
-
           case "$PLATFORM" in
             macos)
+              # Quote name with spaces to include entire .app bundle
               cd dist
               tar -czf "${NAME}.app.tar.gz" "OCI Policy Analysis.app"
               cd ..
               ;;
             linux)
               cd dist
-              BIN=$(ls oci-policy-analysis* 2>/dev/null | head -n 1)
-              if [ -z "$BIN" ]; then
-                echo "❌ Linux binary not found in dist/"
-                ls -la
-                exit 1
-              fi
-              tar -czf "${NAME}.tar.gz" "$BIN"
+              tar -czf "${NAME}.tar.gz" "oci-policy-analysis"
               cd ..
               ;;
             windows)
+              echo "Windows packaging handled in separate step."
               ;;
           esac
 
@@ -322,8 +272,12 @@ jobs:
           $VERSION = "${{ needs.release.outputs.version }}"
           $PLATFORM = "${{ matrix.platform }}"
           $NAME = "oci-policy-analysis-${PLATFORM}-${VERSION}"
+          echo "Compressing and renaming Windows executable to dist/${NAME}.zip"
           Compress-Archive -Path "dist/OCI Policy Analysis.exe" -Destination dist/${NAME}.zip -Force
           dir dist
+          Write-Host "🔍 Checking for Python DLL inside EXE..."
+          strings "dist\OCI Policy Analysis.exe" | Select-String python3
+
 
       - name: Upload artifact
         if: steps.skip_build.outputs.skip != 'true'
@@ -331,6 +285,7 @@ jobs:
         with:
           name: oci-policy-analysis-${{ matrix.platform }}
           path: |
+            # dist/oci-policy-analysis.exe
             dist/oci-policy-analysis-*.tar.gz
             dist/oci-policy-analysis-*.zip
           retention-days: 30
@@ -353,8 +308,7 @@ jobs:
       - name: Checkout
         if: steps.skip_publish.outputs.skip != 'true'
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Download all artifacts
         if: steps.skip_publish.outputs.skip != 'true'
