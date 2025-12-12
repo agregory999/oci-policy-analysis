@@ -182,6 +182,11 @@ jobs:
           $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
           $PYTHON_BIN -m pip install -e .
 
+          # Ensure version.txt exists inside the container before packaging
+          if [ -n "$VERSION" ]; then
+            echo "$VERSION" > src/oci_policy_analysis/version.txt
+          fi
+
           PY_SO=$($PYTHON_BIN - <<'PYCODE'
           import sysconfig, glob, os
           libdir = sysconfig.get_config_var('LIBDIR') or ""
