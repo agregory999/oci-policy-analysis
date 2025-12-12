@@ -1,3 +1,11 @@
+# [2.10.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.9.0...v2.10.0) (2025-12-12)
+
+
+### Features
+
+* AST-based condition parser and tester ([84f2993](https://github.com/agregory999/oci-policy-analysis/commit/84f2993f45c0b56b2dfce18c765bc7f48bbb6d55))
+* AST-based condition parser and tester ([27baca2](https://github.com/agregory999/oci-policy-analysis/commit/27baca2791a75786ff7637de1337b309c3f855d1))
+
 # [2.9.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.8.6...v2.9.0) (2025-12-10)
 
 
