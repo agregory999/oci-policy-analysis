@@ -70,7 +70,7 @@ POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny acti
     ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
     in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s* # Location type
     (?P<location>[\w\':.-]+)?(?:\s+where\s+ # Location
-    (?P<condition>.+))? # Condition (optional)
+    (?P<condition>[\s\S]*?)(?=//|$))? # Condition (non-greedy, supports multiline, stops at first // or EOS)
     (?:(?P<optional>\s*\/\/.+))?$ # Comment (optional)
 """
 # Case insensitive, allow \n in capture
