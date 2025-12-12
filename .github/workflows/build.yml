@@ -171,13 +171,12 @@ jobs:
           # Write the container build script to the workspace so the container can read it
           cat > linux-build.sh <<'AL2'
           set -ex
-          export PATH="/opt/python/cp312-cp312/bin:$PATH"
-          PYTHON_BIN=/opt/python/cp312-cp312/bin/python3.12
+          PYTHON_BIN=python3.12
 
           mkdir -p /workspace/.cache/pip
           chmod -R 777 /workspace/.cache
 
-          yum install -y libffi-devel openssl-devel curl
+          yum install -y python3.12 python3.12-devel python3.12-pip libffi-devel openssl-devel curl
 
           $PYTHON_BIN -m pip install --upgrade pip
           $PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
@@ -251,7 +250,7 @@ jobs:
             -v "$PWD/build":/build \
             -w /workspace \
             -e PIP_CACHE_DIR="/workspace/.cache/pip" \
-            quay.io/pypa/manylinux2014_x86_64 \
+            amazonlinux:2023 \
             bash /workspace/linux-build.sh
 
           echo "🎉 Amazon Linux 2 build complete."
