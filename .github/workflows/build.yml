@@ -304,7 +304,13 @@ jobs:
               ;;
             linux)
               cd dist
-              tar -czf "${NAME}.tar.gz" "oci-policy-analysis"
+              BIN=$(ls oci-policy-analysis* 2>/dev/null | head -n 1)
+              if [ -z "$BIN" ]; then
+                echo "❌ Linux binary not found in dist/"
+                ls -la
+                exit 1
+              fi
+              tar -czf "${NAME}.tar.gz" "$BIN"
               cd ..
               ;;
             windows)
