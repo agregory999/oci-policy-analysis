@@ -42,6 +42,7 @@ from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
@@ -86,13 +87,14 @@ When run as a script, the `__main__` block launches the full desktop UI.
 
 
 class App(tk.Tk):
-    # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
     """
     Main User Interface entry point for OCI Policy Analysis application.
     Inherits from tk.Tk (TKinter) to create the main application window.
     Tabbed interface with multiple tabs for different analysis features.
     Helper classes and Repositories for data management and AI integration.
     """
+
+    # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
     def __init__(self):
         super().__init__()
@@ -162,6 +164,8 @@ class App(tk.Tk):
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.report_tab, text='Reports\nw/ Search')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
+        self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
+        self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(AST Test)')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
@@ -609,6 +613,19 @@ class App(tk.Tk):
         """
         logger.info(f'Opening web link: {link}')
         webbrowser.open_new(link)
+
+    def open_condition_tester_with_condition(self, condition_text):
+        """
+        Open the Condition Tester tab, populate it with the given condition string,
+        auto-generate inputs for it, and switch focus to this tab.
+
+        Args:
+            condition_text (str): The condition string to test.
+        """
+        logger.info(f'Opening Condition Tester tab with condition: {condition_text}')
+        self.notebook.select(self.condition_tester_tab)
+        self.condition_tester_tab.clause_var.set(condition_text)
+        self.condition_tester_tab._generate_inputs()
 
 
 if __name__ == '__main__':

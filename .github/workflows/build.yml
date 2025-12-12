@@ -179,11 +179,8 @@ jobs:
               mkdir -p /workspace/.cache/pip
               chmod -R 777 /workspace/.cache
 
+              # Minimal native build deps; prefer binary wheels for cryptography
               yum install -y libffi-devel openssl-devel curl
-
-              # Install up-to-date Rust toolchain for cryptography/maturin builds
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
-              source \$HOME/.cargo/env
 
               \$PYTHON_BIN -m pip install --upgrade pip
               \$PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
@@ -195,7 +192,8 @@ jobs:
               grep -v -- '--hash=' deps.txt > frozen2.txt
               mv frozen2.txt frozen.txt
 
-              \$PYTHON_BIN -m pip wheel --no-binary=:all: -r frozen.txt -w wheels/
+              # Allow binary wheels (notably cryptography) to avoid heavy native builds
+              \$PYTHON_BIN -m pip wheel --only-binary cryptography -r frozen.txt -w wheels/
 
               \$PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
               \$PYTHON_BIN -m pip install -e .

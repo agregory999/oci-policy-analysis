@@ -420,6 +420,16 @@ class PoliciesTab(ttk.Frame):
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
                 command=lambda: perform_effective_path_search(effective_path_text or ''),
             )
+            # If the policy statement contains a condition (not null), add a way to send that to the Condition Tester tab
+            condition_text = self.policy_table.data[row_index].get('Conditions')
+            if condition_text and condition_text != 'None':
+                menu.add_command(
+                    label='Test Condition in Condition Tester Tab',
+                    command=lambda: (
+                        self.app.condition_tester_tab.set_clause_text(condition_text),
+                        self.app.open_condition_tester_with_condition(condition_text),
+                    ),
+                )
             menu.add_command(
                 label='Show Policy in logged-in Browser',
                 command=lambda: self.app.open_link(
@@ -472,6 +482,8 @@ class PoliciesTab(ttk.Frame):
             filters['action'] = ['deny']
         else:  # both
             filters['action'] = ['allow', 'deny']
+
+        # Verb filter
         if self.verb_filter_var.get():
             allowed_verbs = {'inspect', 'read', 'use', 'manage'}
             verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
@@ -492,6 +504,9 @@ class PoliciesTab(ttk.Frame):
             filters['policy_name'] = self.policy_filter_var.get().split('|')
         if self.effective_path_var.get():
             filters['effective_path'] = self.effective_path_var.get().split('|')
+        if self.condition_filter_var.get():
+            filters['conditions'] = self.condition_filter_var.get().split('|')
+            pass
         if self.chk_show_invalid.get():
             filters['valid'] = False
             logger.debug('Filtering for invalid policies only')
