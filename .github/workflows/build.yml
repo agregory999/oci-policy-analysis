@@ -182,7 +182,28 @@ jobs:
           $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
           $PYTHON_BIN -m pip install -e .
 
-          PY_SO=$($PYTHON_BIN -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
+          PY_SO=$($PYTHON_BIN - <<'PYCODE'
+          import sysconfig, glob, os
+          libdir = sysconfig.get_config_var('LIBDIR') or ""
+          ldlib = sysconfig.get_config_var('LDLIBRARY') or ""
+          candidates = []
+          if libdir and ldlib:
+              candidates.append(os.path.join(libdir, ldlib))
+          for pattern in (
+              os.path.join(libdir, "libpython*.so*"),
+              "/opt/python/cp312-cp312/lib/libpython*.so*",
+              "/usr/lib64/libpython*.so*",
+          ):
+              candidates.extend(glob.glob(pattern))
+          print(candidates[0] if candidates else "")
+          PYCODE
+          )
+          ADD_BIN_ARG=""
+          if [ -n "$PY_SO" ]; then
+            ADD_BIN_ARG="--add-binary=$PY_SO:."
+          else
+            echo "⚠️ No libpython shared library found; continuing without --add-binary"
+          fi
 
           echo '📦 Building PyInstaller binary...'
           $PYTHON_BIN -m PyInstaller \
@@ -197,7 +218,7 @@ jobs:
             --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
             --collect-all=sys \
             --copy-metadata fastmcp \
-            --add-binary="$PY_SO:." \
+            $ADD_BIN_ARG \
             src/oci_policy_analysis/main.py
 
           echo '📂 Contents of /out after PyInstaller:'
