@@ -97,6 +97,19 @@ jobs:
           git fetch --tags --force
           git describe --tags
 
+      - name: Prepare version file
+        if: steps.skip_build.outputs.skip != 'true'
+        shell: bash
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          mkdir -p src/oci_policy_analysis
+          echo "$VERSION" > src/oci_policy_analysis/version.txt
+          cat src/oci_policy_analysis/version.txt
+
       - name: Restore pip cache for Linux build
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
         uses: actions/cache@v4
@@ -181,11 +194,6 @@ jobs:
 
           $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
           $PYTHON_BIN -m pip install -e .
-
-          # Ensure version.txt exists inside the container before packaging
-          if [ -n "$VERSION" ]; then
-            echo "$VERSION" > src/oci_policy_analysis/version.txt
-          fi
 
           PY_SO=$($PYTHON_BIN - <<'PYCODE'
           import sysconfig, glob, os
