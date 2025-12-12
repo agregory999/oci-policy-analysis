@@ -28,12 +28,14 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.skip_release.outputs.skip != 'true'
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Install Node and semantic-release
         if: steps.skip_release.outputs.skip != 'true'
         uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
 
       - run: |
           npm install -g semantic-release@22 @semantic-release/changelog@6 @semantic-release/git@10 @semantic-release/github@9 conventional-changelog-conventionalcommits@7 @semantic-release/exec@6
@@ -60,30 +62,16 @@ jobs:
 
   build:
     needs: release
-
     strategy:
       matrix:
         include:
-          # 🔧 Linux now builds inside Amazon Linux 2 (GLIBC 2.26)
           - os: ubuntu-latest
-            container_image: amazonlinux:2
             platform: linux
-            spec: oci_policy_analysis_linux.spec
-
-          # macOS unchanged
           - os: macos-latest
             platform: macos
-            spec: oci_policy_analysis_macos.spec
-
-          # Windows unchanged
           - os: windows-latest
             platform: windows
-            spec: oci_policy_analysis_windows.spec
-
     runs-on: ${{ matrix.os }}
-
-    # Only Linux gets container=amazonlinux:2, others = empty string
-    container: ${{ matrix.container_image || '' }}
 
     steps:
       - name: Skip build if docs-only commit
@@ -99,7 +87,8 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.skip_build.outputs.skip != 'true'
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Fetch updated tags from release job
         if: steps.skip_build.outputs.skip != 'true'
@@ -107,7 +96,6 @@ jobs:
           git fetch --tags --force
           git describe --tags
 
-<<<<<<< Updated upstream
       - name: Restore pip cache for Linux build
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
         uses: actions/cache@v4
@@ -119,25 +107,7 @@ jobs:
           restore-keys: |
             linux-pip-
 
-      #####################################################################
-      # PYTHON SETUP (macOS & Windows) – Linux uses Dockerized AL2 Python
-      #####################################################################
-=======
-      ###############################################################
-      # 🔧 Linux-only system dependencies for Amazon Linux 2
-      ###############################################################
-      - name: Install system deps (Linux only)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        run: |
-          yum groupinstall -y "Development Tools"
-          yum install -y python3 python3-devel python3-pip
-          python3 -m pip install --upgrade pip
-
-      ###############################################################
-      # Python setup: SKIP actions/setup-python on Linux
-      ###############################################################
->>>>>>> Stashed changes
-      - name: Set up Python
+      - name: Set up Python (macOS/Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         uses: actions/setup-python@v5
         with:
@@ -146,26 +116,6 @@ jobs:
           cache-dependency-path: pyproject.toml
           architecture: 'x64'
 
-<<<<<<< Updated upstream
-      #####################################################################
-      # BUILD WHEELS FROM SOURCE — reused by all platforms except Linux
-      #####################################################################
-=======
-      ###############################################################
-      # Linux environment fixups (aliases)
-      ###############################################################
-      - name: Linux Python alias
-        if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
-        run: |
-          echo "alias python=python3" >> ~/.bashrc
-          echo "alias pip=pip3" >> ~/.bashrc
-          source ~/.bashrc
-          python --version
-          pip --version
-
-      ###############################################################
-      # Build wheels from source (pip)
-      ###############################################################
       - name: Build wheels from source (pip)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
         shell: bash
@@ -195,16 +145,12 @@ jobs:
           echo "📦 Installing your project..."
           pip install -e .
 
-      #####################################################################
-      # Linux Build — INSIDE Amazon Linux 2 using Docker
-      #####################################################################
-      - name: Linux build inside Amazon Linux 2
+      - name: Linux build inside manylinux2014
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
         shell: bash
         run: |
           echo "🐧 Starting Amazon Linux 2 PyInstaller build..."
 
-          # Reuse pip cache and wheels across runs (host path)
           export PIP_CACHE_DIR="$PWD/.cache/pip"
           mkdir -p "$PIP_CACHE_DIR" wheels
 
@@ -213,40 +159,33 @@ jobs:
             -w /workspace \
             -e PIP_CACHE_DIR="/workspace/.cache/pip" \
             quay.io/pypa/manylinux2014_x86_64 \
-            bash - <<AL2
+            bash - <<'AL2'
           set -e
-          export PATH="/opt/python/cp312-cp312/bin:\$PATH"
+          export PATH="/opt/python/cp312-cp312/bin:$PATH"
           PYTHON_BIN=/opt/python/cp312-cp312/bin/python3.12
 
           mkdir -p /workspace/.cache/pip
           chmod -R 777 /workspace/.cache
 
-          # Minimal native build deps; prefer binary wheels for cryptography
           yum install -y libffi-devel openssl-devel curl
 
-          \$PYTHON_BIN -m pip install --upgrade pip
-          \$PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
+          $PYTHON_BIN -m pip install --upgrade pip
+          $PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
           echo '🔒 Running pip-compile...'
-          \$PYTHON_BIN -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
+          $PYTHON_BIN -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
 
           grep -v '^-e .' frozen.txt > deps.txt
           grep -v -- '--hash=' deps.txt > frozen2.txt
           mv frozen2.txt frozen.txt
 
           # Allow binary wheels (notably cryptography) to avoid heavy native builds
-          \$PYTHON_BIN -m pip wheel --only-binary cryptography -r frozen.txt -w wheels/
+          $PYTHON_BIN -m pip wheel --only-binary cryptography -r frozen.txt -w wheels/
 
-          \$PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
-          \$PYTHON_BIN -m pip install -e .
+          $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
+          $PYTHON_BIN -m pip install -e .
 
-          PY_SO=\$(\$PYTHON_BIN - <<'PYCODE'
-import sysconfig, glob, os
-libdir = sysconfig.get_config_var('LIBDIR')
-matches = glob.glob(os.path.join(libdir, 'libpython*.so*'))
-print(matches[0] if matches else '')
-PYCODE
-          )
+          PY_SO=$($PYTHON_BIN -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
 
           echo '📦 Building PyInstaller binary...'
           pyinstaller \
@@ -259,16 +198,12 @@ PYCODE
             --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
             --collect-all=sys \
             --copy-metadata fastmcp \
-            --add-binary="\$PY_SO:." \
+            --add-binary="$PY_SO:." \
             src/oci_policy_analysis/main.py
-AL2
+          AL2
 
           echo "🎉 Amazon Linux 2 build complete."
           ls -lh dist
-
-      #####################################################################
-      # Normal macOS & Windows Build
-      #####################################################################
 
       - name: Build package
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
@@ -305,17 +240,7 @@ AL2
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
-<<<<<<< Updated upstream
-      #########################################################
-      # macOS & Windows PyInstaller ---------------------------------
-      #########################################################
-
-=======
-      ###############################################################
-      # Linux/macOS build logic (unchanged except Python path)
-      ###############################################################
->>>>>>> Stashed changes
-      - name: Build (macOS & Linux)
+      - name: Build (macOS)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'macOS'
         shell: bash
         run: |
@@ -335,20 +260,12 @@ AL2
             --add-binary="$PY_LIB:Frameworks/Python" \
             src/oci_policy_analysis/main.py
 
-      ###############################################################
-      # Windows build (unchanged)
-      ###############################################################
       - name: Build (Windows)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-<<<<<<< Updated upstream
           $pyDll = python -c "import sys, pathlib; base = pathlib.Path(sys.executable).parent; import glob; matches = list(base.glob('python3*.dll')) + list(base.glob('python*.dll')); print(matches[0] if matches else '')"
-=======
-          $pyDll = python -c "import sysconfig, glob, os; b=sysconfig.get_config_var('BINDDIR'); \
-            matches=glob.glob(os.path.join(b, 'python3*.dll')); print(matches[0] if matches else '')"
->>>>>>> Stashed changes
           Write-Host "Found Python DLL: $pyDll"
 
           pyinstaller `
@@ -364,16 +281,6 @@ AL2
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 
-<<<<<<< Updated upstream
-      #####################################################################
-      # Artifact Packaging
-      #####################################################################
-
-=======
-      ###############################################################
-      # Packaging
-      ###############################################################
->>>>>>> Stashed changes
       - name: Package artifact
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
@@ -412,11 +319,6 @@ AL2
           $NAME = "oci-policy-analysis-${PLATFORM}-${VERSION}"
           Compress-Archive -Path "dist/OCI Policy Analysis.exe" -Destination dist/${NAME}.zip -Force
           dir dist
-<<<<<<< Updated upstream
-=======
-          Write-Host "🔍 Checking for Python DLL inside EXE..."
-          strings "dist\OCI Policy Analysis.exe" | Select-String python3
->>>>>>> Stashed changes
 
       - name: Upload artifact
         if: steps.skip_build.outputs.skip != 'true'
@@ -446,7 +348,8 @@ AL2
       - name: Checkout
         if: steps.skip_publish.outputs.skip != 'true'
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Download all artifacts
         if: steps.skip_publish.outputs.skip != 'true'
