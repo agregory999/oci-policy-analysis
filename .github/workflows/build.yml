@@ -195,6 +195,8 @@ jobs:
               "/usr/lib64/libpython*.so*",
           ):
               candidates.extend(glob.glob(pattern))
+          # Prefer shared objects, ignore static archives
+          candidates = [c for c in candidates if os.path.isfile(c) and ".a" not in os.path.basename(c)]
           print(candidates[0] if candidates else "")
           PYCODE
           )
