@@ -1,7 +1,5 @@
 # Generated from ./OciIamPolicyCondition.g4 by ANTLR 4.13.2
-"""Listener for OCI IAM Policy Condition ANTLR parse tree (auto-generated, linted for style)."""
-
-from antlr4 import ParseTreeListener
+from antlr4 import *
 
 if '.' in __name__:
     from .OciIamPolicyConditionParser import OciIamPolicyConditionParser
@@ -9,79 +7,78 @@ else:
     from OciIamPolicyConditionParser import OciIamPolicyConditionParser
 
 
+# This class defines a complete listener for a parse tree produced by OciIamPolicyConditionParser.
 class OciIamPolicyConditionListener(ParseTreeListener):
-    """Listener interface for parse tree production by OciIamPolicyConditionParser."""
-
+    # Enter a parse tree produced by OciIamPolicyConditionParser#condition_clause.
     def enterCondition_clause(self, ctx: OciIamPolicyConditionParser.Condition_clauseContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#condition_clause."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#condition_clause.
     def exitCondition_clause(self, ctx: OciIamPolicyConditionParser.Condition_clauseContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#condition_clause."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#condition_expression.
     def enterCondition_expression(self, ctx: OciIamPolicyConditionParser.Condition_expressionContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#condition_expression."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#condition_expression.
     def exitCondition_expression(self, ctx: OciIamPolicyConditionParser.Condition_expressionContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#condition_expression."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#condition_list.
     def enterCondition_list(self, ctx: OciIamPolicyConditionParser.Condition_listContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#condition_list."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#condition_list.
     def exitCondition_list(self, ctx: OciIamPolicyConditionParser.Condition_listContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#condition_list."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#single_condition.
     def enterSingle_condition(self, ctx: OciIamPolicyConditionParser.Single_conditionContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#single_condition."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#single_condition.
     def exitSingle_condition(self, ctx: OciIamPolicyConditionParser.Single_conditionContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#single_condition."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#variable_name.
     def enterVariable_name(self, ctx: OciIamPolicyConditionParser.Variable_nameContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#variable_name."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#variable_name.
     def exitVariable_name(self, ctx: OciIamPolicyConditionParser.Variable_nameContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#variable_name."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#condition_value.
     def enterCondition_value(self, ctx: OciIamPolicyConditionParser.Condition_valueContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#condition_value."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#condition_value.
     def exitCondition_value(self, ctx: OciIamPolicyConditionParser.Condition_valueContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#condition_value."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#literal_list.
     def enterLiteral_list(self, ctx: OciIamPolicyConditionParser.Literal_listContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#literal_list."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#literal_list.
     def exitLiteral_list(self, ctx: OciIamPolicyConditionParser.Literal_listContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#literal_list."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#literal_list_content.
     def enterLiteral_list_content(self, ctx: OciIamPolicyConditionParser.Literal_list_contentContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#literal_list_content."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#literal_list_content.
     def exitLiteral_list_content(self, ctx: OciIamPolicyConditionParser.Literal_list_contentContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#literal_list_content."""
         pass
 
+    # Enter a parse tree produced by OciIamPolicyConditionParser#all_or_any.
     def enterAll_or_any(self, ctx: OciIamPolicyConditionParser.All_or_anyContext):
-        """Enter a parse tree produced by OciIamPolicyConditionParser#all_or_any."""
         pass
 
+    # Exit a parse tree produced by OciIamPolicyConditionParser#all_or_any.
     def exitAll_or_any(self, ctx: OciIamPolicyConditionParser.All_or_anyContext):
-        """Exit a parse tree produced by OciIamPolicyConditionParser#all_or_any."""
         pass
 
 

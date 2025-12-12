@@ -1,11 +1,7 @@
 # Generated from ./OciIamPolicyCondition.g4 by ANTLR 4.13.2
 import sys
 
-from antlr4 import Lexer
-from antlr4.atn.ATNDeserializer import ATNDeserializer
-from antlr4.dfa.DFA import DFA
-from antlr4.LexerATNSimulator import LexerATNSimulator
-from antlr4.PredictionContext import PredictionContextCache
+from antlr4 import *
 
 if sys.version_info[1] > 5:
     from typing import TextIO

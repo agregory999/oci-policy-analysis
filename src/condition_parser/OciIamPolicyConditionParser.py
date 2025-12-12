@@ -1,30 +1,15 @@
 # Generated from ./OciIamPolicyCondition.g4 by ANTLR 4.13.2
-"""Parser for OCI IAM Policy Condition ANTLR v4 grammar (auto-generated).
-
-This file is produced by ANTLR and is then linted for PEP8 and style.
-"""
-
 import sys
-from typing import TextIO
 
-from antlr4 import (
-    NoViableAltException,
-    Parser,
-    ParserRuleContext,
-    ParseTreeListener,
-    ParseTreeVisitor,
-    RecognitionException,
-    Token,
-    TokenStream,
-)
-from antlr4.atn.ATNDeserializer import ATNDeserializer
-from antlr4.dfa.DFA import DFA
-from antlr4.ParserATNSimulator import ParserATNSimulator
-from antlr4.PredictionContext import PredictionContextCache
+from antlr4 import *
+
+if sys.version_info[1] > 5:
+    from typing import TextIO
+else:
+    from typing.io import TextIO
 
 
 def serializedATN():
-    """Serialized ATN for the OCI IAM Policy Condition parser; used by ANTLR's runtime for grammar navigation."""
     return [
         4,
         1,
@@ -631,8 +616,6 @@ def serializedATN():
 
 
 class OciIamPolicyConditionParser(Parser):
-    """ANTLR parser for OCI IAM Policy Condition (generated from the grammar file)."""
-
     grammarFileName = 'OciIamPolicyCondition.g4'
 
     atn = ATNDeserializer().deserialize(serializedATN())
@@ -752,8 +735,6 @@ class OciIamPolicyConditionParser(Parser):
         self._predicates = None
 
     class Condition_clauseContext(ParserRuleContext):
-        """ParseTreeContext for a condition clause."""
-
         __slots__ = 'parser'
 
         def __init__(self, parser, parent: ParserRuleContext = None, invokingState: int = -1):
