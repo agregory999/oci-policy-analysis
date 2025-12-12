@@ -198,13 +198,7 @@ jobs:
               \$PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
               \$PYTHON_BIN -m pip install -e .
 
-              PY_SO=\$(\$PYTHON_BIN - <<'PYCODE'
-                import sysconfig, glob, os
-                libdir = sysconfig.get_config_var('LIBDIR')
-                matches = glob.glob(os.path.join(libdir, 'libpython*.so*'))
-                print(matches[0] if matches else '')
-              PYCODE
-              )
+              PY_SO=\$(\$PYTHON_BIN -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
 
               echo '📦 Building PyInstaller binary...'
               pyinstaller \
