@@ -1,3 +1,10 @@
+## [2.10.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.10.0...v2.10.1) (2025-12-12)
+
+
+### Bug Fixes
+
+* condition parser log ([482926b](https://github.com/agregory999/oci-policy-analysis/commit/482926bbc21c4ede0735af50cf0993d254cdd518))
+
 # [2.10.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.9.0...v2.10.0) (2025-12-12)
 
 
