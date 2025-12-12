@@ -121,8 +121,8 @@ jobs:
           restore-keys: |
             linux-pip-
 
-      - name: Set up Python (macOS/Windows)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
+      - name: Set up Python
+        if: steps.skip_build.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -131,7 +131,7 @@ jobs:
           architecture: 'x64'
 
       - name: Build wheels from source (pip)
-        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
+        if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
@@ -159,59 +159,26 @@ jobs:
           echo "📦 Installing your project..."
           pip install -e .
 
-      - name: Linux build inside manylinux2014
+      - name: Build (Linux)
         if: steps.skip_build.outputs.skip != 'true' && runner.os == 'Linux'
         shell: bash
         run: |
-          echo "🐧 Starting Amazon Linux 2 PyInstaller build..."
-
-          export PIP_CACHE_DIR="$PWD/.cache/pip"
-          mkdir -p "$PIP_CACHE_DIR" wheels dist build
-
-          # Write the container build script to the workspace so the container can read it
-          cat > linux-build.sh <<'AL2'
           set -ex
-          PYTHON_BIN=python3.12
-
-          mkdir -p /workspace/.cache/pip
-          chmod -R 777 /workspace/.cache
-
-          yum install -y python3.12 python3.12-devel python3.12-pip libffi-devel openssl-devel curl
-
-          $PYTHON_BIN -m pip install --upgrade pip
-          $PYTHON_BIN -m pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
-
-          echo '🔒 Running pip-compile...'
-          $PYTHON_BIN -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
-
-          grep -v '^-e .' frozen.txt > deps.txt
-          grep -v -- '--hash=' deps.txt > frozen2.txt
-          mv frozen2.txt frozen.txt
-
-          # Allow binary wheels (notably cryptography) to avoid heavy native builds
-          $PYTHON_BIN -m pip wheel --only-binary cryptography -r frozen.txt -w wheels/
-
-          $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
-          $PYTHON_BIN -m pip install -e .
-
-          PY_SO=$($PYTHON_BIN - <<'PYCODE'
-          import sysconfig, glob, os, sys
-          prefix = os.path.dirname(os.path.dirname(sys.executable))
-          libdir = sysconfig.get_config_var('LIBDIR') or ""
-          ldlib = sysconfig.get_config_var('LDLIBRARY') or ""
-          patterns = [
-              os.path.join(prefix, "lib", "libpython*.so*"),
-              os.path.join(prefix, "lib64", "libpython*.so*"),
-              os.path.join(libdir, "libpython*.so*"),
-              "/usr/lib64/libpython*.so*",
-          ]
-          if libdir and ldlib:
-              patterns.insert(0, os.path.join(libdir, ldlib))
-          candidates = []
-          for pat in patterns:
-              candidates.extend(glob.glob(pat))
-          candidates = [c for c in candidates if os.path.isfile(c) and ".a" not in os.path.basename(c)]
-          print(candidates[0] if candidates else "")
+          PY_SO=$(python3 - <<'PYCODE'
+            import sysconfig, glob, os, sys
+            libdir = sysconfig.get_config_var('LIBDIR') or ""
+            ldlib = sysconfig.get_config_var('LDLIBRARY') or ""
+            candidates = []
+            if libdir and ldlib:
+                candidates.append(os.path.join(libdir, ldlib))
+            for pat in (
+                os.path.join(libdir, "libpython*.so*"),
+                "/usr/lib/x86_64-linux-gnu/libpython*.so*",
+                "/usr/lib64/libpython*.so*",
+            ):
+                candidates.extend(glob.glob(pat))
+            candidates = [c for c in candidates if os.path.isfile(c) and ".a" not in os.path.basename(c)]
+            print(candidates[0] if candidates else "")
           PYCODE
           )
           ADD_BIN_ARG=""
@@ -221,14 +188,11 @@ jobs:
             echo "⚠️ No libpython shared library found; continuing without --add-binary"
           fi
 
-          echo '📦 Building PyInstaller binary...'
-          $PYTHON_BIN -m PyInstaller \
+          pyinstaller \
             --name='oci-policy-analysis' \
             --onefile \
             --clean --noconfirm \
             --noconsole \
-            --distpath /out \
-            --workpath /build \
             --icon=icons/oci-policy-dg-viewer.png \
             --add-data 'src/oci_policy_analysis/version.txt:oci_policy_analysis' \
             --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
@@ -236,25 +200,6 @@ jobs:
             --copy-metadata fastmcp \
             $ADD_BIN_ARG \
             src/oci_policy_analysis/main.py
-
-          echo '📂 Contents of /out after PyInstaller:'
-          ls -lh /out || true
-          echo '📂 Contents of /workspace/dist:'
-          ls -lh /workspace/dist || true
-          AL2
-          chmod +x linux-build.sh
-
-          docker run --rm \
-            -v "$PWD":/workspace \
-            -v "$PWD/dist":/out \
-            -v "$PWD/build":/build \
-            -w /workspace \
-            -e PIP_CACHE_DIR="/workspace/.cache/pip" \
-            amazonlinux:2023 \
-            bash /workspace/linux-build.sh
-
-          echo "🎉 Amazon Linux 2 build complete."
-          ls -lh dist
 
       - name: Build package
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Linux'
