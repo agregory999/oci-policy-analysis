@@ -63,6 +63,7 @@ jobs:
   build:
     needs: release
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -204,6 +205,11 @@ jobs:
             --copy-metadata fastmcp \
             --add-binary="$PY_SO:." \
             src/oci_policy_analysis/main.py
+
+          echo '📂 Contents of /out after PyInstaller:'
+          ls -lh /out || true
+          echo '📂 Contents of /workspace/dist:'
+          ls -lh dist || true
           AL2
 
           echo "🎉 Amazon Linux 2 build complete."
@@ -295,6 +301,9 @@ jobs:
 
           echo "📦 Packaging for ${PLATFORM} (version ${VERSION})"
           ls -lh dist
+
+          # Show tree for debugging missing artifacts
+          find dist -maxdepth 2 -type f -print
 
           case "$PLATFORM" in
             macos)
