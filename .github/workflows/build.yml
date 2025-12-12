@@ -152,10 +152,12 @@ jobs:
           echo "🐧 Starting Amazon Linux 2 PyInstaller build..."
 
           export PIP_CACHE_DIR="$PWD/.cache/pip"
-          mkdir -p "$PIP_CACHE_DIR" wheels
+          mkdir -p "$PIP_CACHE_DIR" wheels dist build
 
           docker run --rm \
             -v "$PWD":/workspace \
+            -v "$PWD/dist":/out \
+            -v "$PWD/build":/build \
             -w /workspace \
             -e PIP_CACHE_DIR="/workspace/.cache/pip" \
             quay.io/pypa/manylinux2014_x86_64 \
@@ -185,8 +187,6 @@ jobs:
           $PYTHON_BIN -m pip install --no-index --find-links=./wheels -r frozen.txt
           $PYTHON_BIN -m pip install -e .
 
-          mkdir -p dist build
-
           PY_SO=$($PYTHON_BIN -c "import sysconfig, glob, os; libdir=sysconfig.get_config_var('LIBDIR'); matches=glob.glob(os.path.join(libdir, 'libpython*.so*')); print(matches[0] if matches else '')")
 
           echo '📦 Building PyInstaller binary...'
@@ -195,8 +195,8 @@ jobs:
             --onefile \
             --clean --noconfirm \
             --noconsole \
-            --distpath dist \
-            --workpath build \
+            --distpath /out \
+            --workpath /build \
             --icon=icons/oci-policy-dg-viewer.png \
             --add-data 'src/oci_policy_analysis/version.txt:oci_policy_analysis' \
             --add-data 'src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions' \
