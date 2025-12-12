@@ -183,21 +183,24 @@ class ConditionTesterTab(ttk.Frame):
                 # Always add variable names found anywhere (including right side)
                 self.vars.add(ctx.getText())
 
-            def visitCondition_value(self, ctx):
-                # If this value is an identifier, add as a possible variable
-                if ctx.IDENTIFIER():
-                    self.vars.add(ctx.getText())
-                # For dot-separated chains: variable_name.
-                elif ctx.getChildCount() > 0:
-                    text = ctx.getText()
-                    # Only add if it really looks like a dot-variable chain (heuristic: contains dot, no spaces, not quoted)
-                    if '.' in text and not text.startswith("'") and not text.startswith('"'):
-                        self.vars.add(text)
-                return self.visitChildren(ctx)
+            def visitTerminal(self, node):
+                # Also collect any token that is of type IDENTIFIER, including right-hand side
+                if hasattr(node, 'symbol') and hasattr(node.symbol, 'type'):
+                    # OciIamPolicyConditionLexer.IDENTIFIER == 39 (may vary, get from lexer directly if possible)
+                    # We'll try to match by name for clarity
+                    if node.symbol.type == OciIamPolicyConditionLexer.IDENTIFIER and '.' in node.getText():
+                        # Exclude identifiers from string or pattern literals implicitly (handled by parse)
+                        self.vars.add(node.getText())
+                return None
 
         collector = VarCollector()
         collector.visit(tree)
-        return collector.vars
+        extracted = collector.vars
+        # Diagnostic: If the clause is the one we care about, log prominently
+        TEST_CLAUSE = 'all { request.principal.id=target.bucket.system-tag.orcl-aidp.governingaidpid }'
+        if cond_str.strip() == TEST_CLAUSE:
+            logger.info(f'[TEST_DIAGNOSTIC] Extracted vars for disputed clause: {sorted(extracted)}')
+        return extracted
 
     # === Evaluate Logic Embedded ===
     def _evaluate_condition(self):
@@ -276,7 +279,14 @@ class ConditionTesterTab(ttk.Frame):
                     elif is_string:
                         value = value_raw[1:-1]
                     else:
-                        value = value_raw
+                        # If the value is an IDENTIFIER and matches a simulated variable, substitute
+                        if value_token_type == 'IDENTIFIER' and value_raw in self.simulated_variables:
+                            logger.info(
+                                f"[RE-EVAL] RHS IDENTIFIER '{value_raw}' replaced with simulated value '{self.simulated_variables[value_raw]}'"
+                            )
+                            value = self.simulated_variables[value_raw]
+                        else:
+                            value = value_raw
                 else:
                     value = None
                     value_token_type = 'none'
@@ -287,16 +297,6 @@ class ConditionTesterTab(ttk.Frame):
                     if value_2_ctx.STRING_LITERAL() or value_2_ctx.PATTERN_LITERAL():
                         value_2 = value_2[1:-1]
                 sim_value = self.simulated_variables.get(variable)
-
-                # NEW: For identifier/dot-chain on right, resolve to variable value if present
-                right_var_val = None
-                if value_token_type == 'IDENTIFIER' or (
-                    isinstance(value, str) and '.' in value and not value.startswith("'") and not value.startswith('"')
-                ):
-                    right_var_val = self.simulated_variables.get(value)
-                    if right_var_val is not None:
-                        logger.info(f'[RE-EVAL] RHS is variable: {value}, value={right_var_val}')
-                        value = right_var_val
 
                 log_entry = {
                     'variable': variable,
