@@ -63,7 +63,7 @@ logger = get_logger(component='data_repo')
 permission_reference_repo = ReferenceDataRepo()
 
 # Constants
-THREADS = 9
+THREADS = 1
 POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny action (and whitespace at front)
     (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
     (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
@@ -138,6 +138,7 @@ class PolicyAnalysisRepository:
 
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
+        self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
         self.regular_statements: list[RegularPolicyStatement] = []
         self.cross_tenancy_statements = []
         self.defined_aliases: list[DefineStatement] = []  # Store define statements as list of dict
@@ -431,165 +432,220 @@ class PolicyAnalysisRepository:
             logger.debug(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
 
-    def _parse_subjects(self, subject_string) -> list[tuple[str, str]]:
-        """Parse a comma-separated string of subjects and return list of (domain, name) tuples"""
-        # Split by comma and strip whitespace
-        subject_parts = [part.strip() for part in subject_string.split(',')]
-        results: list[tuple[str, str]] = []
+    # def _parse_subjects(self, subject_string) -> list[tuple[str, str]]:
+    #     """Parse a comma-separated string of subjects and return list of (domain, name) tuples"""
+    #     # Split by comma and strip whitespace
+    #     subject_parts = [part.strip() for part in subject_string.split(',')]
+    #     results: list[tuple[str, str]] = []
 
-        for part in subject_parts:
-            if not part:  # Skip empty parts
+    #     for part in subject_parts:
+    #         if not part:  # Skip empty parts
+    #             continue
+
+    #         logger.debug(f"  DEBUG: Processing part: '{part}'")
+
+    #         # Check if it contains a separator (/ or \)
+    #         if '/' in part or '\\' in part:
+    #             # Split on the separator
+    #             if '/' in part:
+    #                 separator_parts = part.split('/', 1)  # Split only on first occurrence
+    #             else:
+    #                 separator_parts = part.split('\\', 1)  # Split only on first occurrence
+
+    #             if len(separator_parts) == 2:
+    #                 domain_part = separator_parts[0].strip()
+    #                 name_part = separator_parts[1].strip()
+
+    #                 # Remove quotes from domain and name
+    #                 domain = domain_part.strip('\'"')
+    #                 name = name_part.strip('\'"')
+
+    #                 logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
+    #                 results.append((domain, name))
+    #             else:
+    #                 # Shouldn't happen, but fallback
+    #                 clean_name = part.strip('\'"')
+    #                 logger.debug(
+    #                     f"  DEBUG: Separator found but couldn't split properly - using as simple name: '{clean_name}'"
+    #                 )
+    #                 results.append(('Default', clean_name))
+    #         else:
+    #             # No separator, it's just a name
+    #             clean_name = part.strip('\'"')
+    #             logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
+    #             results.append(('Default', clean_name))
+
+    #     return results
+
+    def _parse_subjects(self, subject_list) -> list[tuple[str, str]]:
+        """
+        Given a parsed subject (list of strings), return list of (domain, subject).
+        - If string contains '/', use part before first '/' as domain, after as subject.
+        - If not, assume domain "default".
+        Strips quotes from all parts.
+        """
+        results = []
+        if not isinstance(subject_list, list):
+            subject_list = [subject_list]
+        for subj in subject_list:
+            if not subj:
                 continue
-
-            logger.debug(f"  DEBUG: Processing part: '{part}'")
-
-            # Check if it contains a separator (/ or \)
-            if '/' in part or '\\' in part:
-                # Split on the separator
-                if '/' in part:
-                    separator_parts = part.split('/', 1)  # Split only on first occurrence
-                else:
-                    separator_parts = part.split('\\', 1)  # Split only on first occurrence
-
-                if len(separator_parts) == 2:
-                    domain_part = separator_parts[0].strip()
-                    name_part = separator_parts[1].strip()
-
-                    # Remove quotes from domain and name
-                    domain = domain_part.strip('\'"')
-                    name = name_part.strip('\'"')
-
-                    logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
-                    results.append((domain, name))
-                else:
-                    # Shouldn't happen, but fallback
-                    clean_name = part.strip('\'"')
-                    logger.debug(
-                        f"  DEBUG: Separator found but couldn't split properly - using as simple name: '{clean_name}'"
-                    )
-                    results.append(('Default', clean_name))
+            # Remove leading/trailing quotes and whitespace
+            s = str(subj).strip().strip('\'"')
+            if '/' in s:
+                domain, subject = s.split('/', 1)
+                domain = domain.strip('\'"')
+                subject = subject.strip('\'"')
+                results.append((domain, subject))
             else:
-                # No separator, it's just a name
-                clean_name = part.strip('\'"')
-                logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
-                results.append(('Default', clean_name))
-
+                # No explicit domain, use "default"
+                results.append(('default', s.strip('\'"')))
         return results
 
     def _parse_define_statement(self, policy: BasePolicy, statement: DefineStatement) -> bool:
-        """Given a define statement, parse and add to defined_aliases list"""
-        # We have the basic define Policy statement dict already created
-        # Need to parse out the defined_type, defined_name, and ocid_alias
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        statement_text = statement['statement_text']
-        logger.debug(f'Parsing define statement: {statement_text}')
-        # Parse Define
         try:
-            # result = re.search(CROSS_TENANCY_DEFINE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-            result = define_regex.match(statement_text).groupdict()
-            logger.debug(f'Result Define: {result}')
-            if result.get('alias') and result.get('principal'):
-                logger.debug(
-                    f'Adding to Defined Aliases - Name: {result.get("principal")}, Type: {result.get("define_type")}, OCID: {result.get("alias")}'
-                )
-                # Update existing DefineStatment object
-                statement['defined_type'] = result.get('define_type')
-                statement['defined_name'] = result.get('principal')
-                statement['ocid_alias'] = result.get('alias')
-                statement['valid'] = True
-                self.defined_aliases.append(statement)
-                logger.debug(f'Define Statement Added: {statement}')
-                return True
+            # Use definition's base model fields for required meta
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='define', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f'Define statement was unable to normalize: {statement["statement_text"]}')
+                return False
+            self.defined_aliases.append(normalized)
+            logger.info(f'Define Statement Added: {normalized}')
+            return True
         except Exception as e:
-            logger.warning(f'Failed to parse define: {e}')
-        return False
+            statement['parsed'] = False
+            statement['valid'] = False
+            logger.warning(f'Normalize define statement failed: {e}')
+            return False
 
     def _parse_admit_statement(self, policy: BasePolicy, statement: AdmitStatement) -> bool:
-        """Given an admit statement, parse and add to cross_tenancy_statements list"""
-        # No parsing yet, just append
-        statement['valid'] = True
-        self.cross_tenancy_statements.append(statement)
-        logger.debug(f'Admit Statement Added: {statement}')
-        return True
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
+
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='admit', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Admit statement was unable to normalize: {statement['statement_text']}")
+                return False
+            self.cross_tenancy_statements.append(normalized)
+            logger.info(f'Admit Statement Added: {normalized}')
+            return True
+        except Exception as ex:
+            statement['valid'] = False
+            statement['parsed'] = False
+            statement['parsing_notes'] = [f'Normalize admit parser failed: {ex}']
+            logger.warning(f'Normalize admit parser failed: {ex}')
+            self.cross_tenancy_statements.append(statement)
+            return False
 
     def _parse_endorse_statement(self, policy: BasePolicy, statement: EndorseStatement) -> bool:
-        """Given an endorse statement, parse and add to cross_tenancy_statements list"""
-        # No parsing yet, just append
-        statement['valid'] = True
-        self.cross_tenancy_statements.append(statement)
-        logger.debug(f'Endorse Statement Added: {statement}')
-        return True
-
-    def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:  # noqa: C901
-        """Parses a regular policy statement into component parts
-        Subject / Verb / Resource(or permission) / Location / Conditions (opt) / Comments (opt)
-
-        This is the main parsing logic that uses Regular Expressions and post-parsing logic.
-        An example of post-parsing would be to separate the subject list into an actual list of tuples
-        representing the domain and group or dynamic group.
-
-        Does not add to any lists itself, simply returns the parsed statement dict.
         """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        # Simpler logic here - RegularPolicyStatement needs additional fields from parser
-        statement_text = statement['statement_text']
-        logger.debug(f'Parsing regular statement: {statement_text}')
-        # Process Results of regex
-        match_result = policy_regex.match(statement_text)
-        if match_result and match_result.groupdict():
-            result = match_result.groupdict()
-            logger.debug(f'Subject parsed 1: {result.get("subject")} ||| Statement: {statement_text}')
-            try:
-                # Populate parsed fields
-                statement['valid'] = True  # Currently for Validity
-                statement['action'] = result.get('action', 'allow').lower() if result.get('action') else 'allow'
-                statement['subject_type'] = result.get('subjecttype') or 'other'
-                statement['subject'] = result.get('subject') or ''
-                statement['verb'] = result.get('verb') or ''
-                statement['resource'] = result.get('resource') or ''
-                statement['permission'] = []
-                statement['location_type'] = result.get('locationtype') or ''
-                statement['location'] = result.get('location') or ''
-                statement['conditions'] = result.get('condition') or ''
-                statement['comments'] = result.get('optional') or ''
-                statement['parsing_notes'] = []
-                statement['parsed'] = True  # Currently for parsed
-                # Additional Subject Parsing
-                if statement['subject_type'] in ['any-user', 'any-group']:
-                    statement['subject'] = [(None, statement['subject_type'])]
-                else:
-                    # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
-                    # Try new subject parser
-                    subject_result = self._parse_subjects(statement['subject'])
-                    logger.debug(f'Subject parsed: {subject_result}')
-                    # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
-                    if len(subject_result) > 1:
-                        statement['parsing_notes'].append('Multiple subjects found')
-                    statement['subject'] = subject_result
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='endorse', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Endorse statement was unable to normalize: {statement['statement_text']}")
+                return False
+            self.cross_tenancy_statements.append(normalized)
+            logger.info(f'Endorse Statement Added: {normalized}')
+            return True
+        except Exception as ex:
+            statement['valid'] = False
+            statement['parsed'] = False
+            logger.warning(f'Normalize endorse parser failed: {ex}')
+            self.cross_tenancy_statements.append(statement)
+            return False
 
-                # If permissions are present, parse them into a list.
-                if result.get('perm'):
-                    # permissions looks like {permission1,permission2, permission3}
-                    # Strip the braces and split , and strip whitespace
-                    perms = result.get('perm').strip('{}').split(',')
-                    perms = [p.strip().upper() for p in perms if p.strip()]
-                    logger.debug(f'Parsed permissions from {result.get("perm")} to {perms}')
-                    statement['permission'] = perms
-                    statement['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
-                # If the location was wrapped in quotes, remove them
-                if statement['location']:
-                    statement['location'] = statement['location'].strip('\'"')
-            except Exception as e:
-                logger.warning(f'Failed to parse statement: {e}')
+    def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        else:
-            logger.warning(f'No regex match for statement: |{statement_text}|')
-
-        logger.debug(f'Parsed Statement as JSON: {statement}')
-        self.regular_statements.append(statement)
-
-        # Success or fail based on parsed field
-        return True if statement.get('parsed') else False
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='regular', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Regular statement was unable to normalize: {statement['statement_text']}")
+                self.regular_statements.append(statement)
+                return False
+            self.regular_statements.append(normalized)
+            logger.info(f'Regular Policy Statement Parsed: {normalized}')
+            return True
+        except Exception as ex:
+            statement['parsed'] = False
+            logger.warning(f'Normalize regular policy parser failed: {ex}')
+            self.regular_statements.append(statement)
+            return False
 
     def _parse_dynamic_group(self, domain, dg: DynamicResourceGroup) -> DynamicGroup:
         """Extract the contents of the DG into a dict"""
@@ -644,7 +700,10 @@ class PolicyAnalysisRepository:
                         compartment_ocid=compartment.id,
                         creation_time=policy.time_created,
                     )
+                    # Add to self.policies list
+                    self.policies.append(policy_obj)
 
+                    # Loop through statements in policy
                     for statement in policy.statements:
                         # Get the text of the statement in lower case for easier parsing
                         logger.debug(f'Processing statement in policy {policy.name}: {statement}')
@@ -660,6 +719,7 @@ class PolicyAnalysisRepository:
                             statement_text=statement_lower,
                             creation_time=str(policy.time_created),
                             internal_id=hashlib.md5((statement + policy.id).encode()).hexdigest(),
+                            parsed=False,
                         )
                         # 1) Filter the define statements here and add them to the defines list
                         if statement_lower.startswith('define'):
@@ -727,6 +787,7 @@ class PolicyAnalysisRepository:
             a boolean indicating success or failure
         """
         self.compartments = []
+        self.policies = []
         self.regular_statements: list[RegularPolicyStatement] = []
         self.cross_tenancy_statements: list[BasePolicyStatement] = []
         self.defined_aliases: list[DefineStatement] = []
@@ -1650,7 +1711,7 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Add: {subject_type} Subject: {subject_list}')
                 all_subjects.extend(subject_list)
 
-        logger.info(f'all subjects: {len(all_subjects)}')
+        logger.debug(f'Subject Count for DG in-use analysis: {len(all_subjects)}')
         # all_subjects = list(set(all_subjects))
         # logger.info(f"all subjects: {len(all_subjects)}")
 
@@ -1916,6 +1977,7 @@ class PolicyAnalysisRepository:
         self.users = []
         self.groups = []
         self.compartments = []
+        self.policies = []
         self.regular_statements = []
         self.cross_tenancy_statements = []
         self.defined_aliases = []
@@ -1932,6 +1994,7 @@ class PolicyAnalysisRepository:
                 logger.error('No regions found in all resources data')
                 return False
             first_region = list(all_resources_data.keys())[0]
+            logger.info(f'First region found in all resources data: {first_region}')
 
             # Step 1: Set the tenancy OCID and Name from the data
             # To get this properly, we need to open the raw_data_identity_compartments.csv and look for the row with id that starts with ocid1.tenancy.
@@ -2095,6 +2158,7 @@ class PolicyAnalysisRepository:
                     creation_time=policy_item.get('time_created') or '',
                 )
                 # Not really appending policies itself right now, use for parsing statements though
+                self.policies.append(policy_obj)
 
                 # Look up the compartment path in loaded compartments
                 comp_path = next(

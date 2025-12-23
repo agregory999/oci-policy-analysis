@@ -13,7 +13,6 @@
 # coding: utf-8
 ##########################################################################
 from oci_policy_analysis.common.models import (
-    BasePolicyStatement,
     DefineStatement,
     DynamicGroup,
     Group,
@@ -45,7 +44,7 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
         'Statement Text': statement['statement_text'],  # type: ignore
         'Valid': statement['valid'],  # type: ignore
         'Invalid Reasons': ', '.join(statement['invalid_reasons'])
-        if 'invalid_reasons' in statement and type(statement['invalid_reasons']) is list
+        if 'invalid_reasons' in statement and isinstance(statement['invalid_reasons'], list)
         else '',
         'Subject Type': statement['subject_type'] if 'subject_type' in statement else '',
         'Subject': statement['subject'] if 'subject' in statement else '',
@@ -143,44 +142,90 @@ def for_display_dynamic_group(dg: DynamicGroup) -> dict:
 # Return a display-friendly dict for a defined alias
 def for_display_define(define: DefineStatement) -> dict:
     """
-    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
-    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
-    display-friendly names.
-
+    Return a dictionary suitable for display purposes, including all available key/value fields for defines.
     Args:
         define (DefineStatement): The define statement (dict) to format.
-
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
+    # Show all fields available in the define dict, in sorted key order except display-important ones first
+    # Don't get cute - just return 'Policy Name', 'Defined Type', 'Defined Name', 'OCID Alias'
+
     return {
-        'Policy Name': define['policy_name'],  # type: ignore
-        'Defined Type': define['defined_type'],  # type: ignore
-        'Defined Name': define['defined_name'],  # type: ignore
-        'OCID Alias': define['ocid_alias'],  # type: ignore
-        'Statement Text': define['statement_text'],  # type: ignore
-        'Creation Time': define['creation_time'],  # type: ignore
+        'Policy Name': define.get('policy_name', ''),
+        'Defined Type': define.get('defined_type', ''),
+        'Defined Name': define.get('defined_name', ''),
+        'OCID Alias': define.get('ocid_alias', ''),
     }
 
 
-# Return a display-friendly dict for a cross-tenancy policy statement
-def for_display_cross_tenancy(statement: BasePolicyStatement) -> dict:
+# Return a display-friendly dict for an Admit statement (cross-tenancy, using parsed fields)
+def for_display_admit(statement) -> dict:
     """
-    Return a dictionary suitable for display purposes. The underlying dict has many fields, some of which
-    may not be present depending on how the statement was parsed. Display dict includes all possible fields with
-    display-friendly names.
-
-    Args:
-        statement (PolicyStatement): The cross-tenancy policy statement (dict) to format.
-
-    Returns:
-        dict: A dictionary with keys and values formatted for display.
+    Display-friendly dict for parsed AdmitStatement, mapped to all UI columns.
     """
-    display_dict = {
-        'Policy Name': statement['policy_name'],
-        'Policy OCID': statement['policy_ocid'],
-        'Policy Compartment': statement['policy_compartment'],
-        'Statement Text': statement['statement_text'],
-        'Creation Time': statement['creation_time'],
+
+    # Display either empty string if not there or empty list.  If list is there and >0 length, join into a string for display.  Display as {PERM1, PERM2}
+    permissions_list_display = ''
+    if 'admit_permission_set' in statement:
+        if isinstance(statement['admit_permission_set'], list) and len(statement['admit_permission_set']) > 0:
+            permissions_list_display = '{' + ', '.join(statement['admit_permission_set']) + '}'
+        elif isinstance(statement['admit_permission_set'], str):
+            permissions_list_display = '{' + statement['admit_permission_set'] + '}'
+
+    return {
+        'Policy Name': statement.get('policy_name', ''),
+        'Policy Compartment': statement.get('compartment_path', ''),
+        'Statement Text': statement.get('statement_text', ''),
+        'Creation Time': statement.get('creation_time', ''),
+        'Parsed': statement.get('parsed', False),
+        'Action Type': statement.get('action_type', ''),
+        'Admitted Principal Type': statement.get('admitted_principal_type', ''),
+        'Admitted Principals': ', '.join(statement.get('admitted_principal', []))
+        if isinstance(statement.get('admitted_principal', []), list)
+        else statement.get('admitted_principal', ''),
+        'Admitted Tenancy': statement.get('admitted_tenancy', ''),
+        'Admitted Action (or Permission)': f"{statement.get('admit_action', '')} {statement.get('admit_resource', '')}{permissions_list_display}",
+        'Location Type': statement.get('admit_location_type', ''),
+        'Location': statement.get('admit_location', ''),
+        'Where Clause': statement.get('where_clause', ''),
+        'Comments': statement.get('comment', ''),
     }
-    return display_dict
+
+
+# Return a display-friendly dict for an Endorse statement (cross-tenancy)
+def for_display_endorse(statement) -> dict:
+    """
+    Display-friendly dict for parsed EndorseStatement, mapped to all UI columns.
+    """
+
+    # Display either empty string if not there or empty list.  If list is there and >0 length, join into a string for display.  Display as {PERM1, PERM2}
+    permissions_list_display = ''
+    if 'endorse_permissions' in statement:
+        if isinstance(statement['endorse_permissions'], list) and len(statement['endorse_permissions']) > 0:
+            permissions_list_display = '{' + ', '.join(statement['endorse_permissions']) + '}'
+        elif isinstance(statement['endorse_permissions'], str):
+            permissions_list_display = '{' + statement['endorse_permissions'] + '}'
+
+    # For Endorsed Action (or Permission) column, combine endorse_action, endorse_resource and endorse_permission if both exist
+    return {
+        'Policy Name': statement.get('policy_name', ''),
+        'Policy OCID': statement.get('policy_ocid', ''),
+        'Statement Text': statement.get('statement_text', ''),
+        'Creation Time': statement.get('creation_time', ''),
+        'Parsed': statement.get('parsed', False),
+        'Action Type': statement.get('action_type', ''),
+        'Endorsed Principal Type': statement.get('endorsed_principal_type', ''),
+        'Endorsed Principals': ', '.join(statement.get('endorsed_principal', []))
+        if isinstance(statement.get('endorsed_principal', []), list)
+        else statement.get('endorsed_principal', ''),
+        'Endorsed Action (or Permission)': f"{statement.get('endorse_action', '')} {statement.get('endorse_resource', '')}{permissions_list_display}",
+        # 'Endorsed Action': statement.get('endorse_action', ''),
+        # 'Endorsed Resource': statement.get('endorse_resource', ''),
+        # 'Endorsed Permissions': ', '.join(statement.get('endorse_permissions', [])) if isinstance(statement.get('endorse_permissions', []), list) else statement.get('endorse_permissions', ''),
+        # 'Location Type': statement.get('endorse_location_type', ''),
+        # 'Location': statement.get('endorse_location', ''),
+        'Endorsed Tenancy Name': statement.get('endorse_tenancy', ''),
+        'Where Clause': statement.get('where_clause', ''),
+        'Comments': statement.get('comment', ''),
+    }

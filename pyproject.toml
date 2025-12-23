@@ -27,10 +27,14 @@ docs = [
     "sphinx>=7",
     "sphinx-rtd-theme>=2",
     "myst-parser>=2",
+    "antlr4-python3-runtime"
 ]
 commit = [
     "pipdeptree>=2.30.0",
     "pre_commit>=4.5.0",
+]
+test = [
+    "pytest"
 ]
 
 [build-system]

@@ -554,7 +554,7 @@ class PoliciesTab(ttk.Frame):
             )
         ]
         self.label_policy_count.config(
-            text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}'
+            text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
         )
         # Populate Data Table
         logger.debug(rows_to_show)

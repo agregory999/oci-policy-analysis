@@ -19,11 +19,11 @@ from tkinter.scrolledtext import ScrolledText
 
 # ANTLR + condition parser imports inlined and used in place of condition_tester.run_condition_test
 from antlr4 import CommonTokenStream, InputStream
-from condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
-from condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
-from condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
+from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
+from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
 
 logger = get_logger('condition_tester_tab')
 
@@ -45,7 +45,7 @@ class ConditionTesterTab(ttk.Frame):
         clause_frame = ttk.LabelFrame(self, text='Condition (Where) Clause')
         clause_frame.pack(fill=tk.X, padx=10, pady=5)
         # Make clause text 6 lines, resizable if tab expands
-        self.clause_text = ScrolledText(clause_frame, height=6, width=120, wrap=tk.WORD, font=('Consolas', 10))
+        self.clause_text = ScrolledText(clause_frame, height=10, width=120, wrap=tk.WORD, font=('Consolas', 10))
         self.clause_text.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.BOTH, expand=True)
         # No manual pack_propagate or columnconfigure! Let default geometry work.
         # Keep clause_var for compatibility, but keep in sync with clause_text content

@@ -278,6 +278,7 @@ class BasePolicyStatement(TypedDict):
     statement_text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
     creation_time: Annotated[str, 'Timestamp (ISO-8601) of the policy creation in OCI.']
     internal_id: Annotated[str, 'Unique internal hash identifier for this statement.']
+    parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
 
 
 class DefineStatement(BasePolicyStatement, total=False):
@@ -287,24 +288,69 @@ class DefineStatement(BasePolicyStatement, total=False):
     defined_type: Annotated[str, 'Type of object defined (user, group, dynamic-group, etc.)']
     defined_name: Annotated[str, 'Name of the defined object']
     ocid_alias: Annotated[str, 'Alias assigned for this definition, if any']
+    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
 
 
 class EndorseStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'endorse' cross-tenancy policy statement with optional metadata."""
 
     valid: Annotated[bool, 'True if the statement passed parsing and validation']
-    target_tenancy_ocid: Annotated[str, 'OCID of the target tenancy being endorsed']
-    target_tenancy_name: Annotated[str, 'Name of the target tenancy being endorsed']
-    endorsed_permissions: Annotated[list[str], 'List of permissions being endorsed to the target tenancy']
+    action_type: Annotated[
+        Literal['endorse', 'deny endorse'], 'Type of endorse action: either "endorse" or "deny endorse"'
+    ]
+    endorsed_principal_type: Annotated[
+        Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
+        'Type of principal: group, dynamic-group, any-user, service.',
+    ]
+    endorsed_principal: Annotated[str, 'Name of the principal being endorsed (group, dynamic-group, etc.)']
+    endorsed_principal_tenancy: Annotated[str, 'The tenancy of the endorsed group or dynamic-group']
+    endorse_action: Annotated[str, 'Verb or permission for the endorse statement (e.g., associate, use, etc.)']
+    endorse_resource: Annotated[
+        str, 'Target OCI resource of the endorse statement (e.g., instance-family, bucket, etc.)'
+    ]
+    endorse_permissions: NotRequired[Annotated[list[str], 'List of explicit permissions being endorsed']]
+    endorse_tenancy: Annotated[str, 'Defined name of the endorsed tenancy']
+    # "Associate ... with ..." triple-tenancy fields (optional, used for advanced endorses)
+    endorse_associate_resource: NotRequired[Annotated[str, 'Resource being associated (resource_a)']]
+    endorse_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
+    endorse_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
+    endorse_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
+
+    # where, comment
+    where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
+    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
 
 
 class AdmitStatement(BasePolicyStatement, total=False):
-    """Parsed OCI IAM 'admit' cross-tenancy policy statement with optional metadata."""
+    """Parsed OCI IAM 'admit' cross-tenancy policy statement with parsed metadata."""
 
     valid: Annotated[bool, 'True if the statement passed parsing and validation']
-    source_tenancy_ocid: Annotated[str, 'OCID of the source tenancy being admitted']
-    source_tenancy_name: Annotated[str, 'Name of the source tenancy being admitted']
-    admitted_permissions: Annotated[list[str], 'List of permissions being admitted from the source tenancy']
+
+    # Basic principal info
+    action_type: Annotated[Literal['admit', 'deny admit'], 'Type of admit action: either "admit" or "deny admit"']
+
+    admitted_principal_type: Annotated[
+        Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
+        'Type of principal: group, dynamic-group, any-user, etc.',
+    ]
+    admitted_principal: Annotated[str, 'Name of the principal being admitted (group, dynamic-group, etc.)']
+    admitted_tenancy: Annotated[str, 'The tenancy of the admitted group or dynamic-group']
+
+    # Main admit action/target (for simple admits)
+    admit_action: Annotated[str, 'Verb or permission for the admit statement (e.g., read, manage, use, etc.)']
+    admit_resource: Annotated[str, 'Target OCI resource of the admit statement (e.g., all-resources, orm-stack, etc.)']
+    admit_permissions: NotRequired[Annotated[list[str], 'List of explicit permissions being admitted']]
+    admit_location_type: Annotated[str, 'tenancy or compartment or compartment id']
+    admit_location: Annotated[str, 'The actual location value (e.g., tenancy, compartment OCID, etc.)']
+    # "Associate ... with ..." triple-tenancy fields (optional, used for advanced admits)
+    admit_associate_resource: NotRequired[Annotated[str, 'Resource being associated (resource_a)']]
+    admit_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
+    admit_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
+    admit_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
+
+    # Permissions, where, comment
+    where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
+    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
 
 
 class RegularPolicyStatement(BasePolicyStatement, total=False):
@@ -353,8 +399,6 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
     ]
 
     comments: Annotated[str, 'Comments or annotations appended to the policy statement text, if any.']
-
-    parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
 
     parsing_notes: Annotated[
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
