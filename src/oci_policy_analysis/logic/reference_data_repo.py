@@ -60,6 +60,10 @@ class ReferenceDataRepo:
     def _load_data(self):
         data = {'resources': {}, 'families': {}}
         files_loaded = 0
+        # Store operations for all loaded files in new field (flat)
+        data['operations'] = {}
+        # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
+        data['operations_by_api'] = {}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
@@ -67,19 +71,31 @@ class ReferenceDataRepo:
                     file_data = json.load(f)
                     debug_resources = file_data.get('resources', {})
                     debug_families = file_data.get('families', {})
+                    debug_operations = file_data.get('operations', {})
                     logger.debug(
-                        f'File {file_path}: contains {len(debug_resources)} resources, {len(debug_families)} families'
+                        f'File {file_path}: contains {len(debug_resources)} resources, {len(debug_families)} families, {len(debug_operations)} operations'
                     )
                     data['resources'].update(debug_resources)
                     data['families'].update(debug_families)
+                    # Determine api_name from filename (basename, no extension)
+                    api_name = os.path.splitext(os.path.basename(file_path))[0]
+                    if debug_operations:
+                        data['operations'].update(debug_operations)
+                        # group by api_name: {op_name: op_data + 'api_name': ...}
+                        ops = {}
+                        for op_name, meta in debug_operations.items():
+                            meta_copy = dict(meta)  # don't mutate input
+                            meta_copy['api_name'] = api_name
+                            ops[op_name] = meta_copy
+                        data['operations_by_api'][api_name] = ops
                     logger.debug(
-                        f'File {file_path} loaded/merged. Cumulative resources: {len(data["resources"])}, families: {len(data["families"])}'
+                        f'File {file_path} loaded/merged. Cumulative resources: {len(data["resources"])}, families: {len(data["families"])}, operations: {len(data["operations"])}, operations_by_api: {len(data["operations_by_api"])}'
                     )
                     files_loaded += 1
             except Exception as e:
                 logger.error(f'Error loading {file_path}: {e}')
         logger.info(
-            f'Loaded {files_loaded} reference data files. Total resources: {len(data["resources"])}, families: {len(data["families"])}'
+            f'Loaded {files_loaded} reference data files. Total resources: {len(data["resources"])}, families: {len(data["families"])}, operations: {len(data["operations"])}, operations_by_api: {len(data["operations_by_api"])}'
         )
         return data
 
@@ -167,3 +183,25 @@ class ReferenceDataRepo:
                     if source_url:
                         sources.add(source_url)
         return ', '.join(sources) if sources else ''
+
+    def has_api_operation_permissions(self, operation_name, granted_permissions):
+        """
+        Check if all required permissions for the given API operation are present in the granted_permissions list.
+        Args:
+            operation_name (str): Name of the API operation (as in 'operations' node).
+            granted_permissions (list[str]): List of permission strings to check.
+        Returns:
+            bool: True if all required permissions for the operation are present, False otherwise.
+        """
+        # Find operation (case-sensitive key match)
+        op_info = self.data.get('operations', {}).get(operation_name)
+        if not op_info:
+            logger.debug(f'API operation {operation_name!r} not found in reference data.')
+            return False
+        required = {p.upper() for p in op_info.get('permissions', [])}
+        provided = {p.upper() for p in granted_permissions}
+        missing = required - provided
+        logger.debug(
+            f'Checking permissions for op={operation_name!r}; required={required}, provided={provided}, missing={missing}'
+        )
+        return not missing

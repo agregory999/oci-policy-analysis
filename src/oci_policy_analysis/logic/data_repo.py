@@ -295,53 +295,74 @@ class PolicyAnalysisRepository:
             if len(invalid_reasons) > 0:
                 st['invalid_reasons'] = invalid_reasons
 
+    def calculate_effective_compartment_for_statement(self, st):  # noqa: C901
+        """
+        Calculate effective compartment OCID and path for a single statement, mutating st in place.
+        Builds indexes if necessary and possible; if not, returns informative error.
+        """
+        # Defensive: dynamically build indexes if they're missing and data is present.
+        try:
+            if (
+                not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path')
+            ) and self.compartments:
+                self._build_compartment_index()
+        except Exception as idx_exc:
+            st['effective_path'] = f'(Error building compartment indexes: {idx_exc})'
+            return
+
+        if not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path'):
+            st['effective_path'] = '(Compartments not loaded or indexes unavailable)'
+            return
+
+        logger.info(f'-Statement: {st.get("statement_text")}')
+        # Case 1 - in tenancy
+        if st.get('location_type') == 'tenancy':
+            st['effective_compartment_ocid'] = self.tenancy_ocid
+            st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
+            if st['effective_path']:
+                st['effective_path'] = st['effective_path'].lower()
+            logger.info(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
+        # Case 2 - Compartment ID
+        elif st.get('location_type') == 'compartment id':
+            st['effective_compartment_ocid'] = st.get('location')
+            st['effective_path'] = self._name_path_from_ocid(st.get('location'))
+            if st['effective_path']:
+                st['effective_path'] = st['effective_path'].lower()
+            st.setdefault('parsing_notes', []).append('Compartment ID used for location')
+            logger.info(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
+        # Case 3 - Compartment Name (with or without full path)
+        # Note - if location refers to current compartment, we need to remove that from the path
+        else:
+            logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
+            location = st.get('location')
+            parts = [p.strip() for p in location.split(':') if p.strip()] if location else []
+            policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
+            logger.info(f'Policy Path: {policy_path} / Location parts: {parts}')
+
+            # If the first element of the path is the same as the policy compartment name, remove it from cosideration
+            eff_path = policy_path
+            logger.debug(f'Initial effective path: {eff_path}')
+            logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
+            comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
+            logger.debug(f'Compartment name for compare: {comp_name}')
+            # Defensive: parts non-empty
+            if parts and parts[0].casefold() == (comp_name.casefold() if comp_name else ''):
+                st.setdefault('parsing_notes', []).append('Deleted compartment from effective location')
+                del parts[0]
+            for p in parts:
+                eff_path += f'/{p}'
+            if eff_path:
+                eff_path = eff_path.lower()
+            logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
+            st['effective_path'] = eff_path
+            st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
+
     def _calculate_effective_compartments_for_statements(self):
         """
-        Resolve effective compartment for all statements.  Loop through all statements and calculate
+        Resolve effective compartment for all statements.  Loop through all statements and calculate.
         """
         for st in self.regular_statements:
-            logger.debug(f'-Statement: {st.get("statement_text")}')
-            # Case 1 - in tenancy
-            if st.get('location_type') == 'tenancy':
-                st['effective_compartment_ocid'] = self.tenancy_ocid
-                st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
-                if st['effective_path']:
-                    st['effective_path'] = st['effective_path'].lower()
-                logger.debug(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
-            # Case 2 - Compartment ID
-            elif st.get('location_type') == 'compartment id':
-                st['effective_compartment_ocid'] = st.get('location')
-                st['effective_path'] = self._name_path_from_ocid(st.get('location'))
-                if st['effective_path']:
-                    st['effective_path'] = st['effective_path'].lower()
-                st['parsing_notes'].append('Compartment ID used for location')
-                logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
-            # Case 3 - Compartment Name (with or without full path)
-            # Note - if location refers to current compartment, we need to remove that from the path
-            else:
-                logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
-                location = st.get('location')
-                parts = [p.strip() for p in location.split(':') if p.strip()]
-                policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
-                logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
-
-                # If the first element of the path is the same as the policy compartment name, remove it from cosideration
-                eff_path = policy_path
-                logger.debug(f'Initial effective path: {eff_path}')
-                logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
-                comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
-                logger.debug(f'Compartment name for compare: {comp_name}')
-                # We need just the name of the compartment of the policy, get from
-                if parts[0].casefold() == comp_name.casefold():
-                    st['parsing_notes'].append('Deleted compartment from effective location')
-                    del parts[0]
-                for p in parts:
-                    eff_path += f'/{p}'
-                if eff_path:
-                    eff_path = eff_path.lower()
-                logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
-                st['effective_path'] = eff_path
-                st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
+            self.calculate_effective_compartment_for_statement(st)
 
     def _name_path_from_ocid(self, ocid: str) -> str | None:
         """Lookup full root:...:name path from a compartment OCID."""
@@ -365,6 +386,9 @@ class PolicyAnalysisRepository:
         self.compartments_by_path: dict[str, dict[str, str]] = {}
         self.children_by_parent: dict[str, dict[str, str]] = {}
 
+        logger.info(
+            f'Building compartment indexes for effective compartment resolution. CCompartments loaded: {len(self.compartments)}'
+        )
         for comp in self.compartments:  # however you store them
             cid = comp.get('id')
             name = comp.get('name')
@@ -389,6 +413,10 @@ class PolicyAnalysisRepository:
             # Build children_by_parent
             self.children_by_parent.setdefault(parent_id, {})[name] = cid
 
+        # Debug entire index
+        logger.info(f'Compartment by ID index: {json.dumps(self.compartments_by_id, indent=2)}')
+        logger.info(f'Compartment by Path index: {json.dumps(self.compartments_by_path, indent=2)}')
+        logger.info(f'Children by Parent index: {json.dumps(self.children_by_parent, indent=2)}')
         logger.info(
             f'Built compartment index: {len(self.compartments_by_id)} compartments, '
             f'{len(self.children_by_parent)} parents with children.'

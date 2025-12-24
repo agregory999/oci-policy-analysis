@@ -1,155 +1,462 @@
 {
-  "resources": {
-    "dns-zones": {
-      "verbs": {
-        "inspect": [
-          "DNS_ZONE_INSPECT"
-        ],
-        "read": [
-          "DNS_ZONE_READ"
-        ],
-        "use": [
-          "DNS_ZONE_UPDATE"
-        ],
-        "manage": [
-          "DNS_ZONE_CREATE",
-          "DNS_ZONE_DELETE",
-          "DNS_ZONE_MOVE"
-        ]
-      }
+    "resources": {
+        "dns-zones": {
+            "verbs": {
+                "inspect": [
+                    "DNS_ZONE_INSPECT"
+                ],
+                "read": [
+                    "DNS_ZONE_READ"
+                ],
+                "use": [
+                    "DNS_ZONE_UPDATE"
+                ],
+                "manage": [
+                    "DNS_ZONE_CREATE",
+                    "DNS_ZONE_DELETE",
+                    "DNS_ZONE_MOVE"
+                ]
+            }
+        },
+        "dns-records": {
+            "verbs": {
+                "inspect": [
+                    "DNS_RECORD_INSPECT"
+                ],
+                "read": [
+                    "DNS_RECORD_READ"
+                ],
+                "use": [
+                    "DNS_RECORD_UPDATE"
+                ],
+                "manage": [
+                    "DNS_RECORD_CREATE",
+                    "DNS_RECORD_DELETE"
+                ]
+            }
+        },
+        "dns-steering-policies": {
+            "verbs": {
+                "inspect": [
+                    "DNS_STEERING_POLICY_INSPECT"
+                ],
+                "read": [
+                    "DNS_STEERING_POLICY_READ"
+                ],
+                "use": [
+                    "DNS_STEERING_POLICY_UPDATE"
+                ],
+                "manage": [
+                    "DNS_STEERING_POLICY_CREATE",
+                    "DNS_STEERING_POLICY_DELETE",
+                    "DNS_STEERING_POLICY_MOVE"
+                ]
+            }
+        },
+        "dns-steering-policy-attachments": {
+            "verbs": {
+                "inspect": [
+                    "DNS_STEERING_ATTACHMENT_INSPECT"
+                ],
+                "read": [
+                    "DNS_STEERING_ATTACHMENT_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "dns-tsig-keys": {
+            "verbs": {
+                "inspect": [
+                    "DNS_TSIG_KEY_INSPECT"
+                ],
+                "read": [
+                    "DNS_TSIG_KEY_READ"
+                ],
+                "use": [
+                    "DNS_TSIG_KEY_UPDATE"
+                ],
+                "manage": [
+                    "DNS_TSIG_KEY_CREATE",
+                    "DNS_TSIG_KEY_DELETE",
+                    "DNS_TSIG_KEY_MOVE"
+                ]
+            }
+        },
+        "dns-views": {
+            "verbs": {
+                "inspect": [
+                    "DNS_VIEW_INSPECT"
+                ],
+                "read": [
+                    "DNS_VIEW_READ"
+                ],
+                "use": [
+                    "DNS_VIEW_UPDATE"
+                ],
+                "manage": [
+                    "DNS_VIEW_CREATE",
+                    "DNS_VIEW_DELETE",
+                    "DNS_VIEW_MOVE"
+                ]
+            }
+        },
+        "dns-resolvers": {
+            "verbs": {
+                "inspect": [
+                    "DNS_RESOLVER_INSPECT"
+                ],
+                "read": [
+                    "DNS_RESOLVER_READ"
+                ],
+                "use": [
+                    "DNS_RESOLVER_UPDATE"
+                ],
+                "manage": [
+                    "DNS_RESOLVER_CREATE",
+                    "DNS_RESOLVER_DELETE",
+                    "DNS_RESOLVER_MOVE"
+                ]
+            }
+        },
+        "dns-resolver-endpoint": {
+            "verbs": {
+                "inspect": [
+                    "DNS_RESOLVER_ENDPOINT_INSPECT"
+                ],
+                "read": [
+                    "DNS_RESOLVER_ENDPOINT_READ"
+                ],
+                "use": [
+                    "DNS_RESOLVER_ENDPOINT_UPDATE"
+                ],
+                "manage": [
+                    "DNS_RESOLVER_ENDPOINT_CREATE",
+                    "DNS_RESOLVER_ENDPOINT_DELETE"
+                ]
+            }
+        }
     },
-    "dns-records": {
-      "verbs": {
-        "inspect": [
-          "DNS_RECORD_INSPECT"
-        ],
-        "read": [
-          "DNS_RECORD_READ"
-        ],
-        "use": [
-          "DNS_RECORD_UPDATE"
-        ],
-        "manage": [
-          "DNS_RECORD_CREATE",
-          "DNS_RECORD_DELETE"
-        ]
-      }
+    "families": {
+        "dns-family": {
+            "resources": [
+                "dns-zones",
+                "dns-records",
+                "dns-steering-policies",
+                "dns-steering-policy-attachments",
+                "dns-tsig-keys",
+                "dns-views",
+                "dns-resolvers",
+                "dns-resolver-endpoint"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/dnspolicyreference.htm"
+        }
     },
-    "dns-steering-policies": {
-      "verbs": {
-        "inspect": [
-          "DNS_STEERING_POLICY_INSPECT"
-        ],
-        "read": [
-          "DNS_STEERING_POLICY_READ"
-        ],
-        "use": [
-          "DNS_STEERING_POLICY_UPDATE"
-        ],
-        "manage": [
-          "DNS_STEERING_POLICY_CREATE",
-          "DNS_STEERING_POLICY_DELETE",
-          "DNS_STEERING_POLICY_MOVE"
-        ]
-      }
-    },
-    "dns-steering-policy-attachments": {
-      "verbs": {
-        "inspect": [
-          "DNS_STEERING_ATTACHMENT_INSPECT"
-        ],
-        "read": [
-          "DNS_STEERING_ATTACHMENT_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "dns-tsig-keys": {
-      "verbs": {
-        "inspect": [
-          "DNS_TSIG_KEY_INSPECT"
-        ],
-        "read": [
-          "DNS_TSIG_KEY_READ"
-        ],
-        "use": [
-          "DNS_TSIG_KEY_UPDATE"
-        ],
-        "manage": [
-          "DNS_TSIG_KEY_CREATE",
-          "DNS_TSIG_KEY_DELETE",
-          "DNS_TSIG_KEY_MOVE"
-        ]
-      }
-    },
-    "dns-views": {
-      "verbs": {
-        "inspect": [
-          "DNS_VIEW_INSPECT"
-        ],
-        "read": [
-          "DNS_VIEW_READ"
-        ],
-        "use": [
-          "DNS_VIEW_UPDATE"
-        ],
-        "manage": [
-          "DNS_VIEW_CREATE",
-          "DNS_VIEW_DELETE",
-          "DNS_VIEW_MOVE"
-        ]
-      }
-    },
-    "dns-resolvers": {
-      "verbs": {
-        "inspect": [
-          "DNS_RESOLVER_INSPECT"
-        ],
-        "read": [
-          "DNS_RESOLVER_READ"
-        ],
-        "use": [
-          "DNS_RESOLVER_UPDATE"
-        ],
-        "manage": [
-          "DNS_RESOLVER_CREATE",
-          "DNS_RESOLVER_DELETE",
-          "DNS_RESOLVER_MOVE"
-        ]
-      }
-    },
-    "dns-resolver-endpoint": {
-      "verbs": {
-        "inspect": [
-          "DNS_RESOLVER_ENDPOINT_INSPECT"
-        ],
-        "read": [
-          "DNS_RESOLVER_ENDPOINT_READ"
-        ],
-        "use": [
-          "DNS_RESOLVER_ENDPOINT_UPDATE"
-        ],
-        "manage": [
-          "DNS_RESOLVER_ENDPOINT_CREATE",
-          "DNS_RESOLVER_ENDPOINT_DELETE"
-        ]
-      }
+    "operations": {
+        "ListZones": {
+            "permissions": [
+                "DNS_ZONE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateZone": {
+            "permissions": [
+                "DNS_ZONE_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateChildZone": {
+            "permissions": [
+                "DNS_ZONE_CREATE",
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "DeleteZone": {
+            "permissions": [
+                "DNS_ZONE_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetZone": {
+            "permissions": [
+                "DNS_ZONE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateZone": {
+            "permissions": [
+                "DNS_ZONE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeZoneCompartment": {
+            "permissions": [
+                "DNS_ZONE_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetZoneRecords": {
+            "permissions": [
+                "DNS_ZONE_READ",
+                "DNS_RECORD_READ"
+            ],
+            "notes": "and"
+        },
+        "PatchZoneRecords": {
+            "permissions": [
+                "DNS_ZONE_UPDATE",
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "UpdateZoneRecords": {
+            "permissions": [
+                "DNS_ZONE_UPDATE",
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "GetDomainRecords": {
+            "permissions": [
+                "DNS_RECORD_READ"
+            ],
+            "notes": ""
+        },
+        "PatchDomainRecords": {
+            "permissions": [
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDomainRecords": {
+            "permissions": [
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteRRSet": {
+            "permissions": [
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetRRSet": {
+            "permissions": [
+                "DNS_RECORD_READ"
+            ],
+            "notes": ""
+        },
+        "PatchRRSet": {
+            "permissions": [
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateRRSet": {
+            "permissions": [
+                "DNS_RECORD_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListSteeringPolicies": {
+            "permissions": [
+                "DNS_STEERING_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateSteeringPolicy": {
+            "permissions": [
+                "DNS_STEERING_POLICY_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetSteeringPolicy": {
+            "permissions": [
+                "DNS_STEERING_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSteeringPolicy": {
+            "permissions": [
+                "DNS_STEERING_POLICY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSteeringPolicy": {
+            "permissions": [
+                "DNS_STEERING_POLICY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeSteeringPolicyCompartment": {
+            "permissions": [
+                "DNS_STEERING_POLICY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListSteeringPolicyAttachments": {
+            "permissions": [
+                "DNS_STEERING_ATTACHMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateSteeringPolicyAttachment": {
+            "permissions": [
+                "DNS_ZONE_UPDATE",
+                "DNS_STEERING_POLICY_READ"
+            ],
+            "notes": "and"
+        },
+        "GetSteeringPolicyAttachment": {
+            "permissions": [
+                "DNS_STEERING_ATTACHMENT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSteeringPolicyAttachment": {
+            "permissions": [
+                "DNS_ZONE_UPDATE",
+                "DNS_STEERING_POLICY_READ"
+            ],
+            "notes": "and"
+        },
+        "DeleteSteeringPolicyAttachment": {
+            "permissions": [
+                "DNS_ZONE_UPDATE",
+                "DNS_STEERING_POLICY_READ"
+            ],
+            "notes": "and"
+        },
+        "ListTsigKeys": {
+            "permissions": [
+                "DNS_TSIG_KEY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateTsigKey": {
+            "permissions": [
+                "DNS_TSIG_KEY_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetTsigKey": {
+            "permissions": [
+                "DNS_TSIG_KEY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateTsigKey": {
+            "permissions": [
+                "DNS_TSIG_KEY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteTsigKey": {
+            "permissions": [
+                "DNS_TSIG_KEY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeTsigKeyCompartment": {
+            "permissions": [
+                "DNS_TSIG_KEY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListViews": {
+            "permissions": [
+                "DNS_VIEW_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateView": {
+            "permissions": [
+                "DNS_VIEW_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetView": {
+            "permissions": [
+                "DNS_VIEW_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateView": {
+            "permissions": [
+                "DNS_VIEW_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteView": {
+            "permissions": [
+                "DNS_VIEW_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeViewCompartment": {
+            "permissions": [
+                "DNS_VIEW_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListResolvers": {
+            "permissions": [
+                "DNS_RESOLVER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetResolver": {
+            "permissions": [
+                "DNS_RESOLVER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateResolver": {
+            "permissions": [
+                "DNS_RESOLVER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeResolverCompartment": {
+            "permissions": [
+                "DNS_RESOLVER_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListResolverEndpoints": {
+            "permissions": [
+                "DNS_RESOLVER_ENDPOINT_INSPECT",
+                "DNS_RESOLVER_READ"
+            ],
+            "notes": "and"
+        },
+        "CreateResolverEndpoint": {
+            "permissions": [
+                "DNS_RESOLVER_UPDATE",
+                "DNS_RESOLVER_ENDPOINT_CREATE"
+            ],
+            "notes": "and"
+        },
+        "GetResolverEndpoint": {
+            "permissions": [
+                "DNS_RESOLVER_ENDPOINT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateResolverEndpoint": {
+            "permissions": [
+                "DNS_RESOLVER_UPDATE",
+                "DNS_RESOLVER_ENDPOINT_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "DeleteResolverEndpoint": {
+            "permissions": [
+                "DNS_RESOLVER_UPDATE",
+                "DNS_RESOLVER_ENDPOINT_DELETE"
+            ],
+            "notes": "and"
+        }
     }
-  },
-  "families": {
-    "dns-family": {
-      "resources": [
-        "dns-zones",
-        "dns-records",
-        "dns-steering-policies",
-        "dns-steering-policy-attachments",
-        "dns-tsig-keys",
-        "dns-views",
-        "dns-resolvers",
-        "dns-resolver-endpoint"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/dnspolicyreference.htm"
-    }
-  }
 }

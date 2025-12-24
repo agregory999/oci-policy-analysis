@@ -56,6 +56,7 @@ from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
+from oci_policy_analysis.ui.visual_policy_tab import VisualPolicyTab
 
 # ----------- POST-IMPORT SETUP ------------
 # Version extraction
@@ -155,6 +156,8 @@ class App(tk.Tk):
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.console_tab = ConsoleTab(self.notebook, self)
         self.maintenance_tab = MaintenanceTab(self.notebook, caching=self.caching)
+        self.visual_policy_tab = VisualPolicyTab(self.notebook, self)
+        self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
@@ -164,7 +167,8 @@ class App(tk.Tk):
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.report_tab, text='Reports\nw/ Search')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
+        # Register new Visual Policy tab just before advanced/test tabs
+        self.notebook.add(self.visual_policy_tab, text='Visual Policy\nView')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(AST Test)')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')

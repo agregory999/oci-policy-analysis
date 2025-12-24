@@ -1,165 +1,474 @@
 {
-  "resources": {
-    "orm-config-source-providers": {
-      "verbs": {
-        "inspect": [
-          "ORM_CONFIG_SOURCE_PROVIDER_INSPECT"
-        ],
-        "read": [
-          "ORM_CONFIG_SOURCE_PROVIDER_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORM_CONFIG_SOURCE_PROVIDER_CREATE",
-          "ORM_CONFIG_SOURCE_PROVIDER_UPDATE",
-          "ORM_CONFIG_SOURCE_PROVIDER_MOVE",
-          "ORM_CONFIG_SOURCE_PROVIDER_DELETE"
-        ]
-      }
+    "resources": {
+        "orm-config-source-providers": {
+            "verbs": {
+                "inspect": [
+                    "ORM_CONFIG_SOURCE_PROVIDER_INSPECT"
+                ],
+                "read": [
+                    "ORM_CONFIG_SOURCE_PROVIDER_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORM_CONFIG_SOURCE_PROVIDER_CREATE",
+                    "ORM_CONFIG_SOURCE_PROVIDER_UPDATE",
+                    "ORM_CONFIG_SOURCE_PROVIDER_MOVE",
+                    "ORM_CONFIG_SOURCE_PROVIDER_DELETE"
+                ]
+            }
+        },
+        "orm-jobs": {
+            "verbs": {
+                "inspect": [
+                    "ORM_JOB_INSPECT"
+                ],
+                "read": [
+                    "ORM_JOB_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORM_JOB_MANAGE"
+                ]
+            }
+        },
+        "orm-private-endpoints": {
+            "verbs": {
+                "inspect": [
+                    "ORM_PRIVATE_ENDPOINT_INSPECT"
+                ],
+                "read": [
+                    "ORM_PRIVATE_ENDPOINT_READ"
+                ],
+                "use": [
+                    "ORM_PRIVATE_ENDPOINT_UPDATE"
+                ],
+                "manage": [
+                    "ORM_PRIVATE_ENDPOINT_CREATE",
+                    "ORM_PRIVATE_ENDPOINT_DELETE",
+                    "ORM_PRIVATE_ENDPOINT_MOVE"
+                ]
+            }
+        },
+        "orm-stacks": {
+            "verbs": {
+                "inspect": [
+                    "ORM_STACK_INSPECT"
+                ],
+                "read": [
+                    "ORM_STACK_READ"
+                ],
+                "use": [
+                    "ORM_STACK_USE"
+                ],
+                "manage": [
+                    "ORM_STACK_CREATE",
+                    "ORM_STACK_UPDATE",
+                    "ORM_STACK_MOVE",
+                    "ORM_STACK_DELETE"
+                ]
+            }
+        },
+        "orm-template": {
+            "verbs": {
+                "inspect": [
+                    "ORM_TEMPLATE_INSPECT"
+                ],
+                "read": [
+                    "ORM_TEMPLATE_READ"
+                ],
+                "use": [
+                    "ORM_TEMPLATE_UPDATE"
+                ],
+                "manage": [
+                    "ORM_TEMPLATE_CREATE",
+                    "ORM_TEMPLATE_DELETE",
+                    "ORM_TEMPLATE_MOVE"
+                ]
+            }
+        },
+        "orm-work-requests": {
+            "verbs": {
+                "inspect": [
+                    "ORM_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "ORM_WORK_REQUEST_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "marketplace-listings": {
+            "verbs": {
+                "inspect": [
+                    "MARKETPLACE_LISTING_INSPECT"
+                ],
+                "read": [
+                    "MARKETPLACE_LISTING_READ"
+                ],
+                "use": [
+                    "MARKETPLACE_LISTING_LAUNCH"
+                ],
+                "manage": []
+            }
+        },
+        "marketplace-publications": {
+            "verbs": {
+                "inspect": [
+                    "MARKETPLACE_PUBLICATION_INSPECT"
+                ],
+                "read": [
+                    "MARKETPLACE_PUBLICATION_READ"
+                ],
+                "use": [
+                    "MARKETPLACE_PUBLICATION_UPDATE"
+                ],
+                "manage": [
+                    "MARKETPLACE_PUBLICATION_CREATE",
+                    "MARKETPLACE_PUBLICATION_DELETE",
+                    "MARKETPLACE_PUBLICATION_MOVE"
+                ]
+            }
+        },
+        "marketplace-community-listings": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "MARKETPLACE_COMMUNITY_LISTING_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        }
     },
-    "orm-jobs": {
-      "verbs": {
-        "inspect": [
-          "ORM_JOB_INSPECT"
-        ],
-        "read": [
-          "ORM_JOB_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORM_JOB_MANAGE"
-        ]
-      }
+    "families": {
+        "orm-family": {
+            "resources": [
+                "orm-config-source-providers",
+                "orm-jobs",
+                "orm-private-endpoints",
+                "orm-stacks",
+                "orm-template",
+                "orm-work-requests"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/resourcemanagerpolicyreference.htm"
+        },
+        "marketplace-family": {
+            "resources": [
+                "marketplace-listings",
+                "marketplace-publications",
+                "marketplace-community-listings"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/marketplacepolicyreference.htm"
+        }
     },
-    "orm-private-endpoints": {
-      "verbs": {
-        "inspect": [
-          "ORM_PRIVATE_ENDPOINT_INSPECT"
-        ],
-        "read": [
-          "ORM_PRIVATE_ENDPOINT_READ"
-        ],
-        "use": [
-          "ORM_PRIVATE_ENDPOINT_UPDATE"
-        ],
-        "manage": [
-          "ORM_PRIVATE_ENDPOINT_CREATE",
-          "ORM_PRIVATE_ENDPOINT_DELETE",
-          "ORM_PRIVATE_ENDPOINT_MOVE"
-        ]
-      }
-    },
-    "orm-stacks": {
-      "verbs": {
-        "inspect": [
-          "ORM_STACK_INSPECT"
-        ],
-        "read": [
-          "ORM_STACK_READ"
-        ],
-        "use": [
-          "ORM_STACK_USE"
-        ],
-        "manage": [
-          "ORM_STACK_CREATE",
-          "ORM_STACK_UPDATE",
-          "ORM_STACK_MOVE",
-          "ORM_STACK_DELETE"
-        ]
-      }
-    },
-    "orm-template": {
-      "verbs": {
-        "inspect": [
-          "ORM_TEMPLATE_INSPECT"
-        ],
-        "read": [
-          "ORM_TEMPLATE_READ"
-        ],
-        "use": [
-          "ORM_TEMPLATE_UPDATE"
-        ],
-        "manage": [
-          "ORM_TEMPLATE_CREATE",
-          "ORM_TEMPLATE_DELETE",
-          "ORM_TEMPLATE_MOVE"
-        ]
-      }
-    },
-    "orm-work-requests": {
-      "verbs": {
-        "inspect": [
-          "ORM_WORK_REQUEST_INSPECT"
-        ],
-        "read": [
-          "ORM_WORK_REQUEST_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "marketplace-listings": {
-      "verbs": {
-        "inspect": [
-          "MARKETPLACE_LISTING_INSPECT"
-        ],
-        "read": [
-          "MARKETPLACE_LISTING_READ"
-        ],
-        "use": [
-          "MARKETPLACE_LISTING_LAUNCH"
-        ],
-        "manage": []
-      }
-    },
-    "marketplace-publications": {
-      "verbs": {
-        "inspect": [
-          "MARKETPLACE_PUBLICATION_INSPECT"
-        ],
-        "read": [
-          "MARKETPLACE_PUBLICATION_READ"
-        ],
-        "use": [
-          "MARKETPLACE_PUBLICATION_UPDATE"
-        ],
-        "manage": [
-          "MARKETPLACE_PUBLICATION_CREATE",
-          "MARKETPLACE_PUBLICATION_DELETE",
-          "MARKETPLACE_PUBLICATION_MOVE"
-        ]
-      }
-    },
-    "marketplace-community-listings": {
-      "verbs": {
-        "inspect": [],
-        "read": [
-          "MARKETPLACE_COMMUNITY_LISTING_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
+    "operations": {
+        "CancelJob": {
+            "permissions": [
+                "ORM_JOB_MANAGE"
+            ],
+            "notes": ""
+        },
+        "ChangeConfigurationSourceProviderCompartment": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangePrivateEndpointCompartment": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeStackCompartment": {
+            "permissions": [
+                "ORM_STACK_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeTemplateCompartment": {
+            "permissions": [
+                "ORM_TEMPLATE_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateConfigurationSourceProvider": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateJob": {
+            "permissions": [
+                "ORM_JOB_MANAGE",
+                "ORM_STACK_USE"
+            ],
+            "notes": "and"
+        },
+        "CreatePrivateEndpoint": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateStack": {
+            "permissions": [
+                "ORM_STACK_CREATE"
+            ],
+            "notes": "if not using configuration source providers. If using configuration source providers (configSourceType value ), also need ORM_CONFIG_SOURCE_PROVIDER_READ"
+        },
+        "p": {
+            "permissions": [
+                "ORM_TEMPLATE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteConfigurationSourceProvider": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeletePrivateEndpoint": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteStack": {
+            "permissions": [
+                "ORM_STACK_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteTemplate": {
+            "permissions": [
+                "ORM_TEMPLATE_DELETE"
+            ],
+            "notes": ""
+        },
+        "DetectStackDrift": {
+            "permissions": [
+                "ORM_STACK_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetConfigurationSourceProvider": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_READ"
+            ],
+            "notes": ""
+        },
+        "GetJob": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetJobLogs": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetJobLogsContent": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetJobTfConfig": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetJobTfPlan": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetJobTfState": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "GetPrivateEndpoint": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_READ"
+            ],
+            "notes": ""
+        },
+        "GetReachableIp": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_READ"
+            ],
+            "notes": ""
+        },
+        "GetStack": {
+            "permissions": [
+                "ORM_STACK_READ"
+            ],
+            "notes": ""
+        },
+        "GetStackTfConfig": {
+            "permissions": [
+                "ORM_STACK_READ"
+            ],
+            "notes": ""
+        },
+        "GetStackTfState": {
+            "permissions": [
+                "ORM_STACK_READ"
+            ],
+            "notes": ""
+        },
+        "GetTemplate": {
+            "permissions": [
+                "ORM_TEMPLATE_READ"
+            ],
+            "notes": ""
+        },
+        "GetTemplateLogo": {
+            "permissions": [
+                "ORM_TEMPLATE_READ"
+            ],
+            "notes": ""
+        },
+        "GetTemplateTfConfig": {
+            "permissions": [
+                "ORM_TEMPLATE_READ"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "ORM_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListConfigurationSourceProviders": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListJobAssociatedResources": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "ListJobOutputs": {
+            "permissions": [
+                "ORM_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "ListJobs": {
+            "permissions": [
+                "ORM_JOB_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListPrivateEndpoints": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListResourceDiscoveryServices": {
+            "permissions": [
+                "ORM_STACK_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListStackAssociatedResources": {
+            "permissions": [
+                "ORM_STACK_READ"
+            ],
+            "notes": ""
+        },
+        "ListStackResourceDriftDetails": {
+            "permissions": [
+                "ORM_STACK_READ"
+            ],
+            "notes": ""
+        },
+        "ListStacks": {
+            "permissions": [
+                "ORM_STACK_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTemplateCategories": {
+            "permissions": [
+                "N"
+            ],
+            "notes": "None"
+        },
+        "ListTemplates": {
+            "permissions": [
+                "ORM_TEMPLATE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTerraformVersions": {
+            "permissions": [
+                "ORM_STACK_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "ORM_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "ORM_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "ORM_WORK_REQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateConfigurationSourceProvider": {
+            "permissions": [
+                "ORM_CONFIG_SOURCE_PROVIDER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateJob": {
+            "permissions": [
+                "ORM_JOB_MANAGE"
+            ],
+            "notes": ""
+        },
+        "UpdatePrivateEndpoint": {
+            "permissions": [
+                "ORM_PRIVATE_ENDPOINT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateStack": {
+            "permissions": [
+                "ORM_STACK_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateTemplate": {
+            "permissions": [
+                "ORM_TEMPLATE_UPDATE"
+            ],
+            "notes": ""
+        }
     }
-  },
-  "families": {
-    "orm-family": {
-      "resources": [
-        "orm-config-source-providers",
-        "orm-jobs",
-        "orm-private-endpoints",
-        "orm-stacks",
-        "orm-template",
-        "orm-work-requests"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/resourcemanagerpolicyreference.htm"
-    },
-    "marketplace-family": {
-      "resources": [
-        "marketplace-listings",
-        "marketplace-publications",
-        "marketplace-community-listings"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/marketplacepolicyreference.htm"
-    }
-  }
 }

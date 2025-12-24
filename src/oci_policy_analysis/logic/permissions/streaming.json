@@ -89,5 +89,157 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/streamingpolicyreference.htm"
         }
+    },
+    "operations": {
+        "ListStreams": {
+            "permissions": [
+                "STREAM_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateStream": {
+            "permissions": [
+                "STREAM_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetStream": {
+            "permissions": [
+                "STREAM_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteStream": {
+            "permissions": [
+                "STREAM_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetMessages": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "PutMessages": {
+            "permissions": [
+                "STREAM_PRODUCE"
+            ],
+            "notes": ""
+        },
+        "UpdateStream": {
+            "permissions": [
+                "STREAM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCursor": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "CreateGroupCursor": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "GetGroup": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "UpdateGroup": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "ConsumerHeartbeat": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "ConsumerCommit": {
+            "permissions": [
+                "STREAM_CONSUME"
+            ],
+            "notes": ""
+        },
+        "ListStreamPools": {
+            "permissions": [
+                "STREAM_POOL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateStreamPool": {
+            "permissions": [
+                "STREAM_POOL_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetStreamPool": {
+            "permissions": [
+                "STREAM_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteStreamPool": {
+            "permissions": [
+                "STREAM_POOL_DELETE"
+            ],
+            "notes": ""
+        },
+        "MoveStreamPool": {
+            "permissions": [
+                "STREAM_POOL_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateSreamPool": {
+            "permissions": [
+                "STREAM_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListConnectHarnesses": {
+            "permissions": [
+                "CONNECT_HARNESS_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateConnectHarness": {
+            "permissions": [
+                "CONNECT_HARNESS_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetConnectHarness": {
+            "permissions": [
+                "CONNECT_HARNESS_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteConnectHarness": {
+            "permissions": [
+                "CONNECT_HARNESS_DELETE"
+            ],
+            "notes": ""
+        },
+        "MoveConnectHarness": {
+            "permissions": [
+                "CONNECT_HARNESS_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateConnectHarness": {
+            "permissions": [
+                "CONNECT_HARNESS_UPDATE"
+            ],
+            "notes": ""
+        }
     }
 }

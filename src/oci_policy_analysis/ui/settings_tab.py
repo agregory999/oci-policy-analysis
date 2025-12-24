@@ -450,12 +450,16 @@ class SettingsTab(ttk.Frame):
 
         # After loading, update the cache list in case new one was created
         logger.info('Updating cache list after load')
+        self.refresh_cache_list()
+
+    def refresh_cache_list(self):
+        """Update the cache list OptionMenu in the Settings tab to reflect the current state."""
         self.cache_list = self.caching.get_available_cache(None)
         menu = self.cache_list_dropdown['menu']
         menu.delete(0, 'end')
         for cache_name in self.cache_list:
             menu.add_command(label=cache_name, command=lambda value=cache_name: self.cache_var.set(value))
-        if len(self.cache_list) > 0:
+        if self.cache_list:
             self.cache_var.set(self.cache_list[0])
         else:
             self.cache_var.set('No Cache Available')

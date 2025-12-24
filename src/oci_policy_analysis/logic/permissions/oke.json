@@ -100,5 +100,278 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/contengpolicyreference.htm"
         }
+    },
+    "operations": {
+        "ListClusters": {
+            "permissions": [
+                "CLUSTER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateCluster": {
+            "permissions": [
+                "CLUSTER_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateKubeconfig": {
+            "permissions": [
+                "CLUSTER_USE"
+            ],
+            "notes": ""
+        },
+        "GetCluster": {
+            "permissions": [
+                "CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCluster": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "JoinCluster": {
+            "permissions": [
+                "CLUSTER_MANAGE"
+            ],
+            "notes": ""
+        },
+        "DeleteCluster": {
+            "permissions": [
+                "CLUSTER_DELETE",
+                "CLUSTER_NODE_POOL_DELETE"
+            ],
+            "notes": ","
+        },
+        "UpdateClusterEndpointConfig": {
+            "permissions": [
+                "CLUSTER_MANAGE"
+            ],
+            "notes": ""
+        },
+        "AdministerK8s": {
+            "permissions": [
+                "CLUSTER_MANAGE"
+            ],
+            "notes": ""
+        },
+        "GetCredentialRotationStatus": {
+            "permissions": [
+                "CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "StartCredentialRotation": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CompleteCredentialRotation": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListNodePools": {
+            "permissions": [
+                "CLUSTER_NODE_POOL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateNodePool": {
+            "permissions": [
+                "CLUSTER_NODE_POOL_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetNodePool": {
+            "permissions": [
+                "CLUSTER_NODE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "GetNodePoolOptions": {
+            "permissions": [
+                "CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateNodePool": {
+            "permissions": [
+                "CLUSTER_NODE_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteNodePool": {
+            "permissions": [
+                "CLUSTER_NODE_POOL_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "CLUSTER_WORK_REQUEST_INSPECT",
+                "CLUSTER_NODE_POOL_INSPECT",
+                "CLUSTER_INSPECT"
+            ],
+            "notes": ", ,"
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "CLUSTER_WORK_REQUEST_READ",
+                "CLUSTER_NODE_POOL_READ",
+                "CLUSTER_READ"
+            ],
+            "notes": ", ,"
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "CLUSTER_WORK_REQUEST_READ",
+                "CLUSTER_NODE_POOL_READ",
+                "CLUSTER_READ"
+            ],
+            "notes": ", ,"
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "CLUSTER_WORK_REQUEST_READ",
+                "CLUSTER_NODE_POOL_READ",
+                "CLUSTER_READ"
+            ],
+            "notes": ", ,"
+        },
+        "DeleteWorkRequest": {
+            "permissions": [
+                "CLUSTER_WORK_REQUEST_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListVirtualNodePools": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetVirtualNodePool": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "CreateVirtualNodePool": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateVirtualNodePool": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteVirtualNodePool": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListVirtualNodes": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "GetVirtualNode": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteVirtualNode": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListPodShapes": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateVirtualNode": {
+            "permissions": [
+                "CLUSTER_VIRTUAL_NODE_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListAddons": {
+            "permissions": [
+                "CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "GetAddon": {
+            "permissions": [
+                "CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAddon": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DisableAddon": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "InstallAddon": {
+            "permissions": [
+                "CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListWorkloadMappings": {
+            "permissions": [
+                "CLUSTER_WORKLOAD_MAPPING_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetWorkloadMapping": {
+            "permissions": [
+                "CLUSTER_WORKLOAD_MAPPING_READ"
+            ],
+            "notes": ""
+        },
+        "CreateWorkloadMapping": {
+            "permissions": [
+                "CLUSTER_WORKLOAD_MAPPING_CREATE",
+                "CLUSTER_WORKLOAD_COMPARTMENT_BIND"
+            ],
+            "notes": ","
+        },
+        "UpdateWorkloadMapping": {
+            "permissions": [
+                "CLUSTER_WORKLOAD_MAPPING_UPDATE",
+                "CLUSTER_WORKLOAD_COMPARTMENT_BIND",
+                "CLUSTER_WORKLOAD_COMPARTMENT_UNBIND"
+            ],
+            "notes": ", ,"
+        },
+        "DeleteWorkloadMapping": {
+            "permissions": [
+                "CLUSTER_WORKLOAD_MAPPING_DELETE",
+                "CLUSTER_WORKLOAD_COMPARTMENT_UNBIND"
+            ],
+            "notes": ","
+        }
     }
 }

@@ -28,5 +28,91 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/serviceconnectorhubpolicyreference.htm"
         }
+    },
+    "operations": {
+        "ActivateServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeServiceConnectorCompartment": {
+            "permissions": [
+                "SERVICE_CONNECTOR_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeactivateServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetConnectorPlugin": {
+            "permissions": [
+                "N"
+            ],
+            "notes": "No permissions required"
+        },
+        "GetServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_READ"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "SERVICE_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListConnectorPlugins": {
+            "permissions": [
+                "N"
+            ],
+            "notes": "No permissions required"
+        },
+        "ListServiceConnectors": {
+            "permissions": [
+                "SERVICE_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "SERVICE_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "SERVICE_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "SERVICE_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateServiceConnector": {
+            "permissions": [
+                "SERVICE_CONNECTOR_UPDATE"
+            ],
+            "notes": ""
+        }
     }
 }

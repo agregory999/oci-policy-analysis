@@ -26,5 +26,187 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/apmpolicyreference.htm"
         }
+    },
+    "operations": {
+        "ChangeApmDomainCompartment": {
+            "permissions": [
+                "APM_DOMAIN_MOVE"
+            ],
+            "notes": "permission on both the source and the destination compartments"
+        },
+        "CreateApmDomain": {
+            "permissions": [
+                "APM_DOMAIN_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteApmDomain": {
+            "permissions": [
+                "APM_DOMAIN_DELETE"
+            ],
+            "notes": ""
+        },
+        "GenerateDataKeys": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetApmDomain": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListApmDomains": {
+            "permissions": [
+                "APM_DOMAIN_LIST"
+            ],
+            "notes": ""
+        },
+        "ListApmDomainWorkRequests": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListDataKeys": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RemoveDataKeys": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateApmDomain": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "APM_DOMAIN_LIST"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "APM_DOMAIN_LIST"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "APM_DOMAIN_LIST"
+            ],
+            "notes": ""
+        },
+        "CreateMonitor": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteMonitor": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetMonitor": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "GetMonitorResult": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListMonitors": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateMonitor": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListPublicVantagePoints": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "CreateScript": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteScript": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetScript": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListScripts": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateScript": {
+            "permissions": [
+                "APM_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetSpan": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "GetTrace": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListQuickPicks": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "Query": {
+            "permissions": [
+                "APM_DOMAIN_READ"
+            ],
+            "notes": ""
+        }
     }
 }
