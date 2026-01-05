@@ -4,8 +4,49 @@ Test cases for ConditionParser.
 These tests check the parsing and evaluation of OCI IAM policy conditions.
 """
 
+import logging
+
 import pytest
 from oci_policy_analysis.logic.parsers.condition_parser.condition_parser import ConditionParser
+
+# --- Ensure logs are output to console during tests
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+logging.getLogger('oci-policy-analysis').setLevel(logging.DEBUG)
+logging.getLogger('oci-policy-analysis.where_clause_evaluator').setLevel(logging.DEBUG)
+
+
+# === Custom tests for 'in' operator with patterns ===
+@pytest.mark.parametrize(
+    'statement,simvars,expected',
+    [
+        (
+            "request.networkSource.name in ('MyOfficeNetwork', 'GuestNetwork')",
+            {'request.networkSource.name': 'GuestNetwork'},
+            True,  # Should match pattern in IN-list
+        ),
+        (
+            "request.networkSource.name in ('MyOfficeNetwork', 'XNet')",
+            {'request.networkSource.name': 'MyOfficeNetwork'},
+            True,  # Should match pattern in IN-list
+        ),
+        (
+            "request.networkSource.name in ('Abc', 'Def')",
+            {'request.networkSource.name': 'GuestNetwork'},
+            False,  # Should not match any entry
+        ),
+    ],
+)
+def test_in_operator_with_patterns(statement, simvars, expected):
+    parser = ConditionParser(simvars)
+    result = parser.parse(statement)
+    # Assume parse returns {'result': bool or 'GRANTED'/'DENIED', 'log': ...}
+    if isinstance(result['result'], str):
+        # Convert GRANTED/DENIED to bool
+        is_true = result['result'] in ('GRANTED', True)
+    else:
+        is_true = bool(result['result'])
+    assert is_true == expected
+
 
 COND_STATEMENTS = [
     "request.networkSource.name = 'MyOfficeNetwork'",

@@ -1806,18 +1806,19 @@
         },
         "LaunchInstance": {
             "permissions": [
-                "DEDICATED_VM_HOST_LAUNCH_INSTANCE",
-                "INSTANCE_CREATE"
+                "INSTANCE_CREATE",
+                "INSTANCE_IMAGE_READ",
+                "VNIC_CREATE",
+                "VNIC_ATTACH",
+                "SUBNET_ATTACH"
             ],
-            "notes": "in dedicated virtual machine host compartment in compartment for the instance launched on the dedicated virtual machine host"
+            "notes": "If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE"
         },
         "ListInstances": {
             "permissions": [
-                "INSTANCE_READ",
-                "I",
-                "COMPUTE_CLUSTER_READ"
+                "INSTANCE_READ"
             ],
-            "notes": "If listing instances in a compute cluster, also need"
+            "notes": "If listing instances in a compute cluster, also need COMPUTE_CLUSTER_READ"
         },
         "ListInstanceDevices": {
             "permissions": [
@@ -2021,7 +2022,7 @@
                 "VOLUME_ATTACHMENT_DELETE",
                 "VOLUME_WRITE"
             ],
-            "notes": "and and and and and"
+            "notes": ""
         },
         "ListInternetGateways": {
             "permissions": [

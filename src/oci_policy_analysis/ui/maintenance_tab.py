@@ -166,7 +166,9 @@ class MaintenanceTab(ttk.Frame):
         frm_ops_tester_lbl.pack(side='left', fill='both', expand=True, padx=(8, 0), ipadx=5)
 
         # --- API Operation Search/Filter ---
-        ttk.Label(frm_ops_tester_lbl, text='API Operation:').grid(row=0, column=0, sticky='w', padx=3, pady=2)
+        ttk.Label(frm_ops_tester_lbl, text='API Operation:\n(Search and Select)').grid(
+            row=0, column=0, sticky='w', padx=3, pady=2
+        )
 
         self.apiop_filter_var = tk.StringVar()
         self.apiop_filter_entry = ttk.Entry(frm_ops_tester_lbl, textvariable=self.apiop_filter_var, width=42)
@@ -176,7 +178,9 @@ class MaintenanceTab(ttk.Frame):
         self.apiop_combo = ttk.Combobox(frm_ops_tester_lbl, state='readonly', width=44)
         self.apiop_combo.grid(row=1, column=1, sticky='w', padx=3, pady=2)
 
-        ttk.Label(frm_ops_tester_lbl, text='Permissions:').grid(row=2, column=0, sticky='nw', padx=3)
+        ttk.Label(frm_ops_tester_lbl, text='All Known Permissions:\n(Select multiple with Ctrl)').grid(
+            row=2, column=0, sticky='nw', padx=3
+        )
         self.apiop_perms_listbox = tk.Listbox(frm_ops_tester_lbl, selectmode='multiple', height=9, width=42)
         self.apiop_perms_listbox.grid(row=2, column=1, sticky='w', padx=3, pady=2)
         self.apiop_perms_listbox.bind('<<ListboxSelect>>', self._on_apiop_perm_select)

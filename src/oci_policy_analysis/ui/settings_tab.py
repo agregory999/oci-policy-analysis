@@ -108,7 +108,8 @@ class SettingsTab(ttk.Frame):
         font_combo.pack(side='left')
         font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
 
-        self.console_btn_var = tk.StringVar(value='Show Console Tab')
+        # --- Console / Debug Button ---
+        self.console_btn_var = tk.StringVar(value='Show Console and Debug Tab')
         self.console_button = ttk.Button(disp, textvariable=self.console_btn_var, command=self._toggle_console_tab)
         self.console_button.pack(side='left', padx=10, pady=6)
 
@@ -118,6 +119,11 @@ class SettingsTab(ttk.Frame):
             disp, textvariable=self.maintenance_btn_var, command=self._toggle_maintenance_tab
         )
         self.maintenance_button.pack(side='left', padx=10, pady=6)
+
+        # --- Advanced Tabs Button ---
+        self.advanced_btn_var = tk.StringVar(value='Show Advanced Tabs')
+        self.advanced_button = ttk.Button(disp, textvariable=self.advanced_btn_var, command=self._toggle_advanced_tabs)
+        self.advanced_button.pack(side='left', padx=10, pady=6)
 
         # --- MCP Configuration (RIGHT of Display Options) ---
         ttk.Label(label_frm_mcp_config, text='Host:').grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
@@ -518,20 +524,25 @@ class SettingsTab(ttk.Frame):
     # -------------------------
 
     def _toggle_console_tab(self):
-        """Toggle the visibility of the console tab in the notebook."""
+        """Toggle the visibility of the console and debug tab in the notebook."""
         notebook = self.app.notebook
         console_tab = self.app.console_tab
+        debugger_tab = getattr(self.app, 'debugger_tab', None)
 
         if self.app.console_visible:
             notebook.forget(console_tab)
-            self.console_btn_var.set('Show Console Tab')
+            if debugger_tab:
+                notebook.forget(debugger_tab)
+            self.console_btn_var.set('Show Console and Debug Tab')
             self.app.console_visible = False
-            logger.info('Console tab hidden')
+            logger.info('Console and Debug tabs hidden')
         else:
             notebook.add(console_tab, text='Console Logging\n(Admin)')
-            self.console_btn_var.set('Hide Console Tab')
+            if debugger_tab:
+                notebook.add(debugger_tab, text='JSON Debugger\n(Admin)')
+            self.console_btn_var.set('Hide Console and Debug Tab')
             self.app.console_visible = True
-            logger.info('Console tab shown')
+            logger.info('Console and Debug tabs shown')
 
     # -------------------------
     # Maintenance Tab Toggle
@@ -552,3 +563,32 @@ class SettingsTab(ttk.Frame):
             self.maintenance_btn_var.set('Hide Maintenance Tab')
             self.app.maintenance_visible = True
             logger.info('Maintenance tab shown')
+
+    # -------------------------
+    # Advanced Tabs Toggle
+    # -------------------------
+
+    def _toggle_advanced_tabs(self):
+        """Toggle the visibility of the advanced tabs in the notebook."""
+        notebook = self.app.notebook
+        advanced_tabs = [
+            self.app.permissions_report_tab,
+            self.app.condition_tester_tab,
+            self.app.policy_overlap_tab,
+            self.app.simulation_tab,
+        ]
+
+        if self.app.advanced_tabs_visible:
+            for tab in advanced_tabs:
+                notebook.forget(tab)
+            self.advanced_btn_var.set('Show Advanced Tabs')
+            self.app.advanced_tabs_visible = False
+            logger.info('Advanced tabs hidden')
+        else:
+            notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
+            notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
+            notebook.add(self.app.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
+            notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
+            self.advanced_btn_var.set('Hide Advanced Tabs')
+            self.app.advanced_tabs_visible = True
+            logger.info('Advanced tabs shown')

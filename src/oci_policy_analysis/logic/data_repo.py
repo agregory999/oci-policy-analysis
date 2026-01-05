@@ -18,7 +18,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -59,66 +58,14 @@ from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 # Global logger for this module
 logger = get_logger(component='data_repo')
 
-# Reference Data
-permission_reference_repo = ReferenceDataRepo()
-
 # Constants
-THREADS = 1
-POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny action (and whitespace at front)
-    (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
-    (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
-    ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
-    in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s* # Location type
-    (?P<location>[\w\':.-]+)?(?:\s+where\s+ # Location
-    (?P<condition>[\s\S]*?)(?=//|$))? # Condition (non-greedy, supports multiline, stops at first // or EOS)
-    (?:(?P<optional>\s*\/\/.+))?$ # Comment (optional)
-"""
-# Case insensitive, allow \n in capture
-policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE | re.DOTALL)
-
-# OCID_REGEX = r'ocid1\.\w+\.\w+\.\w*\.\w+'
-
-CROSS_TENANCY_DEFINE_REGEX = r"""
-    (?P<statement_type>define)\s+  # Capture statement type
-    (?P<define_type>compartment|group|dynamic-group|tenancy)\s+  # Define type
-    (?P<principal>\S+)\s+  # Principal (simple name)
-    (?:as\s+)(?P<alias>\S+)  # Alias, capturing only the value without 'as '
-"""
-
-define_regex = re.compile(CROSS_TENANCY_DEFINE_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
-
-# CROSS_TENANCY_ADMIT_REGEX = r"""
-#     (?P<statement_type>admit)\s+  # Capture statement type
-#     (?P<principal>any-user|group\s+(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+)(?:\s*,\s*(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+))*)?\s+  # Principal (any-user or comma-separated groups: domain/group, 'domain'/'group', simple)
-#     (?:of\s+)(?P<of_tenancy>tenancy\s+\S+)\s+  # 'of tenancy' clause, excluding 'of '
-#     to\s+(?:(?P<permission>{[^}]+})|(?P<action>{[^}]+}|\S+)\s+(?P<resource>\S+))?\s+  # Permission or action + resource, both optional
-#     in\s+(?P<location>compartment\s+[\w:]+|tenancy\s+\S+)  # Location (compartment or tenancy)
-#     (?P<where_clause>\s+where\s+(?:all\s+)?{[^}]+})?  # Optional where clause
-#     (?P<comment>\s*//\s*[^\n]*)?  # Optional comment
-# """
-
-# admit_regex = re.compile(CROSS_TENANCY_ADMIT_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
-
-
-# CROSS_TENANCY_ENDORSE_REGEX = r"""
-#     (?P<statement_type>endorse)\s+  # Capture statement type
-#     (?P<principal>any-user|group\s+(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+)(?:\s*,\s*(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+))*\s+|dynamic-group\s+\S+\s+)  # Principal (any-user, groups: domain/group, 'domain'/'group', simple, or dynamic-group)
-#     to\s+(?:(?P<permission>{[^}]+})|(?P<action>{[^}]+}|\S+|associate\s+\S+\s+with\s+\S+\s+in\s+(?:compartment\s+[\w:]+|tenancy\s+\S+))\s+(?P<resource>\S+))?\s+  # Permission or action + resource, both optional
-#     in\s+(?P<location>compartment\s+[\w:]+|tenancy\s+\S+)  # Location (compartment or tenancy)
-#     (?P<of_tenancy_clause>(?:\s+of\s+tenancy\s+\S+)?)  # Optional 'of tenancy' clause
-#     (?P<where_clause>\s+where\s+(?:all\s+)?{[^}]+})?  # Optional where clause
-#     (?P<comment>\s*//\s*[^\n]*)?  # Optional comment
-# """
-# endorse_regex = re.compile(CROSS_TENANCY_ENDORSE_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
+THREADS = 8
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 
 # For MCP-specific JSON
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
-
-
-# REMOVED: IdentityDataNotLoaded Exception (no longer needed)
 
 
 class PolicyAnalysisRepository:
@@ -151,6 +98,9 @@ class PolicyAnalysisRepository:
         self.tenancy_ocid = None
         self.identity_client = None
         self.loaded_from_tenancy = False
+        # Keep the refence data repo as a member
+        self.permission_reference_repo = ReferenceDataRepo()
+        # self.on_policy_statements_updated = None  # Optional callback, set by UI for reload hooks
         logger.info('Initialized PolicyAnalysisRepo')
 
     def initialize_client(
@@ -214,6 +164,11 @@ class PolicyAnalysisRepository:
 
             # Return True because we got the clients
             self.loaded_from_tenancy = True
+            # if self.on_policy_statements_updated:
+            #     try:
+            #         self.on_policy_statements_updated()
+            #     except Exception as e:
+            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
@@ -314,7 +269,7 @@ class PolicyAnalysisRepository:
             st['effective_path'] = '(Compartments not loaded or indexes unavailable)'
             return
 
-        logger.info(f'-Statement: {st.get("statement_text")}')
+        logger.debug(f'-Statement: {st.get("statement_text")}')
         # Case 1 - in tenancy
         if st.get('location_type') == 'tenancy':
             st['effective_compartment_ocid'] = self.tenancy_ocid
@@ -337,7 +292,7 @@ class PolicyAnalysisRepository:
             location = st.get('location')
             parts = [p.strip() for p in location.split(':') if p.strip()] if location else []
             policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
-            logger.info(f'Policy Path: {policy_path} / Location parts: {parts}')
+            logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
 
             # If the first element of the path is the same as the policy compartment name, remove it from cosideration
             eff_path = policy_path
@@ -1802,12 +1757,12 @@ class PolicyAnalysisRepository:
                     continue
 
                 # if there are explicit permissions, use those. otherwise get them from the repo
-                other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
+                other_permissions = other_st.get('permission') or self.permission_reference_repo.get_permissions(
                     entity=other_st.get('resource', ''),
                     verb=other_st.get('verb', ''),
                     action=other_st.get('action', 'allow'),
                 )
-                st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
+                st_permissions = st.get('permission') or self.permission_reference_repo.get_permissions(
                     entity=st.get('resource', ''), verb=st.get('verb', ''), action=st.get('action', 'allow')
                 )
 
@@ -1828,7 +1783,7 @@ class PolicyAnalysisRepository:
                     perm_overlap = ['Resource:' + st.get('resource', '')]
                 else:
                     # The repo can find the overlaps - will be a list of permissions that overlap
-                    perm_overlap = permission_reference_repo.check_overlap(st_permissions, other_permissions)
+                    perm_overlap = self.permission_reference_repo.check_overlap(st_permissions, other_permissions)
                     if len(perm_overlap) == 0:
                         continue
                     # Permission overlap found
@@ -1847,9 +1802,23 @@ class PolicyAnalysisRepository:
                 subject_overlap = False
                 for st_subj in st_subjects:
                     for other_subj in other_subjects:
-                        if (st_subj[0] or '').lower() == (other_subj[0] or '').lower() and st_subj[
-                            1
-                        ].lower() == other_subj[1].lower():
+                        # Defensive: make sure all elements are strings, not lists
+                        st0 = st_subj[0]
+                        st1 = st_subj[1]
+                        oth0 = other_subj[0]
+                        oth1 = other_subj[1]
+                        # Flatten if a list, or join with '/'
+                        if isinstance(st0, list):
+                            st0 = '/'.join(map(str, st0))
+                        if isinstance(st1, list):
+                            st1 = '/'.join(map(str, st1))
+                        if isinstance(oth0, list):
+                            oth0 = '/'.join(map(str, oth0))
+                        if isinstance(oth1, list):
+                            oth1 = '/'.join(map(str, oth1))
+                        if (str(st0) or '').lower() == (str(oth0) or '').lower() and str(st1).lower() == str(
+                            oth1
+                        ).lower():
                             subject_overlap = True
                             break
                     if subject_overlap:
@@ -2257,6 +2226,12 @@ class PolicyAnalysisRepository:
 
             self.data_as_of = datetime.now(UTC).isoformat()
             self.loaded_from_compliance_output = True
+
+            # if self.on_policy_statements_updated:
+            #     try:
+            #         self.on_policy_statements_updated()
+            #     except Exception as e:
+            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
 
             logger.info('Compliance output data loaded successfully.')
             return True

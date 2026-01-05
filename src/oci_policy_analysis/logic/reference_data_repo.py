@@ -105,6 +105,10 @@ class ReferenceDataRepo:
         For "allow": behavior is as before.
         For "deny": logic is inverted -- broader verbs (like 'inspect') deny more permissions.
 
+        Special case: if entity == 'all-resources', gather permissions from *all* resources/types,
+        but for the specified verb only. For 'allow', union the specific-verb permissions from all.
+        For 'deny', union the same but these are what is DENIED.
+
         Args:
             entity (str): Resource name or family name.
             verb (str): Verb level ('inspect', 'read', 'use', 'manage').
@@ -113,6 +117,14 @@ class ReferenceDataRepo:
         Returns:
             list: List of cumulative permissions.
         """
+        if entity == 'all-resources':
+            # Special case: gather all resource permissions at the specific verb only
+            all_perms = set()
+            for resdata in self.data['resources'].values():
+                perms = resdata.get('verbs', {}).get(verb, [])
+                all_perms.update(p.upper() for p in perms)
+            # For "allow": these are what is GRANTED; for "deny": these are what is denied (downstream logic is responsibility)
+            return list(all_perms)
         if entity in self.data['families']:
             all_perms = set()
             for res in self.data['families'][entity]['resources']:

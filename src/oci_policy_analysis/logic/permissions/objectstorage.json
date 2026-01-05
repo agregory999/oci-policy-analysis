@@ -117,13 +117,8 @@
     },
     "operations": {
         "GetNamespace": {
-            "permissions": [
-                "API",
-                "U",
-                "OBJECTSTORAGE_NAMESPACE_READ",
-                "I"
-            ],
-            "notes": "requires no permissions and returns the caller's namespace. Use the to validate your credentials. permission is required if you include the optional compartmentId parameter. Use the compartmentId parameter to find the namespace for a third-party tenancy."
+            "permissions": [],
+            "notes": "OBJECTSTORAGE_NAMESPACE_READ permission is required if you include the optional compartmentId parameter. Use the compartmentId parameter to find the namespace for a third-party tenancy."
         },
         "GetNamespaceMetadata": {
             "permissions": [
@@ -139,32 +134,21 @@
         },
         "CreateBucket": {
             "permissions": [
-                "BUCKET_CREATEI",
-                "KMS",
-                "K",
-                "ID",
-                "KEY_ASSOCIATE",
-                "T",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT",
-                "KEY_READ"
+                "BUCKET_CREATE"
             ],
-            "notes": "BUCKET_CREATEIf the Key is provided to the operation, the following additional permissions are required: The objectstorage-<location> subject must also have: , , ."
+            "notes": "If the KMS Key ID is provided to the operation, the following additional permissions are required: KEY_ASSOCIATE. The objectstorage-<location> subject must also have: KEY_ENCRYPT, KEY_DECRYPT, KEY_READ."
         },
         "UpdateBucket": {
             "permissions": [
-                "BUCKET_UPDATEF",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "BUCKET_UPDATE"
             ],
-            "notes": "BUCKET_UPDATEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: , and ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must also have: KEY_ENCRYPT, and KEY_DECRYPT."
         },
         "GetBucket": {
             "permissions": [
-                "BUCKET_READF",
-                "KEY_DECRYPT"
+                "BUCKET_READ"
             ],
-            "notes": "BUCKET_READFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
         },
         "HeadBucket": {
             "permissions": [
@@ -193,37 +177,37 @@
             ],
             "notes": "BUCKET_UPDATEThe objectstorage-<location> subject must also have: , and ."
         },
-        "PutObject": {
+        "PutObject (New)": {
             "permissions": [
-                "T",
                 "OBJECT_CREATE",
-                "OBJECT_OVERWRITE",
-                "F",
-                "KEY_ENCRYPT"
+                "OBJECT_OVERWRITE"
             ],
-            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+        },
+        "PutObject (Overwrite)": {
+            "permissions": [
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
         },
         "RenameObject": {
             "permissions": [
                 "OBJECT_CREATE",
                 "OBJECT_OVERWRITE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "GetObject": {
             "permissions": [
-                "OBJECT_READF",
-                "KEY_DECRYPT"
+                "OBJECT_READ"
             ],
-            "notes": "OBJECT_READFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
         },
         "HeadObject": {
             "permissions": [
-                "OBJECT_READ",
-                "OBJECT_INSPECTF",
-                "KEY_DECRYPT"
+                "OBJECT_INSPECT"
             ],
-            "notes": "or OBJECT_INSPECTFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "or OBJECT_INSPECTFor a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
         },
         "DeleteObject": {
             "permissions": [
@@ -252,14 +236,9 @@
         "ReencryptObject": {
             "permissions": [
                 "OBJECT_READ",
-                "OBJECT_OVERWRITEF",
-                "KEY_ASSOCIATE",
-                "A",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT",
-                "KEY_READ"
+                "OBJECT_OVERWRITE"
             ],
-            "notes": ", OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the following permissions are required: Additionally, the objectstorage-<location> subject must also have , , and ."
+            "notes": "For a customer-managed key encrypted bucket, the following permissions are required: KEY_ASSOCIATE. Additionally, the objectstorage-<location> service must also have KEY_ENCRYPT, KEY_DECRYPT, and KEY_READ."
         },
         "RestoreObjects": {
             "permissions": [
@@ -276,18 +255,16 @@
         "CreateMultipartUpload": {
             "permissions": [
                 "OBJECT_CREATE",
-                "OBJECT_OVERWRITEF",
-                "KEY_ENCRYPT"
+                "OBJECT_OVERWRITE"
             ],
-            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
         },
         "UploadPart": {
             "permissions": [
                 "OBJECT_CREATE",
-                "OBJECT_OVERWRITEF",
-                "KEY_ENCRYPT"
+                "OBJECT_OVERWRITE"
             ],
-            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
         },
         "CommitMultipartUpload": {
             "permissions": [
@@ -296,7 +273,7 @@
                 "OBJECT_READ",
                 "OBJECT_OVERWRITE"
             ],
-            "notes": ", , , and"
+            "notes": ""
         },
         "ListMultipartUploadParts": {
             "permissions": [
@@ -327,7 +304,7 @@
                 "PAR_MANAGE",
                 "BUCKET_READ"
             ],
-            "notes": "or"
+            "notes": "Either permission is sufficient"
         },
         "ListPreauthenticatedRequests": {
             "permissions": [
@@ -346,48 +323,36 @@
             "permissions": [
                 "BUCKET_UPDATE",
                 "OBJECT_CREATE",
-                "OBJECT_DELETE",
-                "A",
-                "BUCKET_INSPECT",
-                "BUCKET_READ",
-                "OBJECT_INSPECT",
-                "I",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT",
-                "P",
-                "O",
-                "L",
-                "C",
-                "INFREQUENT_ACCESS",
-                "OBJECT_UPDATE_TIER"
+                "OBJECT_DELETE"
             ],
-            "notes": ", , and Additionally, the objectstorage-<location> subject must also have: , , .If the bucket the lifecycle policy applies to is a customer-managed key encrypted bucket then the objectstorage-<location> subject must also have: , and .If the PutObjectLifeCyclePolicy operation also updates the object tier for example, from default to , the user and the objectstorage-<location> subject must be granted permission."
+            "notes": "Additionally, the objectstorage-<location> subject must also have: BUCKET_INSPECT, BUCKET_READ, OBJECT_INSPECT.  If the bucket the lifecycle policy applies to is a customer-managed key encrypted bucket then the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT.If the PutObjectLifeCyclePolicy operation also updates the object tier for example, from default to INFREQUENT_ACCESS, the user and the objectstorage-<location> subject must be granted OBJECT_UPDATE_TIER permission."
         },
         "GetObjectLifecyclePolicy": {
             "permissions": [
-                "BUCKET_READF",
-                "KEY_DECRYPT"
+                "BUCKET_READ"
             ],
-            "notes": "BUCKET_READFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_DECRYPT."
         },
         "DeleteObjectLifecyclePolicy": {
             "permissions": [
-                "BUCKET_UPDATEF",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "BUCKET_UPDATE"
             ],
-            "notes": "BUCKET_UPDATEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: , and ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, and KEY_DECRYPT."
         },
         "CreateRetentionRule": {
             "permissions": [
                 "BUCKET_UPDATE",
-                "RETENTION_RULE_MANAGE",
-                "RETENTION_RULE_LOCK",
-                "F",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "RETENTION_RULE_MANAGE"
             ],
-            "notes": "and (and )For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: , and ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "CreateRetentionRule (With Lock)": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE",
+                "RETENTION_RULE_LOCK"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
         },
         "GetRetentionRule": {
             "permissions": [
@@ -404,34 +369,38 @@
         "UpdateRetentionRule": {
             "permissions": [
                 "BUCKET_UPDATE",
-                "RETENTION_RULE_MANAGE",
-                "RETENTION_RULE_LOCK",
-                "F",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "RETENTION_RULE_MANAGE"
             ],
-            "notes": "and (and )For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: , and ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "UpdateRetentionRule (With Lock)": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE",
+                "RETENTION_RULE_LOCK"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
         },
         "DeleteRetentionRule": {
             "permissions": [
                 "BUCKET_UPDATE",
-                "RETENTION_RULE_MANAGEF",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "RETENTION_RULE_MANAGE"
             ],
-            "notes": "and RETENTION_RULE_MANAGEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: , and ."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
         },
         "CopyObjectRequest": {
             "permissions": [
                 "OBJECT_READ",
-                "OBJECT_CREATE",
-                "OBJECT_OVERWRITE",
-                "A",
-                "F",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "OBJECT_CREATE"
             ],
-            "notes": ", and the second user permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. Additionally, the objectstorage-<location> subject requires . For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have , ."
+            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT."
+        },
+        "CopyObjectRequest (Existing Object)": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT."
         },
         "GetWorkRequest": {
             "permissions": [
@@ -460,9 +429,9 @@
                 "OBJECT_DELETE",
                 "OBJECT_RESTORE",
                 "BUCKET_READ",
-                "BUCKET_UPDATET"
+                "BUCKET_UPDATE"
             ],
-            "notes": ", , , , , , , and BUCKET_UPDATEThe objectstorage-<location> subject must have the same permissions as the user."
+            "notes": "The objectstorage-<location> service must have the same permissions as the user."
         },
         "GetReplicationPolicy": {
             "permissions": [
@@ -481,7 +450,7 @@
                 "BUCKET_READ",
                 "BUCKET_UPDATE"
             ],
-            "notes": ", , , , , , , and"
+            "notes": ""
         },
         "ListReplicationPolicies": {
             "permissions": [
@@ -505,7 +474,7 @@
                 "BUCKET_READ",
                 "BUCKET_UPDATE"
             ],
-            "notes": ", , , , , , and"
+            "notes": ""
         }
     }
 }

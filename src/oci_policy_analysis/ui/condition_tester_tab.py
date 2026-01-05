@@ -11,7 +11,6 @@
 # coding: utf-8
 ##########################################################################
 
-import re
 import tkinter as tk
 from datetime import datetime
 from tkinter import ttk
@@ -106,12 +105,26 @@ class ConditionTesterTab(ttk.Frame):
         self.input_widgets = {}
 
         # Let frame's dynamic height adjust to number of rows (no fixed height)
+        EXAMPLES = {
+            'request.utc-timestamp': 'e.g. 2026-01-05T12:34:56Z',
+            'request.utc-timestamp.time-of-day': 'e.g. 13:27:00Z',
+        }
         for i, var in enumerate(sorted(var_names)):
             var_label = ttk.Label(self.vars_frame, text=var + ':')
             var_label.grid(row=i, column=0, sticky=tk.W, padx=4, pady=2)
             var_str = tk.StringVar()
             entry = ttk.Entry(self.vars_frame, textvariable=var_str, width=40)
             entry.grid(row=i, column=1, padx=4, pady=2)
+            # Add format example to the right if this is a time/timestamp variable
+            example_hint = ''
+            if var == 'request.utc-timestamp':
+                example_hint = EXAMPLES['request.utc-timestamp']
+            elif var == 'request.utc-timestamp.time-of-day':
+                example_hint = EXAMPLES['request.utc-timestamp.time-of-day']
+            if example_hint:
+                ttk.Label(
+                    self.vars_frame, text=example_hint, foreground='#666', font=('TkDefaultFont', 9, 'italic')
+                ).grid(row=i, column=2, padx=(2, 2), sticky='w')
             self.input_widgets[var] = var_str
 
         # Adjust frame minheight to match variable count for cleaner look
@@ -210,7 +223,23 @@ class ConditionTesterTab(ttk.Frame):
         logger.info(f'Evaluate condition: {clause}')
         logger.info(f'Using simulated variables: {sim_vars}')
         try:
-            result = self._run_condition_test(clause, sim_vars)
+            # Use only the simulation engine for condition evaluation.
+            # Try to obtain a shared/reusable engine instance on self or fallback to direct import/class.
+            engine = getattr(self, 'engine', None)
+            if engine is None:
+                # Try via app, or create a default engine object (with no repo context)
+                engine = getattr(self.app, 'policy_sim_engine', None)
+            if engine is None:
+                try:
+                    from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+                except ImportError:
+                    PolicySimulationEngine = None
+                engine = PolicySimulationEngine() if PolicySimulationEngine else None
+                self.engine = engine  # cache
+            if not engine:
+                raise Exception('Could not instantiate simulation engine for condition evaluation.')
+            # Pass the textual clause and simulated variable dict.
+            result = engine._evaluate_conditions(clause, sim_vars)
         except Exception as ex:
             logger.error(f'Evaluation error: {ex}')
             result = {
@@ -233,242 +262,60 @@ class ConditionTesterTab(ttk.Frame):
     def _clear_output(self):
         self.results_text.delete('1.0', tk.END)
 
-    # === Inline run_condition_test logic from condition_tester.py ===
-    def _run_condition_test(self, condition_str, variables):  # noqa: C901
-        input_stream = InputStream(condition_str + '\n')  # noqa: F405
-        lexer = OciIamPolicyConditionLexer(input_stream)
-        stream = CommonTokenStream(lexer)  # noqa: F405
-        parser = OciIamPolicyConditionParser(stream)
-        tree = parser.condition_clause()
+    # No longer needed: The condition test logic is now unified in the PolicySimulationEngine.
+    def _show_result(self, result_dict):  # noqa: C901
+        # Robustify: Accept tuple or dict for compatibility
+        if isinstance(result_dict, tuple):
+            # Handle tuple of (bool, string) or sometimes (bool, dict) as returned from engine._evaluate_conditions
+            # Try to convert to a display dict
+            if len(result_dict) == 2 and isinstance(result_dict[0], bool) and isinstance(result_dict[1], str):
+                granted = result_dict[0]
+                details = result_dict[1]
+                # Try to extract a variable/operator/result from the details using regex
+                if 'Details:' in details and 'variable' in details:
+                    # Try to eval() the details dict just for display if present
+                    import ast
 
-        class ConditionExecutionVisitor(OciIamPolicyConditionVisitor):
-            def __init__(self, simulated_variables):
-                self.simulated_variables = simulated_variables
-                self.comparison_log = []
-
-            def visitSingle_condition(self, ctx):  # noqa: C901
-                variable = ctx.variable_name().getText()
-                operator = ctx.OPERATOR().getText().lower()
-                value = None
-                # --- Value Extraction ---
-                if ctx.literal_list():
-                    list_content = ctx.literal_list().literal_list_content()
-                    values = [c.getText().strip("'") for c in list_content.getChildren()]
-                    value = [v for v in values if v not in [',']]
-                    value_token_type = 'literal_list'
-                elif ctx.condition_value():  # covers single value and non-list
-                    value_ctx = ctx.condition_value(0)
-                    value_raw = value_ctx.getText().strip()
-                    # Determine the token type (pattern, string, or identifier)
-                    is_pattern = value_ctx.PATTERN_LITERAL() is not None
-                    is_string = value_ctx.STRING_LITERAL() is not None
-                    is_identifier = value_ctx.IDENTIFIER() is not None
-                    value_token_type = (
-                        'PATTERN_LITERAL'
-                        if is_pattern
-                        else 'STRING_LITERAL'
-                        if is_string
-                        else 'IDENTIFIER'
-                        if is_identifier
-                        else 'UNKNOWN'
-                    )
-                    logger.info(f'[RE-EVAL] Detected value raw: {repr(value_raw)}, token_type: {value_token_type}')
-                    if is_pattern:
-                        # Already includes slashes, e.g. /A-*/
-                        value = value_raw
-                    elif is_string:
-                        value = value_raw[1:-1]
-                    else:
-                        # If the value is an IDENTIFIER and matches a simulated variable, substitute
-                        if value_token_type == 'IDENTIFIER' and value_raw in self.simulated_variables:
-                            logger.info(
-                                f"[RE-EVAL] RHS IDENTIFIER '{value_raw}' replaced with simulated value '{self.simulated_variables[value_raw]}'"
-                            )
-                            value = self.simulated_variables[value_raw]
-                        else:
-                            value = value_raw
+                    try:
+                        detail_part = details.split('Details:', 1)[1].strip()
+                        detail_dict = ast.literal_eval(detail_part) if '{' in detail_part and '}' in detail_part else {}
+                        log_list = [detail_dict] if isinstance(detail_dict, dict) and detail_dict else []
+                    except Exception:
+                        log_list = []
                 else:
-                    value = None
-                    value_token_type = 'none'
-                value_2 = None
-                if operator == 'between' and ctx.condition_value(1):
-                    value_2_ctx = ctx.condition_value(1)
-                    value_2 = value_2_ctx.getText().strip()
-                    if value_2_ctx.STRING_LITERAL() or value_2_ctx.PATTERN_LITERAL():
-                        value_2 = value_2[1:-1]
-                sim_value = self.simulated_variables.get(variable)
-
-                log_entry = {
-                    'variable': variable,
-                    'operator': operator,
-                    'sim_value': sim_value if sim_value is not None else 'MISSING',
-                    'expected': str(value) if value_2 is None else f'[{value} AND {value_2}]',
-                    'result': False,
-                    'type': 'Simple Comparison',
+                    log_list = []
+                result_dict = {
+                    'Condition String': '',
+                    'Policy Result': 'GRANTED' if granted else 'DENIED',
+                    'Log': log_list
+                    if log_list
+                    else [
+                        {
+                            'type': 'No detail',
+                            'result': granted,
+                            'variable': '?',
+                            'operator': '?',
+                            'sim_value': '?',
+                            'expected': '?',
+                            'info': details,
+                        }
+                    ],
                 }
-                if sim_value is None:
-                    self.comparison_log.append(log_entry)
-                    return False
-                comparison_result = False
-                # --- Main comparison logic; handle cases with value None or wrong type
-                try:
-                    if operator == '=':
-                        # Regex match if explicitly pattern-literal
-                        if (
-                            value_token_type == 'PATTERN_LITERAL'
-                            and isinstance(value, str)
-                            and value.startswith('/')
-                            and value.endswith('/')
-                        ):
-                            # Remove /.../ delimiters (pattern) and any wrapping quotes
-                            pattern = value[1:-1]
-                            pattern = pattern.strip('\'"')
-                            cleaned_pattern = pattern
-                            if '*' in pattern and '.*' not in pattern:
-                                cleaned_pattern = cleaned_pattern.replace('*', '.*')
-                            compare_target = sim_value or ''
-                            logger.info(
-                                f"[RE-EVAL] '=' Pattern: orig={repr(value)}, pattern={repr(pattern)}, cleaned_pattern={repr(cleaned_pattern)}, sim_value={repr(sim_value)}, compare_target(no strip)={repr(compare_target)}"
-                            )
-                            compare_target_stripped = (
-                                compare_target.strip() if isinstance(compare_target, str) else compare_target
-                            )
-                            logger.info(
-                                f'[RE-EVAL] Regex call: re.fullmatch({repr(cleaned_pattern)}, {repr(compare_target_stripped)})'
-                            )
-                            try:
-                                match_result = re.fullmatch(cleaned_pattern, compare_target_stripped)
-                                logger.info(
-                                    f'[RE-EVAL] Regex match? {bool(match_result)} - Result object: {match_result}'
-                                )
-                                comparison_result = bool(match_result)
-                            except Exception as rgx_ex:
-                                logger.warning(f'Regex error: {rgx_ex} pattern={cleaned_pattern!r}')
-                                comparison_result = False
-                            log_entry['type'] = f'Regex match: /{cleaned_pattern}/'
-                        else:
-                            logger.info(
-                                f"[RE-EVAL] '=' String compare: sim_value={repr(sim_value)}, value={repr(value)}"
-                            )
-                            if isinstance(sim_value, str) and isinstance(value, str):
-                                comparison_result = sim_value.strip() == value.strip()
-                            else:
-                                comparison_result = sim_value == value
-                    elif operator == '!=':
-                        if (
-                            value_token_type == 'PATTERN_LITERAL'
-                            and isinstance(value, str)
-                            and value.startswith('/')
-                            and value.endswith('/')
-                        ):
-                            pattern = value[1:-1]
-                            pattern = pattern.strip('\'"')
-                            cleaned_pattern = pattern
-                            if '*' in pattern and '.*' not in pattern:
-                                cleaned_pattern = cleaned_pattern.replace('*', '.*')
-                            compare_target = sim_value or ''
-                            logger.info(
-                                f"[RE-EVAL] '!=' Pattern: orig={repr(value)}, pattern={repr(pattern)}, cleaned_pattern={repr(cleaned_pattern)}, sim_value={repr(sim_value)}, compare_target(no strip)={repr(compare_target)}"
-                            )
-                            compare_target_stripped = (
-                                compare_target.strip() if isinstance(compare_target, str) else compare_target
-                            )
-                            logger.info(
-                                f'[RE-EVAL] Regex call (inverted): re.fullmatch({repr(cleaned_pattern)}, {repr(compare_target_stripped)})'
-                            )
-                            try:
-                                match_result = re.fullmatch(cleaned_pattern, compare_target_stripped)
-                                logger.info(
-                                    f'[RE-EVAL] Regex match? {bool(match_result)} - Result object: {match_result}'
-                                )
-                                comparison_result = not bool(match_result)
-                            except Exception as rgx_ex:
-                                logger.warning(f'Regex error: {rgx_ex} pattern={cleaned_pattern!r}')
-                                comparison_result = False
-                            log_entry['type'] = f'Regex (not) match: /{cleaned_pattern}/'
-                        else:
-                            logger.info(
-                                f"[RE-EVAL] '!=' String compare: sim_value={repr(sim_value)}, value={repr(value)}"
-                            )
-                            if isinstance(sim_value, str) and isinstance(value, str):
-                                comparison_result = sim_value.strip() != value.strip()
-                            else:
-                                comparison_result = sim_value != value
-                    elif operator == 'in':
-                        if isinstance(value, list):
-                            comparison_result = sim_value in value
-                        else:
-                            comparison_result = sim_value == value
-                    elif operator == 'after' or operator == 'before':
-                        # Only parse dates if value is a string
-                        if isinstance(value, str) and sim_value:
-                            try:
-                                sim_dt = datetime.strptime(sim_value, '%Y-%m-%dT%H:%M:%S%z').replace(tzinfo=None)
-                                exp_dt = datetime.strptime(value, '%Y-%m-%dT%H:%M:%S%z').replace(tzinfo=None)
-                                comparison_result = sim_dt > exp_dt if operator == 'after' else sim_dt < exp_dt
-                            except Exception:
-                                log_entry['type'] = 'Time parsing failed (Non-ISO format or missing TZ).'
-                                comparison_result = False
-                        else:
-                            comparison_result = False
-                    elif operator == 'between':
-                        try:
+            else:
+                # Fallback: try to find an embedded dict as before
+                found_dict = None
+                for item in result_dict:
+                    if isinstance(item, dict) and (
+                        'Policy Result' in item or 'Log' in item or 'Condition String' in item
+                    ):
+                        found_dict = item
+                        break
+                if found_dict is not None:
+                    result_dict = found_dict
+                else:
+                    self.results_text.insert(tk.END, f'\n[Result Error] Unrecognized tuple returned: {result_dict}\n')
+                    return
 
-                            def safe_strip(val):
-                                return val.strip("'") if isinstance(val, str) else ''
-
-                            if all(isinstance(x, str) and x for x in [sim_value, value, value_2]):
-                                sim_time = datetime.strptime(safe_strip(sim_value), '%H:%M:%S%z').time()
-                                start_time = datetime.strptime(safe_strip(value), '%H:%M:%S%z').time()
-                                end_time = datetime.strptime(safe_strip(value_2), '%H:%M:%S%z').time()
-                                if start_time <= end_time:
-                                    comparison_result = (sim_time >= start_time) and (sim_time <= end_time)
-                                else:
-                                    comparison_result = (sim_time >= start_time) or (sim_time <= end_time)
-                            else:
-                                comparison_result = False
-                        except Exception:
-                            log_entry['type'] = 'Time-of-day parsing failed.'
-                            comparison_result = False
-                    else:
-                        log_entry['type'] = f"Operator '{operator}' not simulated."
-                        comparison_result = False
-                except Exception as eval_ex:
-                    log_entry['type'] = f'Evaluation error: {eval_ex}'
-                    comparison_result = False
-                log_entry['result'] = comparison_result
-                self.comparison_log.append(log_entry)
-                return comparison_result
-
-            def visitCondition_clause(self, ctx):
-                return self.visit(ctx.condition_expression())
-
-            def visitCondition_expression(self, ctx):
-                if ctx.single_condition():
-                    return self.visit(ctx.single_condition())
-                elif ctx.all_or_any():
-                    is_all = ctx.all_or_any().getText().lower() == 'all'
-                    passes = self.visit(ctx.condition_list())
-                    if is_all:
-                        return all(passes)
-                    else:
-                        return any(passes)
-
-            def visitCondition_list(self, ctx):
-                return [self.visit(c) for c in ctx.condition_expression()]
-
-        # Actual visit and return
-        visitor = ConditionExecutionVisitor(variables)
-        condition_passed = visitor.visit(tree)
-        logger.info(f'Evaluation result: {condition_passed}')
-        result = {'Condition String': condition_str, 'Log': visitor.comparison_log}
-        if condition_passed is True:
-            result['Policy Result'] = 'GRANTED'
-        else:
-            result['Policy Result'] = 'DENIED'
-        return result
-
-    def _show_result(self, result_dict):
         # Do NOT clear previous log; append a timestamped header and result.
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.results_text.insert(tk.END, f"\n{'='*20} {now} {'='*20}\n", 'log_head')
@@ -485,16 +332,23 @@ class ConditionTesterTab(ttk.Frame):
         log = result_dict.get('Log', [])
         if log:
             for entry in log:
-                sim_val = entry['sim_value']
-                result = entry['result']
-                operator = entry['operator']
-                expected = entry['expected']
-                var = entry['variable']
-                if sim_val == 'MISSING':
-                    self.results_text.insert(tk.END, f"  [FAIL] Variable '{var}' is MISSING.\n")
+                # Print a clean/pass/fail line even if some elements are missing
+                sim_val = entry.get('sim_value', '')
+                result = entry.get('result', False)
+                operator = entry.get('operator', '')
+                expected = entry.get('expected', '')
+                var = entry.get('variable', '')
+                # Highlight GRANTED case (even with unknown details)
+                if result is True:
+                    status = 'PASS'
                 else:
-                    self.results_text.insert(
-                        tk.END, f"  [{'PASS' if result else 'FAIL'}] {sim_val} {operator} {expected} -> {result}\n"
-                    )
+                    status = 'FAIL'
+                if sim_val == 'MISSING':
+                    self.results_text.insert(tk.END, f"  [FAIL] Variable '{var or '?'}' is MISSING.\n")
+                elif all(x == '?' or x == '' for x in [sim_val, operator, expected, var]):
+                    # All details are unknown or missing - just give result
+                    self.results_text.insert(tk.END, f"  [{status}] {'Comparison performed; details unavailable'}\n")
+                else:
+                    self.results_text.insert(tk.END, f'  [{status}] {sim_val} {operator} {expected} -> {result}\n')
         else:
             self.results_text.insert(tk.END, '  No comparisons made / syntax or execution error.\n')

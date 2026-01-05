@@ -177,7 +177,7 @@ class PoliciesTab(ttk.Frame):
 
         def toggle_any_subject():
             if self.use_subject_any.get():
-                self.subject_filter_var.set('any-user|any-group')
+                self.subject_filter_var.set('any-user')
             else:
                 self.subject_filter_var.set('')
 
@@ -280,8 +280,8 @@ class PoliciesTab(ttk.Frame):
             row=1, column=1, columnspan=2, padx=2, sticky='w'
         )
         ttk.Checkbutton(
-            frm_policy_filter, text='Any-User/Group', variable=self.use_subject_any, command=toggle_any_subject
-        ).grid(row=1, column=3, padx=2)
+            frm_policy_filter, text='any-user', variable=self.use_subject_any, command=toggle_any_subject
+        ).grid(row=1, column=3, padx=2, sticky='e')
 
         # Verb
         ttk.Label(frm_policy_filter, text='Verb').grid(row=1, column=4, padx=5, pady=2, sticky='w')
@@ -315,7 +315,7 @@ class PoliciesTab(ttk.Frame):
             text='Tenancy Root Only',
             variable=self.hierarchy_filter_root,
             command=toggle_hierarchy_root,
-        ).grid(row=3, column=3, padx=5, pady=2)
+        ).grid(row=3, column=3, padx=5, pady=2, sticky='e')
 
         # Condition
         ttk.Label(frm_policy_filter, text='Condition').grid(row=3, column=4, padx=5, pady=2, sticky='w')
@@ -548,7 +548,7 @@ class PoliciesTab(ttk.Frame):
                 or self.chk_show_resource.get()
                 and st.get('Subject Type') == 'resource'
                 or self.chk_show_regular.get()
-                and st.get('Subject Type') in ['group', 'any-user', 'any-group']
+                and st.get('Subject Type') in ['group', 'any-user']
                 or self.chk_show_invalid.get()
                 and (not st.get('Valid') or not st.get('Parsed'))
             )

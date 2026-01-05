@@ -86,9 +86,18 @@ class LoggingErrorListener(ErrorListener):
 
 
 class _FieldCollectingVisitor(PolicyVisitor):
+    def __init__(self, input_text=None):
+        super().__init__()
+        self._input_text = input_text
+
     def _get_text(self, ctx_child):
         if ctx_child is None:
             return ''
+        if hasattr(ctx_child, 'start') and hasattr(ctx_child, 'stop') and self._input_text:
+            start = ctx_child.start.start
+            stop = ctx_child.stop.stop
+            if isinstance(start, int) and isinstance(stop, int) and stop >= start:
+                return self._input_text[start : stop + 1]
         if isinstance(ctx_child, list):
             if len(ctx_child) == 0:
                 return ''
@@ -253,7 +262,35 @@ class _FieldCollectingVisitor(PolicyVisitor):
         loc_type, loc_val = self._parse_location_from_scope(fields['scope'])
         fields['location_type'] = loc_type
         fields['location'] = loc_val
-        fields['condition'] = self._get_text(ctx.condition())
+
+        # --- DEBUG: Log all ways of extracting the condition for diagnosis
+        cond_ctx = ctx.condition()
+        cond_from_gettext = cond_ctx.getText() if cond_ctx else ''
+        cond_from_slice = None
+        slice_start = 'N/A'
+        slice_stop = 'N/A'
+        if cond_ctx is not None and hasattr(cond_ctx, 'start') and hasattr(cond_ctx, 'stop') and self._input_text:
+            start = cond_ctx.start.start
+            stop = cond_ctx.stop.stop
+            if isinstance(start, int) and isinstance(stop, int) and stop >= start:
+                cond_from_slice = self._input_text[start : stop + 1]
+                slice_start = start
+                slice_stop = stop
+        fields['condition'] = (
+            cond_from_slice if cond_from_slice is not None else (self._get_text(cond_ctx) if cond_ctx else '')
+        )
+        if self._input_text is not None:
+            statement_preview = self._input_text[:120]
+        else:
+            statement_preview = '<NO_INPUT_TEXT>'
+        logger.debug(
+            f"[Normalizer] Statement='{statement_preview}...' | "
+            + f"condition.getText()='{cond_from_gettext}' | "
+            + f"slice=({slice_start},{slice_stop}) -> '{cond_from_slice}' | "
+            + f"final fields['condition']='{fields['condition']}'"
+        )
+        # --- END DEBUG
+
         # Parse trailing comment
         fields['comments'] = ''
         try:
@@ -457,16 +494,16 @@ class PolicyStatementParser:
         error_listener = LoggingErrorListener(logger=logger, context_text=text)
         lexer.addErrorListener(error_listener)
         parser.addErrorListener(error_listener)
-        visitor = _FieldCollectingVisitor()
+        visitor = _FieldCollectingVisitor(input_text=text)
         try:
             tree = parser.policy()
             parsed = visitor.visit(tree)
             if error_listener.errors:
                 for msg in error_listener.errors:
-                    logger.warning(f'ANTLR parse error: {msg}')
+                    logger.info(f'ANTLR parse error: {msg}')
             logger.info(f'Parse result (raw): {parsed}')
             if not parsed or not isinstance(parsed, list):
-                logger.warning(f"Parser returned no statement objects for: '{text[:80]}...'")
+                logger.info(f"Parser returned no statement objects for: '{text[:80]}...'")
             else:
                 logger.info(f'Parsed {len(parsed)} statement(s).')
             return parsed
@@ -640,6 +677,7 @@ class PolicyStatementNormalizer:
             'parsed': True,
         }
         logger.info(f'Normalized regular policy statement object: {obj}')
+
         return RegularPolicyStatement(**obj)
 
     def _parse_subjects(self, subject_list):

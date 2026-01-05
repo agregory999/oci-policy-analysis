@@ -86,7 +86,7 @@ class ConsoleTab(ttk.Frame):
         self._build_ui()
         self._attach_console_log_handler()
 
-    def _build_ui(self):
+    def _build_ui(self):  # noqa: C901
         # ttk.Label(self, text='Console Log').pack(pady=10)
         ctrl_frame = ttk.Frame(self)
         ctrl_frame.pack(pady=10)
@@ -100,7 +100,7 @@ class ConsoleTab(ttk.Frame):
         level_combo = ttk.Combobox(
             ctrl_frame,
             textvariable=self.app.log_level_var,  # Reuse from App
-            values=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            values=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],  # No DEBUG globally!
             width=10,
         )
         level_combo.pack(side=tk.LEFT)
@@ -112,32 +112,41 @@ class ConsoleTab(ttk.Frame):
         show_loggers_chk.pack(side=tk.LEFT, padx=10)
 
         # --- Individual logger controls: grid layout in a separate frame ---
-        self.logger_components = [
-            'cli',
-            'caching',
-            'mcp_server',
-            'config',
-            'main',
-            'reference_data_repo',
-            'ai_repo',
-            'policy_parser',
-            'data_repo',
-            'console_tab',
-            'resource_principals_tab',
-            'condition_tester_tab',
-            'policies',
-            'report_tab',
-            'permissions_report',
-            'data_table',
-            'historical_tab',
-            'dynamic_group_tab',
-            'settings',
-            'mcp_tab',
-            'cross_tenancy_tab',
-            'policy_overlap',
-            'maintenance',
-            'users_tab',
-        ]
+        # Package mapping for loggers
+        self.logger_components_by_pkg = {
+            'Common': ['cli', 'caching', 'config', 'main', 'mcp_server'],
+            'Logic': [
+                'policy_simulation_engine',
+                'ai_repo',
+                'reference_data_repo',
+                'policy_parser',
+                'data_repo',
+                'policies',
+                'policy_overlap',
+                'where_clause_evaluator',
+            ],
+            'UI': [
+                'simulation_tab',
+                'console_tab',
+                'resource_principals_tab',
+                'condition_tester_tab',
+                'report_tab',
+                'permissions_report',
+                'data_table',
+                'historical_tab',
+                'dynamic_group_tab',
+                'settings',
+                'mcp_tab',
+                'cross_tenancy_tab',
+                'maintenance',
+                'users_tab',
+            ],
+        }
+        # Flattened for batch logic
+        self.logger_components = []
+        for group in ['Common', 'Logic', 'UI']:
+            self.logger_components.extend(self.logger_components_by_pkg[group])
+
         self.logger_level_vars = {}
 
         # --- Console Output Display ---
@@ -150,38 +159,104 @@ class ConsoleTab(ttk.Frame):
         self.logger_grid_frame = ttk.Frame(self)
         self.logger_grid_frame.pack(pady=(0, 10), padx=8, anchor='w')
 
-        per_row = 6
-        for idx, comp in enumerate(self.logger_components):
-            row, col = divmod(idx, per_row)
-            var = tk.StringVar()
-            import logging
+        log_levels = getattr(self.app, 'settings', {}).get('log_levels', {})
 
-            lg = logging.getLogger(f'oci-policy-analysis.{comp}')
-            level = logging.getLevelName(lg.level if lg.level != 0 else logging.getLogger().level)
-            if level not in ['INFO', 'WARNING', 'ERROR', 'CRITICAL']:
-                level = 'INFO'
-            var.set(level)
-            self.logger_level_vars[comp] = var
-            lbl = ttk.Label(self.logger_grid_frame, text=comp)
-            lbl.grid(row=row, column=col * 2, sticky='e', padx=(4, 1), pady=2)
-            combo = ttk.Combobox(
-                self.logger_grid_frame,
-                textvariable=var,
-                values=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                width=8,
+        def on_logger_level_change(event, comp, var):
+            val = var.get()
+            set_component_level(comp, val)
+            if 'log_levels' not in self.app.settings:
+                self.app.settings['log_levels'] = {}
+            self.app.settings['log_levels'][comp] = val
+            from oci_policy_analysis.common import config
+
+            config.save_settings(self.app.settings)
+
+        # Add per package grouping and vertical separator
+        logger_group_frames = {}
+        col_offset = 0
+        col_width_by_group = {'Common': 1, 'Logic': 2, 'UI': 3}
+        row_span_by_group = {}
+        for group_idx, (pkg, comps) in enumerate(self.logger_components_by_pkg.items()):
+            ncol = col_width_by_group.get(pkg, 2)
+            nrow = (len(comps) + ncol - 1) // ncol
+            row_span_by_group[pkg] = nrow + 1  # For vertical separator and grid layout
+
+            frame = ttk.Frame(self.logger_grid_frame)
+            frame.grid(row=0, column=col_offset, rowspan=nrow + 1, sticky='nsw', padx=(14 if group_idx > 0 else 0, 0))
+            # Label as vertical header above the group
+            ttk.Label(frame, text=pkg, font=('Arial', 9, 'bold')).grid(
+                row=0, column=0, columnspan=2 * ncol, sticky='w', pady=(0, 2)
             )
-            combo.grid(row=row, column=col * 2 + 1, sticky='w', padx=(1, 8), pady=2)
-            combo.bind('<<ComboboxSelected>>', lambda e, c=comp, v=var: set_component_level(c, v.get()))
+            # Insert vertical separator except first package
+            if group_idx > 0:
+                sep = ttk.Separator(self.logger_grid_frame, orient='vertical')
+                sep.grid(
+                    row=0, column=col_offset - 1, rowspan=max(row_span_by_group.values()), sticky='ns', padx=(6, 6)
+                )
+            logger_group_frames[pkg] = frame
+
+            for idx, comp in enumerate(comps):
+                row, col = divmod(idx, ncol)
+                var = tk.StringVar()
+                import logging
+
+                lg = logging.getLogger(f'oci-policy-analysis.{comp}')
+                level = log_levels.get(comp) or logging.getLevelName(
+                    lg.level if lg.level != 0 else logging.getLogger().level
+                )
+                if level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+                    level = 'INFO'
+                var.set(level)
+                self.logger_level_vars[comp] = var
+                lbl = ttk.Label(frame, text=comp)
+                lbl.grid(row=row + 1, column=col * 2, sticky='e', padx=(4, 1), pady=2)
+                combo = ttk.Combobox(
+                    frame,
+                    textvariable=var,
+                    values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                    width=8,
+                )
+                combo.grid(row=row + 1, column=col * 2 + 1, sticky='w', padx=(1, 8), pady=2)
+                combo.bind('<<ComboboxSelected>>', lambda e, c=comp, v=var: on_logger_level_change(e, c, v))
+                set_component_level(comp, level)
+            # Each group uses space equal to 2 * (width) columns
+            col_offset += 2 * ncol + 2
+
         # Store for syncing when global is changed
         self._logger_combo_vars = self.logger_level_vars
 
         def global_log_level_changed(event=None):
             new_level = self.app.log_level_var.get()
+            # Save global level
+            self.app.settings['global_log_level'] = new_level
             set_log_level(new_level)
             for comp, var in self._logger_combo_vars.items():
                 var.set(new_level)
                 set_component_level(comp, new_level)
 
+            # Persist all in settings
+            if 'log_levels' not in self.app.settings:
+                self.app.settings['log_levels'] = {}
+            # Save overrides as complete current state
+            for comp, var in self._logger_combo_vars.items():
+                self.app.settings['log_levels'][comp] = var.get()
+            from oci_policy_analysis.common import config
+
+            config.save_settings(self.app.settings)
+
+        # On startup: apply global, then overrides
+        global_level = log_levels.get('global_log_level') or self.app.settings.get('global_log_level')
+        if global_level:
+            set_log_level(global_level)
+            self.app.log_level_var.set(global_level)
+        for comp, var in self.logger_level_vars.items():
+            level = log_levels.get(comp)
+            if level:
+                set_component_level(comp, level)
+                var.set(level)
+
+        # Ensure global level combo DOES NOT INCLUDE DEBUG
+        level_combo['values'] = ['INFO', 'WARNING', 'ERROR', 'CRITICAL']
         level_combo.bind('<<ComboboxSelected>>', global_log_level_changed)
 
         # # --- Console Output Display ---

@@ -42,9 +42,12 @@ from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
+from oci_policy_analysis.ui.debugger_tab import DebuggerTab
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
 from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
 from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
@@ -55,8 +58,8 @@ from oci_policy_analysis.ui.policy_overlap_tab import PolicyOverlapTab  # noqa: 
 from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
+from oci_policy_analysis.ui.simulation_tab import SimulationTab
 from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
-from oci_policy_analysis.ui.visual_policy_tab import VisualPolicyTab
 
 # ----------- POST-IMPORT SETUP ------------
 # Version extraction
@@ -133,9 +136,14 @@ class App(tk.Tk):
         self.notebook = ttk.Notebook(self.top_frame)
         self.notebook.pack(fill='both', expand=True)
 
-        # Repository / Data
+        # Repository / Data / Simulation Engine
         self.policy_compartment_analysis = PolicyAnalysisRepository()
         self.ai = AI()
+        self.reference_data_repo = ReferenceDataRepo()
+        self.simulation_engine = PolicySimulationEngine(
+            policy_repo=self.policy_compartment_analysis,
+            ref_data_repo=self.reference_data_repo,
+        )
 
         # Caching Manager (policy caching only, no AI result caching)
         self.caching = CacheManager(policy_analysis=self.policy_compartment_analysis)
@@ -156,8 +164,11 @@ class App(tk.Tk):
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.console_tab = ConsoleTab(self.notebook, self)
         self.maintenance_tab = MaintenanceTab(self.notebook, caching=self.caching)
-        self.visual_policy_tab = VisualPolicyTab(self.notebook, self)
+        # self.visual_policy_tab = VisualPolicyTab(self.notebook, self)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
+        self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
+        self.debugger_tab = DebuggerTab(self.notebook, self)
+
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
@@ -165,14 +176,16 @@ class App(tk.Tk):
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
-        self.notebook.add(self.report_tab, text='Reports\nw/ Search')
+        # self.notebook.add(self.report_tab, text='Reports\nw/ Search')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
         # Register new Visual Policy tab just before advanced/test tabs
-        self.notebook.add(self.visual_policy_tab, text='Visual Policy\nView')
-        self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(AST Test)')
+        # self.notebook.add(self.visual_policy_tab, text='Visual Policy\nView')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
+        self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
         self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
+        self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
+        self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Admin)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Admin)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Admin)')
 
@@ -224,11 +237,17 @@ class App(tk.Tk):
         )
         self.output_text.pack(fill='both', expand=True, padx=8, pady=8)
 
-        # Console / Maintenance tab Visibility
+        # Console / Maintenance / Advanced tab Visibility
         self.console_visible = False
         self.notebook.forget(self.console_tab)
+        self.notebook.forget(self.debugger_tab)
         self.maintenance_visible = False
         self.notebook.forget(self.maintenance_tab)
+        self.advanced_tabs_visible = False
+        self.notebook.forget(self.permissions_report_tab)
+        self.notebook.forget(self.condition_tester_tab)
+        self.notebook.forget(self.policy_overlap_tab)
+        self.notebook.forget(self.simulation_tab)
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -389,11 +408,18 @@ class App(tk.Tk):
             self.policies_tab.update_policy_output()
             self.dynamic_groups_tab.enable_controls()
             self.cross_tenancy_tab.update_cross_tenancy_output()
-            self.report_tab.update_report_output()
+            # self.report_tab.update_report_output()
             self.resource_principals_tab.update_principals_sheets()
             self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
             self.dynamic_groups_tab.enable_controls()
             self.permissions_report_tab.enable_widgets_after_load()
+            self.simulation_tab.refresh_dropdowns()
+            logger.info('All tabs reloaded after tenancy load.')
+
+            # Build the index for simulation engine
+            self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
+            self.simulation_engine.build_index()
+            logger.info('Rebuilt Simulation Engine index after tenancy load.')
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -433,6 +459,12 @@ class App(tk.Tk):
                     )
                     self.dynamic_groups_tab.enable_controls()
                     self.permissions_report_tab.enable_widgets_after_load()
+
+                    # Build the index for simulation engine
+                    self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
+                    self.simulation_engine.build_index()
+                    logger.info('Rebuilt Simulation Engine index after compliance load.')
+
             except Exception as e:
                 logger.error(f'Error occurred during compliance output load: {e}')
                 if callback and callable(callback.get('error')):
@@ -478,10 +510,14 @@ class App(tk.Tk):
                 self.policies_tab.update_policy_output()
                 self.dynamic_groups_tab.enable_controls()
                 self.cross_tenancy_tab.update_cross_tenancy_output()
-                self.report_tab.update_report_output()
+                # self.report_tab.update_report_output()
                 self.resource_principals_tab.update_principals_sheets()
                 self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
                 self.dynamic_groups_tab.enable_controls()
+
+                # Build the index for simulation engine
+                self.simulation_engine.build_index()
+                logger.info('Rebuilt Simulation Engine index after cache load.')
 
             except Exception as e:
                 logger.error(f'Error importing policies from CSV: {e}')
