@@ -12,6 +12,7 @@ Contents
    overview
    setup
    architecture
+   simulation
    usage
    mcp
 
