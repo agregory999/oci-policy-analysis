@@ -13,6 +13,7 @@ from .report_tab import ReportTab
 from .resource_principals_tab import ResourcePrincipalsTab
 from .settings_tab import SettingsTab
 from .users_tab import UsersTab
+from .visual_policy_tab import VisualPolicyTab
 
 __all__ = [
     'SettingsTab',
@@ -30,4 +31,5 @@ __all__ = [
     'ConsoleTab',
     'HistoricalTab',
     'PermissionsReportTab',
+    'VisualPolicyTab',
 ]

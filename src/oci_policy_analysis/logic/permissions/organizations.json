@@ -1,246 +1,593 @@
 {
-  "resources": {
-    "organizations-link": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_LINK_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_LINK_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORGANIZATIONS_LINK_PARENT_DELETE",
-          "ORGANIZATIONS_LINK_CHILD_DELETE"
-        ]
-      }
+    "resources": {
+        "organizations-link": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_LINK_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_LINK_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORGANIZATIONS_LINK_PARENT_DELETE",
+                    "ORGANIZATIONS_LINK_CHILD_DELETE"
+                ]
+            }
+        },
+        "organizations-recipient-invitation": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "organizations-sender-invitation": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_SENDER_INVITATION_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
+                ],
+                "manage": [
+                    "ORGANIZATIONS_SENDER_INVITATION_CREATE"
+                ]
+            }
+        },
+        "organizations-invitation": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT",
+                    "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_READ",
+                    "ORGANIZATIONS_SENDER_INVITATION_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE",
+                    "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
+                ],
+                "manage": [
+                    "ORGANIZATIONS_SENDER_INVITATION_CREATE"
+                ]
+            }
+        },
+        "organizations-domain": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_DOMAIN_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_DOMAIN_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_DOMAIN_UPDATE"
+                ],
+                "manage": [
+                    "ORGANIZATIONS_DOMAIN_CREATE",
+                    "ORGANIZATIONS_DOMAIN_DELETE"
+                ]
+            }
+        },
+        "organizations-domain-governance": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_DOMAIN_GOVERNANCE_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_DOMAIN_GOVERNANCE_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_DOMAIN_GOVERNANCE_UPDATE"
+                ],
+                "manage": [
+                    "ORGANIZATIONS_DOMAIN_GOVERNANCE_CREATE",
+                    "ORGANIZATIONS_DOMAIN_GOVERNANCE_DELETE"
+                ]
+            }
+        },
+        "organizations-entity": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_ENTITY_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_ENTITY_READ"
+                ],
+                "use": [
+                    "ORGANIZATIONS_ENTITY_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "organizations-tenancy": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_TENANCY_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_TENANCY_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORGANIZATIONS_TENANCY_CREATE",
+                    "ORGANIZATIONS_TENANCY_DELETE",
+                    "ORGANIZATIONS_TENANCY_RESTORE"
+                ]
+            }
+        },
+        "organizations-order": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "ORGANIZATIONS_ORDER_ACTIVATE"
+                ]
+            }
+        },
+        "organizations-subscription": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_SUBSCRIPTION_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_SUBSCRIPTION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORGANIZATIONS_SUBSCRIPTION_ASSIGN",
+                    "ORGANIZATIONS_SUBSCRIPTION_DELETE"
+                ]
+            }
+        },
+        "organizations-subscription-mapping": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_SUBSCRIPTION_MAPPING_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_SUBSCRIPTION_MAPPING_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE",
+                    "ORGANIZATIONS_SUBSCRIPTION_MAPPING_DELETE"
+                ]
+            }
+        },
+        "organizations-assigned-subscription": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_INSPECT"
+                ],
+                "read": [
+                    "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "organizations-subscription-region": {
+            "verbs": {
+                "inspect": [
+                    "ORGANIZATIONS_SUBSCRIPTION_REGION_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "organizations-governance-rules": {
+            "verbs": {
+                "inspect": [
+                    "GOVERNANCE_RULE_INSPECT"
+                ],
+                "read": [
+                    "GOVERNANCE_RULE_READ"
+                ],
+                "use": [
+                    "GOVERNANCE_RULE_UPDATE",
+                    "GOVERNANCE_RULE_RETRY"
+                ],
+                "manage": [
+                    "GOVERNANCE_RULE_CREATE",
+                    "GOVERNANCE_RULE_DELETE"
+                ]
+            }
+        },
+        "organizations-enforced-governance-rules": {
+            "verbs": {
+                "inspect": [
+                    "GOVERNANCE_RULE_ENFORCED_INSPECT"
+                ],
+                "read": [
+                    "GOVERNANCE_RULE_ENFORCED_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        }
     },
-    "organizations-recipient-invitation": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
-        ],
-        "manage": []
-      }
+    "families": {
+        "organizations-family": {
+            "resources": [
+                "organizations-link",
+                "organizations-recipient-invitation",
+                "organizations-sender-invitation",
+                "organizations-invitation",
+                "organizations-domain",
+                "organizations-domain-governance",
+                "organizations-entity",
+                "organizations-tenancy",
+                "organizations-order",
+                "organizations-subscription",
+                "organizations-subscription-mapping",
+                "organizations-assigned-subscription",
+                "organizations-subscription-region",
+                "organizations-governance-rules",
+                "organizations-enforced-governance-rules"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/organizationsreference.htm"
+        }
     },
-    "organizations-sender-invitation": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_SENDER_INVITATION_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
-        ],
-        "manage": [
-          "ORGANIZATIONS_SENDER_INVITATION_CREATE"
-        ]
-      }
-    },
-    "organizations-invitation": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT",
-          "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_READ",
-          "ORGANIZATIONS_SENDER_INVITATION_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE",
-          "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
-        ],
-        "manage": [
-          "ORGANIZATIONS_SENDER_INVITATION_CREATE"
-        ]
-      }
-    },
-    "organizations-domain": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_DOMAIN_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_DOMAIN_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_DOMAIN_UPDATE"
-        ],
-        "manage": [
-          "ORGANIZATIONS_DOMAIN_CREATE",
-          "ORGANIZATIONS_DOMAIN_DELETE"
-        ]
-      }
-    },
-    "organizations-domain-governance": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_DOMAIN_GOVERNANCE_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_DOMAIN_GOVERNANCE_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_DOMAIN_GOVERNANCE_UPDATE"
-        ],
-        "manage": [
-          "ORGANIZATIONS_DOMAIN_GOVERNANCE_CREATE",
-          "ORGANIZATIONS_DOMAIN_GOVERNANCE_DELETE"
-        ]
-      }
-    },
-    "organizations-entity": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_ENTITY_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_ENTITY_READ"
-        ],
-        "use": [
-          "ORGANIZATIONS_ENTITY_UPDATE"
-        ],
-        "manage": []
-      }
-    },
-    "organizations-tenancy": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_TENANCY_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_TENANCY_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORGANIZATIONS_TENANCY_CREATE",
-          "ORGANIZATIONS_TENANCY_DELETE",
-          "ORGANIZATIONS_TENANCY_RESTORE"
-        ]
-      }
-    },
-    "organizations-order": {
-      "verbs": {
-        "inspect": [],
-        "read": [],
-        "use": [],
-        "manage": [
-          "ORGANIZATIONS_ORDER_ACTIVATE"
-        ]
-      }
-    },
-    "organizations-subscription": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_SUBSCRIPTION_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_SUBSCRIPTION_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORGANIZATIONS_SUBSCRIPTION_ASSIGN",
-          "ORGANIZATIONS_SUBSCRIPTION_DELETE"
-        ]
-      }
-    },
-    "organizations-subscription-mapping": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_READ"
-        ],
-        "use": [],
-        "manage": [
-          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE",
-          "ORGANIZATIONS_SUBSCRIPTION_MAPPING_DELETE"
-        ]
-      }
-    },
-    "organizations-assigned-subscription": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_INSPECT"
-        ],
-        "read": [
-          "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "organizations-subscription-region": {
-      "verbs": {
-        "inspect": [
-          "ORGANIZATIONS_SUBSCRIPTION_REGION_INSPECT"
-        ],
-        "read": [],
-        "use": [],
-        "manage": []
-      }
-    },
-    "organizations-governance-rules": {
-      "verbs": {
-        "inspect": [
-          "GOVERNANCE_RULE_INSPECT"
-        ],
-        "read": [
-          "GOVERNANCE_RULE_READ"
-        ],
-        "use": [
-          "GOVERNANCE_RULE_UPDATE",
-          "GOVERNANCE_RULE_RETRY"
-        ],
-        "manage": [
-          "GOVERNANCE_RULE_CREATE",
-          "GOVERNANCE_RULE_DELETE"
-        ]
-      }
-    },
-    "organizations-enforced-governance-rules": {
-      "verbs": {
-        "inspect": [
-          "GOVERNANCE_RULE_ENFORCED_INSPECT"
-        ],
-        "read": [
-          "GOVERNANCE_RULE_ENFORCED_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
+    "operations": {
+        "GetLink": {
+            "permissions": [
+                "ORGANIZATIONS_LINK_READ"
+            ],
+            "notes": ""
+        },
+        "ListLinks": {
+            "permissions": [
+                "ORGANIZATIONS_LINK_INSPECT"
+            ],
+            "notes": ""
+        },
+        "DeleteLink": {
+            "permissions": [
+                "ORGANIZATIONS_LINK_CHILD_DELETEORGANIZATIONS_LINK_PARENT_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetRecipientInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_RECIPIENT_INVITATION_READ"
+            ],
+            "notes": ""
+        },
+        "AcceptRecipientInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "IgnoreRecipientInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateRecipientInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_RECIPIENT_INVITATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListRecipientInvitations": {
+            "permissions": [
+                "ORGANIZATIONS_RECIPIENT_INVITATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateSenderInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_SENDER_INVITATION_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetSenderInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_SENDER_INVITATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListSenderInvitations": {
+            "permissions": [
+                "ORGANIZATIONS_SENDER_INVITATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CancelSenderInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_SENDER_INVITATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateSenderInvitation": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListDomains": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateDomain": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDomain": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDomain": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetDomainGovernance": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_GOVERNANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListDomainGovernances": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_GOVERNANCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateDomainGovernance": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_GOVERNANCE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDomainGovernance": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_GOVERNANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDomainGovernance": {
+            "permissions": [
+                "ORGANIZATIONS_DOMAIN_GOVERNANCE_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetOrganization": {
+            "permissions": [
+                "ORGANIZATIONS_ENTITY_READ"
+            ],
+            "notes": ""
+        },
+        "ListOrganizations": {
+            "permissions": [
+                "ORGANIZATIONS_ENTITY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateOrganization": {
+            "permissions": [
+                "ORGANIZATIONS_ENTITY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetOrganizationTenancy": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_READ"
+            ],
+            "notes": ""
+        },
+        "ListOrganizationTenancies": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "approveForTransfer/unapproveForTransfer": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_TRANSFER_APPROVAL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateChildTenancy": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_CREATE",
+                "N",
+                "W",
+                "I",
+                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE",
+                "F",
+                "C",
+                "T",
+                "D",
+                "R"
+            ],
+            "notes": "Note: When the subscriptionId attribute is specified for a created child tenancy, then is also required. For more information see CreateChildTenancyDetails Reference."
+        },
+        "DeleteOrganizationTenancy": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_DELETE"
+            ],
+            "notes": ""
+        },
+        "RestoreOrganizationTenancy": {
+            "permissions": [
+                "ORGANIZATIONS_TENANCY_RESTORE"
+            ],
+            "notes": ""
+        },
+        "ActivateOrder": {
+            "permissions": [
+                "ORGANIZATIONS_ORDER_ACTIVATE"
+            ],
+            "notes": ""
+        },
+        "ListSubscriptions": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListSubscriptionMappings": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetSubscription": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetSubscriptionMapping": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_READ"
+            ],
+            "notes": ""
+        },
+        "AssignTenancySubscription": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_ASSIGN"
+            ],
+            "notes": ""
+        },
+        "AssignDefaultSubscription": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_ASSIGN"
+            ],
+            "notes": ""
+        },
+        "DeleteSubscriptionMapping": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateSubscriptionMapping": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListAssignedSubscriptions": {
+            "permissions": [
+                "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetAssignedSubscription": {
+            "permissions": [
+                "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_READ"
+            ],
+            "notes": ""
+        },
+        "ListAvailableRegions": {
+            "permissions": [
+                "ORGANIZATIONS_SUBSCRIPTION_REGION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListGovernanceRules": {
+            "permissions": [
+                "GOVERNANCE_RULE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "CreateGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_DELETE"
+            ],
+            "notes": ""
+        },
+        "RetryGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_RETRY"
+            ],
+            "notes": ""
+        },
+        "CreateInclusionCriterion": {
+            "permissions": [
+                "GOVERNANCE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteInclusionCriterion": {
+            "permissions": [
+                "GOVERNANCE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListTenancyAttachments": {
+            "permissions": [
+                "GOVERNANCE_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "GetTenancyAttachment": {
+            "permissions": [
+                "GOVERNANCE_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "RetryTenancyAttachment": {
+            "permissions": [
+                "GOVERNANCE_RULE_RETRY"
+            ],
+            "notes": ""
+        },
+        "ListEnforcedGovernanceRules": {
+            "permissions": [
+                "GOVERNANCE_RULE_ENFORCED_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetEnforcedGovernanceRule": {
+            "permissions": [
+                "GOVERNANCE_RULE_ENFORCED_READ"
+            ],
+            "notes": ""
+        }
     }
-  },
-  "families": {
-    "organizations-family": {
-      "resources": [
-        "organizations-link",
-        "organizations-recipient-invitation",
-        "organizations-sender-invitation",
-        "organizations-invitation",
-        "organizations-domain",
-        "organizations-domain-governance",
-        "organizations-entity",
-        "organizations-tenancy",
-        "organizations-order",
-        "organizations-subscription",
-        "organizations-subscription-mapping",
-        "organizations-assigned-subscription",
-        "organizations-subscription-region",
-        "organizations-governance-rules",
-        "organizations-enforced-governance-rules"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/organizationsreference.htm"
-    }
-  }
 }

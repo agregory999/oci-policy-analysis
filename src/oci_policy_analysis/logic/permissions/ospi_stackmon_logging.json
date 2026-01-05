@@ -406,5 +406,109 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/managementdashboardpolicyreference.htm"
         }
+    },
+    "operations": {
+        "ListSearchLogs": {
+            "permissions": [
+                "LOG_CONTENT_READ"
+            ],
+            "notes": ""
+        },
+        "ListLogs": {
+            "permissions": [
+                "LOG_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetLog": {
+            "permissions": [
+                "LOG_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateLog": {
+            "permissions": [
+                "LOG_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateLog": {
+            "permissions": [
+                "LOG_GROUP_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteLog": {
+            "permissions": [
+                "LOG_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListLogGroups": {
+            "permissions": [
+                "LOG_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetLogGroup": {
+            "permissions": [
+                "LOG_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateLogGroup": {
+            "permissions": [
+                "LOG_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateLogGroup": {
+            "permissions": [
+                "LOG_GROUP_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteLogGroup": {
+            "permissions": [
+                "LOG_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeLogGroupCompartment": {
+            "permissions": [
+                "LOG_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateUnifiedAgentConfiguration": {
+            "permissions": [
+                "UNIFIED_AGENT_CONFIG_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetUnifiedAgentConfiguration": {
+            "permissions": [
+                "UNIFIED_AGENT_CONFIG_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateUnifiedAgentConfiguration": {
+            "permissions": [
+                "UNIFIED_AGENT_CONFIG_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteUnifiedAgentConfiguration": {
+            "permissions": [
+                "UNIFIED_AGENT_CONFIG_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListUnifiedAgentConfigurations": {
+            "permissions": [
+                "UNIFIED_AGENT_CONFIG_INSPECT"
+            ],
+            "notes": ""
+        }
     }
 }

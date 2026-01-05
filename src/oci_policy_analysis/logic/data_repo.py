@@ -18,7 +18,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -59,66 +58,14 @@ from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 # Global logger for this module
 logger = get_logger(component='data_repo')
 
-# Reference Data
-permission_reference_repo = ReferenceDataRepo()
-
 # Constants
-THREADS = 9
-POLICY_REGEX = r"""^\s*(?P<action>allow|deny)\s+ # Start with allow or deny action (and whitespace at front)
-    (?P<subjecttype>service|any-user|any-group|dynamic-group|group|resource)\s* # Subject type
-    (?P<subject>([\w\/\'\.\\, +-]|,)+?)?\s+(to\s+)? # Subject (optional, can be empty in case of any-user)
-    ((?P<verb>read|inspect|use|manage)\s+(?P<resource>[\w-]+)|(?P<perm>{[\s*\w\s*|\s*\w\s*,\s*]+}))\s+ # verb and resource or permission set
-    in\s+(?P<locationtype>any-tenancy|tenancy|compartment\s+id|compartment)\s* # Location type
-    (?P<location>[\w\':.-]+)?(?:\s+where\s+ # Location
-    (?P<condition>[\s\S]*?)(?=//|$))? # Condition (non-greedy, supports multiline, stops at first // or EOS)
-    (?:(?P<optional>\s*\/\/.+))?$ # Comment (optional)
-"""
-# Case insensitive, allow \n in capture
-policy_regex = re.compile(POLICY_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE | re.DOTALL)
-
-# OCID_REGEX = r'ocid1\.\w+\.\w+\.\w*\.\w+'
-
-CROSS_TENANCY_DEFINE_REGEX = r"""
-    (?P<statement_type>define)\s+  # Capture statement type
-    (?P<define_type>compartment|group|dynamic-group|tenancy)\s+  # Define type
-    (?P<principal>\S+)\s+  # Principal (simple name)
-    (?:as\s+)(?P<alias>\S+)  # Alias, capturing only the value without 'as '
-"""
-
-define_regex = re.compile(CROSS_TENANCY_DEFINE_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
-
-# CROSS_TENANCY_ADMIT_REGEX = r"""
-#     (?P<statement_type>admit)\s+  # Capture statement type
-#     (?P<principal>any-user|group\s+(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+)(?:\s*,\s*(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+))*)?\s+  # Principal (any-user or comma-separated groups: domain/group, 'domain'/'group', simple)
-#     (?:of\s+)(?P<of_tenancy>tenancy\s+\S+)\s+  # 'of tenancy' clause, excluding 'of '
-#     to\s+(?:(?P<permission>{[^}]+})|(?P<action>{[^}]+}|\S+)\s+(?P<resource>\S+))?\s+  # Permission or action + resource, both optional
-#     in\s+(?P<location>compartment\s+[\w:]+|tenancy\s+\S+)  # Location (compartment or tenancy)
-#     (?P<where_clause>\s+where\s+(?:all\s+)?{[^}]+})?  # Optional where clause
-#     (?P<comment>\s*//\s*[^\n]*)?  # Optional comment
-# """
-
-# admit_regex = re.compile(CROSS_TENANCY_ADMIT_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
-
-
-# CROSS_TENANCY_ENDORSE_REGEX = r"""
-#     (?P<statement_type>endorse)\s+  # Capture statement type
-#     (?P<principal>any-user|group\s+(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+)(?:\s*,\s*(?:(?:'[^']+'|[\w\-:]+)(?:\s*/\s*(?:'[^']+'|[\w\-:]+))|[\w\-:]+))*\s+|dynamic-group\s+\S+\s+)  # Principal (any-user, groups: domain/group, 'domain'/'group', simple, or dynamic-group)
-#     to\s+(?:(?P<permission>{[^}]+})|(?P<action>{[^}]+}|\S+|associate\s+\S+\s+with\s+\S+\s+in\s+(?:compartment\s+[\w:]+|tenancy\s+\S+))\s+(?P<resource>\S+))?\s+  # Permission or action + resource, both optional
-#     in\s+(?P<location>compartment\s+[\w:]+|tenancy\s+\S+)  # Location (compartment or tenancy)
-#     (?P<of_tenancy_clause>(?:\s+of\s+tenancy\s+\S+)?)  # Optional 'of tenancy' clause
-#     (?P<where_clause>\s+where\s+(?:all\s+)?{[^}]+})?  # Optional where clause
-#     (?P<comment>\s*//\s*[^\n]*)?  # Optional comment
-# """
-# endorse_regex = re.compile(CROSS_TENANCY_ENDORSE_REGEX, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
+THREADS = 8
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 
 # For MCP-specific JSON
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
-
-
-# REMOVED: IdentityDataNotLoaded Exception (no longer needed)
 
 
 class PolicyAnalysisRepository:
@@ -138,6 +85,7 @@ class PolicyAnalysisRepository:
 
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
+        self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
         self.regular_statements: list[RegularPolicyStatement] = []
         self.cross_tenancy_statements = []
         self.defined_aliases: list[DefineStatement] = []  # Store define statements as list of dict
@@ -150,6 +98,9 @@ class PolicyAnalysisRepository:
         self.tenancy_ocid = None
         self.identity_client = None
         self.loaded_from_tenancy = False
+        # Keep the refence data repo as a member
+        self.permission_reference_repo = ReferenceDataRepo()
+        # self.on_policy_statements_updated = None  # Optional callback, set by UI for reload hooks
         logger.info('Initialized PolicyAnalysisRepo')
 
     def initialize_client(
@@ -213,6 +164,11 @@ class PolicyAnalysisRepository:
 
             # Return True because we got the clients
             self.loaded_from_tenancy = True
+            # if self.on_policy_statements_updated:
+            #     try:
+            #         self.on_policy_statements_updated()
+            #     except Exception as e:
+            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
@@ -294,53 +250,74 @@ class PolicyAnalysisRepository:
             if len(invalid_reasons) > 0:
                 st['invalid_reasons'] = invalid_reasons
 
+    def calculate_effective_compartment_for_statement(self, st):  # noqa: C901
+        """
+        Calculate effective compartment OCID and path for a single statement, mutating st in place.
+        Builds indexes if necessary and possible; if not, returns informative error.
+        """
+        # Defensive: dynamically build indexes if they're missing and data is present.
+        try:
+            if (
+                not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path')
+            ) and self.compartments:
+                self._build_compartment_index()
+        except Exception as idx_exc:
+            st['effective_path'] = f'(Error building compartment indexes: {idx_exc})'
+            return
+
+        if not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path'):
+            st['effective_path'] = '(Compartments not loaded or indexes unavailable)'
+            return
+
+        logger.debug(f'-Statement: {st.get("statement_text")}')
+        # Case 1 - in tenancy
+        if st.get('location_type') == 'tenancy':
+            st['effective_compartment_ocid'] = self.tenancy_ocid
+            st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
+            if st['effective_path']:
+                st['effective_path'] = st['effective_path'].lower()
+            logger.info(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
+        # Case 2 - Compartment ID
+        elif st.get('location_type') == 'compartment id':
+            st['effective_compartment_ocid'] = st.get('location')
+            st['effective_path'] = self._name_path_from_ocid(st.get('location'))
+            if st['effective_path']:
+                st['effective_path'] = st['effective_path'].lower()
+            st.setdefault('parsing_notes', []).append('Compartment ID used for location')
+            logger.info(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
+        # Case 3 - Compartment Name (with or without full path)
+        # Note - if location refers to current compartment, we need to remove that from the path
+        else:
+            logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
+            location = st.get('location')
+            parts = [p.strip() for p in location.split(':') if p.strip()] if location else []
+            policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
+            logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
+
+            # If the first element of the path is the same as the policy compartment name, remove it from cosideration
+            eff_path = policy_path
+            logger.debug(f'Initial effective path: {eff_path}')
+            logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
+            comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
+            logger.debug(f'Compartment name for compare: {comp_name}')
+            # Defensive: parts non-empty
+            if parts and parts[0].casefold() == (comp_name.casefold() if comp_name else ''):
+                st.setdefault('parsing_notes', []).append('Deleted compartment from effective location')
+                del parts[0]
+            for p in parts:
+                eff_path += f'/{p}'
+            if eff_path:
+                eff_path = eff_path.lower()
+            logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
+            st['effective_path'] = eff_path
+            st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
+
     def _calculate_effective_compartments_for_statements(self):
         """
-        Resolve effective compartment for all statements.  Loop through all statements and calculate
+        Resolve effective compartment for all statements.  Loop through all statements and calculate.
         """
         for st in self.regular_statements:
-            logger.debug(f'-Statement: {st.get("statement_text")}')
-            # Case 1 - in tenancy
-            if st.get('location_type') == 'tenancy':
-                st['effective_compartment_ocid'] = self.tenancy_ocid
-                st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
-                if st['effective_path']:
-                    st['effective_path'] = st['effective_path'].lower()
-                logger.debug(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
-            # Case 2 - Compartment ID
-            elif st.get('location_type') == 'compartment id':
-                st['effective_compartment_ocid'] = st.get('location')
-                st['effective_path'] = self._name_path_from_ocid(st.get('location'))
-                if st['effective_path']:
-                    st['effective_path'] = st['effective_path'].lower()
-                st['parsing_notes'].append('Compartment ID used for location')
-                logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
-            # Case 3 - Compartment Name (with or without full path)
-            # Note - if location refers to current compartment, we need to remove that from the path
-            else:
-                logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
-                location = st.get('location')
-                parts = [p.strip() for p in location.split(':') if p.strip()]
-                policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
-                logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
-
-                # If the first element of the path is the same as the policy compartment name, remove it from cosideration
-                eff_path = policy_path
-                logger.debug(f'Initial effective path: {eff_path}')
-                logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
-                comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
-                logger.debug(f'Compartment name for compare: {comp_name}')
-                # We need just the name of the compartment of the policy, get from
-                if parts[0].casefold() == comp_name.casefold():
-                    st['parsing_notes'].append('Deleted compartment from effective location')
-                    del parts[0]
-                for p in parts:
-                    eff_path += f'/{p}'
-                if eff_path:
-                    eff_path = eff_path.lower()
-                logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
-                st['effective_path'] = eff_path
-                st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
+            self.calculate_effective_compartment_for_statement(st)
 
     def _name_path_from_ocid(self, ocid: str) -> str | None:
         """Lookup full root:...:name path from a compartment OCID."""
@@ -364,6 +341,9 @@ class PolicyAnalysisRepository:
         self.compartments_by_path: dict[str, dict[str, str]] = {}
         self.children_by_parent: dict[str, dict[str, str]] = {}
 
+        logger.info(
+            f'Building compartment indexes for effective compartment resolution. CCompartments loaded: {len(self.compartments)}'
+        )
         for comp in self.compartments:  # however you store them
             cid = comp.get('id')
             name = comp.get('name')
@@ -388,6 +368,10 @@ class PolicyAnalysisRepository:
             # Build children_by_parent
             self.children_by_parent.setdefault(parent_id, {})[name] = cid
 
+        # Debug entire index
+        logger.info(f'Compartment by ID index: {json.dumps(self.compartments_by_id, indent=2)}')
+        logger.info(f'Compartment by Path index: {json.dumps(self.compartments_by_path, indent=2)}')
+        logger.info(f'Children by Parent index: {json.dumps(self.children_by_parent, indent=2)}')
         logger.info(
             f'Built compartment index: {len(self.compartments_by_id)} compartments, '
             f'{len(self.children_by_parent)} parents with children.'
@@ -431,165 +415,175 @@ class PolicyAnalysisRepository:
             logger.debug(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
 
-    def _parse_subjects(self, subject_string) -> list[tuple[str, str]]:
-        """Parse a comma-separated string of subjects and return list of (domain, name) tuples"""
-        # Split by comma and strip whitespace
-        subject_parts = [part.strip() for part in subject_string.split(',')]
-        results: list[tuple[str, str]] = []
-
-        for part in subject_parts:
-            if not part:  # Skip empty parts
+    def _parse_subjects(self, subject_list) -> list[tuple[str, str]]:
+        """
+        Given a parsed subject (list of strings), return list of (domain, subject).
+        - If string contains '/', use part before first '/' as domain, after as subject.
+        - If not, assume domain "default".
+        Strips quotes from all parts.
+        """
+        results = []
+        if not isinstance(subject_list, list):
+            subject_list = [subject_list]
+        for subj in subject_list:
+            if not subj:
                 continue
-
-            logger.debug(f"  DEBUG: Processing part: '{part}'")
-
-            # Check if it contains a separator (/ or \)
-            if '/' in part or '\\' in part:
-                # Split on the separator
-                if '/' in part:
-                    separator_parts = part.split('/', 1)  # Split only on first occurrence
-                else:
-                    separator_parts = part.split('\\', 1)  # Split only on first occurrence
-
-                if len(separator_parts) == 2:
-                    domain_part = separator_parts[0].strip()
-                    name_part = separator_parts[1].strip()
-
-                    # Remove quotes from domain and name
-                    domain = domain_part.strip('\'"')
-                    name = name_part.strip('\'"')
-
-                    logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
-                    results.append((domain, name))
-                else:
-                    # Shouldn't happen, but fallback
-                    clean_name = part.strip('\'"')
-                    logger.debug(
-                        f"  DEBUG: Separator found but couldn't split properly - using as simple name: '{clean_name}'"
-                    )
-                    results.append(('Default', clean_name))
+            # Remove leading/trailing quotes and whitespace
+            s = str(subj).strip().strip('\'"')
+            if '/' in s:
+                domain, subject = s.split('/', 1)
+                domain = domain.strip('\'"')
+                subject = subject.strip('\'"')
+                results.append((domain, subject))
             else:
-                # No separator, it's just a name
-                clean_name = part.strip('\'"')
-                logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
-                results.append(('Default', clean_name))
-
+                # No explicit domain, use "default"
+                results.append(('default', s.strip('\'"')))
         return results
 
     def _parse_define_statement(self, policy: BasePolicy, statement: DefineStatement) -> bool:
-        """Given a define statement, parse and add to defined_aliases list"""
-        # We have the basic define Policy statement dict already created
-        # Need to parse out the defined_type, defined_name, and ocid_alias
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        statement_text = statement['statement_text']
-        logger.debug(f'Parsing define statement: {statement_text}')
-        # Parse Define
         try:
-            # result = re.search(CROSS_TENANCY_DEFINE_REGEX, statement, re.IGNORECASE | re.MULTILINE)
-            result = define_regex.match(statement_text).groupdict()
-            logger.debug(f'Result Define: {result}')
-            if result.get('alias') and result.get('principal'):
-                logger.debug(
-                    f'Adding to Defined Aliases - Name: {result.get("principal")}, Type: {result.get("define_type")}, OCID: {result.get("alias")}'
-                )
-                # Update existing DefineStatment object
-                statement['defined_type'] = result.get('define_type')
-                statement['defined_name'] = result.get('principal')
-                statement['ocid_alias'] = result.get('alias')
-                statement['valid'] = True
-                self.defined_aliases.append(statement)
-                logger.debug(f'Define Statement Added: {statement}')
-                return True
+            # Use definition's base model fields for required meta
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='define', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f'Define statement was unable to normalize: {statement["statement_text"]}')
+                return False
+            self.defined_aliases.append(normalized)
+            logger.info(f'Define Statement Added: {normalized}')
+            return True
         except Exception as e:
-            logger.warning(f'Failed to parse define: {e}')
-        return False
+            statement['parsed'] = False
+            statement['valid'] = False
+            logger.warning(f'Normalize define statement failed: {e}')
+            return False
 
     def _parse_admit_statement(self, policy: BasePolicy, statement: AdmitStatement) -> bool:
-        """Given an admit statement, parse and add to cross_tenancy_statements list"""
-        # No parsing yet, just append
-        statement['valid'] = True
-        self.cross_tenancy_statements.append(statement)
-        logger.debug(f'Admit Statement Added: {statement}')
-        return True
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
+
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='admit', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Admit statement was unable to normalize: {statement['statement_text']}")
+                return False
+            self.cross_tenancy_statements.append(normalized)
+            logger.info(f'Admit Statement Added: {normalized}')
+            return True
+        except Exception as ex:
+            statement['valid'] = False
+            statement['parsed'] = False
+            statement['parsing_notes'] = [f'Normalize admit parser failed: {ex}']
+            logger.warning(f'Normalize admit parser failed: {ex}')
+            self.cross_tenancy_statements.append(statement)
+            return False
 
     def _parse_endorse_statement(self, policy: BasePolicy, statement: EndorseStatement) -> bool:
-        """Given an endorse statement, parse and add to cross_tenancy_statements list"""
-        # No parsing yet, just append
-        statement['valid'] = True
-        self.cross_tenancy_statements.append(statement)
-        logger.debug(f'Endorse Statement Added: {statement}')
-        return True
-
-    def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:  # noqa: C901
-        """Parses a regular policy statement into component parts
-        Subject / Verb / Resource(or permission) / Location / Conditions (opt) / Comments (opt)
-
-        This is the main parsing logic that uses Regular Expressions and post-parsing logic.
-        An example of post-parsing would be to separate the subject list into an actual list of tuples
-        representing the domain and group or dynamic group.
-
-        Does not add to any lists itself, simply returns the parsed statement dict.
         """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        # Simpler logic here - RegularPolicyStatement needs additional fields from parser
-        statement_text = statement['statement_text']
-        logger.debug(f'Parsing regular statement: {statement_text}')
-        # Process Results of regex
-        match_result = policy_regex.match(statement_text)
-        if match_result and match_result.groupdict():
-            result = match_result.groupdict()
-            logger.debug(f'Subject parsed 1: {result.get("subject")} ||| Statement: {statement_text}')
-            try:
-                # Populate parsed fields
-                statement['valid'] = True  # Currently for Validity
-                statement['action'] = result.get('action', 'allow').lower() if result.get('action') else 'allow'
-                statement['subject_type'] = result.get('subjecttype') or 'other'
-                statement['subject'] = result.get('subject') or ''
-                statement['verb'] = result.get('verb') or ''
-                statement['resource'] = result.get('resource') or ''
-                statement['permission'] = []
-                statement['location_type'] = result.get('locationtype') or ''
-                statement['location'] = result.get('location') or ''
-                statement['conditions'] = result.get('condition') or ''
-                statement['comments'] = result.get('optional') or ''
-                statement['parsing_notes'] = []
-                statement['parsed'] = True  # Currently for parsed
-                # Additional Subject Parsing
-                if statement['subject_type'] in ['any-user', 'any-group']:
-                    statement['subject'] = [(None, statement['subject_type'])]
-                else:
-                    # subject_result = re.findall(SUBJECT_REGEX, statement_list[7], re.IGNORECASE)
-                    # Try new subject parser
-                    subject_result = self._parse_subjects(statement['subject'])
-                    logger.debug(f'Subject parsed: {subject_result}')
-                    # statement_list[7] = [(a[2] or "Default", a[4]) for a in subject_result]
-                    if len(subject_result) > 1:
-                        statement['parsing_notes'].append('Multiple subjects found')
-                    statement['subject'] = subject_result
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='endorse', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Endorse statement was unable to normalize: {statement['statement_text']}")
+                return False
+            self.cross_tenancy_statements.append(normalized)
+            logger.info(f'Endorse Statement Added: {normalized}')
+            return True
+        except Exception as ex:
+            statement['valid'] = False
+            statement['parsed'] = False
+            logger.warning(f'Normalize endorse parser failed: {ex}')
+            self.cross_tenancy_statements.append(statement)
+            return False
 
-                # If permissions are present, parse them into a list.
-                if result.get('perm'):
-                    # permissions looks like {permission1,permission2, permission3}
-                    # Strip the braces and split , and strip whitespace
-                    perms = result.get('perm').strip('{}').split(',')
-                    perms = [p.strip().upper() for p in perms if p.strip()]
-                    logger.debug(f'Parsed permissions from {result.get("perm")} to {perms}')
-                    statement['permission'] = perms
-                    statement['parsing_notes'].append(f'Parsed {len(perms)} permissions from permission set.')
-                # If the location was wrapped in quotes, remove them
-                if statement['location']:
-                    statement['location'] = statement['location'].strip('\'"')
-            except Exception as e:
-                logger.warning(f'Failed to parse statement: {e}')
+    def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:
+        """
+        This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
+        """
+        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
-        else:
-            logger.warning(f'No regex match for statement: |{statement_text}|')
-
-        logger.debug(f'Parsed Statement as JSON: {statement}')
-        self.regular_statements.append(statement)
-
-        # Success or fail based on parsed field
-        return True if statement.get('parsed') else False
+        try:
+            base = {
+                k: statement[k]
+                for k in [
+                    'policy_name',
+                    'policy_description',
+                    'policy_ocid',
+                    'compartment_ocid',
+                    'compartment_path',
+                    'creation_time',
+                    'internal_id',
+                ]
+                if k in statement
+            }
+            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+                statement_text=statement['statement_text'], statement_type='regular', base_fields=base
+            )
+            if not normalized:
+                logger.warning(f"Regular statement was unable to normalize: {statement['statement_text']}")
+                self.regular_statements.append(statement)
+                return False
+            self.regular_statements.append(normalized)
+            logger.info(f'Regular Policy Statement Parsed: {normalized}')
+            return True
+        except Exception as ex:
+            statement['parsed'] = False
+            logger.warning(f'Normalize regular policy parser failed: {ex}')
+            self.regular_statements.append(statement)
+            return False
 
     def _parse_dynamic_group(self, domain, dg: DynamicResourceGroup) -> DynamicGroup:
         """Extract the contents of the DG into a dict"""
@@ -644,7 +638,10 @@ class PolicyAnalysisRepository:
                         compartment_ocid=compartment.id,
                         creation_time=policy.time_created,
                     )
+                    # Add to self.policies list
+                    self.policies.append(policy_obj)
 
+                    # Loop through statements in policy
                     for statement in policy.statements:
                         # Get the text of the statement in lower case for easier parsing
                         logger.debug(f'Processing statement in policy {policy.name}: {statement}')
@@ -660,6 +657,7 @@ class PolicyAnalysisRepository:
                             statement_text=statement_lower,
                             creation_time=str(policy.time_created),
                             internal_id=hashlib.md5((statement + policy.id).encode()).hexdigest(),
+                            parsed=False,
                         )
                         # 1) Filter the define statements here and add them to the defines list
                         if statement_lower.startswith('define'):
@@ -727,6 +725,7 @@ class PolicyAnalysisRepository:
             a boolean indicating success or failure
         """
         self.compartments = []
+        self.policies = []
         self.regular_statements: list[RegularPolicyStatement] = []
         self.cross_tenancy_statements: list[BasePolicyStatement] = []
         self.defined_aliases: list[DefineStatement] = []
@@ -1650,7 +1649,7 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Add: {subject_type} Subject: {subject_list}')
                 all_subjects.extend(subject_list)
 
-        logger.info(f'all subjects: {len(all_subjects)}')
+        logger.debug(f'Subject Count for DG in-use analysis: {len(all_subjects)}')
         # all_subjects = list(set(all_subjects))
         # logger.info(f"all subjects: {len(all_subjects)}")
 
@@ -1713,12 +1712,12 @@ class PolicyAnalysisRepository:
                     continue
 
                 # if there are explicit permissions, use those. otherwise get them from the repo
-                other_permissions = other_st.get('permission') or permission_reference_repo.get_permissions(
+                other_permissions = other_st.get('permission') or self.permission_reference_repo.get_permissions(
                     entity=other_st.get('resource', ''),
                     verb=other_st.get('verb', ''),
                     action=other_st.get('action', 'allow'),
                 )
-                st_permissions = st.get('permission') or permission_reference_repo.get_permissions(
+                st_permissions = st.get('permission') or self.permission_reference_repo.get_permissions(
                     entity=st.get('resource', ''), verb=st.get('verb', ''), action=st.get('action', 'allow')
                 )
 
@@ -1739,7 +1738,7 @@ class PolicyAnalysisRepository:
                     perm_overlap = ['Resource:' + st.get('resource', '')]
                 else:
                     # The repo can find the overlaps - will be a list of permissions that overlap
-                    perm_overlap = permission_reference_repo.check_overlap(st_permissions, other_permissions)
+                    perm_overlap = self.permission_reference_repo.check_overlap(st_permissions, other_permissions)
                     if len(perm_overlap) == 0:
                         continue
                     # Permission overlap found
@@ -1758,9 +1757,23 @@ class PolicyAnalysisRepository:
                 subject_overlap = False
                 for st_subj in st_subjects:
                     for other_subj in other_subjects:
-                        if (st_subj[0] or '').lower() == (other_subj[0] or '').lower() and st_subj[
-                            1
-                        ].lower() == other_subj[1].lower():
+                        # Defensive: make sure all elements are strings, not lists
+                        st0 = st_subj[0]
+                        st1 = st_subj[1]
+                        oth0 = other_subj[0]
+                        oth1 = other_subj[1]
+                        # Flatten if a list, or join with '/'
+                        if isinstance(st0, list):
+                            st0 = '/'.join(map(str, st0))
+                        if isinstance(st1, list):
+                            st1 = '/'.join(map(str, st1))
+                        if isinstance(oth0, list):
+                            oth0 = '/'.join(map(str, oth0))
+                        if isinstance(oth1, list):
+                            oth1 = '/'.join(map(str, oth1))
+                        if (str(st0) or '').lower() == (str(oth0) or '').lower() and str(st1).lower() == str(
+                            oth1
+                        ).lower():
                             subject_overlap = True
                             break
                     if subject_overlap:
@@ -1916,6 +1929,7 @@ class PolicyAnalysisRepository:
         self.users = []
         self.groups = []
         self.compartments = []
+        self.policies = []
         self.regular_statements = []
         self.cross_tenancy_statements = []
         self.defined_aliases = []
@@ -1932,6 +1946,7 @@ class PolicyAnalysisRepository:
                 logger.error('No regions found in all resources data')
                 return False
             first_region = list(all_resources_data.keys())[0]
+            logger.info(f'First region found in all resources data: {first_region}')
 
             # Step 1: Set the tenancy OCID and Name from the data
             # To get this properly, we need to open the raw_data_identity_compartments.csv and look for the row with id that starts with ocid1.tenancy.
@@ -2095,6 +2110,7 @@ class PolicyAnalysisRepository:
                     creation_time=policy_item.get('time_created') or '',
                 )
                 # Not really appending policies itself right now, use for parsing statements though
+                self.policies.append(policy_obj)
 
                 # Look up the compartment path in loaded compartments
                 comp_path = next(
@@ -2165,6 +2181,12 @@ class PolicyAnalysisRepository:
 
             self.data_as_of = datetime.now(UTC).isoformat()
             self.loaded_from_compliance_output = True
+
+            # if self.on_policy_statements_updated:
+            #     try:
+            #         self.on_policy_statements_updated()
+            #     except Exception as e:
+            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
 
             logger.info('Compliance output data loaded successfully.')
             return True

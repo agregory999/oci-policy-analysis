@@ -1,364 +1,1112 @@
 {
-  "resources": {
-    "authentication-policies": {
-      "verbs": {
-        "inspect": [
-          "AUTHENTICATION_POLICY_INSPECT"
-        ],
-        "read": [],
-        "use": [],
-        "manage": [
-          "AUTHENTICATION_POLICY_UPDATE"
-        ]
-      }
+    "resources": {
+        "authentication-policies": {
+            "verbs": {
+                "inspect": [
+                    "AUTHENTICATION_POLICY_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "AUTHENTICATION_POLICY_UPDATE"
+                ]
+            }
+        },
+        "compartments": {
+            "verbs": {
+                "inspect": [
+                    "COMPARTMENT_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "COMPARTMENT_UPDATE"
+                ],
+                "manage": [
+                    "COMPARTMENT_CREATE",
+                    "COMPARTMENT_DELETE",
+                    "COMPARTMENT_RECOVER"
+                ]
+            }
+        },
+        "credentials": {
+            "verbs": {
+                "inspect": [
+                    "CREDENTIAL_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "CREDENTIAL_ADD",
+                    "CREDENTIAL_UPDATE",
+                    "CREDENTIAL_REMOVE"
+                ]
+            }
+        },
+        "domains": {
+            "verbs": {
+                "inspect": [
+                    "DOMAIN_INSPECT"
+                ],
+                "read": [
+                    "DOMAIN_READ",
+                    "DOMAIN_LICENSETYPE_READ"
+                ],
+                "use": [
+                    "DOMAIN_UPDATE",
+                    "IAM_WORKREQUEST_READ"
+                ],
+                "manage": [
+                    "DOMAIN_CREATE",
+                    "DOMAIN_DELETE",
+                    "DOMAIN_MOVE",
+                    "DOMAIN_REPLICATE",
+                    "DOMAIN_ACTIVATE",
+                    "DOMAIN_DEACTIVATE"
+                ]
+            }
+        },
+        "dynamic-groups": {
+            "verbs": {
+                "inspect": [
+                    "DYNAMIC_GROUP_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "DYNAMIC_GROUP_UPDATE"
+                ],
+                "manage": [
+                    "DYNAMIC_GROUP_CREATE",
+                    "DYNAMIC_GROUP_DELETE"
+                ]
+            }
+        },
+        "groups": {
+            "verbs": {
+                "inspect": [
+                    "GROUP_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "GROUP_UPDATE"
+                ],
+                "manage": [
+                    "GROUP_CREATE",
+                    "GROUP_DELETE"
+                ]
+            }
+        },
+        "identity-providers": {
+            "verbs": {
+                "inspect": [
+                    "IDENTITY_PROVIDER_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "IDENTITY_PROVIDER_UPDATE",
+                    "IDENTITY_PROVIDER_CREATE",
+                    "IDENTITY_PROVIDER_DELETE"
+                ]
+            }
+        },
+        "network-sources": {
+            "verbs": {
+                "inspect": [
+                    "NETWORK_SOURCE_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "NETWORK_SOURCE_UPDATE"
+                ],
+                "manage": [
+                    "NETWORK_SOURCE_CREATE",
+                    "NETWORK_SOURCE_DELETE"
+                ]
+            }
+        },
+        "policies": {
+            "verbs": {
+                "inspect": [
+                    "POLICY_READ"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "POLICY_UPDATE",
+                    "POLICY_CREATE",
+                    "POLICY_DELETE"
+                ]
+            }
+        },
+        "tag-defaults": {
+            "verbs": {
+                "inspect": [
+                    "TAG_DEFAULT_INSPECT",
+                    "TAG_NAMESPACE_READ"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "TAG_DEFAULT_CREATE",
+                    "TAG_DEFAULT_UPDATE",
+                    "TAG_DEFAULT_DELETE"
+                ]
+            }
+        },
+        "tag-namespaces": {
+            "verbs": {
+                "inspect": [
+                    "TAG_NAMESPACE_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "TAG_NAMESPACE_USE"
+                ],
+                "manage": [
+                    "TAG_NAMESPACE_UPDATE",
+                    "TAG_NAMESPACE_CREATE",
+                    "TAG_NAMESPACE_MOVE",
+                    "TAG_NAMESPACE_DELETE"
+                ]
+            }
+        },
+        "tenancies": {
+            "verbs": {
+                "inspect": [
+                    "TENANCY_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "TENANCY_UPDATE"
+                ],
+                "manage": [
+                    "TENANCY_UPDATE"
+                ]
+            }
+        },
+        "users": {
+            "verbs": {
+                "inspect": [
+                    "USER_INSPECT"
+                ],
+                "read": [
+                    "USER_READ"
+                ],
+                "use": [
+                    "USER_UPDATE"
+                ],
+                "manage": [
+                    "USER_CREATE",
+                    "USER_DELETE",
+                    "USER_UNBLOCK",
+                    "USER_APIKEY_ADD",
+                    "USER_APIKEY_REMOVE",
+                    "USER_UIPASS_SET",
+                    "USER_UIPASS_RESET",
+                    "USER_SWIFTPASS_SET",
+                    "USER_SWIFTPASS_RESET",
+                    "USER_SWIFTPASS_REMOVE",
+                    "USER_AUTHTOKEN_SET",
+                    "USER_AUTHTOKEN_RESET",
+                    "USER_AUTHTOKEN_REMOVE",
+                    "USER_OAUTH2_CLIENT_CRED_CREATE",
+                    "USER_OAUTH2_CLIENT_CRED_UPDATE",
+                    "USER_OAUTH2_CLIENT_CRED_REMOVE",
+                    "USER_SECRETKEY_ADD",
+                    "USER_SECRETKEY_UPDATE",
+                    "USER_SECRETKEY_REMOVE",
+                    "USER_SUPPORT_ACCOUNT_LINK",
+                    "USER_SUPPORT_ACCOUNT_UNLINK",
+                    "USER_TOTPDEVICE_ADD",
+                    "USER_TOTPDEVICE_REMOVE",
+                    "USER_TOTPDEVICE_UPDATE"
+                ]
+            }
+        },
+        "billing-schedules": {
+            "verbs": {
+                "inspect": [
+                    "BILLING_SCHEDULE_INSPECT"
+                ],
+                "read": [
+                    "BILLING_SCHEDULE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "computed-usages": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTED_USAGE_INSPECT"
+                ],
+                "read": [
+                    "COMPUTED_USAGE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "invoices": {
+            "verbs": {
+                "inspect": [
+                    "INVOICE_INSPECT",
+                    "INVOICE_COMPUTED_USAGE_INSPECT"
+                ],
+                "read": [
+                    "INVOICE_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "INVOICE_MANAGE"
+                ]
+            }
+        },
+        "invoice-preferences": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "INVOICE_PREFERENCE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "subscription": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "SUBSCRIPTION_INFO_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "subscribed-services": {
+            "verbs": {
+                "inspect": [
+                    "SUBSCRIBED_SERVICE_INSPECT"
+                ],
+                "read": [
+                    "SUBSCRIBED_SERVICE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "rate-cards": {
+            "verbs": {
+                "inspect": [
+                    "RATE_CARD_INSPECT"
+                ],
+                "read": [
+                    "RATE_CARD_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "quota": {
+            "verbs": {
+                "inspect": [
+                    "QUOTA_INSPECT"
+                ],
+                "read": [
+                    "QUOTA_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "QUOTA_CREATE",
+                    "QUOTA_DELETE",
+                    "QUOTA_UPDATE"
+                ]
+            }
+        }
     },
-    "compartments": {
-      "verbs": {
-        "inspect": [
-          "COMPARTMENT_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "COMPARTMENT_UPDATE"
-        ],
-        "manage": [
-          "COMPARTMENT_CREATE",
-          "COMPARTMENT_DELETE",
-          "COMPARTMENT_RECOVER"
-        ]
-      }
+    "families": {
+        "identity-family": {
+            "resources": [
+                "authentication-policies",
+                "compartments",
+                "credentials",
+                "domains",
+                "dynamic-groups",
+                "groups",
+                "identity-providers",
+                "network-sources",
+                "policies",
+                "tag-defaults",
+                "tag-namespaces",
+                "tenancies",
+                "users"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/iampolicyreference.htm"
+        },
+        "subscriptions-family": {
+            "resources": [
+                "billing-schedules",
+                "computed-usages",
+                "invoices",
+                "invoice-preferences",
+                "subscription",
+                "subscribed-services",
+                "rate-cards"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/subsinvoicepaymenthistoryreference.htm"
+        },
+        "quota-family": {
+            "resources": [
+                "quota"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/quotaspolicyreference.htm"
+        }
     },
-    "credentials": {
-      "verbs": {
-        "inspect": [
-          "CREDENTIAL_INSPECT"
-        ],
-        "read": [],
-        "use": [],
-        "manage": [
-          "CREDENTIAL_ADD",
-          "CREDENTIAL_UPDATE",
-          "CREDENTIAL_REMOVE"
-        ]
-      }
-    },
-    "domains": {
-      "verbs": {
-        "inspect": [
-          "DOMAIN_INSPECT"
-        ],
-        "read": [
-          "DOMAIN_READ",
-          "DOMAIN_LICENSETYPE_READ"
-        ],
-        "use": [
-          "DOMAIN_UPDATE",
-          "IAM_WORKREQUEST_READ"
-        ],
-        "manage": [
-          "DOMAIN_CREATE",
-          "DOMAIN_DELETE",
-          "DOMAIN_MOVE",
-          "DOMAIN_REPLICATE",
-          "DOMAIN_ACTIVATE",
-          "DOMAIN_DEACTIVATE"
-        ]
-      }
-    },
-    "dynamic-groups": {
-      "verbs": {
-        "inspect": [
-          "DYNAMIC_GROUP_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "DYNAMIC_GROUP_UPDATE"
-        ],
-        "manage": [
-          "DYNAMIC_GROUP_CREATE",
-          "DYNAMIC_GROUP_DELETE"
-        ]
-      }
-    },
-    "groups": {
-      "verbs": {
-        "inspect": [
-          "GROUP_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "GROUP_UPDATE"
-        ],
-        "manage": [
-          "GROUP_CREATE",
-          "GROUP_DELETE"
-        ]
-      }
-    },
-    "identity-providers": {
-      "verbs": {
-        "inspect": [
-          "IDENTITY_PROVIDER_INSPECT"
-        ],
-        "read": [],
-        "use": [],
-        "manage": [
-          "IDENTITY_PROVIDER_UPDATE",
-          "IDENTITY_PROVIDER_CREATE",
-          "IDENTITY_PROVIDER_DELETE"
-        ]
-      }
-    },
-    "network-sources": {
-      "verbs": {
-        "inspect": [
-          "NETWORK_SOURCE_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "NETWORK_SOURCE_UPDATE"
-        ],
-        "manage": [
-          "NETWORK_SOURCE_CREATE",
-          "NETWORK_SOURCE_DELETE"
-        ]
-      }
-    },
-    "policies": {
-      "verbs": {
-        "inspect": [
-          "POLICY_READ"
-        ],
-        "read": [],
-        "use": [],
-        "manage": [
-          "POLICY_UPDATE",
-          "POLICY_CREATE",
-          "POLICY_DELETE"
-        ]
-      }
-    },
-    "tag-defaults": {
-      "verbs": {
-        "inspect": [
-          "TAG_DEFAULT_INSPECT",
-          "TAG_NAMESPACE_READ"
-        ],
-        "read": [],
-        "use": [],
-        "manage": [
-          "TAG_DEFAULT_CREATE",
-          "TAG_DEFAULT_UPDATE",
-          "TAG_DEFAULT_DELETE"
-        ]
-      }
-    },
-    "tag-namespaces": {
-      "verbs": {
-        "inspect": [
-          "TAG_NAMESPACE_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "TAG_NAMESPACE_USE"
-        ],
-        "manage": [
-          "TAG_NAMESPACE_UPDATE",
-          "TAG_NAMESPACE_CREATE",
-          "TAG_NAMESPACE_MOVE",
-          "TAG_NAMESPACE_DELETE"
-        ]
-      }
-    },
-    "tenancies": {
-      "verbs": {
-        "inspect": [
-          "TENANCY_INSPECT"
-        ],
-        "read": [],
-        "use": [
-          "TENANCY_UPDATE"
-        ],
-        "manage": [
-          "TENANCY_UPDATE"
-        ]
-      }
-    },
-    "users": {
-      "verbs": {
-        "inspect": [
-          "USER_INSPECT"
-        ],
-        "read": [
-          "USER_READ"
-        ],
-        "use": [
-          "USER_UPDATE"
-        ],
-        "manage": [
-          "USER_CREATE",
-          "USER_DELETE",
-          "USER_UNBLOCK",
-          "USER_APIKEY_ADD",
-          "USER_APIKEY_REMOVE",
-          "USER_UIPASS_SET",
-          "USER_UIPASS_RESET",
-          "USER_SWIFTPASS_SET",
-          "USER_SWIFTPASS_RESET",
-          "USER_SWIFTPASS_REMOVE",
-          "USER_AUTHTOKEN_SET",
-          "USER_AUTHTOKEN_RESET",
-          "USER_AUTHTOKEN_REMOVE",
-          "USER_OAUTH2_CLIENT_CRED_CREATE",
-          "USER_OAUTH2_CLIENT_CRED_UPDATE",
-          "USER_OAUTH2_CLIENT_CRED_REMOVE",
-          "USER_SECRETKEY_ADD",
-          "USER_SECRETKEY_UPDATE",
-          "USER_SECRETKEY_REMOVE",
-          "USER_SUPPORT_ACCOUNT_LINK",
-          "USER_SUPPORT_ACCOUNT_UNLINK",
-          "USER_TOTPDEVICE_ADD",
-          "USER_TOTPDEVICE_REMOVE",
-          "USER_TOTPDEVICE_UPDATE"
-        ]
-      }
-    },
-    "billing-schedules": {
-      "verbs": {
-        "inspect": [
-          "BILLING_SCHEDULE_INSPECT"
-        ],
-        "read": [
-          "BILLING_SCHEDULE_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "computed-usages": {
-      "verbs": {
-        "inspect": [
-          "COMPUTED_USAGE_INSPECT"
-        ],
-        "read": [
-          "COMPUTED_USAGE_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "invoices": {
-      "verbs": {
-        "inspect": [
-          "INVOICE_INSPECT",
-          "INVOICE_COMPUTED_USAGE_INSPECT"
-        ],
-        "read": [
-          "INVOICE_READ"
-        ],
-        "use": [],
-        "manage": [
-          "INVOICE_MANAGE"
-        ]
-      }
-    },
-    "invoice-preferences": {
-      "verbs": {
-        "inspect": [],
-        "read": [
-          "INVOICE_PREFERENCE_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "subscription": {
-      "verbs": {
-        "inspect": [],
-        "read": [
-          "SUBSCRIPTION_INFO_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "subscribed-services": {
-      "verbs": {
-        "inspect": [
-          "SUBSCRIBED_SERVICE_INSPECT"
-        ],
-        "read": [
-          "SUBSCRIBED_SERVICE_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "rate-cards": {
-      "verbs": {
-        "inspect": [
-          "RATE_CARD_INSPECT"
-        ],
-        "read": [
-          "RATE_CARD_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
-    },
-    "quota": {
-      "verbs": {
-        "inspect": [
-          "QUOTA_INSPECT"
-        ],
-        "read": [
-          "QUOTA_READ"
-        ],
-        "use": [],
-        "manage": [
-          "QUOTA_CREATE",
-          "QUOTA_DELETE",
-          "QUOTA_UPDATE"
-        ]
-      }
+    "operations": {
+        "ListRegions": {
+            "permissions": [
+                "TENANCY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListRegionSubscriptions": {
+            "permissions": [
+                "TENANCY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateRegionSubscription": {
+            "permissions": [
+                "TENANCY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetTenancy": {
+            "permissions": [
+                "TENANCY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListDomains": {
+            "permissions": [
+                "DOMAIN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetDomain": {
+            "permissions": [
+                "DOMAIN_READ"
+            ],
+            "notes": ""
+        },
+        "CreateDomain": {
+            "permissions": [
+                "DOMAIN_CREATE"
+            ],
+            "notes": ""
+        },
+        "ActivateDomain": {
+            "permissions": [
+                "DOMAIN_ACTIVATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDomain": {
+            "permissions": [
+                "DOMAIN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ReplicateDomainRegion": {
+            "permissions": [
+                "DOMAIN_REPLICATE"
+            ],
+            "notes": ""
+        },
+        "ChangeDomainCompartment": {
+            "permissions": [
+                "DOMAIN_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetDomainLicenseTypes": {
+            "permissions": [
+                "DOMAIN_LICENSETYPE_READ"
+            ],
+            "notes": ""
+        },
+        "ChangeSku": {
+            "permissions": [
+                "DOMAIN_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeactivateDomain": {
+            "permissions": [
+                "DOMAIN_DEACTIVATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDomain": {
+            "permissions": [
+                "DOMAIN_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetAuthenticationPolicy": {
+            "permissions": [
+                "AUTHENTICATION_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateAuthenticationPolicy": {
+            "permissions": [
+                "AUTHENTICATION_POLICY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListAvailabilityDomains": {
+            "permissions": [
+                "COMPARTMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListFaultDomains": {
+            "permissions": [
+                "COMPARTMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCompartments": {
+            "permissions": [
+                "COMPARTMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCompartment": {
+            "permissions": [
+                "COMPARTMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateCompartment": {
+            "permissions": [
+                "COMPARTMENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCompartment": {
+            "permissions": [
+                "COMPARTMENT_CREATE"
+            ],
+            "notes": ""
+        },
+        "RecoverCompartment": {
+            "permissions": [
+                "COMPARTMENT_RECOVER"
+            ],
+            "notes": ""
+        },
+        "DeleteCompartment": {
+            "permissions": [
+                "COMPARTMENT_DELETE"
+            ],
+            "notes": ""
+        },
+        "MoveCompartment": {
+            "permissions": [
+                "T",
+                "M",
+                "C"
+            ],
+            "notes": "There is not a single permission associated with the MoveCompartment operation. This operation requires manage all-resources permissions on the lowest shared parent compartment of the current compartment and the destination compartment."
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "COMPARTMENT_READ"
+            ],
+            "notes": ""
+        },
+        "ListUsers": {
+            "permissions": [
+                "USER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetUser": {
+            "permissions": [
+                "USER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateUser": {
+            "permissions": [
+                "USER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateUserState": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_UNBLOCK"
+            ],
+            "notes": "and"
+        },
+        "CreateUser": {
+            "permissions": [
+                "USER_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteUser": {
+            "permissions": [
+                "USER_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateOrResetUIPassword": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_UIPASS_RESET"
+            ],
+            "notes": "and"
+        },
+        "ListApiKeys": {
+            "permissions": [
+                "USER_READ"
+            ],
+            "notes": ""
+        },
+        "UploadApiKey": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_APIKEY_ADD"
+            ],
+            "notes": "and"
+        },
+        "DeleteApiKey": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_APIKEY_REMOVE"
+            ],
+            "notes": "and"
+        },
+        "ListAuthTokens": {
+            "permissions": [
+                "USER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAuthToken": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_AUTHTOKEN_RESET"
+            ],
+            "notes": "and"
+        },
+        "CreateAuthToken": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_AUTHTOKEN_SET"
+            ],
+            "notes": "and"
+        },
+        "DeleteAuthToken": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_AUTHTOKEN_REMOVE"
+            ],
+            "notes": "and"
+        },
+        "ListSwiftPasswords": {
+            "permissions": [
+                "USER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSwiftPassword": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SWIFTPASS_RESET"
+            ],
+            "notes": "and"
+        },
+        "CreateSwiftPassword": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SWIFTPASS_SET"
+            ],
+            "notes": "and"
+        },
+        "DeleteSwiftPassword": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SWIFTPASS_REMOVE"
+            ],
+            "notes": "and"
+        },
+        "ListCustomerSecretKeys": {
+            "permissions": [
+                "USER_READ"
+            ],
+            "notes": ""
+        },
+        "CreateSecretKey": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SECRETKEY_ADD"
+            ],
+            "notes": "and"
+        },
+        "UpdateCustomerSecretKey": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SECRETKEY_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "DeleteCustomerSecretKey": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_SECRETKEY_REMOVE"
+            ],
+            "notes": "and"
+        },
+        "CreateOAuthClientCredential": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_OAUTH2_CLIENT_CRED_CREATE"
+            ],
+            "notes": "and"
+        },
+        "UpdateOAuthClientCredential": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_OAUTH2_CLIENT_CRED_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListOAuthClientCredentials": {
+            "permissions": [
+                "USER_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteOAuthClientCredential": {
+            "permissions": [
+                "USER_UPDATE",
+                "USER_OAUTH2_CLIENT_CRED_REMOVE"
+            ],
+            "notes": "and"
+        },
+        "LinkSupportAccount": {
+            "permissions": [
+                "USER_SUPPORT_ACCOUNT_LINK"
+            ],
+            "notes": ""
+        },
+        "UnlinkSupportAccount": {
+            "permissions": [
+                "USER_SUPPORT_ACCOUNT_UNLINK"
+            ],
+            "notes": ""
+        },
+        "CreateSmtpCredential": {
+            "permissions": [
+                "CREDENTIAL_ADD"
+            ],
+            "notes": ""
+        },
+        "ListSmtpCredentials": {
+            "permissions": [
+                "CREDENTIAL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateSmtpCredential": {
+            "permissions": [
+                "CREDENTIAL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSmtpCredential": {
+            "permissions": [
+                "CREDENTIAL_REMOVE"
+            ],
+            "notes": ""
+        },
+        "ListUserGroupMemberships": {
+            "permissions": [
+                "GROUP_INSPECT",
+                "USER_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "GetUserGroupMembership": {
+            "permissions": [
+                "USER_INSPECT",
+                "GROUP_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "AddUserToGroup": {
+            "permissions": [
+                "GROUP_UPDATE",
+                "USER_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "RemoveUserFromGroup": {
+            "permissions": [
+                "GROUP_UPDATE",
+                "USER_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListGroups": {
+            "permissions": [
+                "GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetGroup": {
+            "permissions": [
+                "GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateGroup": {
+            "permissions": [
+                "GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateGroup": {
+            "permissions": [
+                "GROUP_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteGroup": {
+            "permissions": [
+                "GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListDynamicGroups": {
+            "permissions": [
+                "DYNAMIC_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetDynamicGroup": {
+            "permissions": [
+                "DYNAMIC_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateDynamicGroup": {
+            "permissions": [
+                "DYNAMIC_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDynamicGroup": {
+            "permissions": [
+                "DYNAMIC_GROUP_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDynamicGroup": {
+            "permissions": [
+                "DYNAMIC_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetNetworkSource": {
+            "permissions": [
+                "NETWORK_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListNetworkSources": {
+            "permissions": [
+                "NETWORK_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateNetworkSource": {
+            "permissions": [
+                "NETWORK_SOURCE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateNetworkSource": {
+            "permissions": [
+                "NETWORK_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteNetworkSource": {
+            "permissions": [
+                "NETWORK_SOURCE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListPolicies": {
+            "permissions": [
+                "POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "GetPolicy": {
+            "permissions": [
+                "POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdatePolicy": {
+            "permissions": [
+                "POLICY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreatePolicy": {
+            "permissions": [
+                "POLICY_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeletePolicy": {
+            "permissions": [
+                "POLICY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListIdentityProviders": {
+            "permissions": [
+                "IDENTITY_PROVIDER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetIdentityProvider": {
+            "permissions": [
+                "IDENTITY_PROVIDER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateIdentityProvider": {
+            "permissions": [
+                "IDENTITY_PROVIDER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateIdentityProvider": {
+            "permissions": [
+                "IDENTITY_PROVIDER_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteIdentityProvider": {
+            "permissions": [
+                "IDENTITY_PROVIDER_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListIdpGroupMappings": {
+            "permissions": [
+                "IDENTITY_PROVIDER_INSPECT",
+                "GROUP_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "GetIdpGroupMapping": {
+            "permissions": [
+                "IDENTITY_PROVIDER_INSPECT",
+                "GROUP_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "AddIdpGroupMapping": {
+            "permissions": [
+                "IDENTITY_PROVIDER_UPDATE",
+                "GROUP_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "DeleteIdpGroupMapping": {
+            "permissions": [
+                "IDENTITY_PROVIDER_UPDATE",
+                "GROUP_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListIamWorkRequests": {
+            "permissions": [
+                "IAM_WORKREQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetIamWorkRequest": {
+            "permissions": [
+                "IAM_WORKREQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "IAM_WORKREQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListIamWorkRequestLogs": {
+            "permissions": [
+                "IAM_WORKREQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTagNamespaces": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTaggingWorkRequest": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTaggingWorkRequestErrors": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTaggingWorkRequestLogs": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetTaggingWorkRequest": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetTagNamespace": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateTagNamespace": {
+            "permissions": [
+                "TAG_NAMESPACE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateTagNamespace": {
+            "permissions": [
+                "TAG_NAMESPACE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeTagNamespaceCompartment": {
+            "permissions": [
+                "TAG_NAMESPACE_MOVE"
+            ],
+            "notes": ""
+        },
+        "CascadeDeleteTagNamespace": {
+            "permissions": [
+                "TAG_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteTagNamespace": {
+            "permissions": [
+                "TAG_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListTags": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "BulkEditTags": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCostTrackingTags": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetTag": {
+            "permissions": [
+                "TAG_NAMESPACE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateTag": {
+            "permissions": [
+                "TAG_NAMESPACE_USE"
+            ],
+            "notes": ""
+        },
+        "UpdateTag": {
+            "permissions": [
+                "TAG_NAMESPACE_USE"
+            ],
+            "notes": ""
+        },
+        "DeleteTag": {
+            "permissions": [
+                "TAG_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "BulkDeleteTags": {
+            "permissions": [
+                "TAG_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListTagDefaults": {
+            "permissions": [
+                "TAG_DEFAULT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetTagDefault": {
+            "permissions": [
+                "TAG_DEFAULT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateTagDefault": {
+            "permissions": [
+                "TAG_DEFAULT_MANAGE"
+            ],
+            "notes": ""
+        },
+        "UpdateTagDefault": {
+            "permissions": [
+                "TAG_DEFAULT_MANAGE"
+            ],
+            "notes": ""
+        },
+        "DeleteTagDefault": {
+            "permissions": [
+                "TAG_DEFAULT_MANAGE"
+            ],
+            "notes": ""
+        }
     }
-  },
-  "families": {
-    "identity-family": {
-      "resources": [
-        "authentication-policies",
-        "compartments",
-        "credentials",
-        "domains",
-        "dynamic-groups",
-        "groups",
-        "identity-providers",
-        "network-sources",
-        "policies",
-        "tag-defaults",
-        "tag-namespaces",
-        "tenancies",
-        "users"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/iampolicyreference.htm"
-    },
-    "subscriptions-family": {
-      "resources": [
-        "billing-schedules",
-        "computed-usages",
-        "invoices",
-        "invoice-preferences",
-        "subscription",
-        "subscribed-services",
-        "rate-cards"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/subsinvoicepaymenthistoryreference.htm"
-    },
-    "quota-family": {
-      "resources": [
-        "quota"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/quotaspolicyreference.htm"
-    }
-  }
 }

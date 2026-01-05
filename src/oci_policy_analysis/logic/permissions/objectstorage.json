@@ -1,74 +1,480 @@
 {
-  "resources": {
-    "buckets": {
-      "verbs": {
-        "inspect": ["BUCKET_INSPECT"],
-        "read": ["BUCKET_READ"],
-        "use": ["BUCKET_UPDATE"],
-        "manage": ["BUCKET_CREATE", "BUCKET_DELETE"]
-      }
+    "resources": {
+        "buckets": {
+            "verbs": {
+                "inspect": [
+                    "BUCKET_INSPECT"
+                ],
+                "read": [
+                    "BUCKET_READ"
+                ],
+                "use": [
+                    "BUCKET_UPDATE"
+                ],
+                "manage": [
+                    "BUCKET_CREATE",
+                    "BUCKET_DELETE"
+                ]
+            }
+        },
+        "objects": {
+            "verbs": {
+                "inspect": [
+                    "OBJECT_INSPECT"
+                ],
+                "read": [
+                    "OBJECT_READ"
+                ],
+                "use": [
+                    "OBJECT_OVERWRITE"
+                ],
+                "manage": [
+                    "OBJECT_CREATE",
+                    "OBJECT_DELETE",
+                    "OBJECT_VERSION_DELETE",
+                    "OBJECT_RESTORE",
+                    "OBJECT_UPDATE_TIER"
+                ]
+            }
+        },
+        "multipart-uploads": {
+            "verbs": {
+                "inspect": [
+                    "OBJECT_INSPECT"
+                ],
+                "read": [
+                    "BUCKET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "OBJECT_DELETE"
+                ]
+            }
+        },
+        "pre-authenticated-requests": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "BUCKET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "PAR_MANAGE"
+                ]
+            }
+        },
+        "replication-policies": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "BUCKET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "BUCKET_UPDATE"
+                ]
+            }
+        },
+        "retention-rules": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "BUCKET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "RETENTION_RULE_MANAGE",
+                    "RETENTION_RULE_LOCK"
+                ]
+            }
+        },
+        "namespace-metadata": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "OBJECTSTORAGE_NAMESPACE_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "OBJECTSTORAGE_NAMESPACE_UPDATE"
+                ]
+            }
+        }
     },
-    "objects": {
-      "verbs": {
-        "inspect": ["OBJECT_INSPECT"],
-        "read": ["OBJECT_READ"],
-        "use": ["OBJECT_OVERWRITE"],
-        "manage": ["OBJECT_CREATE", "OBJECT_DELETE", "OBJECT_VERSION_DELETE", "OBJECT_RESTORE", "OBJECT_UPDATE_TIER"]
-      }
+    "families": {
+        "object-family": {
+            "resources": [
+                "buckets",
+                "objects",
+                "multipart-uploads",
+                "pre-authenticated-requests",
+                "replication-policies",
+                "retention-rules",
+                "namespace-metadata"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm"
+        }
     },
-    "multipart-uploads": {
-      "verbs": {
-        "inspect": ["OBJECT_INSPECT"],
-        "read": ["BUCKET_READ"],
-        "use": [],
-        "manage": ["OBJECT_DELETE"]
-      }
-    },
-    "pre-authenticated-requests": {
-      "verbs": {
-        "inspect": [],
-        "read": ["BUCKET_READ"],
-        "use": [],
-        "manage": ["PAR_MANAGE"]
-      }
-    },
-    "replication-policies": {
-      "verbs": {
-        "inspect": [],
-        "read": ["BUCKET_READ"],
-        "use": [],
-        "manage": ["BUCKET_UPDATE"]
-      }
-    },
-    "retention-rules": {
-      "verbs": {
-        "inspect": [],
-        "read": ["BUCKET_READ"],
-        "use": [],
-        "manage": ["RETENTION_RULE_MANAGE", "RETENTION_RULE_LOCK"]
-      }
-    },
-    "namespace-metadata": {
-      "verbs": {
-        "inspect": [],
-        "read": ["OBJECTSTORAGE_NAMESPACE_READ"],
-        "use": [],
-        "manage": ["OBJECTSTORAGE_NAMESPACE_UPDATE"]
-      }
+    "operations": {
+        "GetNamespace": {
+            "permissions": [],
+            "notes": "OBJECTSTORAGE_NAMESPACE_READ permission is required if you include the optional compartmentId parameter. Use the compartmentId parameter to find the namespace for a third-party tenancy."
+        },
+        "GetNamespaceMetadata": {
+            "permissions": [
+                "OBJECTSTORAGE_NAMESPACE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateNamespaceMetadata": {
+            "permissions": [
+                "OBJECTSTORAGE_NAMESPACE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateBucket": {
+            "permissions": [
+                "BUCKET_CREATE"
+            ],
+            "notes": "If the KMS Key ID is provided to the operation, the following additional permissions are required: KEY_ASSOCIATE. The objectstorage-<location> subject must also have: KEY_ENCRYPT, KEY_DECRYPT, KEY_READ."
+        },
+        "UpdateBucket": {
+            "permissions": [
+                "BUCKET_UPDATE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "GetBucket": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
+        },
+        "HeadBucket": {
+            "permissions": [
+                "BUCKET_INSPECTF",
+                "KEY_DECRYPT"
+            ],
+            "notes": "BUCKET_INSPECTFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have ."
+        },
+        "ListBuckets": {
+            "permissions": [
+                "BUCKET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "DeleteBucket": {
+            "permissions": [
+                "BUCKET_DELETE"
+            ],
+            "notes": ""
+        },
+        "ReencryptBucket": {
+            "permissions": [
+                "BUCKET_UPDATET",
+                "KEY_ENCRYPT",
+                "KEY_DECRYPT"
+            ],
+            "notes": "BUCKET_UPDATEThe objectstorage-<location> subject must also have: , and ."
+        },
+        "PutObject (New)": {
+            "permissions": [
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+        },
+        "PutObject (Overwrite)": {
+            "permissions": [
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+        },
+        "RenameObject": {
+            "permissions": [
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": ""
+        },
+        "GetObject": {
+            "permissions": [
+                "OBJECT_READ"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
+        },
+        "HeadObject": {
+            "permissions": [
+                "OBJECT_INSPECT"
+            ],
+            "notes": "or OBJECT_INSPECTFor a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
+        },
+        "DeleteObject": {
+            "permissions": [
+                "OBJECT_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteObjectVersion": {
+            "permissions": [
+                "OBJECT_VERSION_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListObjects": {
+            "permissions": [
+                "OBJECT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListObjectVersions": {
+            "permissions": [
+                "OBJECT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ReencryptObject": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the following permissions are required: KEY_ASSOCIATE. Additionally, the objectstorage-<location> service must also have KEY_ENCRYPT, KEY_DECRYPT, and KEY_READ."
+        },
+        "RestoreObjects": {
+            "permissions": [
+                "OBJECT_RESTORE"
+            ],
+            "notes": ""
+        },
+        "UpdateObjectStorageTier": {
+            "permissions": [
+                "OBJECT_UPDATE_TIER"
+            ],
+            "notes": ""
+        },
+        "CreateMultipartUpload": {
+            "permissions": [
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+        },
+        "UploadPart": {
+            "permissions": [
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+        },
+        "CommitMultipartUpload": {
+            "permissions": [
+                "BUCKET_READ",
+                "OBJECT_CREATE",
+                "OBJECT_READ",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": ""
+        },
+        "ListMultipartUploadParts": {
+            "permissions": [
+                "OBJECT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListMultipartUploads": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "AbortMultipartUpload": {
+            "permissions": [
+                "OBJECT_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreatePreauthenticatedRequest": {
+            "permissions": [
+                "PAR_MANAGE"
+            ],
+            "notes": ""
+        },
+        "GetPreauthenticatedRequest": {
+            "permissions": [
+                "PAR_MANAGE",
+                "BUCKET_READ"
+            ],
+            "notes": "Either permission is sufficient"
+        },
+        "ListPreauthenticatedRequests": {
+            "permissions": [
+                "PAR_MANAGE",
+                "BUCKET_READ"
+            ],
+            "notes": "or"
+        },
+        "DeletePreauthenticatedRequest": {
+            "permissions": [
+                "PAR_MANAGE"
+            ],
+            "notes": ""
+        },
+        "PutObjectLifecyclePolicy": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "OBJECT_CREATE",
+                "OBJECT_DELETE"
+            ],
+            "notes": "Additionally, the objectstorage-<location> subject must also have: BUCKET_INSPECT, BUCKET_READ, OBJECT_INSPECT.  If the bucket the lifecycle policy applies to is a customer-managed key encrypted bucket then the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT.If the PutObjectLifeCyclePolicy operation also updates the object tier for example, from default to INFREQUENT_ACCESS, the user and the objectstorage-<location> subject must be granted OBJECT_UPDATE_TIER permission."
+        },
+        "GetObjectLifecyclePolicy": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_DECRYPT."
+        },
+        "DeleteObjectLifecyclePolicy": {
+            "permissions": [
+                "BUCKET_UPDATE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "CreateRetentionRule": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "CreateRetentionRule (With Lock)": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE",
+                "RETENTION_RULE_LOCK"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "GetRetentionRule": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "ListRetentionRule": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateRetentionRule": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "UpdateRetentionRule (With Lock)": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE",
+                "RETENTION_RULE_LOCK"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "DeleteRetentionRule": {
+            "permissions": [
+                "BUCKET_UPDATE",
+                "RETENTION_RULE_MANAGE"
+            ],
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+        },
+        "CopyObjectRequest": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_CREATE"
+            ],
+            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT."
+        },
+        "CopyObjectRequest (Existing Object)": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_OVERWRITE"
+            ],
+            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT."
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "OBJECT_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "OBJECT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CancelWorkRequest": {
+            "permissions": [
+                "OBJECT_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateReplicationPolicy": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE",
+                "OBJECT_INSPECT",
+                "OBJECT_DELETE",
+                "OBJECT_RESTORE",
+                "BUCKET_READ",
+                "BUCKET_UPDATE"
+            ],
+            "notes": "The objectstorage-<location> service must have the same permissions as the user."
+        },
+        "GetReplicationPolicy": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteReplicationPolicy": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE",
+                "OBJECT_INSPECT",
+                "OBJECT_DELETE",
+                "OBJECT_RESTORE",
+                "BUCKET_READ",
+                "BUCKET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListReplicationPolicies": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "ListReplicationSources": {
+            "permissions": [
+                "BUCKET_READ"
+            ],
+            "notes": ""
+        },
+        "MakeBucketWritable": {
+            "permissions": [
+                "OBJECT_READ",
+                "OBJECT_CREATE",
+                "OBJECT_OVERWRITE",
+                "OBJECT_INSPECT",
+                "OBJECT_DELETE",
+                "BUCKET_READ",
+                "BUCKET_UPDATE"
+            ],
+            "notes": ""
+        }
     }
-  },
-  "families": {
-    "object-family": {
-      "resources": [
-        "buckets",
-        "objects",
-        "multipart-uploads",
-        "pre-authenticated-requests",
-        "replication-policies",
-        "retention-rules",
-        "namespace-metadata"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm"
-    }
-  }
 }

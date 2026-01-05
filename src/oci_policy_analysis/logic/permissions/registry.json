@@ -57,5 +57,127 @@
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/registrypolicyreference.htm"
         }
+    },
+    "operations": {
+        "ListContainerRepositories": {
+            "permissions": [
+                "REPOSITORY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateContainerRepository": {
+            "permissions": [
+                "REPOSITORY_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetContainerRepository": {
+            "permissions": [
+                "REPOSITORY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateContainerRepository": {
+            "permissions": [
+                "REPOSITORY_MANAGE"
+            ],
+            "notes": ""
+        },
+        "DeleteContainerRepository": {
+            "permissions": [
+                "REPOSITORY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeContainerRepositoryCompartment": {
+            "permissions": [
+                "REPOSITORY_MANAGE"
+            ],
+            "notes": ""
+        },
+        "ListContainerImages": {
+            "permissions": [
+                "REPOSITORY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetContainerImage": {
+            "permissions": [
+                "REPOSITORY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateContainerImage": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteContainerImage": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RestoreContainerImage": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RemoveContainerVersion": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListContainerImageSignatures": {
+            "permissions": [
+                "REPOSITORY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetContainerImageSignature": {
+            "permissions": [
+                "REPOSITORY_READ"
+            ],
+            "notes": ""
+        },
+        "CreateContainerImageSignature": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateContainerImageSignature": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteContainerImageSignature": {
+            "permissions": [
+                "REPOSITORY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetContainerConfiguration": {
+            "permissions": [
+                "REPOSITORY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateContainerConfiguration": {
+            "permissions": [
+                "REPOSITORY_MANAGE"
+            ],
+            "notes": ""
+        },
+        "LookupContainerImageByUri": {
+            "permissions": [
+                "REPOSITORY_READ"
+            ],
+            "notes": ""
+        }
     }
 }

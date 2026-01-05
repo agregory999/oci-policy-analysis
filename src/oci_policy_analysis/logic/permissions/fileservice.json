@@ -1,162 +1,604 @@
 {
-  "resources": {
-    "export-sets": {
-      "verbs": {
-        "inspect": [
-          "EXPORT_SET_INSPECT"
-        ],
-        "read": [
-          "EXPORT_SET_READ"
-        ],
-        "use": [],
-        "manage": [
-          "EXPORT_SET_CREATE",
-          "EXPORT_SET_UPDATE",
-          "EXPORT_SET_DELETE"
-        ]
-      }
+    "resources": {
+        "export-sets": {
+            "verbs": {
+                "inspect": [
+                    "EXPORT_SET_INSPECT"
+                ],
+                "read": [
+                    "EXPORT_SET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "EXPORT_SET_CREATE",
+                    "EXPORT_SET_UPDATE",
+                    "EXPORT_SET_DELETE"
+                ]
+            }
+        },
+        "file-systems": {
+            "verbs": {
+                "inspect": [
+                    "FILE_SYSTEM_INSPECT"
+                ],
+                "read": [
+                    "FILE_SYSTEM_READ"
+                ],
+                "use": [
+                    "FILE_SYSTEM_NFSv3_EXPORT",
+                    "FILE_SYSTEM_NFSv3_UNEXPORT",
+                    "FILE_SYSTEM_CLONE",
+                    "FILE_SYSTEM_REPLICATION_SOURCE",
+                    "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
+                ],
+                "manage": [
+                    "FILE_SYSTEM_CREATE",
+                    "FILE_SYSTEM_UPDATE",
+                    "FILE_SYSTEM_DELETE",
+                    "FILE_SYSTEM_MOVE",
+                    "FILE_SYSTEM_CREATE_SNAPSHOT",
+                    "FILE_SYSTEM_DELETE_SNAPSHOT",
+                    "FILE_SYSTEM_REPLICATION_TARGET"
+                ]
+            }
+        },
+        "filesystem-snapshot-policies": {
+            "verbs": {
+                "inspect": [
+                    "FILESYSTEM_SNAPSHOT_POLICY_INSPECT"
+                ],
+                "read": [
+                    "FILESYSTEM_SNAPSHOT_POLICY_READ"
+                ],
+                "use": [
+                    "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
+                ],
+                "manage": [
+                    "FILESYSTEM_SNAPSHOT_POLICY_CREATE",
+                    "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
+                    "FILESYSTEM_SNAPSHOT_POLICY_MOVE",
+                    "FILESYSTEM_SNAPSHOT_POLICY_DELETE"
+                ]
+            }
+        },
+        "mount-targets": {
+            "verbs": {
+                "inspect": [
+                    "MOUNT_TARGET_INSPECT"
+                ],
+                "read": [
+                    "MOUNT_TARGET_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "MOUNT_TARGET_CREATE",
+                    "MOUNT_TARGET_UPDATE",
+                    "MOUNT_TARGET_SHAPE_UPGRADE",
+                    "MOUNT_TARGET_SHAPE_DOWNGRADE",
+                    "MOUNT_TARGET_DELETE",
+                    "MOUNT_TARGET_MOVE"
+                ]
+            }
+        },
+        "outbound-connectors": {
+            "verbs": {
+                "inspect": [
+                    "OUTBOUND_CONNECTOR_INSPECT"
+                ],
+                "read": [
+                    "OUTBOUND_CONNECTOR_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "OUTBOUND_CONNECTOR_CREATE",
+                    "OUTBOUND_CONNECTOR_UPDATE",
+                    "OUTBOUND_CONNECTOR_DELETE",
+                    "OUTBOUND_CONNECTOR_MOVE"
+                ]
+            }
+        },
+        "replications": {
+            "verbs": {
+                "inspect": [
+                    "REPLICATION_INSPECT"
+                ],
+                "read": [
+                    "REPLICATION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "REPLICATION_CREATE",
+                    "REPLICATION_UPDATE",
+                    "REPLICATION_DELETE",
+                    "REPLICATION_MOVE"
+                ]
+            }
+        },
+        "replication-targets": {
+            "verbs": {
+                "inspect": [
+                    "REPLICATION_INSPECT"
+                ],
+                "read": [
+                    "REPLICATION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "REPLICATION_CREATE",
+                    "REPLICATION_UPDATE",
+                    "REPLICATION_DELETE",
+                    "REPLICATION_MOVE"
+                ]
+            }
+        },
+        "fss-work-requests": {
+            "verbs": {
+                "inspect": [
+                    "FSS_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "FSS_WORK_REQUEST_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        }
     },
-    "file-systems": {
-      "verbs": {
-        "inspect": [
-          "FILE_SYSTEM_INSPECT"
-        ],
-        "read": [
-          "FILE_SYSTEM_READ"
-        ],
-        "use": [
-          "FILE_SYSTEM_NFSv3_EXPORT",
-          "FILE_SYSTEM_NFSv3_UNEXPORT",
-          "FILE_SYSTEM_CLONE",
-          "FILE_SYSTEM_REPLICATION_SOURCE",
-          "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
-        ],
-        "manage": [
-          "FILE_SYSTEM_CREATE",
-          "FILE_SYSTEM_UPDATE",
-          "FILE_SYSTEM_DELETE",
-          "FILE_SYSTEM_MOVE",
-          "FILE_SYSTEM_CREATE_SNAPSHOT",
-          "FILE_SYSTEM_DELETE_SNAPSHOT",
-          "FILE_SYSTEM_REPLICATION_TARGET"
-        ]
-      }
+    "families": {
+        "file-family": {
+            "resources": [
+                "export-sets",
+                "file-systems",
+                "filesystem-snapshot-policies",
+                "mount-targets",
+                "outbound-connectors",
+                "replications",
+                "replication-targets",
+                "fss-work-requests"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/filestoragepolicyreference.htm"
+        }
     },
-    "filesystem-snapshot-policies": {
-      "verbs": {
-        "inspect": [
-          "FILESYSTEM_SNAPSHOT_POLICY_INSPECT"
-        ],
-        "read": [
-          "FILESYSTEM_SNAPSHOT_POLICY_READ"
-        ],
-        "use": [
-          "FILE_SYSTEM_UPDATE_FILESYSTEM_SNAPSHOT_POLICY"
-        ],
-        "manage": [
-          "FILESYSTEM_SNAPSHOT_POLICY_CREATE",
-          "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
-          "FILESYSTEM_SNAPSHOT_POLICY_MOVE",
-          "FILESYSTEM_SNAPSHOT_POLICY_DELETE"
-        ]
-      }
-    },
-    "mount-targets": {
-      "verbs": {
-        "inspect": [
-          "MOUNT_TARGET_INSPECT"
-        ],
-        "read": [
-          "MOUNT_TARGET_READ"
-        ],
-        "use": [],
-        "manage": [
-          "MOUNT_TARGET_CREATE",
-          "MOUNT_TARGET_UPDATE",
-          "MOUNT_TARGET_SHAPE_UPGRADE",
-          "MOUNT_TARGET_SHAPE_DOWNGRADE",
-          "MOUNT_TARGET_DELETE",
-          "MOUNT_TARGET_MOVE"
-        ]
-      }
-    },
-    "outbound-connectors": {
-      "verbs": {
-        "inspect": [
-          "OUTBOUND_CONNECTOR_INSPECT"
-        ],
-        "read": [
-          "OUTBOUND_CONNECTOR_READ"
-        ],
-        "use": [],
-        "manage": [
-          "OUTBOUND_CONNECTOR_CREATE",
-          "OUTBOUND_CONNECTOR_UPDATE",
-          "OUTBOUND_CONNECTOR_DELETE",
-          "OUTBOUND_CONNECTOR_MOVE"
-        ]
-      }
-    },
-    "replications": {
-      "verbs": {
-        "inspect": [
-          "REPLICATION_INSPECT"
-        ],
-        "read": [
-          "REPLICATION_READ"
-        ],
-        "use": [],
-        "manage": [
-          "REPLICATION_CREATE",
-          "REPLICATION_UPDATE",
-          "REPLICATION_DELETE",
-          "REPLICATION_MOVE"
-        ]
-      }
-    },
-    "replication-targets": {
-      "verbs": {
-        "inspect": [
-          "REPLICATION_INSPECT"
-        ],
-        "read": [
-          "REPLICATION_READ"
-        ],
-        "use": [],
-        "manage": [
-          "REPLICATION_CREATE",
-          "REPLICATION_UPDATE",
-          "REPLICATION_DELETE",
-          "REPLICATION_MOVE"
-        ]
-      }
-    },
-    "fss-work-requests": {
-      "verbs": {
-        "inspect": [
-          "FSS_WORK_REQUEST_INSPECT"
-        ],
-        "read": [
-          "FSS_WORK_REQUEST_READ"
-        ],
-        "use": [],
-        "manage": []
-      }
+    "operations": {
+        "ListExports": {
+            "permissions": [
+                "EXPORT_SET_READ"
+            ],
+            "notes": ""
+        },
+        "CreateExport": {
+            "permissions": [
+                "EXPORT_SET_UPDATE",
+                "FILE_SYSTEM_NFS",
+                "3_EXPORT"
+            ],
+            "notes": "+ FILE_SYSTEM_NFSv3_EXPORT"
+        },
+        "GetExport": {
+            "permissions": [
+                "EXPORT_SET_READ"
+            ],
+            "notes": ""
+        },
+        "AddExportLock": {
+            "permissions": [
+                "EXPORT_SET_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveExportLock": {
+            "permissions": [
+                "EXPORT_SET_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "DeleteExport": {
+            "permissions": [
+                "EXPORT_SET_UPDATE",
+                "FILE_SYSTEM_NFS",
+                "3_UNEXPORT"
+            ],
+            "notes": "+ FILE_SYSTEM_NFSv3_UNEXPORT"
+        },
+        "ListExportSets": {
+            "permissions": [
+                "EXPORT_SET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateExportSet": {
+            "permissions": [
+                "EXPORT_SET_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetExportSet": {
+            "permissions": [
+                "EXPORT_SET_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateExportSet": {
+            "permissions": [
+                "EXPORT_SET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteExportSet": {
+            "permissions": [
+                "EXPORT_SET_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListFileSystems": {
+            "permissions": [
+                "FILE_SYSTEM_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateFileSystem": {
+            "permissions": [
+                "FILE_SYSTEM_CREATEC",
+                "FILE_SYSTEM_CLONEA",
+                "FILE_SYSTEM_UPDATE_FILESYSTEM",
+                "_SNAPSHOT_POLICY"
+            ],
+            "notes": "FILE_SYSTEM_CREATECloning a file system also requires FILE_SYSTEM_CLONEAssociating the file system with a snapshot policy also requires \u200b"
+        },
+        "GetFileSystem": {
+            "permissions": [
+                "FILE_SYSTEM_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateFileSystem": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATEA",
+                "FILE_SYSTEM_UPDATE_FILESYSTEM",
+                "_SNAPSHOT_POLICY"
+            ],
+            "notes": "FILE_SYSTEM_UPDATEAssociating the file system with a snapshot policy also requires \u200b"
+        },
+        "AddFileSystemLock": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveFileSystemLock": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "DeleteFileSystem": {
+            "permissions": [
+                "FILE_SYSTEM_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeFileSystemCompartment": {
+            "permissions": [
+                "FILE_SYSTEM_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetFilesystemSnapshotPolicy": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "ListFilesystemSnapshotPolicies": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateFilesystemSnapshotPolicy": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateFilesystemSnapshotPolicy": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddFilesystemSnapshotPolicyLock": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveFilesystemSnapshotPolicyLock": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "DeleteFilesystemSnapshotPolicy": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_DELETE"
+            ],
+            "notes": ""
+        },
+        "MoveFilesystemSnapshotPolicy": {
+            "permissions": [
+                "FILESYSTEM_SNAPSHOT_POLICY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListMountTargets": {
+            "permissions": [
+                "MOUNT_TARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_CREATE",
+                "VNIC_CREATE",
+                "C",
+                "SUBNET_ATTACH",
+                "VNIC_ATTACH",
+                "PRIVATE",
+                "_IP_CREATE",
+                "PRIVATE_IP_ASSIGN",
+                "VNIC_ASSIGN"
+            ],
+            "notes": "+ (vnicCompartment) + (subnetCompartment) + (vnicCompartment) + (subnetCompartment) + (subnetCompartment) + (subnetCompartment)"
+        },
+        "GetMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpgradeShapeMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_SHAPE_UPGRADE"
+            ],
+            "notes": ""
+        },
+        "ScheduleDowngradeShapeMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_SHAPE_DOWNGRADE"
+            ],
+            "notes": ""
+        },
+        "CancelDowngradeShapeMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_SHAPE_DOWNGRADE"
+            ],
+            "notes": ""
+        },
+        "AddMountTargetLock": {
+            "permissions": [
+                "MOUNT_TARGET_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveMountTargetLock": {
+            "permissions": [
+                "MOUNT_TARGET_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "DeleteMountTarget": {
+            "permissions": [
+                "MOUNT_TARGET_DELETE",
+                "VNIC_DELETE",
+                "C",
+                "SUBNET_DETACH",
+                "VNIC_DETACH",
+                "PRIVATE_IP_DELETE",
+                "PRIVATE_IP_UNASSIGN",
+                "VNIC_UNASSIGN"
+            ],
+            "notes": "+ (vnicCompartment) + (subnetCompartment) + (vnicCompartment) + (subnetCompartment) + (subnetCompartment) + (vnicCompartment)"
+        },
+        "ChangeMountTargetCompartment": {
+            "permissions": [
+                "MOUNT_TARGET_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListOutboundConnectors": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateOutboundConnector": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetOutboundConnector": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateOutboundConnector": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddOutboundConnectorLock": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveOutboundConnectorLock": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "DeleteOutboundConnector": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeOutboundConnectorCompartment": {
+            "permissions": [
+                "OUTBOUND_CONNECTOR_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListQuotaRules": {
+            "permissions": [
+                "FILE_SYSTEM_READ"
+            ],
+            "notes": ""
+        },
+        "CreateQuotaRule": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetQuotaRule": {
+            "permissions": [
+                "FILE_SYSTEM_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateQuotaRule": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteQuotaRule": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ToggleQuotaRules": {
+            "permissions": [
+                "FILE_SYSTEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListSnapshots": {
+            "permissions": [
+                "FILE_SYSTEM_READ"
+            ],
+            "notes": ""
+        },
+        "CreateSnapshot": {
+            "permissions": [
+                "FILE_SYSTEM_CREATE_SNAPSHOT"
+            ],
+            "notes": ""
+        },
+        "GetSnapshot": {
+            "permissions": [
+                "FILE_SYSTEM_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteSnapshot": {
+            "permissions": [
+                "FILE_SYSTEM_DELETE_SNAPSHOT"
+            ],
+            "notes": ""
+        },
+        "GetReplication": {
+            "permissions": [
+                "REPLICATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListReplications": {
+            "permissions": [
+                "REPLICATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateReplication": {
+            "permissions": [
+                "REPLICATION_CREATE",
+                "FILE_SYSTEM_REPLICATION_SOURCE",
+                "FILE_SYSTEM_REPLICATION_TARGET"
+            ],
+            "notes": "+ (source file system) + (target file system)"
+        },
+        "UpdateReplication": {
+            "permissions": [
+                "REPLICATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddReplicationLock": {
+            "permissions": [
+                "REPLICATION_UPDATE",
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": "+"
+        },
+        "RemoveReplicationLock": {
+            "permissions": [
+                "REPLICATION_UPDATE",
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": "+"
+        },
+        "ChangeReplicationCompartment": {
+            "permissions": [
+                "REPLICATION_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteReplication": {
+            "permissions": [
+                "REPLICATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteReplicationTarget": {
+            "permissions": [
+                "REPLICATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "FSS_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "FSS_WORK_REQUEST_INSPECT"
+            ],
+            "notes": ""
+        }
     }
-  },
-  "families": {
-    "file-family": {
-      "resources": [
-        "export-sets",
-        "file-systems",
-        "filesystem-snapshot-policies",
-        "mount-targets",
-        "outbound-connectors",
-        "replications",
-        "replication-targets",
-        "fss-work-requests"
-      ],
-      "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/filestoragepolicyreference.htm"
-    }
-  }
 }

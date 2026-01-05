@@ -1,0 +1,3608 @@
+{
+    "resources": {
+        "app-catalog-listings": {
+            "verbs": {
+                "inspect": [
+                    "APP_CATALOG_LISTING_INSPECT"
+                ],
+                "read": [
+                    "APP_CATALOG_LISTING_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "APP_CATALOG_LISTING_SUBSCRIBE"
+                ]
+            }
+        },
+        "console-histories": {
+            "verbs": {
+                "inspect": [
+                    "CONSOLE_HISTORY_INSPECT"
+                ],
+                "read": [
+                    "CONSOLE_HISTORY_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "CONSOLE_HISTORY_CREATE",
+                    "CONSOLE_HISTORY_DELETE"
+                ]
+            }
+        },
+        "instances": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_READ"
+                ],
+                "use": [
+                    "INSTANCE_UPDATE",
+                    "INSTANCE_CREATE_IMAGE",
+                    "INSTANCE_POWER_ACTIONS",
+                    "INSTANCE_ATTACH_VOLUME",
+                    "INSTANCE_DETACH_VOLUME"
+                ],
+                "manage": [
+                    "INSTANCE_CREATE",
+                    "INSTANCE_DELETE",
+                    "INSTANCE_ATTACH_SECONDARY_VNIC",
+                    "INSTANCE_DETACH_SECONDARY_VNIC",
+                    "INSTANCE_MOVE"
+                ]
+            }
+        },
+        "instance-console-connections": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_CONSOLE_CONNECTION_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_CONSOLE_CONNECTION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "INSTANCE_CONSOLE_CONNECTION_CREATE",
+                    "INSTANCE_CONSOLE_CONNECTION_DELETE"
+                ]
+            }
+        },
+        "instance-images": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_IMAGE_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_IMAGE_READ"
+                ],
+                "use": [
+                    "INSTANCE_IMAGE_UPDATE"
+                ],
+                "manage": [
+                    "INSTANCE_IMAGE_CREATE",
+                    "INSTANCE_IMAGE_DELETE",
+                    "INSTANCE_IMAGE_MOVE"
+                ]
+            }
+        },
+        "instance-configurations": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_CONFIGURATION_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_CONFIGURATION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "INSTANCE_CONFIGURATION_CREATE",
+                    "INSTANCE_CONFIGURATION_UPDATE",
+                    "INSTANCE_CONFIGURATION_LAUNCH",
+                    "INSTANCE_CONFIGURATION_DELETE",
+                    "INSTANCE_CONFIGURATION_MOVE"
+                ]
+            }
+        },
+        "instance-pools": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_POOL_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_POOL_READ"
+                ],
+                "use": [
+                    "INSTANCE_POOL_POWER_ACTIONS"
+                ],
+                "manage": [
+                    "INSTANCE_POOL_CREATE",
+                    "INSTANCE_POOL_UPDATE",
+                    "INSTANCE_POOL_DELETE",
+                    "INSTANCE_POOL_MOVE",
+                    "INSTANCE_POOL_INSTANCE_ATTACH",
+                    "INSTANCE_POOL_INSTANCE_DETACH"
+                ]
+            }
+        },
+        "cluster-networks": {
+            "verbs": {
+                "inspect": [
+                    "CLUSTER_NETWORK_INSPECT"
+                ],
+                "read": [
+                    "CLUSTER_NETWORK_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "CLUSTER_NETWORK_CREATE",
+                    "CLUSTER_NETWORK_UPDATE",
+                    "CLUSTER_NETWORK_DELETE",
+                    "CLUSTER_NETWORK_MOVE"
+                ]
+            }
+        },
+        "instance-agent-plugins": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_AGENT_PLUGIN_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_AGENT_PLUGIN_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "instance-agent-commands": {
+            "verbs": {
+                "inspect": [
+                    "INSTANCE_AGENT_COMMAND_INSPECT"
+                ],
+                "read": [
+                    "INSTANCE_AGENT_COMMAND_READ",
+                    "INSTANCE_AGENT_COMMAND_EXECUTION_INSPECT"
+                ],
+                "use": [
+                    "INSTANCE_AGENT_COMMAND_CREATE",
+                    "INSTANCE_AGENT_COMMAND_DELETE"
+                ],
+                "manage": []
+            }
+        },
+        "autoscaling-configurations": {
+            "verbs": {
+                "inspect": [
+                    "AUTO_SCALING_CONFIGURATION_INSPECT"
+                ],
+                "read": [
+                    "AUTO_SCALING_CONFIGURATION_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "AUTO_SCALING_CONFIGURATION_CREATE",
+                    "AUTO_SCALING_CONFIGURATION_UPDATE",
+                    "AUTO_SCALING_CONFIGURATION_DELETE",
+                    "AUTO_SCALING_CONFIGURATION_MOVE"
+                ]
+            }
+        },
+        "compute-capacity-reports": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "COMPUTE_CAPACITY_REPORT_CREATE"
+                ]
+            }
+        },
+        "compute-capacity-reservations": {
+            "verbs": {
+                "inspect": [
+                    "CAPACITY_RESERVATION_INSPECT"
+                ],
+                "read": [
+                    "CAPACITY_RESERVATION_READ"
+                ],
+                "use": [
+                    "CAPACITY_RESERVATION_LAUNCH_INSTANCE",
+                    "CAPACITY_RESERVATION_UPDATE"
+                ],
+                "manage": [
+                    "CAPACITY_RESERVATION_CREATE",
+                    "CAPACITY_RESERVATION_UPDATE",
+                    "CAPACITY_RESERVATION_DELETE",
+                    "CAPACITY_RESERVATION_MOVE"
+                ]
+            }
+        },
+        "compute-clusters": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTE_CLUSTER_INSPECT"
+                ],
+                "read": [
+                    "COMPUTE_CLUSTER_READ"
+                ],
+                "use": [
+                    "COMPUTE_CLUSTER_UPDATE",
+                    "COMPUTE_CLUSTER_LAUNCH_INSTANCE"
+                ],
+                "manage": [
+                    "COMPUTE_CLUSTER_CREATE",
+                    "COMPUTE_CLUSTER_MOVE",
+                    "COMPUTE_CLUSTER_DELETE"
+                ]
+            }
+        },
+        "compute-global-image-capability-schemas": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_INSPECT"
+                ],
+                "read": [
+                    "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "compute-image-capability-schemas": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_INSPECT"
+                ],
+                "read": [
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_READ"
+                ],
+                "use": [
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_UPDATE"
+                ],
+                "manage": [
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_CREATE",
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_MOVE",
+                    "COMPUTE_IMAGE_CAPABILITY_SCHEMA_DELETE"
+                ]
+            }
+        },
+        "dedicated-vm-hosts": {
+            "verbs": {
+                "inspect": [
+                    "DEDICATED_VM_HOST_INSPECT"
+                ],
+                "read": [
+                    "DEDICATED_VM_HOST_READ"
+                ],
+                "use": [
+                    "DEDICATED_VM_HOST_LAUNCH_INSTANCE",
+                    "DEDICATED_VM_HOST_UPDATE"
+                ],
+                "manage": [
+                    "DEDICATED_VM_HOST_CREATE",
+                    "DEDICATED_VM_HOST_MOVE",
+                    "DEDICATED_VM_HOST_DELETE"
+                ]
+            }
+        },
+        "work-requests": {
+            "verbs": {
+                "inspect": [
+                    "WORKREQUEST_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "volumes": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "VOLUME_UPDATE",
+                    "VOLUME_WRITE"
+                ],
+                "manage": [
+                    "VOLUME_CREATE",
+                    "VOLUME_DELETE",
+                    "VOLUME_MOVE"
+                ]
+            }
+        },
+        "volume-attachments": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_ATTACHMENT_INSPECT"
+                ],
+                "read": [
+                    "VOLUME_ATTACHMENT_READ"
+                ],
+                "use": [
+                    "VOLUME_ATTACHMENT_UPDATE"
+                ],
+                "manage": [
+                    "VOLUME_ATTACHMENT_CREATE",
+                    "VOLUME_ATTACHMENT_DELETE"
+                ]
+            }
+        },
+        "volume-backups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_BACKUP_INSPECT"
+                ],
+                "read": [
+                    "VOLUME_BACKUP_READ"
+                ],
+                "use": [
+                    "VOLUME_BACKUP_COPY",
+                    "VOLUME_BACKUP_UPDATE"
+                ],
+                "manage": [
+                    "VOLUME_BACKUP_CREATE",
+                    "VOLUME_BACKUP_DELETE",
+                    "VOLUME_BACKUP_MOVE"
+                ]
+            }
+        },
+        "boot-volume-backups": {
+            "verbs": {
+                "inspect": [
+                    "BOOT_VOLUME_BACKUP_INSPECT"
+                ],
+                "read": [
+                    "BOOT_VOLUME_BACKUP_READ"
+                ],
+                "use": [
+                    "BOOT_VOLUME_BACKUP_UPDATE",
+                    "BOOT_VOLUME_BACKUP_COPY"
+                ],
+                "manage": [
+                    "BOOT_VOLUME_BACKUP_CREATE",
+                    "BOOT_VOLUME_BACKUP_DELETE",
+                    "BOOT_VOLUME_BACKUP_MOVE"
+                ]
+            }
+        },
+        "backup-policies": {
+            "verbs": {
+                "inspect": [
+                    "BACKUP_POLICY_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "BACKUP_POLICIES_UPDATE"
+                ],
+                "manage": [
+                    "BACKUP_POLICIES_CREATE",
+                    "BACKUP_POLICIES_DELETE"
+                ]
+            }
+        },
+        "backup-policy-assignments": {
+            "verbs": {
+                "inspect": [
+                    "BACKUP_POLICY_ASSIGNMENT_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "BACKUP_POLICY_ASSIGNMENT_CREATE",
+                    "BACKUP_POLICY_ASSIGNMENT_DELETE"
+                ]
+            }
+        },
+        "volume-groups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_GROUP_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "VOLUME_GROUP_UPDATE",
+                    "VOLUME_GROUP_CREATE",
+                    "VOLUME_GROUP_DELETE",
+                    "VOLUME_GROUP_MOVE"
+                ]
+            }
+        },
+        "volume-group-backups": {
+            "verbs": {
+                "inspect": [
+                    "VOLUME_GROUP_BACKUP_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "VOLUME_GROUP_BACKUP_UPDATE",
+                    "VOLUME_GROUP_BACKUP_CREATE",
+                    "VOLUME_GROUP_BACKUP_DELETE",
+                    "VOLUME_GROUP_BACKUP_MOVE"
+                ]
+            }
+        },
+        "byoip-ranges": {
+            "verbs": {
+                "inspect": [
+                    "BYOIP_RANGE_INSPECT"
+                ],
+                "read": [
+                    "BYOIP_RANGE_READ"
+                ],
+                "use": [
+                    "BYOIP_RANGE_ADD_CAPACITY_FROM"
+                ],
+                "manage": [
+                    "BYOIP_RANGE_CREATE",
+                    "BYOIP_RANGE_DELETE",
+                    "BYOIP_RANGE_UPDATE",
+                    "BYOIP_RANGE_VALIDATE",
+                    "BYOIP_RANGE_ADVERTISE",
+                    "BYOIP_RANGE_WITHDRAW"
+                ]
+            }
+        },
+        "capture-filters": {
+            "verbs": {
+                "inspect": [
+                    "CAPTURE_FILTER_INSPECT"
+                ],
+                "read": [
+                    "CAPTURE_FILTER_READ"
+                ],
+                "use": [
+                    "CAPTURE_FILTER_UPDATE"
+                ],
+                "manage": [
+                    "CAPTURE_FILTER_CREATE",
+                    "CAPTURE_FILTER_DELETE",
+                    "CAPTURE_FILTER_MOVE"
+                ]
+            }
+        },
+        "cpes": {
+            "verbs": {
+                "inspect": [
+                    "CPE_INSPECT"
+                ],
+                "read": [
+                    "CPE_READ"
+                ],
+                "use": [
+                    "CPE_UPDATE"
+                ],
+                "manage": [
+                    "CPE_CREATE",
+                    "CPE_DELETE"
+                ]
+            }
+        },
+        "cross-connect-groups": {
+            "verbs": {
+                "inspect": [
+                    "CROSS_CONNECT_GROUP_INSPECT"
+                ],
+                "read": [
+                    "CROSS_CONNECT_GROUP_READ"
+                ],
+                "use": [
+                    "CROSS_CONNECT_GROUP_UPDATE"
+                ],
+                "manage": [
+                    "CROSS_CONNECT_GROUP_CREATE",
+                    "CROSS_CONNECT_GROUP_DELETE"
+                ]
+            }
+        },
+        "cross-connects": {
+            "verbs": {
+                "inspect": [
+                    "CROSS_CONNECT_INSPECT"
+                ],
+                "read": [
+                    "CROSS_CONNECT_READ"
+                ],
+                "use": [
+                    "CROSS_CONNECT_UPDATE"
+                ],
+                "manage": [
+                    "CROSS_CONNECT_CREATE",
+                    "CROSS_CONNECT_DELETE"
+                ]
+            }
+        },
+        "dhcp-options": {
+            "verbs": {
+                "inspect": [
+                    "DHCP_OPTIONS_INSPECT"
+                ],
+                "read": [
+                    "DHCP_OPTIONS_READ"
+                ],
+                "use": [
+                    "DHCP_OPTIONS_UPDATE"
+                ],
+                "manage": [
+                    "DHCP_OPTIONS_CREATE",
+                    "DHCP_OPTIONS_DELETE",
+                    "DHCP_OPTIONS_MOVE"
+                ]
+            }
+        },
+        "drg-attachments": {
+            "verbs": {
+                "inspect": [
+                    "DRG_ATTACHMENT_INSPECT"
+                ],
+                "read": [
+                    "DRG_ATTACHMENT_READ"
+                ],
+                "use": [
+                    "DRG_ATTACHMENT_UPDATE"
+                ],
+                "manage": [
+                    "DRG_ATTACHMENT_CREATE",
+                    "DRG_ATTACHMENT_DELETE",
+                    "DRG_ATTACHMENT_MOVE"
+                ]
+            }
+        },
+        "drgs": {
+            "verbs": {
+                "inspect": [
+                    "DRG_INSPECT"
+                ],
+                "read": [
+                    "DRG_READ"
+                ],
+                "use": [
+                    "DRG_UPDATE"
+                ],
+                "manage": [
+                    "DRG_CREATE",
+                    "DRG_DELETE",
+                    "DRG_MOVE"
+                ]
+            }
+        },
+        "drg-route-distributions": {
+            "verbs": {
+                "inspect": [
+                    "DRG_ROUTE_DISTRIBUTION_INSPECT"
+                ],
+                "read": [
+                    "DRG_ROUTE_DISTRIBUTION_READ"
+                ],
+                "use": [
+                    "DRG_ROUTE_DISTRIBUTION_UPDATE"
+                ],
+                "manage": [
+                    "DRG_ROUTE_DISTRIBUTION_CREATE",
+                    "DRG_ROUTE_DISTRIBUTION_DELETE"
+                ]
+            }
+        },
+        "drg-route-tables": {
+            "verbs": {
+                "inspect": [
+                    "DRG_ROUTE_TABLE_INSPECT"
+                ],
+                "read": [
+                    "DRG_ROUTE_TABLE_READ"
+                ],
+                "use": [
+                    "DRG_ROUTE_TABLE_UPDATE"
+                ],
+                "manage": [
+                    "DRG_ROUTE_TABLE_CREATE",
+                    "DRG_ROUTE_TABLE_DELETE"
+                ]
+            }
+        },
+        "internet-gateways": {
+            "verbs": {
+                "inspect": [
+                    "INTERNET_GATEWAY_INSPECT"
+                ],
+                "read": [
+                    "INTERNET_GATEWAY_READ"
+                ],
+                "use": [
+                    "INTERNET_GATEWAY_UPDATE"
+                ],
+                "manage": [
+                    "INTERNET_GATEWAY_CREATE",
+                    "INTERNET_GATEWAY_DELETE",
+                    "INTERNET_GATEWAY_MOVE"
+                ]
+            }
+        },
+        "ipsec-connections": {
+            "verbs": {
+                "inspect": [
+                    "IPSEC_CONNECTION_INSPECT"
+                ],
+                "read": [
+                    "IPSEC_CONNECTION_READ"
+                ],
+                "use": [
+                    "IPSEC_CONNECTION_UPDATE"
+                ],
+                "manage": [
+                    "IPSEC_CONNECTION_CREATE",
+                    "IPSEC_CONNECTION_DELETE"
+                ]
+            }
+        },
+        "ipv6s": {
+            "verbs": {
+                "inspect": [
+                    "IPV6_INSPECT"
+                ],
+                "read": [
+                    "IPV6_READ"
+                ],
+                "use": [
+                    "IPV6_UPDATE"
+                ],
+                "manage": [
+                    "IPV6_CREATE",
+                    "IPV6_DELETE",
+                    "IPV6_MOVE"
+                ]
+            }
+        },
+        "ipam": {
+            "verbs": {
+                "inspect": [
+                    "IPAM_INSPECT"
+                ],
+                "read": [
+                    "IPAM_READ"
+                ],
+                "use": [
+                    "IPAM_UPDATE"
+                ],
+                "manage": [
+                    "IPAM_CREATE",
+                    "IPAM_DELETE"
+                ]
+            }
+        },
+        "local-peering-gateways": {
+            "verbs": {
+                "inspect": [
+                    "LOCAL_PEERING_GATEWAY_INSPECT"
+                ],
+                "read": [
+                    "LOCAL_PEERING_GATEWAY_READ"
+                ],
+                "use": [
+                    "LOCAL_PEERING_GATEWAY_UPDATE"
+                ],
+                "manage": [
+                    "LOCAL_PEERING_GATEWAY_CREATE",
+                    "LOCAL_PEERING_GATEWAY_DELETE",
+                    "LOCAL_PEERING_GATEWAY_MOVE"
+                ]
+            }
+        },
+        "local-peering-from": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "LOCAL_PEERING_GATEWAY_CONNECT_FROM"
+                ]
+            }
+        },
+        "local-peering-to": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "LOCAL_PEERING_GATEWAY_CONNECT_TO"
+                ]
+            }
+        },
+        "nat-gateways": {
+            "verbs": {
+                "inspect": [
+                    "NAT_GATEWAY_INSPECT"
+                ],
+                "read": [
+                    "NAT_GATEWAY_READ"
+                ],
+                "use": [
+                    "NAT_GATEWAY_UPDATE"
+                ],
+                "manage": [
+                    "NAT_GATEWAY_CREATE",
+                    "NAT_GATEWAY_DELETE",
+                    "NAT_GATEWAY_MOVE"
+                ]
+            }
+        },
+        "network-security-groups": {
+            "verbs": {
+                "inspect": [
+                    "NETWORK_SECURITY_GROUP_INSPECT"
+                ],
+                "read": [
+                    "NETWORK_SECURITY_GROUP_READ"
+                ],
+                "use": [
+                    "NETWORK_SECURITY_GROUP_UPDATE"
+                ],
+                "manage": [
+                    "NETWORK_SECURITY_GROUP_CREATE",
+                    "NETWORK_SECURITY_GROUP_DELETE",
+                    "NETWORK_SECURITY_GROUP_MOVE"
+                ]
+            }
+        },
+        "private-ips": {
+            "verbs": {
+                "inspect": [
+                    "PRIVATE_IP_READ"
+                ],
+                "read": [],
+                "use": [
+                    "PRIVATE_IP_UPDATE",
+                    "PRIVATE_IP_ASSIGN",
+                    "PRIVATE_IP_UNASSIGN"
+                ],
+                "manage": [
+                    "PRIVATE_IP_DELETE",
+                    "PRIVATE_IP_MOVE"
+                ]
+            }
+        },
+        "public-ip-pools": {
+            "verbs": {
+                "inspect": [
+                    "PUBLIC_IP_POOL_INSPECT"
+                ],
+                "read": [
+                    "PUBLIC_IP_POOL_READ"
+                ],
+                "use": [
+                    "PUBLIC_IP_POOL_UPDATE"
+                ],
+                "manage": [
+                    "PUBLIC_IP_POOL_CREATE",
+                    "PUBLIC_IP_POOL_DELETE",
+                    "PUBLIC_IP_POOL_MOVE"
+                ]
+            }
+        },
+        "public-ips": {
+            "verbs": {
+                "inspect": [
+                    "PUBLIC_IP_READ"
+                ],
+                "read": [],
+                "use": [
+                    "PUBLIC_IP_UPDATE",
+                    "PUBLIC_IP_ASSIGN",
+                    "PUBLIC_IP_UNASSIGN"
+                ],
+                "manage": [
+                    "PUBLIC_IP_CREATE",
+                    "PUBLIC_IP_DELETE",
+                    "PUBLIC_IP_MOVE"
+                ]
+            }
+        },
+        "remote-peering-connections": {
+            "verbs": {
+                "inspect": [
+                    "REMOTE_PEERING_CONNECTION_INSPECT"
+                ],
+                "read": [
+                    "REMOTE_PEERING_CONNECTION_READ"
+                ],
+                "use": [
+                    "REMOTE_PEERING_CONNECTION_UPDATE"
+                ],
+                "manage": [
+                    "REMOTE_PEERING_CONNECTION_CREATE",
+                    "REMOTE_PEERING_CONNECTION_DELETE",
+                    "REMOTE_PEERING_CONNECTION_MOVE"
+                ]
+            }
+        },
+        "remote-peering-from": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "REMOTE_PEERING_CONNECTION_CONNECT_FROM"
+                ]
+            }
+        },
+        "remote-peering-to": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "REMOTE_PEERING_CONNECTION_CONNECT_TO"
+                ]
+            }
+        },
+        "route-tables": {
+            "verbs": {
+                "inspect": [
+                    "ROUTE_TABLE_INSPECT"
+                ],
+                "read": [
+                    "ROUTE_TABLE_READ"
+                ],
+                "use": [
+                    "ROUTE_TABLE_UPDATE"
+                ],
+                "manage": [
+                    "ROUTE_TABLE_CREATE",
+                    "ROUTE_TABLE_DELETE",
+                    "ROUTE_TABLE_MOVE"
+                ]
+            }
+        },
+        "security-lists": {
+            "verbs": {
+                "inspect": [
+                    "SECURITY_LIST_INSPECT"
+                ],
+                "read": [
+                    "SECURITY_LIST_READ"
+                ],
+                "use": [
+                    "SECURITY_LIST_UPDATE"
+                ],
+                "manage": [
+                    "SECURITY_LIST_CREATE",
+                    "SECURITY_LIST_DELETE",
+                    "SECURITY_LIST_MOVE"
+                ]
+            }
+        },
+        "service-gateways": {
+            "verbs": {
+                "inspect": [
+                    "SERVICE_GATEWAY_INSPECT"
+                ],
+                "read": [
+                    "SERVICE_GATEWAY_READ"
+                ],
+                "use": [
+                    "SERVICE_GATEWAY_UPDATE"
+                ],
+                "manage": [
+                    "SERVICE_GATEWAY_CREATE",
+                    "SERVICE_GATEWAY_DELETE",
+                    "SERVICE_GATEWAY_MOVE"
+                ]
+            }
+        },
+        "subnets": {
+            "verbs": {
+                "inspect": [
+                    "SUBNET_INSPECT"
+                ],
+                "read": [
+                    "SUBNET_READ"
+                ],
+                "use": [
+                    "SUBNET_UPDATE"
+                ],
+                "manage": [
+                    "SUBNET_CREATE",
+                    "SUBNET_DELETE",
+                    "SUBNET_ATTACH_NETWORK_SECURITY_GROUP",
+                    "SUBNET_DETACH_NETWORK_SECURITY_GROUP",
+                    "SUBNET_MOVE"
+                ]
+            }
+        },
+        "vcns": {
+            "verbs": {
+                "inspect": [
+                    "VCN_INSPECT"
+                ],
+                "read": [
+                    "VCN_READ"
+                ],
+                "use": [
+                    "VCN_UPDATE"
+                ],
+                "manage": [
+                    "VCN_CREATE",
+                    "VCN_DELETE",
+                    "VCN_MOVE"
+                ]
+            }
+        },
+        "virtual-circuits": {
+            "verbs": {
+                "inspect": [
+                    "VIRTUAL_CIRCUIT_INSPECT"
+                ],
+                "read": [
+                    "VIRTUAL_CIRCUIT_READ"
+                ],
+                "use": [
+                    "VIRTUAL_CIRCUIT_UPDATE"
+                ],
+                "manage": [
+                    "VIRTUAL_CIRCUIT_CREATE",
+                    "VIRTUAL_CIRCUIT_DELETE",
+                    "VIRTUAL_CIRCUIT_RESOURCE_MOVE"
+                ]
+            }
+        },
+        "vlans": {
+            "verbs": {
+                "inspect": [
+                    "VLAN_READ"
+                ],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "VLAN_CREATE",
+                    "VLAN_DELETE",
+                    "VLAN_ASSOCIATE_NETWORK_SECURITY_GROUP",
+                    "VLAN_DISASSOCIATE_NETWORK_SECURITY_GROUP",
+                    "VLAN_MOVE"
+                ]
+            }
+        },
+        "vnic-attachments": {
+            "verbs": {
+                "inspect": [
+                    "VNIC_ATTACHMENT_READ"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "vnics": {
+            "verbs": {
+                "inspect": [
+                    "VNIC_READ"
+                ],
+                "read": [],
+                "use": [
+                    "VNIC_ATTACH",
+                    "VNIC_DETACH",
+                    "VNIC_CREATE",
+                    "VNIC_DELETE",
+                    "VNIC_UPDATE",
+                    "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP",
+                    "VNIC_DISASSOCIATE_NETWORK_SECURITY_GROUP"
+                ],
+                "manage": []
+            }
+        },
+        "vtaps": {
+            "verbs": {
+                "inspect": [
+                    "VTAP_LIST"
+                ],
+                "read": [
+                    "VTAP_READ"
+                ],
+                "use": [
+                    "VTAP_UPDATE"
+                ],
+                "manage": [
+                    "VTAP_CREATE",
+                    "VTAP_DELETE",
+                    "VTAP_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "instance-family": {
+            "resources": [
+                "app-catalog-listings",
+                "console-histories",
+                "instances",
+                "instance-console-connections",
+                "instance-images",
+                "volume-attachments"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "compute-management-family": {
+            "resources": [
+                "instance-configurations",
+                "instance-pools",
+                "cluster-networks"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "instance-agent-family": {
+            "resources": [
+                "instance-agent-plugins"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "instance-agent-command-family": {
+            "resources": [
+                "instance-agent-commands"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "volume-family": {
+            "resources": [
+                "volumes",
+                "volume-attachments",
+                "volume-backups",
+                "boot-volume-backups",
+                "backup-policies",
+                "backup-policy-assignments",
+                "volume-groups",
+                "volume-group-backups"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "virtual-network-family": {
+            "resources": [
+                "byoip-ranges",
+                "capture-filters",
+                "cpes",
+                "cross-connect-groups",
+                "cross-connects",
+                "dhcp-options",
+                "drg-attachments",
+                "drgs",
+                "drg-route-distributions",
+                "drg-route-tables",
+                "internet-gateways",
+                "ipsec-connections",
+                "ipv6s",
+                "ipam",
+                "local-peering-gateways",
+                "local-peering-from",
+                "local-peering-to",
+                "nat-gateways",
+                "network-security-groups",
+                "private-ips",
+                "public-ip-pools",
+                "public-ips",
+                "remote-peering-connections",
+                "remote-peering-from",
+                "remote-peering-to",
+                "route-tables",
+                "security-lists",
+                "service-gateways",
+                "subnets",
+                "vcns",
+                "virtual-circuits",
+                "vlans",
+                "vnic-attachments",
+                "vnics",
+                "vtaps"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        },
+        "drgs": {
+            "resources": [
+                "drgs",
+                "drg-route-tables",
+                "drg-route-distributions",
+                "drg-attachments"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/corepolicyreference.htm"
+        }
+    },
+    "operations": {
+        "CreateVolumeBackupPolicy": {
+            "permissions": [
+                "BACKUP_POLICIES_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteVolumeBackupPolicy": {
+            "permissions": [
+                "BACKUP_POLICIES_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetVolumeBackupPolicy": {
+            "permissions": [
+                "BACKUP_POLICIES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVolumeBackupPolicies": {
+            "permissions": [
+                "BACKUP_POLICIES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateVolumeBackupPolicyAssignment": {
+            "permissions": [
+                "BACKUP_POLICY_ASSIGNMENT_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteVolumeBackupPolicyAssignment": {
+            "permissions": [
+                "BACKUP_POLICY_ASSIGNMENT_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetVolumeBackupPolicyAssetAssignment": {
+            "permissions": [
+                "BACKUP_POLICY_ASSIGNMENT_INSPECT",
+                "VOLUME_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "GetVolumeBackupPolicyAssignment": {
+            "permissions": [
+                "BACKUP_POLICY_ASSIGNMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateComputeCapacityReport": {
+            "permissions": [
+                "COMPUTE_CAPACITY_REPORT_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListClusterNetworks": {
+            "permissions": [
+                "CLUSTER_NETWORK_INSPECT",
+                "INSTANCE_POOL_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "ListClusterNetworkInstances": {
+            "permissions": [
+                "CLUSTER_NETWORK_READ",
+                "INSTANCE_POOL_READ"
+            ],
+            "notes": "and"
+        },
+        "GetClusterNetwork": {
+            "permissions": [
+                "CLUSTER_NETWORK_READ",
+                "INSTANCE_POOL_READ"
+            ],
+            "notes": "and"
+        },
+        "UpdateClusterNetwork": {
+            "permissions": [
+                "CLUSTER_NETWORK_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateClusterNetwork": {
+            "permissions": [
+                "CLUSTER_NETWORK_CREATE",
+                "INSTANCE_POOL_CREATE"
+            ],
+            "notes": "and"
+        },
+        "ChangeClusterNetworkCompartment": {
+            "permissions": [
+                "CLUSTER_NETWORK_MOVE"
+            ],
+            "notes": ""
+        },
+        "TerminateClusterNetwork": {
+            "permissions": [
+                "CLUSTER_NETWORK_DELETE",
+                "INSTANCE_POOL_DELETE"
+            ],
+            "notes": "and"
+        },
+        "ListConsoleHistories": {
+            "permissions": [
+                "CONSOLE_HISTORY_READ",
+                "INSTANCE_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "CreateComputeCluster": {
+            "permissions": [
+                "COMPUTE_CLUSTER_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListComputeClusters": {
+            "permissions": [
+                "COMPUTE_CLUSTER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetComputeCluster": {
+            "permissions": [
+                "COMPUTE_CLUSTER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateComputeCluster": {
+            "permissions": [
+                "COMPUTE_CLUSTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeComputeClusterCompartment": {
+            "permissions": [
+                "COMPUTE_CLUSTER_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteComputeCluster": {
+            "permissions": [
+                "COMPUTE_CLUSTER_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetConsoleHistory": {
+            "permissions": [
+                "CONSOLE_HISTORY_READ",
+                "INSTANCE_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "ShowConsoleHistoryData": {
+            "permissions": [
+                "CONSOLE_HISTORY_READ",
+                "INSTANCE_READ",
+                "INSTANCE_IMAGE_READ"
+            ],
+            "notes": "and and"
+        },
+        "CaptureConsoleHistory": {
+            "permissions": [
+                "CONSOLE_HISTORY_CREATE",
+                "INSTANCE_READ",
+                "INSTANCE_IMAGE_READ"
+            ],
+            "notes": "and and"
+        },
+        "DeleteConsoleHistory": {
+            "permissions": [
+                "CONSOLE_HISTORY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListCpes": {
+            "permissions": [
+                "CPE_READ"
+            ],
+            "notes": ""
+        },
+        "GetCpe": {
+            "permissions": [
+                "CPE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCpe": {
+            "permissions": [
+                "CPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCpe": {
+            "permissions": [
+                "CPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCpe": {
+            "permissions": [
+                "CPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeCpeCompartment": {
+            "permissions": [
+                "CPE_RESOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateTunnelCpeDeviceConfig": {
+            "permissions": [
+                "IPSEC_CONNECTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetTunnelCpeDeviceConfig": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetTunnelCpeDeviceTemplateContent": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetCpeDeviceTemplateContent": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetIpsecCpeDeviceTemplateContent": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "ListCrossConnects": {
+            "permissions": [
+                "CROSS_CONNECT_READ"
+            ],
+            "notes": ""
+        },
+        "GetCrossConnect": {
+            "permissions": [
+                "CROSS_CONNECT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCrossConnect": {
+            "permissions": [
+                "CROSS_CONNECT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCrossConnect": {
+            "permissions": [
+                "CROSS_CONNECT_CREATE",
+                "I",
+                "CROSS_CONNECT_ATTACH"
+            ],
+            "notes": "if not creating cross-connect in a cross-connect group. If creating the cross-connect in a cross-connect group, also need and"
+        },
+        "DeleteCrossConnect": {
+            "permissions": [
+                "CROSS_CONNECT_DELETE",
+                "I",
+                "CROSS_CONNECT_DETACH"
+            ],
+            "notes": "if cross-connect is not in a cross-connect group. If the cross-connect is in a cross-connect group, also need and"
+        },
+        "ChangeCrossConnectCompartment": {
+            "permissions": [
+                "CROSS_CONNECT_RESOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListCrossConnectGroups": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "GetCrossConnectGroup": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCrossConnectGroup": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCrossConnectGroup": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCrossConnectGroup": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeCrossConnectGroupCompartment": {
+            "permissions": [
+                "CROSS_CONNECT_GROUP_RESOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListDhcpOptions": {
+            "permissions": [
+                "DHCP_READ"
+            ],
+            "notes": ""
+        },
+        "GetDhcpOptions": {
+            "permissions": [
+                "DHCP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDhcpOptions": {
+            "permissions": [
+                "DHCP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDhcpOptions": {
+            "permissions": [
+                "DHCP_CREATE",
+                "VCN_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteDhcpOptions": {
+            "permissions": [
+                "DHCP_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ChangeDhcpOptionsCompartment": {
+            "permissions": [
+                "DHCP_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListDrgs": {
+            "permissions": [
+                "DRG_READ"
+            ],
+            "notes": ""
+        },
+        "GetDrg": {
+            "permissions": [
+                "DRG_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDrg": {
+            "permissions": [
+                "DRG_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDrg": {
+            "permissions": [
+                "DRG_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDrg": {
+            "permissions": [
+                "DRG_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeDrgCompartment": {
+            "permissions": [
+                "DRG_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListDrgAttachments": {
+            "permissions": [
+                "DRG_ATTACHMENT_READ"
+            ],
+            "notes": ""
+        },
+        "GetDrgAttachment": {
+            "permissions": [
+                "DRG_ATTACHMENT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDrgAttachment": {
+            "permissions": [
+                "DRG_ATTACHMENT_UPDATE",
+                "ROUTE_TABLE_ATTACH",
+                "DRG"
+            ],
+            "notes": "is necessary to associate a route table with the attachment during the update."
+        },
+        "CreateDrgAttachment": {
+            "permissions": [
+                "DRG_ATTACH",
+                "VCN_ATTACH",
+                "ROUTE_TABLE_ATTACH",
+                "DRG"
+            ],
+            "notes": "and is necessary to associate a route table with the attachment during creation."
+        },
+        "DeleteDrgAttachment": {
+            "permissions": [
+                "DRG_DETACH",
+                "VCN_DETACH"
+            ],
+            "notes": "or"
+        },
+        "GetAllDrgAttachments": {
+            "permissions": [
+                "DRG_READ"
+            ],
+            "notes": ""
+        },
+        "UpgradeDrg": {
+            "permissions": [
+                "DRG_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListAttachmentsToDrg": {
+            "permissions": [
+                "DRG_READ"
+            ],
+            "notes": ""
+        },
+        "CreateDrgRouteTable": {
+            "permissions": [
+                "DRG_ROUTE_TABLE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDrgRouteTable": {
+            "permissions": [
+                "DRG_ROUTE_TABLE_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetDrgRouteTable": {
+            "permissions": [
+                "DRG_ROUTE_TABLE_READ"
+            ],
+            "notes": ""
+        },
+        "ListDrgRouteTables": {
+            "permissions": [
+                "DRG_ROUTE_TABLE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDrgRouteTable": {
+            "permissions": [
+                "DRG_ROUTE_TABLE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDrgRouteRules": {
+            "permissions": [
+                "DRG_ROUTE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RemoveDrgRouteRules": {
+            "permissions": [
+                "DRG_ROUTE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddDrgRouteRules": {
+            "permissions": [
+                "DRG_ROUTE_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListDrgRouteRules": {
+            "permissions": [
+                "DRG_ROUTE_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "GetDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_READ"
+            ],
+            "notes": ""
+        },
+        "ListDrgRouteDistributions": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_READ"
+            ],
+            "notes": ""
+        },
+        "CreateDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_DELETE"
+            ],
+            "notes": ""
+        },
+        "UpdateDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateDrgRouteDistributionStatements": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RemoveDrgRouteDistributionStatements": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddDrgRouteDistributionStatements": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListDrgRouteDistributionStatements": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_READ"
+            ],
+            "notes": ""
+        },
+        "RemoveExportDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_ASSIGN"
+            ],
+            "notes": ""
+        },
+        "RemoveImportDrgRouteDistribution": {
+            "permissions": [
+                "DRG_ROUTE_DISTRIBUTION_ASSIGN"
+            ],
+            "notes": ""
+        },
+        "CreateInstanceConsoleConnection": {
+            "permissions": [
+                "INSTANCE_CONSOLE_CONNECTION_CREATE",
+                "INSTANCE_READ"
+            ],
+            "notes": "and"
+        },
+        "DeleteInstanceConsoleConnection": {
+            "permissions": [
+                "INSTANCE_CONSOLE_CONNECTION_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetInstanceConsoleConnection": {
+            "permissions": [
+                "INSTANCE_CONSOLE_CONNECTION_READ",
+                "INSTANCE_READ"
+            ],
+            "notes": "and"
+        },
+        "UpdateInstanceConsoleConnection": {
+            "permissions": [
+                "INSTANCE_CONSOLE_CONNECTION_CREATE",
+                "INSTANCE_CONSOLE_CONNECTION_DELETE"
+            ],
+            "notes": "and"
+        },
+        "ListInstanceConsoleConnections": {
+            "permissions": [
+                "INSTANCE_CONSOLE_CONNECTION_INSPECT",
+                "INSTANCE_INSPECT",
+                "INSTANCE_READ"
+            ],
+            "notes": "and and"
+        },
+        "ListImages": {
+            "permissions": [
+                "INSTANCE_IMAGE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetImage": {
+            "permissions": [
+                "INSTANCE_IMAGE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateImage": {
+            "permissions": [
+                "INSTANCE_IMAGE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateImage": {
+            "permissions": [
+                "INSTANCE_IMAGE_CREATE",
+                "INSTANCE_CREATE_IMAGE",
+                "T"
+            ],
+            "notes": "and The first permission is related to the instance-image; the second is related to the instance."
+        },
+        "ChangeImageCompartment": {
+            "permissions": [
+                "INSTANCE_IMAGE_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteImage": {
+            "permissions": [
+                "INSTANCE_IMAGE_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetComputeGlobalImageCapabilitySchema": {
+            "permissions": [
+                "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_READ"
+            ],
+            "notes": ""
+        },
+        "GetComputeGlobalImageCapabilitySchemaVersion": {
+            "permissions": [
+                "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_READ"
+            ],
+            "notes": ""
+        },
+        "ListComputeGlobalImageCapabilitySchemas": {
+            "permissions": [
+                "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListComputeGlobalImageCapabilitySchemaVersions": {
+            "permissions": [
+                "COMPUTE_GLOBAL_IMAGE_CAPABILITY_SCHEMA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateComputeImageCapabilitySchema": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListComputeImageCapabilitySchemas": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetComputeImageCapabilitySchema": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateComputeImageCapabilitySchema": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeComputeImageCapabilitySchemaCompartment": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteComputeImageCapabilitySchema": {
+            "permissions": [
+                "COMPUTE_IMAGE_CAPABILITY_SCHEMA_DELETE"
+            ],
+            "notes": ""
+        },
+        "LaunchInstance": {
+            "permissions": [
+                "INSTANCE_CREATE",
+                "INSTANCE_IMAGE_READ",
+                "VNIC_CREATE",
+                "VNIC_ATTACH",
+                "SUBNET_ATTACH"
+            ],
+            "notes": "If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE"
+        },
+        "ListInstances": {
+            "permissions": [
+                "INSTANCE_READ"
+            ],
+            "notes": "If listing instances in a compute cluster, also need COMPUTE_CLUSTER_READ"
+        },
+        "ListInstanceDevices": {
+            "permissions": [
+                "INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetInstance": {
+            "permissions": [
+                "INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetInstanceMaintenanceReboot": {
+            "permissions": [
+                "INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateInstance": {
+            "permissions": [
+                "INSTANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "InstanceAction": {
+            "permissions": [
+                "INSTANCE_POWER_ACTIONS"
+            ],
+            "notes": ""
+        },
+        "ChangeInstanceCompartment": {
+            "permissions": [
+                "INSTANCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "TerminateInstance": {
+            "permissions": [
+                "INSTANCE_DELETE",
+                "VNIC_DELETE",
+                "SUBNET_DETACH",
+                "I",
+                "VOLUME_ATTACHMENT_DELETE",
+                "VOLUME_WRITE",
+                "INSTANCE_DETACH_VOLUME"
+            ],
+            "notes": "and and If volumes are attached, also need and and"
+        },
+        "ListInstanceConfigurations": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetInstanceConfiguration": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "LaunchInstanceConfiguration": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_LAUNCH"
+            ],
+            "notes": ""
+        },
+        "UpdateInstanceConfiguration": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateInstanceConfiguration": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_CREATE",
+                "C",
+                "I",
+                "D",
+                "INSTANCE_READ",
+                "VNIC_READ",
+                "VNIC_ATTACHMENT_READ",
+                "VOLUME_INSPECT",
+                "VOLUME_ATTACHMENT_INSPECT",
+                "F"
+            ],
+            "notes": "(if using the CreateInstanceConfigurationDetails subtype) and and and and (if using the CreateInstanceConfigurationFromInstanceDetails subtype)"
+        },
+        "ChangeInstanceConfigurationCompartment": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteInstanceConfiguration": {
+            "permissions": [
+                "INSTANCE_CONFIGURATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListInstanceMaintenanceEvent": {
+            "permissions": [
+                "INSTANCE_MAINTENANCE_EVENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetInstanceMaintenanceEvent": {
+            "permissions": [
+                "INSTANCE_MAINTENANCE_EVENT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateInstanceMaintenanceEvent": {
+            "permissions": [
+                "INSTANCE_MAINTENANCE_EVENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_CREATE",
+                "INSTANCE_CREATE",
+                "IMAGE_READ",
+                "VNIC_CREATE",
+                "SUBNET_ATTACH"
+            ],
+            "notes": "and and and and"
+        },
+        "ListInstancePools": {
+            "permissions": [
+                "INSTANCE_POOL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListInstancePoolInstances": {
+            "permissions": [
+                "INSTANCE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "GetInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AttachInstancePoolInstance": {
+            "permissions": [
+                "INSTANCE_POOL_INSTANCE_ATTACH"
+            ],
+            "notes": ""
+        },
+        "DetachInstancePoolInstance": {
+            "permissions": [
+                "INSTANCE_POOL_INSTANCE_DETACH"
+            ],
+            "notes": ""
+        },
+        "StartInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_POWER_ACTIONS"
+            ],
+            "notes": ""
+        },
+        "StopInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_POWER_ACTIONS"
+            ],
+            "notes": ""
+        },
+        "ResetInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_POWER_ACTIONS"
+            ],
+            "notes": ""
+        },
+        "SoftresetInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_POWER_ACTIONS"
+            ],
+            "notes": ""
+        },
+        "ChangeInstancePoolCompartment": {
+            "permissions": [
+                "INSTANCE_POOL_MOVE"
+            ],
+            "notes": ""
+        },
+        "TerminateInstancePool": {
+            "permissions": [
+                "INSTANCE_POOL_DELETE",
+                "INSTANCE_DELETE",
+                "VNIC_DELETE",
+                "SUBNET_DETACH",
+                "VOLUME_ATTACHMENT_DELETE",
+                "VOLUME_WRITE"
+            ],
+            "notes": ""
+        },
+        "ListInternetGateways": {
+            "permissions": [
+                "INTERNET_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "GetInternetGateway": {
+            "permissions": [
+                "INTERNET_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateInternetGateway": {
+            "permissions": [
+                "INTERNET_GATEWAY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateInternetGateway": {
+            "permissions": [
+                "INTERNET_GATEWAY_CREATE",
+                "VCN_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteInternetGateway": {
+            "permissions": [
+                "INTERNET_GATEWAY_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ChangeInternetGatewayCompartment": {
+            "permissions": [
+                "INTERNET_GATEWAY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListIPSecConnections": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetIPSecConnection": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateIpSecConnection": {
+            "permissions": [
+                "IPSEC_CONNECTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateIPSecConnection": {
+            "permissions": [
+                "DRG_ATTACH",
+                "CPE_ATTACH",
+                "IPSEC_CONNECTION_CREATER",
+                "IPS",
+                "F",
+                "C",
+                "DRG_ROUTE_TABLE_ATTACH",
+                "DRG_ROUTE_TABLE_CREATE",
+                "DRG_ROUTE_TABLE_UPDATE",
+                "DRG_ROUTE_DISTRIBUTION_CREATE",
+                "DRG_ROUTE_DISTRIBUTION_UPDATE",
+                "DRG_ROUTE_DISTRIBUTION_ASSIGN",
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
+            ],
+            "notes": "and and IPSEC_CONNECTION_CREATERequired to create IPSec over FastConnect: , , , , ,"
+        },
+        "DeleteIPSecConnection": {
+            "permissions": [
+                "DRG_DETACH",
+                "CPE_DETACH",
+                "IPSEC_CONNECTION_DELETER",
+                "IPS",
+                "F",
+                "C",
+                "DRG_ROUTE_TABLE_DELETE",
+                "DRG_ROUTE_TABLE_UPDATE",
+                "DRG_ROUTE_DISTRIBUTION_DELETE",
+                "DRG_ROUTE_DISTRIBUTION_UPDATE",
+                "DRG_ROUTE_DISTRIBUTION_STATEMENT_UPDATE"
+            ],
+            "notes": "and and IPSEC_CONNECTION_DELETERequired to create IPSec over FastConnect: , , ,"
+        },
+        "GetIPSecConnectionDeviceConfig": {
+            "permissions": [
+                "IPSEC_CONNECTION_DEVICE_CONFIG_READ"
+            ],
+            "notes": ""
+        },
+        "GetIPSecConnectionDeviceStatus": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "ListIPSecConnectionTunnels": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetIPSecConnectionTunnel": {
+            "permissions": [
+                "IPSEC_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateIPSecConnectionTunnel": {
+            "permissions": [
+                "IPSEC_CONNECTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetIPSecConnectionTunnelSharedSecret": {
+            "permissions": [
+                "IPSEC_CONNECTION_DEVICE_CONFIG_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateIPSecConnectionTunnelSharedSecret": {
+            "permissions": [
+                "IPSEC_CONNECTION_DEVICE_CONFIG_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListIpv6s": {
+            "permissions": [
+                "IPV6_READ",
+                "SUBNET_READ",
+                "VNIC_READ",
+                "VNIC"
+            ],
+            "notes": "and (if listing by subnet) and (if listing by )"
+        },
+        "GetIpv6": {
+            "permissions": [
+                "IPV6_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateIpv6": {
+            "permissions": [
+                "IPV6_UPDATE",
+                "VNIC_UNASSIGN",
+                "VNIC_ASSIGN",
+                "IP",
+                "6",
+                "VNIC"
+            ],
+            "notes": "and and (if moving IPv6 to a different )"
+        },
+        "CreateIpv6": {
+            "permissions": [
+                "IPV6_CREATE",
+                "SUBNET_ATTACH",
+                "VNIC_ASSIGN"
+            ],
+            "notes": "and and"
+        },
+        "DeleteIpv6": {
+            "permissions": [
+                "IPV6_DELETE",
+                "SUBNET_DETACH",
+                "VNIC_UNASSIGN"
+            ],
+            "notes": "and and"
+        },
+        "ListLocalPeeringGateways": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "GetLocalPeeringGateway": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateLocalPeeringGateway": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_UPDATE",
+                "ROUTE_TABLE_ATTACH",
+                "LPG"
+            ],
+            "notes": "is necessary to associate a route table with the during the update."
+        },
+        "CreateLocalPeeringGateway": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_CREATE",
+                "VCN_ATTACH",
+                "ROUTE_TABLE_ATTACH",
+                "LPG"
+            ],
+            "notes": "and is necessary to associate a route table with the during creation."
+        },
+        "DeleteLocalPeeringGateway": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ConnectLocalPeeringGateway": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_CONNECT_FROM",
+                "LOCAL_PEERING_GATEWAY_CONNECT_TO"
+            ],
+            "notes": "and"
+        },
+        "ChangeLocalPeeringGatewayCompartment": {
+            "permissions": [
+                "LOCAL_PEERING_GATEWAY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListNatGateways": {
+            "permissions": [
+                "NAT_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "GetNatGateway": {
+            "permissions": [
+                "NAT_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateNatGateway": {
+            "permissions": [
+                "NAT_GATEWAY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateNatGateway": {
+            "permissions": [
+                "NAT_GATEWAY_CREATE",
+                "VCN_READ",
+                "VCN_ATTACH"
+            ],
+            "notes": "and and"
+        },
+        "DeleteNatGateway": {
+            "permissions": [
+                "NAT_GATEWAY_DELETE",
+                "VCN_READ",
+                "VCN_DETACH"
+            ],
+            "notes": "and and"
+        },
+        "ChangeNatGatewayCompartment": {
+            "permissions": [
+                "NAT_GATEWAY_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListNetworkSecurityGroups": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "GetNetworkSecurityGroup": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateNetworkSecurityGroup": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateNetworkSecurityGroup": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_CREATE",
+                "VCN_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteNetworkSecurityGroup": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ChangeNetworkSecurityGroupCompartment": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListNetworkSecurityGroupSecurityRules": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_LIST_SECURITY_RULES"
+            ],
+            "notes": ""
+        },
+        "UpdateNetworkSecurityGroupSecurityRules": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_UPDATE_SECURITY_RULES",
+                "NETWORK_SECURITY_GROUP_INSPECT"
+            ],
+            "notes": "and if writing a rule that specifies a network security group as the source (for ingress rules) or destination (for egress rules)"
+        },
+        "AddNetworkSecurityGroupSecurityRules": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_UPDATE_SECURITY_RULES",
+                "NETWORK_SECURITY_GROUP_INSPECT"
+            ],
+            "notes": "and if writing a rule that specifies a network security group as the source (for ingress rules) or destination (for egress rules)"
+        },
+        "RemoveNetworkSecurityGroupSecurityRules": {
+            "permissions": [
+                "NETWORK_SECURITY_GROUP_UPDATE_SECURITY_RULES"
+            ],
+            "notes": ""
+        },
+        "ListPrivateIps": {
+            "permissions": [
+                "PRIVATE_IP_READ"
+            ],
+            "notes": ""
+        },
+        "GetPrivateIp": {
+            "permissions": [
+                "PRIVATE_IP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdatePrivateIp": {
+            "permissions": [
+                "PRIVATE_IP_UPDATE",
+                "VNIC_ASSIGN",
+                "VNIC_UNASSIGN"
+            ],
+            "notes": "and and"
+        },
+        "CreatePrivateIp": {
+            "permissions": [
+                "PRIVATE_IP_CREATE",
+                "PRIVATE_IP_ASSIGN",
+                "VNIC_ASSIGN",
+                "SUBNET_ATTACH"
+            ],
+            "notes": "and and and"
+        },
+        "DeletePrivateIp": {
+            "permissions": [
+                "PRIVATE_IP_DELETE",
+                "PRIVATE_IP_UNASSIGN",
+                "VNIC_UNASSIGN",
+                "SUBNET_DETACH"
+            ],
+            "notes": "and and and"
+        },
+        "ListRemotePeeringConnections": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "GetRemotePeeringConnection": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateRemotePeeringConnection": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateRemotePeeringConnection": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_CREATE",
+                "DRG_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteRemotePeeringConnection": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_DELETE",
+                "DRG_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ChangeRemotePeeringConnectionCompartment": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_RESOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ConnectRemotePeeringConnections": {
+            "permissions": [
+                "REMOTE_PEERING_CONNECTION_CONNECT_FROM",
+                "REMOTE_PEERING_CONNECTION_CONNECT_TO"
+            ],
+            "notes": "and"
+        },
+        "ListPublicIps": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_READ",
+                "PUBLIC_IP_READ"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs:"
+        },
+        "GetPublicIp": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_READ",
+                "PUBLIC_IP_READ"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs:"
+        },
+        "GetPublicIpByPrivateIpId": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_READ",
+                "PUBLIC_IP_READ"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs:"
+        },
+        "GetPublicIpByIpAddress": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_READ",
+                "PUBLIC_IP_READ"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs:"
+        },
+        "UpdatePublicIP": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_UPDATE",
+                "PUBLIC_IP_UPDATE",
+                "PRIVATE_IP_ASSIGN_PUBLIC_IP",
+                "PUBLIC_IP_ASSIGN_PRIVATE_IP",
+                "PRIVATE_IP_UNASSIGN_PUBLIC_IP",
+                "PUBLIC_IP_UNASSIGN_PRIVATE_IP"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and and and"
+        },
+        "CreatePublicIp": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_ASSIGN_PUBLIC_IP",
+                "PUBLIC_IP_CREATE",
+                "PUBLIC_IP_ASSIGN_PRIVATE_IP"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and"
+        },
+        "DeletePublicIp": {
+            "permissions": [
+                "F",
+                "IP",
+                "PRIVATE_IP_UNASSIGN_PUBLIC_IP",
+                "PUBLIC_IP_DELETE",
+                "PUBLIC_IP_UNASSIGN_PRIVATE_IP"
+            ],
+            "notes": "For ephemeral public IPs: For reserved public IPs: and and"
+        },
+        "ChangePublicIpCompartment": {
+            "permissions": [
+                "PUBLIC_IP_MOVE",
+                "N",
+                "T",
+                "IP"
+            ],
+            "notes": "Note: This operation applies only to reserved public IPs."
+        },
+        "ListRouteTables": {
+            "permissions": [
+                "ROUTE_TABLE_READ"
+            ],
+            "notes": ""
+        },
+        "GetRouteTable": {
+            "permissions": [
+                "ROUTE_TABLE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateRouteTable": {
+            "permissions": [
+                "ROUTE_TABLE_UPDATE",
+                "INTERNET_GATEWAY_ATTACH",
+                "INTERNET_GATEWAY_DETACH",
+                "DRG_ATTACH",
+                "DRG",
+                "DRG_DETACH",
+                "PRIVATE_IP_ROUTE_TABLE_ATTACH",
+                "IP",
+                "PRIVATE_IP_ROUTE_TABLE_DETACH",
+                "LOCAL_PEERING_GATEWAY_ATTACH",
+                "LPG",
+                "LOCAL_PEERING_GATEWAY_DETACH",
+                "NAT_GATEWAY_ATTACH",
+                "NAT",
+                "NAT_GATEWAY_DETACH",
+                "SERVICE_GATEWAY_ATTACH",
+                "SERVICE_GATEWAY_DETACH"
+            ],
+            "notes": "and (if creating a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if deleting a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if deleting a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if deleting a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if deleting a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target) and (if deleting a route rule that uses a service gateway as a target)"
+        },
+        "CreateRouteTable": {
+            "permissions": [
+                "ROUTE_TABLE_CREATE",
+                "VCN_ATTACH",
+                "INTERNET_GATEWAY_ATTACH",
+                "DRG_ATTACH",
+                "DRG",
+                "PRIVATE_IP_ROUTE_TABLE_ATTACH",
+                "IP",
+                "LOCAL_PEERING_GATEWAY_ATTACH",
+                "LPG",
+                "NAT_GATEWAY_ATTACH",
+                "NAT",
+                "SERVICE_GATEWAY_ATTACH"
+            ],
+            "notes": "and and (if creating a route rule that uses an internet gateway as a target) and (if creating a route rule that uses a as a target) and (if creating a route rule that uses a private as a target) and (if creating a route rule that uses an as a target) and (if creating a route rule that uses a gateway as a target) and (if creating a route rule that uses a service gateway as a target)"
+        },
+        "DeleteRouteTable": {
+            "permissions": [
+                "ROUTE_TABLE_DELETE",
+                "VCN_DETACH",
+                "INTERNET_GATEWAY_DETACH",
+                "DRG_DETACH",
+                "DRG",
+                "PRIVATE_IP_ROUTE_TABLE_DETACH",
+                "IP",
+                "LOCAL_PEERING_GATEWAY_DETACH",
+                "LPG",
+                "NAT_GATEWAY_DETACH",
+                "NAT",
+                "SERVICE_GATEWAY_DETACH"
+            ],
+            "notes": "and and (if deleting a route rule that uses an internet gateway as a target) and (if deleting a route rule that uses a as a target) and (if deleting a route rule that uses a private as a target) and (if deleting a route rule that uses an as a target) and (if deleting a route rule that uses a gateway as a target) and (if deleting a route rule that uses a service gateway as a target)"
+        },
+        "ChangeRouteTableCompartment": {
+            "permissions": [
+                "ROUTE_TABLE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListSecurityLists": {
+            "permissions": [
+                "SECURITY_LIST_READ"
+            ],
+            "notes": ""
+        },
+        "GetSecurityList": {
+            "permissions": [
+                "SECURITY_LIST_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSecurityList": {
+            "permissions": [
+                "SECURITY_LIST_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeSecurityListCompartment": {
+            "permissions": [
+                "SECURITY_LIST_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateSecurityList": {
+            "permissions": [
+                "SECURITY_LIST_CREATE",
+                "VCN_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteSecurityList": {
+            "permissions": [
+                "SECURITY_LIST_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "ListServiceGateways": {
+            "permissions": [
+                "SERVICE_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "GetServiceGateway": {
+            "permissions": [
+                "SERVICE_GATEWAY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateServiceGateway": {
+            "permissions": [
+                "SERVICE_GATEWAY_UPDATE",
+                "ROUTE_TABLE_ATTACH"
+            ],
+            "notes": "is necessary to associate a route table with the service gateway during the update."
+        },
+        "ChangeServiceGatewayCompartment": {
+            "permissions": [
+                "SERVICE_GATEWAY_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateServiceGateway": {
+            "permissions": [
+                "SERVICE_GATEWAY_CREATE",
+                "VCN_READ",
+                "VCN_ATTACH",
+                "ROUTE_TABLE_ATTACH"
+            ],
+            "notes": "and and is necessary to associate a route table with the service gateway during creation."
+        },
+        "DeleteServiceGateway": {
+            "permissions": [
+                "SERVICE_GATEWAY_DELETE",
+                "VCN_READ",
+                "VCN_DETACH"
+            ],
+            "notes": "and and"
+        },
+        "AttachServiceId": {
+            "permissions": [
+                "SERVICE_GATEWAY_ADD_SERVICE"
+            ],
+            "notes": ""
+        },
+        "DetachServiceId": {
+            "permissions": [
+                "SERVICE_GATEWAY_DELETE_SERVICE"
+            ],
+            "notes": ""
+        },
+        "ListShapes": {
+            "permissions": [
+                "INSTANCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListSubnets": {
+            "permissions": [
+                "SUBNET_READ"
+            ],
+            "notes": ""
+        },
+        "GetSubnet": {
+            "permissions": [
+                "SUBNET_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSubnet": {
+            "permissions": [
+                "SUBNET_UPDATE",
+                "I",
+                "ROUTE_TABLE_ATTACH",
+                "ROUTE_TABLE_DETACH",
+                "SECURITY_LIST_ATTACH",
+                "SECURITY_LIST_DETACH",
+                "DHCP",
+                "DHCP_ATTACH",
+                "DHCP_DETACH"
+            ],
+            "notes": "If changing which route table is associated with the subnet, also need and If changing which security lists are associated with the subnet, also need and If changing which set of options are associated with the subnet, also need and"
+        },
+        "CreateSubnet": {
+            "permissions": [
+                "SUBNET_CREATE",
+                "VCN_ATTACH",
+                "ROUTE_TABLE_ATTACH",
+                "SECURITY_LIST_ATTACH",
+                "DHCP_ATTACH"
+            ],
+            "notes": "and and and and"
+        },
+        "DeleteSubnet": {
+            "permissions": [
+                "SUBNET_DELETE",
+                "VCN_DETACH",
+                "ROUTE_TABLE_DETACH",
+                "SECURITY_LIST_DETACH",
+                "DHCP_DETACH"
+            ],
+            "notes": "and and and and"
+        },
+        "ChangeSubnetCompartment": {
+            "permissions": [
+                "SUBNET_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListVcns": {
+            "permissions": [
+                "VCN_READ"
+            ],
+            "notes": ""
+        },
+        "GetVcn": {
+            "permissions": [
+                "VCN_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateVcn": {
+            "permissions": [
+                "VCN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateVcn": {
+            "permissions": [
+                "VCN_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteVcn": {
+            "permissions": [
+                "VCN_DELETE"
+            ],
+            "notes": ""
+        },
+        "AddVcnCidr": {
+            "permissions": [
+                "VCN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ModifyVcnCidr": {
+            "permissions": [
+                "VCN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RemoveVcnCidr": {
+            "permissions": [
+                "VCN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeVcnCompartment": {
+            "permissions": [
+                "VCN_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListVirtualCircuits": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_READ"
+            ],
+            "notes": ""
+        },
+        "GetVirtualCircuit": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateVirtualCircuit": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_UPDATE",
+                "DRG_ATTACH",
+                "DRG_DETACH",
+                "I",
+                "CROSS_CONNECT_DETACH",
+                "CROSS_CONNECT_ATTACH"
+            ],
+            "notes": "and and If updating which cross-connect or cross-connect group the virtual circuit is using, also need and"
+        },
+        "CreateVirtualCircuit": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_CREATE",
+                "DRG_ATTACH",
+                "I",
+                "CROSS_CONNECT_ATTACH"
+            ],
+            "notes": "and If creating the virtual circuit with a mapping to a specific cross-connect or cross-connect group, also need"
+        },
+        "DeleteVirtualCircuit": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_DELETE",
+                "DRG_DETACH",
+                "I",
+                "CROSS_CONNECT_DETACH"
+            ],
+            "notes": "and If deleting a virtual circuit that's currently using a cross-connect or cross-connect group, also need"
+        },
+        "changeVirtualCircuitCompartment": {
+            "permissions": [
+                "VIRTUAL_CIRCUIT_RESOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListVlans": {
+            "permissions": [
+                "VLAN_READ"
+            ],
+            "notes": ""
+        },
+        "GetVlan": {
+            "permissions": [
+                "VLAN_READ"
+            ],
+            "notes": ""
+        },
+        "CreateVlan": {
+            "permissions": [
+                "VLAN_CREATE",
+                "VCN_ATTACH",
+                "ROUTE_TABLE_ATTACH",
+                "SECURITY_LIST_ATTACH",
+                "VLAN_ASSOCIATE_NETWORK_SECURITY_GROUP"
+            ],
+            "notes": "and and and and"
+        },
+        "UpdateVlan": {
+            "permissions": [
+                "VLAN_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteVlan": {
+            "permissions": [
+                "VLAN_DELETE",
+                "VCN_DETACH",
+                "ROUTE_TABLE_DETACH",
+                "SECURITY_LIST_DETACH",
+                "VLAN_DISASSOCIATE_NETWORK_SECURITY_GROUP"
+            ],
+            "notes": "and and and and"
+        },
+        "ChangeVlanCompartment": {
+            "permissions": [
+                "VLAN_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetVnic": {
+            "permissions": [
+                "VNIC_READ"
+            ],
+            "notes": ""
+        },
+        "AttachVnic": {
+            "permissions": [
+                "INSTANCE_ATTACH_SECONDARY_VNIC",
+                "VNIC_ATTACH",
+                "VNIC_CREATE",
+                "SUBNET_ATTACH",
+                "I",
+                "VNIC",
+                "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS",
+                "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
+            ],
+            "notes": "and and and If putting the secondary in a network security group during creation, also need and"
+        },
+        "DetachVnic": {
+            "permissions": [
+                "INSTANCE_DETACH_SECONDARY_VNIC",
+                "VNIC_DETACH",
+                "VNIC_DELETE",
+                "SUBNET_DETACH"
+            ],
+            "notes": "and and and"
+        },
+        "UpdateVnic": {
+            "permissions": [
+                "VNIC_UPDATE",
+                "I",
+                "VNIC",
+                "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS",
+                "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
+            ],
+            "notes": "If adding or removing the from a network security group, also need and"
+        },
+        "ListVnicAttachments": {
+            "permissions": [
+                "VNIC_ATTACHMENT_READ",
+                "INSTANCE_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "GetVnicAttachment": {
+            "permissions": [
+                "VNIC_ATTACHMENT_READ"
+            ],
+            "notes": ""
+        },
+        "ChangeVtapCompartment": {
+            "permissions": [
+                "VTAP_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateVtap": {
+            "permissions": [
+                "VTAP_CREATE",
+                "CAPTURE_FILTER_ATTACH",
+                "VNIC_ATTACH",
+                "SUBNET_ATTACH",
+                "VCN_ATTACH",
+                "VCN"
+            ],
+            "notes": "and (in capture filter compartment) and (both source and target in source & target compartment) || (when subnet as source) and (in compartment)"
+        },
+        "DeleteVtap": {
+            "permissions": [
+                "VTAP_DELETE",
+                "CAPTURE_FILTER_DETACH",
+                "NLB_VTAP_TARGET_DETACH",
+                "NLB",
+                "VNIC_DETACH",
+                "SUBNET_DETACH",
+                "LB_VTAP_DISABLE",
+                "DB_SYSTEM_VTAP_DISABLE",
+                "DB",
+                "EXADATA_VM_CLUSTER_VTAP_DISABLE",
+                "E",
+                "ADW_VTAP_DISABLE",
+                "ADW",
+                "VCN_DETACH"
+            ],
+            "notes": "and and (when as target) and (both source and target) or (when subnet as source) or (when load balancer as source) or (when as source) or (when Exadata cluster as source) or (when as source) and"
+        },
+        "GetVtap": {
+            "permissions": [
+                "VTAP_READ"
+            ],
+            "notes": ""
+        },
+        "ListVtaps": {
+            "permissions": [
+                "VTAP_LIST"
+            ],
+            "notes": ""
+        },
+        "UpdateVtap": {
+            "permissions": [
+                "VTAP_UPDATE",
+                "CAPTURE_FILTER_ATTACH",
+                "NLB_VTAP_TARGET_ATTACH",
+                "NLB",
+                "VNIC_ATTACH",
+                "SUBNET_ATTACH",
+                "LB_VTAP_ENABLE",
+                "DB_SYSTEM_VTAP_ENABLE",
+                "DB",
+                "EXADATA_VM_CLUSTER_VTAP_ENABLE",
+                "E",
+                "ADW_VTAP_ENABLE",
+                "ADW",
+                "NLB_VTAP_TARGET_DETACH",
+                "CAPTURE_FILTER_DETACH",
+                "VNIC_DETACH",
+                "SUBNET_DETACH",
+                "LB_VTAP_DISABLE",
+                "DB_SYSTEM_VTAP_DISABLE",
+                "EXADATA_VM_CLUSTER_VTAP_DISABLE",
+                "ADW_VTAP_DISABLE"
+            ],
+            "notes": "and (new) and (when as target) and (both new source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source) and (when as target) and (old) and (both old source and target) or (when subnet as source) or (when load balancer as source) or (when system as source) or (when Exadata cluster as source) or (when as source)"
+        },
+        "ChangeCaptureFilterCompartment": {
+            "permissions": [
+                "CAPTURE_FILTER_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateCaptureFilter": {
+            "permissions": [
+                "CAPTURE_FILTER_CREATE",
+                "VCN_ATTACH"
+            ],
+            "notes": "and"
+        },
+        "DeleteCaptureFilter": {
+            "permissions": [
+                "CAPTURE_FILTER_DELETE",
+                "VCN_DETACH"
+            ],
+            "notes": "and"
+        },
+        "GetCaptureFilter": {
+            "permissions": [
+                "CAPTURE_FILTER_READ"
+            ],
+            "notes": ""
+        },
+        "ListCaptureFilters": {
+            "permissions": [
+                "CAPTURE_FILTER_LIST"
+            ],
+            "notes": ""
+        },
+        "UpdateCaptureFilter": {
+            "permissions": [
+                "CAPTURE_FILTER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetVolume": {
+            "permissions": [
+                "VOLUME_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVolumes": {
+            "permissions": [
+                "VOLUME_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateVolume": {
+            "permissions": [
+                "VOLUME_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateVolume": {
+            "permissions": [
+                "VOLUME_CREATE",
+                "VOLUME_BACKUP_READ"
+            ],
+            "notes": "(and if creating volume from a backup)"
+        },
+        "DeleteVolume": {
+            "permissions": [
+                "VOLUME_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeVolumeCompartment": {
+            "permissions": [
+                "VOLUME_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListVolumeAttachments": {
+            "permissions": [
+                "VOLUME_ATTACHMENT_INSPECT",
+                "VOLUME_INSPECT",
+                "INSTANCE_INSPECT"
+            ],
+            "notes": "and and"
+        },
+        "GetVolumeAttachment": {
+            "permissions": [
+                "VOLUME_ATTACHMENT_INSPECT",
+                "INSTANCE_INSPECT",
+                "N",
+                "T",
+                "CHAP",
+                "VOLUME_ATTACHMENT_READ"
+            ],
+            "notes": "and Note: To also get the secret for the volume, then is required instead of"
+        },
+        "AttachVolume": {
+            "permissions": [
+                "VOLUME_ATTACHMENT_CREATE",
+                "VOLUME_WRITE",
+                "INSTANCE_ATTACH_VOLUME"
+            ],
+            "notes": "and and"
+        },
+        "DetachVolume": {
+            "permissions": [
+                "VOLUME_ATTACHMENT_DELETE",
+                "VOLUME_WRITE",
+                "INSTANCE_DETACH_VOLUME"
+            ],
+            "notes": "and and"
+        },
+        "ListVolumeBackups": {
+            "permissions": [
+                "VOLUME_BACKUP_INSPECT",
+                "VOLUME_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "GetVolumeBackup": {
+            "permissions": [
+                "VOLUME_BACKUP_INSPECT",
+                "VOLUME_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "UpdateVolumeBackup": {
+            "permissions": [
+                "VOLUME_BACKUP_UPDATE",
+                "VOLUME_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "CreateVolumeBackup": {
+            "permissions": [
+                "VOLUME_BACKUP_CREATE",
+                "VOLUME_WRITE"
+            ],
+            "notes": "and"
+        },
+        "DeleteVolumeBackup": {
+            "permissions": [
+                "VOLUME_BACKUP_DELETE",
+                "VOLUME_INSPECT"
+            ],
+            "notes": "and"
+        },
+        "ChangeVolumeBackupCompartment": {
+            "permissions": [
+                "VOLUME_BACKUP_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetBootVolume": {
+            "permissions": [
+                "VOLUME_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListBootVolumes": {
+            "permissions": [
+                "VOLUME_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateBootVolume": {
+            "permissions": [
+                "VOLUME_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteBootVolume": {
+            "permissions": [
+                "VOLUME_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeBootVolumeCompartment": {
+            "permissions": [
+                "BOOT_VOLUME_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateBootVolumeBackup": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_CREATE",
+                "VOLUME_WRITE"
+            ],
+            "notes": ","
+        },
+        "ListBootVolumeBackups": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_INSPECT",
+                "VOLUME_INSPECT"
+            ],
+            "notes": ","
+        },
+        "GetBootVolumeBackup": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_INSPECT",
+                "VOLUME_INSPECT"
+            ],
+            "notes": ","
+        },
+        "UpdateBootVolumeBackup": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_UPDATE",
+                "VOLUME_INSPECT"
+            ],
+            "notes": ","
+        },
+        "DeleteBootVolumeBackup": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_DELETE",
+                "VOLUME_INSPECT"
+            ],
+            "notes": ","
+        },
+        "ChangeBootVolumeBackupCompartment": {
+            "permissions": [
+                "BOOT_VOLUME_BACKUP_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateVolumeGroup": {
+            "permissions": [
+                "VOLUME_GROUP_CREATE",
+                "VOLUME_INSPECT",
+                "VOLUME_GROUP_INSPECT",
+                "VOLUME_CREATE",
+                "VOLUME_WRITE",
+                "VOLUME_GROUP_BACKUP_INSPECT",
+                "VOLUME_BACKUP_READ",
+                "BOOT_VOLUME_BACKUP_READ"
+            ],
+            "notes": ", if creating the volume group from a list of volumes. , , , if cloning a volume group. , , /, , if restoring from a volume group backup."
+        },
+        "DeleteVolumeGroup": {
+            "permissions": [
+                "VOLUME_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetVolumeGroup": {
+            "permissions": [
+                "VOLUME_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVolumeGroups": {
+            "permissions": [
+                "VOLUME_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateVolumeGroup": {
+            "permissions": [
+                "VOLUME_GROUP_UPDATE",
+                "VOLUME_INSPECT"
+            ],
+            "notes": ","
+        },
+        "ChangeVolumegGroupCompartment": {
+            "permissions": [
+                "VOLUME_GROUP_MOVE",
+                "VOLUME_MOVE",
+                "BOOT_VOLUME_MOVE"
+            ],
+            "notes": ", /"
+        },
+        "CreateVolumeGroupBackup": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_CREATE",
+                "VOLUME_GROUP_INSPECT",
+                "VOLUME_WRITE",
+                "VOLUME_BACKUP_CREATE",
+                "BOOT_VOLUME_BACKUP_CREATE"
+            ],
+            "notes": ", , , /"
+        },
+        "DeleteVolumeGroupBackup": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_DELETE",
+                "VOLUME_BACKUP_DELETE",
+                "BOOT_VOLUME_BACKUP_DELETE"
+            ],
+            "notes": ", /"
+        },
+        "GetVolumeGroupBackup": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVolumeGroupBackups": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateVolumeGroupBackup": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeVolumegGroupBackupCompartment": {
+            "permissions": [
+                "VOLUME_GROUP_BACKUP_MOVE",
+                "VOLUME_BACKUP_MOVE",
+                "BOOT_VOLUME_BACKUP_MOVE"
+            ],
+            "notes": ", /"
+        },
+        "ListIpInventory": {
+            "permissions": [
+                "IPAM_READ"
+            ],
+            "notes": ""
+        },
+        "GetVcnOverlap": {
+            "permissions": [
+                "IPAM_READ"
+            ],
+            "notes": ""
+        },
+        "GetSubnetIpInventory": {
+            "permissions": [
+                "IPAM_READ"
+            ],
+            "notes": ""
+        },
+        "GetSubnetCidrUtilization": {
+            "permissions": [
+                "IPAM_READ"
+            ],
+            "notes": ""
+        },
+        "CreateDedicatedVmHost": {
+            "permissions": [
+                "DEDICATED_VM_HOST_CREATE"
+            ],
+            "notes": ""
+        },
+        "ChangeDedicatedVmHostCompartment": {
+            "permissions": [
+                "DEDICATED_VM_HOST_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteDedicatedVmHost": {
+            "permissions": [
+                "DEDICATED_VM_HOST_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetDedicatedVmHost": {
+            "permissions": [
+                "DEDICATED_VM_HOST_READ"
+            ],
+            "notes": ""
+        },
+        "ListDedicatedVmHosts": {
+            "permissions": [
+                "DEDICATED_VM_HOST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListDedicatedVmHostInstances": {
+            "permissions": [
+                "DEDICATED_VM_HOST_READ"
+            ],
+            "notes": ""
+        },
+        "ListDedicatedVmHostInstanceShapes": {
+            "permissions": [
+                "N"
+            ],
+            "notes": "None"
+        },
+        "ListDedicatedVmHostShapes": {
+            "permissions": [
+                "N"
+            ],
+            "notes": "None"
+        },
+        "UpdateDedicatedVmHost": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_CREATE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListAutoScalingConfigurations": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetAutoScalingConfiguration": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAutoScalingConfiguration": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_UPDATE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "CreateAutoScalingConfiguration": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_CREATE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ChangeAutoScalingConfigurationCompartment": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteAutoScalingConfiguration": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_DELETE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListAutoScalingPolicies": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "GetAutoScalingPolicy": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAutoScalingPolicy": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_UPDATE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "CreateAutoScalingPolicy": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_CREATE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "DeleteAutoScalingPolicy": {
+            "permissions": [
+                "AUTO_SCALING_CONFIGURATION_DELETE",
+                "INSTANCE_POOL_UPDATE"
+            ],
+            "notes": "and"
+        },
+        "ListComputeCapacityReservations": {
+            "permissions": [
+                "CAPACITY_RESERVATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetComputeCapacityReservation": {
+            "permissions": [
+                "CAPACITY_RESERVATION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateComputeCapacityReservation": {
+            "permissions": [
+                "CAPACITY_RESERVATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateComputeCapacityReservation": {
+            "permissions": [
+                "CAPACITY_RESERVATION_CREATE"
+            ],
+            "notes": ""
+        },
+        "ChangeComputeCapacityReservationCompartment": {
+            "permissions": [
+                "CAPACITY_RESERVATION_MOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteComputeCapacityReservation": {
+            "permissions": [
+                "CAPACITY_RESERVATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListComputeCapacityReservationInstances": {
+            "permissions": [
+                "CAPACITY_RESERVATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListComputeCapacityReservationInstanceShapes": {
+            "permissions": [
+                "CAPACITY_RESERVATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateInstanceAgentCommand": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetInstanceAgentCommand": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_READ"
+            ],
+            "notes": ""
+        },
+        "GetInstanceAgentCommandExecution": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_EXECUTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListInstanceAgentCommands": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListInstanceAgentCommandExecutions": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_EXECUTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CancelInstanceAgentCommand": {
+            "permissions": [
+                "INSTANCE_AGENT_COMMAND_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetInstanceAgentPlugin": {
+            "permissions": [
+                "INSTANCE_AGENT_PLUGIN_READ"
+            ],
+            "notes": ""
+        },
+        "ListInstanceAgentPlugins": {
+            "permissions": [
+                "INSTANCE_AGENT_PLUGIN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListInstanceagentAvailablePlugins": {
+            "permissions": [
+                "INSTANCE_AGENT_PLUGIN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "WORKREQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequests": {
+            "permissions": [
+                "W",
+                "G",
+                "RESOURCE",
+                "_CREATE"
+            ],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "W",
+                "G",
+                "RESOURCE",
+                "_CREATE"
+            ],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "W",
+                "G",
+                "RESOURCE",
+                "_CREATE"
+            ],
+            "notes": "Work requests inherit the permissions of the operation that spawns the work request. Generally, <> permissions for the associated resource are required."
+        }
+    }
+}
