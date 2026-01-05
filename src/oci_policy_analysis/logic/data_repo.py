@@ -415,51 +415,6 @@ class PolicyAnalysisRepository:
             logger.debug(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
 
-    # def _parse_subjects(self, subject_string) -> list[tuple[str, str]]:
-    #     """Parse a comma-separated string of subjects and return list of (domain, name) tuples"""
-    #     # Split by comma and strip whitespace
-    #     subject_parts = [part.strip() for part in subject_string.split(',')]
-    #     results: list[tuple[str, str]] = []
-
-    #     for part in subject_parts:
-    #         if not part:  # Skip empty parts
-    #             continue
-
-    #         logger.debug(f"  DEBUG: Processing part: '{part}'")
-
-    #         # Check if it contains a separator (/ or \)
-    #         if '/' in part or '\\' in part:
-    #             # Split on the separator
-    #             if '/' in part:
-    #                 separator_parts = part.split('/', 1)  # Split only on first occurrence
-    #             else:
-    #                 separator_parts = part.split('\\', 1)  # Split only on first occurrence
-
-    #             if len(separator_parts) == 2:
-    #                 domain_part = separator_parts[0].strip()
-    #                 name_part = separator_parts[1].strip()
-
-    #                 # Remove quotes from domain and name
-    #                 domain = domain_part.strip('\'"')
-    #                 name = name_part.strip('\'"')
-
-    #                 logger.debug(f"  DEBUG: Found separator - domain: '{domain}', name: '{name}'")
-    #                 results.append((domain, name))
-    #             else:
-    #                 # Shouldn't happen, but fallback
-    #                 clean_name = part.strip('\'"')
-    #                 logger.debug(
-    #                     f"  DEBUG: Separator found but couldn't split properly - using as simple name: '{clean_name}'"
-    #                 )
-    #                 results.append(('Default', clean_name))
-    #         else:
-    #             # No separator, it's just a name
-    #             clean_name = part.strip('\'"')
-    #             logger.debug(f"  DEBUG: No separator - simple name: '{clean_name}'")
-    #             results.append(('Default', clean_name))
-
-    #     return results
-
     def _parse_subjects(self, subject_list) -> list[tuple[str, str]]:
         """
         Given a parsed subject (list of strings), return list of (domain, subject).
