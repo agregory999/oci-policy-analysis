@@ -176,9 +176,9 @@ When there are conflicts, it is not necessarily a problem.  However, if a statem
 
 Allows for a report of permissions granted by compartment and principal (group, service, dynamic group).  This information is generated using the policy data, the IAM data, and a set of reference data containing resource to permission mappings.  These mappings form the basis of actually is checked at runtime.  
 
-## Reports w/Search Tab
+## Historical Comparison Tab
 
-Displays all Policy data in text form with a search box.  The search highlights in yellow anywhere a given string is found in the data.
+Allows a comparison of policy data over time.
 
 ## Embedded MCP Tab
 
@@ -186,9 +186,21 @@ Starts (cannot stop) the embedded MCP server.  Logs which are MCP-specific appea
 
 The Debug option allows for the logs to display more information as each call is recieved and processed.
 
+## Condition Tester Tab
+
+Allows a test of a specific where clause with parsing and analysis
+
+### Log Override
+
+By component, you can select a higher or lower log level for all components.  Overriding with DEBUG allows you to see the detailed debug only in the shell, not the console tab.
+
+## API Simulation
+
+Creates and runs a scenario where a test of an OCI API is available.  See [Simulation](./simulation.md) for more details.
+
 ## Console Tab
 
-If enabled, shows the `sysout` information.  This is helpful when starting from an executable file, where there is no log output.  
+If enabled, shows the `sysout` information.  This is helpful when starting from an executable file, where there is no log output.  Global logging level is set via this tab.   You can also clear the output prior to a specific operation.
 
 ## Maintenance Tab
 

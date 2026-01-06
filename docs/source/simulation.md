@@ -1,6 +1,6 @@
 # Simulation
 
-OCI Policy Analysis provides a robust simulation engine allowing users to test OCI IAM policy statements, conditions (where-clauses), principal identities, and permissions against real-world scenarios—without making changes in OCI or risking live resources. Simulation lets you see whether a specific action would be ALLOWED or DENIED, what policy logic is triggered, and what variable values affect the outcome. This is a core tool for security review, troubleshooting, and policy development.
+OCI Policy Analysis provides a robust simulation engine allowing users to test OCI IAM policy statements, conditions (where-clauses), principal identities, and permissions against real-world scenarios—without making changes in OCI or risking live resources. Simulation lets you see whether a specific OCI API action would be ALLOWED or DENIED, what policy logic is triggered, and what variable values affect the outcome. This is a core tool for security review, troubleshooting, and policy development.
 
 ---
 
@@ -20,11 +20,11 @@ OCI Policy Analysis provides a robust simulation engine allowing users to test O
 ## Introduction
 
 The simulation feature enables users to answer questions such as:
-- "If user Alice tries to **manage** a Database in Compartment Finance, would she be allowed?"
+- "If user Alice tries to run the `ListDomains` API in Compartment Finance, would she be allowed?"
 - "What happens if a specific `where` clause or variable is set?"
-- "Why does a policy statement not grant expected permissions in a scenario?"
+- "Why does a set of policy statements not grant expected permissions in a scenario?"
 
-Simulations are performed via the Simulation tab in the GUI, via Condition Tester tab (for where-clause parsing), or programmatically with the MCP server.
+Simulations are performed via the Simulation tab in the GUI, or in a simplere form via Condition Tester tab (for where-clause parsing)
 
 ---
 
@@ -32,13 +32,14 @@ Simulations are performed via the Simulation tab in the GUI, via Condition Teste
 
 A simulation consists of the following components:
 
-- **Principal Identity:** Who is requesting access? This could be a User, Group, Dynamic Group, or Resource Principal.
-- **Target OCI API/Resource:** The resource and action the principal is attempting (e.g., `manage instance-family` in `compartment A`). Can simulate specific API calls and resources.
-- **Policy Statements Under Test:** All relevant policy statements, including any that may apply via inheritance or overlapping compartments.
-- **Effective Compartment/Context:** The compartment where the action occurs, following OCI's compartment hierarchy rules.
-- **Action/Verb:** The OCI IAM verb (manage, use, read, inspect) and optionally the specific operation or permission.
-- **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the policy that affect the simulated decision.
+- **Effective Compartment/Context:** The compartment where the action occurs, following OCI's compartment hierarchy rules.  Recall that permissions cascade to lower compartments, so this is taken into account.
+- **Principal Type:** Who is requesting access? This could be a User, Group, Dynamic Group, or Service.  Resource Principals can be simulated via `any-user` principal.
+- **Principal:** A specific principal (user,group, dynamic group, service) of the selected type. All applicable policy statements for that principal are required to load for the simulation to be complete.
+- **Policy Statements Under Test:** All relevant policy statements, including any that may apply via inheritance or overlapping compartments. These can be unselected, for example, to test removal of a policy statement and the effect on an operation.
+- **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the policy set that will affect the simulated permissions added to the final permission set.
 - **Variable Values:** Values required by where-clauses (OCIDs, strings, lists, booleans), which are set or simulated as part of the scenario.
+- **API Operation:** The specific operation to be tested.  All OCI API Operations require a set of permissions, and will fail if any required permission is missing.  
+- **History:** If multiple simulations are run, the history of what has been performed, with the ability to export to JSON.
 
 ---
 
@@ -50,44 +51,63 @@ Some policy statements include *where-clauses* or conditions, which require addi
 - The simulation engine parses the selected policy statement(s) and identifies required variables.
 - The UI (Simulation or Condition Tester tab) presents these variables as input fields, showing:
   - Variable name (e.g., `request.networkSource.name`)
-  - Expected type (string, OCID, boolean, list, etc)
-  - Default or previously used value (if any)
+  - Examples, if any are needed, such as for timestamps
 - For each simulation run, users set values either manually or use previous/test values.
 
 **Example:**
 Suppose a statement contains:
 ```plain
-allow group SecurityAdmins to use database-family in compartment Data where request.principal.name = 'alice' and request.networkSource.name = 'trusted-src'
+allow group SecurityAdmins to use database-family in compartment Data where all {request.principal.name = 'alice', request.networkSource.name = 'trusted-src'}
 ```
 Simulation UI will prompt for:
 - `request.principal.name` (string)
 - `request.networkSource.name` (string)
 
-Values set here directly affect simulation outcome.
+Values set here directly affect simulation outcome.  Specifically, the set of PERMISSIONS that correspond to `use database-family` are now added to the final "permission set" for the simulation.  
 
 ---
+
+## Deny Statements
+
+The simulation takes into account `deny` statements, by saving them until last.  All of the allowed permissions are first calculated, and then any permissions that are denied are subtracted.   The trace log shows this activity, so it will be possible to see that a principal might have had a certain permission, had it not been denied as well.
+
+Denial is the opposite of allow, and can remove a component of a family, even at a different level in the hierarchy.  For example, consider these statement:
+
+```
+allow group A to manage object-family in compartment Top
+deny group A to {OBJECT_DELETE, BUCKET_DELETE} in compartment Top:Second
+```
+
+In this case, `manage object-fmaily` is very broad and has many individual permissions.  Because it is granted at a top-level compartment, it cascades to all sub-compartments.  Denying deletion to a sub-compartment is a good way to pinpoint an action.  The simulation can easily show this. 
+
+More on [Deny Statements](https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm).
 
 ## Running the Simulation
 
 **Steps:**
 
-1. **Select the Principal**   
-   Choose the user, group, dynamic group, or principal you wish to simulate as.
-
-2. **Set Resource/Action**  
-   Select the OCI resource type and verb/action (e.g., manage, use, read—see dropdowns in Simulation tab).
-
-3. **Pick Compartment/Context**  
+1. **Pick Compartment/Context**  
    Choose the compartment where the simulated action will occur.
 
-4. **Configure Where-Clause Variables**  
-   The UI will prompt for all "required" variables parsed from any policy where-clause that applies.
+2. **Select the Principal**   
+   Choose the type - then the specific user, group, dynamic group, or principal you wish to simulate as.
 
-5. **Run Simulation**  
-   Click 'Simulate' or similar—the engine will:
+3. **Load and Select Statements**  
+   Select the policy statements from the search to include.  The default list is all policy statements applicable to the principal for the effective compartment.  This includes statements at a higher compartment level that grant permissions to the principal.  
+
+4. **Configure Where-Clause Variables**  
+   The UI will prompt for all potential variables parsed from any policy where-clause that applies.  Any where clause for a statement will cause the simulation to add or not add the permissions in that statement based on whether the where clause evaluates as True or False.
+
+5. **Choose API Operation**
+   API Operations are documented as part of the OCI Policy Reference.  Not all API Operations or Permissions are available in the simulation, but many of the major ones are.
+
+6. **Run Simulation**  
+   Click 'Run Simulation' or use the trace — the engine will:
    - Evaluate applicable policy statements for the principal/resource/context.
    - Parse and substitute variables in where-clauses.
    - Resolve deny/allow ordering, overlapping/inherited policies, etc.
+   - Test the final permission set for the entire context again what the API requires
+   - Keep a history of simulations run.
 
 6. **View Results**  
    Results (ALLOW/DENY and decision path/traces) will be shown, including which policy/condition was matched, which variables were set, and any relevant notes.
@@ -140,7 +160,6 @@ Simulation runs are automatically stored for later review.
 - Test edge cases: users in multiple groups, nested dynamic groups, overlapping compartments.
 - Vary variable inputs ("what-if?" analysis) to see possible decision outcomes.
 - Use history for compliance evidence or troubleshooting intermittent issues.
-- Combine with batch simulation tools for full-scale policy regression tests (future feature).
 
 ---
 
