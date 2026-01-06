@@ -1,3 +1,13 @@
+# [3.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.10.1...v3.0.0) (2026-01-06)
+
+
+* chore!: force major release ([e8c7b7c](https://github.com/agregory999/oci-policy-analysis/commit/e8c7b7cba2569f161f4427c09edbe2173f8cf421))
+
+
+### BREAKING CHANGES
+
+* bump to 3.0.0
+
 # [2.11.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v2.10.1...v2.11.0-dev.1) (2025-12-24)
 
 
