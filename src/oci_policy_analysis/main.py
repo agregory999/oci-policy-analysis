@@ -20,7 +20,6 @@
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
 
-# import importlib.metadata
 # import io
 import json  # noqa: E402
 import logging  # noqa: E402
