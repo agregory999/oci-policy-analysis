@@ -4,6 +4,12 @@
 ### Features
 
 * Policy Intelligence Engine ([b05a3fc](https://github.com/agregory999/oci-policy-analysis/commit/b05a3fc76b167a167c2b412053a7006408932ef8))
+## [3.0.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.0.0...v3.0.1) (2026-01-06)
+
+
+### Bug Fixes
+
+* parser code into repo ([eb7ef7a](https://github.com/agregory999/oci-policy-analysis/commit/eb7ef7a68c9fa5a452e64b35812047af2a4edf75))
 
 # [3.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v2.10.1...v3.0.0) (2026-01-06)
 
