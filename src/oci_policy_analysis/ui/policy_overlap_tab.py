@@ -18,7 +18,6 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Column data for Policy Overlap Table (extends basic policy columns)
@@ -61,12 +60,11 @@ class PolicyOverlapTab(ttk.Frame):
     in a treeview below.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
+    def __init__(self, parent, app, settings):
         super().__init__(parent)
         self.app = app
         self.settings = settings
-        self.policy_repo = policy_repo
-
+        self.policy_repo = app.policy_compartment_analysis
         # Effective Compartment and Resource filter states
         self.effective_compartment_filter = 'ALL'
         self.resource_filter = 'ALL'

@@ -64,25 +64,25 @@ class LoggingErrorListener(ErrorListener):
         full_msg = f'ANTLR syntax error {line_info}{context}: {msg}'
         self.errors.append(full_msg)
         if self.logger:
-            self.logger.warning(full_msg)
+            self.logger.debug(full_msg)
 
     def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
         msg = f'ANTLR ambiguity from {startIndex} to {stopIndex}.'
         self.errors.append(msg)
         if self.logger:
-            self.logger.warning(msg)
+            self.logger.debug(msg)
 
     def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
         msg = f'ANTLR attempting full context from {startIndex} to {stopIndex}.'
         self.errors.append(msg)
         if self.logger:
-            self.logger.warning(msg)
+            self.logger.debug(msg)
 
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         msg = f'ANTLR context sensitivity from {startIndex} to {stopIndex}.'
         self.errors.append(msg)
         if self.logger:
-            self.logger.warning(msg)
+            self.logger.debug(msg)
 
 
 class _FieldCollectingVisitor(PolicyVisitor):
@@ -481,11 +481,11 @@ class PolicyStatementParser:
         # results: List[dict] (1 per parsed top-level policy statement)
     """
 
-    def __init__(self, logger=None):
+    def __init__(self):
         pass
 
     def parse(self, text):
-        logger.info(f'Parsing statement: {repr(text)}')
+        logger.debug(f'Parsing statement: {repr(text)}')
         input_stream = InputStream(text)
         lexer = PolicyLexer(input_stream)
         parser = PolicyParser(CommonTokenStream(lexer))
@@ -500,21 +500,22 @@ class PolicyStatementParser:
             parsed = visitor.visit(tree)
             if error_listener.errors:
                 for msg in error_listener.errors:
-                    logger.info(f'ANTLR parse error: {msg}')
-            logger.info(f'Parse result (raw): {parsed}')
+                    logger.debug(f'ANTLR parse error: {msg}')
+            logger.debug(f'Parse result (raw): {parsed}')
             if not parsed or not isinstance(parsed, list):
-                logger.info(f"Parser returned no statement objects for: '{text[:80]}...'")
+                logger.debug(f"Parser returned no statement objects for: '{text[:80]}...'")
             else:
-                logger.info(f'Parsed {len(parsed)} statement(s).')
-            return parsed
+                logger.debug(f'Parsed {len(parsed)} statement(s).')
+            # Also return error_listener.errors alongside parsed
+            return parsed, error_listener.errors
         except Exception as exc:
-            logger.error(f'Exception in PolicyStatementParser.parse: {exc}', exc_info=True)
-            return None
+            logger.debug(f'Exception in PolicyStatementParser.parse: {exc}', exc_info=True)
+            return None, [str(exc)]
 
 
 class PolicyStatementNormalizer:
-    def __init__(self, logger=None):
-        self.antlr_parser = PolicyStatementParser(logger=logger)
+    def __init__(self):
+        self.antlr_parser = PolicyStatementParser()
 
     def normalize(self, statement_text: str, statement_type: str, base_fields: dict):
         """
@@ -522,13 +523,17 @@ class PolicyStatementNormalizer:
         base_fields must include all fields from BasePolicyStatement required by models.
         """
 
-        logger.info(f"Normalizing statement of type '{statement_type}': {statement_text}")
+        logger.debug(f"Normalizing statement of type '{statement_type}': {statement_text}")
 
-        # We need to understand the failure reasons if parsing fails
-        parsed_statements = self.antlr_parser.parse(statement_text)
+        # Parse and also capture parse errors
+        parsed_statements, parse_errors = self.antlr_parser.parse(statement_text)
+        # If *any* parse_errors were present, treat this as not parsed, even if something is returned in parsed_statements.
+        if parse_errors and len(parse_errors) > 0:
+            logger.debug(f'Parsing failed for: {statement_text}')
+            return {'parsed': False, 'invalid_reasons': parse_errors}
         if not parsed_statements or not isinstance(parsed_statements, list):
-            logger.warning(f'Parsing failed for: {statement_text}')
-            return None
+            logger.debug(f'Parsing failed for: {statement_text}')
+            return {'parsed': False, 'invalid_reasons': [f'Failed to parse: {statement_text}']}
 
         fields = parsed_statements[0]
         st_type = statement_type.lower().strip()
@@ -541,8 +546,8 @@ class PolicyStatementNormalizer:
         elif st_type in ('allow', 'deny', 'regular'):
             return self._normalize_regular(statement_text, fields, base_fields)
         else:
-            logger.warning(f"Unknown statement type for normalization: '{statement_type}'")
-            return None
+            logger.debug(f"Unknown statement type for normalization: '{statement_type}'")
+            return {'parsed': False, 'invalid_reasons': [f'Unknown statement type: {statement_type}']}
 
     def _normalize_define(self, statement_text, fields, base):
         defined_subject = fields.get('definedSubject', '')
@@ -646,7 +651,7 @@ class PolicyStatementNormalizer:
         return EndorseStatement(**obj)
 
     def _normalize_regular(self, statement_text, fields, base):
-        logger.info(f'Normalizing regular policy statement: {statement_text}')
+        logger.debug(f'Normalizing regular policy statement: {statement_text}')
         subject_type = fields.get('subject_type', '') or ''
         subjects_out = []
         if subject_type in ['any-user', 'any-group', 'service']:
@@ -676,7 +681,7 @@ class PolicyStatementNormalizer:
             'statement_text': statement_text,
             'parsed': True,
         }
-        logger.info(f'Normalized regular policy statement object: {obj}')
+        logger.debug(f'Normalized regular policy statement object: {obj}')
 
         return RegularPolicyStatement(**obj)
 

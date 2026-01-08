@@ -19,7 +19,6 @@ from tkinter import ttk
 from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch, PolicySearch
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Column Data
@@ -110,15 +109,10 @@ class DynamicGroupsTab(ttk.Frame):
         _update_dg_output: (Internal) Updates the dynamic group table based on filters.
     """
 
-    def __init__(
-        self,
-        parent,
-        app,
-        policy_compartment_analysis: PolicyAnalysisRepository,
-    ):
+    def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-        self.policy_compartment_analysis = policy_compartment_analysis
+        self.policy_compartment_analysis = app.policy_compartment_analysis
         self._build_ui()
 
     def _build_ui(self):

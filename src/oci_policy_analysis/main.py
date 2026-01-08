@@ -42,6 +42,7 @@ from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
+from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
@@ -144,23 +145,24 @@ class App(tk.Tk):
             policy_repo=self.policy_compartment_analysis,
             ref_data_repo=self.reference_data_repo,
         )
+        self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
 
         # Caching Manager (policy caching only, no AI result caching)
-        self.caching = CacheManager(policy_analysis=self.policy_compartment_analysis)
+        self.caching = CacheManager()
 
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
-        self.policies_tab = PoliciesTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
-        self.policy_overlap_tab = PolicyOverlapTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
+        self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
+        self.policy_overlap_tab = PolicyOverlapTab(self.notebook, self, self.settings)
         self.permissions_report_tab = PermissionsReportTab(
             self.notebook, self, self.policy_compartment_analysis, self.settings
         )
         self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
-        self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self, self.policy_compartment_analysis)
-        self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self, self.policy_compartment_analysis)
+        self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
+        self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
         self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
-        self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self, self.policy_compartment_analysis)
+        self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.console_tab = ConsoleTab(self.notebook, self)
         self.maintenance_tab = MaintenanceTab(self.notebook, caching=self.caching)
@@ -347,10 +349,17 @@ class App(tk.Tk):
             """Worker thread to load tenancy data."""
             try:
                 success = False
+                start_time = time.perf_counter()
+
+                # Upon re-load, start a new repository to clear prior data
+                self.policy_compartment_analysis.reset_state()
+                logger.info('Reset PolicyAnalysisRepository state for tenancy load.')
 
                 if named_cache:
                     logger.info(f'Using named cache: {named_cache}')
-                    success = self.caching.load_combined_cache(named_cache=named_cache)
+                    success = self.caching.load_combined_cache(
+                        self.policy_compartment_analysis, named_cache=named_cache
+                    )
 
                 elif named_profile or instance_principal or named_session:
                     if instance_principal:
@@ -367,7 +376,22 @@ class App(tk.Tk):
                         profile=named_profile,
                     )
                     if not success:
-                        raise RuntimeError('Failed to initialize IdentityDomainAnalysis client')
+                        raise RuntimeError('Failed to initialize PolicyAnalysisRepository client')
+
+                    # Start polling the repo's progress per second
+                    def poll_policy_repo_identity_progress():
+                        domain_count = len(self.policy_compartment_analysis.identity_domains)
+                        group_count = len(self.policy_compartment_analysis.groups)
+                        user_count = len(self.policy_compartment_analysis.users)
+                        msg = f'Loaded {domain_count} domains, {group_count} groups, {user_count} users...'
+                        cb = callback.get('progress') if callback else None
+                        if callable(cb):
+                            self.after(0, lambda m=msg: cb(m))
+                        # Continue polling every second until loading is signaled complete
+                        if not getattr(self.policy_compartment_analysis, 'identity_loaded_from_tenancy', False):
+                            self.after(200, poll_policy_repo_identity_progress)
+
+                    self.after(0, poll_policy_repo_identity_progress)
 
                     if callback:
                         cb = callback.get('progress')
@@ -381,20 +405,62 @@ class App(tk.Tk):
                         cb = callback.get('progress')
                         if callable(cb):
                             self.after(0, lambda: cb('Loading Compartments and Policies'))
+
+                    # Start polling the repo's progress per second
+                    def poll_policy_repo_progress():
+                        p_count = len(self.policy_compartment_analysis.policies)
+                        s_count = len(self.policy_compartment_analysis.regular_statements)
+                        msg = f'Loaded {p_count} policies, {s_count} statements...'
+                        cb = callback.get('progress') if callback else None
+                        if callable(cb):
+                            self.after(0, lambda m=msg: cb(m))
+                        # Continue polling every second until loading is signaled complete
+                        if not getattr(self.policy_compartment_analysis, 'policies_loaded_from_tenancy', False):
+                            self.after(200, poll_policy_repo_progress)
+
+                    self.after(0, poll_policy_repo_progress)
+
+                    # Now make the call to load policies and compartments
                     success = self.policy_compartment_analysis.load_policies_and_compartments()
                     if not success:
                         raise RuntimeError('Failed to load policies and compartments')
-                    self.caching.save_combined_cache()
 
+                    if callback:
+                        cb = callback.get('progress')
+                        if callable(cb):
+                            self.after(300, lambda: cb('Running post-load policy intelligence analyses'))
+
+                    # Run post-load intelligence analysis now using new module
+                    self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+                    logger.info('Running post-load policy intelligence analyses')
+                    # Start a timer
+                    start_post_process_time = time.perf_counter()
+                    logger.info('Calculating effective compartments for all policy statements')
+                    self.policy_intelligence.calculate_all_effective_compartments()
+                    logger.info('Finding invalid policy statements')
+                    self.policy_intelligence.find_invalid_statements()
+                    logger.info('Running dynamic group in-use analysis')
+                    self.policy_intelligence.run_dg_in_use_analysis()
+                    logger.info('Analyzing policy overlaps')
+                    self.policy_intelligence.analyze_policy_overlap()
+                    end_post_process_time = time.perf_counter()
+                    logger.info(
+                        f'Post-load policy intelligence analyses completed in {end_post_process_time - start_post_process_time:.2f} seconds'
+                    )
+
+                    # Save cache after loading from tenancy
+                    self.caching.save_combined_cache(self.policy_compartment_analysis)
             except Exception as e:
                 logger.error(f'Error occurred while Loading Data: {e}')
+
                 if callback:
                     cb = callback.get('error')
                     if callable(cb):
                         self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
                 return
 
-            msg = f'Finished loading tenancy {tenancy_id}'
+            end_time = time.perf_counter()
+            msg = f'Finished loading tenancy in {end_time - start_time:.2f} seconds'
             logger.info(f'[OK] {msg}')
 
             if callback:
@@ -441,8 +507,37 @@ class App(tk.Tk):
                     and callback['progress']('Loading compliance output data'),
                 )
                 success = self.policy_compartment_analysis.load_from_compliance_output_dir(dir_path)
-                msg = f'Finished loading compliance data from {dir_path}'
+                msg = f'Loaded compliance data from {dir_path}'
                 logger.info(msg)
+                # Post-processing after load
+                self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+                self.after(
+                    0,
+                    lambda: callback
+                    and callable(callback.get('progress'))
+                    and callback['progress']('Running post-load policy intelligence analyses'),
+                )
+                # Start a timer
+                start_post_process_time = time.perf_counter()
+                logger.info('Calculating effective compartments for all policy statements')
+                self.policy_intelligence.calculate_all_effective_compartments()
+                logger.info('Finding invalid policy statements')
+                self.policy_intelligence.find_invalid_statements()
+                logger.info('Running dynamic group in-use analysis')
+                self.policy_intelligence.run_dg_in_use_analysis()
+                self.after(
+                    0,
+                    lambda: callback
+                    and callable(callback.get('progress'))
+                    and callback['progress']('Analyzing policy overlaps'),
+                )
+                logger.info('Analyzing policy overlaps')
+                self.policy_intelligence.analyze_policy_overlap()
+                end_post_process_time = time.perf_counter()
+                logger.info(
+                    f'Post-load policy intelligence analyses completed in {end_post_process_time - start_post_process_time:.2f} seconds'
+                )
+
                 if callback and callable(callback.get('complete')):
                     self.after(0, lambda: callback['complete'](success, msg, not success))
                 if success:
@@ -535,7 +630,7 @@ class App(tk.Tk):
         filepath = tkfiledialog.asksaveasfile(filetypes=[('JSON Files', '*.json')])
         if filepath:
             logger.info(f'Writing file: {type(filepath)} {filepath.name}')
-            self.caching.save_combined_cache(export_file=filepath)
+            self.caching.save_combined_cache(self.policy_compartment_analysis, export_file=filepath)
             logger.info(f'Wrote file {filepath.name}')
         else:
             logger.info('Export cancelled by user')

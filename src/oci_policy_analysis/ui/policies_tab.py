@@ -23,7 +23,6 @@ from typing import Literal, cast  # <-- ADD for type handling
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicySearch
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Column data for Custom Data Table
@@ -126,12 +125,11 @@ class PoliciesTab(ttk.Frame):
         export_policy_to_csv: Exports filtered policy statements to a CSV file.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):  # noqa: C901
+    def __init__(self, parent, app, settings):  # noqa: C901
         super().__init__(parent)
         self.app = app
         self.settings = settings
-        self.policy_repo = policy_repo
-
+        self.policy_repo = app.policy_compartment_analysis
         # Configure tab
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -422,7 +420,13 @@ class PoliciesTab(ttk.Frame):
             )
             # If the policy statement contains a condition (not null), add a way to send that to the Condition Tester tab
             condition_text = self.policy_table.data[row_index].get('Conditions')
-            if condition_text and condition_text != 'None':
+            # Only show if condition tester tab is currently visible and advanced_tabs_visible is True
+            is_condition_tester_visible = (
+                hasattr(self.app, 'condition_tester_tab')
+                and self.app.advanced_tabs_visible
+                and self.app.condition_tester_tab in self.app.notebook.tabs()
+            )
+            if condition_text and condition_text != 'None' and is_condition_tester_visible:
                 menu.add_command(
                     label='Test Condition in Condition Tester Tab',
                     command=lambda: (
@@ -481,7 +485,7 @@ class PoliciesTab(ttk.Frame):
         elif action_value == 'deny':
             filters['action'] = ['deny']
         else:  # both
-            filters['action'] = ['allow', 'deny']
+            filters['action'] = ['allow', 'deny', 'unknown']
 
         # Verb filter
         if self.verb_filter_var.get():

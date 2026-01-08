@@ -19,7 +19,6 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_admit, for_display_define, for_display_endorse
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.ui.data_table import DataTable
 
 # For cross-tenancy policies, just show all details we have
@@ -86,11 +85,10 @@ class CrossTenancyTab(ttk.Frame):
         self,
         parent,
         main_app,
-        policy_compartment_analysis: PolicyAnalysisRepository,
     ):
         super().__init__(parent)
         self.main_app = main_app
-        self.policy_compartment_analysis = policy_compartment_analysis
+        self.policy_compartment_analysis = main_app.policy_compartment_analysis
         self.create_tab()
 
     def create_tab(self):
@@ -257,10 +255,10 @@ class CrossTenancyTab(ttk.Frame):
             statement_text = st.get('statement_text', '')
             if statement_text.lower().startswith('admit') or statement_text.lower().startswith('deny admit'):
                 admits.append(st)
-                logger.info(f'Admit detected: {st}')
+                logger.debug(f'Admit detected: {st}')
             elif statement_text.lower().startswith('endorse') or statement_text.lower().startswith('deny endorse'):
                 endorses.append(st)
-                logger.info(f'Endorse detected: {st}')
+                logger.debug(f'Endorse detected: {st}')
             else:
                 logger.warning(f'Unknown cross-tenancy statement type: {st}')
         display_admits = [for_display_admit(st) for st in admits]

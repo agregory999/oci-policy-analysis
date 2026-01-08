@@ -37,7 +37,7 @@ class DebuggerTab(ttk.Frame):
         self.source_combo = ttk.Combobox(
             control_row,
             textvariable=self.source_var,
-            values=['Policy Repo', 'Reference Data', 'Simulation Index'],
+            values=['Policy Repo Compartments', 'Policy Repo Policies', 'Reference Data', 'Simulation Index'],
             width=24,
             state='readonly',
         )
@@ -82,8 +82,12 @@ class DebuggerTab(ttk.Frame):
 
             elif source == 'Simulation Index':
                 return self.app.simulation_engine.compartment_principal_index
-            else:  # Policy Repo
+            elif source == 'Policy Repo Policies':  # Policy Repo
                 return self.app.policy_compartment_analysis.regular_statements
+            elif source == 'Policy Repo Compartments':  # Policy Repo
+                return self.app.policy_compartment_analysis.compartments
+            else:
+                return {'error': f'Unknown source: {source}'}
         except Exception as ex:
             return {'error': str(ex)}
         return {}

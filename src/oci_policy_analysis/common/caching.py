@@ -42,13 +42,9 @@ class CacheManager:
 
     def __init__(
         self,
-        policy_analysis: PolicyAnalysisRepository,
-        # domains_analysis: IdentityDomainsAnalysis,
         cache_dir: Path = None,
     ):
         # logger = get_logger(component="caching")
-        self.policy_analysis = policy_analysis
-        # self.domains_analysis = domains_analysis
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir else CACHE_DIR
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f'Initialized Caching at {self.cache_dir}')
@@ -56,7 +52,9 @@ class CacheManager:
         # AI result cache functionality removed
 
     # Utility functions for loading and saving cache, using combined caching strategy
-    def save_combined_cache(self, export_file=None, preserved: bool = False) -> str:
+    def save_combined_cache(
+        self, policy_analysis: PolicyAnalysisRepository, export_file=None, preserved: bool = False
+    ) -> str:
         """
         Save combined cache for policies and dynamic groups. Returns file name.
 
@@ -72,17 +70,17 @@ class CacheManager:
 
         # Create the file as JSON first, collecting all details
         combined_data = {
-            'tenancy_name': self.policy_analysis.tenancy_name,
-            'tenancy_ocid': self.policy_analysis.tenancy_ocid,
-            'policies': self.policy_analysis.regular_statements,
-            'dynamic_groups': self.policy_analysis.dynamic_groups,
-            'defined_aliases': self.policy_analysis.defined_aliases,
-            'cross_tenancy_policies': self.policy_analysis.cross_tenancy_statements,
-            'compartments': self.policy_analysis.compartments,
-            'identity_domains': self.policy_analysis._get_domains(),
-            'groups': self.policy_analysis.groups,
-            'users': self.policy_analysis.users,
-            'data_as_of': self.policy_analysis.data_as_of,
+            'tenancy_name': policy_analysis.tenancy_name,
+            'tenancy_ocid': policy_analysis.tenancy_ocid,
+            'policies': policy_analysis.regular_statements,
+            'dynamic_groups': policy_analysis.dynamic_groups,
+            'defined_aliases': policy_analysis.defined_aliases,
+            'cross_tenancy_policies': policy_analysis.cross_tenancy_statements,
+            'compartments': policy_analysis.compartments,
+            'identity_domains': policy_analysis._get_domains(),
+            'groups': policy_analysis.groups,
+            'users': policy_analysis.users,
+            'data_as_of': policy_analysis.data_as_of,
         }
 
         if export_file:
@@ -95,9 +93,7 @@ class CacheManager:
             # Just write to cache as normal
             # CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-            combined_cache_file = (
-                self.cache_dir / f'combined_cache_{self.policy_analysis.tenancy_name}_{CACHE_DATE}.json'
-            )
+            combined_cache_file = self.cache_dir / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
 
             with open(combined_cache_file, 'w', encoding='utf-8') as filehandle:
                 json.dump(combined_data, filehandle, ensure_ascii=False)
@@ -105,7 +101,7 @@ class CacheManager:
 
         # Update cache entries
         entry = {
-            'tenancy_name': self.policy_analysis.tenancy_name,
+            'tenancy_name': policy_analysis.tenancy_name,
             'cache_date': CACHE_DATE,
             'preserved': preserved,
         }
@@ -116,7 +112,7 @@ class CacheManager:
         logger.info(f'Updated cache entries with: {entry}')
 
         # Cull old cache files and entries to keep only 10 most recent per tenancy
-        self._cull_old_caches(self.policy_analysis.tenancy_name)
+        self._cull_old_caches(policy_analysis.tenancy_name)
 
         # Return the name of the file
         return str(combined_cache_file)
@@ -191,7 +187,7 @@ class CacheManager:
                 for line in reversed(remaining):
                     f.write(line)
 
-    def load_combined_cache(self, named_cache: str) -> str:
+    def load_combined_cache(self, policy_analysis: PolicyAnalysisRepository, named_cache: str) -> str:
         """Load combined cache for policies and dynamic groups.
 
         Given the name and data of a cache, loads the data into both of the centralized structures
@@ -215,30 +211,30 @@ class CacheManager:
                     cross_tenancy_data = cache_data.get('cross_tenancy_policies', [])
                     defined_aliases = cache_data.get('defined_aliases', [])
                     # Set the data in the policy analysis object
-                    self.policy_analysis.tenancy_name = cache_data.get('tenancy_name', '')
-                    self.policy_analysis.tenancy_ocid = cache_data.get('tenancy_ocid', '')
-                    self.policy_analysis.compartments = cache_data.get('compartments', [])
-                    self.policy_analysis.regular_statements = policies
-                    self.policy_analysis.defined_aliases = defined_aliases
-                    self.policy_analysis.cross_tenancy_statements = cross_tenancy_data
+                    policy_analysis.tenancy_name = cache_data.get('tenancy_name', '')
+                    policy_analysis.tenancy_ocid = cache_data.get('tenancy_ocid', '')
+                    policy_analysis.compartments = cache_data.get('compartments', [])
+                    policy_analysis.regular_statements = policies
+                    policy_analysis.defined_aliases = defined_aliases
+                    policy_analysis.cross_tenancy_statements = cross_tenancy_data
                     # Set the data in the domains analysis object
-                    self.policy_analysis.dynamic_groups = dynamic_groups
-                    self.policy_analysis.identity_domains = [
+                    policy_analysis.dynamic_groups = dynamic_groups
+                    policy_analysis.identity_domains = [
                         Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                         for d in cache_data.get('identity_domains', [])
                     ]
-                    self.policy_analysis.groups = cache_data.get('groups', {})
-                    self.policy_analysis.users = cache_data.get('users', {})
+                    policy_analysis.groups = cache_data.get('groups', {})
+                    policy_analysis.users = cache_data.get('users', {})
 
                     # Set the data as of time
-                    self.policy_analysis.data_as_of = cache_data.get('data_as_of')
+                    policy_analysis.data_as_of = cache_data.get('data_as_of')
                     logger.info(f'Loaded combined cache from: {combined_cache_file}')
                     # Show counts of each loaded element
                     logger.info(
                         f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
                         f'{len(cross_tenancy_data)} cross-tenancy policies, '
-                        f'{len(self.policy_analysis.identity_domains)} identity domains, '
-                        f'{len(self.policy_analysis.groups)} groups, and {len(self.policy_analysis.users)} users from cache.'
+                        f'{len(policy_analysis.identity_domains)} identity domains, '
+                        f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
                     )
 
             except json.JSONDecodeError as e:
@@ -253,7 +249,7 @@ class CacheManager:
             raise ValueError('no cache')
         return str(combined_cache_file)
 
-    def load_cache_from_json(self, loaded_json: dict) -> bool:
+    def load_cache_from_json(self, policy_analysis: PolicyAnalysisRepository, loaded_json: dict) -> bool:
         """
         Load combined cache data from a given JSON dict.
         Given loaded JSON data, loads the data into both of the centralized structures
@@ -270,28 +266,28 @@ class CacheManager:
             defined_aliases = loaded_json.get('defined_aliases', [])
 
             # Set the data in the policy analysis object
-            self.policy_analysis.tenancy_name = loaded_json.get('tenancy_name', '')
-            self.policy_analysis.tenancy_ocid = loaded_json.get('tenancy_ocid', '')
-            self.policy_analysis.compartments = loaded_json.get('compartments', [])
-            self.policy_analysis.regular_statements = policies
-            self.policy_analysis.defined_aliases = defined_aliases
-            self.policy_analysis.cross_tenancy_statements = cross_tenancy_data
+            policy_analysis.tenancy_name = loaded_json.get('tenancy_name', '')
+            policy_analysis.tenancy_ocid = loaded_json.get('tenancy_ocid', '')
+            policy_analysis.compartments = loaded_json.get('compartments', [])
+            policy_analysis.regular_statements = policies
+            policy_analysis.defined_aliases = defined_aliases
+            policy_analysis.cross_tenancy_statements = cross_tenancy_data
             # Set the data in the domains analysis object
-            self.policy_analysis.dynamic_groups = dynamic_groups
-            self.policy_analysis.identity_domains = [
+            policy_analysis.dynamic_groups = dynamic_groups
+            policy_analysis.identity_domains = [
                 Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                 for d in loaded_json.get('identity_domains', [])
             ]
-            self.policy_analysis.groups = loaded_json.get('groups', {})
-            self.policy_analysis.users = loaded_json.get('users', {})
+            policy_analysis.groups = loaded_json.get('groups', {})
+            policy_analysis.users = loaded_json.get('users', {})
             # Set the data as of time
-            self.policy_analysis.data_as_of = loaded_json.get('data_as_of')
+            policy_analysis.data_as_of = loaded_json.get('data_as_of')
             # Show counts of each loaded element
             logger.info(
                 f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
-                f'{len(self.policy_analysis.identity_domains)} identity domains, '
-                f'{len(self.policy_analysis.groups)} groups, and {len(self.policy_analysis.users)} users from cache.'
+                f'{len(policy_analysis.identity_domains)} identity domains, '
+                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
             )
             return True
         except json.JSONDecodeError as e:

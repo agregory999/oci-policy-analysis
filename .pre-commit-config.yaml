@@ -3,6 +3,6 @@ repos:
   rev: v0.1.13
   hooks:
     - id: ruff
-      exclude: "src/condition_parser/OciIamPolicyCondition(Lexer|Parser|Visitor|Listener)\\.py"
+      exclude: "(src/oci_policy_analysis/logic/parsers/(policy_parser|condition_parser)/.*|src/condition_parser/OciIamPolicyCondition(Lexer|Parser|Visitor|Listener)\\.py)"
       args: [--fix, --exit-non-zero-on-fix]
     - id: ruff-format
