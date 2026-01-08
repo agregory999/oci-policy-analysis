@@ -6,7 +6,7 @@ authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
 dynamic = []
-version = "3.0.0"
+version = "3.1.0-dev.1"
 
 dependencies = [
     "oci==2.164.0",
