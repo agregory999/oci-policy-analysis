@@ -106,7 +106,7 @@ class ResourcePrincipalsTab(ttk.Frame):
         update_principals_sheets: Updates sheets based on dropdown selections and dynamic group selection.  Called from main app and when dropdowns change or DG selection changes.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):
+    def __init__(self, parent, app):
         """
         Args:
             parent: parent notebook or frame
@@ -115,7 +115,7 @@ class ResourcePrincipalsTab(ttk.Frame):
         """
         super().__init__(parent)
         self.app = app
-        self.policy_repo = policy_repo
+        self.policy_repo: PolicyAnalysisRepository = app.policy_compartment_analysis
 
         self._build_ui()
 

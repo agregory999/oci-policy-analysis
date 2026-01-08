@@ -20,4 +20,8 @@ exclude = [
     "build",
     "dist",
     "src/sample",
+    "src/oci_policy_analysis/logic/parsers/policy_parser",
+    "src/oci_policy_analysis/logic/parsers/condition_parser",
+    "src/oci_policy_analysis/logic/parsers/policy_parser/*",
+    "src/oci_policy_analysis/logic/parsers/condition_parser/*",
 ]

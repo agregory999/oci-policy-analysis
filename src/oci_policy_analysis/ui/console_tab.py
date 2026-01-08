@@ -121,8 +121,7 @@ class ConsoleTab(ttk.Frame):
                 'reference_data_repo',
                 'policy_parser',
                 'data_repo',
-                'policies',
-                'policy_overlap',
+                'policy_intelligence',
                 'where_clause_evaluator',
             ],
             'UI': [

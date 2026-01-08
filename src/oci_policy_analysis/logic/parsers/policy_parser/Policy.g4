@@ -32,13 +32,13 @@ grammar Policy;
  endorseVerb         : (verb | ASSOCIATE);
  verb                : (INSPECT | READ | USE | MANAGE) ;
  permissionList      : '{'  WORD  (',' WORD)* '}'  ; // e.g {USER_UPDATE, USER_UIPASS_SET, USER_UIPASS_SET}
- scope               : ((COMPARTMENT ID?)  (WORD | HCL_VAR) (':' (WORD | HCL_VAR))* | TENANCY) ;
+ scope               : ((COMPARTMENT ID?)  (WORD | HCL_VAR | QUOTED_STRING) (':' (WORD | HCL_VAR | QUOTED_STRING))* | TENANCY) ;
  endorseScope        : (ANYTENANCY| TENANCY (WORD | HCL_VAR));
  subject             : (groupSubject | serviceSubject | dynamicGroupSubject | resourceSubject | ANYUSER) ;
  groupSubject        : GROUP (groupName| groupID) (','(groupName|groupID))* ;
  resourceSubject     : RESOURCE resourceSubjectId (resourceSubjectId)*;
  serviceSubject      : SERVICE serviceSubjectId (',' serviceSubjectId)*;
- groupName           : (WORD | QUOTED_STRING '/' QUOTED_STRING | QUOTED_STRING | WORD '/' WORD | WORD '/' QUOTED_STRING | HCL_VAR);
+ groupName           : (WORD | QUOTED_STRING) | (WORD | QUOTED_STRING) '/' (WORD | QUOTED_STRING) | HCL_VAR ;
  resourceSubjectId   : (WORD | HCL_VAR) ('\'' (WORD | HCL_VAR) '\'' | '\'' (WORD | HCL_VAR) '/' (WORD | HCL_VAR) '\'' )+?;
  serviceSubjectId    : (WORD | HCL_VAR);
  groupID             : ID (WORD | HCL_VAR);
@@ -50,7 +50,7 @@ grammar Policy;
  condition           : (comparisonList | comparison | HCL_VAR) ; // Added HCL_VAR to allow conditions to be HCL variables
  comparison          : variable operator (value|valueList|timeWindow| patternMatch) ;
  variable            : (WORD | HCL_VAR) (('.' (WORD | HCL_VAR) )+)? ;
- operator            : ('=' | '!''=' | BEFORE | IN | BETWEEN) ;
+ operator            : ('=' | '!''=' | BEFORE | AFTER | IN | BETWEEN) ;
  value               : (WORD 
                      | QUOTED_STRING 
                      | QUOTED_STRING '/' WORD 
@@ -69,6 +69,7 @@ grammar Policy;
   * Lexer Rules
   */
  BEFORE              : B E F O R E ;
+ AFTER               : A F T E R ;
  BETWEEN             : B E T W E E N;
  NEWLINE             : ('\r'? '\n' | '\r')+ -> skip;
  COMMENT             : '//' ~[\r\n]* ;

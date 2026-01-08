@@ -34,6 +34,8 @@ from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
 from oci.loggingsearch.models import SearchLogsDetails, SearchResult
+from oci.resource_search import ResourceSearchClient
+from oci.resource_search.models import StructuredSearchDetails
 from oci.signer import load_private_key_from_file
 
 from oci_policy_analysis.common.logger import get_logger
@@ -47,12 +49,12 @@ from oci_policy_analysis.common.models import (
     EndorseStatement,
     Group,
     GroupSearch,
-    PolicyOverlap,
     PolicySearch,
     RegularPolicyStatement,
     User,
     UserSearch,
 )
+from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
@@ -97,11 +99,39 @@ class PolicyAnalysisRepository:
         self.data_as_of = ''
         self.tenancy_ocid = None
         self.identity_client = None
-        self.loaded_from_tenancy = False
+        self.identity_loaded_from_tenancy = False
+        self.policies_loaded_from_tenancy = False
         # Keep the refence data repo as a member
         self.permission_reference_repo = ReferenceDataRepo()
         # self.on_policy_statements_updated = None  # Optional callback, set by UI for reload hooks
         logger.info('Initialized PolicyAnalysisRepo')
+        # Create a Normalizer instance
+        self.normalizer = PolicyStatementNormalizer()
+
+    def reset_state(self):
+        """
+        Resets all main state variables (lists, dictionaries, flags, clients, IDs, etc.).
+        Call this before any data (re)load operation for a clean repository state.
+        """
+        self.compartments = []
+        self.policies = []
+        self.regular_statements = []
+        self.cross_tenancy_statements = []
+        self.defined_aliases = []
+        self.dynamic_groups = []
+        self.identity_domains = []
+        self.groups = []
+        self.users = []
+        self.domain_clients = {}
+        self.data_as_of = ''
+        self.tenancy_ocid = None
+        self.identity_client = None
+        self.identity_loaded_from_tenancy = False
+        self.policies_loaded_from_tenancy = False
+        self.permission_reference_repo = ReferenceDataRepo()
+        # If there are additional ephemeral analysis/cache attributes, reset them here
+        # (e.g., self._policy_progress_queue, self.normalizer, cached_*, etc.)
+        logger.info('PolicyAnalysisRepository state has been reset.')
 
     def initialize_client(
         self,
@@ -131,9 +161,11 @@ class PolicyAnalysisRepository:
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
+                # Identity for all policy Data
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
-                self.identity_client = IdentityClient(config={}, signer=self.signer)
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
             elif session_token:
                 logger.info('Attempt session auth')
@@ -145,6 +177,10 @@ class PolicyAnalysisRepository:
                 private_key = load_private_key_from_file(self.config['key_file'])
                 self.signer = SecurityTokenSigner(token, private_key)
                 self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(
+                    {'region': self.config['region']}, signer=self.signer
+                )
                 self.tenancy_ocid = self.config['tenancy']
                 logger.info('Success session auth')
             else:
@@ -153,6 +189,8 @@ class PolicyAnalysisRepository:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(self.config)
             logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
 
             # Set Recursion
@@ -161,221 +199,11 @@ class PolicyAnalysisRepository:
 
             # Get tenancy name
             self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
-
-            # Return True because we got the clients
-            self.loaded_from_tenancy = True
-            # if self.on_policy_statements_updated:
-            #     try:
-            #         self.on_policy_statements_updated()
-            #     except Exception as e:
-            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
+            logger.info(f'Initialized client for tenancy: {self.tenancy_name} ({self.tenancy_ocid})')
             return True
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
             return False
-
-    def get_policy_overlaps_by_internal_id(self, internal_id: str) -> list[PolicyOverlap]:
-        """
-        Get all PolicyOverlap entries for a given statement internal ID.
-
-        Args:
-            internal_id (str): The internal ID of the policy statement.
-
-        Returns:
-            list[PolicyOverlap]: List of PolicyOverlap entries for the statement.
-        """
-        overlaps: list[PolicyOverlap] = []
-        for st in self.regular_statements:
-            if st.get('internal_id') == internal_id:
-                overlaps = st.get('policy_overlap', [])
-                break
-        return overlaps
-
-    def _find_invalid_statements(self):  # noqa: C901
-        """
-        Mark regular policy statements as invalid if they fail various validity checks, such as:
-        - Nonexistent Dynamic Groups or Groups
-        - Invalid compartment OCIDs
-        - Invalid verbs/resources
-
-        This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.
-        """
-        for st in self.regular_statements:
-            invalid_reasons = []
-            # Dynamic Group check
-            if st['subject_type'] == 'dynamic-group':
-                for subject in st['subject']:
-                    dg_domain = subject[0] or 'default'
-                    dg_name = subject[1]
-                    # See if this DG exists in our loaded DGs
-                    logger.debug(f'Checking DG existence for {dg_domain}/{dg_name}')
-                    dg_found = any(
-                        dg.get('dynamic_group_name').lower() == dg_name.lower()
-                        and dg.get('domain_name', 'default').lower() == dg_domain.lower()
-                        for dg in self.dynamic_groups
-                    )
-                    if not dg_found:
-                        st['valid'] = False
-                        invalid_reasons.append(f'Dynamic Group {dg_name} not found in tenancy')
-                        logger.debug(f'Dynamic Group {dg_name} not found for statement: {st["statement_text"]}')
-            # Group check
-            elif st['subject_type'] == 'group':
-                for subject in st['subject']:
-                    group_domain = subject[0] or 'default'
-                    group_name = subject[1]
-                    # See if this Group exists in our loaded Groups
-                    logger.debug(f'Checking Group existence for {group_domain}/{group_name}')
-                    group_found = any(
-                        g.get('group_name').lower() == group_name.lower()
-                        and g.get('domain_name', 'default').lower() == group_domain.lower()
-                        for g in self.groups
-                    )
-                    if not group_found:
-                        st['valid'] = False
-                        invalid_reasons.append(f'Group {group_name} not found in tenancy')
-                        logger.debug(f'Group {group_name} not found for statement: {st["statement_text"]}')
-            # Location check
-            if st['location_type'] == 'compartment id':
-                location_ocid = st['location']
-                if not self._check_invalid_location(location_ocid):
-                    st['valid'] = False
-                    invalid_reasons.append(f'Compartment OCID {location_ocid} not found in tenancy')
-                    logger.debug(f'Compartment OCID {location_ocid} not found for statement: {st["statement_text"]}')
-            # Verb check
-            if st['verb'] and st['verb'].casefold() not in VALID_VERBS:
-                logger.debug(f'Invalid Verb found: {st["verb"]}')
-                st['valid'] = False
-                invalid_reasons.append(f'Invalid Verb ({st["verb"]}) found')
-
-            if len(invalid_reasons) > 0:
-                st['invalid_reasons'] = invalid_reasons
-
-    def calculate_effective_compartment_for_statement(self, st):  # noqa: C901
-        """
-        Calculate effective compartment OCID and path for a single statement, mutating st in place.
-        Builds indexes if necessary and possible; if not, returns informative error.
-        """
-        # Defensive: dynamically build indexes if they're missing and data is present.
-        try:
-            if (
-                not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path')
-            ) and self.compartments:
-                self._build_compartment_index()
-        except Exception as idx_exc:
-            st['effective_path'] = f'(Error building compartment indexes: {idx_exc})'
-            return
-
-        if not hasattr(self, 'compartments_by_id') or not hasattr(self, 'compartments_by_path'):
-            st['effective_path'] = '(Compartments not loaded or indexes unavailable)'
-            return
-
-        logger.debug(f'-Statement: {st.get("statement_text")}')
-        # Case 1 - in tenancy
-        if st.get('location_type') == 'tenancy':
-            st['effective_compartment_ocid'] = self.tenancy_ocid
-            st['effective_path'] = self._name_path_from_ocid(self.tenancy_ocid)
-            if st['effective_path']:
-                st['effective_path'] = st['effective_path'].lower()
-            logger.info(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
-        # Case 2 - Compartment ID
-        elif st.get('location_type') == 'compartment id':
-            st['effective_compartment_ocid'] = st.get('location')
-            st['effective_path'] = self._name_path_from_ocid(st.get('location'))
-            if st['effective_path']:
-                st['effective_path'] = st['effective_path'].lower()
-            st.setdefault('parsing_notes', []).append('Compartment ID used for location')
-            logger.info(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
-        # Case 3 - Compartment Name (with or without full path)
-        # Note - if location refers to current compartment, we need to remove that from the path
-        else:
-            logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
-            location = st.get('location')
-            parts = [p.strip() for p in location.split(':') if p.strip()] if location else []
-            policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
-            logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
-
-            # If the first element of the path is the same as the policy compartment name, remove it from cosideration
-            eff_path = policy_path
-            logger.debug(f'Initial effective path: {eff_path}')
-            logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
-            comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
-            logger.debug(f'Compartment name for compare: {comp_name}')
-            # Defensive: parts non-empty
-            if parts and parts[0].casefold() == (comp_name.casefold() if comp_name else ''):
-                st.setdefault('parsing_notes', []).append('Deleted compartment from effective location')
-                del parts[0]
-            for p in parts:
-                eff_path += f'/{p}'
-            if eff_path:
-                eff_path = eff_path.lower()
-            logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
-            st['effective_path'] = eff_path
-            st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
-
-    def _calculate_effective_compartments_for_statements(self):
-        """
-        Resolve effective compartment for all statements.  Loop through all statements and calculate.
-        """
-        for st in self.regular_statements:
-            self.calculate_effective_compartment_for_statement(st)
-
-    def _name_path_from_ocid(self, ocid: str) -> str | None:
-        """Lookup full root:...:name path from a compartment OCID."""
-        logger.debug(f'Lookup details: {self.compartments_by_id}')
-        comp = self.compartments_by_id.get(ocid)
-        return comp.get('path') if comp else None
-
-    def _comp_name_path_ocid(self, ocid: str) -> str | None:
-        """Get compartment name from compartment OCID."""
-        comp = self.compartments_by_id.get(ocid)
-        return comp.get('name') if comp else None
-
-    def _build_compartment_index(self) -> None:
-        """
-        Build quick-lookup structures for resolving compartment names and parent/child
-        relationships used by _calculate_effective_compartments_for_statements().
-        """
-
-        # Build these idexes for use later
-        self.compartments_by_id: dict[str, dict[str, str]] = {}
-        self.compartments_by_path: dict[str, dict[str, str]] = {}
-        self.children_by_parent: dict[str, dict[str, str]] = {}
-
-        logger.info(
-            f'Building compartment indexes for effective compartment resolution. CCompartments loaded: {len(self.compartments)}'
-        )
-        for comp in self.compartments:  # however you store them
-            cid = comp.get('id')
-            name = comp.get('name')
-            parent_id = comp.get('parent_id') or self.tenancy_ocid
-            # There is no path at this point, maybe we can generate it now
-            path = comp.get('hierarchy_path')
-            logger.debug(f'***Path is {path}')
-            # path, ocids = self._get_compartment_path(comp, 0, '')
-            # path = comp.get("path")
-
-            # Index by id
-            self.compartments_by_id[cid] = {
-                'name': name,
-                'path': comp.get('hierarchy_path'),
-                'parent_id': parent_id,
-            }
-
-            # Index by path
-            if path:
-                self.compartments_by_path[path] = {'id': cid, 'name': name}
-
-            # Build children_by_parent
-            self.children_by_parent.setdefault(parent_id, {})[name] = cid
-
-        # Debug entire index
-        logger.info(f'Compartment by ID index: {json.dumps(self.compartments_by_id, indent=2)}')
-        logger.info(f'Compartment by Path index: {json.dumps(self.compartments_by_path, indent=2)}')
-        logger.info(f'Children by Parent index: {json.dumps(self.children_by_parent, indent=2)}')
-        logger.info(
-            f'Built compartment index: {len(self.compartments_by_id)} compartments, '
-            f'{len(self.children_by_parent)} parents with children.'
-        )
 
     def _get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
         """Recursive function to generate a compartment's path to the root"""
@@ -399,9 +227,30 @@ class PolicyAnalysisRepository:
             logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
             return comp_string, hierarchy_ocids
 
-    def _check_invalid_location(self, compartment_ocid) -> bool:
-        """Given a compartment OCID-based location, return False if there is no compartment (any more)"""
+    def check_statement_location_validity(self, st):
+        """
+        Checks if the compartment location for a statement is valid (exists and is ACTIVE).
 
+        Args:
+            st: The policy statement (dict).
+
+        Returns:
+            None if valid; string message if invalid.
+        """
+        if st.get('location_type') == 'compartment id':
+            logger.info(f'Checking location validity for statement: {st.get("statement_text")}')
+            location_ocid = st.get('location')
+            if not self._check_invalid_location(location_ocid):
+                return f'Compartment OCID {location_ocid} not found in tenancy'
+        return None
+
+    def _check_invalid_location(self, compartment_ocid) -> bool:
+        """
+        Given a compartment OCID-based location, return False if there is no compartment (any more)
+        or if the compartment is not ACTIVE.  True if it exists and is ACTIVE.
+
+        Called from Policy IntelligenceEngine.find_invalid_statements() - only doing this now because of the OCI Client needed
+        """
         try:
             comp: Compartment = self.identity_client.get_compartment(compartment_id=compartment_ocid).data
             if comp.lifecycle_state == Compartment.LIFECYCLE_STATE_ACTIVE:
@@ -415,36 +264,10 @@ class PolicyAnalysisRepository:
             logger.debug(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
 
-    def _parse_subjects(self, subject_list) -> list[tuple[str, str]]:
-        """
-        Given a parsed subject (list of strings), return list of (domain, subject).
-        - If string contains '/', use part before first '/' as domain, after as subject.
-        - If not, assume domain "default".
-        Strips quotes from all parts.
-        """
-        results = []
-        if not isinstance(subject_list, list):
-            subject_list = [subject_list]
-        for subj in subject_list:
-            if not subj:
-                continue
-            # Remove leading/trailing quotes and whitespace
-            s = str(subj).strip().strip('\'"')
-            if '/' in s:
-                domain, subject = s.split('/', 1)
-                domain = domain.strip('\'"')
-                subject = subject.strip('\'"')
-                results.append((domain, subject))
-            else:
-                # No explicit domain, use "default"
-                results.append(('default', s.strip('\'"')))
-        return results
-
     def _parse_define_statement(self, policy: BasePolicy, statement: DefineStatement) -> bool:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
         """
-        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
         try:
             # Use definition's base model fields for required meta
@@ -461,26 +284,35 @@ class PolicyAnalysisRepository:
                 ]
                 if k in statement
             }
-            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+            normalized = self.normalizer.normalize(
                 statement_text=statement['statement_text'], statement_type='define', base_fields=base
             )
-            if not normalized:
-                logger.warning(f'Define statement was unable to normalize: {statement["statement_text"]}')
+            if isinstance(normalized, dict) and not normalized.get('parsed', True):
+                # convert statement to dict to ensure we can add fields
+                statement_dict = dict(statement)
+                statement_dict['parsed'] = False
+                statement_dict['valid'] = False
+                statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
+                logger.debug(
+                    f'Define statement was unable to normalize: {statement_dict.get("statement_text")} | Reason: {statement_dict.get("invalid_reasons")}'
+                )
+                self.defined_aliases.append(statement_dict)
                 return False
             self.defined_aliases.append(normalized)
-            logger.info(f'Define Statement Added: {normalized}')
+            logger.debug(f'Define Statement Added: {normalized}')
             return True
         except Exception as e:
             statement['parsed'] = False
             statement['valid'] = False
-            logger.warning(f'Normalize define statement failed: {e}')
+            statement['invalid_reasons'] = [f'Normalize define statement failed: {e}']
+            logger.debug(f'Normalize define statement failed: {e}')
+            self.defined_aliases.append(statement)
             return False
 
     def _parse_admit_statement(self, policy: BasePolicy, statement: AdmitStatement) -> bool:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
         """
-        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
         try:
             base = {
@@ -496,20 +328,27 @@ class PolicyAnalysisRepository:
                 ]
                 if k in statement
             }
-            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+            normalized = self.normalizer.normalize(
                 statement_text=statement['statement_text'], statement_type='admit', base_fields=base
             )
-            if not normalized:
-                logger.warning(f"Admit statement was unable to normalize: {statement['statement_text']}")
+            if isinstance(normalized, dict) and not normalized.get('parsed', True):
+                statement_dict = dict(statement)
+                statement_dict['parsed'] = False
+                statement_dict['valid'] = False
+                statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
+                logger.debug(
+                    f"Admit statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                )
+                self.cross_tenancy_statements.append(statement_dict)
                 return False
             self.cross_tenancy_statements.append(normalized)
-            logger.info(f'Admit Statement Added: {normalized}')
+            logger.debug(f'Admit Statement Added: {normalized}')
             return True
         except Exception as ex:
             statement['valid'] = False
             statement['parsed'] = False
-            statement['parsing_notes'] = [f'Normalize admit parser failed: {ex}']
-            logger.warning(f'Normalize admit parser failed: {ex}')
+            statement['invalid_reasons'] = [f'Normalize admit parser failed: {ex}']
+            logger.debug(f'Normalize admit parser failed: {ex}')
             self.cross_tenancy_statements.append(statement)
             return False
 
@@ -517,7 +356,6 @@ class PolicyAnalysisRepository:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
         """
-        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
         try:
             base = {
@@ -533,19 +371,27 @@ class PolicyAnalysisRepository:
                 ]
                 if k in statement
             }
-            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+            normalized = self.normalizer.normalize(
                 statement_text=statement['statement_text'], statement_type='endorse', base_fields=base
             )
-            if not normalized:
-                logger.warning(f"Endorse statement was unable to normalize: {statement['statement_text']}")
+            if isinstance(normalized, dict) and not normalized.get('parsed', True):
+                statement_dict = dict(statement)
+                statement_dict['parsed'] = False
+                statement_dict['valid'] = False
+                statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
+                logger.debug(
+                    f"Endorse statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                )
+                self.cross_tenancy_statements.append(statement_dict)
                 return False
             self.cross_tenancy_statements.append(normalized)
-            logger.info(f'Endorse Statement Added: {normalized}')
+            logger.debug(f'Endorse Statement Added: {normalized}')
             return True
         except Exception as ex:
             statement['valid'] = False
             statement['parsed'] = False
-            logger.warning(f'Normalize endorse parser failed: {ex}')
+            statement['invalid_reasons'] = [f'Normalize endorse parser failed: {ex}']
+            logger.debug(f'Normalize endorse parser failed: {ex}')
             self.cross_tenancy_statements.append(statement)
             return False
 
@@ -553,7 +399,6 @@ class PolicyAnalysisRepository:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
         """
-        from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
         try:
             base = {
@@ -569,19 +414,29 @@ class PolicyAnalysisRepository:
                 ]
                 if k in statement
             }
-            normalized = PolicyStatementNormalizer(logger=logger).normalize(
+            normalized = self.normalizer.normalize(
                 statement_text=statement['statement_text'], statement_type='regular', base_fields=base
             )
-            if not normalized:
-                logger.warning(f"Regular statement was unable to normalize: {statement['statement_text']}")
-                self.regular_statements.append(statement)
+            if isinstance(normalized, dict) and not normalized.get('parsed', True):
+                statement_dict = dict(statement)
+                statement_dict['action'] = 'unknown'
+                statement_dict['parsed'] = False
+                statement_dict['valid'] = False
+                statement_dict['invalid_reasons'] = normalized.get('invalid_reasons', [])
+                logger.debug(
+                    f"Regular statement was unable to normalize: {statement_dict.get('statement_text')} | Reason: {statement_dict.get('invalid_reasons')}"
+                )
+                logger.debug(f'Full invalid statement data: {statement_dict}')
+                self.regular_statements.append(statement_dict)
                 return False
             self.regular_statements.append(normalized)
-            logger.info(f'Regular Policy Statement Parsed: {normalized}')
+            logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             return True
         except Exception as ex:
             statement['parsed'] = False
-            logger.warning(f'Normalize regular policy parser failed: {ex}')
+            statement['valid'] = False
+            statement['invalid_reasons'] = [f'Normalize regular policy parser failed: {ex}']
+            logger.debug(f'Normalize regular policy parser failed: {ex}')
             self.regular_statements.append(statement)
             return False
 
@@ -602,127 +457,14 @@ class PolicyAnalysisRepository:
             created_by_name=dg.idcs_created_by.display if dg.idcs_created_by else None,
         )
 
-    # --- Main Data Loading Functions ---
-    def _load_compartment_and_policies_worker(self, compartment: Compartment):  # noqa: C901
-        """Worker function to load compartment and policy data as JSON object in a thread"""
-        try:
-            start_time = time.perf_counter()
-            # Load compartment data
-            logger.info(f'Processing compartment: {compartment.name} (OCID: {compartment.id})')
-            # Do this instead of build_compartment index
-            path, ocids = self._get_compartment_path(compartment, 0, '')
-            self.compartments.append(
-                {
-                    'id': compartment.id,
-                    'name': compartment.name if compartment.id != self.tenancy_ocid else 'ROOT',
-                    'parent_id': compartment.compartment_id,
-                    'hierarchy_path': path,
-                    'hierarchy_ocids': ocids,
-                }
-            )
-            logger.debug(f'Loaded compartment: {compartment.name}, Path: {path}, OCID: {compartment.id}')
-
-            # Load policies for the compartment
-            policies_response = self.identity_client.list_policies(compartment_id=compartment.id, limit=1000)
-            if policies_response and policies_response.data:
-                logger.debug(f'Looping policies for comp: {compartment.name} ({len(policies_response.data)})')
-                load_pol_time = time.perf_counter()
-                this_comp_count: int = 0
-                for policy in policies_response.data:
-                    logger.debug(f'Processing policy: {policy.name} (OCID: {policy.id})')
-                    # Create Policy object to be used in parsing
-                    policy_obj = BasePolicy(
-                        policy_ocid=policy.id,
-                        policy_name=policy.name,
-                        description=policy.description or '',
-                        compartment_ocid=compartment.id,
-                        creation_time=policy.time_created,
-                    )
-                    # Add to self.policies list
-                    self.policies.append(policy_obj)
-
-                    # Loop through statements in policy
-                    for statement in policy.statements:
-                        # Get the text of the statement in lower case for easier parsing
-                        logger.debug(f'Processing statement in policy {policy.name}: {statement}')
-                        statement_lower = statement.lower()
-
-                        # Create the Base Policy Statement, we will extend it as needed
-                        base_policy_statement: BasePolicyStatement = BasePolicyStatement(
-                            policy_name=policy.name,
-                            policy_ocid=policy.id,
-                            policy_description=policy.description or '',
-                            compartment_ocid=compartment.id,
-                            compartment_path=path,
-                            statement_text=statement_lower,
-                            creation_time=str(policy.time_created),
-                            internal_id=hashlib.md5((statement + policy.id).encode()).hexdigest(),
-                            parsed=False,
-                        )
-                        # 1) Filter the define statements here and add them to the defines list
-                        if statement_lower.startswith('define'):
-                            # Call our Define Parser with Policy and BasePolicyStatement, let it extend and add
-                            define_statement: DefineStatement = DefineStatement(**base_policy_statement)
-                            # Parse the define statement to fill in the fields, and then add to list
-                            if not self._parse_define_statement(policy_obj, define_statement):
-                                logger.warning(f'Define statement was unable to parse: {statement}')
-                            logger.debug(f'Parsed define statement: {define_statement}')
-
-                        # 2) Filter out the cross-tenancy policies here and add them to the CT list
-                        elif (
-                            statement_lower.startswith('admit')
-                            or statement_lower.startswith('endorse')
-                            or statement_lower.startswith('deny admit')
-                            or statement_lower.startswith('deny endorse')
-                        ):
-                            # Create appropriate Admit or Endorse Statement object and then parse function
-                            if statement_lower.startswith('admit') or statement_lower.startswith('deny admit'):
-                                admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
-                                if not self._parse_admit_statement(policy_obj, admit_statement):
-                                    logger.warning(f'Admit statement was unable to parse: {statement}')
-                                logger.debug(f'Parsed admit statement: {admit_statement}')
-
-                            elif statement_lower.startswith('endorse') or statement_lower.startswith('deny endorse'):
-                                endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
-                                if not self._parse_endorse_statement(policy_obj, endorse_statement):
-                                    logger.warning(f'Endorse statement was unable to parse: {statement}')
-                                logger.debug(f'Parsed endorse statement: {endorse_statement}')
-
-                        # 3) Regular statements
-                        else:
-                            policy_statement: RegularPolicyStatement = RegularPolicyStatement(**base_policy_statement)
-                            if not self._parse_statement(policy_obj, policy_statement):  # type: ignore
-                                logger.warning(f'Regular statement was unable to parse: {statement}')
-                            logger.debug(f'Parsed regular statement: {policy_statement}')
-
-                        this_comp_count += 1
-
-                parse_time = time.perf_counter()
-                logger.debug(
-                    f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
-{len(self.defined_aliases)} aliases in {load_pol_time - start_time:.2f} and parse all in {parse_time - load_pol_time:.2f}s'
-                )
-
-            else:
-                logger.debug(f'No policies found for compartment: {compartment.id}')
-                return
-            parse_time = time.perf_counter()
-            logger.debug(
-                f'{compartment.name}: Policy Load {this_comp_count} regular, {len(self.cross_tenancy_statements)} CT policies and \
-{len(self.defined_aliases)} aliases in {load_pol_time - start_time:.2f} and parse all in {parse_time - load_pol_time:.2f}s'
-            )
-
-        except Exception as se:
-            logger.error(f'Failed to load compartment or policies for {compartment.id}: {se}')
-
-    def load_policies_and_compartments(self) -> bool:
+    # --- Main Data Loading Functions for Tenancy ---
+    def load_policies_and_compartments(self) -> bool:  # noqa: C901
         """
-        Load all compartments and policies from a tenancy using OCI Clients.
+        Optimized bulk loading of all compartments and all policies using OCI Clients.
 
-        If recursive was selected, use a thread pool and the worker function.
-
-        Returns:
-            a boolean indicating success or failure
+        1. Fetch compartments (hierarchy, flat)
+        2. Fetch policies (threaded fetch/parse) from OCI Resource Search
+        3. No queue or milestone progress emission
         """
         self.compartments = []
         self.policies = []
@@ -731,73 +473,123 @@ class PolicyAnalysisRepository:
         self.defined_aliases: list[DefineStatement] = []
         start_time = time.perf_counter()
         try:
+            logger.info('Bulk fetching all compartments...')
             root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
-            if root_comp_response.data is None:
+            if not root_comp_response or not root_comp_response.data:
                 logger.error(f'Failed to get root compartment: {self.tenancy_ocid}')
                 return False
             root_comp = root_comp_response.data
-            comp_list = [root_comp]
-            logger.info(f'Loaded root compartment: {root_comp.name} (OCID: {root_comp.id})')
-            # If recursive, get all compartments
-            if self.recursive:
-                logger.debug('Loading compartments recursively')
-                comp_response = pagination.list_call_get_all_results(
-                    self.identity_client.list_compartments,
-                    self.tenancy_ocid,
-                    access_level='ACCESSIBLE',
-                    sort_order='ASC',
-                    # compartment_id_in_subtree=False,
-                    compartment_id_in_subtree=True,
-                    lifecycle_state='ACTIVE',
-                    limit=1000,
-                )
-                if comp_response.data is None:
-                    logger.error('Failed to list compartments')
-                    return False
-                comp_list.extend(comp_response.data)
-            logger.info(f'All compartments loaded: {len(comp_list)}')
-            # Catch the load time for compartments
-            comp_load_time = time.perf_counter()
-
-            # Load all of the policy data in threaded worker if recursive
-            if self.recursive:
-                # Use a thread pool
-                with ThreadPoolExecutor(max_workers=THREADS, thread_name_prefix='thread') as executor:
-                    executor.map(self._load_compartment_and_policies_worker, comp_list)
-            else:
-                # Call the worker on its own with just the root compartment
-                self._load_compartment_and_policies_worker(compartment=root_comp)
-
-            # Now self.compartments exists. If we build the index from it, won't be as slow
-            self._build_compartment_index()
-
-            # Print indexes
-            logger.debug(f'Compartments by id: {self.compartments_by_id}')
-            logger.debug(f'Compartments by path: {self.compartments_by_path}')
-            logger.debug(f'Children by parent: {self.children_by_parent}')
-
-            # Now call effective compartment code - for all
-            self._calculate_effective_compartments_for_statements()
-
-            # Find invalid statements - e.g., invalid dynamic groups
-            self._find_invalid_statements()
-
-            # Mark Dynamic groups as invalid if not used in any statement
-            self.run_dg_in_use_analysis()
-
-            # Keep track of the time of this completed data load
-            self.data_as_of = str(datetime.now(UTC))
-            policy_finish_time = time.perf_counter()
-            logger.info(
-                f'Loaded {len(self.compartments)} compartments in {comp_load_time - start_time:.2f} and {len(self.regular_statements)} policies in {policy_finish_time - comp_load_time:.2f}s'
+            comp_response = pagination.list_call_get_all_results(
+                self.identity_client.list_compartments,
+                self.tenancy_ocid,
+                access_level='ACCESSIBLE',
+                sort_order='ASC',
+                compartment_id_in_subtree=True,
+                lifecycle_state='ACTIVE',
+                limit=1000,
             )
+            all_comps = [root_comp] + (list(comp_response.data) if comp_response and comp_response.data else [])
+            logger.info(f'Total compartments loaded: {len(all_comps)}')
+
+            self.compartments = []
+            for comp in all_comps:
+                self.compartments.append(
+                    {
+                        'id': comp.id,
+                        'name': comp.name if comp.id != self.tenancy_ocid else 'ROOT',
+                        'parent_id': comp.compartment_id,
+                        'hierarchy_path': None,
+                        'hierarchy_ocids': None,
+                    }
+                )
+            logger.info('Building compartment hierarchy paths and lookup tables...')
+            for compartment in self.compartments:
+                compartment['hierarchy_path'] = self._get_hierarchy_path_for_compartment(compartment, '')
+
+            logger.info(
+                'Bulk fetching all policies for all compartments using Resource Search or tenancy-wide method...'
+            )
+            policy_search_results = self.resource_search_client.search_resources(
+                search_details=StructuredSearchDetails(type='Structured', query='query policy resources'), limit=1000
+            )
+            if policy_search_results and policy_search_results.data and policy_search_results.data.items:
+                logger.info(f'Found {len(policy_search_results.data.items)} policies via Resource Search.')
+                total_policies = len(policy_search_results.data.items)
+
+                def _process_policy_resource(item, position, total_policies):
+                    policy_ocid = item.identifier
+                    compartment_ocid = item.compartment_id
+                    try:
+                        policy_response = self.identity_client.get_policy(policy_id=policy_ocid)
+                        if policy_response and policy_response.data:
+                            policy_obj = BasePolicy(
+                                policy_ocid=policy_response.data.id,
+                                policy_name=policy_response.data.name,
+                                description=policy_response.data.description or '',
+                                compartment_ocid=policy_response.data.compartment_id,
+                                creation_time=policy_response.data.time_created,
+                            )
+                            self.policies.append(policy_obj)
+                            for statement in policy_response.data.statements:
+                                statement_lower = statement.lower()
+                                hierarchy_path = next(
+                                    (
+                                        comp['hierarchy_path']
+                                        for comp in self.compartments
+                                        if comp['id'] == compartment_ocid
+                                    ),
+                                    'UNKNOWN_PATH',
+                                )
+                                base_policy_statement: BasePolicyStatement = BasePolicyStatement(
+                                    policy_name=policy_response.data.name,
+                                    policy_ocid=policy_response.data.id,
+                                    policy_description=policy_response.data.description or '',
+                                    compartment_ocid=policy_response.data.compartment_id,
+                                    compartment_path=hierarchy_path,
+                                    statement_text=statement_lower,
+                                    creation_time=str(policy_response.data.time_created),
+                                    internal_id=hashlib.md5((statement + policy_response.data.id).encode()).hexdigest(),
+                                    parsed=False,
+                                )
+                                if statement_lower.startswith('define'):
+                                    define_statement: DefineStatement = DefineStatement(**base_policy_statement)
+                                    self._parse_define_statement(policy_obj, define_statement)
+                                elif (
+                                    statement_lower.startswith('admit')
+                                    or statement_lower.startswith('endorse')
+                                    or statement_lower.startswith('deny admit')
+                                    or statement_lower.startswith('deny endorse')
+                                ):
+                                    if statement_lower.startswith('admit') or statement_lower.startswith('deny admit'):
+                                        admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
+                                        self._parse_admit_statement(policy_obj, admit_statement)
+                                    elif statement_lower.startswith('endorse') or statement_lower.startswith(
+                                        'deny endorse'
+                                    ):
+                                        endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
+                                        self._parse_endorse_statement(policy_obj, endorse_statement)
+                                else:
+                                    policy_statement: RegularPolicyStatement = RegularPolicyStatement(
+                                        **base_policy_statement
+                                    )
+                                    self._parse_statement(policy_obj, policy_statement)  # include validation as before
+                    except Exception as e:
+                        logger.warning(f'Failed to get policy {policy_ocid}: {e}')
+
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    for idx, item in enumerate(policy_search_results.data.items):
+                        executor.submit(_process_policy_resource, item, idx, total_policies)
+            self.data_as_of = str(datetime.now(UTC))
+            total_time = time.perf_counter() - start_time
+            logger.info(
+                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
+            )
+            # Return True because we loaded successfully
+            self.policies_loaded_from_tenancy = True
             return True
         except Exception as e:
             logger.error(f'Failed to load policies and compartments: {e}')
             return False
-
-    def _get_compartment_by_id(self, compartment_id: str) -> dict:
-        return next((c for c in self.compartments if c['id'] == compartment_id), None)
 
     def load_complete_identity_domains(self) -> bool:  # noqa: C901
         """Loads everything into the cetntral JSON
@@ -809,11 +601,7 @@ class PolicyAnalysisRepository:
             A boolean indicating success of the data load.  False indicates there was some failure in loading data,
             so it may be incomplete.
         """
-        # Clean up any existing data
-        self.dynamic_groups = []
-        self.identity_domains = []
-        self.groups = []
-        self.users = []
+
         try:
             domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
             if domain_response.data is None:  # type: ignore
@@ -959,6 +747,8 @@ class PolicyAnalysisRepository:
             logger.info(
                 f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
             )
+            # Set this so that callback can stop any waiting
+            self.identity_loaded_from_tenancy = True
 
             return True
         except Exception as e:
@@ -997,7 +787,7 @@ class PolicyAnalysisRepository:
         self._resolve_exact_users(filters=filters)
 
         # At this point we have exact groups or exact dynamic groups to deal with
-        logger.info(f'Post-fuzzy/exact search filters: {filters}')
+        logger.debug(f'Post-fuzzy/exact search filters: {filters}')
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
 
@@ -1629,194 +1419,6 @@ class PolicyAnalysisRepository:
             return ''
         return '\n'.join(changes)
 
-    def run_dg_in_use_analysis(self) -> None:
-        """Analyzes Dynamic Group data for unused Dynamic Groups
-
-        Given a list of policy statements, iterates to see if each dynamic group is used.  If not, it
-        is marked with "In Use" = False, for later display
-
-        Args:
-            policy_statements: A list of JSON dicts containing a policy statement each
-        """
-
-        # Build a list of all subjects as list(tuple(domain,name))
-        all_subjects: list[tuple] = []
-        for st in self.regular_statements:
-            subject_list = st.get('subject') or []
-            subject_type = st.get('subject_type')
-            logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
-            if subject_type == 'dynamic-group':
-                logger.debug(f'Add: {subject_type} Subject: {subject_list}')
-                all_subjects.extend(subject_list)
-
-        logger.debug(f'Subject Count for DG in-use analysis: {len(all_subjects)}')
-        # all_subjects = list(set(all_subjects))
-        # logger.info(f"all subjects: {len(all_subjects)}")
-
-        # Iterate all DGs, look at their Domain and Name, then look through each statement
-        unused_dynamic_groups = 0
-        for dg in self.dynamic_groups:
-            dg_domain = dg.get('domain_name') or 'default'
-            dg_name = dg.get('dynamic_group_name')
-            in_use = False  # Will be true at end if it exists
-            # Iterate our subject list
-            for subj_domain, subj_name in all_subjects:
-                logger.debug(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
-                if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
-                    in_use = True
-                    break
-            # Now if in_use still False, change the DG itself
-            if not in_use:
-                logger.info(f'Dynamic Group {dg_domain}/{dg_name} not in use')
-                dg['in_use'] = False
-                unused_dynamic_groups += 1
-
-        logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
-
-    def analyze_policy_overlap(self) -> None:  # noqa: C901
-        """Analyze policy statements for potential overlaps.
-        This method iterates through all regular policy statements and checks for potential overlaps
-        based on effective compartment paths, resources, verbs, permissions, and subjects.
-        If an overlap is detected, it records the details in the `policy_overlaps` attribute.
-        """
-        logger.info('Analyzing policy overlaps - setting up structure for comparison')
-        start_time = time.perf_counter()
-        for st in self.regular_statements:
-            # Get effective compartment
-            effective_compartment = st.get('effective_path', '') or 'n/a'
-            statement_text = st.get('statement_text', '') or 'n/a'
-            policy_overlap = []
-            additional_notes = ''
-            perm_overlap = []
-            reason = ''
-            logger.debug(
-                f'Analyzing statement "{statement_text}" in policy {st["policy_name"]} for overlaps - effective path: {effective_compartment}'
-            )
-            # Loop against all other statements
-            for other_st in self.regular_statements:
-                # Qualify OUT quickly - self-comparison
-                if other_st.get('internal_id', 'N/A') == st.get('internal_id', 'N/A'):
-                    continue
-                # Non-matching subject types
-                if other_st.get('subject_type') != st.get('subject_type'):
-                    continue
-                # Effective Path missing
-                # if not other_st.get('effective_path') or not other_st.get('resource') or not other_st.get('verb'):
-                #     continue
-                if not other_st.get('effective_path'):
-                    continue
-                # Effective path must be broader or same in other_st
-                # for example, if other is ROOT/A/B and this statement is ROOT/A/B/C, then continue processing
-                # if other is ROOT/A/B/C or ROOT/C and this is ROOT/A/B, then skip
-                if not effective_compartment.lower().startswith(other_st.get('effective_path', '').lower()):
-                    continue
-
-                # if there are explicit permissions, use those. otherwise get them from the repo
-                other_permissions = other_st.get('permission') or self.permission_reference_repo.get_permissions(
-                    entity=other_st.get('resource', ''),
-                    verb=other_st.get('verb', ''),
-                    action=other_st.get('action', 'allow'),
-                )
-                st_permissions = st.get('permission') or self.permission_reference_repo.get_permissions(
-                    entity=st.get('resource', ''), verb=st.get('verb', ''), action=st.get('action', 'allow')
-                )
-
-                logger.debug(
-                    f'Checking potential overlap(1) between "{st_permissions}" and "{other_permissions}" for statements "{st["policy_name"]}:{statement_text}" and "{other_st["policy_name"]}:{other_st["statement_text"]}"'
-                )
-                # If either list is empty, assume we haven't mapped these resources yet, so compare resource itself
-                if not other_permissions or not st_permissions:
-                    if other_st.get('resource', '').lower() != st.get('resource', '').lower():
-                        continue
-                    logger.debug(
-                        f'Potential Overlap (resource) based on resource name match: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
-                    )
-                    reason = (
-                        f'Exact match on resource name ({st["resource"]}), subject_type, and at least one subject, '
-                        f'with broader effective compartment in other policy ({other_st["effective_path"]})'
-                    )
-                    perm_overlap = ['Resource:' + st.get('resource', '')]
-                else:
-                    # The repo can find the overlaps - will be a list of permissions that overlap
-                    perm_overlap = self.permission_reference_repo.check_overlap(st_permissions, other_permissions)
-                    if len(perm_overlap) == 0:
-                        continue
-                    # Permission overlap found
-                    reason = (
-                        f'Permission Overlap between resource {st["resource"]} '
-                        f'and {other_st["resource"]}, subject_type, and at least one subject, '
-                        f'with broader effective compartment in other policy ({other_st["effective_path"]})'
-                    )
-                    logger.debug(
-                        f'Permission Overlap (permission) Check between "{st_permissions}" and "{other_permissions}": {perm_overlap}'
-                    )
-
-                # Now check subjects for overlap - each statement has a list of multiple subjects that are tuples (domain,subject)
-                st_subjects = st.get('subject', [])
-                other_subjects = other_st.get('subject', [])
-                subject_overlap = False
-                for st_subj in st_subjects:
-                    for other_subj in other_subjects:
-                        # Defensive: make sure all elements are strings, not lists
-                        st0 = st_subj[0]
-                        st1 = st_subj[1]
-                        oth0 = other_subj[0]
-                        oth1 = other_subj[1]
-                        # Flatten if a list, or join with '/'
-                        if isinstance(st0, list):
-                            st0 = '/'.join(map(str, st0))
-                        if isinstance(st1, list):
-                            st1 = '/'.join(map(str, st1))
-                        if isinstance(oth0, list):
-                            oth0 = '/'.join(map(str, oth0))
-                        if isinstance(oth1, list):
-                            oth1 = '/'.join(map(str, oth1))
-                        if (str(st0) or '').lower() == (str(oth0) or '').lower() and str(st1).lower() == str(
-                            oth1
-                        ).lower():
-                            subject_overlap = True
-                            break
-                    if subject_overlap:
-                        break
-                if not subject_overlap:
-                    continue
-                logger.debug(
-                    f'Potential Overlap: {st["policy_name"]}:{statement_text} / {other_st["policy_name"]}:{other_st["statement_text"]}'
-                )
-                # Now we have a potential overlap
-                # Confidence level is lower if there is a where clause in either statement
-                confidence = 'high'
-                if st.get('conditions') or other_st.get('conditions'):
-                    logger.debug(
-                        f'Policy Overlap detected with WHERE clause: Statement "{statement_text}" in policy {st["policy_name"]} '
-                        f'is potentially superseded by statement {other_st["statement_text"]} in policy {other_st["policy_name"]}'
-                    )
-                    confidence = 'medium'
-                    additional_notes = (
-                        'Runtime where clause(s) present in one or both statements may affect actual overlap.'
-                    )
-
-                policy_overlap.append(
-                    PolicyOverlap(
-                        superseded_by=other_st['policy_name'],
-                        confidence=confidence,
-                        reason=reason,
-                        statement_text=other_st['statement_text'],
-                        internal_id=other_st['internal_id'],
-                        permission_overlap=perm_overlap,
-                        additional_notes=additional_notes if 'additional_notes' in locals() else '',
-                    )
-                )
-            if len(policy_overlap) > 0:
-                st['policy_overlap'] = policy_overlap
-                logger.debug(
-                    f'Policy Overlap(s) found for statement "{statement_text}" in policy {st["policy_name"]}: {len(policy_overlap)}'
-                )
-        end_time = time.perf_counter()
-        logger.info(
-            f'Initialized policy_overlap lists for {len(self.regular_statements)} statements in {end_time - start_time:.2f} seconds'
-        )
-
     # Not in use
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
@@ -1852,11 +1454,6 @@ class PolicyAnalysisRepository:
                     logger.info(f'Log Type: {type_of_log}')
                     logger.info(f'***Log Details: Type: {type_of_log}Previous:{change_prev} Current:{change_curr}')
 
-                    # if 'type' in res.data:
-                    #     logger.info(f'Type: {res.data["type"]}')
-                    # else:
-                    #     logger.info('No type found in log data')
-                # logger.info(f'Log: {log.get["data"].get("datetime", "No message found")}')
         else:
             logger.info('No policy update logs found in the last 24 hours')
         pass
@@ -1923,30 +1520,21 @@ class PolicyAnalysisRepository:
         Returns:
             bool: True if all files parsed and data loaded successfully, False otherwise.
         """
-        # Reset all local data
-        self.identity_domains = []
-        self.dynamic_groups = []
-        self.users = []
-        self.groups = []
-        self.compartments = []
-        self.policies = []
-        self.regular_statements = []
-        self.cross_tenancy_statements = []
-        self.defined_aliases = []
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
+        # We need to only use the CSV files and stop using the JSON file altogether
         try:
-            # Step 0: Load all resources JSON
-            all_resources_file = os.path.join(dir_path, 'raw_data_all_resources.json')
-            with open(all_resources_file, encoding='utf-8') as f:
-                all_resources_data = json.load(f)
+            # # Step 0: Load all resources JSON
+            # all_resources_file = os.path.join(dir_path, 'raw_data_all_resources.json')
+            # with open(all_resources_file, encoding='utf-8') as f:
+            #     all_resources_data = json.load(f)
 
-            # Get the first region found in the data
-            if not all_resources_data or len(all_resources_data.keys()) == 0:
-                logger.error('No regions found in all resources data')
-                return False
-            first_region = list(all_resources_data.keys())[0]
-            logger.info(f'First region found in all resources data: {first_region}')
+            # # Get the first region found in the data
+            # if not all_resources_data or len(all_resources_data.keys()) == 0:
+            #     logger.error('No regions found in all resources data')
+            #     return False
+            # first_region = list(all_resources_data.keys())[0]
+            # logger.info(f'First region found in all resources data: {first_region}')
 
             # Step 1: Set the tenancy OCID and Name from the data
             # To get this properly, we need to open the raw_data_identity_compartments.csv and look for the row with id that starts with ocid1.tenancy.
@@ -1966,127 +1554,187 @@ class PolicyAnalysisRepository:
             # --- Step 2: Load Dynamic Groups ---
             # For some reason the matching rules are not in the JSON output, so grab from the CSV instead
             # Open the dynamic groups CSV to build a mapping of OCID to matching rule
-            dg_matching_rules = {}
             dgs_file = os.path.join(dir_path, 'raw_data_identity_dynamic_groups.csv')
             with open(dgs_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    dg_ocid = row.get('ocid', '')
-                    matching_rule = row.get('matching_rule', '')
-                    dg_matching_rules[dg_ocid] = matching_rule
-            logger.info(f'Loaded {len(dg_matching_rules)} dynamic group matching rules from CSV')
-            dynamic_groups_data = all_resources_data[first_region].get('DynamicResourceGroup', [])
-            for dg_item in dynamic_groups_data:
-                dg: DynamicGroup = {
-                    'domain_name': dg_item['additional_details'].get('domainDisplayName') or 'Default',
-                    'dynamic_group_name': dg_item.get('display_name') or '',
-                    'dynamic_group_id': dg_item.get('identifier') or '',
-                    'dynamic_group_ocid': dg_item.get('identifier') or '',
-                    'matching_rule': dg_matching_rules.get(dg_item.get('identifier', ''), ''),
-                    'description': dg_item['additional_details'].get('description') or '',
-                    'in_use': True,  # Default to True; will be updated later
-                    'creation_time': dg_item.get('time_created') or '',
-                    'created_by_name': 'n/a',
-                    'created_by_ocid': 'n/a',
-                }
-                self.dynamic_groups.append(dg)
-            logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups')
+                    # idcs_created_by is a json itself within CSV
+                    created_by = row.get('idcs_created_by', '{}')
+                    try:
+                        created_by_json = json.loads(created_by)
+                        created_by_ocid = created_by_json.get('odid', 'n/a')
+                    except json.JSONDecodeError:
+                        created_by_ocid = 'n/a'
+                    # To get domain name, we need to map from domain_ocid
+                    domain_ocid = row.get('domain_ocid', '')
+                    domain_name = self._get_domain_name_from_ocid(domain_ocid)
+                    dg: DynamicGroup = {
+                        'domain_name': domain_name or 'Default',
+                        'dynamic_group_name': row.get('display_name') or '',
+                        'dynamic_group_id': 'n/a',
+                        'dynamic_group_ocid': row.get('ocid', ''),
+                        'matching_rule': row.get('matching_rule', ''),
+                        'description': row.get('description') or '',
+                        'in_use': True,  # Default to True; will be updated later
+                        'creation_time': 'n/a',
+                        'created_by_name': 'n/a',
+                        'created_by_ocid': created_by_ocid,
+                    }
+                    self.dynamic_groups.append(dg)
+            logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups from CSV')
 
             # --- Step 3: Load Groups ---
-            groups_data = all_resources_data[first_region].get('Group', [])
-            for group_item in groups_data:
-                group: Group = {
-                    'domain_name': group_item['identity_context'].get('domainDisplayName') or 'Default',
-                    'group_name': group_item.get('display_name') or '',
-                    'group_ocid': group_item.get('identifier') or '',
-                    'description': group_item.get('description') or '',
-                    'group_id': 'n/a',
-                }
-                self.groups.append(group)
-            logger.info(f'Loaded {len(self.groups)} groups')
+            groups_file = os.path.join(dir_path, 'raw_data_identity_groups_and_membership.csv')
+            # This file has the groups with membership info, so the group row is duplicated for each member
+            # We only want to load unique groups, so we will use a set to track seen groups
+            # We also should track membership here, and then add it to the users later
+            # Track this by user OCID to list of group OCIDs that user is a member of
+            user_membership: dict[str, list[str]] = {}
+            # Also, the users file has no domain, but we can create it from the group, which must be in a domain
+            user_domains: dict[str, str] = {}
+            seen_groups = set()
+            with open(groups_file, encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # For some reason, the domain name is locked inside a field called "domain_deeplink" - looks like this:
+                    # =HYPERLINK("https://cloud.oracle.com/identity/domains/ocid1.domain.oc1..aaaaaaaaypnehepjxcfqbu72dcprlxlbkxj24zpakezfiuvd623jbxq4gmyq","Default")
+                    # We need to parse the last field from the deeplink URL which is the domain name
+                    group: Group = {
+                        'domain_name': row.get('domain_deeplink', '').split('","')[-1].rstrip('")')
+                        if 'domain_deeplink' in row
+                        else 'Default',
+                        'group_name': row.get('name') or '',
+                        'group_ocid': row.get('identifier') or '',
+                        'description': row.get('description') or '',
+                        'group_id': row.get('id') or '',
+                    }
+                    logger.debug(f'Processing group: {group}')
+                    # Add the user membership in this group to user_membership
+                    member_user_ocid = row.get('user_id', '')
+                    if member_user_ocid and member_user_ocid != '':
+                        if member_user_ocid not in user_membership:
+                            user_membership[member_user_ocid] = []
+                        user_membership[member_user_ocid].append(row.get('identifier'))
+                    group_key = (group['domain_name'], group['group_name'])
+                    # Add the domain for the user
+                    if member_user_ocid and member_user_ocid != '':
+                        user_domains[member_user_ocid] = group['domain_name']
+                    # If group has been seen, skip
+                    if group_key in seen_groups:
+                        continue
+                    # If it hasn't been seen yet, add it
+                    seen_groups.add(group_key)
+                    self.groups.append(group)
+            logger.debug(f'Loaded {len(self.groups)} groups')
 
             # --- Step 4: Load Users ---
-            users_data = all_resources_data[first_region].get('User', [])
-            for user_item in users_data:
-                user: User = {
-                    'domain_name': user_item['identity_context'].get('domainDisplayName') or 'Default',
-                    'user_name': user_item.get('display_name') or '',  # No way to get username or email
-                    'user_ocid': user_item.get('identifier') or '',
-                    'display_name': user_item.get('display_name') or '',
-                    'email': user_item.get('email') or '',
-                    'user_id': 'n/a',
-                    'groups': [],  # will be updated later
-                }
-                self.users.append(user)
-            logger.info(f'Loaded {len(self.users)} users')
-
-            # In order to populate group membership for users, we need get group data from raw_data_identity_users.csv
-            # It will be in column row[22] when loading using csv.reader
-            # As we iterate, find the matching user in self.users and update groups
-            # Record the Group OCID list for each user in the groups
-            # Use the existing self.groups to look up OCID from the name and domain
             users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
             with open(users_file, encoding='utf-8') as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    # Skip header row if present
-                    if row[0] == 'id':
-                        continue
-                    user_ocid = row[0] or ''
-                    group_names_str = row[21] or ''
-                    group_names = eval(group_names_str) if group_names_str else []
-                    # Find the user in self.users
-                    user_obj = next((u for u in self.users if u.get('user_ocid') == user_ocid), None)
-                    if user_obj:
-                        # turn group names into OCIDs
-                        group_ocids = []
-                        for group_name in group_names:
-                            group_obj = next(
-                                (
-                                    g
-                                    for g in self.groups
-                                    if g.get('group_name') == group_name
-                                    and g.get('domain_name') == user_obj.get('domain_name')
-                                ),
-                                None,
-                            )
-                            if group_obj:
-                                group_ocids.append(group_obj.get('group_ocid', ''))
-                        user_obj['groups'] = group_ocids
-                        # user_obj['groups'] = group_names
-                        logger.info(
-                            f"Updated user group memberships from CSV. User: {user_obj['user_name']} Groups: {group_ocids}"
-                        )
+                reader = csv.DictReader(f)
+                for user_item in reader:
+                    # Pretty print raw user item
+                    logger.debug(f'Processing user item: {user_item}')
+                    # Add the groups from the user_membership mapping
+                    # If needed, use the row 21 mapping
+                    user: User = {
+                        'domain_name': user_domains.get(user_item.get('id', ''), 'Default'),
+                        'user_name': user_item.get('name') or '',  # No way to get username or email
+                        'user_ocid': user_item.get('id') or '',
+                        'display_name': user_item.get('display_name') or '',
+                        'email': user_item.get('email') or '',
+                        'user_id': 'n/a',
+                        'groups': [],
+                    }
+                    # # Build this for now
+                    # group_ocids = []
+                    # for group_name in group_names:
+                    #     group_obj = next(
+                    #         (
+                    #             g
+                    #             for g in self.groups
+                    #             if g.get('group_name') == group_name
+                    #             and g.get('domain_name') == user.get('domain_name')
+                    #         ),
+                    #         None,
+                    #     )
+                    #     if group_obj:
+                    #         group_ocids.append(group_obj.get('group_ocid', ''))
+                    # user['groups'] = group_ocids
+
+                    logger.info(f'Loaded user: {user}')
+                    self.users.append(user)
+            logger.info(f'Loaded {len(self.users)} users')
+
+            # # In order to populate group membership for users, we need get group data from raw_data_identity_users.csv
+            # # It will be in column row[22] when loading using csv.reader
+            # # As we iterate, find the matching user in self.users and update groups
+            # # Record the Group OCID list for each user in the groups
+            # # Use the existing self.groups to look up OCID from the name and domain
+            # users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
+            # with open(users_file, encoding='utf-8') as f:
+            #     reader = csv.reader(f)
+            #     for row in reader:
+            #         # Skip header row if present
+            #         if row[0] == 'id':
+            #             continue
+            #         user_ocid = row[0] or ''
+            #         group_names_str = row[21] or ''
+            #         group_names = eval(group_names_str) if group_names_str else []
+            #         # Find the user in self.users
+            #         user_obj = next((u for u in self.users if u.get('user_ocid') == user_ocid), None)
+            #         if user_obj:
+            #             # turn group names into OCIDs
+            #             group_ocids = []
+            #             for group_name in group_names:
+            #                 group_obj = next(
+            #                     (
+            #                         g
+            #                         for g in self.groups
+            #                         if g.get('group_name') == group_name
+            #                         and g.get('domain_name') == user_obj.get('domain_name')
+            #                     ),
+            #                     None,
+            #                 )
+            #                 if group_obj:
+            #                     group_ocids.append(group_obj.get('group_ocid', ''))
+            #             user_obj['groups'] = group_ocids
+            #             # user_obj['groups'] = group_names
+            #             logger.info(
+            #                 f"Updated user group memberships from CSV. User: {user_obj['user_name']} Groups: {group_ocids}"
+            #             )
             # -- Step 5: Load Compartments ---
-            compartments_data = all_resources_data[first_region].get('Compartment', [])
-
-            # For some reason the root compartment is not included - add it manually
-            root_compartment = {
-                'id': self.tenancy_ocid,
-                'name': 'ROOT',
-                'hierarchy_path': None,
-                'lifecycle_state': 'ACTIVE',
-                'parent_id': '',
-            }
-            self.compartments.append(root_compartment)
-
-            # Iterate compartments and add to list
-            for comp_item in compartments_data:
-                compartment = {
-                    'id': comp_item.get('identifier') or '',
-                    'name': comp_item.get('display_name') or '',
-                    'hierarchy_path': None,  # will be built later
-                    'lifecycle_state': comp_item.get('lifecycle_state') or '',
-                    'parent_id': comp_item.get('compartment_id') or '',
+            compartments_file = os.path.join(dir_path, 'raw_data_identity_compartments.csv')
+            with open(compartments_file, encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                # Iterate compartments and add to list
+                for comp_item in reader:
+                    compartment = {
+                        'id': comp_item.get('id') or '',
+                        'name': comp_item.get('name') or '',
+                        'hierarchy_path': None,  # will be built later
+                        'lifecycle_state': comp_item.get('lifecycle_state') or '',
+                        'parent_id': comp_item.get('compartment_id') or '',
+                        'description': comp_item.get('description') or '',
+                    }
+                    logger.debug(f'Processing compartment: {compartment}')
+                    # Only add ACTIVE compartments
+                    if compartment['lifecycle_state'] == 'ACTIVE':
+                        self.compartments.append(compartment)
+                    else:
+                        logger.debug(
+                            f"Skipping compartment {compartment['name']} with lifecycle state {compartment['lifecycle_state']}"
+                        )
+                # For some reason the root compartment is not included - add it manually
+                root_compartment = {
+                    'id': self.tenancy_ocid,
+                    'name': 'ROOT',
+                    'hierarchy_path': None,
+                    'lifecycle_state': 'ACTIVE',
+                    'parent_id': '',
                 }
-                # Only add ACTIVE compartments
-                if compartment['lifecycle_state'] == 'ACTIVE':
-                    self.compartments.append(compartment)
-                else:
-                    logger.debug(
-                        f"Skipping compartment {compartment['name']} with lifecycle state {compartment['lifecycle_state']}"
-                    )
-            logger.info(f'Loaded {len(self.compartments)} compartments')
+                self.compartments.append(root_compartment)
+
+            logger.debug(f'Loaded {len(self.compartments)} compartments')
 
             # Now build hierarchy paths for each compartment
             for comp in self.compartments:
@@ -2099,94 +1747,97 @@ class PolicyAnalysisRepository:
                 logger.info(f"Compartment: {comp.get('name','n/a')} Path: {comp.get('hierarchy_path','n/a')}")
 
             # --- Step 6: Load Policies ---
-            policies_data = all_resources_data[first_region].get('Policy', [])
-            for policy_item in policies_data:
-                # Create a Policy object for the Policy itself
-                policy_obj = BasePolicy(
-                    policy_name=policy_item.get('display_name') or '',
-                    policy_ocid=policy_item.get('identifier') or '',
-                    compartment_ocid=policy_item.get('compartment_id') or '',
-                    description=policy_item.get('description') or '',
-                    creation_time=policy_item.get('time_created') or '',
-                )
-                # Not really appending policies itself right now, use for parsing statements though
-                self.policies.append(policy_obj)
+            compartments_file = os.path.join(dir_path, 'raw_data_identity_policies.csv')
+            with open(compartments_file, encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for policy_item in reader:
+                    # Create a Policy object for the Policy itself
+                    policy_obj = BasePolicy(
+                        policy_name=policy_item.get('name') or '',
+                        policy_ocid=policy_item.get('id') or '',
+                        compartment_ocid=policy_item.get('compartment_id') or '',
+                        description=policy_item.get('description') or '',
+                        creation_time='',
+                    )
+                    logger.debug(f'Processing policy: {policy_obj}')
+                    # Not really appending policies itself right now, use for parsing statements though
+                    self.policies.append(policy_obj)
 
-                # Look up the compartment path in loaded compartments
-                comp_path = next(
-                    (
-                        comp['hierarchy_path']
-                        for comp in self.compartments
-                        if comp['id'] == policy_item.get('compartment_id')
-                    ),
-                    'ROOT',
-                )
-                # Get the basic details here and then iterate statements - those are to be added to the list
-                policy_ocid = policy_item.get('identifier') or ''
-                comp_id = policy_item.get('compartment_id') or ''
-                policy_name = policy_item.get('display_name') or ''
-                creation_time = policy_item.get('time_created') or ''
-                statements = policy_item['additional_details'].get('statements') or []
-
-                # Iterate each statement, determine type, and proceed to parse
-                for statement_text in statements:
-                    # statement text needs to be lower case
-                    statement_text_lower = statement_text.strip().lower()
-                    base_policy_statement: BasePolicyStatement = BasePolicyStatement(
-                        policy_name=policy_name,
-                        policy_ocid=policy_ocid,
-                        policy_description=policy_item.get('description') or '',
-                        compartment_ocid=comp_id,
-                        compartment_path=comp_path,
-                        statement_text=statement_text_lower,
-                        creation_time=creation_time,
-                        internal_id=hashlib.md5((statement_text + '' + policy_ocid).encode()).hexdigest(),
+                    # Look up the compartment path in loaded compartments
+                    comp_path = next(
+                        (
+                            comp['hierarchy_path']
+                            for comp in self.compartments
+                            if comp['id'] == policy_item.get('compartment_id')
+                        ),
+                        'ROOT',
                     )
 
-                    # Parse the statement now - cannot use the existing parser as is because it relies on OCI clients
-                    # For now, check to see if it starts with admit or deny or endorse, then put in cross-check later
-                    if statement_text_lower.startswith('define'):
-                        # Parse as DefineStatement
-                        define_statement: DefineStatement = DefineStatement(**base_policy_statement)
-                        if not self._parse_define_statement(policy_obj, define_statement):
-                            logger.warning(f'Define statement was unable to parse: {statement_text}')
-                        logger.debug(f'Parsed define statement: {define_statement}')
-                    # Admit and Deny Admit
-                    elif statement_text_lower.startswith('admit') or statement_text_lower.startswith('deny admit'):
-                        admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
-                        if not self._parse_admit_statement(policy_obj, admit_statement):
-                            logger.warning(f'Admit statement was unable to parse: {statement_text}')
-                        logger.debug(f'Parsed admit statement: {admit_statement}')
-                    # Endorse Statement
-                    elif statement_text_lower.startswith('endorse'):
-                        endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
-                        if not self._parse_endorse_statement(policy_obj, endorse_statement):
-                            logger.warning(f'Endorse statement was unable to parse: {statement_text}')
-                        logger.debug(f'Parsed endorse statement: {endorse_statement}')
-                    else:
-                        # Regular Policy Statement
-                        regular_statement: RegularPolicyStatement = RegularPolicyStatement(**base_policy_statement)
-                        parsed_statement_valid = self._parse_statement(policy_obj, regular_statement)
-                        if not parsed_statement_valid:
-                            logger.warning(f'Invalid policy statement detected: {statement_text}')
-                        logger.debug(f'Parsed regular policy statement: {regular_statement}')
+                    # Get the basic details here and then iterate statements - those are to be added to the list
+                    policy_ocid = policy_item.get('identifier') or ''
+                    comp_id = policy_item.get('compartment_id') or ''
+                    policy_name = policy_item.get('display_name') or ''
+                    creation_time = policy_item.get('time_created') or ''
+                    # Statements needs to be a list of strings, but appears like a single string in CSV. example:
+                    # ['allow group iam_tag_group to inspect all-resources in tenancy', 'allow group iam_tag_group read instances in tenancy', 'allow group iam_tag_group to read load-balancers in tenancy', 'allow group iam_tag_group to read buckets in tenancy', 'allow group iam_tag_group to read nat-gateways in tenancy', 'allow group iam_tag_group to read public-ips in tenancy', 'allow group iam_tag_group to read file-family in tenancy', 'allow group iam_tag_group to read instance-configurations in tenancy', 'allow group iam_tag_group to read network-security-groups in tenancy', 'allow group iam_tag_group to read capture-filters in tenancy', 'allow group iam_tag_group to read resource-availability in tenancy', 'allow group iam_tag_group to read audit-events in tenancy', 'allow group iam_tag_group to read users in tenancy', 'allow group iam_tag_group to use cloud-shell in tenancy', 'allow group iam_tag_group to read vss-family in tenancy', 'allow group iam_tag_group to read usage-budgets in tenancy', 'allow group iam_tag_group to read usage-reports in tenancy', 'allow group iam_tag_group to read data-safe-family in tenancy', 'allow group iam_tag_group to read vaults in tenancy', 'allow group iam_tag_group to read keys in tenancy', 'allow group iam_tag_group to read tag-namespaces in tenancy', 'allow group Aiam_tag_group to use ons-family in tenancy where any {request.operation!=/Create*/, request.operation!=/Update*/, request.operation!=/Delete*/, request.operation!=/Change*/}']
+                    statements = eval(policy_item.get('statements') or '[]')
+                    logger.debug(f'Policy {policy_name} has {len(statements)} statements')
+                    # Iterate each statement, determine type, and proceed to parse
+                    for statement_text in statements:
+                        # statement text needs to be lower case
+                        statement_text_lower = statement_text.strip().lower()
+                        base_policy_statement: BasePolicyStatement = BasePolicyStatement(
+                            policy_name=policy_name,
+                            policy_ocid=policy_ocid,
+                            policy_description=policy_item.get('description') or '',
+                            compartment_ocid=comp_id,
+                            compartment_path=comp_path,
+                            statement_text=statement_text_lower,
+                            creation_time=creation_time,
+                            internal_id=hashlib.md5((statement_text + '' + policy_ocid).encode()).hexdigest(),
+                            parsed=False,
+                        )
+                        logger.debug(f'Processing statement: {statement_text}')
+                        # Parse the statement now - cannot use the existing parser as is because it relies on OCI clients
+                        # For now, check to see if it starts with admit or deny or endorse, then put in cross-check later
+                        if statement_text_lower.startswith('define'):
+                            # Parse as DefineStatement
+                            define_statement: DefineStatement = DefineStatement(**base_policy_statement)
+                            if not self._parse_define_statement(policy_obj, define_statement):
+                                logger.debug(f'Define statement was unable to parse: {statement_text}')
+                            logger.debug(f'Parsed define statement: {define_statement}')
+                        # Admit and Deny Admit
+                        elif statement_text_lower.startswith('admit') or statement_text_lower.startswith('deny admit'):
+                            admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
+                            if not self._parse_admit_statement(policy_obj, admit_statement):
+                                logger.debug(f'Admit statement was unable to parse: {statement_text}')
+                            logger.debug(f'Parsed admit statement: {admit_statement}')
+                        # Endorse Statement
+                        elif statement_text_lower.startswith('endorse'):
+                            endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
+                            if not self._parse_endorse_statement(policy_obj, endorse_statement):
+                                logger.debug(f'Endorse statement was unable to parse: {statement_text}')
+                            logger.debug(f'Parsed endorse statement: {endorse_statement}')
+                        else:
+                            # Regular Policy Statement
+                            regular_statement: RegularPolicyStatement = RegularPolicyStatement(**base_policy_statement)
+                            parsed_statement_valid = self._parse_statement(policy_obj, regular_statement)
+                            if not parsed_statement_valid:
+                                logger.warning(f'Invalid policy statement detected: {statement_text}')
+                            logger.debug(f'Parsed regular policy statement: {regular_statement}')
 
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 
             # --- Finally, Build indexes and analyze as in OCI loads ---
-            self._build_compartment_index()
-            self._calculate_effective_compartments_for_statements()
-            self._find_invalid_statements()
-            self.run_dg_in_use_analysis()
+            # self._build_compartment_index()
+            # self._calculate_effective_compartments_for_statements()
+            # self._find_invalid_statements()
+            # self.run_dg_in_use_analysis()
 
             self.data_as_of = datetime.now(UTC).isoformat()
             self.loaded_from_compliance_output = True
 
-            # if self.on_policy_statements_updated:
-            #     try:
-            #         self.on_policy_statements_updated()
-            #     except Exception as e:
-            #         logger.warning(f"on_policy_statements_updated callback failed: {e}")
+            # logger.warning(f"on_policy_statements_updated callback failed: {e}")
 
             logger.info('Compliance output data loaded successfully.')
             return True
