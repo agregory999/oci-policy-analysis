@@ -1,0 +1,51 @@
+# Logging and Troubleshooting
+
+This page provides guidance on logging configuration, debugging, and troubleshooting for the application.
+
+## 1. Global Logging by Component
+
+You can enable or adjust logging granularity across different components within the system. Logging levels can typically be set (ERROR, WARNING, INFO, DEBUG) to control verbosity.
+
+- Each major code component/module supports logging, allowing for tracking of operations and detection of issues.
+- Logs may be viewed on the console shell or UI Console tab if started via command line 
+- If started via an executable, there is not a shell, so the Console UI tab provides logs
+
+The Console UI has a tab, available via Settings -> Show Console/Debugger Tab, which shows all logs depending on configured level for each component.
+
+There is a single Global Logger dropdown, which if set, will change the log level for all componenets to the configured level.
+
+Additionally, there is a "Show Loggers" checkbox, which allows inidividual override per component.  For example, set the global level to WARNING, and then override a compoment to INFO.  Doing this will allow you to see additional details for that component.
+
+### 1a. Debugging to Command Line
+
+Due to the volume of logging, DEBUG output, if set, is only available on the shell.  Therefore debug logging is not really available via executable.   There are 2 ways to enable debug
+
+- Enable DEBUG-level log output using the UI to see detailed processing information in the command line.
+- Launch the application with an explicit `--verbose` parameter to force global DEBUG 
+  ```bash
+  python -m oci_policy_analysis.main --verbose
+  ```
+
+**NOTE:** Global DEBUG is very noisy, so only do this if you really need to.
+
+## 2. JSON Debugger Tab
+
+- The *JSON Debugger* tab in the UI allows you to inspect structured data that flows through the application.
+- Use it to:
+  - Review raw input/output for policy analysis steps
+  - Trace errors back to their source with contextual JSON data
+- More internal objects will be added as needed.  
+
+## 3. Troubleshooting Topics
+
+- **Common Errors:** Review logs for full error traces or use the Console and JSON Debugger for more details.
+- **No Output or Silent Failure:**  
+  - Ensure logging is not set to ERROR-only for all components.
+  - Check that the appropriate components are enabled.
+- **Unexpected Behavior:**  
+  - Use DEBUG level for the affected component(s), repeat the action, and consult logs/Console output.
+- **UI Not Responding:**  
+  - Open developer tools (F12), check for browser console errors.
+  - Check backend logs for exceptions.
+
+*If you need more detailed guidance, refer to the main documentation or contact the maintainers.*

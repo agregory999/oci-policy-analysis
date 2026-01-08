@@ -1603,8 +1603,9 @@ class PolicyAnalysisRepository:
                         'domain_name': row.get('domain_deeplink', '').split('","')[-1].rstrip('")')
                         if 'domain_deeplink' in row
                         else 'Default',
+                        # 'domain_name': row.get('domain_name', 'N/A'),
                         'group_name': row.get('name') or '',
-                        'group_ocid': row.get('identifier') or '',
+                        'group_ocid': row.get('id') or '',
                         'description': row.get('description') or '',
                         'group_id': row.get('id') or '',
                     }
@@ -1614,7 +1615,7 @@ class PolicyAnalysisRepository:
                     if member_user_ocid and member_user_ocid != '':
                         if member_user_ocid not in user_membership:
                             user_membership[member_user_ocid] = []
-                        user_membership[member_user_ocid].append(row.get('identifier'))
+                        user_membership[member_user_ocid].append(row.get('id'))
                     group_key = (group['domain_name'], group['group_name'])
                     # Add the domain for the user
                     if member_user_ocid and member_user_ocid != '':
@@ -1637,29 +1638,33 @@ class PolicyAnalysisRepository:
                     # Add the groups from the user_membership mapping
                     # If needed, use the row 21 mapping
                     user: User = {
-                        'domain_name': user_domains.get(user_item.get('id', ''), 'Default'),
+                        'domain_name': user_item.get('domain_deeplink', '').split('","')[-1].rstrip('")')
+                        if 'domain_deeplink' in user_item
+                        else 'Default',
+                        # 'domain_name': user_item.get('domain_name', 'N/A'),
                         'user_name': user_item.get('name') or '',  # No way to get username or email
                         'user_ocid': user_item.get('id') or '',
-                        'display_name': user_item.get('display_name') or '',
+                        'display_name': user_item.get('name') or '',
                         'email': user_item.get('email') or '',
-                        'user_id': 'n/a',
+                        'user_id': user_item.get('external_identifier') or '',
                         'groups': [],
                     }
-                    # # Build this for now
-                    # group_ocids = []
-                    # for group_name in group_names:
-                    #     group_obj = next(
-                    #         (
-                    #             g
-                    #             for g in self.groups
-                    #             if g.get('group_name') == group_name
-                    #             and g.get('domain_name') == user.get('domain_name')
-                    #         ),
-                    #         None,
-                    #     )
-                    #     if group_obj:
-                    #         group_ocids.append(group_obj.get('group_ocid', ''))
-                    # user['groups'] = group_ocids
+                    group_names_str = user_item.get('groups', '') or ''
+                    group_names = eval(group_names_str) if group_names_str else []
+                    # Build this for now
+                    group_ocids = []
+                    for group_name in group_names:
+                        group_obj = next(
+                            (
+                                g
+                                for g in self.groups
+                                if g.get('group_name') == group_name and g.get('domain_name') == user.get('domain_name')
+                            ),
+                            None,
+                        )
+                        if group_obj:
+                            group_ocids.append(group_obj.get('group_ocid', ''))
+                    user['groups'] = group_ocids
 
                     logger.info(f'Loaded user: {user}')
                     self.users.append(user)
@@ -1776,7 +1781,7 @@ class PolicyAnalysisRepository:
                     # Get the basic details here and then iterate statements - those are to be added to the list
                     policy_ocid = policy_item.get('identifier') or ''
                     comp_id = policy_item.get('compartment_id') or ''
-                    policy_name = policy_item.get('display_name') or ''
+                    policy_name = policy_item.get('name') or ''
                     creation_time = policy_item.get('time_created') or ''
                     # Statements needs to be a list of strings, but appears like a single string in CSV. example:
                     # ['allow group iam_tag_group to inspect all-resources in tenancy', 'allow group iam_tag_group read instances in tenancy', 'allow group iam_tag_group to read load-balancers in tenancy', 'allow group iam_tag_group to read buckets in tenancy', 'allow group iam_tag_group to read nat-gateways in tenancy', 'allow group iam_tag_group to read public-ips in tenancy', 'allow group iam_tag_group to read file-family in tenancy', 'allow group iam_tag_group to read instance-configurations in tenancy', 'allow group iam_tag_group to read network-security-groups in tenancy', 'allow group iam_tag_group to read capture-filters in tenancy', 'allow group iam_tag_group to read resource-availability in tenancy', 'allow group iam_tag_group to read audit-events in tenancy', 'allow group iam_tag_group to read users in tenancy', 'allow group iam_tag_group to use cloud-shell in tenancy', 'allow group iam_tag_group to read vss-family in tenancy', 'allow group iam_tag_group to read usage-budgets in tenancy', 'allow group iam_tag_group to read usage-reports in tenancy', 'allow group iam_tag_group to read data-safe-family in tenancy', 'allow group iam_tag_group to read vaults in tenancy', 'allow group iam_tag_group to read keys in tenancy', 'allow group iam_tag_group to read tag-namespaces in tenancy', 'allow group Aiam_tag_group to use ons-family in tenancy where any {request.operation!=/Create*/, request.operation!=/Update*/, request.operation!=/Delete*/, request.operation!=/Change*/}']

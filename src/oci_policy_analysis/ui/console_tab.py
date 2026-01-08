@@ -105,7 +105,7 @@ class ConsoleTab(ttk.Frame):
         )
         level_combo.pack(side=tk.LEFT)
         # Show/hide checkbox added here
-        self.show_loggers_var = tk.BooleanVar(value=True)
+        self.show_loggers_var = tk.BooleanVar(value=False)
         show_loggers_chk = ttk.Checkbutton(
             ctrl_frame, text='Show loggers', variable=self.show_loggers_var, command=self._toggle_logger_grid
         )
@@ -157,6 +157,8 @@ class ConsoleTab(ttk.Frame):
         # Frame for loggers grid, packed BELOW log window
         self.logger_grid_frame = ttk.Frame(self)
         self.logger_grid_frame.pack(pady=(0, 10), padx=8, anchor='w')
+        # Don't show by default
+        self.logger_grid_frame.pack_forget()
 
         log_levels = getattr(self.app, 'settings', {}).get('log_levels', {})
 

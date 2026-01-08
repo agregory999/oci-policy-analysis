@@ -15,6 +15,7 @@ Contents
    simulation
    usage
    mcp
+   logging_and_troubleshooting
 
 .. toctree::
    :maxdepth: 2

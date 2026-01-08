@@ -100,7 +100,7 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self):
+    def __init__(self, force_debug: bool = False):
         super().__init__()
 
         self.title(f'OCI Policy Analysis {__version__}')
@@ -111,9 +111,15 @@ class App(tk.Tk):
 
         # Restore global logger level from settings (default INFO)
         level_name = self.settings.get('log_level', 'INFO')
-        self.log_level_var = tk.StringVar(value=level_name)
-        logger.info(f'Log level set to {logging.getLevelName(logger.level)} from settings')
-        set_log_level(level=level_name)
+        # If --verbose (force_debug) is set, override any setting-driven log level
+        if force_debug:
+            self.log_level_var = tk.StringVar(value='DEBUG')
+            logger.info('Log level forcibly set to DEBUG due to --verbose argument (settings ignored)')
+            set_log_level('DEBUG')
+        else:
+            self.log_level_var = tk.StringVar(value=level_name)
+            logger.info(f'Log level set to {logging.getLevelName(logger.level)} from settings')
+            set_log_level(level=level_name)
 
         # Style / fonts (standard tkinter only)
         self.style = ttk.Style()
@@ -773,9 +779,18 @@ if __name__ == '__main__':
     logger = get_logger(component='main')
     logger.info('Logging to Console only')
 
+    # --- OVERRIDE: Force ALL loggers to DEBUG level if --verbose is set ---
     if args.verbose:
-        set_log_level('DEBUG')
-        logger.debug('Verbose logging enabled via --verbose')
+        import logging
 
-    app = App()
+        # Set root logger level to DEBUG
+        logging.getLogger().setLevel(logging.DEBUG)
+        # Set all existing loggers (regardless of name) to DEBUG
+        for _name, obj in logging.root.manager.loggerDict.items():
+            if isinstance(obj, logging.Logger):
+                obj.setLevel(logging.DEBUG)
+        logger.debug('Verbose logging enabled via --verbose (all loggers set to DEBUG)')
+    # ----------------------------------------------------------------------
+
+    app = App(force_debug=args.verbose)
     app.mainloop()

@@ -127,7 +127,7 @@ def main():  # noqa: C901
 
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyAnalysisRepository()
-    cache_manager = CacheManager(policy_analysis=policy_analysis)
+    cache_manager = CacheManager()
 
     # 1. Load from compliance CSVs if requested
     if args.load_from_compliance:
@@ -155,7 +155,7 @@ def main():  # noqa: C901
 
         # Load everything from named cache
         if args.use_cache:
-            if not cache_manager.load_combined_cache(named_cache=args.use_cache):
+            if not cache_manager.load_combined_cache(named_cache=args.use_cache, policy_analysis=policy_analysis):
                 logger.error('Failed to load combined cache')
                 exit(2)
         else:

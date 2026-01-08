@@ -117,6 +117,14 @@ def set_component_level(component: str, level: str | int) -> None:
         component: Component/logger name (e.g., 'cli', 'data_repo', 'requests')
         level: Level name (e.g., 'DEBUG') or int.
     """
+    root = logging.getLogger()
+    # If root is DEBUG, --verbose is active, override any request to set lower level.
+    if root.level == logging.DEBUG:
+        level_value = logging.DEBUG
+        lgr = logging.getLogger(component) if '.' in component else get_logger(component)
+        lgr.setLevel(level_value)
+        logging.getLogger().info(f"Component log level for '{component}' forced to DEBUG due to root/verbose override")
+        return
     if isinstance(level, str):
         level_value = logging._nameToLevel.get(level.upper(), logging.INFO)
     else:
