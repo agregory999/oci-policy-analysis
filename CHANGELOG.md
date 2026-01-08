@@ -1,3 +1,11 @@
+# [3.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.0.1...v3.1.0) (2026-01-08)
+
+
+### Features
+
+* Bump Main ([7690993](https://github.com/agregory999/oci-policy-analysis/commit/769099381c18ca530b947b230ce33da89400f1c3))
+* Merge Policy Intelligence ([#21](https://github.com/agregory999/oci-policy-analysis/issues/21)) ([a2ae328](https://github.com/agregory999/oci-policy-analysis/commit/a2ae328d6e2f9dc3224679cfce3f17f84965a633))
+
 # [3.1.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0-dev.1...v3.1.0-dev.2) (2026-01-08)
 
 
