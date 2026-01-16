@@ -1,3 +1,15 @@
+# [3.2.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.2.0-dev.1) (2026-01-16)
+
+
+### Bug Fixes
+
+* Global Debug and Documentation ([47c2c3c](https://github.com/agregory999/oci-policy-analysis/commit/47c2c3c9ee9a9b0f40eae210617c9b6e1ad46459))
+
+
+### Features
+
+* Policy Intelligence and Recommendations ([46936e1](https://github.com/agregory999/oci-policy-analysis/commit/46936e147edc47da9bf962215c1782b8128fa05f))
+
 # [3.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.0.1...v3.1.0) (2026-01-08)
 
 
