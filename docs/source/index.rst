@@ -13,6 +13,7 @@ Contents
    setup
    architecture
    simulation
+   recommendations
    usage
    mcp
    logging_and_troubleshooting

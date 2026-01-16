@@ -8,12 +8,11 @@ from .maintenance_tab import MaintenanceTab
 from .mcp_tab import McpTab
 from .permissions_report_tab import PermissionsReportTab
 from .policies_tab import PoliciesTab
-from .policy_overlap_tab import PolicyOverlapTab
+from .policy_recommendations_tab import PolicyRecommendationsTab
 from .report_tab import ReportTab
 from .resource_principals_tab import ResourcePrincipalsTab
 from .settings_tab import SettingsTab
 from .users_tab import UsersTab
-from .visual_policy_tab import VisualPolicyTab
 
 __all__ = [
     'SettingsTab',
@@ -22,14 +21,12 @@ __all__ = [
     'UsersTab',
     'ReportTab',
     'ConsoleTab',
-    'PolicyOverlapTab',
+    'PolicyRecommendationsTab',
     'McpTab',
     'ResourcePrincipalsTab',
     'DataTable',
     'MaintenanceTab',
-    'PolicyOverlapTab',
     'ConsoleTab',
     'HistoricalTab',
     'PermissionsReportTab',
-    'VisualPolicyTab',
 ]

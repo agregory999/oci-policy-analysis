@@ -23,11 +23,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+from oci_policy_analysis.ui.data_table import CheckboxTable
 
 logger = get_logger(component='simulation_tab')
-
-
-# SimulationDebuggerTab has been removed.
 
 
 class SimulationTab(ttk.Frame):
@@ -42,6 +41,14 @@ class SimulationTab(ttk.Frame):
     """
 
     def __init__(self, parent, app, settings):
+        """Initializes the SimulationTab UI component.
+
+        Args:
+            parent (tk.Widget): The parent Tkinter widget.
+            app (object): Main application instance, expected to provide policy and simulation engine APIs.
+            settings (object): Application settings object.
+
+        """
         super().__init__(parent)
         self.app = app
         self.settings = settings
@@ -59,9 +66,13 @@ class SimulationTab(ttk.Frame):
         self.refresh_dropdowns()
 
     def refresh_dropdowns(self):  # noqa: C901
-        """
-        Populate compartment and principal type/name tuples for policy_repo.
-        Each principal value is (domain, name), except for any-user/service which is (None, name).
+        """Refreshes the dropdowns for compartment and principals.
+
+        Populates members used by the compartment, principal type, and principal name comboboxes.
+        Principal values are tuples (domain, name); 'any-user'/services will use (None, name).
+
+        Returns:
+            None
         """
         logger.info('SimulationTab: refreshing dropdowns for compartment/principal types/names.')
         compartments = set()
@@ -236,44 +247,10 @@ class SimulationTab(ttk.Frame):
         # Middle: Section 2 — Policy statement and where-clause preview
         self.preview_frame = ttk.LabelFrame(self, text='2. Applicable Policies')
         self.preview_frame.pack(fill='both', padx=8, pady=8, expand=True)
-        self.preview_frame.columnconfigure(0, weight=1)
-        self.preview_frame.rowconfigure(0, weight=1)
+        # self.preview_frame.columnconfigure(0, weight=1)
+        # self.preview_frame.rowconfigure(0, weight=1)
 
-        # Scrollable checklist of policy statements (fill all vertical space)
-        self.stmt_canvas = tk.Canvas(self.preview_frame, borderwidth=0)
-        yscroll = ttk.Scrollbar(self.preview_frame, orient='vertical', command=self.stmt_canvas.yview)
-        self.stmt_canvas.grid(row=0, column=0, sticky='nsew', padx=(2, 4), pady=(2, 6))
-        yscroll.grid(row=0, column=1, sticky='ns', padx=(0, 0), pady=(2, 6))
-
-        self.stmt_list_frame = ttk.Frame(self.stmt_canvas)
-        self.stmt_list_frame_id = self.stmt_canvas.create_window((0, 0), window=self.stmt_list_frame, anchor='nw')
-
-        self.stmt_canvas.configure(yscrollcommand=yscroll.set)
-
-        # Scrolling: auto-resize inner frame and auto-expand area vertically
-        def _on_frame_resize(event):
-            self.stmt_canvas.configure(scrollregion=self.stmt_canvas.bbox('all'))
-
-        self.stmt_list_frame.bind('<Configure>', _on_frame_resize)
-
-        def _on_canvas_configure(event):
-            # Make the inner frame's width the same as the visible canvas width
-            canvas_width = event.width
-            self.stmt_canvas.itemconfig(self.stmt_list_frame_id, width=canvas_width)
-
-        self.stmt_canvas.bind('<Configure>', _on_canvas_configure)
-
-        # Button row under the statement list
-        btn_row_frame = ttk.Frame(self.preview_frame)
-        btn_row_frame.grid(row=1, column=0, sticky='w', padx=4, pady=(2, 4))
-        self.load_where_fields_button = ttk.Button(
-            btn_row_frame, text='Load Where Clause Fields', command=self.load_where_fields
-        )
-        self.load_where_fields_button.pack(side='left', padx=(0, 4))
-        self.load_where_fields_button.config(state='disabled')
-        # New: Select All/None button right next to it
-        self.select_all_btn = ttk.Button(btn_row_frame, text='Select All')
-        self.select_all_btn.pack(side='left')
+        self.statement_checkbox_table = None  # Will be created in load_statements
         # Section 3 — API Operation and where inputs, simulate button
         simulate_frame = ttk.LabelFrame(self, text='3. API Operation and Simulation Inputs')
         simulate_frame.pack(fill='x', padx=8, pady=8)
@@ -370,6 +347,13 @@ class SimulationTab(ttk.Frame):
         self.results_text.pack(fill='both', expand=True)
 
     def load_statements(self):  # noqa: C901
+        """Loads and displays policy statements for the currently selected compartment and principal.
+
+        Filters policy statements based on selection; populates the UI preview table and enables downstream simulation controls.
+
+        Returns:
+            None
+        """
         # Called on "Load Simulation"
 
         # --- CLEAN STATE: Reset simulation fields, result area, and selections ---
@@ -451,92 +435,57 @@ class SimulationTab(ttk.Frame):
             allow_stmts = [s for s in stmts if s.get('action', '').lower() == 'allow']
             deny_stmts = [s for s in stmts if s.get('action', '').lower() == 'deny']
 
-        # Remove old checkboxes in scroll area
-        for item in self.stmt_list_frame.winfo_children():
-            item.destroy()
-        self.checked_statements = {}
+        # Remove old checklist/table if present
+        if getattr(self, 'statement_checkbox_table', None) is not None:
+            self.statement_checkbox_table.destroy()
+            self.statement_checkbox_table = None
         all_stmts = allow_stmts + deny_stmts
-        # Update label to include policy count
-        try:
-            if hasattr(self, 'preview_frame') and self.preview_frame:
-                self.preview_frame.config(text=f'2. Applicable Policies ({len(all_stmts)})')
-        except Exception:
-            pass
-
-        # -- TABLE HEADERS: checkbox, statement text, conditional, where clause column --
-        tk.Label(self.stmt_list_frame, text='', width=2).grid(row=0, column=0, sticky='nw')
-        tk.Label(
-            self.stmt_list_frame, text='Policy Path/Name', anchor='w', width=40, font=('TkDefaultFont', 10, 'bold')
-        ).grid(row=0, column=1, sticky='nw', padx=1)
-        tk.Label(
-            self.stmt_list_frame,
-            text='Policy Statement',
-            anchor='w',
-            width=90,
-            wraplength=800,
-            font=('TkDefaultFont', 10, 'bold'),
-        ).grid(row=0, column=2, sticky='nw', padx=1)
-        tk.Label(
-            self.stmt_list_frame, text='Conditional', anchor='w', width=10, font=('TkDefaultFont', 10, 'bold')
-        ).grid(row=0, column=3, sticky='nw', padx=(0, 2))
-
-        # Select All/None button logic (label and command updated later)
-        def get_all_checked():
-            return all(var.get() for var, _ in self.checked_statements.values()) if self.checked_statements else False
-
-        def update_select_all_btn_label():
-            if get_all_checked():
-                self.select_all_btn.config(text='Select None')
-            else:
-                self.select_all_btn.config(text='Select All')
-
-        def toggle_select_all():
-            check = not get_all_checked()
-            for var, _ in self.checked_statements.values():
-                var.set(check)
-            update_select_all_btn_label()
-
-        self.select_all_btn.config(command=toggle_select_all)
-        # Initial label update will happen below
-
-        for idx, st in enumerate(all_stmts, start=1):
-            internal_id = st.get('internal_id', str(idx))
-            check_var = tk.BooleanVar(value=True)
-            cb = ttk.Checkbutton(self.stmt_list_frame, variable=check_var)
-            cb.grid(row=idx, column=0, sticky='nw', padx=2)
-            # Show policy path/name, narrow column
-            policy_path = st.get('compartment_path', 'Unknown Path')
-            policy_name = st.get('policy_name', 'Unnamed Policy')
-            tk.Label(
-                self.stmt_list_frame, text=f'{policy_path} / {policy_name}', anchor='w', width=40, justify='left'
-            ).grid(row=idx, column=1, sticky='nw', padx=1)
-
-            # Show full policy statement, wide column; wrap at about 1000px, try to match the actual pixel width visually
-            full_txt = st.get('statement_text', '')
-            tk.Label(self.stmt_list_frame, text=full_txt, anchor='w', width=90, wraplength=800, justify='left').grid(
-                row=idx, column=2, sticky='nw', padx=1
+        data = []
+        for st in all_stmts:
+            data.append(
+                {
+                    'Policy Path/Name': f"{st.get('compartment_path','Unknown Path')} / {st.get('policy_name','Unnamed Policy')}",
+                    'Policy Statement': st.get('statement_text', ''),
+                    'Conditional': 'Yes' if st.get('conditions') else 'No',
+                    'obj': st,
+                }
             )
-            # is_conditional = bool(st.get("conditions"))
-            # tk.Label(self.stmt_list_frame, text=str(is_conditional), anchor="center", width=12).grid(row=idx, column=3, sticky="nw", padx=(0,2))
-            # New: show Yes/No for where clause presence
-            is_conditional = bool(st.get('conditions'))
-            has_where = 'Yes' if is_conditional else 'No'
-            tk.Label(self.stmt_list_frame, text=has_where, anchor='center', width=10).grid(
-                row=idx, column=3, sticky='nw', padx=(0, 2)
-            )
-            self.checked_statements[internal_id] = (check_var, st)
-        self.stmt_list_frame.update_idletasks()
-        update_select_all_btn_label()
-        # Attach listener to update the Select All/None button when a checkbox is toggled
-        for var, _ in self.checked_statements.values():
-            var.trace_add('write', lambda *args: update_select_all_btn_label())
 
-        # New flow: Where clause fields are loaded only when button is pressed; always present, just enable/disable
+        def on_action(checked_rows):
+            checked_ids = [row['obj'].get('internal_id') for row in checked_rows if 'obj' in row]
+            logger.info(f'Simulate Selected called for checked statement IDs: {checked_ids}')
+            # Legacy: set checked_statements for the rest of code
+            self.checked_statements = {}
+            for row in data:
+                obj = row.get('obj')
+                idval = obj.get('internal_id') if obj else None
+                if obj and idval is not None:
+                    self.checked_statements[idval] = (tk.BooleanVar(value=row in checked_rows), obj)
+
+        cols = ['Policy Path/Name', 'Policy Statement', 'Conditional']
+        # Set table max height to about 30% typical default window (e.g. 260px), user can tune
+        col_widths = {
+            'Policy Path/Name': 220,
+            'Policy Statement': 700,
+            'Conditional': 90,
+        }
+        self.statement_checkbox_table = CheckboxTable(
+            self.preview_frame,
+            columns=cols,
+            data=data,
+            action_button_text='Load Where Clause Fields',
+            action_callback=self.load_where_fields,
+            enable_select_all=True,
+            checked_by_default=True,
+            max_height=260,  # px, approx 30% of default main window
+            column_widths=col_widths,
+            geometry_manager='pack',
+        )
+        self.statement_checkbox_table.pack(fill='both', expand=True, padx=4, pady=(8, 2))
         self._clear_where_inputs()
         self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
-        self.load_where_fields_button.config(state='normal')
         self.simulate_button.config(state='disabled')
-        # self.load_where_fields_button.config(state="disabled")  # Never disable. User should always be able to start another simulation.
+        # self.load_where_fields_button config/state logic removed—button now only exists in-table.
 
         # === API Operation ComboBox: populate and filter ===
         opnames = []
@@ -566,14 +515,38 @@ class SimulationTab(ttk.Frame):
             widget.destroy()
         self.simulation_inputs = {}
 
-    def load_where_fields(self):
-        # Only call this after statements are loaded and checkboxes set
-        from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+    def load_where_fields(self, checked_rows=None):  # noqa: C901
+        """Extracts and displays dynamic where clause input fields based on the selected statements.
 
+        Parses checked statements for required where-clause variables, then renders appropriate Tkinter fields for user input.
+
+        Returns:
+            None
+        """
+
+        # Get checked rows from the CheckboxTable widget
+        if checked_rows is None:
+            checked_rows = []
+            if self.statement_checkbox_table is not None:
+                checked_rows = self.statement_checkbox_table.get_checked_rows()
+        logger.info(f'load_where_fields: Found {len(checked_rows)} checked row(s) from CheckboxTable.')
+
+        # Update self.checked_statements for consistency (mapping from internal_id to row)
+        self.checked_statements = {}
+        for row in checked_rows:
+            internal_id = (
+                row.get('obj', {}).get('internal_id') if isinstance(row.get('obj'), dict) else row.get('internal_id')
+            )
+            obj = row.get('obj', row)
+            if internal_id is not None:
+                self.checked_statements[internal_id] = (tk.BooleanVar(value=True), obj)
+
+        # Continue as before, but operate on these checked statement rows
         all_var_names = set()
-        for _, (check_var, st) in self.checked_statements.items():
-            if not check_var.get():
-                continue
+        for row in checked_rows:
+            # row may be a dict with key 'obj' (the statement), or the statement itself
+            st = row.get('obj', row)
+            logger.info(f'Load where fields: statement ID {st.get("internal_id")}')
             cond_str = st.get('conditions')
             if cond_str:
                 try:
@@ -615,7 +588,6 @@ class SimulationTab(ttk.Frame):
             self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
         # Once where fields are loaded, call button-enabling callback (respect API op selection logic)
         self._maybe_enable_sim_buttons()
-        # self.load_where_fields_button.config(state="disabled")  # Never disable. User should always be able to start another simulation.
         logger.info(f'Where fields loaded from checked statements: {sorted_vars}')
 
     # API Operation search/filter
@@ -659,6 +631,14 @@ class SimulationTab(ttk.Frame):
             self.trace_history_var.set(display_names[-1])  # Select most recent by default
 
     def on_trace_history_selected(self, event=None):
+        """Displays simulation results for the selected simulation trace entry.
+
+        Args:
+            event (tk.Event, optional): Optional Tkinter event object from dropdown selection.
+
+        Returns:
+            None
+        """
         # Load the selected trace into the results area
         selected = self.trace_history_var.get()
         idx = self._trace_history_map.get(selected)
@@ -677,10 +657,24 @@ class SimulationTab(ttk.Frame):
                 self.results_text.insert(tk.END, '\n'.join(summary) + '\n' + pretty_json)
 
     def run_simulation(self):
+        """Runs a policy simulation with the current selections (basic mode).
+
+        Triggers the simulation engine and displays allow/deny result and final permission set.
+
+        Returns:
+            None
+        """
         # Called on "Run Simulation" (basic, high-level details only)
         self._run_simulation_with_trace(trace_mode=False)
 
     def run_simulation_trace(self):
+        """Runs a policy simulation with detailed tracing enabled.
+
+        Shows statement-by-statement evaluation and trace debug output.
+
+        Returns:
+            None
+        """
         # Called on "Run Simulation (Trace)" — detailed per-statement trace
         self._run_simulation_with_trace(trace_mode=True)
 
@@ -739,7 +733,9 @@ class SimulationTab(ttk.Frame):
         # --- Improved: Include operation and principal for trace history name ---
         sim_trace_name = f'{api_operation} | {ptype}:{pname_display}' if api_operation and pname_display else None
 
-        logger.info(f'Calling simulate_and_record on simulation_engine (trace_mode={trace_mode})')
+        logger.info(
+            f'Calling simulate_and_record on simulation_engine (trace_mode={trace_mode}) with {len(checked_statement_ids)} statements'
+        )
         result = self.simulation_engine.simulate_and_record(
             principal_key,
             cpath,
@@ -768,6 +764,3 @@ class SimulationTab(ttk.Frame):
         # Update and select latest in trace history dropdown
         self._update_trace_history_dropdown()
         self.trace_history_dropdown.update_idletasks()
-
-    def _reload_index_debug(self):
-        pass  # Button removed; cleanup for backward compatibility if called

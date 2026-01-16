@@ -513,6 +513,13 @@ class PolicyStatementParser:
             return None, [str(exc)]
 
 
+def strip_quotes(val):
+    if isinstance(val, str) and len(val) > 1:
+        if (val[0] == val[-1]) and val[0] in '\'"':
+            return val[1:-1]
+    return val
+
+
 class PolicyStatementNormalizer:
     def __init__(self):
         self.antlr_parser = PolicyStatementParser()
@@ -587,11 +594,13 @@ class PolicyStatementNormalizer:
             if m:
                 admitted_principal_tenancy = m.group(1).strip()
         perms = []
+        perms_original = []
         if fields.get('permissionList'):
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'admit_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'admitted_principal_type': admitted_principal_type,
             'admitted_principal': subject,
@@ -600,7 +609,7 @@ class PolicyStatementNormalizer:
             'admit_resource': fields.get('resource', ''),
             'admit_permissions': perms,
             'admit_location_type': fields.get('location_type', ''),
-            'admit_location': fields.get('location', ''),
+            'admit_location': strip_quotes(fields.get('location', '')),
             'admit_associate_resource': fields.get('associated_resource', ''),
             'admit_associate_tenancy': fields.get('associated_scope', ''),
             'where_clause': fields.get('condition', ''),
@@ -624,12 +633,15 @@ class PolicyStatementNormalizer:
             m = re.match(r'tenancy\s*(.+)', endorse_scope_val, re.IGNORECASE)
             if m:
                 endorse_tenancy = m.group(1).strip()
+
         perms = []
+        perms_original = []
         if fields.get('permissionList'):
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'endorse_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'endorsed_principal_type': endorsed_principal_type,
             'endorsed_principal': subject,
@@ -639,7 +651,7 @@ class PolicyStatementNormalizer:
             'endorse_permissions': perms,
             'endorse_tenancy': endorse_tenancy,
             'endorse_location_type': fields.get('location_type', ''),
-            'endorse_location': fields.get('location', ''),
+            'endorse_location': strip_quotes(fields.get('location', '')),
             'endorse_associate_resource': fields.get('associated_resource', ''),
             'endorse_associate_tenancy': fields.get('associated_scope', ''),
             'where_clause': fields.get('condition', ''),
@@ -660,11 +672,13 @@ class PolicyStatementNormalizer:
             subj_raw = fields.get('subject', '')
             subjects_out = self._parse_subjects(subj_raw)
         perms = []
+        perms_original = []
         if 'permissionList' in fields and fields['permissionList']:
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'permission_original': perms_original,
             'action': fields.get('action', '').lower() or 'allow',
             'valid': True,
             'invalid_reasons': [],
@@ -674,10 +688,10 @@ class PolicyStatementNormalizer:
             'resource': fields.get('resource', '') or '',
             'permission': perms,
             'location_type': fields.get('location_type', ''),
-            'location': fields.get('location', ''),
+            'location': strip_quotes(fields.get('location', '')),
             'conditions': fields.get('condition', '') or '',
             'comments': fields.get('comments', ''),
-            'parsing_notes': [],
+            'parsing_notes': ['Statement has multiple subjects'] if len(subjects_out) > 1 else [],
             'statement_text': statement_text,
             'parsed': True,
         }

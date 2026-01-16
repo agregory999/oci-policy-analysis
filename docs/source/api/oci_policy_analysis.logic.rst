@@ -18,3 +18,12 @@ GenAI Integration
    :undoc-members:
    :show-inheritance:
    :no-index:
+
+Policy Intelligence & Analytics
+------------------------------
+
+.. automodule:: oci_policy_analysis.logic.policy_intelligence
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :no-index:

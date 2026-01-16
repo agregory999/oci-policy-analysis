@@ -443,10 +443,10 @@ class SettingsTab(ttk.Frame):
                 date_note = ''
             self.progress_var.set(f'[OK]{message}')
             self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
-            logger.info('Updating UI after load')
-            self.app.policies_tab.update_policy_output()
-            self.app.policies_tab.enable_widgets_after_load()
-            self.app.users_tab.update_user_analysis_output()
+            # logger.info('Updating UI after load')
+            # self.app.policies_tab.update_policy_output()
+            # self.app.policies_tab.enable_widgets_after_load()
+            # self.app.users_tab.update_user_analysis_output()
         else:
             self.progress_var.set(f'[X]{message}')
 
@@ -520,7 +520,7 @@ class SettingsTab(ttk.Frame):
             self.after(2000, lambda: self.ai_progress_var.set(''))
 
     # -------------------------
-    # Console Tab Toggle
+    # Console/ Debug Tab Toggle
     # -------------------------
 
     def _toggle_console_tab(self):
@@ -574,8 +574,8 @@ class SettingsTab(ttk.Frame):
         advanced_tabs = [
             self.app.permissions_report_tab,
             self.app.condition_tester_tab,
-            self.app.policy_overlap_tab,
             self.app.simulation_tab,
+            self.app.policy_recommendations_tab,
         ]
 
         if self.app.advanced_tabs_visible:
@@ -587,8 +587,8 @@ class SettingsTab(ttk.Frame):
         else:
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
-            notebook.add(self.app.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
+            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

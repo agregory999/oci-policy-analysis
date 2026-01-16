@@ -25,6 +25,9 @@ logger = get_logger(component='data_table')
 class DataTable(ttk.Frame):
     """A Tkinter table widget with alternating row colors, sortable columns, resizable columns, show/hide columns, row selection with callback, full space utilization, cell copy functionality, and row context menu.
 
+    Note: for checklist-style tables with checkboxes and custom action button,
+    see the more generic CheckboxTable class also defined below.
+
     Note: ttk.Treeview does not natively support multi-line text wrapping. Text with newlines may appear clipped; use wider columns (via column_widths) for better visibility. Font, padding, and ttk.Style must be configured externally to include right-side cell padding (e.g., padding=(0, 0, 5, 0)) for column separation.
 
     Attributes:
@@ -387,3 +390,157 @@ class DataTable(ttk.Frame):
         self.tree.tag_configure('evenrow', background=row_colors[0])
         self.tree.tag_configure('oddrow', background=row_colors[1])
         logger.info('Applied %s theme to DataTable', theme)
+
+
+# ------------------------------------------------------------------------------
+
+
+class CheckboxTable(ttk.Frame):
+    """
+    A DataTable-based Tkinter widget for a table with a first-column checkbox
+    and resizable columns, alternating backgrounds, and an action button.
+    """
+
+    def __init__(
+        self,
+        parent,
+        columns,
+        data,
+        action_button_text='Take Action',
+        action_callback=None,
+        enable_select_all=True,
+        checked_by_default=True,
+        max_height=None,
+        column_widths=None,
+        geometry_manager='pack',
+    ):
+        super().__init__(parent)
+        self.base_columns = columns
+        self.columns = ['☑'] + columns
+        self.action_callback = action_callback
+        self.enable_select_all = enable_select_all
+        self.max_height = max_height
+        self.checked_by_default = checked_by_default
+        self.column_widths = {'☑': 34, **(column_widths or {col: 160 for col in columns})}
+        self.action_button_text = action_button_text
+        self._geometry_manager = geometry_manager
+
+        self._prepare_data(data)
+        self._build_ui()
+
+    def _prepare_data(self, data):
+        # Store checked state per row
+        self.data = []
+        self.check_vars = []
+        for row in data or []:
+            var = tk.BooleanVar(value=self.checked_by_default)
+            r = dict(row)
+            r['☑'] = var
+            self.data.append(r)
+            self.check_vars.append(var)
+
+    def _render_table_data(self):
+        # Convert per-row BooleanVar to unicode for display
+        rendered = []
+        for row in self.data:
+            r = dict(row)
+            r['☑'] = '☑' if row['☑'].get() else '☐'
+            rendered.append(r)
+        return rendered
+
+    def _rebuild_table(self):
+        # Redraw DataTable with current check states
+        rendered_data = self._render_table_data()
+        self.data_table.update_data(rendered_data)
+
+    def _toggle_check_row(self, event):
+        # Toggle checked state on checkbox column click
+        item_id = self.data_table.tree.identify_row(event.y)
+        col = self.data_table.tree.identify_column(event.x)
+        if not item_id or col != '#1':
+            return
+        row_idx = self.data_table.data_map.get(item_id, None)
+        if row_idx is None:
+            return
+        var = self.check_vars[row_idx]
+        var.set(not var.get())
+        self._rebuild_table()
+        self._update_select_all_label()
+
+    def _toggle_select_all(self):
+        currently_all = all(var.get() for var in self.check_vars)
+        for var in self.check_vars:
+            var.set(not currently_all)
+        self._rebuild_table()
+        self._update_select_all_label()
+
+    def _update_select_all_label(self):
+        if hasattr(self, 'select_all_btn'):
+            if all(var.get() for var in self.check_vars) and self.check_vars:
+                self.select_all_btn.config(text='Select None')
+            else:
+                self.select_all_btn.config(text='Select All')
+
+    def get_checked_rows(self):
+        checked = []
+        for idx, var in enumerate(self.check_vars):
+            if var.get():
+                row = dict(self.data[idx])
+                del row['☑']
+                checked.append(row)
+        return checked
+
+    def update_data(self, data):
+        self._prepare_data(data)
+        self._rebuild_table()
+        self._update_select_all_label()
+
+    def _handle_action(self):
+        checked = self.get_checked_rows()
+        if self.action_callback:
+            self.action_callback(checked)
+
+    def _build_ui(self):
+        # DataTable instantiation
+        self.data_table = DataTable(
+            self,
+            columns=self.columns,
+            display_columns=self.columns,
+            data=self._render_table_data(),
+            sortable=False,
+            row_colors=('#FFFFFF', '#F7F7F7'),
+            multi_select=False,
+            column_widths=self.column_widths,
+        )
+        if self.max_height:
+            if self._geometry_manager == 'grid':
+                self.data_table.grid(row=0, column=0, sticky='nsew', padx=2, pady=2)
+                self.grid_rowconfigure(0, weight=1, minsize=self.max_height)
+                self.grid_columnconfigure(0, weight=1)
+            else:
+                self.data_table.pack(fill='both', expand=True, padx=2, pady=(2, 0))
+        else:
+            self.data_table.pack(fill='both', expand=True, padx=2, pady=(2, 0))
+
+        # Bind click to toggle check state on first column
+        self.data_table.tree.bind('<Button-1>', self._toggle_check_row)
+
+        btn_row = tk.Frame(self)
+        if self._geometry_manager == 'grid':
+            btn_row.grid(row=2, column=0, sticky='ew', padx=8, pady=(4, 7))
+            if self.enable_select_all:
+                self.select_all_btn = ttk.Button(btn_row, text='Select All', width=11, command=self._toggle_select_all)
+                self.select_all_btn.grid(row=0, column=0, padx=(0, 8), sticky='w')
+                col_offset = 1
+            else:
+                col_offset = 0
+            self.action_btn = ttk.Button(btn_row, text=self.action_button_text, width=16, command=self._handle_action)
+            self.action_btn.grid(row=0, column=col_offset, sticky='w')
+        else:
+            btn_row.pack(fill='x', padx=8, pady=(4, 7))
+            if self.enable_select_all:
+                self.select_all_btn = ttk.Button(btn_row, text='Select All', width=11, command=self._toggle_select_all)
+                self.select_all_btn.pack(side='left', padx=(0, 8))
+            self.action_btn = ttk.Button(btn_row, text=self.action_button_text, width=16, command=self._handle_action)
+            self.action_btn.pack(side='left')
+        self._update_select_all_label()

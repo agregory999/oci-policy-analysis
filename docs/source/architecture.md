@@ -49,7 +49,11 @@ location, that location must be within (below) the current compartment.   Thus, 
 
 **Data Layer**
 Loads, caches, parses and normalizes tenancy data, including:
-- policy statements, users, groups, dynamic groups); exposes efficient queries.
+- policy statements, users, groups, dynamic groups
+- exposes efficient queries using JSON
+
+**Intelligence**
+After loading policy and identity data, additional intelligence is created from the entire data set as a whole.  For example, recommendations, cleanup operations, and security risks that should be resolved.
 
 **MCP Layer**
 FastMCP server exposing typed tools/resources (e.g., filter_policy_statements, search_users_by_groups) for AI clients.

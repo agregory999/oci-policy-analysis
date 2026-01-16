@@ -57,6 +57,11 @@ class ReferenceDataRepo:
         logger.info(f'Loading reference data from directory: {self.json_dir}')
         self.data = self._load_data()
 
+        # Create case-insensitive maps for resources and families
+        self.resource_name_map = {k.lower(): k for k in self.data['resources'].keys()}
+        self.family_name_map = {k.lower(): k for k in self.data['families'].keys()}
+        self.verb_set = {'inspect', 'read', 'use', 'manage'}
+
     def _load_data(self):
         data = {'resources': {}, 'families': {}}
         files_loaded = 0
@@ -64,6 +69,7 @@ class ReferenceDataRepo:
         data['operations'] = {}
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
         data['operations_by_api'] = {}
+        verb_risk = {'inspect': 1, 'read': 2, 'use': 10, 'manage': 50}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
@@ -72,6 +78,16 @@ class ReferenceDataRepo:
                     debug_resources = file_data.get('resources', {})
                     debug_families = file_data.get('families', {})
                     debug_operations = file_data.get('operations', {})
+                    # Inject risk score into resources-per-verb-permission
+                    for _res_name, resdata in debug_resources.items():
+                        verbs = resdata.get('verbs', {})
+                        for verb, perms in verbs.items():
+                            risk = verb_risk.get(verb, 1)
+                            if not isinstance(perms, list):
+                                continue
+                            # Store per-resource dictionary so we can find the risk for a permission
+                            for perm in perms:
+                                resdata.setdefault('permission_risks', {})[perm.upper()] = risk
                     logger.debug(
                         f'File {file_path}: contains {len(debug_resources)} resources, {len(debug_families)} families, {len(debug_operations)} operations'
                     )
@@ -99,6 +115,44 @@ class ReferenceDataRepo:
         )
         return data
 
+    def get_permission_risk(self, permission: str, resource: str = None):
+        """
+        Get the risk score for a single permission string (optionally for a given resource).
+        If resource is not provided, search all resources.
+
+        This method is case-insensitive for permission and resource.
+        """
+        perm = permission.upper()
+        resource_key = None
+        if resource:
+            resource_key = self.resource_name_map.get(resource.lower())
+        if resource_key and resource_key in self.data['resources']:
+            risk = self.data['resources'][resource_key].get('permission_risks', {}).get(perm)
+            if risk is not None:
+                return risk
+        # Search all resources if resource not given or not found
+        for resdata in self.data['resources'].values():
+            risk = resdata.get('permission_risks', {}).get(perm)
+            if risk is not None:
+                return risk
+        return 1  # default fall-back risk score
+
+    def get_permissions_risk_sum(self, permissions, resource: str = None):
+        """
+        Given a list of permissions (case-insensitive), compute the summed risk score.
+        """
+        total = 0
+        for perm in permissions:
+            total += self.get_permission_risk(perm, resource)
+        return total
+
+    def get_verb_resource_risk(self, verb: str, resource: str):
+        """
+        Get cumulative permission risk for all permissions associated with given verb/resource.
+        """
+        perms = self.get_permissions(resource, verb)
+        return self.get_permissions_risk_sum(perms, resource)
+
     def get_permissions(self, entity, verb, action='allow'):
         """
         Get cumulative permissions for a resource or family at a given verb level and action.
@@ -110,51 +164,60 @@ class ReferenceDataRepo:
         For 'deny', union the same but these are what is DENIED.
 
         Args:
-            entity (str): Resource name or family name.
-            verb (str): Verb level ('inspect', 'read', 'use', 'manage').
+            entity (str): Resource name or family name (case-insensitive).
+            verb (str): Verb level ('inspect', 'read', 'use', 'manage'), case-insensitive.
             action (str): "allow" or "deny" (default: "allow")
 
         Returns:
-            list: List of cumulative permissions.
+            list: List of cumulative permissions, always UPPERCASE.
         """
-        if entity == 'all-resources':
-            # Special case: gather all resource permissions at the specific verb only
+        # Normalize inputs
+        entity_ci = (entity or '').lower()
+        verb_ci = (verb or '').lower()
+        if entity_ci == 'all-resources':
             all_perms = set()
             for resdata in self.data['resources'].values():
-                perms = resdata.get('verbs', {}).get(verb, [])
+                perms = resdata.get('verbs', {}).get(verb_ci, [])
                 all_perms.update(p.upper() for p in perms)
-            # For "allow": these are what is GRANTED; for "deny": these are what is denied (downstream logic is responsibility)
             return list(all_perms)
-        if entity in self.data['families']:
+        # Handle families/resources with case-insensitive lookups
+        if entity_ci in self.family_name_map:
+            fam_key = self.family_name_map[entity_ci]
             all_perms = set()
-            for res in self.data['families'][entity]['resources']:
-                perms = self._get_cumulative_permissions(res, verb, action)
+            for res in self.data['families'][fam_key]['resources']:
+                perms = self._get_cumulative_permissions(res, verb_ci, action)
                 if perms:
                     all_perms.update(perms)
             return [p.upper() for p in all_perms]
         else:
-            perms = self._get_cumulative_permissions(entity, verb, action)
+            # Resource lookup
+            res_key = self.resource_name_map.get(entity_ci, entity)
+            perms = self._get_cumulative_permissions(res_key, verb_ci, action)
             if perms:
                 return [p.upper() for p in perms]
-            return perms
+            return []
 
     def _get_cumulative_permissions(self, resource, verb, action='allow'):
-        if resource not in self.data['resources']:
-            return None
+        # Case-insensitive resource and verb lookup
+        resource_ci = (resource or '').lower()
+        verb_ci = (verb or '').lower()
+        resource_key = self.resource_name_map.get(resource_ci, resource)
         verbs_order = ['inspect', 'read', 'use', 'manage']
         try:
-            index = verbs_order.index(verb)
+            index = [v.lower() for v in verbs_order].index(verb_ci)
         except ValueError:
+            return None
+        if resource_key not in self.data['resources']:
             return None
         perms = []
         if action == 'deny':
             # For deny, we deny verb and everything MORE powerful (up the privilege ladder)
-            for v in verbs_order[index:]:
-                perms.extend(self.data['resources'][resource]['verbs'].get(v, []))
+            for v in [v.lower() for v in verbs_order][index:]:
+                perms.extend(self.data['resources'][resource_key]['verbs'].get(v, []))
         else:
             # For allow, we allow verb and everything LESS powerful
-            for v in verbs_order[: index + 1]:
-                perms.extend(self.data['resources'][resource]['verbs'].get(v, []))
+            for v in [v.lower() for v in verbs_order][: index + 1]:
+                perms.extend(self.data['resources'][resource_key]['verbs'].get(v, []))
         return list({p.upper() for p in perms})  # Dedup and uppercase
 
     def check_overlap(self, perm_set1, perm_set2):
@@ -183,17 +246,24 @@ class ReferenceDataRepo:
         return self.check_overlap(perms1, perms2)
 
     def get_source(self, entity):
+        """
+        Retrieve the source URL(s) for a given entity (resource or family) in a case-insensitive manner.
+        """
         sources = set()
-        if entity in self.data['families']:
-            source_url = self.data['families'][entity].get('source_url', '')
+        entity_ci = (entity or '').lower()
+        fam_key = self.family_name_map.get(entity_ci)
+        if fam_key and fam_key in self.data['families']:
+            source_url = self.data['families'][fam_key].get('source_url', '')
             if source_url:
                 sources.add(source_url)
         else:
-            for _fam, fam_data in self.data['families'].items():
-                if entity in fam_data['resources']:
-                    source_url = fam_data.get('source_url', '')
-                    if source_url:
-                        sources.add(source_url)
+            res_key = self.resource_name_map.get(entity_ci)
+            if res_key:
+                for _fam, fam_data in self.data['families'].items():
+                    if res_key in fam_data['resources']:
+                        source_url = fam_data.get('source_url', '')
+                        if source_url:
+                            sources.add(source_url)
         return ', '.join(sources) if sources else ''
 
     def has_api_operation_permissions(self, operation_name, granted_permissions):

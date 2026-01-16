@@ -61,13 +61,14 @@ ConsoleTab
    :undoc-members:
    :show-inheritance:
 
-PolicyOverlapTab
-----------------
+PolicyRecommendationsTab
+-----------------------
 
-.. autoclass:: PolicyOverlapTab
+.. autoclass:: PolicyRecommendationsTab
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 McpTab
 ------
@@ -97,6 +98,14 @@ DataTable
 ---------
 
 .. autoclass:: DataTable
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+CheckboxTable
+--------------
+
+.. autoclass:: CheckboxTable
    :members:
    :undoc-members:
    :show-inheritance:

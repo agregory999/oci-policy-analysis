@@ -531,7 +531,7 @@ class PolicyAnalysisRepository:
                             )
                             self.policies.append(policy_obj)
                             for statement in policy_response.data.statements:
-                                statement_lower = statement.lower()
+                                # DO NOT lowercase statement text - preserve original case
                                 hierarchy_path = next(
                                     (
                                         comp['hierarchy_path']
@@ -546,24 +546,25 @@ class PolicyAnalysisRepository:
                                     policy_description=policy_response.data.description or '',
                                     compartment_ocid=policy_response.data.compartment_id,
                                     compartment_path=hierarchy_path,
-                                    statement_text=statement_lower,
+                                    statement_text=statement,
                                     creation_time=str(policy_response.data.time_created),
                                     internal_id=hashlib.md5((statement + policy_response.data.id).encode()).hexdigest(),
                                     parsed=False,
                                 )
-                                if statement_lower.startswith('define'):
+                                st_text_lower = statement.strip().lower()
+                                if st_text_lower.startswith('define'):
                                     define_statement: DefineStatement = DefineStatement(**base_policy_statement)
                                     self._parse_define_statement(policy_obj, define_statement)
                                 elif (
-                                    statement_lower.startswith('admit')
-                                    or statement_lower.startswith('endorse')
-                                    or statement_lower.startswith('deny admit')
-                                    or statement_lower.startswith('deny endorse')
+                                    st_text_lower.startswith('admit')
+                                    or st_text_lower.startswith('endorse')
+                                    or st_text_lower.startswith('deny admit')
+                                    or st_text_lower.startswith('deny endorse')
                                 ):
-                                    if statement_lower.startswith('admit') or statement_lower.startswith('deny admit'):
+                                    if st_text_lower.startswith('admit') or st_text_lower.startswith('deny admit'):
                                         admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
                                         self._parse_admit_statement(policy_obj, admit_statement)
-                                    elif statement_lower.startswith('endorse') or statement_lower.startswith(
+                                    elif st_text_lower.startswith('endorse') or st_text_lower.startswith(
                                         'deny endorse'
                                     ):
                                         endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
@@ -1789,36 +1790,36 @@ class PolicyAnalysisRepository:
                     logger.debug(f'Policy {policy_name} has {len(statements)} statements')
                     # Iterate each statement, determine type, and proceed to parse
                     for statement_text in statements:
-                        # statement text needs to be lower case
-                        statement_text_lower = statement_text.strip().lower()
+                        # DO NOT lowercase statement text - preserve original case
+                        stripped_statement = statement_text.strip()
                         base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                             policy_name=policy_name,
                             policy_ocid=policy_ocid,
                             policy_description=policy_item.get('description') or '',
                             compartment_ocid=comp_id,
                             compartment_path=comp_path,
-                            statement_text=statement_text_lower,
+                            statement_text=stripped_statement,
                             creation_time=creation_time,
-                            internal_id=hashlib.md5((statement_text + '' + policy_ocid).encode()).hexdigest(),
+                            internal_id=hashlib.md5((stripped_statement + '' + policy_ocid).encode()).hexdigest(),
                             parsed=False,
                         )
                         logger.debug(f'Processing statement: {statement_text}')
+                        st_text_lower = stripped_statement.lower()
                         # Parse the statement now - cannot use the existing parser as is because it relies on OCI clients
-                        # For now, check to see if it starts with admit or deny or endorse, then put in cross-check later
-                        if statement_text_lower.startswith('define'):
+                        if st_text_lower.startswith('define'):
                             # Parse as DefineStatement
                             define_statement: DefineStatement = DefineStatement(**base_policy_statement)
                             if not self._parse_define_statement(policy_obj, define_statement):
                                 logger.debug(f'Define statement was unable to parse: {statement_text}')
                             logger.debug(f'Parsed define statement: {define_statement}')
                         # Admit and Deny Admit
-                        elif statement_text_lower.startswith('admit') or statement_text_lower.startswith('deny admit'):
+                        elif st_text_lower.startswith('admit') or st_text_lower.startswith('deny admit'):
                             admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
                             if not self._parse_admit_statement(policy_obj, admit_statement):
                                 logger.debug(f'Admit statement was unable to parse: {statement_text}')
                             logger.debug(f'Parsed admit statement: {admit_statement}')
                         # Endorse Statement
-                        elif statement_text_lower.startswith('endorse'):
+                        elif st_text_lower.startswith('endorse'):
                             endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
                             if not self._parse_endorse_statement(policy_obj, endorse_statement):
                                 logger.debug(f'Endorse statement was unable to parse: {statement_text}')

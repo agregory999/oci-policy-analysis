@@ -770,12 +770,12 @@ def main():
     pca = PolicyAnalysisRepository()
 
     # Create Cache Manager
-    cache_manager = CacheManager(policy_analysis=pca)
+    cache_manager = CacheManager()
     try:
         if args.use_cache:
             # Load from named cache
             logger.info(f'Loading data from cache: {args.use_cache}')
-            if not cache_manager.load_combined_cache(named_cache=args.use_cache):
+            if not cache_manager.load_combined_cache(policy_analysis=pca, named_cache=args.use_cache):
                 logger.warning(f'Failed to load cache: {args.use_cache}')
                 sys.exit(2)
         else:
@@ -802,7 +802,7 @@ def main():
     if not args.dont_save_cache_after_load:
         # Save combined cache after loading from OCI
         logger.info('Saving combined cache after loading from OCI')
-        cache_manager.save_combined_cache()
+        cache_manager.save_combined_cache(policy_analysis=pca)
 
     logger.info(
         f'Tenancy loaded ({"from cache" if args.use_cache else "live"}). Policies: {len(pca.regular_statements)} regular, '
