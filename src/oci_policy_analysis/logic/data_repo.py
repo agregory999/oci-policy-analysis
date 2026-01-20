@@ -162,8 +162,11 @@ class PolicyAnalysisRepository:
                 logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 # Identity for all policy Data
+                # Identity for all policy Data
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
@@ -189,6 +192,8 @@ class PolicyAnalysisRepository:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(self.config)
                 # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(self.config)
             logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
@@ -481,6 +486,7 @@ class PolicyAnalysisRepository:
             self._resolve_ocid_subjects_in_statement(normalized)
             self.regular_statements.append(normalized)
             logger.debug(f'Regular Policy Statement Parsed: {normalized}')
+            logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             return True
         except Exception as ex:
             statement['parsed'] = False
@@ -632,7 +638,9 @@ class PolicyAnalysisRepository:
                         executor.submit(_process_policy_resource, item, idx, total_policies)
             self.data_as_of = str(datetime.now(UTC))
             total_time = time.perf_counter() - start_time
+            total_time = time.perf_counter() - start_time
             logger.info(
+                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
                 f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
             )
             # Return True because we loaded successfully
@@ -1885,6 +1893,10 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 
             # --- Finally, Build indexes and analyze as in OCI loads ---
+            # self._build_compartment_index()
+            # self._calculate_effective_compartments_for_statements()
+            # self._find_invalid_statements()
+            # self.run_dg_in_use_analysis()
             # self._build_compartment_index()
             # self._calculate_effective_compartments_for_statements()
             # self._find_invalid_statements()
