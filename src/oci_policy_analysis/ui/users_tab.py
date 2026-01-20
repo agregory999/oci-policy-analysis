@@ -130,6 +130,10 @@ class UsersTab(ttk.Frame):
 
         # Variables
         self.chk_show_expanded = tk.BooleanVar(value=False)
+        self.chk_show_any_group_user = tk.BooleanVar(value=False)
+        # Initialize persistent filter state for combined user/group queries
+        self._last_groups_for_filter: list[Group] = []
+        self._last_users_for_filter: list[User] = []
 
         def users_group_selection_callback(selected_rows: list[dict]) -> None:
             """When a Group is selected, update the users/groups and policy statements below"""
@@ -181,14 +185,6 @@ class UsersTab(ttk.Frame):
 
         def clear_filter():
             self.user_group_search.set('')
-
-        def update_user_policy_output():
-            # Change to more output
-            if self.chk_show_expanded.get():
-                self.users_policy_table.set_display_columns(ALL_POLICY_COLUMNS)
-            else:
-                self.users_policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
-            logger.info(f'Updated display for expanded output: {self.chk_show_expanded.get()}')
 
         # Frame for selection and Search
         frm_user_selection = ttk.Frame(frm_user_top)
@@ -275,8 +271,19 @@ class UsersTab(ttk.Frame):
         ttk.Separator(frm_users_policies, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
 
         ttk.Checkbutton(
-            frm_users_policies, text='Parsed Output', variable=self.chk_show_expanded, command=update_user_policy_output
+            frm_users_policies,
+            text='Parsed Output',
+            variable=self.chk_show_expanded,
+            command=lambda: self.update_user_policy_output(),
         ).grid(row=0, column=2, padx=5, pady=3)
+
+        # Add Show any-group / any-user checkbox
+        ttk.Checkbutton(
+            frm_users_policies,
+            text='Show any-group / any-user',
+            variable=self.chk_show_any_group_user,
+            command=lambda: self.update_user_policy_output(),
+        ).grid(row=0, column=3, padx=5, pady=3)
 
         # Policy Table
         self.users_policy_table = DataTable(
@@ -329,29 +336,67 @@ class UsersTab(ttk.Frame):
         else:
             logger.warning('Should not get here')
 
-    def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):
-        """Update the policy statements based on the selected groups and/or users"""
-        # Take the list of groups, make a group filter, and update policy table
-        logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
-        # create an exact_groups filter for filter_policy_statements
+    def update_user_policy_output(self):
+        """
+        Update the display elements for the user analysis policy statements.
+        Called when the selection of groups/users changes, or when the checkboxes change.
 
+        Args:
+            groups_for_filter (list[Group], optional): List of groups to filter policies for. Defaults to None.
+            users_for_filter (list[User], optional): List of users to filter policies for. Defaults to None.
+        """
+        if self.chk_show_expanded.get():
+            self.users_policy_table.set_display_columns(ALL_POLICY_COLUMNS)
+        else:
+            self.users_policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
+        logger.info(f'Updated display for expanded output: {self.chk_show_expanded.get()}')
+
+        # If the show all checkbox is selected, run additional query to get any-user/any-group policies
+        if self.chk_show_any_group_user.get():
+            logger.info('Including any-user and any-group policies in output')
+            # Create filter for any-user/any-group
+            any_user_group_policies = self.policy_compartment_analysis.filter_policy_statements(
+                PolicySearch(subject=['any-user', 'any-group'])
+            )
+            logger.info(f'Found {len(any_user_group_policies)} any-user/any-group policies')
+            # Add to existing data table data in self.filtered_policies
+            seen_ids = {
+                getattr(st, 'internal_id', None) or st.get('statement_text', None) for st in self.filtered_policies
+            }
+            additional_policies = []
+            for st in any_user_group_policies:
+                key = getattr(st, 'internal_id', None) or st.get('statement_text', None)
+                if key not in seen_ids:
+                    additional_policies.append(st)
+                    seen_ids.add(key)
+            if len(additional_policies) > 0:
+                logger.info(f'Added {len(additional_policies)} any-user/any-group policies to output')
+            all_policies = list(self.filtered_policies) + additional_policies
+        else:
+            logger.info('Not including any-user and any-group policies in output')
+            # Display only filtered policies
+            all_policies = list(self.filtered_policies)
+        # Update the display elements
+        self.users_policy_table.update_data([for_display_policy(st) for st in all_policies])
+        self.selected_groups_table.update_data(self.selected_groups_for_table)
+        self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(all_policies)}')
+
+    def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):  # noqa: C901
+        """Update the policy statements based on the selected groups and/or users"""
+        logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
         exact_groups_filter: list[Group] = groups_for_filter
         exact_users_filter: list[User] = users_for_filter
         exact_groups_users_filter = PolicySearch(exact_groups=exact_groups_filter, exact_users=exact_users_filter)
-        filtered_policies = self.policy_compartment_analysis.filter_policy_statements(filters=exact_groups_users_filter)
-        # Use helper to normalize for display
-        display_policies = [for_display_policy(st) for st in filtered_policies]
-        self.users_policy_table.update_data(display_policies)
+        self.filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
+            filters=exact_groups_users_filter
+        )
 
-        # Update the labels and table
-        # Create a list of dict for the table
-        # If all we have is users, grab the groups for them
-        selected_groups_for_table = []
+        self.selected_groups_for_table = []
         if groups_for_filter:
             for group in groups_for_filter:
                 dom = group.get('domain_name') or 'Default'
                 gr = group.get('group_name')
-                selected_groups_for_table.append({'Domain': dom, 'Group': gr})
+                self.selected_groups_for_table.append({'Domain': dom, 'Group': gr})
         elif users_for_filter:
             # If all we have is users, grab the groups for them
             for user in users_for_filter:
@@ -359,7 +404,8 @@ class UsersTab(ttk.Frame):
                 for group in groups_for_user:
                     dom = group.get('domain_name') or 'Default'
                     gr = group.get('group_name')
-                    selected_groups_for_table.append({'Domain': dom, 'Group': gr})
-        # Update the group and policies table
-        self.selected_groups_table.update_data(selected_groups_for_table)
-        self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(filtered_policies)}')
+                    self.selected_groups_for_table.append({'Domain': dom, 'Group': gr})
+        # Call the main update_user_policy_output to refresh display
+        self.update_user_policy_output()
+        # self.selected_groups_table.update_data(selected_groups_for_table)
+        # self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(all_policies)}')

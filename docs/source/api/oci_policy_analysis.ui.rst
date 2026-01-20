@@ -62,7 +62,7 @@ ConsoleTab
    :show-inheritance:
 
 PolicyRecommendationsTab
------------------------
+-------------------------
 
 .. autoclass:: PolicyRecommendationsTab
    :members:

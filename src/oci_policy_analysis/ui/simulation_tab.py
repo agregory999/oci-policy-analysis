@@ -153,13 +153,26 @@ class SimulationTab(ttk.Frame):
 
     def _update_principal_list(self, *_):  # noqa: C901
         pt = self.selected_principal_type.get()
-        if pt == 'user' and hasattr(self.policy_repo, 'users'):
+        if pt in ('user', 'group', 'dynamic-group') and hasattr(self.policy_repo, f'{pt}s'):
+            # Unified logic for user/group/dynamic-group to display as domain/name
             principals = []
-            for entry in getattr(self.policy_repo, 'users', []):
-                domain = entry.get('domain_name')
+            # Get attribute, e.g. self.policy_repo.groups for 'group', users for 'user'
+            coll = getattr(self.policy_repo, f'{pt}s', [])
+            domain_key = 'domain_name'
+            name_key = (
+                'user_name'
+                if pt == 'user'
+                else 'group_name'
+                if pt == 'group'
+                else 'dynamic_group_name'
+                if pt == 'dynamic-group'
+                else None
+            )
+            for entry in coll:
+                domain = entry.get(domain_key)
                 if domain == 'default':
                     domain = None
-                name = entry.get('user_name')
+                name = entry.get(name_key)
                 if name:
                     principals.append((domain, name))
             display_principals = [
@@ -196,18 +209,18 @@ class SimulationTab(ttk.Frame):
             display_principals = [f'{d}/{n}' if d else n for (d, n) in principals]
         self.principal_combobox['values'] = display_principals
         if pt == 'any-user':
-            self.principal_combobox.config(state='disabled')
-            try:
-                self.principal_combobox.configure(background='#f0f0f0')  # standard ttk disabled background
-            except Exception:
-                pass
+            self.principal_combobox.config(state='readonly')
+            # try:
+            #     self.principal_combobox.configure(background='#f0f0f0')  # standard ttk disabled background
+            # except Exception:
+            #     pass
             self.selected_principal.set('')
         else:
-            self.principal_combobox.config(state='readonly')
-            try:
-                self.principal_combobox.configure(background='white')
-            except Exception:
-                pass
+            self.principal_combobox.config(state='normal')
+            # try:
+            #     self.principal_combobox.configure(background='white')
+            # except Exception:
+            #     pass
             if display_principals and self.selected_principal.get() not in display_principals:
                 self.selected_principal.set(display_principals[0])
             elif not display_principals:
@@ -232,13 +245,13 @@ class SimulationTab(ttk.Frame):
         self.compartment_combobox.grid(row=0, column=1, padx=2)
         ttk.Label(select_frame, text='Principal Type:').grid(row=0, column=2, sticky='w')
         self.principal_type_combobox = ttk.Combobox(
-            select_frame, textvariable=self.selected_principal_type, width=20, state='readonly'
+            select_frame, textvariable=self.selected_principal_type, width=20, state='normal'
         )
         self.principal_type_combobox.grid(row=0, column=3, padx=2)
         self.principal_type_combobox.bind('<<ComboboxSelected>>', self._update_principal_list)
         ttk.Label(select_frame, text='Principal:').grid(row=0, column=4, sticky='w')
         self.principal_combobox = ttk.Combobox(
-            select_frame, textvariable=self.selected_principal, width=30, state='readonly'
+            select_frame, textvariable=self.selected_principal, width=30, state='normal'
         )
         self.principal_combobox.grid(row=0, column=5, padx=2)
         self.load_button = ttk.Button(select_frame, text='Load Simulation', command=self.load_statements)
@@ -386,51 +399,79 @@ class SimulationTab(ttk.Frame):
         allow_stmts = []
         deny_stmts = []
         filters = {}
+
+        def _match_principal(collection, domain, name, model_key, domain_key='domain_name'):
+            """Helper to find a principal in a collection by both domain and name (domain None/'default' normalize)."""
+            for entry in collection:
+                entry_domain = entry.get(domain_key)
+                if entry_domain == 'default':
+                    entry_domain = None
+                if entry.get(model_key) == name and (
+                    (domain is None and entry_domain in [None, 'default'])
+                    or (domain is not None and entry_domain == domain)
+                ):
+                    return entry
+            return None
+
         if self.policy_repo and hasattr(self.policy_repo, 'filter_policy_statements'):
             if cpath:
                 filters['effective_path'] = [cpath]
-            exact_key = None
-            model_key = None
-            collection = None
-            if ptype == 'group':
-                exact_key = 'exact_groups'
-                model_key = 'group_name'
-                collection = self.policy_repo.groups if hasattr(self.policy_repo, 'groups') else []
-            elif ptype == 'dynamic-group':
-                exact_key = 'exact_dynamic_groups'
-                model_key = 'dynamic_group_name'
-                collection = self.policy_repo.dynamic_groups if hasattr(self.policy_repo, 'dynamic_groups') else []
-            elif ptype == 'user':
-                exact_key = 'exact_users'
-                model_key = 'user_name'
-                collection = self.policy_repo.users if hasattr(self.policy_repo, 'users') else []
-            # Parse (domain, name) from display value
-            if ptype == 'any-user':
-                filters['subject'] = ['any-user']
-            elif pname_display:
-                if '/' in pname_display:
-                    domain, name = pname_display.split('/', 1)
-                else:
-                    domain, name = None, pname_display
-                obj = None
-                if exact_key and model_key and collection:
-                    for entry in collection:
-                        if model_key in entry and entry[model_key] == name:
-                            # Always check domain match (including None/"default")
-                            if (domain is None and entry.get('domain_name') in [None, 'default']) or (
-                                domain is not None and entry.get('domain_name') == domain
-                            ):
-                                obj = entry
-                                break
+
+            # Handle all principal types with streamlined logic
+            principal_processed = False
+
+            if ptype in ('user', 'group', 'dynamic-group'):
+                # Defensive: always define variables before usage
+                exact_key = None
+                model_key = None
+                collection = None
+                if ptype == 'user':
+                    exact_key = 'exact_users'
+                    model_key = 'user_name'
+                    collection = self.policy_repo.users if hasattr(self.policy_repo, 'users') else []
+                elif ptype == 'group':
+                    exact_key = 'exact_groups'
+                    model_key = 'group_name'
+                    collection = self.policy_repo.groups if hasattr(self.policy_repo, 'groups') else []
+                elif ptype == 'dynamic-group':
+                    exact_key = 'exact_dynamic_groups'
+                    model_key = 'dynamic_group_name'
+                    collection = self.policy_repo.dynamic_groups if hasattr(self.policy_repo, 'dynamic_groups') else []
+                # Only use if pname_display is set and all keys are defined
+                if pname_display and collection is not None and model_key is not None and exact_key is not None:
+                    if '/' in pname_display:
+                        domain, name = pname_display.split('/', 1)
+                    else:
+                        domain, name = None, pname_display
+                    obj = _match_principal(collection, domain, name, model_key)
                     if obj:
                         filters[exact_key] = [obj]
+                        logger.info(f'Matched {ptype}: domain={domain!r}, name={name!r}. Using {exact_key}.')
+                        principal_processed = True
                     else:
+                        logger.warning(
+                            f'{ptype} not found for domain={domain!r}, name={name!r}; using generic subject filter.'
+                        )
                         filters['subject'] = [name]
-                elif ptype == 'service':
-                    filters['subject'] = [name]
-                else:
-                    filters['subject'] = [name]
-            logger.info(f'Applying simulation filters to load statements: {filters}')
+                        principal_processed = True
+
+            elif ptype == 'service' and pname_display:
+                # Service always has no domain
+                filters['subject'] = [pname_display]
+                logger.info(f'Loading statements for service principal: {pname_display}')
+                principal_processed = True
+
+            elif ptype == 'any-user':
+                filters['subject'] = ['any-user']
+                logger.info('Loading statements for any-user principal.')
+                principal_processed = True
+
+            if not principal_processed and pname_display:
+                # Last resort: use generic subject filter
+                filters['subject'] = [pname_display]
+                logger.info(f'Using fallback generic subject filter: {pname_display}')
+
+            logger.info(f'Final statement filter dict: {filters}')
             stmts = self.policy_repo.filter_policy_statements(filters)
             allow_stmts = [s for s in stmts if s.get('action', '').lower() == 'allow']
             deny_stmts = [s for s in stmts if s.get('action', '').lower() == 'deny']
@@ -599,17 +640,29 @@ class SimulationTab(ttk.Frame):
     def _on_api_op_selected(self, event=None):
         """
         When an API operation is selected, show the note below if one exists.
+
+        This ensures that if the selected API operation has a "note" field (case-insensitive), it is displayed
+        below the dropdown. If not, the note area is hidden.
         """
         op_name = self.selected_api_operation.get()
         note = ''
-        # Prefer sim_engine reference if available
-        ref_repo = getattr(self, 'ref_data_repo', None)
+        # Check for possible sources of API operation notes:
         op_detail = None
+        ref_repo = getattr(self, 'ref_data_repo', None)
+        sim_engine = getattr(self, 'simulation_engine', None)
+        # Try ref_data_repo first (most typical)
         if ref_repo and hasattr(ref_repo, 'data'):
             if 'operations' in ref_repo.data:
                 op_detail = ref_repo.data['operations'].get(op_name)
+        # If not found, and if sim_engine exposes operation detail, try there (edge case)
+        if not op_detail and sim_engine and hasattr(sim_engine, 'get_api_operation_detail'):
+            try:
+                op_detail = sim_engine.get_api_operation_detail(op_name)
+            except Exception:
+                op_detail = None
         if op_detail and isinstance(op_detail, dict):
-            note = op_detail.get('note') or op_detail.get('Note') or ''
+            # Accept 'note' regardless of capitalization
+            note = op_detail.get('notes') or ''
         self.api_op_note_var.set(note or '')
         if note:
             self.api_op_note_label.grid()  # Show label

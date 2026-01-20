@@ -395,6 +395,54 @@ class PolicyAnalysisRepository:
             self.cross_tenancy_statements.append(statement)
             return False
 
+    def _resolve_ocid_subjects_in_statement(self, stmt: RegularPolicyStatement):
+        """
+        If the statement has subject_type group or dynamic-group and all subjects are OCIDs,
+        replace each OCID with (domain, name) if resolvable, otherwise ('Unknown', ocid).
+        Mark as invalid if any unresolved OCIDs. Add parsing_notes for both resolution and unresolved cases.
+        This is done in-place on the statement dict.
+        """
+        subject_type = stmt.get('subject_type')
+        subjects = stmt.get('subject', [])
+        if not (subject_type in ('group', 'dynamic-group') and isinstance(subjects, list)):
+            return
+
+        # Detect if all subjects are in OCID format (no tuple/list inside)
+        all_ocids = all(isinstance(s, str) and s.lower().startswith('ocid1.') for s in subjects)
+        if not all_ocids:
+            return
+
+        resolved_subjects = []
+        unresolved_ocids = []
+        for ocid in subjects:
+            if subject_type == 'group':
+                grp = next((g for g in self.groups if g.get('group_ocid', '').lower() == ocid.lower()), None)
+                if grp:
+                    dom = grp.get('domain_name') or 'Default'
+                    name = grp.get('group_name') or ocid
+                    resolved_subjects.append((dom, name))
+                else:
+                    resolved_subjects.append(('Unknown', ocid))
+                    unresolved_ocids.append(ocid)
+            elif subject_type == 'dynamic-group':
+                dg = next(
+                    (d for d in self.dynamic_groups if d.get('dynamic_group_ocid', '').lower() == ocid.lower()), None
+                )
+                if dg:
+                    dom = dg.get('domain_name') or 'Default'
+                    name = dg.get('dynamic_group_name') or ocid
+                    resolved_subjects.append((dom, name))
+                else:
+                    resolved_subjects.append(('Unknown', ocid))
+                    unresolved_ocids.append(ocid)
+        stmt['subject'] = resolved_subjects
+        notes = stmt.setdefault('parsing_notes', [])
+        if len(unresolved_ocids) > 0:
+            notes.append(f"Failed to resolve OCID(s): {', '.join(unresolved_ocids)}; inserted as ('Unknown', ocid)")
+            stmt['valid'] = False
+        else:
+            notes.append('All OCID subject(s) resolved to domain/name tuple(s).')
+
     def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
@@ -429,6 +477,8 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Full invalid statement data: {statement_dict}')
                 self.regular_statements.append(statement_dict)
                 return False
+            # OCID subject resolution step
+            self._resolve_ocid_subjects_in_statement(normalized)
             self.regular_statements.append(normalized)
             logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             return True

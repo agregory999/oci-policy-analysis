@@ -690,6 +690,19 @@ class PolicyIntelligenceEngine:
         Each recommendation summarizes the count of existing actionable issues.
         Assumes build_cleanup_items has already been called and populated "cleanup_items".
         If no real recommendations are found, yields one informational finding as a placeholder.
+
+        Example of recommendation dict::
+
+            {
+                'Recommendation': 'Investigate invalid policy statements',
+                'Priority': 'High',
+                'Category': 'Policy Hygiene',
+                'Notes': '3 invalid policy statement(s) detected. Review the cleanup/fix tab for details.',
+                'Action': 'Plan: Review and remediate invalid policy statements',
+                'ActionDetail': 'Examine policies with invalid statements and resolve as appropriate.',
+            }
+
+        This could change in the future to include risk score-based recommendations.
         """
         cleanup = self.overlay.get('cleanup_items', {})
         recommendations = []
@@ -812,22 +825,24 @@ class PolicyIntelligenceEngine:
     def build_policy_consolidation(self):
         """
         Analyze policies/statements for possible consolidation opportunities and
-        populate overlay["consolidations"] with a list of dicts:
-          {
-            "Statement": ...,
-            "Policy Name(s)": ...,
-            "Compartment": ...,
-            "Principal": ...,
-            "Service/Resource": ...,
-            "Consolidation Reason": ...,
-            "Action": ...,  # <-- always present now
-            "ActionDetail": ...  # <-- optional for detail/planning dialog
-          }
+        populate overlay["consolidations"] with a list of dicts::
+
+            {
+                "Statement": ...,
+                "Policy Name(s)": ...,
+                "Compartment": ...,
+                "Principal": ...,
+                "Service/Resource": ...,
+                "Consolidation Reason": ...,
+                "Action": ...,         # always present now
+                "ActionDetail": ...    # optional, for detail/planning dialog
+            }
 
         Criteria:
-        1. Policies with only a single statement (likely consolidation candidate).
-        2. Statements with identical principal, compartment and service/resource,
-           but split across multiple differently-named policies (should suggest merge).
+            1. Policies with only a single statement (likely consolidation candidate).
+            2. Statements with identical principal, compartment, and service/resource,
+               but split across multiple differently-named policies (should suggest merge).
+
         """
         repo = self.policy_repo
         consolidation_findings = []

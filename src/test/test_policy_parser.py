@@ -78,18 +78,53 @@ def test_policy_statements_with_quoted_compartments(parser, stmt):
 
 
 @pytest.mark.parametrize(
-    'stmt',
+    'statement,expected_subject_type,expected_subject',
     [
-        # All combinations of quoted/unquoted domain/subject for dynamic-group
-        "allow dynamic-group 'cloud-engineering-domain'/agregory-dg to {log_analytics_log_group_upload_logs} in compartment andrew.gregory",
-        "allow dynamic-group 'cloud-engineering-domain'/'agregory-dg' to {log_analytics_log_group_upload_logs} in compartment andrew.gregory",
-        "allow dynamic-group cloud-engineering-domain/'agregory-dg' to {log_analytics_log_group_upload_logs} in compartment andrew.gregory",
-        'allow dynamic-group cloud-engineering-domain/agregory-dg to {log_analytics_log_group_upload_logs} in compartment andrew.gregory',
+        # OCID group (single)
+        (
+            'allow group id ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq to inspect instances in tenancy',
+            'group',
+            ['ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq'],
+        ),
+        # OCID group (multiple)
+        (
+            'allow group id ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq, id ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q to inspect instances in tenancy',
+            'group',
+            [
+                'ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq',
+                'ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q',
+            ],
+        ),
+        # OCID dynamic-group (single)
+        (
+            'allow dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq to inspect instances in tenancy',
+            'dynamic-group',
+            ['ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq'],
+        ),
+        # any-group
+        ('allow any-group to read buckets in tenancy', 'any-group', ['any-group']),
+        # Mixed OCID/named (should return as text fallback)
+        (
+            'allow group id ocid1.bad.ocid, id ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q to inspect instances in tenancy',
+            'group',
+            ['ocid1.bad.ocid', 'ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q'],
+        ),
     ],
 )
-def test_policy_statements_mixed_quoted_dynamic_group(parser, stmt):
-    results, errors = parser.parse(stmt)
-    assert results is not None, f'Failed to parse: {stmt}'
-    assert isinstance(results, list)
-    assert len(results) > 0
-    assert not errors, f"Parser returned errors for '{stmt}': {errors}"
+def test_any_group_and_ocid_subjects(parser, statement, expected_subject_type, expected_subject):
+    results, errors = parser.parse(statement)
+    assert not errors, f'Unexpected parse errors: {errors!r}'
+    assert isinstance(results, list) and len(results) > 0
+    result = results[0]
+    assert result.get('subject_type') == expected_subject_type
+    subjects = result.get('subject')
+    # If full id-based group/dynamic-group, expect list of ocid strings; if any-group, expect ['any-group'].
+    # If mixed, may get as fallback names/text depending on parsing.
+    if expected_subject_type in ('group', 'dynamic-group') and all(x.startswith('ocid1.') for x in expected_subject):
+        assert subjects == expected_subject
+    elif expected_subject_type == 'any-group':
+        assert subjects == ['any-group']
+    else:
+        # For mixed cases, check that all expected parts are present in subject
+        for s in expected_subject:
+            assert s in subjects

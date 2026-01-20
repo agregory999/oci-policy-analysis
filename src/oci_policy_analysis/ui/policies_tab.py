@@ -232,11 +232,13 @@ class PoliciesTab(ttk.Frame):
         ttk.Entry(self.frm_policy_filter, textvariable=self.subject_filter_var, width=25).grid(
             row=1, column=1, columnspan=2, padx=2, sticky='w'
         )
-        btn_any_user = ttk.Checkbutton(self.frm_policy_filter, text='any-user', variable=self.use_subject_any)
+        btn_any_user = ttk.Checkbutton(
+            self.frm_policy_filter, text='any-user / any-group', variable=self.use_subject_any
+        )
         btn_any_user.grid(row=1, column=3, padx=2, sticky='e')
         btn_any_user.config(
             command=lambda: (
-                self.subject_filter_var.set('any-user')
+                self.subject_filter_var.set('any-user|any-group')
                 if self.use_subject_any.get()
                 else self.subject_filter_var.set(''),
                 self.update_policy_output(),
@@ -689,7 +691,7 @@ class PoliciesTab(ttk.Frame):
                 or self.chk_show_resource.get()
                 and st.get('Subject Type') == 'resource'
                 or self.chk_show_regular.get()
-                and st.get('Subject Type') in ['group', 'any-user']
+                and st.get('Subject Type') in ['group', 'any-user', 'any-group']
                 or self.chk_show_invalid.get()
                 and (not st.get('Valid') or not st.get('Parsed'))
             )

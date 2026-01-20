@@ -132,7 +132,7 @@ class ResourcePrincipalsTab(ttk.Frame):
         # Principals Style dropdown
         ttk.Label(frm_principals_top, text='Principals Style:').grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.principals_style_var = tk.StringVar(value='Dynamic Group')
-        self.principals_style_list = ['Dynamic Group', 'any-user']
+        self.principals_style_list = ['Dynamic Group', 'any-user', 'any-group', 'any-user / any-group']
         self.principals_style_dropdown = ttk.OptionMenu(
             frm_principals_top, self.principals_style_var, self.principals_style_var.get(), *self.principals_style_list
         )
@@ -269,36 +269,41 @@ class ResourcePrincipalsTab(ttk.Frame):
         self.rp_dg_table.grid_forget()
         self.rp_policy_table.grid_forget()
 
-        if principals_style == 'any-user':
+        if principals_style in ('any-user', 'any-group', 'any-user / any-group'):
             # Enable Resource Type dropdown
             self.resource_type_dropdown.configure(state='normal')
 
             # Re-grid RP sheet
             self.rp_policy_table.grid(row=0, column=0, rowspan=2, sticky='nsew')
-            logger.info('Any-User selected - only showing Policy table with resource dropdown')
+            logger.info(f'{principals_style} selected - only showing Policy table with resource dropdown')
 
-            # Don't care about Dynamic groups
+            # Determine subjects to filter on
+            if principals_style == 'any-user':
+                subjects = ['any-user']
+            elif principals_style == 'any-group':
+                subjects = ['any-group']
+            else:  # 'any-user / any-group'
+                subjects = ['any-user', 'any-group']
+
             if resource_type == 'Any':
-                logger.info('Any-User with Any resource type selected')
-                # TODO Fixme: this filter is not working as intended
-                filters: PolicySearch = PolicySearch(conditions=['request.principal.type', 'any-user'])
+                logger.info(f'{principals_style} with Any resource type selected')
+                filters: PolicySearch = PolicySearch(subject=subjects)
                 policies: list[RegularPolicyStatement] = self.policy_repo.filter_policy_statements(filters=filters)
                 # Normalize the data
                 display_data = [for_display_policy(statement) for statement in policies]
                 self.rp_policy_table.update_data(display_data)
 
-                logger.info(f'Filtered to {len(policies)} policies with any principal type')
-                # self.principals_sheet_policies_instance.set_sheet_data(policies)
+                logger.info(f'Filtered to {len(policies)} policies with principals: {subjects}')
             else:
-                logger.info(f'Any-User with type {resource_type} specified')
-                filters: PolicySearch = PolicySearch(
-                    conditions=['request.principal.type'], statement_text=[resource_type]
-                )
+                logger.info(f'{principals_style} with type {resource_type} specified')
+                filters: PolicySearch = PolicySearch(subject=subjects, statement_text=[resource_type])
                 policies = self.policy_repo.filter_policy_statements(filters=filters)
                 # Normalize the data
                 display_data = [for_display_policy(statement) for statement in policies]
                 self.rp_policy_table.update_data(display_data)
-                logger.info(f'Filtered to {len(policies)} policies with principal type {resource_type}')
+                logger.info(
+                    f'Filtered to {len(policies)} policies with principals {subjects} and resource {resource_type}'
+                )
 
         elif principals_style == 'Dynamic Group':
             # Disable Resource Type dropdown
