@@ -1,3 +1,11 @@
+# [3.2.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0-dev.1...v3.2.0-dev.2) (2026-01-20)
+
+
+### Bug Fixes
+
+* UI display and random fixes ([0618482](https://github.com/agregory999/oci-policy-analysis/commit/061848277ae848a0efd2da635eeb5705d25b2d82))
+* UI display and random fixes ([22a8d24](https://github.com/agregory999/oci-policy-analysis/commit/22a8d24ecaa754b23606fbd6ed78d85edcb24321))
+
 # [3.2.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.2.0-dev.1) (2026-01-16)
 
 
