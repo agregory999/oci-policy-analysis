@@ -14,6 +14,7 @@
 * UI display and random fixes ([22a8d24](https://github.com/agregory999/oci-policy-analysis/commit/22a8d24ecaa754b23606fbd6ed78d85edcb24321))
 
 # [3.2.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.2.0-dev.1) (2026-01-16)
+## [3.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.1.1) (2026-01-08)
 
 
 ### Bug Fixes
