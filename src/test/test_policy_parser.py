@@ -78,6 +78,44 @@ def test_policy_statements_with_quoted_compartments(parser, stmt):
 
 
 @pytest.mark.parametrize(
+    'statement,expected_location_type,expected_location',
+    [
+        (
+            "allow any-user to manage objects in compartment id ocid1.compartment.oc1..aaaaaaaamaywlaznovmvdwk3uqx2sedfavssagba5cxufe6wyllqgwzcq43a where all {request.principal.type = 'serviceconnector', target.bucket.name = 'hammer_reports', request.principal.compartment.id = 'ocid1.compartment.oc1..aaaaaaaapfv3jno5r6qz6oeszde4uh4ksfox66zkj4i3crnxdy752beciq2q'}",
+            'compartment id',
+            'ocid1.compartment.oc1..aaaaaaaamaywlaznovmvdwk3uqx2sedfavssagba5cxufe6wyllqgwzcq43a',
+        ),
+    ],
+)
+def test_policy_statement_compartment_id_location(parser, statement, expected_location_type, expected_location):
+    results, errors = parser.parse(statement)
+    assert results is not None, 'Parser returned None for valid input.'
+    assert not errors, f'Parser returned errors: {errors}'
+    assert isinstance(results, list)
+    assert len(results) > 0
+    statement_data = results[0]
+    # Try common field names: location_type/location/resource_scope/etc.
+    assert (
+        'location_type' in statement_data or 'resource_scope' in statement_data
+    ), f'Parsed statement missing location_type/resource_scope field: {statement_data!r}'
+    # Accept different naming for the field, try both
+    location_type = statement_data.get('location_type') or statement_data.get('resource_scope')
+    assert (
+        location_type and expected_location_type in location_type
+    ), f"Expected location_type/resource_scope '{expected_location_type}', got '{location_type}'"
+    # Now check the specific location/ocid is present in the parsed fields somewhere (location or similar field)
+    found_location = (
+        statement_data.get('location')
+        or statement_data.get('location_id')
+        or statement_data.get('resource_scope_id')
+        or ''
+    )
+    assert expected_location in str(
+        found_location
+    ), f"Expected compartment OCID '{expected_location}' in result, got '{found_location}'"
+
+
+@pytest.mark.parametrize(
     'statement,expected_subject_type,expected_subject',
     [
         # OCID group (single)

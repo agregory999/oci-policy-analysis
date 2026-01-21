@@ -610,7 +610,7 @@ def reload_mcp_data() -> dict:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
 
     try:
-        if not (pca.loaded_from_tenancy):
+        if not (pca.policies_loaded_from_tenancy):
             raise ToolError(
                 'Data reload is only supported when running with a profile, instance principal, or session token'
             )
@@ -618,9 +618,9 @@ def reload_mcp_data() -> dict:
         # Assuming we have data, reload it and create a new cache
         pca.load_complete_identity_domains()
         pca.load_policies_and_compartments()
-        caching = CacheManager(policy_analysis=pca)
+        caching = CacheManager()
         logger.info('Saving new combined cache after data reload')
-        caching.save_combined_cache()
+        caching.save_combined_cache(policy_analysis=pca)
 
         logger.info('Data reloaded successfully')
         return {
