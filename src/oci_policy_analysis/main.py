@@ -32,6 +32,7 @@ import tkinter as tk  # noqa: E402
 import tkinter.filedialog as tkfiledialog  # noqa: E402
 import tkinter.font as tkfont  # noqa: E402
 import tkinter.ttk as ttk
+import traceback
 import warnings
 import webbrowser  # noqa: E402
 from importlib.resources import files
@@ -54,7 +55,7 @@ from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
 from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
-from oci_policy_analysis.ui.policy_overlap_tab import PolicyOverlapTab  # noqa: E402
+from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendationsTab
 from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
@@ -158,10 +159,7 @@ class App(tk.Tk):
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
-        self.policy_overlap_tab = PolicyOverlapTab(self.notebook, self, self.settings)
-        self.permissions_report_tab = PermissionsReportTab(
-            self.notebook, self, self.policy_compartment_analysis, self.settings
-        )
+        self.permissions_report_tab = PermissionsReportTab(self.notebook, self)
         self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
@@ -169,9 +167,9 @@ class App(tk.Tk):
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
+        self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
         self.console_tab = ConsoleTab(self.notebook, self)
-        self.maintenance_tab = MaintenanceTab(self.notebook, caching=self.caching)
-        # self.visual_policy_tab = VisualPolicyTab(self.notebook, self)
+        self.maintenance_tab = MaintenanceTab(self.notebook, self, caching=self.caching, settings=self.settings)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
@@ -183,14 +181,11 @@ class App(tk.Tk):
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
-        # self.notebook.add(self.report_tab, text='Reports\nw/ Search')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        # Register new Visual Policy tab just before advanced/test tabs
-        # self.notebook.add(self.visual_policy_tab, text='Visual Policy\nView')
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
-        self.notebook.add(self.policy_overlap_tab, text='Policy Overlap\n(Advanced)')
+        self.notebook.add(self.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Admin)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Admin)')
@@ -246,15 +241,15 @@ class App(tk.Tk):
 
         # Console / Maintenance / Advanced tab Visibility
         self.console_visible = False
+        self.advanced_tabs_visible = False
+        self.maintenance_visible = False
         self.notebook.forget(self.console_tab)
         self.notebook.forget(self.debugger_tab)
-        self.maintenance_visible = False
         self.notebook.forget(self.maintenance_tab)
-        self.advanced_tabs_visible = False
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.condition_tester_tab)
-        self.notebook.forget(self.policy_overlap_tab)
         self.notebook.forget(self.simulation_tab)
+        self.notebook.forget(self.policy_recommendations_tab)
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -326,6 +321,61 @@ class App(tk.Tk):
             f'Log level set to {self.log_level_var.get()}. To use DEBUG, you must start from shell using --verbose'
         )
 
+    def _post_load_create_intelligence(self):
+        """Internal: Run all post-load policy intelligence analyses and rebuild simulation index."""
+        # (re)create the PolicyIntelligenceEngine
+        self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+
+        logger.info('Running post-load policy intelligence analyses')
+        start_post_process_time = time.perf_counter()
+        logger.info('Calculating effective compartments for all policy statements')
+        self.policy_intelligence.calculate_all_effective_compartments()
+        logger.info('Finding invalid policy statements')
+        self.policy_intelligence.find_invalid_statements()
+        logger.info('Running dynamic group in-use analysis')
+        self.policy_intelligence.run_dg_in_use_analysis()
+        logger.info('Analyzing policy overlaps')
+        self.policy_intelligence.analyze_policy_overlap()
+        logger.info('Calculating policy risk scores')
+        self.policy_intelligence.calculate_potential_risk_scores()
+        logger.info('Building policy consolidation findings')
+        self.policy_intelligence.build_policy_consolidation()
+        logger.info('Building permissions report for advanced report tab')
+        self.policy_intelligence.build_permissions_report()
+
+        # NEW: Build cleanup items before building overall recommendations
+        logger.info('Building actionable cleanup items')
+        self.policy_intelligence.build_cleanup_items()
+
+        # Ensure recommendations are built last to leverage all overlays and intelligence
+        logger.info('Building overall recommendations')
+        self.policy_intelligence.build_overall_recommendations()
+
+        self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
+        self.simulation_engine.build_index()
+        logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
+        end_post_process_time = time.perf_counter()
+        logger.info(
+            f'Post-load policy intelligence analyses (including simulation index) completed in {end_post_process_time - start_post_process_time:.2f} seconds'
+        )
+
+    def _post_load_update_ui(self):
+        """Internal: Re-enable and update UI components after data load."""
+        self.users_tab.update_user_analysis_output()
+        self.policies_tab.update_policy_output()
+        self.policies_tab.enable_widgets_after_load()
+        self.dynamic_groups_tab.enable_controls()
+        self.cross_tenancy_tab.update_cross_tenancy_output()
+        # self.report_tab.update_report_output()
+        self.resource_principals_tab.update_principals_sheets()
+        self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
+        self.dynamic_groups_tab.enable_controls()
+        self.permissions_report_tab.enable_widgets_after_load()
+        self.simulation_tab.refresh_dropdowns()
+        # Immediately update analytics tab with new data
+        self.policy_recommendations_tab.reload_all_analytics()
+        logger.info('All tabs reloaded after data load.')
+
     def load_tenancy_async(  # noqa: C901
         self,
         tenancy_id: str,
@@ -390,7 +440,7 @@ class App(tk.Tk):
                         user_count = len(self.policy_compartment_analysis.users)
                         msg = f'Loaded {domain_count} domains, {group_count} groups, {user_count} users...'
                         cb = callback.get('progress') if callback else None
-                        if callable(cb):
+                        if cb is not None and callable(cb):
                             self.after(0, lambda m=msg: cb(m))
                         # Continue polling every second until loading is signaled complete
                         if not getattr(self.policy_compartment_analysis, 'identity_loaded_from_tenancy', False):
@@ -400,7 +450,7 @@ class App(tk.Tk):
 
                     if callback:
                         cb = callback.get('progress')
-                        if callable(cb):
+                        if cb is not None and callable(cb):
                             self.after(0, lambda: cb('Loading Identity Domains'))
 
                     success = self.policy_compartment_analysis.load_complete_identity_domains()
@@ -408,7 +458,7 @@ class App(tk.Tk):
                         raise RuntimeError('Failed to load identity domains')
                     if callback:
                         cb = callback.get('progress')
-                        if callable(cb):
+                        if cb is not None and callable(cb):
                             self.after(0, lambda: cb('Loading Compartments and Policies'))
 
                     # Start polling the repo's progress per second
@@ -417,7 +467,7 @@ class App(tk.Tk):
                         s_count = len(self.policy_compartment_analysis.regular_statements)
                         msg = f'Loaded {p_count} policies, {s_count} statements...'
                         cb = callback.get('progress') if callback else None
-                        if callable(cb):
+                        if cb is not None and callable(cb):
                             self.after(0, lambda m=msg: cb(m))
                         # Continue polling every second until loading is signaled complete
                         if not getattr(self.policy_compartment_analysis, 'policies_loaded_from_tenancy', False):
@@ -432,26 +482,11 @@ class App(tk.Tk):
 
                     if callback:
                         cb = callback.get('progress')
-                        if callable(cb):
-                            self.after(300, lambda: cb('Running post-load policy intelligence analyses'))
-
-                    # Run post-load intelligence analysis now using new module
-                    self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
-                    logger.info('Running post-load policy intelligence analyses')
-                    # Start a timer
-                    start_post_process_time = time.perf_counter()
-                    logger.info('Calculating effective compartments for all policy statements')
-                    self.policy_intelligence.calculate_all_effective_compartments()
-                    logger.info('Finding invalid policy statements')
-                    self.policy_intelligence.find_invalid_statements()
-                    logger.info('Running dynamic group in-use analysis')
-                    self.policy_intelligence.run_dg_in_use_analysis()
-                    logger.info('Analyzing policy overlaps')
-                    self.policy_intelligence.analyze_policy_overlap()
-                    end_post_process_time = time.perf_counter()
-                    logger.info(
-                        f'Post-load policy intelligence analyses completed in {end_post_process_time - start_post_process_time:.2f} seconds'
-                    )
+                        if cb is not None and callable(cb):
+                            self.after(
+                                300,
+                                lambda m='Running post-load policy intelligence analyses': cb(success=True, message=m),
+                            )
 
                     # Save cache after loading from tenancy
                     self.caching.save_combined_cache(self.policy_compartment_analysis)
@@ -460,7 +495,7 @@ class App(tk.Tk):
 
                 if callback:
                     cb = callback.get('error')
-                    if callable(cb):
+                    if cb is not None and callable(cb):
                         self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
                 return
 
@@ -470,27 +505,14 @@ class App(tk.Tk):
 
             if callback:
                 cb = callback.get('complete')
-                if callable(cb):
+                if cb is not None and callable(cb):
                     self.after(0, lambda msg=msg: cb(True, msg, False))  # type: ignore
 
             logger.info('Tenancy Load complete. Reloading all tabs')
-            self.policy_overlap_tab.enable_widgets_after_load()
-            self.users_tab.update_user_analysis_output()
-            self.policies_tab.update_policy_output()
-            self.dynamic_groups_tab.enable_controls()
-            self.cross_tenancy_tab.update_cross_tenancy_output()
-            # self.report_tab.update_report_output()
-            self.resource_principals_tab.update_principals_sheets()
-            self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
-            self.dynamic_groups_tab.enable_controls()
-            self.permissions_report_tab.enable_widgets_after_load()
-            self.simulation_tab.refresh_dropdowns()
-            logger.info('All tabs reloaded after tenancy load.')
 
-            # Build the index for simulation engine
-            self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
-            self.simulation_engine.build_index()
-            logger.info('Rebuilt Simulation Engine index after tenancy load.')
+            # Run post-load intelligence analysis
+            self._post_load_create_intelligence()
+            self._post_load_update_ui()
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -505,70 +527,33 @@ class App(tk.Tk):
 
         def worker():
             try:
-                self.after(
-                    0,
-                    lambda: callback
-                    and callable(callback.get('progress'))
-                    and callback['progress']('Loading compliance output data'),
-                )
+                progress_cb = callback.get('progress') if callback else None
+                if progress_cb is not None and callable(progress_cb):
+                    self.after(0, lambda m='Loading compliance output data': progress_cb(m))
                 success = self.policy_compartment_analysis.load_from_compliance_output_dir(dir_path)
                 msg = f'Loaded compliance data from {dir_path}'
                 logger.info(msg)
                 # Post-processing after load
-                self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
-                self.after(
-                    0,
-                    lambda: callback
-                    and callable(callback.get('progress'))
-                    and callback['progress']('Running post-load policy intelligence analyses'),
-                )
-                # Start a timer
-                start_post_process_time = time.perf_counter()
-                logger.info('Calculating effective compartments for all policy statements')
-                self.policy_intelligence.calculate_all_effective_compartments()
-                logger.info('Finding invalid policy statements')
-                self.policy_intelligence.find_invalid_statements()
-                logger.info('Running dynamic group in-use analysis')
-                self.policy_intelligence.run_dg_in_use_analysis()
-                self.after(
-                    0,
-                    lambda: callback
-                    and callable(callback.get('progress'))
-                    and callback['progress']('Analyzing policy overlaps'),
-                )
-                logger.info('Analyzing policy overlaps')
-                self.policy_intelligence.analyze_policy_overlap()
-                end_post_process_time = time.perf_counter()
-                logger.info(
-                    f'Post-load policy intelligence analyses completed in {end_post_process_time - start_post_process_time:.2f} seconds'
-                )
+                # self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+                progress_cb = callback.get('progress') if callback else None
+                if progress_cb is not None and callable(progress_cb):
+                    self.after(0, lambda m='Running post-load policy intelligence analyses': progress_cb(m))
+                self._post_load_create_intelligence()
 
-                if callback and callable(callback.get('complete')):
-                    self.after(0, lambda: callback['complete'](success, msg, not success))
+                complete_cb = callback.get('complete') if callback else None
+                if complete_cb is not None and callable(complete_cb):
+                    self.after(0, lambda: complete_cb(success, msg, not success))
                 if success:
                     logger.info('[OK] Compliance Output Load complete. Reloading all tabs.')
-                    self.policy_overlap_tab.enable_widgets_after_load()
-                    self.users_tab.update_user_analysis_output()
-                    self.policies_tab.update_policy_output()
-                    self.dynamic_groups_tab.enable_controls()
-                    self.cross_tenancy_tab.update_cross_tenancy_output()
-                    self.report_tab.update_report_output()
-                    self.resource_principals_tab.update_principals_sheets()
-                    self.historical_tab.populate_cache_dropdowns(
-                        tenancy_name=getattr(self.policy_compartment_analysis, 'tenancy_name', '')
-                    )
-                    self.dynamic_groups_tab.enable_controls()
-                    self.permissions_report_tab.enable_widgets_after_load()
-
-                    # Build the index for simulation engine
-                    self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
-                    self.simulation_engine.build_index()
-                    logger.info('Rebuilt Simulation Engine index after compliance load.')
-
+                    self._post_load_update_ui()
             except Exception as e:
                 logger.error(f'Error occurred during compliance output load: {e}')
-                if callback and callable(callback.get('error')):
-                    self.after(0, lambda e=e: callback['error'](False, f'Compliance load failed: {e}', True))
+                # Show stack trace if debug on main
+                if logger.isEnabledFor(logging.DEBUG):
+                    traceback.print_exc()
+                error_cb = callback.get('error') if callback else None
+                if error_cb is not None and callable(error_cb):
+                    self.after(0, lambda e=e: error_cb(False, f'Compliance load failed: {e}', True))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -585,10 +570,9 @@ class App(tk.Tk):
         if filepath:
             try:
                 logger.info(f'Importing cached data from file: {filepath}')
-                if callback:
-                    cb = callback.get('progress')
-                    if cb is not None:
-                        self.after(0, lambda: cb('Loading from JSON file'))  # type: ignore
+                progress_cb = callback.get('progress') if callback else None
+                if progress_cb is not None and callable(progress_cb):
+                    self.after(0, lambda: progress_cb('Loading from JSON file'))
                 with open(filepath, encoding='utf-8') as jsonfile:
                     loaded_json = json.load(jsonfile)
                     logger.debug(f'JSON Data: {loaded_json}')
@@ -597,34 +581,20 @@ class App(tk.Tk):
                     self.last_load_time = self.policy_compartment_analysis.data_as_of
                     logger.info(f'***Loaded cached data from file as of {self.last_load_time}')
                     logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
-                if callback:
-                    cb = callback.get('complete')
-                    if cb is not None:
-                        self.after(0, lambda: cb(True, 'Loaded from JSON file', False))  # type: ignore
+                    self._post_load_create_intelligence()
+                complete_cb = callback.get('complete') if callback else None
+                if complete_cb is not None and callable(complete_cb):
+                    self.after(0, lambda: complete_cb(True, 'Loaded from JSON file', False))
                 else:
                     logger.warning('Failed to load from saved cache')
 
                 logger.info('Cache Load JSON complete - Reload all tabs')
-                self.policy_overlap_tab.enable_widgets_after_load()
-                self.users_tab.update_user_analysis_output()
-                self.policies_tab.update_policy_output()
-                self.dynamic_groups_tab.enable_controls()
-                self.cross_tenancy_tab.update_cross_tenancy_output()
-                # self.report_tab.update_report_output()
-                self.resource_principals_tab.update_principals_sheets()
-                self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
-                self.dynamic_groups_tab.enable_controls()
-
-                # Build the index for simulation engine
-                self.simulation_engine.build_index()
-                logger.info('Rebuilt Simulation Engine index after cache load.')
-
+                self._post_load_update_ui()
             except Exception as e:
                 logger.error(f'Error importing policies from CSV: {e}')
-                if callback:
-                    cb = callback.get('error')
-                    if cb is not None:
-                        self.after(0, lambda: cb(False, 'Failed to load from JSON file', True))  # type: ignore
+                error_cb = callback.get('error') if callback else None
+                if error_cb is not None and callable(error_cb):
+                    self.after(0, lambda: error_cb(False, 'Failed to load from JSON file', True))
             finally:
                 pass
 

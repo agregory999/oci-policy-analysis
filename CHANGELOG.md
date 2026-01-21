@@ -1,17 +1,45 @@
-## [3.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.1.1) (2026-01-21)
+# [3.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.1...v3.2.0) (2026-01-21)
+
+
+### Bug Fixes
+
+* Policy and OCID parsing ([f7b27ee](https://github.com/agregory999/oci-policy-analysis/commit/f7b27ee2ac1763a9a52f64a94167136ebc180386))
+* UI display and random fixes ([0618482](https://github.com/agregory999/oci-policy-analysis/commit/061848277ae848a0efd2da635eeb5705d25b2d82))
+* UI display and random fixes ([22a8d24](https://github.com/agregory999/oci-policy-analysis/commit/22a8d24ecaa754b23606fbd6ed78d85edcb24321))
+
+
+### Features
+
+* Merge pull request [#22](https://github.com/agregory999/oci-policy-analysis/issues/22) from agregory999/develop ([b1adbdf](https://github.com/agregory999/oci-policy-analysis/commit/b1adbdfee4a41c907d0217e577d7f7f64bb125c6))
+* Policy Intelligence and Recommendations ([46936e1](https://github.com/agregory999/oci-policy-analysis/commit/46936e147edc47da9bf962215c1782b8128fa05f))
+
+# [3.2.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0-dev.2...v3.2.0-dev.3) (2026-01-21)
+
+
+### Bug Fixes
+
+* Policy and OCID parsing ([f7b27ee](https://github.com/agregory999/oci-policy-analysis/commit/f7b27ee2ac1763a9a52f64a94167136ebc180386))
+
+# [3.2.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0-dev.1...v3.2.0-dev.2) (2026-01-20)
+
+
+### Bug Fixes
+
+* UI display and random fixes ([0618482](https://github.com/agregory999/oci-policy-analysis/commit/061848277ae848a0efd2da635eeb5705d25b2d82))
+* UI display and random fixes ([22a8d24](https://github.com/agregory999/oci-policy-analysis/commit/22a8d24ecaa754b23606fbd6ed78d85edcb24321))
+
+# [3.2.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.2.0-dev.1) (2026-01-16)
+## [3.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.1.1) (2026-01-08)
 
 
 ### Bug Fixes
 
 * Global Debug and Documentation ([47c2c3c](https://github.com/agregory999/oci-policy-analysis/commit/47c2c3c9ee9a9b0f40eae210617c9b6e1ad46459))
-* rebuild ([98483e3](https://github.com/agregory999/oci-policy-analysis/commit/98483e3df367eb5fb1b1e48e852a90ed8cec64a6))
-
-## [3.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.0...v3.1.1) (2026-01-21)
 
 
-### Bug Fixes
+### Features
 
-* Global Debug and Documentation ([47c2c3c](https://github.com/agregory999/oci-policy-analysis/commit/47c2c3c9ee9a9b0f40eae210617c9b6e1ad46459))
+* Policy Intelligence and Recommendations ([46936e1](https://github.com/agregory999/oci-policy-analysis/commit/46936e147edc47da9bf962215c1782b8128fa05f))
 
 # [3.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.0.1...v3.1.0) (2026-01-08)
 

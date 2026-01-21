@@ -23,11 +23,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+from oci_policy_analysis.ui.data_table import CheckboxTable
 
 logger = get_logger(component='simulation_tab')
-
-
-# SimulationDebuggerTab has been removed.
 
 
 class SimulationTab(ttk.Frame):
@@ -42,6 +41,14 @@ class SimulationTab(ttk.Frame):
     """
 
     def __init__(self, parent, app, settings):
+        """Initializes the SimulationTab UI component.
+
+        Args:
+            parent (tk.Widget): The parent Tkinter widget.
+            app (object): Main application instance, expected to provide policy and simulation engine APIs.
+            settings (object): Application settings object.
+
+        """
         super().__init__(parent)
         self.app = app
         self.settings = settings
@@ -59,9 +66,13 @@ class SimulationTab(ttk.Frame):
         self.refresh_dropdowns()
 
     def refresh_dropdowns(self):  # noqa: C901
-        """
-        Populate compartment and principal type/name tuples for policy_repo.
-        Each principal value is (domain, name), except for any-user/service which is (None, name).
+        """Refreshes the dropdowns for compartment and principals.
+
+        Populates members used by the compartment, principal type, and principal name comboboxes.
+        Principal values are tuples (domain, name); 'any-user'/services will use (None, name).
+
+        Returns:
+            None
         """
         logger.info('SimulationTab: refreshing dropdowns for compartment/principal types/names.')
         compartments = set()
@@ -142,13 +153,26 @@ class SimulationTab(ttk.Frame):
 
     def _update_principal_list(self, *_):  # noqa: C901
         pt = self.selected_principal_type.get()
-        if pt == 'user' and hasattr(self.policy_repo, 'users'):
+        if pt in ('user', 'group', 'dynamic-group') and hasattr(self.policy_repo, f'{pt}s'):
+            # Unified logic for user/group/dynamic-group to display as domain/name
             principals = []
-            for entry in getattr(self.policy_repo, 'users', []):
-                domain = entry.get('domain_name')
+            # Get attribute, e.g. self.policy_repo.groups for 'group', users for 'user'
+            coll = getattr(self.policy_repo, f'{pt}s', [])
+            domain_key = 'domain_name'
+            name_key = (
+                'user_name'
+                if pt == 'user'
+                else 'group_name'
+                if pt == 'group'
+                else 'dynamic_group_name'
+                if pt == 'dynamic-group'
+                else None
+            )
+            for entry in coll:
+                domain = entry.get(domain_key)
                 if domain == 'default':
                     domain = None
-                name = entry.get('user_name')
+                name = entry.get(name_key)
                 if name:
                     principals.append((domain, name))
             display_principals = [
@@ -185,18 +209,18 @@ class SimulationTab(ttk.Frame):
             display_principals = [f'{d}/{n}' if d else n for (d, n) in principals]
         self.principal_combobox['values'] = display_principals
         if pt == 'any-user':
-            self.principal_combobox.config(state='disabled')
-            try:
-                self.principal_combobox.configure(background='#f0f0f0')  # standard ttk disabled background
-            except Exception:
-                pass
+            self.principal_combobox.config(state='readonly')
+            # try:
+            #     self.principal_combobox.configure(background='#f0f0f0')  # standard ttk disabled background
+            # except Exception:
+            #     pass
             self.selected_principal.set('')
         else:
-            self.principal_combobox.config(state='readonly')
-            try:
-                self.principal_combobox.configure(background='white')
-            except Exception:
-                pass
+            self.principal_combobox.config(state='normal')
+            # try:
+            #     self.principal_combobox.configure(background='white')
+            # except Exception:
+            #     pass
             if display_principals and self.selected_principal.get() not in display_principals:
                 self.selected_principal.set(display_principals[0])
             elif not display_principals:
@@ -221,13 +245,13 @@ class SimulationTab(ttk.Frame):
         self.compartment_combobox.grid(row=0, column=1, padx=2)
         ttk.Label(select_frame, text='Principal Type:').grid(row=0, column=2, sticky='w')
         self.principal_type_combobox = ttk.Combobox(
-            select_frame, textvariable=self.selected_principal_type, width=20, state='readonly'
+            select_frame, textvariable=self.selected_principal_type, width=20, state='normal'
         )
         self.principal_type_combobox.grid(row=0, column=3, padx=2)
         self.principal_type_combobox.bind('<<ComboboxSelected>>', self._update_principal_list)
         ttk.Label(select_frame, text='Principal:').grid(row=0, column=4, sticky='w')
         self.principal_combobox = ttk.Combobox(
-            select_frame, textvariable=self.selected_principal, width=30, state='readonly'
+            select_frame, textvariable=self.selected_principal, width=30, state='normal'
         )
         self.principal_combobox.grid(row=0, column=5, padx=2)
         self.load_button = ttk.Button(select_frame, text='Load Simulation', command=self.load_statements)
@@ -236,44 +260,10 @@ class SimulationTab(ttk.Frame):
         # Middle: Section 2 — Policy statement and where-clause preview
         self.preview_frame = ttk.LabelFrame(self, text='2. Applicable Policies')
         self.preview_frame.pack(fill='both', padx=8, pady=8, expand=True)
-        self.preview_frame.columnconfigure(0, weight=1)
-        self.preview_frame.rowconfigure(0, weight=1)
+        # self.preview_frame.columnconfigure(0, weight=1)
+        # self.preview_frame.rowconfigure(0, weight=1)
 
-        # Scrollable checklist of policy statements (fill all vertical space)
-        self.stmt_canvas = tk.Canvas(self.preview_frame, borderwidth=0)
-        yscroll = ttk.Scrollbar(self.preview_frame, orient='vertical', command=self.stmt_canvas.yview)
-        self.stmt_canvas.grid(row=0, column=0, sticky='nsew', padx=(2, 4), pady=(2, 6))
-        yscroll.grid(row=0, column=1, sticky='ns', padx=(0, 0), pady=(2, 6))
-
-        self.stmt_list_frame = ttk.Frame(self.stmt_canvas)
-        self.stmt_list_frame_id = self.stmt_canvas.create_window((0, 0), window=self.stmt_list_frame, anchor='nw')
-
-        self.stmt_canvas.configure(yscrollcommand=yscroll.set)
-
-        # Scrolling: auto-resize inner frame and auto-expand area vertically
-        def _on_frame_resize(event):
-            self.stmt_canvas.configure(scrollregion=self.stmt_canvas.bbox('all'))
-
-        self.stmt_list_frame.bind('<Configure>', _on_frame_resize)
-
-        def _on_canvas_configure(event):
-            # Make the inner frame's width the same as the visible canvas width
-            canvas_width = event.width
-            self.stmt_canvas.itemconfig(self.stmt_list_frame_id, width=canvas_width)
-
-        self.stmt_canvas.bind('<Configure>', _on_canvas_configure)
-
-        # Button row under the statement list
-        btn_row_frame = ttk.Frame(self.preview_frame)
-        btn_row_frame.grid(row=1, column=0, sticky='w', padx=4, pady=(2, 4))
-        self.load_where_fields_button = ttk.Button(
-            btn_row_frame, text='Load Where Clause Fields', command=self.load_where_fields
-        )
-        self.load_where_fields_button.pack(side='left', padx=(0, 4))
-        self.load_where_fields_button.config(state='disabled')
-        # New: Select All/None button right next to it
-        self.select_all_btn = ttk.Button(btn_row_frame, text='Select All')
-        self.select_all_btn.pack(side='left')
+        self.statement_checkbox_table = None  # Will be created in load_statements
         # Section 3 — API Operation and where inputs, simulate button
         simulate_frame = ttk.LabelFrame(self, text='3. API Operation and Simulation Inputs')
         simulate_frame.pack(fill='x', padx=8, pady=8)
@@ -370,6 +360,13 @@ class SimulationTab(ttk.Frame):
         self.results_text.pack(fill='both', expand=True)
 
     def load_statements(self):  # noqa: C901
+        """Loads and displays policy statements for the currently selected compartment and principal.
+
+        Filters policy statements based on selection; populates the UI preview table and enables downstream simulation controls.
+
+        Returns:
+            None
+        """
         # Called on "Load Simulation"
 
         # --- CLEAN STATE: Reset simulation fields, result area, and selections ---
@@ -402,141 +399,134 @@ class SimulationTab(ttk.Frame):
         allow_stmts = []
         deny_stmts = []
         filters = {}
+
+        def _match_principal(collection, domain, name, model_key, domain_key='domain_name'):
+            """Helper to find a principal in a collection by both domain and name (domain None/'default' normalize)."""
+            for entry in collection:
+                entry_domain = entry.get(domain_key)
+                if entry_domain == 'default':
+                    entry_domain = None
+                if entry.get(model_key) == name and (
+                    (domain is None and entry_domain in [None, 'default'])
+                    or (domain is not None and entry_domain == domain)
+                ):
+                    return entry
+            return None
+
         if self.policy_repo and hasattr(self.policy_repo, 'filter_policy_statements'):
             if cpath:
                 filters['effective_path'] = [cpath]
-            exact_key = None
-            model_key = None
-            collection = None
-            if ptype == 'group':
-                exact_key = 'exact_groups'
-                model_key = 'group_name'
-                collection = self.policy_repo.groups if hasattr(self.policy_repo, 'groups') else []
-            elif ptype == 'dynamic-group':
-                exact_key = 'exact_dynamic_groups'
-                model_key = 'dynamic_group_name'
-                collection = self.policy_repo.dynamic_groups if hasattr(self.policy_repo, 'dynamic_groups') else []
-            elif ptype == 'user':
-                exact_key = 'exact_users'
-                model_key = 'user_name'
-                collection = self.policy_repo.users if hasattr(self.policy_repo, 'users') else []
-            # Parse (domain, name) from display value
-            if ptype == 'any-user':
-                filters['subject'] = ['any-user']
-            elif pname_display:
-                if '/' in pname_display:
-                    domain, name = pname_display.split('/', 1)
-                else:
-                    domain, name = None, pname_display
-                obj = None
-                if exact_key and model_key and collection:
-                    for entry in collection:
-                        if model_key in entry and entry[model_key] == name:
-                            # Always check domain match (including None/"default")
-                            if (domain is None and entry.get('domain_name') in [None, 'default']) or (
-                                domain is not None and entry.get('domain_name') == domain
-                            ):
-                                obj = entry
-                                break
+
+            # Handle all principal types with streamlined logic
+            principal_processed = False
+
+            if ptype in ('user', 'group', 'dynamic-group'):
+                # Defensive: always define variables before usage
+                exact_key = None
+                model_key = None
+                collection = None
+                if ptype == 'user':
+                    exact_key = 'exact_users'
+                    model_key = 'user_name'
+                    collection = self.policy_repo.users if hasattr(self.policy_repo, 'users') else []
+                elif ptype == 'group':
+                    exact_key = 'exact_groups'
+                    model_key = 'group_name'
+                    collection = self.policy_repo.groups if hasattr(self.policy_repo, 'groups') else []
+                elif ptype == 'dynamic-group':
+                    exact_key = 'exact_dynamic_groups'
+                    model_key = 'dynamic_group_name'
+                    collection = self.policy_repo.dynamic_groups if hasattr(self.policy_repo, 'dynamic_groups') else []
+                # Only use if pname_display is set and all keys are defined
+                if pname_display and collection is not None and model_key is not None and exact_key is not None:
+                    if '/' in pname_display:
+                        domain, name = pname_display.split('/', 1)
+                    else:
+                        domain, name = None, pname_display
+                    obj = _match_principal(collection, domain, name, model_key)
                     if obj:
                         filters[exact_key] = [obj]
+                        logger.info(f'Matched {ptype}: domain={domain!r}, name={name!r}. Using {exact_key}.')
+                        principal_processed = True
                     else:
+                        logger.warning(
+                            f'{ptype} not found for domain={domain!r}, name={name!r}; using generic subject filter.'
+                        )
                         filters['subject'] = [name]
-                elif ptype == 'service':
-                    filters['subject'] = [name]
-                else:
-                    filters['subject'] = [name]
-            logger.info(f'Applying simulation filters to load statements: {filters}')
+                        principal_processed = True
+
+            elif ptype == 'service' and pname_display:
+                # Service always has no domain
+                filters['subject'] = [pname_display]
+                logger.info(f'Loading statements for service principal: {pname_display}')
+                principal_processed = True
+
+            elif ptype == 'any-user':
+                filters['subject'] = ['any-user']
+                logger.info('Loading statements for any-user principal.')
+                principal_processed = True
+
+            if not principal_processed and pname_display:
+                # Last resort: use generic subject filter
+                filters['subject'] = [pname_display]
+                logger.info(f'Using fallback generic subject filter: {pname_display}')
+
+            logger.info(f'Final statement filter dict: {filters}')
             stmts = self.policy_repo.filter_policy_statements(filters)
             allow_stmts = [s for s in stmts if s.get('action', '').lower() == 'allow']
             deny_stmts = [s for s in stmts if s.get('action', '').lower() == 'deny']
 
-        # Remove old checkboxes in scroll area
-        for item in self.stmt_list_frame.winfo_children():
-            item.destroy()
-        self.checked_statements = {}
+        # Remove old checklist/table if present
+        if getattr(self, 'statement_checkbox_table', None) is not None:
+            self.statement_checkbox_table.destroy()
+            self.statement_checkbox_table = None
         all_stmts = allow_stmts + deny_stmts
-        # Update label to include policy count
-        try:
-            if hasattr(self, 'preview_frame') and self.preview_frame:
-                self.preview_frame.config(text=f'2. Applicable Policies ({len(all_stmts)})')
-        except Exception:
-            pass
-
-        # -- TABLE HEADERS: checkbox, statement text, conditional, where clause column --
-        tk.Label(self.stmt_list_frame, text='', width=2).grid(row=0, column=0, sticky='nw')
-        tk.Label(
-            self.stmt_list_frame, text='Policy Path/Name', anchor='w', width=40, font=('TkDefaultFont', 10, 'bold')
-        ).grid(row=0, column=1, sticky='nw', padx=1)
-        tk.Label(
-            self.stmt_list_frame,
-            text='Policy Statement',
-            anchor='w',
-            width=90,
-            wraplength=800,
-            font=('TkDefaultFont', 10, 'bold'),
-        ).grid(row=0, column=2, sticky='nw', padx=1)
-        tk.Label(
-            self.stmt_list_frame, text='Conditional', anchor='w', width=10, font=('TkDefaultFont', 10, 'bold')
-        ).grid(row=0, column=3, sticky='nw', padx=(0, 2))
-
-        # Select All/None button logic (label and command updated later)
-        def get_all_checked():
-            return all(var.get() for var, _ in self.checked_statements.values()) if self.checked_statements else False
-
-        def update_select_all_btn_label():
-            if get_all_checked():
-                self.select_all_btn.config(text='Select None')
-            else:
-                self.select_all_btn.config(text='Select All')
-
-        def toggle_select_all():
-            check = not get_all_checked()
-            for var, _ in self.checked_statements.values():
-                var.set(check)
-            update_select_all_btn_label()
-
-        self.select_all_btn.config(command=toggle_select_all)
-        # Initial label update will happen below
-
-        for idx, st in enumerate(all_stmts, start=1):
-            internal_id = st.get('internal_id', str(idx))
-            check_var = tk.BooleanVar(value=True)
-            cb = ttk.Checkbutton(self.stmt_list_frame, variable=check_var)
-            cb.grid(row=idx, column=0, sticky='nw', padx=2)
-            # Show policy path/name, narrow column
-            policy_path = st.get('compartment_path', 'Unknown Path')
-            policy_name = st.get('policy_name', 'Unnamed Policy')
-            tk.Label(
-                self.stmt_list_frame, text=f'{policy_path} / {policy_name}', anchor='w', width=40, justify='left'
-            ).grid(row=idx, column=1, sticky='nw', padx=1)
-
-            # Show full policy statement, wide column; wrap at about 1000px, try to match the actual pixel width visually
-            full_txt = st.get('statement_text', '')
-            tk.Label(self.stmt_list_frame, text=full_txt, anchor='w', width=90, wraplength=800, justify='left').grid(
-                row=idx, column=2, sticky='nw', padx=1
+        data = []
+        for st in all_stmts:
+            data.append(
+                {
+                    'Policy Path/Name': f"{st.get('compartment_path','Unknown Path')} / {st.get('policy_name','Unnamed Policy')}",
+                    'Policy Statement': st.get('statement_text', ''),
+                    'Conditional': 'Yes' if st.get('conditions') else 'No',
+                    'obj': st,
+                }
             )
-            # is_conditional = bool(st.get("conditions"))
-            # tk.Label(self.stmt_list_frame, text=str(is_conditional), anchor="center", width=12).grid(row=idx, column=3, sticky="nw", padx=(0,2))
-            # New: show Yes/No for where clause presence
-            is_conditional = bool(st.get('conditions'))
-            has_where = 'Yes' if is_conditional else 'No'
-            tk.Label(self.stmt_list_frame, text=has_where, anchor='center', width=10).grid(
-                row=idx, column=3, sticky='nw', padx=(0, 2)
-            )
-            self.checked_statements[internal_id] = (check_var, st)
-        self.stmt_list_frame.update_idletasks()
-        update_select_all_btn_label()
-        # Attach listener to update the Select All/None button when a checkbox is toggled
-        for var, _ in self.checked_statements.values():
-            var.trace_add('write', lambda *args: update_select_all_btn_label())
 
-        # New flow: Where clause fields are loaded only when button is pressed; always present, just enable/disable
+        def on_action(checked_rows):
+            checked_ids = [row['obj'].get('internal_id') for row in checked_rows if 'obj' in row]
+            logger.info(f'Simulate Selected called for checked statement IDs: {checked_ids}')
+            # Legacy: set checked_statements for the rest of code
+            self.checked_statements = {}
+            for row in data:
+                obj = row.get('obj')
+                idval = obj.get('internal_id') if obj else None
+                if obj and idval is not None:
+                    self.checked_statements[idval] = (tk.BooleanVar(value=row in checked_rows), obj)
+
+        cols = ['Policy Path/Name', 'Policy Statement', 'Conditional']
+        # Set table max height to about 30% typical default window (e.g. 260px), user can tune
+        col_widths = {
+            'Policy Path/Name': 220,
+            'Policy Statement': 700,
+            'Conditional': 90,
+        }
+        self.statement_checkbox_table = CheckboxTable(
+            self.preview_frame,
+            columns=cols,
+            data=data,
+            action_button_text='Load Where Clause Fields',
+            action_callback=self.load_where_fields,
+            enable_select_all=True,
+            checked_by_default=True,
+            max_height=260,  # px, approx 30% of default main window
+            column_widths=col_widths,
+            geometry_manager='pack',
+        )
+        self.statement_checkbox_table.pack(fill='both', expand=True, padx=4, pady=(8, 2))
         self._clear_where_inputs()
         self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
-        self.load_where_fields_button.config(state='normal')
         self.simulate_button.config(state='disabled')
-        # self.load_where_fields_button.config(state="disabled")  # Never disable. User should always be able to start another simulation.
+        # self.load_where_fields_button config/state logic removed—button now only exists in-table.
 
         # === API Operation ComboBox: populate and filter ===
         opnames = []
@@ -566,14 +556,38 @@ class SimulationTab(ttk.Frame):
             widget.destroy()
         self.simulation_inputs = {}
 
-    def load_where_fields(self):
-        # Only call this after statements are loaded and checkboxes set
-        from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+    def load_where_fields(self, checked_rows=None):  # noqa: C901
+        """Extracts and displays dynamic where clause input fields based on the selected statements.
 
+        Parses checked statements for required where-clause variables, then renders appropriate Tkinter fields for user input.
+
+        Returns:
+            None
+        """
+
+        # Get checked rows from the CheckboxTable widget
+        if checked_rows is None:
+            checked_rows = []
+            if self.statement_checkbox_table is not None:
+                checked_rows = self.statement_checkbox_table.get_checked_rows()
+        logger.info(f'load_where_fields: Found {len(checked_rows)} checked row(s) from CheckboxTable.')
+
+        # Update self.checked_statements for consistency (mapping from internal_id to row)
+        self.checked_statements = {}
+        for row in checked_rows:
+            internal_id = (
+                row.get('obj', {}).get('internal_id') if isinstance(row.get('obj'), dict) else row.get('internal_id')
+            )
+            obj = row.get('obj', row)
+            if internal_id is not None:
+                self.checked_statements[internal_id] = (tk.BooleanVar(value=True), obj)
+
+        # Continue as before, but operate on these checked statement rows
         all_var_names = set()
-        for _, (check_var, st) in self.checked_statements.items():
-            if not check_var.get():
-                continue
+        for row in checked_rows:
+            # row may be a dict with key 'obj' (the statement), or the statement itself
+            st = row.get('obj', row)
+            logger.info(f'Load where fields: statement ID {st.get("internal_id")}')
             cond_str = st.get('conditions')
             if cond_str:
                 try:
@@ -615,7 +629,6 @@ class SimulationTab(ttk.Frame):
             self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
         # Once where fields are loaded, call button-enabling callback (respect API op selection logic)
         self._maybe_enable_sim_buttons()
-        # self.load_where_fields_button.config(state="disabled")  # Never disable. User should always be able to start another simulation.
         logger.info(f'Where fields loaded from checked statements: {sorted_vars}')
 
     # API Operation search/filter
@@ -627,17 +640,29 @@ class SimulationTab(ttk.Frame):
     def _on_api_op_selected(self, event=None):
         """
         When an API operation is selected, show the note below if one exists.
+
+        This ensures that if the selected API operation has a "note" field (case-insensitive), it is displayed
+        below the dropdown. If not, the note area is hidden.
         """
         op_name = self.selected_api_operation.get()
         note = ''
-        # Prefer sim_engine reference if available
-        ref_repo = getattr(self, 'ref_data_repo', None)
+        # Check for possible sources of API operation notes:
         op_detail = None
+        ref_repo = getattr(self, 'ref_data_repo', None)
+        sim_engine = getattr(self, 'simulation_engine', None)
+        # Try ref_data_repo first (most typical)
         if ref_repo and hasattr(ref_repo, 'data'):
             if 'operations' in ref_repo.data:
                 op_detail = ref_repo.data['operations'].get(op_name)
+        # If not found, and if sim_engine exposes operation detail, try there (edge case)
+        if not op_detail and sim_engine and hasattr(sim_engine, 'get_api_operation_detail'):
+            try:
+                op_detail = sim_engine.get_api_operation_detail(op_name)
+            except Exception:
+                op_detail = None
         if op_detail and isinstance(op_detail, dict):
-            note = op_detail.get('note') or op_detail.get('Note') or ''
+            # Accept 'note' regardless of capitalization
+            note = op_detail.get('notes') or ''
         self.api_op_note_var.set(note or '')
         if note:
             self.api_op_note_label.grid()  # Show label
@@ -659,6 +684,14 @@ class SimulationTab(ttk.Frame):
             self.trace_history_var.set(display_names[-1])  # Select most recent by default
 
     def on_trace_history_selected(self, event=None):
+        """Displays simulation results for the selected simulation trace entry.
+
+        Args:
+            event (tk.Event, optional): Optional Tkinter event object from dropdown selection.
+
+        Returns:
+            None
+        """
         # Load the selected trace into the results area
         selected = self.trace_history_var.get()
         idx = self._trace_history_map.get(selected)
@@ -677,10 +710,24 @@ class SimulationTab(ttk.Frame):
                 self.results_text.insert(tk.END, '\n'.join(summary) + '\n' + pretty_json)
 
     def run_simulation(self):
+        """Runs a policy simulation with the current selections (basic mode).
+
+        Triggers the simulation engine and displays allow/deny result and final permission set.
+
+        Returns:
+            None
+        """
         # Called on "Run Simulation" (basic, high-level details only)
         self._run_simulation_with_trace(trace_mode=False)
 
     def run_simulation_trace(self):
+        """Runs a policy simulation with detailed tracing enabled.
+
+        Shows statement-by-statement evaluation and trace debug output.
+
+        Returns:
+            None
+        """
         # Called on "Run Simulation (Trace)" — detailed per-statement trace
         self._run_simulation_with_trace(trace_mode=True)
 
@@ -739,7 +786,9 @@ class SimulationTab(ttk.Frame):
         # --- Improved: Include operation and principal for trace history name ---
         sim_trace_name = f'{api_operation} | {ptype}:{pname_display}' if api_operation and pname_display else None
 
-        logger.info(f'Calling simulate_and_record on simulation_engine (trace_mode={trace_mode})')
+        logger.info(
+            f'Calling simulate_and_record on simulation_engine (trace_mode={trace_mode}) with {len(checked_statement_ids)} statements'
+        )
         result = self.simulation_engine.simulate_and_record(
             principal_key,
             cpath,
@@ -768,6 +817,3 @@ class SimulationTab(ttk.Frame):
         # Update and select latest in trace history dropdown
         self._update_trace_history_dropdown()
         self.trace_history_dropdown.update_idletasks()
-
-    def _reload_index_debug(self):
-        pass  # Button removed; cleanup for backward compatibility if called

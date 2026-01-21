@@ -59,9 +59,6 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
         'Parsing Notes': '; '.join(statement['parsing_notes']) if 'parsing_notes' in statement else '',
         'Creation Time': statement['creation_time'] if 'creation_time' in statement else '',
         'Parsed': statement['parsed'] if 'parsed' in statement else '',
-        'Policy Overlap': '; '.join([str(po) for po in statement['policy_overlap']])
-        if 'policy_overlap' in statement
-        else '',
     }
 
 

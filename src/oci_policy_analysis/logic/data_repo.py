@@ -162,8 +162,11 @@ class PolicyAnalysisRepository:
                 logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 # Identity for all policy Data
+                # Identity for all policy Data
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
@@ -189,6 +192,8 @@ class PolicyAnalysisRepository:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
+                # Resource Search Client
+                self.resource_search_client = ResourceSearchClient(self.config)
                 # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(self.config)
             logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
@@ -395,6 +400,54 @@ class PolicyAnalysisRepository:
             self.cross_tenancy_statements.append(statement)
             return False
 
+    def _resolve_ocid_subjects_in_statement(self, stmt: RegularPolicyStatement):
+        """
+        If the statement has subject_type group or dynamic-group and all subjects are OCIDs,
+        replace each OCID with (domain, name) if resolvable, otherwise ('Unknown', ocid).
+        Mark as invalid if any unresolved OCIDs. Add parsing_notes for both resolution and unresolved cases.
+        This is done in-place on the statement dict.
+        """
+        subject_type = stmt.get('subject_type')
+        subjects = stmt.get('subject', [])
+        if not (subject_type in ('group', 'dynamic-group') and isinstance(subjects, list)):
+            return
+
+        # Detect if all subjects are in OCID format (no tuple/list inside)
+        all_ocids = all(isinstance(s, str) and s.lower().startswith('ocid1.') for s in subjects)
+        if not all_ocids:
+            return
+
+        resolved_subjects = []
+        unresolved_ocids = []
+        for ocid in subjects:
+            if subject_type == 'group':
+                grp = next((g for g in self.groups if g.get('group_ocid', '').lower() == ocid.lower()), None)
+                if grp:
+                    dom = grp.get('domain_name') or 'Default'
+                    name = grp.get('group_name') or ocid
+                    resolved_subjects.append((dom, name))
+                else:
+                    resolved_subjects.append(('Unknown', ocid))
+                    unresolved_ocids.append(ocid)
+            elif subject_type == 'dynamic-group':
+                dg = next(
+                    (d for d in self.dynamic_groups if d.get('dynamic_group_ocid', '').lower() == ocid.lower()), None
+                )
+                if dg:
+                    dom = dg.get('domain_name') or 'Default'
+                    name = dg.get('dynamic_group_name') or ocid
+                    resolved_subjects.append((dom, name))
+                else:
+                    resolved_subjects.append(('Unknown', ocid))
+                    unresolved_ocids.append(ocid)
+        stmt['subject'] = resolved_subjects
+        notes = stmt.setdefault('parsing_notes', [])
+        if len(unresolved_ocids) > 0:
+            notes.append(f"Failed to resolve OCID(s): {', '.join(unresolved_ocids)}; inserted as ('Unknown', ocid)")
+            stmt['valid'] = False
+        else:
+            notes.append('All OCID subject(s) resolved to domain/name tuple(s).')
+
     def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:
         """
         This is now a thin wrapper calling the centralized PolicyStatementNormalizer.
@@ -429,7 +482,10 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Full invalid statement data: {statement_dict}')
                 self.regular_statements.append(statement_dict)
                 return False
+            # OCID subject resolution step
+            self._resolve_ocid_subjects_in_statement(normalized)
             self.regular_statements.append(normalized)
+            logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             return True
         except Exception as ex:
@@ -531,7 +587,7 @@ class PolicyAnalysisRepository:
                             )
                             self.policies.append(policy_obj)
                             for statement in policy_response.data.statements:
-                                statement_lower = statement.lower()
+                                # DO NOT lowercase statement text - preserve original case
                                 hierarchy_path = next(
                                     (
                                         comp['hierarchy_path']
@@ -546,24 +602,25 @@ class PolicyAnalysisRepository:
                                     policy_description=policy_response.data.description or '',
                                     compartment_ocid=policy_response.data.compartment_id,
                                     compartment_path=hierarchy_path,
-                                    statement_text=statement_lower,
+                                    statement_text=statement,
                                     creation_time=str(policy_response.data.time_created),
                                     internal_id=hashlib.md5((statement + policy_response.data.id).encode()).hexdigest(),
                                     parsed=False,
                                 )
-                                if statement_lower.startswith('define'):
+                                st_text_lower = statement.strip().lower()
+                                if st_text_lower.startswith('define'):
                                     define_statement: DefineStatement = DefineStatement(**base_policy_statement)
                                     self._parse_define_statement(policy_obj, define_statement)
                                 elif (
-                                    statement_lower.startswith('admit')
-                                    or statement_lower.startswith('endorse')
-                                    or statement_lower.startswith('deny admit')
-                                    or statement_lower.startswith('deny endorse')
+                                    st_text_lower.startswith('admit')
+                                    or st_text_lower.startswith('endorse')
+                                    or st_text_lower.startswith('deny admit')
+                                    or st_text_lower.startswith('deny endorse')
                                 ):
-                                    if statement_lower.startswith('admit') or statement_lower.startswith('deny admit'):
+                                    if st_text_lower.startswith('admit') or st_text_lower.startswith('deny admit'):
                                         admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
                                         self._parse_admit_statement(policy_obj, admit_statement)
-                                    elif statement_lower.startswith('endorse') or statement_lower.startswith(
+                                    elif st_text_lower.startswith('endorse') or st_text_lower.startswith(
                                         'deny endorse'
                                     ):
                                         endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
@@ -581,7 +638,9 @@ class PolicyAnalysisRepository:
                         executor.submit(_process_policy_resource, item, idx, total_policies)
             self.data_as_of = str(datetime.now(UTC))
             total_time = time.perf_counter() - start_time
+            total_time = time.perf_counter() - start_time
             logger.info(
+                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
                 f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
             )
             # Return True because we loaded successfully
@@ -1789,36 +1848,36 @@ class PolicyAnalysisRepository:
                     logger.debug(f'Policy {policy_name} has {len(statements)} statements')
                     # Iterate each statement, determine type, and proceed to parse
                     for statement_text in statements:
-                        # statement text needs to be lower case
-                        statement_text_lower = statement_text.strip().lower()
+                        # DO NOT lowercase statement text - preserve original case
+                        stripped_statement = statement_text.strip()
                         base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                             policy_name=policy_name,
                             policy_ocid=policy_ocid,
                             policy_description=policy_item.get('description') or '',
                             compartment_ocid=comp_id,
                             compartment_path=comp_path,
-                            statement_text=statement_text_lower,
+                            statement_text=stripped_statement,
                             creation_time=creation_time,
-                            internal_id=hashlib.md5((statement_text + '' + policy_ocid).encode()).hexdigest(),
+                            internal_id=hashlib.md5((stripped_statement + '' + policy_ocid).encode()).hexdigest(),
                             parsed=False,
                         )
                         logger.debug(f'Processing statement: {statement_text}')
+                        st_text_lower = stripped_statement.lower()
                         # Parse the statement now - cannot use the existing parser as is because it relies on OCI clients
-                        # For now, check to see if it starts with admit or deny or endorse, then put in cross-check later
-                        if statement_text_lower.startswith('define'):
+                        if st_text_lower.startswith('define'):
                             # Parse as DefineStatement
                             define_statement: DefineStatement = DefineStatement(**base_policy_statement)
                             if not self._parse_define_statement(policy_obj, define_statement):
                                 logger.debug(f'Define statement was unable to parse: {statement_text}')
                             logger.debug(f'Parsed define statement: {define_statement}')
                         # Admit and Deny Admit
-                        elif statement_text_lower.startswith('admit') or statement_text_lower.startswith('deny admit'):
+                        elif st_text_lower.startswith('admit') or st_text_lower.startswith('deny admit'):
                             admit_statement: AdmitStatement = AdmitStatement(**base_policy_statement)
                             if not self._parse_admit_statement(policy_obj, admit_statement):
                                 logger.debug(f'Admit statement was unable to parse: {statement_text}')
                             logger.debug(f'Parsed admit statement: {admit_statement}')
                         # Endorse Statement
-                        elif statement_text_lower.startswith('endorse'):
+                        elif st_text_lower.startswith('endorse'):
                             endorse_statement: EndorseStatement = EndorseStatement(**base_policy_statement)
                             if not self._parse_endorse_statement(policy_obj, endorse_statement):
                                 logger.debug(f'Endorse statement was unable to parse: {statement_text}')
@@ -1834,6 +1893,10 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 
             # --- Finally, Build indexes and analyze as in OCI loads ---
+            # self._build_compartment_index()
+            # self._calculate_effective_compartments_for_statements()
+            # self._find_invalid_statements()
+            # self.run_dg_in_use_analysis()
             # self._build_compartment_index()
             # self._calculate_effective_compartments_for_statements()
             # self._find_invalid_statements()

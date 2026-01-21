@@ -34,11 +34,26 @@ class DebuggerTab(ttk.Frame):
         self.view_mode_var = tk.StringVar(value='Text')
 
         ttk.Label(control_row, text='Source:').pack(side='left', padx=(2, 4))
+        # Add all overlays as selectable options
+        overlay_sources = [
+            'Policy Intelligence: Cleanup Items',
+            'Policy Intelligence: Recommendations',
+            'Policy Intelligence: Overlaps',
+            'Policy Intelligence: Risk Scores',
+            'Policy Intelligence: Consolidations',
+        ]
+        self.source_options = [
+            'Policy Repo Compartments',
+            'Policy Repo Policies',
+            'Reference Data',
+            'Simulation Index',
+        ] + overlay_sources
+
         self.source_combo = ttk.Combobox(
             control_row,
             textvariable=self.source_var,
-            values=['Policy Repo Compartments', 'Policy Repo Policies', 'Reference Data', 'Simulation Index'],
-            width=24,
+            values=self.source_options,
+            width=32,
             state='readonly',
         )
         self.source_combo.pack(side='left', padx=(0, 12))
@@ -82,10 +97,26 @@ class DebuggerTab(ttk.Frame):
 
             elif source == 'Simulation Index':
                 return self.app.simulation_engine.compartment_principal_index
-            elif source == 'Policy Repo Policies':  # Policy Repo
+            elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements
-            elif source == 'Policy Repo Compartments':  # Policy Repo
+            elif source == 'Policy Repo Compartments':
                 return self.app.policy_compartment_analysis.compartments
+
+            # Overlay sources
+            elif source.startswith('Policy Intelligence: '):
+                overlay = getattr(self.app.policy_intelligence, 'overlay', {})
+                mapping = {
+                    'Policy Intelligence: Cleanup Items': 'cleanup_items',
+                    'Policy Intelligence: Recommendations': 'recommendations',
+                    'Policy Intelligence: Overlaps': 'overlaps',
+                    'Policy Intelligence: Risk Scores': 'risk_scores',
+                    'Policy Intelligence: Consolidations': 'consolidations',
+                }
+                overlay_key = mapping.get(source)
+                if overlay_key:
+                    return overlay.get(overlay_key, {})
+                else:
+                    return {'error': f'Unknown overlay source: {source}'}
             else:
                 return {'error': f'Unknown source: {source}'}
         except Exception as ex:

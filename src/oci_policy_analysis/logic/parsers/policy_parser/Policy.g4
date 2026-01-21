@@ -32,20 +32,20 @@ grammar Policy;
  endorseVerb         : (verb | ASSOCIATE);
  verb                : (INSPECT | READ | USE | MANAGE) ;
  permissionList      : '{'  WORD  (',' WORD)* '}'  ; // e.g {USER_UPDATE, USER_UIPASS_SET, USER_UIPASS_SET}
- scope               : ((COMPARTMENT ID?)  (WORD | HCL_VAR | QUOTED_STRING) (':' (WORD | HCL_VAR | QUOTED_STRING))* | TENANCY) ;
+ scope               : ((COMPARTMENT ID?) (WORD | OCID | HCL_VAR | QUOTED_STRING) (':' (WORD | OCID | HCL_VAR | QUOTED_STRING))* | TENANCY) ;
  endorseScope        : (ANYTENANCY| TENANCY (WORD | HCL_VAR));
- subject             : (groupSubject | serviceSubject | dynamicGroupSubject | resourceSubject | ANYUSER) ;
+ subject             : (groupSubject | serviceSubject | dynamicGroupSubject | resourceSubject | ANYUSER | ANYGROUP) ;
  groupSubject        : GROUP (groupName| groupID) (','(groupName|groupID))* ;
  resourceSubject     : RESOURCE resourceSubjectId (resourceSubjectId)*;
  serviceSubject      : SERVICE serviceSubjectId (',' serviceSubjectId)*;
  groupName           : (WORD | QUOTED_STRING) | (WORD | QUOTED_STRING) '/' (WORD | QUOTED_STRING) | HCL_VAR ;
  resourceSubjectId   : (WORD | HCL_VAR) ('\'' (WORD | HCL_VAR) '\'' | '\'' (WORD | HCL_VAR) '/' (WORD | HCL_VAR) '\'' )+?;
  serviceSubjectId    : (WORD | HCL_VAR);
- groupID             : ID (WORD | HCL_VAR);
+ groupID             : ID OCID ;
  dynamicGroupSubject : DYNAMICGROUP (groupName| groupID) (','(groupName|groupID))* ;
  tenancySubject      : TENANCY (WORD | HCL_VAR);
  definedSubject      : (groupSubject | dynamicGroupSubject | serviceSubject | tenancySubject);
- defined             : (WORD | HCL_VAR);
+ defined             : (WORD | HCL_VAR | OCID);
  resource            : (WORD | HCL_VAR);
  condition           : (comparisonList | comparison | HCL_VAR) ; // Added HCL_VAR to allow conditions to be HCL variables
  comparison          : variable operator (value|valueList|timeWindow| patternMatch) ;
@@ -77,6 +77,7 @@ grammar Policy;
  WS                  : ' '+  -> skip;
  ANYUSER             : A N Y '-' U S E R  ;
  ANYTENANCY          : A N Y '-' T E N A N C Y ;
+ ANYGROUP            : A N Y '-' G R O U P ;
  ENDORSE             : E N D O R S E ;
  ALLOW               : A L L O W;
  DENY                : D E N Y;
@@ -111,6 +112,7 @@ grammar Policy;
   */
  HCL_VAR             : '${' (~[}])+ '}' ;
 
+OCID                : 'ocid1.' (LETTER | DIGIT | '_' | '-' | '.')+ ;
  // Word is last to prevent ambiguity with other tokens
  WORD                : (LETTER | DIGIT | '_' | '-' | '.' | ':'| '@')+ ;
 

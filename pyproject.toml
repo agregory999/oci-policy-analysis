@@ -6,7 +6,7 @@ authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
 dynamic = []
-version = "3.1.1"
+version = "3.2.0"
 
 dependencies = [
     "oci==2.164.0",
@@ -26,8 +26,9 @@ classifiers = [
 [project.optional-dependencies]
 docs = [
     "sphinx>=7",
-    "sphinx-rtd-theme>=2",
+    "sphinx-rtd-theme>=3",
     "myst-parser>=2",
+    "sphinxcontrib-mermaid>=2"
 ]
 commit = [
     "pipdeptree>=2.30.0",

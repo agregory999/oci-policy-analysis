@@ -177,24 +177,56 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 break
         return ' '.join(tokens) if tokens else ''
 
-    def _get_subject(self, subject_ctx):  # noqa: C901
+    def _get_subject(self, subject_ctx):  # Robust idocid1 handling, always fixes single-token cases  # noqa: C901
+        def id_ocid_fix(tokens):
+            # Fix all "idocid1..." tokens in the list (multi/comma separated or single)
+            fixed = []
+            for t in tokens:
+                if t.lower().startswith('idocid1.'):
+                    fixed.extend(['id', t[2:]])
+                else:
+                    fixed.append(t)
+            return fixed
+
         if subject_ctx.groupSubject():
             subctx = subject_ctx.groupSubject()
-            group_names = []
-            group_names.append(subctx.getChild(1).getText())
-            for i in range(2, subctx.getChildCount()):
-                text = subctx.getChild(i).getText()
-                if text != ',':
-                    group_names.append(text)
+            tokens = [
+                subctx.getChild(i).getText()
+                for i in range(1, subctx.getChildCount())
+                if subctx.getChild(i).getText() != ','
+            ]
+            tokens = id_ocid_fix(tokens)
+            if all(t == 'id' or t.lower().startswith('ocid1.') for t in tokens):
+                ocids = []
+                i = 0
+                while i < len(tokens):
+                    if tokens[i] == 'id' and i + 1 < len(tokens) and tokens[i + 1].lower().startswith('ocid1.'):
+                        ocids.append(tokens[i + 1])
+                        i += 2
+                    else:
+                        return [subctx.getText()]
+                return ocids
+            group_names = [t for t in tokens if t != 'id']
             return group_names
         elif subject_ctx.dynamicGroupSubject():
             subctx = subject_ctx.dynamicGroupSubject()
-            names = []
-            names.append(subctx.getChild(1).getText())
-            for i in range(2, subctx.getChildCount()):
-                text = subctx.getChild(i).getText()
-                if text != ',':
-                    names.append(text)
+            tokens = [
+                subctx.getChild(i).getText()
+                for i in range(1, subctx.getChildCount())
+                if subctx.getChild(i).getText() != ','
+            ]
+            tokens = id_ocid_fix(tokens)
+            if all(t == 'id' or t.lower().startswith('ocid1.') for t in tokens):
+                ocids = []
+                i = 0
+                while i < len(tokens):
+                    if tokens[i] == 'id' and i + 1 < len(tokens) and tokens[i + 1].lower().startswith('ocid1.'):
+                        ocids.append(tokens[i + 1])
+                        i += 2
+                    else:
+                        return [subctx.getText()]
+                return ocids
+            names = [t for t in tokens if t != 'id']
             return names
         elif subject_ctx.resourceSubject():
             subctx = subject_ctx.resourceSubject()
@@ -214,6 +246,9 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 if text != ',':
                     svc.append(text)
             return svc
+        elif hasattr(subject_ctx, 'ANYGROUP') and subject_ctx.ANYGROUP():
+            # Support for "any-group"
+            return ['any-group']
         elif subject_ctx.ANYUSER():
             return ['any-user']
         else:
@@ -513,6 +548,13 @@ class PolicyStatementParser:
             return None, [str(exc)]
 
 
+def strip_quotes(val):
+    if isinstance(val, str) and len(val) > 1:
+        if (val[0] == val[-1]) and val[0] in '\'"':
+            return val[1:-1]
+    return val
+
+
 class PolicyStatementNormalizer:
     def __init__(self):
         self.antlr_parser = PolicyStatementParser()
@@ -587,11 +629,13 @@ class PolicyStatementNormalizer:
             if m:
                 admitted_principal_tenancy = m.group(1).strip()
         perms = []
+        perms_original = []
         if fields.get('permissionList'):
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'admit_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'admitted_principal_type': admitted_principal_type,
             'admitted_principal': subject,
@@ -600,7 +644,7 @@ class PolicyStatementNormalizer:
             'admit_resource': fields.get('resource', ''),
             'admit_permissions': perms,
             'admit_location_type': fields.get('location_type', ''),
-            'admit_location': fields.get('location', ''),
+            'admit_location': strip_quotes(fields.get('location', '')),
             'admit_associate_resource': fields.get('associated_resource', ''),
             'admit_associate_tenancy': fields.get('associated_scope', ''),
             'where_clause': fields.get('condition', ''),
@@ -624,12 +668,15 @@ class PolicyStatementNormalizer:
             m = re.match(r'tenancy\s*(.+)', endorse_scope_val, re.IGNORECASE)
             if m:
                 endorse_tenancy = m.group(1).strip()
+
         perms = []
+        perms_original = []
         if fields.get('permissionList'):
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'endorse_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'endorsed_principal_type': endorsed_principal_type,
             'endorsed_principal': subject,
@@ -639,7 +686,7 @@ class PolicyStatementNormalizer:
             'endorse_permissions': perms,
             'endorse_tenancy': endorse_tenancy,
             'endorse_location_type': fields.get('location_type', ''),
-            'endorse_location': fields.get('location', ''),
+            'endorse_location': strip_quotes(fields.get('location', '')),
             'endorse_associate_resource': fields.get('associated_resource', ''),
             'endorse_associate_tenancy': fields.get('associated_scope', ''),
             'where_clause': fields.get('condition', ''),
@@ -654,17 +701,30 @@ class PolicyStatementNormalizer:
         logger.debug(f'Normalizing regular policy statement: {statement_text}')
         subject_type = fields.get('subject_type', '') or ''
         subjects_out = []
+        subj_raw = fields.get('subject', '')
+
+        # If it's any-user or any-group, treat just like the original code (None, x)
         if subject_type in ['any-user', 'any-group', 'service']:
-            subjects_out = [(None, fields.get('subject', ''))]
+            subjects_out = [(None, subj_raw if isinstance(subj_raw, str) else subj_raw[0] if subj_raw else '')]
+        # If it's a list of all OCIDs (all items are ocid1...), pass them as str to be resolved by the data repo
+        elif isinstance(subj_raw, list) and all(
+            isinstance(s, str) and s.lower().startswith('ocid1.') for s in subj_raw
+        ):
+            subjects_out = subj_raw
+        elif isinstance(subj_raw, list):
+            # If list but not OCIDs, treat as name-based
+            subjects_out = self._parse_subjects(subj_raw)
         else:
-            subj_raw = fields.get('subject', '')
+            # fallback for edge cases (name as string)
             subjects_out = self._parse_subjects(subj_raw)
         perms = []
+        perms_original = []
         if 'permissionList' in fields and fields['permissionList']:
-            perms = fields['permissionList'].strip('{}')
-            perms = [p.strip().upper() for p in perms.split(',') if p.strip()]
+            perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
+            perms = [p.upper() for p in perms_original]
         obj = {
             **base,
+            'permission_original': perms_original,
             'action': fields.get('action', '').lower() or 'allow',
             'valid': True,
             'invalid_reasons': [],
@@ -674,10 +734,12 @@ class PolicyStatementNormalizer:
             'resource': fields.get('resource', '') or '',
             'permission': perms,
             'location_type': fields.get('location_type', ''),
-            'location': fields.get('location', ''),
+            'location': strip_quotes(fields.get('location', '')),
             'conditions': fields.get('condition', '') or '',
             'comments': fields.get('comments', ''),
-            'parsing_notes': [],
+            'parsing_notes': ['Statement has multiple subjects']
+            if isinstance(subjects_out, list) and len(subjects_out) > 1
+            else [],
             'statement_text': statement_text,
             'parsed': True,
         }
@@ -692,6 +754,10 @@ class PolicyStatementNormalizer:
             subject_list = [subject_list]
         for subj in subject_list:
             if not subj:
+                continue
+            # If already an OCID string, don't treat as name-based
+            if isinstance(subj, str) and subj.lower().startswith('ocid1.'):
+                results.append(subj)
                 continue
             s = str(subj).strip().strip('\'"')
             if '/' in s:

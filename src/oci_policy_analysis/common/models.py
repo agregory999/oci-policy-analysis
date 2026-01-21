@@ -404,8 +404,6 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
         list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
     ]
 
-    policy_overlap: NotRequired[Annotated[list[PolicyOverlap], 'Overlap analysis results for this policy statement.']]
-
 
 class PolicySummary(TypedDict):
     """
@@ -562,3 +560,21 @@ class ReferenceDataDiffResult(TypedDict):
     diff_summary: Annotated[str, 'One-line or short summary of differences (added, changed, removed)']
     diff_details: Annotated[dict, 'DeepDiff result details or filtered view suitable for UI display']
     message: Annotated[str, 'Human-readable message about the diff result or info']
+
+
+class PolicyIntelligence(TypedDict, total=False):
+    """
+    Overlay model collecting all ephemeral, advanced intelligence findings after analysis.
+    - overlaps: List of overlaps: each {"statement_internal_id": str, "overlaps": list[PolicyOverlap]}
+    - recommendations: List of recommendations per-statement or global analysis.
+    - risk_scores: List of per-statement risk scores, notes, etc.
+    - consolidations: List of consolidation/combine opportunities (pairings, etc.)
+    - cleanup_items: Actionable lists (invalid statements, unused groups, unused dynamic groups, etc.) for the cleanup/fix tab.
+    New keys can be added for future analysis results.
+    """
+
+    overlaps: list[dict]
+    recommendations: list[dict]
+    risk_scores: list[dict]
+    consolidations: list[dict]
+    cleanup_items: NotRequired[dict]
