@@ -19,6 +19,18 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 
+class ForceFlushStreamHandler(logging.StreamHandler):
+    """A stream handler that flushes after every emit, ensuring logs always show up immediately—even from threads."""
+
+    def emit(self, record):
+        super().emit(record)
+        if self.stream:
+            try:
+                self.stream.flush()
+            except Exception:
+                pass
+
+
 def _setup_logging() -> None:
     """Configure root logger once."""
     root = logging.getLogger()
@@ -38,9 +50,9 @@ def _setup_logging() -> None:
     # Add StreamHandler to root for shell console (all logs)
     # If using MCP stdio mode, log to stderr to avoid mixing with MCP stdio
     if os.environ.get('MCP_STDIO_MODE', '0') == '1':
-        stream = logging.StreamHandler(sys.stderr)  # Use stderr for logs
+        stream = ForceFlushStreamHandler(sys.stderr)  # Use stderr for logs
     else:
-        stream = logging.StreamHandler(sys.stdout)  # Use stdout for logs
+        stream = ForceFlushStreamHandler(sys.stdout)  # Use stdout for logs
     stream.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s'))
     root.addHandler(stream)
 
@@ -131,7 +143,7 @@ def set_component_level(component: str, level: str | int) -> None:
         level_value = int(level)
     lgr = logging.getLogger(component) if '.' in component else get_logger(component)
     lgr.setLevel(level_value)
-    logging.getLogger().info(f"Component log level for '{component}' set to {logging.getLevelName(level_value)}")
+    logging.getLogger().critical(f"Component log level for '{component}' set to {logging.getLevelName(level_value)}")
 
 
 # This will get called whenever it is imported

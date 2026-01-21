@@ -16,28 +16,23 @@
 import json
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
-import traceback
 from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.ui.data_table import DataTable
 
-logger = get_logger(component='permissions_report')
+logger = get_logger(component='permissions_report_tab')
 permission_reference_repo = ReferenceDataRepo()
 
 
 class PermissionsReportTab(ttk.Frame):
     """Tab for displaying permissions by effective compartment and subject in a treeview."""
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
+    def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-        self.settings = settings
-        self.policy_repo = policy_repo
-        self.report_data = {}
-        self.resource_map = {}
+        self.policy_repo = app.policy_compartment_analysis
 
         # 50/50 split left and right
         self.grid_rowconfigure(1, weight=1)
@@ -46,22 +41,18 @@ class PermissionsReportTab(ttk.Frame):
 
         control_frame = ttk.LabelFrame(self, text='Permissions Report Controls')
         control_frame.grid(row=0, column=0, columnspan=2, sticky='ew', padx=10, pady=10)
-        self.btn_generate = ttk.Button(
-            control_frame, text='Generate Report', state=tk.DISABLED, command=self.generate_report
-        )
-        self.btn_generate.grid(row=0, column=0, padx=5, pady=5, sticky='w')
         self.btn_expand_all = ttk.Button(control_frame, text='Expand All', state=tk.DISABLED, command=self.expand_all)
-        self.btn_expand_all.grid(row=0, column=1, padx=5, pady=5, sticky='w')
+        self.btn_expand_all.grid(row=0, column=0, padx=5, pady=5, sticky='w')
         self.btn_collapse_all = ttk.Button(
             control_frame, text='Collapse All', state=tk.DISABLED, command=self.collapse_all
         )
-        self.btn_collapse_all.grid(row=0, column=2, padx=5, pady=5, sticky='w')
+        self.btn_collapse_all.grid(row=0, column=1, padx=5, pady=5, sticky='w')
         self.btn_export = ttk.Button(
             control_frame, text='Export to JSON', state=tk.DISABLED, command=self.export_to_json
         )
-        self.btn_export.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+        self.btn_export.grid(row=0, column=2, padx=5, pady=5, sticky='w')
         self.info_label = ttk.Label(control_frame, text='Load tenancy data to generate report')
-        self.info_label.grid(row=0, column=4, padx=10, pady=5, sticky='w')
+        self.info_label.grid(row=0, column=3, padx=10, pady=5, sticky='w')
 
         left_frame = ttk.Frame(self)
         left_frame.grid(row=1, column=0, sticky='nsew')
@@ -122,80 +113,29 @@ class PermissionsReportTab(ttk.Frame):
         self.permissions_tree.tag_configure('subject', font=('TkDefaultFont', 9))
 
     def enable_widgets_after_load(self):
-        self.btn_generate.configure(state='normal')
-        self.info_label.config(text='Ready to generate report')
-
-    def build_report_data(self) -> dict:  # noqa: C901
-        logger.info('Starting to build permissions report data')
-        report = {}
-        self.resource_map = {}
-        self.perm_conditionals = {}  # (path,subject,perm) -> True/False
-        self.perm_statements = {}  # (path,subject,perm) -> statement_text
-        statements = self.policy_repo.regular_statements
-        for _idx, stmt in enumerate(statements):
-            try:
-                effective_path = stmt.get('effective_path')
-                if not effective_path or effective_path is None:
-                    effective_path = 'UNKNOWN'
-                action = stmt.get('action', 'allow').lower()
-                subjects = stmt.get('subject', [])
-                subject_type = stmt.get('subject_type', 'unknown')
-                permissions = stmt.get('permission', [])
-                resource_str = stmt.get('resource')
-                statement_text = stmt.get('statement_text', '')
-                is_conditional = bool(stmt.get('conditions'))
-                if not permissions:
-                    resource = stmt.get('resource', '')
-                    verb = stmt.get('verb', '')
-                    if resource and verb:
-                        permissions = permission_reference_repo.get_permissions(
-                            entity=resource, verb=verb, action=action
-                        )
-                        if not permissions:
-                            permissions = [f'{verb.upper()}_{resource.upper()}']
-                    else:
-                        permissions = ['UNKNOWN_PERMISSION']
-                if subjects is None:
-                    subjects = [('Default', 'UNKNOWN')]
-                for subject_domain, subject_name in subjects:
-                    domain_str = str(subject_domain) if subject_domain else 'Default'
-                    subject_key = f'{subject_type}:{domain_str}/{subject_name}'
-                    if effective_path not in report:
-                        report[effective_path] = {}
-                    if subject_key not in report[effective_path]:
-                        report[effective_path][subject_key] = {'allow': set(), 'deny': set()}
-                    if action == 'deny':
-                        report[effective_path][subject_key]['deny'].update(permissions)
-                    else:
-                        report[effective_path][subject_key]['allow'].update(permissions)
-                    for perm in permissions:
-                        self.perm_conditionals[(effective_path, subject_key, perm)] = is_conditional
-                        self.perm_statements[(effective_path, subject_key, perm)] = statement_text
-                    rsrc = resource_str if resource_str else ('Permissions (select row)' if permissions else '')
-                    self.resource_map[(effective_path, subject_key)] = rsrc
-            except Exception:
-                pass
-        for path in report:
-            for subject in report[path]:
-                report[path][subject]['allow'] = sorted(
-                    [perm for perm in list(report[path][subject]['allow']) if perm is not None]
-                )
-                report[path][subject]['deny'] = sorted(
-                    [perm for perm in list(report[path][subject]['deny']) if perm is not None]
-                )
-        return report
+        # Always enable expand/collapse/export, since permissions_report is always built after load
+        self.btn_expand_all.configure(state='normal')
+        self.btn_collapse_all.configure(state='normal')
+        self.btn_export.configure(state='normal')
+        self.info_label.config(text='Report loaded; ready to analyze permissions')
+        # populate tree with updated report data
+        self.populate_tree()
 
     def populate_tree(self):
+        # Always use the centralized report data
+        perm_engine = self.app.policy_intelligence.permissions_report
+        report_data = perm_engine.get('report', {}) if perm_engine else {}
         for item in self.permissions_tree.get_children():
             self.permissions_tree.delete(item)
-        if not self.report_data:
+        if not report_data:
+            logger.info('No permissions report data available to populate tree')
             return
-        sorted_paths = sorted(self.report_data.keys())
+        sorted_paths = sorted(report_data.keys())
         for path in sorted_paths:
             path_node = self.permissions_tree.insert(
                 '', 'end', text=path, values=('Compartment',), tags=('compartment',)
             )
-            subjects = self.report_data[path]
+            subjects = report_data[path]
             sorted_subjects = sorted(subjects.keys())
             for subject_key in sorted_subjects:
                 subject_parts = subject_key.split(':', 1)
@@ -215,7 +155,9 @@ class PermissionsReportTab(ttk.Frame):
             return
         subject_key = node['text']
         path_key = self.permissions_tree.item(parent)['text']
-        subject_data = self.report_data.get(path_key, {}).get(subject_key, {})
+        perm_engine = self.app.policy_intelligence.permissions_report
+        report_data = perm_engine.get('report', {}) if perm_engine else {}
+        subject_data = report_data.get(path_key, {}).get(subject_key, {})
         allow = list(subject_data.get('allow', []))
         deny = list(subject_data.get('deny', []))
         # Inheritance: collect from parent compartments as well
@@ -232,7 +174,9 @@ class PermissionsReportTab(ttk.Frame):
         parent_perms = []
         parent_denies = []
         for ancestor in parent_nodes:
-            ancestor_data = self.report_data.get(ancestor, {}).get(subject_key, {})
+            ancestor_data = report_data.get(ancestor, {}).get(subject_key, {})
+        for ancestor in parent_nodes:
+            ancestor_data = report_data.get(ancestor, {}).get(subject_key, {})
             ap_all = ancestor_data.get('allow', [])
             ap_deny = ancestor_data.get('deny', [])
             if ap_all:
@@ -242,12 +186,14 @@ class PermissionsReportTab(ttk.Frame):
 
         # Build allow data for DataTable: list of dicts for DataTable
         allow_rows = []
+        perm_conditionals = perm_engine.get('perm_conditionals', {}) if perm_engine else {}
+        perm_statements = perm_engine.get('perm_statements', {}) if perm_engine else {}
         for perm in sorted(allow):
             allow_rows.append(
                 {
                     'Permission': perm,
-                    'Conditional': str(self.perm_conditionals.get((path_key, subject_key, perm), False)),
-                    'Statement Text': self.perm_statements.get((path_key, subject_key, perm), ''),
+                    'Conditional': str(perm_conditionals.get((path_key, subject_key, perm), False)),
+                    'Statement Text': perm_statements.get((path_key, subject_key, perm), ''),
                 }
             )
         for ancestor, ancpermlist in parent_perms:
@@ -255,8 +201,8 @@ class PermissionsReportTab(ttk.Frame):
                 allow_rows.append(
                     {
                         'Permission': f'{perm} (inherited from {ancestor})',
-                        'Conditional': str(self.perm_conditionals.get((ancestor, subject_key, perm), False)),
-                        'Statement Text': self.perm_statements.get((ancestor, subject_key, perm), ''),
+                        'Conditional': str(perm_conditionals.get((ancestor, subject_key, perm), False)),
+                        'Statement Text': perm_statements.get((ancestor, subject_key, perm), ''),
                     }
                 )
 
@@ -265,8 +211,8 @@ class PermissionsReportTab(ttk.Frame):
             deny_rows.append(
                 {
                     'Permission': perm,
-                    'Conditional': str(self.perm_conditionals.get((path_key, subject_key, perm), False)),
-                    'Statement Text': self.perm_statements.get((path_key, subject_key, perm), ''),
+                    'Conditional': str(perm_conditionals.get((path_key, subject_key, perm), False)),
+                    'Statement Text': perm_statements.get((path_key, subject_key, perm), ''),
                 }
             )
         for ancestor, ancdenylist in parent_denies:
@@ -274,8 +220,8 @@ class PermissionsReportTab(ttk.Frame):
                 deny_rows.append(
                     {
                         'Permission': f'{perm} (inherited from {ancestor})',
-                        'Conditional': str(self.perm_conditionals.get((ancestor, subject_key, perm), False)),
-                        'Statement Text': self.perm_statements.get((ancestor, subject_key, perm), ''),
+                        'Conditional': str(perm_conditionals.get((ancestor, subject_key, perm), False)),
+                        'Statement Text': perm_statements.get((ancestor, subject_key, perm), ''),
                     }
                 )
 
@@ -335,22 +281,7 @@ class PermissionsReportTab(ttk.Frame):
                     self.app.policies_tab.update_policy_output()
                 break
 
-    def generate_report(self):
-        self.info_label.config(text='Generating report...')
-        self.update_idletasks()
-        try:
-            self.report_data = self.build_report_data()
-            self.populate_tree()
-            self.btn_expand_all.configure(state='normal')
-            self.btn_collapse_all.configure(state='normal')
-            self.btn_export.configure(state='normal')
-            num_paths = len(self.report_data)
-            num_subjects = sum(len(subjects) for subjects in self.report_data.values())
-            self.info_label.config(text=f'Report generated: {num_paths} compartments, {num_subjects} subjects')
-        except Exception as e:
-            self.info_label.config(text=f'Error generating report: {e}')
-            error_msg = traceback.format_exc()
-            logger.error(f'Error generating permissions report: {error_msg}')
+    # generate_report is now obsolete: deleted.
 
     def expand_all(self):
         def expand_children(item):
@@ -371,13 +302,16 @@ class PermissionsReportTab(ttk.Frame):
             collapse_children(item)
 
     def export_to_json(self):
-        if not self.report_data:
+        # For export, use the latest centralized report data again
+        perm_engine = self.app.policy_intelligence.permissions_report
+        report_data = perm_engine.get('report', {}) if perm_engine else {}
+        if not report_data:
             return
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.json', filetypes=[('JSON Files', '*.json')])
         if filepath:
             try:
                 with open(filepath, 'w', encoding='utf-8') as f:
-                    json.dump(self.report_data, f, indent=2, ensure_ascii=False)
+                    json.dump(report_data, f, indent=2, ensure_ascii=False)
                 self.info_label.config(text=f'Report exported to {filepath}')
             except Exception:
                 pass

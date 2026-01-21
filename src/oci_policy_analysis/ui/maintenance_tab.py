@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 from tkinter.scrolledtext import ScrolledText
 
+from oci_policy_analysis.common import config
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
@@ -38,18 +39,31 @@ class MaintenanceTab(ttk.Frame):
         _maintenance_check_overlap: (Internal) Checks for overlap between two permission statements.
     """
 
-    def __init__(self, parent, caching, settings_tab=None):
+    def __init__(self, parent, app, caching, settings):
         super().__init__(parent)
+        self.app = app
         self.caching = caching
-        self.settings_tab = settings_tab  # Optional link for settings tab live refresh
+        self.settings = settings
+        self.settings_tab = self.app.settings_tab  # Optional link for settings tab live refresh
+        self.policies_tab = self.app.policies_tab  # Optional link to policies tab
 
-        # -------- Maintenance UI Build (CACHE) ----------
-        frm_cache = ttk.LabelFrame(self, text='Cache Management')
-        frm_cache.pack(fill='x', padx=10, pady=10)
+        # -------- Maintenance UI Build (CACHE & SAVED SEARCHES, 50/50) ----------
+        frm_top = ttk.LabelFrame(self, text='Cache & Saved Search Management')
+        frm_top.pack(fill='x', padx=10, pady=10)
+
+        frm_top_content = ttk.Frame(frm_top)
+        frm_top_content.pack(fill='x', expand=True)
+
+        # --- LEFT: Caches ---
+        frm_cache = ttk.Frame(frm_top_content)
+        frm_cache.pack(side='left', fill='both', expand=True, padx=(0, 8))
+
+        cache_lbl = ttk.Label(frm_cache, text='Cache Entries', font=('TkDefaultFont', 10, 'bold'))
+        cache_lbl.pack(anchor='nw', padx=3, pady=(2, 0))
 
         # Listbox of caches
-        self.maintenance_cache_list = tk.Listbox(frm_cache, selectmode=tk.SINGLE, height=8, width=80)
-        self.maintenance_cache_list.pack(side='left', padx=8, pady=6)
+        self.maintenance_cache_list = tk.Listbox(frm_cache, selectmode=tk.SINGLE, height=8, width=40)
+        self.maintenance_cache_list.pack(side='left', padx=8, pady=6, fill='y')
         self._refresh_maintenance_cache_list()
 
         # Scrollbar for Listbox
@@ -59,7 +73,7 @@ class MaintenanceTab(ttk.Frame):
 
         # Buttons for cache ops
         btns_frm = ttk.Frame(frm_cache)
-        btns_frm.pack(side='left', padx=10, fill='y')
+        btns_frm.pack(side='left', padx=5, fill='y')
         self.cache_remove_button = ttk.Button(
             btns_frm, text='Remove Selected', command=self._maintenance_remove_selected_cache
         )
@@ -79,6 +93,41 @@ class MaintenanceTab(ttk.Frame):
             frm_cache, textvariable=self.maintenance_status_var, foreground='blue'
         )
         self.maintenance_status_label.pack(side='bottom', fill='x', pady=(4, 0))
+
+        # --- RIGHT: Saved Searches ---
+        frm_saved = ttk.Frame(frm_top_content)
+        frm_saved.pack(side='left', fill='both', expand=True, padx=(8, 0))
+
+        saved_lbl = ttk.Label(frm_saved, text='Saved Searches', font=('TkDefaultFont', 10, 'bold'))
+        saved_lbl.pack(anchor='nw', padx=3, pady=(2, 0))
+
+        self.saved_search_list = tk.Listbox(frm_saved, selectmode=tk.SINGLE, height=8, width=40)
+        self.saved_search_list.pack(side='left', padx=8, pady=6, fill='y')
+        # Example data for saved searches -- replace with real integration as needed
+        self._refresh_saved_search_list()
+
+        saved_scroll = ttk.Scrollbar(frm_saved, orient='vertical', command=self.saved_search_list.yview)
+        self.saved_search_list.config(yscrollcommand=saved_scroll.set)
+        saved_scroll.pack(side='left', fill='y')
+
+        saved_btns_frm = ttk.Frame(frm_saved)
+        saved_btns_frm.pack(side='left', padx=5, fill='y')
+        self.saved_remove_button = ttk.Button(
+            saved_btns_frm, text='Delete Selected', command=self._maintenance_remove_selected_search
+        )
+        self.saved_remove_button.pack(pady=2)
+        self.saved_rename_button = ttk.Button(
+            saved_btns_frm, text='Rename Selected', command=self._maintenance_rename_selected_search
+        )
+        self.saved_rename_button.pack(pady=2)
+        # No preservation button for saved searches
+
+        # Feedback label for saved search actions
+        self.saved_search_status_var = tk.StringVar(value='')
+        self.saved_search_status_label = ttk.Label(
+            frm_saved, textvariable=self.saved_search_status_var, foreground='blue'
+        )
+        self.saved_search_status_label.pack(side='bottom', fill='x', pady=(4, 0))
 
         # -------- Maintenance UI Build (PERMISSIONS/OPERATIONS JSON VIEWERS) ----------
         frm_json_wrap = ttk.Frame(self)
@@ -210,6 +259,64 @@ class MaintenanceTab(ttk.Frame):
         self.apiop_note_label.grid(row=5, column=0, columnspan=2, sticky='w', padx=3, pady=(6, 3))
 
         self._maintenance_ops_tester_load_data()
+
+    def _refresh_saved_search_list(self):
+        """Populate the saved searches Listbox using app settings (shared with policies tab)."""
+        if 'saved_policy_searches' not in self.settings or not isinstance(self.settings['saved_policy_searches'], list):
+            self.settings['saved_policy_searches'] = []
+        self.saved_search_list.delete(0, tk.END)
+        for search in self.settings['saved_policy_searches']:
+            name = search.get('name', '')
+            self.saved_search_list.insert(tk.END, name)
+
+    def _maintenance_remove_selected_search(self):
+        idx = self.saved_search_list.curselection()
+        if not idx:
+            self.saved_search_status_var.set('Select a saved search to delete.')
+            return
+        search_name = self.saved_search_list.get(idx[0])
+        # Remove from settings
+        found_index = next(
+            (i for i, s in enumerate(self.settings['saved_policy_searches']) if s.get('name', '') == search_name), None
+        )
+        if found_index is not None:
+            del self.settings['saved_policy_searches'][found_index]
+            config.save_settings(self.settings)
+            self._refresh_saved_search_list()
+            self.saved_search_status_var.set(f'Removed "{search_name}"')
+            # --- Update PoliciesTab saved search dropdown if present ---
+            try:
+                if getattr(self, 'app', None) and hasattr(self.app, 'policies_tab'):
+                    self.app.policies_tab._refresh_saved_searches_dropdown()
+            except Exception:
+                pass
+        else:
+            self.saved_search_status_var.set('Name not found.')
+
+    def _maintenance_rename_selected_search(self):
+        idx = self.saved_search_list.curselection()
+        if not idx:
+            self.saved_search_status_var.set('Select a saved search to rename.')
+            return
+        search_name = self.saved_search_list.get(idx[0])
+        new_name = simpledialog.askstring('Rename Saved Search', 'Enter new name:', initialvalue=search_name)
+        if not new_name or new_name == search_name:
+            self.saved_search_status_var.set('Rename cancelled or no change.')
+            return
+        # Check for duplicate name
+        names = [s.get('name', '') for s in self.settings['saved_policy_searches']]
+        if new_name in names:
+            self.saved_search_status_var.set('Name already exists.')
+            return
+        # Find and update
+        found = next((s for s in self.settings['saved_policy_searches'] if s.get('name', '') == search_name), None)
+        if found:
+            found['name'] = new_name
+            config.save_settings(self.settings)
+            self._refresh_saved_search_list()
+            self.saved_search_status_var.set(f'Renamed to "{new_name}"')
+        else:
+            self.saved_search_status_var.set('Name not found.')
 
     def _maintenance_display_json(self):
         """Refresh the raw permissions JSON in the debug display."""

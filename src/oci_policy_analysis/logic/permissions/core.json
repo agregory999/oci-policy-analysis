@@ -901,7 +901,9 @@
                     "SUBNET_READ"
                 ],
                 "use": [
-                    "SUBNET_UPDATE"
+                    "SUBNET_UPDATE",
+                    "SUBNET_ATTACH",
+                    "SUBNET_DETACH"
                 ],
                 "manage": [
                     "SUBNET_CREATE",
@@ -1809,12 +1811,16 @@
                 "INSTANCE_CREATE",
                 "INSTANCE_IMAGE_READ",
                 "VNIC_CREATE",
-                "VNIC_ATTACH",
+                "VNIC_ATTACH"
+            ],
+            "notes": "Launch instance does require SUBNET_ATTACH, however since the subnet may be in another compartment, please run a separate Simulation for LaunchInstance (Subnet). If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE"
+        },
+        "LaunchInstance (Subnet)": {
+            "permissions": [
                 "SUBNET_ATTACH"
             ],
-            "notes": "If putting the instance in a network security group during instance creation, also need NETWORK_SECURITY_GROUP_UPDATE_MEMBERS and VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP. If creating an instance in a compute cluster, also need COMPUTE_CLUSTER_LAUNCH_INSTANCE"
-        },
-        "ListInstances": {
+            "notes": "Ensure the network compartment is selected above, rather than the application compartment."
+        },        "ListInstances": {
             "permissions": [
                 "INSTANCE_READ"
             ],
@@ -1861,7 +1867,6 @@
                 "INSTANCE_DELETE",
                 "VNIC_DELETE",
                 "SUBNET_DETACH",
-                "I",
                 "VOLUME_ATTACHMENT_DELETE",
                 "VOLUME_WRITE",
                 "INSTANCE_DETACH_VOLUME"

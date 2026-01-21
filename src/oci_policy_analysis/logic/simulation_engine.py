@@ -179,10 +179,12 @@ class PolicySimulationEngine:
                 'fail_reason': '',
                 'action': 'allow',
             }
+            # Log the statement evaluation
+            logger.info(f"Evaluating ALLOW stmt: {stmt.get('statement_text', '')}")
             passed = True
             fail_reason = ''
             if stmt.get('conditions'):
-                logger.debug(f"Evaluating conditions for allow stmt: {stmt.get('statement_text', '')}")
+                logger.info(f"Evaluating conditions for allow stmt: {stmt.get('statement_text', '')}")
                 passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
                 if not passed:
                     stmt_entry['passed'] = False

@@ -1,19 +1,18 @@
 """Tkinter UI components for OCI Policy Analysis."""
 
 from .console_tab import ConsoleTab
-from .data_table import DataTable
+from .data_table import CheckboxTable, DataTable
 from .dynamic_group_tab import DynamicGroupsTab
 from .historical_tab import HistoricalTab
 from .maintenance_tab import MaintenanceTab
 from .mcp_tab import McpTab
 from .permissions_report_tab import PermissionsReportTab
 from .policies_tab import PoliciesTab
-from .policy_overlap_tab import PolicyOverlapTab
+from .policy_recommendations_tab import PolicyRecommendationsTab
 from .report_tab import ReportTab
 from .resource_principals_tab import ResourcePrincipalsTab
 from .settings_tab import SettingsTab
 from .users_tab import UsersTab
-from .visual_policy_tab import VisualPolicyTab
 
 __all__ = [
     'SettingsTab',
@@ -22,14 +21,13 @@ __all__ = [
     'UsersTab',
     'ReportTab',
     'ConsoleTab',
-    'PolicyOverlapTab',
+    'PolicyRecommendationsTab',
     'McpTab',
     'ResourcePrincipalsTab',
     'DataTable',
+    'CheckboxTable',
     'MaintenanceTab',
-    'PolicyOverlapTab',
     'ConsoleTab',
     'HistoricalTab',
     'PermissionsReportTab',
-    'VisualPolicyTab',
 ]
