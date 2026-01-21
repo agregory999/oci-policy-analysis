@@ -1,3 +1,10 @@
+## [3.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0...v3.2.1) (2026-01-21)
+
+
+### Bug Fixes
+
+* rebuild ([98483e3](https://github.com/agregory999/oci-policy-analysis/commit/98483e3df367eb5fb1b1e48e852a90ed8cec64a6))
+
 # [3.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.1.1...v3.2.0) (2026-01-21)
 
 
