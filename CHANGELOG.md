@@ -1,3 +1,10 @@
+# [3.2.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0-dev.2...v3.2.0-dev.3) (2026-01-21)
+
+
+### Bug Fixes
+
+* Policy and OCID parsing ([f7b27ee](https://github.com/agregory999/oci-policy-analysis/commit/f7b27ee2ac1763a9a52f64a94167136ebc180386))
+
 # [3.2.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0-dev.1...v3.2.0-dev.2) (2026-01-20)
 
 
