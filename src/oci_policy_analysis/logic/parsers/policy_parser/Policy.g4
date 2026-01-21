@@ -6,7 +6,7 @@ grammar Policy;
  policy              : ( allowExpression | endorseExpression | defineExpression | admitExpression )+  EOF ;
 
  allowExpression
-     : (ALLOW | DENY | DENY ALLOW)
+     : (ALLOW | DENY)
         subject (TO? verb resource | TO? permissionList)
         IN scope (WHERE condition)? (COMMENT)? NEWLINE?
      ;
