@@ -1,3 +1,10 @@
+## [3.2.2-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.2-dev.2...v3.2.2-dev.3) (2026-01-26)
+
+
+### Bug Fixes
+
+* data repo need to get DG fully ([956ae21](https://github.com/agregory999/oci-policy-analysis/commit/956ae2110f8be1a9f2d1c97b16b9abe3a269698a))
+
 ## [3.2.2-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.2-dev.1...v3.2.2-dev.2) (2026-01-26)
 
 
