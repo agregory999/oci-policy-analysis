@@ -2,6 +2,8 @@
 
 The OCI Policy Analysis tool leverages a dedicated engine for generating actionable **recommendations** and **remediations** to guide users in securing and optimizing their OCI environment. This document outlines the strategies, logic, and display methodology for recommendations, and briefly introduces the concept of Policy Intelligence as it applies within the tool.
 
+**NOTE:** This is a WORK-IN-PROGRESS.  More features and documentation will be available as they are created.
+
 ---
 
 ## Table of Contents
@@ -41,7 +43,7 @@ Generating a meaningful recommendation involves several steps, drawing on the fu
 
 - **Policy Statements** (parsed, normalized, and enriched)
 - **IAM Data** (users, groups, dynamic groups, their relationships)
-- **Compartment Hierarchies**
+- **Compartment Hierarchy**
 - **Permissions/Resource Mappings** (reference data)
 - **Policy Evaluation Results** (e.g., overlaps, effective paths, invalid/ambiguous statements)
 - **Simulation Outcomes** (where applicable)
@@ -54,10 +56,10 @@ Generating a meaningful recommendation involves several steps, drawing on the fu
 - **Pattern Recognition:**  
   Examines policy text and IAM relationships for risky or anomalous patterns—for example, duplicate grants or conflicting denies.
 
-- **Historical Comparison:**  
+- **Historical Comparison (not implemented):**  
   By comparing present and past states (see "Policy Comparison" features), recommendations can highlight recent changes, the introduction of new risks, or the effect of policy modifications.
 
-- **AI-Driven Insights:**  
+- **AI-Driven Insights (not implemented):**  
   If enabled, GenAI models can supplement recommendations with natural language explanations and custom suggestions based on policy semantics.
 
 ### Rule and Pattern-Based Generation
@@ -66,8 +68,8 @@ Typical categories of recommendations include:
 - **Remediation:** Identify and propose fixes for risky, invalid, or deprecated policy statements.
 - **Cleanup:** Suggest removal of unused users, groups, or policies to reduce surface area.
 - **Optimization:** Recommend consolidating or clarifying overlapping/conflicting policies.
-- **Security Alert:** Highlight dangerous permissions granted to broad or unintended subjects.
-- **Compliance:** Detect gaps against standard frameworks (e.g., CIS, Oracle Security Best Practices).
+- **Security Alert (not implemented):** Highlight dangerous permissions granted to broad or unintended subjects.
+- **Compliance (not implemented):** Detect gaps against standard frameworks (e.g., CIS, Oracle Security Best Practices).
 
 Recommendations may be **automatically refreshed** when IAM or policy data changes, ensuring they always reflect the current OCI configuration.
 

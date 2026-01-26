@@ -131,6 +131,23 @@ class PoliciesTab(ttk.Frame):
         self.app = app
         self.settings = settings
         self.policy_repo = app.policy_compartment_analysis
+
+        # --- Page Help setup ---
+        self.page_help_text = (
+            'Search for policy statements based on multiple criteria.  '
+            'To use logical OR add a pipe (|) character inside of a field.  '
+            'Save a search or load from an existing search as necessary.   '
+            'Displayed policy statements will have right-click options for deeper analysis depending on enabled functionality.'
+        )
+        self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
+        self.page_help_label = tk.Label(self.page_help_frame, anchor='w', justify='left', wraplength=900)
+        self.page_help_label.pack(fill='x', padx=14, pady=5)
+
+        self._apply_page_help_style()
+        self.update_page_help_visibility()
+        # Set default help text on initial load
+        self.set_page_help_text(self.page_help_text)
+
         # Configure tab
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -163,6 +180,22 @@ class PoliciesTab(ttk.Frame):
         # Policy Filters LabelFrame (left)
         self.label_frm_filters = ttk.LabelFrame(top_frm, text='Policy Filters - use | in fields for logical OR')
         self.label_frm_filters.grid(row=0, column=0, sticky='nsew', padx=(0, 20))
+
+        # Bind mouse events for Page Help context switching in filters
+        def _show_filters_help(_event=None):
+            filter_help = (
+                'Use these filter boxes to select policy statements by subject, verb, resource, location, etc. '
+                'Fields accept single or multiple (| pipe-separated) values. Checkbox controls and dropdowns provide quick toggles. '
+                'You can save, load, or clear filters as needed for customized policy analysis.'
+            )
+            self.set_page_help_text(filter_help)
+
+        def _restore_default_page_help_filters(_event=None):
+            self.set_page_help_text(self.page_help_text)
+
+        self.label_frm_filters.bind('<Enter>', _show_filters_help)
+        self.label_frm_filters.bind('<Leave>', _restore_default_page_help_filters)
+        # NOTE: Not binding to all children for robustness. See docs for generic GUI event handling and alternatives.
 
         # Filter Actions LabelFrame (right)
         self.label_frm_actions = ttk.LabelFrame(top_frm, text='Filter Actions')
@@ -503,9 +536,24 @@ class PoliciesTab(ttk.Frame):
             logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
             tkmessagebox.showinfo('Export Complete', f'Exported {len(filtered)} policy statements to {filepath}')
 
-    def _build_ui_policy_output(self):
+    def _build_ui_policy_output(self):  # noqa: C901
         label_frm_output = ttk.LabelFrame(self, text='Output Filters')
         label_frm_output.pack(fill='both', padx=10, pady=10)
+
+        # Page Help: Output section mouseover
+        def _show_output_help(_event=None):
+            output_help = (
+                'The Output Filters area lets you change how policy statements are displayed in the table. '
+                'Use the checkboxes to select which statement types to include or exclude, and examine counts of '
+                'filtered/shown/total statements. Quickly identify which policies meet your analysis goals.'
+            )
+            self.set_page_help_text(output_help)
+
+        def _restore_output_help(_event=None):
+            self.set_page_help_text(self.page_help_text)
+
+        label_frm_output.bind('<Enter>', _show_output_help)
+        label_frm_output.bind('<Leave>', _restore_output_help)
 
         # Ensure tenancy_name_var is always initialized before update_policy_output can ever be called
         if not hasattr(self, 'tenancy_name_var'):
@@ -581,9 +629,27 @@ class PoliciesTab(ttk.Frame):
             )
             return menu
 
+        label_frm_policy_table = ttk.LabelFrame(self, text='Filtered Policy Statements')
+
+        # Bind mouse events for Page Help context switching
+        def _show_policy_table_help(_event=None):
+            logger.info('Showing policy table specific help text')
+            new_help = (
+                'This table displays policy statements according to the current filters. '
+                'You can sort, filter, and select policy rows. Right-click on a statement for more analysis options '
+                '(such as showing by effective path, opening policy in browser, or sending to the Condition Tester tab, if enabled).'
+            )
+            self.set_page_help_text(new_help)
+
+        def _restore_default_page_help(_event=None):
+            self.set_page_help_text(self.page_help_text)
+
+        label_frm_policy_table.bind('<Enter>', _show_policy_table_help)
+        label_frm_policy_table.bind('<Leave>', _restore_default_page_help)
+
         # Use the Data Table here with fields
         self.policy_table = DataTable(
-            self,
+            label_frm_policy_table,
             columns=ALL_POLICY_COLUMNS,
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
@@ -593,7 +659,8 @@ class PoliciesTab(ttk.Frame):
             multi_select=True,
         )
         # self.policy_table.grid(row=0, column=0, sticky="nsew")
-        self.policy_table.pack(fill='both', expand=True)
+        self.policy_table.pack(fill='both', expand=True, padx=0, pady=0)
+        label_frm_policy_table.pack(fill='both', expand=True, padx=5, pady=5)
 
         # Trace to update the output when any filter changes
         self.verb_filter_var.trace_add('write', self.update_policy_output)
@@ -703,6 +770,81 @@ class PoliciesTab(ttk.Frame):
         logger.debug(rows_to_show)
         self.policy_table.update_data(rows_to_show)
         logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
+
+    def set_page_help_text(self, text, temporary=False):
+        """
+        Updates the content of the page help label if visible.
+        """
+        if self.settings.get('context_help', False):
+            self.page_help_label.configure(text=text)
+            # Optionally re-apply style for temporary changes (font etc)
+            self._apply_page_help_style()
+
+    def update_page_help_visibility(self):
+        """
+        Show or hide Page Help frame based on context_help setting, always keeping it pinned at the top.
+        Should be called after settings['context_help'] changes.
+        """
+        # Hide first, then decide whether/how to show
+        self.page_help_frame.pack_forget()
+        if self.settings.get('context_help', False):
+            children = self.winfo_children()
+            # Find the first child that is currently packed (winfo_manager == 'pack')
+            packed_target = None
+            for child in children:
+                try:
+                    if child.winfo_manager() == 'pack':
+                        packed_target = child
+                        break
+                except Exception:
+                    continue
+            if packed_target:
+                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0), before=packed_target)
+            else:
+                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0))
+
+    def _apply_page_help_style(self):
+        """
+        Enforce consistent look for Page Help (background/font) per theme and font size setting.
+        Only sets style/background/font, not the text itself!
+        """
+        bg = self._get_style_background()
+        self.page_help_frame.configure(style='Custom.TLabelframe')
+        self.page_help_label.configure(bg=bg, font=self._get_help_font())
+
+    def _get_help_font(self):
+        """
+        Retrieve font tuple for help label from settings.
+        """
+        font_size_map = {
+            'Small': 9,
+            'Medium': 11,
+            'Large': 13,
+            'Extra Large': 16,
+        }
+        size = font_size_map.get(self.settings.get('font_size', 'Medium'), 11)
+        return ('TkDefaultFont', size)
+
+    def _get_style_background(self):
+        """
+        Try to get a background color consistent with ttk theme.
+        """
+        s = ttk.Style()
+        try:
+            bg = s.lookup('TFrame', 'background')
+            if not bg:
+                raise ValueError
+            return bg
+        except Exception:
+            # fallback
+            return self.winfo_toplevel().cget('bg') if hasattr(self, 'winfo_toplevel') else '#f0f0f0'
+
+    def refresh_context_help(self):
+        """
+        Public API: Call from settings tab or theme handler when help/frame status should update.
+        """
+        self._apply_page_help_style()
+        self.update_page_help_visibility()
 
     def enable_widgets_after_load(self):
         """Enable widgets after load."""

@@ -22,6 +22,7 @@ from tkinter.scrolledtext import ScrolledText
 import oci_policy_analysis.mcp_server as mcp_server
 from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.mcp_server import (
     mcp_server_status,
     start_mcp_server_in_thread,
@@ -126,6 +127,14 @@ class McpTab(ttk.Frame):
             messagebox.showinfo('MCP', 'MCP server is already running.')
             return
         mcp_server.pca = self.policy_repo
+        # Need to create simulation engine here as well
+        mcp_server.sim_engine = PolicySimulationEngine(
+            policy_repo=self.policy_repo, ref_data_repo=self.policy_repo.permission_reference_repo
+        )
+        # Show the count of loaded policies in the simulation engine
+        policy_count = len(self.policy_repo.regular_statements) if self.policy_repo else 0
+        logger.info(f'Policy Analysis Repository and Simulation Engine initialized with {policy_count} policies.')
+        # Show count of policies in the simulation engine
         logger.info('Starting MCP server...')
         start_mcp_server_in_thread(self.settings)
         self._set_status(True)

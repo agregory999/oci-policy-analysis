@@ -160,7 +160,7 @@ class App(tk.Tk):
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
         self.permissions_report_tab = PermissionsReportTab(self.notebook, self)
-        self.users_tab = UsersTab(self.notebook, self, self.policy_compartment_analysis)
+        self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
         self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
@@ -283,6 +283,12 @@ class App(tk.Tk):
         config.save_settings(self.settings)
         logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
+        # Ensure Page Help and other special widgets refresh font when theme is applied
+        if hasattr(self.policies_tab, 'refresh_context_help'):
+            self.policies_tab.refresh_context_help()
+        if hasattr(self.users_tab, 'refresh_context_help'):
+            self.users_tab.refresh_context_help()
+
     # All output is now plain text only.
 
     def toggle_bottom(self):
@@ -352,7 +358,7 @@ class App(tk.Tk):
         self.policy_intelligence.build_overall_recommendations()
 
         self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
-        self.simulation_engine.build_index()
+        # self.simulation_engine.build_index()
         logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
         end_post_process_time = time.perf_counter()
         logger.info(

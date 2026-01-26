@@ -2,10 +2,83 @@
 Public exports for oci_policy_analysis.common
 """
 
-# Import all public names from models.py
-# Import CacheManager explicitly
 from .caching import CacheManager
-from .models import DynamicGroup, DynamicGroupSearch, Group, GroupSearch, User, UserSearch
+from .models import (
+    AdmitStatement,
+    BasePolicy,
+    BasePolicyStatement,
+    DefineStatement,
+    DynamicGroup,
+    DynamicGroupSearch,
+    DynamicGroupSearchFull,
+    DynamicGroupSummary,
+    EndorseStatement,
+    # Entity Models
+    Group,
+    # Search/Filter Models
+    GroupSearch,
+    GroupSearchFull,
+    GroupSummary,
+    PolicyIntelligence,
+    # Policy Analysis/Statement Models
+    PolicyOverlap,
+    PolicySearch,
+    PolicyStatementFull,
+    PolicySummary,
+    ReferenceDataDiffResult,
+    RegularPolicyStatement,
+    SimulationBatchRequest,
+    SimulationBatchResponse,
+    SimulationPrepareRequest,
+    SimulationPrepareResponse,
+    # Simulation Models
+    SimulationPrincipalType,
+    SimulationResult,
+    SimulationScenario,
+    User,
+    UserSearch,
+    UserSearchFull,
+    # Summary/Result/Utility Models
+    UserSummary,
+)
 
-# Final export list
-__all__ = ['Group', 'User', 'DynamicGroup', 'GroupSearch', 'UserSearch', 'DynamicGroupSearch', 'CacheManager']
+__all__ = [
+    # Entity Models
+    'Group',
+    'User',
+    'DynamicGroup',
+    'BasePolicy',
+    # Simulation Models
+    'SimulationPrincipalType',
+    'SimulationPrepareRequest',
+    'SimulationPrepareResponse',
+    'SimulationScenario',
+    'SimulationBatchRequest',
+    'SimulationResult',
+    'SimulationBatchResponse',
+    # Search/Filter Models
+    'GroupSearch',
+    'UserSearch',
+    'DynamicGroupSearch',
+    'PolicySearch',
+    # Policy Analysis/Statement Models
+    'PolicyOverlap',
+    'BasePolicyStatement',
+    'DefineStatement',
+    'EndorseStatement',
+    'AdmitStatement',
+    'RegularPolicyStatement',
+    'PolicySummary',
+    'PolicyStatementFull',
+    # Summary/Result/Utility Models
+    'UserSummary',
+    'UserSearchFull',
+    'GroupSummary',
+    'GroupSearchFull',
+    'DynamicGroupSummary',
+    'DynamicGroupSearchFull',
+    'ReferenceDataDiffResult',
+    'PolicyIntelligence',
+    # Explicit cache manager
+    'CacheManager',
+]

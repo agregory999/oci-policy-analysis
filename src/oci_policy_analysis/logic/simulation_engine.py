@@ -25,6 +25,7 @@ from typing import Any
 from antlr4 import CommonTokenStream, InputStream
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.models import DynamicGroup, Group, User
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
@@ -36,6 +37,23 @@ logger = get_logger(component='policy_simulation_engine')
 class PolicySimulationEngine:
     """
     Central simulation service for OCI policies.
+
+    --- Stateless simulation setup APIs (recommended for UI/MCP) ---
+
+    These methods provide the *canonical* way to derive principal keys, resolve all applicable
+    policy statements, and compute required where-clause parameter names, regardless of UI vs MCP flow.
+
+    Step 1: Normalize compartment_path and principal_type/principal into principal_key (handles tuple/string, None/'default', etc).
+        -> Use normalize_principal_key(principal_type, principal)
+
+    Step 2: Find all statements for a context (compartment_path, principal_type, principal).
+        -> Use find_applicable_statements_for_context(compartment_path, principal_type, principal)
+
+    Step 3: Get all required where-clause variable names for a context.
+        -> Use get_required_where_fields_for_context(compartment_path, principal_type, principal)
+
+    The MCP version *always* uses all valid applicable statements for a context.
+
 
     Responsibilities:
     - Given principal + effective compartment, generate the list of all applicable policy statements (including 'any-user').
@@ -51,6 +69,70 @@ class PolicySimulationEngine:
       - simulate_permissions(principal, compartment, where_context: dict): (Set[str], List[dict])
       - simulate_api_operation(principal, compartment, operation, where_context: dict): dict (YES/NO + full trace)
     """
+
+    def _normalize_principal_key(self, principal_type, principal):
+        """
+        Internal: Canonical normalization for (principal_type, principal) to engine principal_key string.
+
+        Args:
+            principal_type (str): One of simulation model values ("user", "group", etc.)
+            principal: str, tuple/list, or None. See context spec.
+
+        Returns:
+            str: Canonical key (e.g., "user:Default/anita", "any-user:None/any-user")
+        """
+        if principal_type in ('any-user', 'any-group', 'service'):
+            key = f'{principal_type}:None/{principal or principal_type}'
+            return key
+        if isinstance(principal, list | tuple) and len(principal) == 2:
+            domain, name = principal
+            if domain is None or (isinstance(domain, str) and domain.lower() == 'default'):
+                domain = 'Default'
+            return f'{principal_type}:{domain}/{name}'
+        elif isinstance(principal, str):
+            return f'{principal_type}:Default/{principal}'
+        raise ValueError(f'principal_type/principal combination not recognized: {principal_type}, {principal}')
+
+    def get_statements_for_context(self, compartment_path, principal_type, principal=None):
+        """
+        Canonical: Return (principal_key, [statement dicts]) for a given policy simulation context (UI/MCP).
+
+        Args:
+            compartment_path (str): Path like 'ROOT/Finance'
+            principal_type (str): "user", "group", etc.
+            principal (optional): None, string, or (domain, name)
+
+        Returns:
+            (principal_key, statements): Tuple with normalized principal key and list of matching statements.
+
+        See docs/source/simulation_engine_usage_examples.py for usage.
+        """
+        principal_key = self._normalize_principal_key(principal_type, principal)
+        logger.info(f'Getting statements for context: compartment={compartment_path}, principal_key={principal_key}')
+        statements = self.get_applicable_statements(principal_key, compartment_path)
+        return principal_key, statements
+
+    def get_required_where_fields_for_context(self, compartment_path, principal_type, principal=None):
+        """
+        Canonical: Given a context, return (principal_key, set of required where input variables).
+
+        Args:
+            compartment_path (str): e.g. "ROOT/Finance"
+            principal_type (str): "user", "group", etc.
+            principal (optional): None, string, or (domain, name)
+
+        Returns:
+            (principal_key, required_fields): Tuple with normalized principal key and set of all required where fields.
+
+        See docs/source/simulation_engine_usage_examples.py for usage.
+        """
+        principal_key = self._normalize_principal_key(principal_type, principal)
+        statements = self.get_applicable_statements(principal_key, compartment_path)
+        required_fields = self.get_required_where_fields(statements)
+        logger.info(
+            f'Extracted where fields for context: compartment={compartment_path}, principal_type={principal_type}, principal={principal} -> {required_fields}'
+        )
+        return principal_key, required_fields
 
     @staticmethod
     def extract_variable_names(cond_str):
@@ -72,6 +154,7 @@ class PolicySimulationEngine:
         class VarCollector(OciIamPolicyConditionVisitor):
             def __init__(self):
                 self.vars = set()
+                self.logger = get_logger('VarCollector')
 
             def visitVariable_name(self, ctx):
                 self.vars.add(ctx.getText())
@@ -80,7 +163,7 @@ class PolicySimulationEngine:
                 if hasattr(node, 'symbol') and hasattr(node.symbol, 'type'):
                     if node.symbol.type == OciIamPolicyConditionLexer.IDENTIFIER and '.' in node.getText():
                         self.vars.add(node.getText())
-                        logger.debug(f'Extracted variable: {node.getText()}')
+                        self.logger.info(f'Extracted variable: {node.getText()}')
                 return None
 
         collector = VarCollector()
@@ -99,20 +182,30 @@ class PolicySimulationEngine:
         Attributes:
             policy_statements (list[dict]): The list of policy statements to simulate.
             ref_data_repo (ReferenceDataRepo): Reference data object for permissions/operation simulation.
-            compartment_principal_index (dict): Mapping from compartment path to principal key to statements.
-            any_user_statements (dict): Mapping from compartment path to 'any-user' statements.
+            policy_repo (PolicyAnalysisRepository): Full object so we can perform filter_policy_statements queries.
             internal_state (dict): Diagnostic/debug state.
             simulation_history (list): Simulation log/history, used for GUI trace table, etc.
         """
         logger.info(
             f'PolicySimulationEngine initialized with {len(policy_repo.regular_statements) if policy_repo else 0} policy statements'
         )
+        self.policy_repo = policy_repo
+        if policy_repo:
+            logger.info(
+                f"policy_repo type: {type(policy_repo)}; hasattr regular_statements: {hasattr(policy_repo, 'regular_statements')}"
+            )
+            if hasattr(policy_repo, 'regular_statements'):
+                logger.info(
+                    f'policy_repo.regular_statements type: {type(policy_repo.regular_statements)} len: {len(policy_repo.regular_statements)}'
+                )
+        else:
+            logger.warning('No policy_repo provided to PolicySimulationEngine.')
+
         self.policy_statements = policy_repo.regular_statements if policy_repo else []
+        logger.info(
+            f'self.policy_statements initialized: type={type(self.policy_statements)}, len={len(self.policy_statements)}'
+        )
         self.ref_data_repo = ref_data_repo
-        # Structure: {effective_path: {principal_key: [statement, ...], ...}, ...}
-        self.compartment_principal_index: dict[str, dict[str, list[dict]]] = {}
-        # Separate index for 'any-user' statements per compartment
-        self.any_user_statements: dict[str, list[dict]] = {}
         # Create a JSON to hold internal state for debug and tracing
         self.internal_state: dict[str, Any] = {}
         self.internal_state['total_statements'] = len(self.policy_statements)
@@ -125,7 +218,7 @@ class PolicySimulationEngine:
         effective_path: str,
         api_operation: str,
         where_context: dict,
-        checked_statement_ids: list[str],
+        checked_statement_ids: list[str] | None = None,
         trace_name: str | None = None,
         trace: bool = False,
     ) -> dict[str, Any]:
@@ -137,7 +230,8 @@ class PolicySimulationEngine:
             effective_path (str): The effective compartment path for simulation.
             api_operation (str): The API operation to check permission for.
             where_context (dict): Input/context for any evaluated 'where' policy clauses.
-            checked_statement_ids (list[str]): List of policy statement internal_ids to include in simulation.
+            checked_statement_ids (Optional[list[str]]): List of policy statement internal_ids to include in simulation.
+                If omitted or None, all applicable statements for the context (principal_key and effective_path) are used.
             trace_name (str, optional): Optional name for this simulation trace/history.
             trace (bool, optional): If True, includes detailed step-by-step trace; else, summary only.
 
@@ -147,160 +241,198 @@ class PolicySimulationEngine:
 
         Example:
             result = engine.simulate_and_record('group:default/Admins', 'ROOT', 'oci:ListBuckets', {}, checked_ids, trace=True)
+            result = engine.simulate_and_record('group:default/Admins', 'ROOT', 'oci:ListBuckets', {}, trace=True)  # auto selects statements
         """
-        logger.info(
-            f"Simulating permissions for principal={principal_key}, compartment={effective_path}, operation={api_operation}. Statements: {len(checked_statement_ids)} selected. Trace={'ON' if trace else 'OFF'}"
-        )
-        trace_obj = {}
-        perm_set = set()
-        statement_trace = []
-        permissions_denied = []
+        # Wrap this entire function with try and catch, print stack trace, then re-raise
+        try:
+            # If checked_statement_ids not provided, use all statements applicable to this context
+            if checked_statement_ids is None:
+                stmts = self.get_applicable_statements(principal_key, effective_path)
+                checked_statement_ids = [str(s.get('internal_id')) for s in stmts if s.get('internal_id') is not None]
 
-        allow_statements = []
-        deny_statements = []
-        all_stmt_map = {s.get('internal_id'): s for s in self.policy_statements}
-        for internal_id in checked_statement_ids:
-            stmt = all_stmt_map.get(internal_id)
-            if not stmt:
-                logger.warning(f'Statement ID {internal_id} not found in repo. Skipped.')
-                continue
-            if stmt.get('action', 'allow').lower() == 'deny':
-                deny_statements.append((internal_id, stmt))
-            else:
-                allow_statements.append((internal_id, stmt))
-
-        # First pass: ALLOW statements
-        for _internal_id, stmt in allow_statements:
-            stmt_entry = {
-                'statement_text': stmt.get('statement_text', ''),
-                'permissions': [],
-                'conditional': bool(stmt.get('conditions')),
-                'passed': True,
-                'fail_reason': '',
-                'action': 'allow',
-            }
-            # Log the statement evaluation
-            logger.info(f"Evaluating ALLOW stmt: {stmt.get('statement_text', '')}")
-            passed = True
-            fail_reason = ''
-            if stmt.get('conditions'):
-                logger.info(f"Evaluating conditions for allow stmt: {stmt.get('statement_text', '')}")
-                passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
-                if not passed:
-                    stmt_entry['passed'] = False
-                    stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
-                    statement_trace.append(stmt_entry)
-                    continue
-            direct_perms = stmt.get('permission', [])
-            resource_perms = (
-                self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='allow')
-                if self.ref_data_repo
-                else []
+            logger.info(
+                f"Simulating permissions for principal={principal_key}, compartment={effective_path}, operation={api_operation}. Statements: {len(checked_statement_ids) if checked_statement_ids else 0} selected. Trace={'ON' if trace else 'OFF'}"
             )
-            all_perms = list(direct_perms or []) + list(resource_perms or [])
-            if all_perms:
-                logger.debug(
-                    f"Adding permissions from ALLOW: {all_perms} for statement: {stmt.get('statement_text', '')}"
+            trace_obj = {}
+            perm_set = set()
+            statement_trace = []
+            permissions_denied = []
+
+            allow_statements = []
+            deny_statements = []
+            logger.info(
+                f'(IN simulate_and_record: pre-mapping) self.policy_statements type: {type(self.policy_statements)} len: {len(self.policy_statements)}'
+            )
+            for i, s in enumerate(self.policy_statements[:7]):
+                logger.info(f"  self.policy_statements[{i}]: internal_id={s.get('internal_id')}")
+            # Only print stmts diagnostics if checked_statement_ids was just generated from stmts
+            if checked_statement_ids is not None and 'stmts' in locals():
+                logger.info(
+                    f'(IN simulate_and_record: pre-mapping) stmts (from get_applicable_statements) type: {type(stmts)} len: {len(stmts)}'
                 )
-            for p in all_perms:
-                perm_set.add(p)
-            stmt_entry['permissions'] = all_perms
-            statement_trace.append(stmt_entry)
-
-        # DENY statements
-        for _internal_id, stmt in deny_statements:
-            stmt_entry = {
-                'statement_text': stmt.get('statement_text', ''),
-                'permissions': [],
-                'conditional': bool(stmt.get('conditions')),
-                'passed': True,
-                'fail_reason': '',
-                'action': 'deny',
-            }
-            passed = True
-            fail_reason = ''
-            if stmt.get('conditions'):
-                logger.debug(f"Evaluating conditions for DENY stmt: {stmt.get('statement_text', '')}")
-                passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
-                if not passed:
-                    stmt_entry['passed'] = False
-                    stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
-                    statement_trace.append(stmt_entry)
+                for i, s in enumerate(stmts[:7]):
+                    logger.info(
+                        f"  stmts[{i}]: internal_id={s.get('internal_id')} statement_text={s.get('statement_text')}"
+                    )
+            all_stmt_map = {str(s.get('internal_id')): s for s in self.policy_statements}
+            logger.info(f'Checked statement IDs: {checked_statement_ids}')
+            logger.info(f'all_stmt_map keys: {list(all_stmt_map.keys())}')
+            for internal_id in checked_statement_ids or []:
+                if internal_id not in all_stmt_map:
+                    logger.warning(
+                        f'Statement ID {internal_id} not found in all_stmt_map keys: {list(all_stmt_map.keys())}'
+                    )
+                stmt = all_stmt_map.get(str(internal_id))
+                if not stmt:
+                    logger.warning(f'Statement ID {internal_id} not found in repo. Skipped.')
                     continue
-            direct_perms = stmt.get('permission', [])
-            resource_perms = (
-                self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='deny')
-                if self.ref_data_repo
-                else []
-            )
-            deny_this = set(direct_perms or []) | set(resource_perms or [])
-            actually_revoked = []
-            for p in deny_this:
-                if p in perm_set:
-                    perm_set.remove(p)
-                    actually_revoked.append(p)
-            stmt_entry['permissions'] = list(deny_this)
-            stmt_entry['permissions_revoked'] = list(actually_revoked)
-            if actually_revoked:
-                stmt_entry['revocation_details'] = [
-                    f"Permission '{p}' revoked by deny statement." for p in actually_revoked
-                ]
+                if stmt.get('action', 'allow').lower() == 'deny':
+                    deny_statements.append((internal_id, stmt))
+                else:
+                    allow_statements.append((internal_id, stmt))
+
+            # Log something
+            logger.info(f'Processing {len(allow_statements)} ALLOW statements')
+            # First pass: ALLOW statements
+            for _internal_id, stmt in allow_statements:
+                stmt_entry = {
+                    'statement_text': stmt.get('statement_text', ''),
+                    'permissions': [],
+                    'conditional': bool(stmt.get('conditions')),
+                    'passed': True,
+                    'fail_reason': '',
+                    'action': 'allow',
+                }
+                # Log the statement evaluation
+                logger.info(f"Evaluating ALLOW stmt: {stmt.get('statement_text', '')}")
+                passed = True
+                fail_reason = ''
+                if stmt.get('conditions'):
+                    logger.info(f"Evaluating conditions for allow stmt: {stmt.get('statement_text', '')}")
+                    passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
+                    if not passed:
+                        stmt_entry['passed'] = False
+                        stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
+                        statement_trace.append(stmt_entry)
+                        continue
+                direct_perms = stmt.get('permission', [])
+                resource_perms = (
+                    self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='allow')
+                    if self.ref_data_repo
+                    else []
+                )
+                all_perms = list(direct_perms or []) + list(resource_perms or [])
+                if all_perms:
+                    logger.debug(
+                        f"Adding permissions from ALLOW: {all_perms} for statement: {stmt.get('statement_text', '')}"
+                    )
+                for p in all_perms:
+                    perm_set.add(p)
+                stmt_entry['permissions'] = all_perms
+                statement_trace.append(stmt_entry)
+
+            # Log something
+            logger.info(f'Processing {len(deny_statements)} DENY statements')
+
+            # DENY statements
+            for _internal_id, stmt in deny_statements:
+                stmt_entry = {
+                    'statement_text': stmt.get('statement_text', ''),
+                    'permissions': [],
+                    'conditional': bool(stmt.get('conditions')),
+                    'passed': True,
+                    'fail_reason': '',
+                    'action': 'deny',
+                }
+                passed = True
+                fail_reason = ''
+                if stmt.get('conditions'):
+                    logger.debug(f"Evaluating conditions for DENY stmt: {stmt.get('statement_text', '')}")
+                    passed, fail_reason = self._evaluate_conditions(stmt.get('conditions'), where_context)
+                    if not passed:
+                        stmt_entry['passed'] = False
+                        stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
+                        statement_trace.append(stmt_entry)
+                        continue
+                direct_perms = stmt.get('permission', [])
+                resource_perms = (
+                    self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='deny')
+                    if self.ref_data_repo
+                    else []
+                )
+                deny_this = set(direct_perms or []) | set(resource_perms or [])
+                actually_revoked = []
+                for p in deny_this:
+                    if p in perm_set:
+                        perm_set.remove(p)
+                        actually_revoked.append(p)
+                stmt_entry['permissions'] = list(deny_this)
+                stmt_entry['permissions_revoked'] = list(actually_revoked)
+                if actually_revoked:
+                    stmt_entry['revocation_details'] = [
+                        f"Permission '{p}' revoked by deny statement." for p in actually_revoked
+                    ]
+                else:
+                    stmt_entry['revocation_details'] = []
+                statement_trace.append(stmt_entry)
+                # Track globally for results/summary
+                for p in actually_revoked:
+                    permissions_denied.append({'permission': p, 'by_statement': stmt.get('statement_text', '')})
+
+            trace_obj['simulation_context'] = {
+                'principal_key': principal_key,
+                'effective_path': effective_path,
+                'where_context': where_context,
+                'api_operation': api_operation,
+            }
+            if trace:
+                trace_obj['trace_statements'] = statement_trace
             else:
-                stmt_entry['revocation_details'] = []
-            statement_trace.append(stmt_entry)
-            # Track globally for results/summary
-            for p in actually_revoked:
-                permissions_denied.append({'permission': p, 'by_statement': stmt.get('statement_text', '')})
+                # Omit per-statement trace in summary mode; just include statement count or basic ref
+                trace_obj['trace_statements'] = []
 
-        trace_obj['simulation_context'] = {
-            'principal_key': principal_key,
-            'effective_path': effective_path,
-            'where_context': where_context,
-            'api_operation': api_operation,
-        }
-        if trace:
-            trace_obj['trace_statements'] = statement_trace
-        else:
-            # Omit per-statement trace in summary mode; just include statement count or basic ref
-            trace_obj['trace_statements'] = []
+            trace_obj['final_permission_set'] = sorted(perm_set)
+            trace_obj['permissions_denied'] = permissions_denied
 
-        trace_obj['final_permission_set'] = sorted(perm_set)
-        trace_obj['permissions_denied'] = permissions_denied
+            logger.info(f'Final permissions: {sorted(perm_set)} for {principal_key} in {effective_path}')
 
-        logger.debug(f'Final permissions: {sorted(perm_set)} for {principal_key} in {effective_path}')
+            # Operation simulation/check
+            has_permission = (
+                self.ref_data_repo.has_api_operation_permissions(api_operation, perm_set)
+                if self.ref_data_repo
+                else False
+            )
+            # Collect required permissions for API operation (empty if not found)
+            required = []
+            missing = set()
+            if self.ref_data_repo:
+                required = self.ref_data_repo.data.get('operations', {}).get(api_operation, {}).get('permissions', [])
+                missing = {p.upper() for p in required if p.upper() not in perm_set}
 
-        # Operation simulation/check
-        has_permission = (
-            self.ref_data_repo.has_api_operation_permissions(api_operation, perm_set) if self.ref_data_repo else False
-        )
-        # Collect required permissions for API operation (empty if not found)
-        required = []
-        missing = set()
-        if self.ref_data_repo:
-            required = self.ref_data_repo.data.get('operations', {}).get(api_operation, {}).get('permissions', [])
-            missing = {p.upper() for p in required if p.upper() not in perm_set}
+            trace_obj['required_permissions_for_api_operation'] = sorted([p.upper() for p in required])
 
-        trace_obj['required_permissions_for_api_operation'] = sorted([p.upper() for p in required])
-
-        sim_result = {
-            'result': 'YES' if has_permission else 'NO',
-            'api_call_allowed': has_permission,
-            'final_permission_set': sorted(perm_set),
-            'required_permissions_for_api_operation': sorted([p.upper() for p in required]),
-            'missing_permissions': sorted(missing),
-            'failure_reason': '' if has_permission else f'Missing required permissions: {sorted(missing)}',
-            # The detail returned depends on trace: basic=trace_statements is [], trace=full per-statement trace
-            'trace_statements': statement_trace if trace else [],
-            'trace': trace_obj,  # always include for legacy UI code
-        }
-        # Record to history with name and timestamp
-        entry = {
-            'name': trace_name or f"Simulation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            'timestamp': datetime.now().isoformat(timespec='seconds'),
-            'trace': sim_result,
-        }
-        self.simulation_history.append(entry)
-        return sim_result
+            sim_result = {
+                'result': 'YES' if has_permission else 'NO',
+                'api_call_allowed': has_permission,
+                'final_permission_set': sorted(perm_set),
+                'required_permissions_for_api_operation': sorted([p.upper() for p in required]),
+                'missing_permissions': sorted(missing),
+                'failure_reason': '' if has_permission else f'Missing required permissions: {sorted(missing)}',
+                # The detail returned depends on trace: basic=trace_statements is [], trace=full per-statement trace
+                'trace_statements': statement_trace if trace else [],
+                'trace': trace_obj,  # always include for legacy UI code
+            }
+            # Record to history with name and timestamp
+            entry = {
+                'name': trace_name or f"Simulation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                'timestamp': datetime.now().isoformat(timespec='seconds'),
+                'trace': sim_result,
+            }
+            self.simulation_history.append(entry)
+            return sim_result
+        except Exception as e:
+            logger.exception(f'Error during simulate_and_record: {e}')
+            raise
 
     def get_simulation_trace_list(self) -> list[dict[str, str]]:
         """
@@ -368,66 +500,92 @@ class PolicySimulationEngine:
         filtered = [name for name in ops if filter_text.lower() in name.lower()] if filter_text else list(ops.keys())
         return sorted(filtered)
 
-    def build_index(self):
-        """
-        Build internal indexes for fast policy simulation lookup.
+    # build_index removed: filtering is now delegated to the repo.
 
-        Creates mappings:
-          - compartment_principal_index: compartment path -> principal_key -> [statements]
-          - any_user_statements: compartment path -> statements with subject_type 'any-user'
+    def _principal_key_to_policy_search_filter(self, principal_key: str) -> dict:  # noqa: C901
+        """
+        Convert a principal_key string into a PolicySearch-compatible dict filter.
+
+        The function parses principal_key of the form '{type}:{domain}/{name}' or '{type}:None/{name}' and
+        maps it to a PolicySearch filter using the correct exact_* field or subject, per model spec.
 
         Returns:
-            None
-
-        Example:
-            engine.build_index()
+            Dict suitable for **POLICY** repository filtering. Does not include effective_path.
         """
-        count = 0
-        any_user_count = 0
-        for stmt in self.policy_statements:
-            path = stmt.get('effective_path', 'UNKNOWN')
-            subject_type = stmt.get('subject_type', '')
-            subjects = stmt.get('subject', [])
-            if not isinstance(subjects, list):
-                subjects = [subjects]
-            for subject_domain, subject_name in subjects:
-                principal_key = f'{subject_type}:{subject_domain}/{subject_name}'
-                if subject_type.lower() == 'any-user':
-                    self.any_user_statements.setdefault(path, []).append(stmt)
-                    any_user_count += 1
-                else:
-                    if path not in self.compartment_principal_index:
-                        self.compartment_principal_index[path] = {}
-                    if principal_key not in self.compartment_principal_index[path]:
-                        self.compartment_principal_index[path][principal_key] = []
-                    self.compartment_principal_index[path][principal_key].append(stmt)
-                    count += 1
-        logger.info(
-            f'PolicySimulationEngine index built: {count} principal-path combos, {any_user_count} any-user entries'
-        )
+        # Examples:
+        #   user:Default/anita → {'exact_users': [User(domain_name='Default', user_name='anita')]}
+        #   group:Default/Admins → {'exact_groups': [Group(domain_name='Default', group_name='Admins')]}
+        #   dynamic-group:Default/MyDyn → {'exact_dynamic_groups': [DynamicGroup(domain_name='Default', dynamic_group_name='MyDyn')]}
+        #   any-user:None/any-user → {'subject': ['any-user']}
+        #   any-group:None/any-group → {'subject': ['any-group']}
+        #   service:None/some-service → {'subject': ['some-service']}
+        import re
+
+        m = re.match(r'(?P<ptype>[^:]+):(?P<domain>[^/]+)/(?P<name>.*)', principal_key)
+        if not m:
+            # fallback for odd cases
+            return {'subject': [principal_key]}
+
+        ptype, domain, name = m['ptype'], m['domain'], m['name']
+        logger.info(f'Mapping principal_key to policy search filter: ptype={ptype}, domain={domain}, name={name}')
+
+        # Normalize domain
+        if domain.lower() == 'none':
+            domain = None
+        elif domain.lower() == 'default':
+            domain = 'Default'
+
+        # Create return type so we can return and print debug info
+        return_filter = {}
+        if ptype == 'user':
+            user = User(user_name=name)
+            if domain:
+                user['domain_name'] = domain
+            return_filter = {'exact_users': [user]}
+        elif ptype == 'group':
+            group = Group(group_name=name)
+            if domain:
+                group['domain_name'] = domain
+            return_filter = {'exact_groups': [group]}
+        elif ptype == 'dynamic-group':
+            dgroup = DynamicGroup(dynamic_group_name=name)
+            if domain:
+                dgroup['domain_name'] = domain
+            return_filter = {'exact_dynamic_groups': [dgroup]}
+        elif ptype in ('any-user', 'any-group', 'service'):
+            # For any-user/any-group/service, we match by subject field (which is a string).
+            return_filter = {'subject': [name]}
+        else:
+            # Fallback: use subject filter for unknown types
+            return_filter = {'subject': [principal_key]}
+        logger.info(f'Generated policy search filter: {return_filter}')
+        return return_filter
 
     def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:
         """
-        Get all applicable policy statements for a principal in a compartment.
+        Get all applicable policy statements for a principal and compartment by building a proper
+        PolicySearch filter using the principal_key and effective_path.
 
         Args:
-            principal_key (str): The principal key (e.g., "group:default/Admins").
-            effective_path (str): The compartment (path) in which to evaluate applicability.
+            principal_key (str): Canonical principal key (e.g., 'user:Default/anita')
+            effective_path (str): Compartment path for simulation context (e.g., 'ROOT/Finance')
 
         Returns:
-            list[dict]: List of matching policy statements for principal + compartment combination,
-                including any statements for 'any-user'.
+            List[dict]: List of matching policy statement dicts.
 
-        Example:
-            statements = engine.get_applicable_statements('group:default/Admins', 'ROOT')
+        Notes:
+            - Used by all canonical orchestration flows (UI/MCP)
+            - See usage examples in docs/source/simulation_engine_usage_examples.py
         """
-        applicable = []
-        # All statements for explicit principal
-        principal_map = self.compartment_principal_index.get(effective_path, {})
-        applicable += principal_map.get(principal_key, [])
-        # All any-user statements for this path
-        applicable += self.any_user_statements.get(effective_path, [])
-        return applicable
+        if not self.policy_repo or not hasattr(self.policy_repo, 'filter_policy_statements'):
+            logger.warning('get_applicable_statements: filter_policy_statements not available in repo.')
+            return []
+        filters = self._principal_key_to_policy_search_filter(principal_key)
+        filters['effective_path'] = [effective_path]
+        logger.info(f'get_applicable_statements: Using filters {filters}')
+        stmts = self.policy_repo.filter_policy_statements(filters)
+        logger.info(f'get_applicable_statements: Found {len(stmts)} statements.')
+        return stmts
 
     def get_required_where_fields(self, statements: list[dict]) -> set[str]:
         """
@@ -445,21 +603,40 @@ class PolicySimulationEngine:
         """
         fields = set()
         for stmt in statements:
-            cond = stmt.get('conditions')
-            if cond and isinstance(cond, dict):
+            logger.info(
+                f"Processing statement for required fields: {stmt.get('statement_text', '')}. Conditions: {stmt.get('conditions')}"
+            )
+            cond = stmt.get('conditions') or None
+            if cond:
+                logger.info(
+                    f"Extracting fields from condition dict: {cond}.  Statement: {stmt.get('statement_text', '')}"
+                )
                 # Placeholder: Here we extract field names used in where clause
-                # TODO: Integrate/port logic to parse/extract fields as per existing where handler
-                fields.update(self._extract_fields_from_conditions(cond))
+                # Use the canonical extraction path for all conditions
+                self.extract_variable_names(str(cond))
+                fields.update(self.extract_variable_names(str(cond)))
                 logger.info(f"Extracted fields from statement: {stmt.get('statement_text', '')} -> {fields}")
         return fields
 
-    def _extract_fields_from_conditions(self, cond: dict) -> set[str]:
+    def generate_where_clauses_for_statements(self, statements: list[dict]) -> dict:
         """
-        Parse a condition dict and return all input field names needed.
-        Placeholder for actual where clause field extraction logic.
+        Utility: Generate a mapping from statement internal_id to set of where-variable names required
+        (for UI preview purposes).
+
+        Args:
+            statements (list[dict]): Statements to analyze.
+
+        Returns:
+            dict: {internal_id: set(field names)} for statements that have where conditions.
         """
-        # TODO: Implement or port actual logic from condition parser/helpers.
-        return set()  # Placeholder
+        result = {}
+        for stmt in statements:
+            cond = stmt.get('conditions')
+            if cond:
+                fields = self.get_required_where_fields([stmt])
+                if fields:
+                    result[stmt.get('internal_id')] = fields
+        return result
 
     @staticmethod
     def _normalize_timestring(value: str) -> str:

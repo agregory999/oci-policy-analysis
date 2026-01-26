@@ -752,24 +752,28 @@ class PolicyAnalysisRepository:
                             count=limit,
                             sort_by='displayName',
                             sort_order='ASCENDING',
-                            attribute_sets=['all'],
+                            attribute_sets=['never'],
                         )
                         if user_response.data is None or not user_response.data.resources:
                             break
                         for u in user_response.data.resources:
                             logger.debug(f'User: {u}')
+
+                            user_attributes = domain_client.get_user(user_id=u.id, attribute_sets=['all']).data
+                            # Print this for now
+                            logger.debug(f'***User Attributes: {user_attributes}')
                             groups_list = []
                             # If there are groups, loop them
-                            if u.groups:
-                                logger.debug(f'User {u.display_name} Groups: {u.groups}')
-                                for gg in u.groups:
+                            if user_attributes.groups:
+                                logger.debug(f'User {u.display_name} Groups: {user_attributes.groups}')
+                                for gg in user_attributes.groups:
                                     groups_list.append(gg.ocid)
                             else:
                                 logger.debug(f'No groups for user {u.display_name}')
                             # Default the email to None
                             email = 'None'
-                            if hasattr(u, 'emails') and u.emails:
-                                for em in u.emails:
+                            if hasattr(user_attributes, 'emails') and user_attributes.emails:
+                                for em in user_attributes.emails:
                                     if em.primary:
                                         email = em.value
                                         break
@@ -1026,8 +1030,7 @@ class PolicyAnalysisRepository:
         """
         group_domain = group.get('domain_name') or 'default'
         group_name = group['group_name']
-        logger.info(f'Looking for users in group: {group_domain}/{group_name}')
-        logger.info(f'Number of groups: {len(self.groups)}  Number of users: {len(self.users)}')
+        logger.debug(f'Number of groups: {len(self.groups)}  Number of users: {len(self.users)}')
         # Get GID (as it is used by users)
         group_ocid = None
         for g in self.groups:
@@ -1231,6 +1234,7 @@ class PolicyAnalysisRepository:
         if not filters.get('exact_users'):
             return
         user_filter: list[User] = filters.get('exact_users')
+        logger.info(f'Exact User filter to check: {user_filter}')
         # Start with no groups and iterate users
         exact_groups: list[Group] = []
         for u in self.users:

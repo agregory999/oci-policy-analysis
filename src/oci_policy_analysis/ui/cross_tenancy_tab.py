@@ -111,31 +111,33 @@ class CrossTenancyTab(ttk.Frame):
             # To support filtering admits/endorses by alias, this would need refactor to filter/refresh both tables.
             # As currently handled, leave as no-op or implement advanced filter logic later.
             logger.info(f'Defined Alias selection callback triggered. Selected rows: {selected_rows}')
-            # Get the selected defined names
-            selected_defined_names = [row.get('Defined Name', '') for row in selected_rows]
+
+            # Normalize selection set for robust matching
+            selected_defined_names = {
+                n.strip().lower()
+                for n in [row.get('Defined Name', '') for row in selected_rows if row.get('Defined Name')]
+            }
             logger.info(f'Selected Defined Names: {selected_defined_names}')
-            # Filter admit and endorse tables based on selected defined names
-            # For admit statements, we use "admitted_principal_tenancy" as the field to filter on
-            # For endorse statements, we use "endorse_tenancy" as the field to filter on
-            # If no rows are selected, show all entries
+
+            def admit_filter(st):
+                admitted_tenancy = (st.get('admitted_tenancy') or '').strip().lower()
+                return admitted_tenancy in selected_defined_names
+
+            def endorse_filter(st):
+                endorse_tenancy = (st.get('endorse_tenancy') or '').strip().lower()
+                return endorse_tenancy in selected_defined_names
+
             if selected_defined_names:
                 filtered_admits = [
                     st
                     for st in self.policy_compartment_analysis.cross_tenancy_statements
-                    if st.get('statement_text', '').lower().startswith(('admit', 'deny admit'))
-                    and any(
-                        defined_name.lower() in st.get('admitted_tenancy', '').lower()
-                        for defined_name in selected_defined_names
-                    )
+                    if st.get('statement_text', '').lower().startswith(('admit', 'deny admit')) and admit_filter(st)
                 ]
                 filtered_endorses = [
                     st
                     for st in self.policy_compartment_analysis.cross_tenancy_statements
                     if st.get('statement_text', '').lower().startswith(('endorse', 'deny endorse'))
-                    and any(
-                        defined_name.lower() in st.get('endorse_tenancy', '').lower()
-                        for defined_name in selected_defined_names
-                    )
+                    and endorse_filter(st)
                 ]
                 display_admits = [for_display_admit(st) for st in filtered_admits]
                 display_endorses = [for_display_endorse(st) for st in filtered_endorses]

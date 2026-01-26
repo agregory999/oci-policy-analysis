@@ -30,7 +30,7 @@ class DebuggerTab(ttk.Frame):
         control_row = ttk.Frame(self)
         control_row.pack(fill='x', pady=(8, 8), padx=8)
 
-        self.source_var = tk.StringVar(value='Policy Repo')
+        self.source_var = tk.StringVar(value='Policy Repo Policies')
         self.view_mode_var = tk.StringVar(value='Text')
 
         ttk.Label(control_row, text='Source:').pack(side='left', padx=(2, 4))
@@ -46,7 +46,7 @@ class DebuggerTab(ttk.Frame):
             'Policy Repo Compartments',
             'Policy Repo Policies',
             'Reference Data',
-            'Simulation Index',
+            'Simulation History',
         ] + overlay_sources
 
         self.source_combo = ttk.Combobox(
@@ -95,8 +95,8 @@ class DebuggerTab(ttk.Frame):
                 # Get selected subset from Reference Data Repo
                 return self.app.reference_data_repo.data
 
-            elif source == 'Simulation Index':
-                return self.app.simulation_engine.compartment_principal_index
+            elif source == 'Simulation History':
+                return self.app.simulation_engine.simulation_history
             elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements
             elif source == 'Policy Repo Compartments':

@@ -1,3 +1,17 @@
+## [3.2.2-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.2-dev.1...v3.2.2-dev.2) (2026-01-26)
+
+
+### Bug Fixes
+
+* debugger tab options bug ([19c8ea1](https://github.com/agregory999/oci-policy-analysis/commit/19c8ea10ae48587641401c3fde190929fa1a79be))
+
+## [3.2.2-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.1...v3.2.2-dev.1) (2026-01-26)
+
+
+### Bug Fixes
+
+* cleanup and groups bug ([148599d](https://github.com/agregory999/oci-policy-analysis/commit/148599d1e8c2af9831998cd7ae5e6b613c34c00f))
+
 ## [3.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.2.0...v3.2.1) (2026-01-21)
 
 
