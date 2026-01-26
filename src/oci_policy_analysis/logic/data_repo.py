@@ -705,13 +705,20 @@ class PolicyAnalysisRepository:
                     self.domain_clients[domain.id] = domain_client
 
                     # Load Dynamic Groups
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
+                    # Now we need to get each one and cause additional calls
+                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['never'])
+                    # dg_response = domain_client.list_dynamic_resource_groups(attributes='matching_rule')
                     if dg_response and dg_response.data:
                         logger.debug(
                             f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
                         )
-                        for dg in dg_response.data.resources:
-                            logger.debug(f'DG: {dg.display_name}')
+                        for _dg in dg_response.data.resources:
+                            # Do a full on get to get all attributes
+                            full_dg = domain_client.get_dynamic_resource_group(
+                                dynamic_resource_group_id=_dg.id, attribute_sets=['all']
+                            ).data
+                            dg = full_dg
+                            logger.debug(f'DG: {dg.display_name} Matching Rule: {dg.matching_rule}')
                             # Append the Dynamic Group dict to the list
                             self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
                     else:
