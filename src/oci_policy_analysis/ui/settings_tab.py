@@ -56,6 +56,15 @@ class SettingsTab(ttk.Frame):
         self.ai_repo = ai_repo
         self.caching = caching
 
+        # --- Page Help (Context Help) setup ---
+        self.page_help_text = 'Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, GenAI options, and general UI preferences. Use this tab to start, connect, and customize your analysis environment.'
+        self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
+        self.page_help_label = tk.Label(self.page_help_frame, anchor='w', justify='left', wraplength=900, height=2)
+        self.page_help_label.pack(fill='x', padx=14, pady=5)
+        self._apply_page_help_style()
+        self.update_page_help_visibility()
+        self.set_page_help_text(self.page_help_text)
+
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
@@ -83,6 +92,71 @@ class SettingsTab(ttk.Frame):
         # Build the UI
         self._build_ui()
 
+    # ----- Page Help (Context Help) helpers -----
+    def set_page_help_text(self, text, temporary=False):
+        """
+        Set the content of the page help label if visible.
+        """
+        if self.settings.get('context_help', False):
+            self.page_help_label.configure(text=text)
+            self._apply_page_help_style()
+
+    def update_page_help_visibility(self):
+        """
+        Show or hide the Page Help frame at the top, based on context_help setting.
+        """
+        self.page_help_frame.pack_forget()
+        if self.settings.get('context_help', False):
+            children = self.winfo_children()
+            # Find the first child that is currently packed (winfo_manager == 'pack')
+            packed_target = None
+            for child in children:
+                try:
+                    if child.winfo_manager() == 'pack':
+                        packed_target = child
+                        break
+                except Exception:
+                    continue
+            if packed_target:
+                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0), before=packed_target)
+            else:
+                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0))
+
+    def _apply_page_help_style(self):
+        """
+        Apply consistent background/font settings to the Page Help label.
+        """
+        bg = self._get_style_background()
+        self.page_help_frame.configure(style='Custom.TLabelframe')
+        self.page_help_label.configure(bg=bg, font=self._get_help_font())
+
+    def _get_help_font(self):
+        font_size_map = {
+            'Small': 9,
+            'Medium': 11,
+            'Large': 13,
+            'Extra Large': 16,
+        }
+        size = font_size_map.get(self.settings.get('font_size', 'Medium'), 11)
+        return ('TkDefaultFont', size)
+
+    def _get_style_background(self):
+        s = ttk.Style()
+        try:
+            bg = s.lookup('TFrame', 'background')
+            if not bg:
+                raise ValueError
+            return bg
+        except Exception:
+            return self.winfo_toplevel().cget('bg') if hasattr(self, 'winfo_toplevel') else '#f0f0f0'
+
+    def refresh_context_help(self):
+        """
+        Public API: Refresh style/visibility of Page Help label. Call after theme/font/setting changes.
+        """
+        self._apply_page_help_style()
+        self.update_page_help_visibility()
+
     def _build_ui(self):  # noqa: C901
         # ---- Top Row: Display + MCP ----
         top_row = ttk.Frame(self)
@@ -92,9 +166,30 @@ class SettingsTab(ttk.Frame):
         disp = ttk.LabelFrame(top_row, text='Display Options')
         disp.pack(side='left', fill='both', expand=True, padx=(0, 8), pady=0)
 
+        # --- Page Help context for Display Options ---
+        def _show_disp_help(_event=None):
+            self.set_page_help_text(
+                'Adjust display preferences such as font size and toggle features like Context Help, Console, Maintenance, and Advanced tabs. These settings impact the UI experience and enable power-user features.'
+            )
+
+        def _restore_default_help(_event=None):
+            self.set_page_help_text(self.page_help_text)
+
+        disp.bind('<Enter>', _show_disp_help)
+        disp.bind('<Leave>', _restore_default_help)
+
         # MCP Config (LabelFrame, RIGHT of display)
         label_frm_mcp_config = ttk.LabelFrame(top_row, text='Embedded MCP')
         label_frm_mcp_config.pack(side='left', fill='both', expand=True)
+
+        # --- Page Help context for Embedded MCP ---
+        def _show_mcp_help(_event=None):
+            self.set_page_help_text(
+                'Configure the built-in MCP (Model Context Protocol) server. Edit host and port values to connect to the local MCP instance that enables integration with external tools and automated analysis features.'
+            )
+
+        label_frm_mcp_config.bind('<Enter>', _show_mcp_help)
+        label_frm_mcp_config.bind('<Leave>', _restore_default_help)
 
         # Font size (in Display Panel)
         ttk.Label(disp, text='Font Size:').pack(side='left', padx=(8, 4))
@@ -166,6 +261,15 @@ class SettingsTab(ttk.Frame):
         label_frm_tenancy_config = ttk.Labelframe(self, text='Tenancy and Config')
         label_frm_tenancy_config.pack(fill='x', padx=10, pady=10)
 
+        # --- Page Help context for Tenancy and Config ---
+        def _show_tenancy_help(_event=None):
+            self.set_page_help_text(
+                'Set your OCI tenancy and authentication method. Choose between instance principal, named profile, or session token. Load data either directly from OCI or from a cached JSON, manage policy data, and import/export backups. Use these controls to initialize or refresh the core analysis dataset.'
+            )
+
+        label_frm_tenancy_config.bind('<Enter>', _show_tenancy_help)
+        label_frm_tenancy_config.bind('<Leave>', _restore_default_help)
+
         # Instance Principal checkbox
         chk_instance_principal = ttk.Checkbutton(
             label_frm_tenancy_config,
@@ -181,6 +285,15 @@ class SettingsTab(ttk.Frame):
             variable=self.recursive_var,
         )
         self.recursive_load.grid(row=1, column=0, padx=5, pady=5, sticky='w')
+
+        # --- Page Help context for Recursive checkbox ---
+        def _show_recursive_help(_event=None):
+            self.set_page_help_text(
+                'By checking this option, all policies will be loaded from all compartments. If unchecked, only policies in the ROOT compartment will be loaded.'
+            )
+
+        self.recursive_load.bind('<Enter>', _show_recursive_help)
+        self.recursive_load.bind('<Leave>', _restore_default_help)
 
         # Profile Selection
         self.label_profile = ttk.Label(label_frm_tenancy_config, text='Profile:')
@@ -281,12 +394,22 @@ class SettingsTab(ttk.Frame):
                 },
             )
 
-        ttk.Button(
+        self.btn_load_compliance = ttk.Button(
             label_frm_tenancy_config,
             width=30,
             text='Load from Compliance Output Data',
             command=_on_load_compliance_output,
-        ).grid(row=2, column=5, padx=5, pady=5, sticky='w')
+        )
+        self.btn_load_compliance.grid(row=2, column=5, padx=5, pady=5, sticky='w')
+
+        # --- Page Help context for Compliance Output button ---
+        def _show_compliance_help(_event=None):
+            self.set_page_help_text(
+                'Load from the output of an unzipped CIS Complaince run - these scripts are provided by Oracle as part of MAP engagement, or freely downloadable from https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md'
+            )
+
+        self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
+        self.btn_load_compliance.bind('<Leave>', _restore_default_help)
 
         ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
 
@@ -298,6 +421,15 @@ class SettingsTab(ttk.Frame):
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
         self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
+
+        # --- Page Help context for OCI GenAI ---
+        def _show_genai_help(_event=None):
+            self.set_page_help_text(
+                'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. Use this panel to enable policy text analysis and AI-driven explanations.'
+            )
+
+        self.label_frm_ai_config.bind('<Enter>', _show_genai_help)
+        self.label_frm_ai_config.bind('<Leave>', _restore_default_help)
 
         # AI Toggle
         self.ai_toggle_btn = ttk.Button(
@@ -386,6 +518,7 @@ class SettingsTab(ttk.Frame):
         """Callback when Context Help checkbox is toggled; saves to settings and updates Page Help on all tabs."""
         self.settings['context_help'] = self.context_help_var.get()
         config.save_settings(self.settings)
+        self.refresh_context_help()
         # Trigger refresh_context_help on tabs that implement it
         # Policies Tab
         if hasattr(self.app, 'policies_tab') and hasattr(self.app.policies_tab, 'refresh_context_help'):

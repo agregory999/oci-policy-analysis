@@ -288,6 +288,8 @@ class App(tk.Tk):
             self.policies_tab.refresh_context_help()
         if hasattr(self.users_tab, 'refresh_context_help'):
             self.users_tab.refresh_context_help()
+        if hasattr(self.settings_tab, 'refresh_context_help'):
+            self.settings_tab.refresh_context_help()
 
     # All output is now plain text only.
 
