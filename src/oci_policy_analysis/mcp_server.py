@@ -63,6 +63,10 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     PolicyStatementFull,
     PolicySummary,
     ReferenceDataDiffResult,
+    SimulationBatchRequest,
+    SimulationBatchResponse,
+    SimulationPrepareRequest,
+    SimulationPrepareResponse,
     User,
     UserSearch,
     UserSearchFull,
@@ -71,12 +75,16 @@ from oci_policy_analysis.common.models import (  # noqa: E402
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
+from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')
 
 mcp = FastMCP(name='OCI Policy MCP')
 pca: PolicyAnalysisRepository | None = None
+
+# Initialize the simulation engine (shares policy repo with PCA)
+sim_engine: PolicySimulationEngine | None = None
 
 # Decision logic: return summary if result set is too large
 POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
@@ -95,6 +103,102 @@ async def health_check(request):
 # ---------------------
 # --- Tools ---
 # ---------------------
+
+
+# --- Simulation Preparation Tool ---
+@mcp.tool(
+    name='prepare_simulation',
+    description=(
+        'Prepare a simulation for a specific compartment and principal. '
+        'This tool returns all where-clause fields required for simulation for the specified context. '
+        'Pass in the compartment_path (effective path), principal_type (e.g. "user", "any-user"), and principal '
+        '(string for any-user/service, or (domain, name) tuple for user/group/dyn-group). '
+        'See SimulationPrepareRequest for details.'
+    ),
+)
+def prepare_simulation(request: SimulationPrepareRequest) -> SimulationPrepareResponse:
+    """
+    Return all required where-clause variable names for the given simulation context.
+
+    Args:
+        request: SimulationPrepareRequest
+
+    Returns:
+        SimulationPrepareResponse
+    """
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    compartment_path = request.get('compartment_path')
+    principal_type = request.get('principal_type')
+    principal = request.get('principal')
+    logger.info(
+        f'Preparing simulation for compartment="{compartment_path}", type={principal_type}, principal={principal}'
+    )
+    principal_key, where_fields = sim_engine.get_required_where_fields_for_context(
+        compartment_path, principal_type, principal
+    )
+    logger.info(f'Preparation Result: required_fields={where_fields}, principal_key={principal_key}')
+    return {'required_where_fields': list(where_fields), 'principal_key': principal_key}
+
+
+# --- Simulation Batch Tool (Canonical MCP Flow) ---
+@mcp.tool(
+    name='run_simulation_batch',
+    description=(
+        'Run a batch of permission simulations for OCI principals and API operations. '
+        'Input is a SimulationBatchRequest containing a list of SimulationScenario items. '
+        'Each scenario must specify: compartment_path, principal_key (from prepare_simulation), api_operation, and where_context. '
+        'checked_statement_ids should NOT be included. Result: SimulationBatchResponse with one result per input scenario. '
+        "MCP never requests the trace ('trace' in SimulationBatchRequest should be omitted or false)."
+    ),
+)
+def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResponse:
+    """
+    Batch run policy simulations per canonical MCP contract.
+
+    Args:
+        request (SimulationBatchRequest): {
+            "simulations": [SimulationScenario, ...],
+            "trace": bool (optional, but ignored)
+        }
+
+    Returns:
+        SimulationBatchResponse: {
+            "results": [SimulationResult, ...]
+        }
+    """
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    simulations = request.get('simulations', [])
+    results = []
+    for scenario in simulations:
+        try:
+            compartment_path = scenario.get('compartment_path')
+            principal_key = scenario.get('principal_key')
+            api_operation = scenario.get('api_operation')
+            where_context = scenario.get('where_context', {})
+            # checked_statement_ids is absent (canonical MCP flow)
+            # trace always False for MCP batch
+            sim_result = sim_engine.simulate_and_record(
+                principal_key, compartment_path, api_operation, where_context, trace=False
+            )
+            # Remove redundant or legacy fields if present (keep strictly to SimulationResult shape)
+            if 'trace' in sim_result:
+                sim_result.pop('trace')
+            results.append(sim_result)
+        except Exception as ex:
+            logger.warning(f'Failed to simulate batch scenario: {scenario}, error: {ex}')
+            results.append(
+                {
+                    'result': 'NO',
+                    'api_call_allowed': False,
+                    'final_permission_set': [],
+                    'required_permissions_for_api_operation': [],
+                    'missing_permissions': [],
+                    'failure_reason': f'Simulation error: {ex}',
+                }
+            )
+    return {'results': results}
 
 
 # Main Policy filter tool
@@ -726,32 +830,6 @@ def main():
 
     Parses command-line arguments to load, filter, display, or export OCI identity and policy information
     from Oracle Cloud Infrastructure (OCI) using cached or live data.
-
-    MCP Server will be started in either stdio or streamable-http mode based on the provided arguments.
-
-    NOTE: If RUNNING IN STDIO MODE, ENSURE THE ENVIRONMENT VARIABLE MCP_STDIO_MODE=1 MUST BE SET TO AVOID ERRORS.
-
-    Parameters
-    ----------
-    --profile : str, optional
-        OCI CLI profile name to use for authentication (default is 'DEFAULT').
-    --instance-principal : bool, optional
-        Use instance principal authentication (mutually exclusive with --profile).
-    --use-cache : str, optional
-        Name of the combined cache to load data from (mutually exclusive with --profile and --instance-principal).
-    --session-token : str, optional
-        OCI session token for instance principal authentication.
-    --recursive : bool, optional
-        Recursively load all compartments (default is True).
-    --dont-save-cache-after-load : bool, optional
-        If set, do not save the combined cache after loading from OCI.
-    --transport : str, optional
-        Transport mode for MCP server ('stdio' or 'streamable-http', default is 'stdio').
-    --port : int, optional
-        Port number for streamable-http transport (default is 8765).
-    --host : str, optional
-        Host address for streamable-http transport (default is '127.0.0.1').
-
     """
     logger.info('MCP server module logger initialized.')
 
@@ -766,8 +844,10 @@ def main():
     )
 
     # --- Embedded Initialization ---
-    global pca
+    global pca, sim_engine
     pca = PolicyAnalysisRepository()
+    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=getattr(pca, 'reference_data_repo', None))
+    logger.info('Initialized Policy Analysis Repository and Simulation Engine.')
 
     # Create Cache Manager
     cache_manager = CacheManager()
@@ -810,6 +890,10 @@ def main():
         f'Groups: {len(pca.groups)}; Users: {len(pca.users)}; '
         f'Dynamic Groups: {len(pca.dynamic_groups)}'
     )
+
+    # Now start Simulation Engine
+    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=getattr(pca, 'reference_data_repo', None))
+    logger.info('Initialized Policy Analysis Repository and Simulation Engine.')
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':

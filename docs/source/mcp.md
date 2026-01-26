@@ -492,6 +492,126 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 
 ## Available MCP Tools
 
+---
+
+### OCI Policy Simulation: Structure and Process
+
+The core policy simulation flow—used by both the UI and MCP tools—follows these canonical steps (as implemented in the simulation engine):
+
+1. **Load Simulation Context:** Specify a compartment path and principal (type and identifier), e.g. compartment "ROOT/Finance" and principal_type "user" with principal ["Default", "anita"].
+2. **Resolve Applicable Statements:** The engine finds all policy statements for that context, including inherited (e.g., 'any-user') as required.
+3. **Determine Where-Clause Fields:** The engine analyzes all applicable statements and computes any "where" context variable names that must/can be supplied for conditional evaluation.
+4. **Run Simulation:** The engine evaluates simulation scenarios, applying any required where-values and the chosen API operation.
+
+**Important:**  
+- The MCP simulation tools *always* use all applicable policy statements for a context. Manual "statement selection" (allowed in UI for debugging) is **never** exposed in the MCP API to ensure correctness and reproducibility.
+
+---
+
+### 0. `prepare_simulation`  
+Prepare an OCI policy simulation context.
+
+**Purpose:**  
+Given a compartment path and principal (type + identifier), return all where-clause fields that should be supplied for simulation. This is needed before the simulation run to ensure you know what extra context/variables to provide.
+
+**Input:**  
+```json
+{
+  "compartment_path": "ROOT/Finance",
+  "principal_type": "user",
+  "principal": ["Default", "anita"]
+}
+```
+or for an "any-user" simulation:
+```json
+{
+  "compartment_path": "ROOT",
+  "principal_type": "any-user",
+  "principal": "any-user"
+}
+```
+
+**Response:**  
+```json
+{
+  "required_where_fields": ["user.department", "request.time", "resource.tags.department"],
+  "principal_key": "user:Default/anita"
+}
+```
+
+---
+
+### 0.1. `run_simulation_batch`  
+Run one or more policy simulation scenarios using canonical logic (all valid statements, all required where clause params).
+
+**Purpose:**  
+For each scenario, specifies compartment, principal, API operation, and where-values. Returns allowed/denied plus simulation trace.
+
+**Input:**  
+```json
+{
+  "simulations": [
+    {
+      "compartment_path": "ROOT/Finance",
+      "principal_type": "user",
+      "principal": ["Default", "anita"],
+      "api_operation": "oci:ListBuckets",
+      "where_context": {
+        "user.department": "Finance",
+        "request.time": "2026-01-22T09:00:00Z"
+      }
+    },
+    {
+      "compartment_path": "ROOT",
+      "principal_type": "any-user",
+      "principal": "any-user",
+      "api_operation": "oci:ListInstances",
+      "where_context": {}
+    }
+  ],
+  "trace": true
+}
+```
+
+**Response:**  
+```json
+{
+  "results": [
+    {
+      "result": "YES",
+      "api_call_allowed": true,
+      "final_permission_set": ["BUCKET_READ", "BUCKET_LIST"],
+      "required_permissions_for_api_operation": ["BUCKET_LIST"],
+      "missing_permissions": [],
+      "failure_reason": "",
+      "trace_statements": [
+        {
+          "statement_text": "...",
+          "action": "allow",
+          "permissions": ["BUCKET_LIST"],
+          "conditional": true,
+          "passed": true
+        }
+        // ... additional trace records for full reasoning
+      ]
+    },
+    {
+      "result": "NO",
+      "api_call_allowed": false,
+      "final_permission_set": [],
+      "required_permissions_for_api_operation": ["INSTANCE_LIST"],
+      "missing_permissions": ["INSTANCE_LIST"],
+      "failure_reason": "Missing required permissions: [\"INSTANCE_LIST\"]",
+      "trace_statements": [ ... ]
+    }
+  ]
+}
+```
+
+- Each scenario uses all valid applicable policy statements for its input context.
+- No manual statement selection is possible or required in MCP simulation—this is by design for accuracy.
+
+---
 
 MCP clients such as **Claude** and **VS Code Copilot** understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.
 

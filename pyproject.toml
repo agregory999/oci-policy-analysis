@@ -9,7 +9,7 @@ dynamic = []
 version = "3.2.1"
 
 dependencies = [
-    "oci==2.164.0",
+    "oci==2.165.0",
     "deepdiff==8.5.0",
     "fastmcp==2.12.5",
     "antlr4-python3-runtime==4.13.2"

@@ -12,16 +12,121 @@
 #
 # coding: utf-8
 ##########################################################################
+from typing import Annotated, Literal, NotRequired, TypedDict  # noqa: UP035
 
-from typing import Annotated, Literal, NotRequired, TypedDict
+# ================================
+# Simulation Models
+# ================================
+
+# SimulationPrincipalType describes all valid principal types in simulation requests and results.
+SimulationPrincipalType = Literal['group', 'user', 'dynamic-group', 'any-user', 'any-group', 'service']
 
 
-# Data Models for Policies, Dynamic Groups, Users, and Groups
+class SimulationPrepareRequest(TypedDict):
+    """
+    Model describing the canonical input for simulation preparation.
+    Used to obtain principal and where-clause context, never for actual simulation execution.
+    """
+
+    compartment_path: Annotated[str, 'Effective compartment path, e.g. "ROOT/Finance"']
+    principal_type: Annotated[SimulationPrincipalType, 'Principal type for simulation']
+    principal: Annotated[
+        str | list[str | None],
+        'String for "any-user"/"any-group"/"service"; [domain, name] for user/group/dynamic-group',
+    ]
+
+
+class SimulationPrepareResponse(TypedDict):
+    """
+    Model describing the output of simulation preparation.
+    Provides required where fields and a standardized principal key.
+    """
+
+    required_where_fields: Annotated[list[str], 'All unique where clause variable names required for input']
+    principal_key: Annotated[str, 'Principal key as calculated by engine (e.g., "user:Default/anita")']
+
+
+class SimulationScenario(TypedDict):
+    """
+    Canonical input for SINGLE simulation (batch-mode simulations use a list of these in SimulationBatchRequest).
+    All inputs must exactly match those from the context + UI builder/MCP client.
+
+    Fields:
+    - compartment_path: Effective compartment path scoped for this simulation (str)
+    - principal_key: str. Output from SimulationPrepareResponse
+    - api_operation: str. Required API operation (e.g., "oci:ListBuckets")
+    - where_context: Dict[str, str]. Mapping from variable names to values for this run.
+    - checked_statements: Optional[List[str]]. Internal statement IDs to restrict simulation (UI only; omit for MCP).
+    """
+
+    compartment_path: Annotated[str, 'Effective compartment path']
+    principal_key: Annotated[str, 'Principal key, must be from preparation stage']
+    api_operation: Annotated[str, 'API operation to simulate, e.g., "oci:ListBuckets"']
+    where_context: Annotated[dict[str, str], 'Variable input mapping for required where fields']
+    checked_statements: NotRequired[Annotated[list[str], 'Statement IDs (UI only, omit for MCP/server)']]
+
+
+class SimulationBatchRequest(TypedDict):
+    """
+    Batch simulation request (multiplex multiple scenarios).
+    - simulations: List of SimulationScenario dicts, each fully specified
+    - trace: Optional bool, if true include detailed trace in result for each scenario
+
+    Example:
+    {
+      "simulations": [
+        { ... see SimulationScenario ... }
+      ],
+      "trace": true
+    }
+    """
+
+    simulations: Annotated[list[SimulationScenario], 'List of simulation scenarios to run']
+    trace: NotRequired[Annotated[bool, 'If true, include trace output in SimulationResult']]
+
+
+class SimulationResult(TypedDict):
+    """
+    Canonical result for a single simulation scenario.
+    All fields strictly correspond to engine outputs and are fully JSON-serializable.
+
+    Fields:
+    - result: "YES" if permitted, "NO" if denied (Literal)
+    - api_call_allowed: Boolean (redundant with result but retained for clarity)
+    - final_permission_set: List of permissions granted by policy for this op/context (trace=True only)
+    - required_permissions_for_api_operation: List of permissions required for op (trace=True only)
+    - missing_permissions: List of missing permissions needed for full allow
+    - failure_reason: Reason for failure or denial, empty if successful
+    - trace_statements: Optional[List[dict]], statement-by-statement trace (only present if trace enabled)
+    """
+
+    result: Annotated[Literal['YES', 'NO'], "'YES' if API operation permitted, 'NO' if denied"]
+    api_call_allowed: Annotated[bool, 'True if API op permitted']
+    final_permission_set: Annotated[list[str], 'Permissions granted after simulation']
+    required_permissions_for_api_operation: Annotated[list[str], 'Permissions required for op']
+    missing_permissions: Annotated[list[str], 'Any permissions missing for full allow']
+    failure_reason: Annotated[str, 'Reason for denial or error, empty if successful']
+    trace_statements: NotRequired[Annotated[list[dict], 'Statement-by-statement trace, if trace=True']]
+
+
+class SimulationBatchResponse(TypedDict):
+    """
+    Batch simulation output: result list, matches input scenario order.
+
+    Fields:
+    - results: List[SimulationResult]. One per SimulationScenario submitted.
+    """
+
+    results: Annotated[list[SimulationResult], 'Simulation result(s) for each scenario, in order']
+
+
+# ================================
+# Entity Models (Policies, Dynamic Groups, Users, Groups)
+# ================================
 class Group(TypedDict):
     """
-    Represents an Exact OCI IAM group entry.
-    Groups need a domain and name to be unique.
-    Domain should be provided for non-default domain.
+    Model representing an OCI IAM group (identity and metadata).
+    A group is uniquely identified by domain and group name.
     """
 
     domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
@@ -33,9 +138,8 @@ class Group(TypedDict):
 
 class User(TypedDict):
     """
-    Represents an Exact OCI IAM user entry.
-    Only requires a user_name to be unique within a domain.
-    Domain should be provided for non-default domain.
+    Model representing an OCI IAM user.
+    Only username and domain are required to uniquely identify a user.
     """
 
     domain_name: NotRequired[Annotated[str, 'The domain of the user. If not provided, the default domain.']]
@@ -49,9 +153,8 @@ class User(TypedDict):
 
 class DynamicGroup(TypedDict):
     """
-    Represents an Exact OCI IAM dynamic group entry.
-    Dynamic groups need a domain and name to be unique.
-    Domain should be provided for non-default domain.
+    Model representing an OCI IAM dynamic group.
+    Dynamic groups are collections of principals defined by rules; unique by domain and name.
     """
 
     domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
@@ -77,7 +180,8 @@ class DynamicGroup(TypedDict):
 
 class BasePolicy(TypedDict):
     """
-    Represents an Exact OCI IAM policy entry with no statements.
+    Model representing an OCI IAM policy.
+    Captures policy identity and metadata but omits policy statements themselves.
     Policies are unique by their name within a compartment.
     """
 
@@ -91,12 +195,9 @@ class BasePolicy(TypedDict):
 # Search Models
 class GroupSearch(TypedDict, total=False):
     """
-    Represents filters for OCI IAM groups.
-
-    This structure is used by MCP tools that query or filter cached group data.
-    Each field narrows results; lists within a field apply OR logic.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all groups.
+    Search model for OCI IAM groups.
+    Used to filter and query cached group metadata by different attributes.
+    Lists inside a field use OR; multiple fields use AND.
     """
 
     domain_name: Annotated[
@@ -111,13 +212,9 @@ class GroupSearch(TypedDict, total=False):
 
 class UserSearch(TypedDict, total=False):
     """
-    Represents filters for OCI IAM users.
-
-    This structure is used by MCP tools that query or filter cached user data.
-    Each field narrows results; lists within a field apply OR logic.
-    'search' matches against either user name or display name.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all users.
+    Search model for OCI IAM users.
+    Used to filter and query cached user metadata by domain, username, or partial/display names.
+    Lists inside a field use OR; multiple fields use AND.
     """
 
     domain_name: Annotated[
@@ -137,12 +234,9 @@ class UserSearch(TypedDict, total=False):
 
 class DynamicGroupSearch(TypedDict, total=False):
     """
-    Represents filters for OCI IAM dynamic groups.
-
-    Used by MCP tools to query dynamic groups based on domain, name, or matching rule criteria.
-    Each field narrows results; lists within a field apply OR logic.
-    Providing multiple fields applies AND logic.
-    Providing no fields returns all dynamic groups.
+    Search model for OCI IAM dynamic groups.
+    Used to query dynamic groups based on domain, name, or matching rule criteria via MCP tools.
+    Lists inside a field use OR; multiple fields use AND.
     """
 
     domain_name: NotRequired[
@@ -174,12 +268,9 @@ class DynamicGroupSearch(TypedDict, total=False):
 
 class PolicySearch(TypedDict, total=False):
     """
-    Represents filters for OCI IAM policy statements.
-
-    This structure is used as input to policy filter tools exposed via MCP.
-    Each key is optional; providing multiple fields narrows results (AND logic).
-    Lists within a field apply OR logic among their entries.
-    Providing no fields returns all policy statements.
+    Search/filter model for querying OCI IAM policy statements.
+    Accepts many fields; lists use OR logic, multiple fields use AND.
+    Used as input to policy filter tools provided by MCP.
     """
 
     action: Annotated[list[str], "Restrict results to statements of a given action: ['allow'], ['deny'], or both."]
@@ -254,7 +345,10 @@ class PolicySearch(TypedDict, total=False):
 
 
 class PolicyOverlap(TypedDict):
-    """Represents overlap analysis for a policy statement."""
+    """
+    Model for representing overlap/conflict analysis between policy statements.
+    Useful for reporting risk and redundancy in IAM policy analysis tools.
+    """
 
     superseded_by: Annotated[str, 'The policy name that supersedes this statement']
     confidence: Annotated[str, 'Confidence level of the overlap (e.g., "high", "medium", "low")']
@@ -267,7 +361,8 @@ class PolicyOverlap(TypedDict):
 
 class BasePolicyStatement(TypedDict):
     """
-    Base class for policy statements to share common fields.
+    Base model for all OCI policy statement types, containing shared fields.
+    All statement models inherit from this and add statement-type-specific data.
     """
 
     policy_name: Annotated[str, 'Display name of the policy containing this statement.']
@@ -407,10 +502,8 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
 
 class PolicySummary(TypedDict):
     """
-    Summary information for policy statements when full details would be too large.
-
-    Used as an alternative return type when the complete list of PolicyStatement objects
-    would exceed response size limits or when the user only needs summary information.
+    Model for lightweight summary reporting for policy statement queries.
+    Used by APIs or UI when result set is too large to send full details.
     """
 
     response_type: Literal['summary']
@@ -438,7 +531,8 @@ class PolicySummary(TypedDict):
 
 class PolicyStatementFull(TypedDict):
     """
-    Complete policy statement data when size limits allow full response.
+    Model for detailed/full reporting of policy statement queries.
+    Only used when result set is small enough to return every statement.
     """
 
     response_type: Literal['full']
@@ -449,7 +543,8 @@ class PolicyStatementFull(TypedDict):
 # Summary types for IAM search operations
 class UserSummary(TypedDict):
     """
-    Summary information for user search when full details would be too large.
+    Lightweight summary of user search results when full details are not shown.
+    Used to communicate match counts and domain breakdowns for user searches.
     """
 
     response_type: Literal['summary']
@@ -463,7 +558,8 @@ class UserSummary(TypedDict):
 
 class UserSearchFull(TypedDict):
     """
-    Complete user data when size limits allow full response.
+    Model representing a full user search result set (all users).
+    Used if the user list is small enough to return fully.
     """
 
     response_type: Literal['full']
@@ -473,7 +569,8 @@ class UserSearchFull(TypedDict):
 
 class GroupSummary(TypedDict):
     """
-    Summary information for group search when full details would be too large.
+    Lightweight summary of group search results.
+    Used to summarize group matches, domain breakdowns, and sampling.
     """
 
     response_type: Literal['summary']
@@ -487,7 +584,8 @@ class GroupSummary(TypedDict):
 
 class GroupSearchFull(TypedDict):
     """
-    Complete group data when size limits allow full response.
+    Model representing a full group search result set (all groups).
+    Used if the group list is small enough to return fully.
     """
 
     response_type: Literal['full']
@@ -497,7 +595,8 @@ class GroupSearchFull(TypedDict):
 
 class DynamicGroupSummary(TypedDict):
     """
-    Summary information for dynamic group search when full details would be too large.
+    Lightweight summary of dynamic group search results.
+    Used to summarize matches, domain/in-use breakdowns, and sample listing.
     """
 
     response_type: Literal['summary']
@@ -518,7 +617,8 @@ class DynamicGroupSummary(TypedDict):
 
 class DynamicGroupSearchFull(TypedDict):
     """
-    Complete dynamic group data when size limits allow full response.
+    Model representing a full dynamic group search result set.
+    Used if the dynamic group list is small enough to return fully.
     """
 
     response_type: Literal['full']
@@ -551,7 +651,8 @@ PolicyFilterResponse = Annotated[
 
 class ReferenceDataDiffResult(TypedDict):
     """
-    Result model for comparing (DeepDiff) the last two cached reference data sets.
+    Result model describing the outcome of comparing two cached reference data sets.
+    Used by tools diagnosing drift or state changes in cached OCI data.
     """
 
     response_type: Literal['reference_data_diff']
@@ -564,13 +665,9 @@ class ReferenceDataDiffResult(TypedDict):
 
 class PolicyIntelligence(TypedDict, total=False):
     """
-    Overlay model collecting all ephemeral, advanced intelligence findings after analysis.
-    - overlaps: List of overlaps: each {"statement_internal_id": str, "overlaps": list[PolicyOverlap]}
-    - recommendations: List of recommendations per-statement or global analysis.
-    - risk_scores: List of per-statement risk scores, notes, etc.
-    - consolidations: List of consolidation/combine opportunities (pairings, etc.)
-    - cleanup_items: Actionable lists (invalid statements, unused groups, unused dynamic groups, etc.) for the cleanup/fix tab.
-    New keys can be added for future analysis results.
+    Model for high-level analytics and findings of policy analysis (IAM intelligence overlay).
+    Reports overlaps, risk scores, recommendations, consolidation, unused resources, and other advanced data.
+    Intended for UI or API overlays rather than core engine results.
     """
 
     overlaps: list[dict]

@@ -61,6 +61,7 @@ class SettingsTab(ttk.Frame):
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
+        self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', False))
         self.ai_compartment_var = tk.StringVar(
             value=self.settings.get('ai_compartment_ocid', '<use compartment or tenancy ocid with genai permission>')
         )
@@ -107,6 +108,15 @@ class SettingsTab(ttk.Frame):
         )
         font_combo.pack(side='left')
         font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
+
+        # --- Context Help Checkbox ---
+        self.context_help_check = ttk.Checkbutton(
+            disp,
+            text='Context Help',
+            variable=self.context_help_var,
+            command=self._on_context_help_changed,
+        )
+        self.context_help_check.pack(side='left', padx=10, pady=6)
 
         # --- Console / Debug Button ---
         self.console_btn_var = tk.StringVar(value='Show Console and Debug Tab')
@@ -371,6 +381,19 @@ class SettingsTab(ttk.Frame):
         logger.debug('Apply button created')
 
         # (Moved MCP block to top and made autosave; original section removed)
+
+    def _on_context_help_changed(self):
+        """Callback when Context Help checkbox is toggled; saves to settings and updates Page Help on all tabs."""
+        self.settings['context_help'] = self.context_help_var.get()
+        config.save_settings(self.settings)
+        # Trigger refresh_context_help on tabs that implement it
+        # Policies Tab
+        if hasattr(self.app, 'policies_tab') and hasattr(self.app.policies_tab, 'refresh_context_help'):
+            self.app.policies_tab.refresh_context_help()
+        # Users Tab (Page Help context)
+        if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'refresh_context_help'):
+            self.app.users_tab.refresh_context_help()
+        # Add more tabs here as needed (e.g., cross_tenancy_tab, etc.) if/when they gain Page Help
 
     # -------------------------
     # Loading of tenancy buttons

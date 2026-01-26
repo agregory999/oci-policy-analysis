@@ -178,7 +178,7 @@ def main():  # noqa: C901
 
             if not args.dont_save_cache_after_load:
                 logger.info('Saving combined cache after loading from OCI')
-                cache_manager.save_combined_cache()
+                cache_manager.save_combined_cache(policy_analysis=policy_analysis)
 
     # Print some basic details
     logger.info('-' * 80)
@@ -203,7 +203,7 @@ def main():  # noqa: C901
         logger.info(f'The file is called {args.export_json}')
         # Save to provided file
         file_object = open(args.export_json, 'w')
-        cache_file_name = cache_manager.save_combined_cache(export_file=file_object)
+        cache_file_name = cache_manager.save_combined_cache(export_file=file_object, policy_analysis=policy_analysis)
         logger.info(f'Wrote combined cache to {cache_file_name}')
         logger.info('-' * 80)
 

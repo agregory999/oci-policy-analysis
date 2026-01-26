@@ -753,14 +753,14 @@
                 "GROUP_UPDATE",
                 "USER_UPDATE"
             ],
-            "notes": "and"
+            "notes": "Both permissions are required to add a user to a group."
         },
         "RemoveUserFromGroup": {
             "permissions": [
                 "GROUP_UPDATE",
                 "USER_UPDATE"
             ],
-            "notes": "and"
+            "notes": "Both permissions are required to remove a user from a group."
         },
         "ListGroups": {
             "permissions": [

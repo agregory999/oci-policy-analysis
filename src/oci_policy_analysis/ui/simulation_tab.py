@@ -396,91 +396,32 @@ class SimulationTab(ttk.Frame):
         ptype = self.selected_principal_type.get()
         pname_display = self.selected_principal.get()
         logger.info(f"Loading statements for Compartment '{cpath}', Principal '{pname_display}' ({ptype})")
-        allow_stmts = []
-        deny_stmts = []
-        filters = {}
-
-        def _match_principal(collection, domain, name, model_key, domain_key='domain_name'):
-            """Helper to find a principal in a collection by both domain and name (domain None/'default' normalize)."""
-            for entry in collection:
-                entry_domain = entry.get(domain_key)
-                if entry_domain == 'default':
-                    entry_domain = None
-                if entry.get(model_key) == name and (
-                    (domain is None and entry_domain in [None, 'default'])
-                    or (domain is not None and entry_domain == domain)
-                ):
-                    return entry
-            return None
-
-        if self.policy_repo and hasattr(self.policy_repo, 'filter_policy_statements'):
-            if cpath:
-                filters['effective_path'] = [cpath]
-
-            # Handle all principal types with streamlined logic
-            principal_processed = False
-
-            if ptype in ('user', 'group', 'dynamic-group'):
-                # Defensive: always define variables before usage
-                exact_key = None
-                model_key = None
-                collection = None
-                if ptype == 'user':
-                    exact_key = 'exact_users'
-                    model_key = 'user_name'
-                    collection = self.policy_repo.users if hasattr(self.policy_repo, 'users') else []
-                elif ptype == 'group':
-                    exact_key = 'exact_groups'
-                    model_key = 'group_name'
-                    collection = self.policy_repo.groups if hasattr(self.policy_repo, 'groups') else []
-                elif ptype == 'dynamic-group':
-                    exact_key = 'exact_dynamic_groups'
-                    model_key = 'dynamic_group_name'
-                    collection = self.policy_repo.dynamic_groups if hasattr(self.policy_repo, 'dynamic_groups') else []
-                # Only use if pname_display is set and all keys are defined
-                if pname_display and collection is not None and model_key is not None and exact_key is not None:
-                    if '/' in pname_display:
-                        domain, name = pname_display.split('/', 1)
-                    else:
-                        domain, name = None, pname_display
-                    obj = _match_principal(collection, domain, name, model_key)
-                    if obj:
-                        filters[exact_key] = [obj]
-                        logger.info(f'Matched {ptype}: domain={domain!r}, name={name!r}. Using {exact_key}.')
-                        principal_processed = True
-                    else:
-                        logger.warning(
-                            f'{ptype} not found for domain={domain!r}, name={name!r}; using generic subject filter.'
-                        )
-                        filters['subject'] = [name]
-                        principal_processed = True
-
-            elif ptype == 'service' and pname_display:
-                # Service always has no domain
-                filters['subject'] = [pname_display]
-                logger.info(f'Loading statements for service principal: {pname_display}')
-                principal_processed = True
-
+        # Canonical principal normalization, for all types
+        sim_engine = getattr(self, 'simulation_engine', None)
+        all_stmts = []
+        if sim_engine:
+            # For any-user, blank principal string is canonical
+            effective_principal = ''
+            if ptype != 'any-user':
+                effective_principal = pname_display
+            # If principal includes a domain (e.g. "mydom/foobar"), split
+            if '/' in effective_principal:
+                domain, name = effective_principal.split('/', 1)
+                effective_principal = (domain if domain != '' else None, name)
+            elif effective_principal:
+                effective_principal = (None, effective_principal)
             elif ptype == 'any-user':
-                filters['subject'] = ['any-user']
-                logger.info('Loading statements for any-user principal.')
-                principal_processed = True
-
-            if not principal_processed and pname_display:
-                # Last resort: use generic subject filter
-                filters['subject'] = [pname_display]
-                logger.info(f'Using fallback generic subject filter: {pname_display}')
-
-            logger.info(f'Final statement filter dict: {filters}')
-            stmts = self.policy_repo.filter_policy_statements(filters)
-            allow_stmts = [s for s in stmts if s.get('action', '').lower() == 'allow']
-            deny_stmts = [s for s in stmts if s.get('action', '').lower() == 'deny']
-
+                effective_principal = 'any-user'
+            # principal is either string for any-user/service, or (domain, name) tuple/user/group
+            _principal_key, stmts = sim_engine.get_statements_for_context(cpath, ptype, effective_principal)
+            logger.info(f'Found {len(stmts)} applicable statements from simulation engine.')
+            all_stmts = stmts
+        else:
+            all_stmts = []
         # Remove old checklist/table if present
         if getattr(self, 'statement_checkbox_table', None) is not None:
             self.statement_checkbox_table.destroy()
             self.statement_checkbox_table = None
-        all_stmts = allow_stmts + deny_stmts
         data = []
         for st in all_stmts:
             data.append(
