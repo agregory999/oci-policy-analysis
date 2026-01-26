@@ -565,11 +565,18 @@ class PolicyAnalysisRepository:
             logger.info(
                 'Bulk fetching all policies for all compartments using Resource Search or tenancy-wide method...'
             )
+            # This query should be different if we want to limit to root compartment only
+            if self.recursive:
+                policy_query = 'query policy resources'
+            else:
+                policy_query = f"query policy resources where compartmentId = '{self.tenancy_ocid}'"
             policy_search_results = self.resource_search_client.search_resources(
-                search_details=StructuredSearchDetails(type='Structured', query='query policy resources'), limit=1000
+                search_details=StructuredSearchDetails(type='Structured', query=policy_query), limit=1000
             )
             if policy_search_results and policy_search_results.data and policy_search_results.data.items:
-                logger.info(f'Found {len(policy_search_results.data.items)} policies via Resource Search.')
+                logger.info(
+                    f'Found {len(policy_search_results.data.items)} policies via Resource Search (recursive={self.recursive}).'
+                )
                 total_policies = len(policy_search_results.data.items)
 
                 def _process_policy_resource(item, position, total_policies):
