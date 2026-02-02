@@ -23,7 +23,7 @@ from tkinter.scrolledtext import ScrolledText
 from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level
 
 # Logger for this module
-logger = get_logger('console_tab')
+logger = get_logger('internal.console_tab')
 
 
 # Dedicated UI handler (unfiltered, shows everything)
@@ -127,11 +127,10 @@ class ConsoleTab(ttk.Frame):
             'UI': [
                 'policies_tab',
                 'simulation_tab',
-                'console_tab',
+                'policy_browser_tab',
                 'policy_recommendations_tab',
                 'resource_principals_tab',
                 'condition_tester_tab',
-                # 'report_tab',
                 'permissions_report',
                 'data_table',
                 'historical_tab',
@@ -141,6 +140,7 @@ class ConsoleTab(ttk.Frame):
                 'cross_tenancy_tab',
                 'maintenance',
                 'users_tab',
+                'internal',
             ],
         }
         # Flattened for batch logic

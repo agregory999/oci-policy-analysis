@@ -20,7 +20,7 @@ from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
-logger = get_logger(component='maintenance')
+logger = get_logger(component='internal.maintenance')
 
 
 class MaintenanceTab(ttk.Frame):

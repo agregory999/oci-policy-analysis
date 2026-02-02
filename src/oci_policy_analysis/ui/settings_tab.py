@@ -24,6 +24,7 @@ from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.ai_repo import AI
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
@@ -34,7 +35,7 @@ AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State
 logger = get_logger(component='settings')
 
 
-class SettingsTab(ttk.Frame):
+class SettingsTab(BaseUITab):
     """
     Settings Tab for OCI Policy Analysis UI.
     Allows configuration of tenancy, profile, MCP server, and AI settings.
@@ -42,28 +43,17 @@ class SettingsTab(ttk.Frame):
     """
 
     def __init__(self, parent, app, caching: CacheManager, ai_repo: AI, settings):
-        """Initialize Settings Tab UI. Everything that the tab needs to exist in the notebook-based app.
-        Args:
-            parent (tk.Widget): The parent widget.
-            app (App): The main application instance.
-            caching (CacheManager): The caching manager instance.
-            ai_repo (AI): The AI repository instance.
-            settings (dict): The settings dictionary.
-        """
-        super().__init__(parent)
+        """Initialize Settings Tab UI. Everything that the tab needs to exist in the notebook-based app."""
+        super().__init__(
+            parent,
+            default_help_text='Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, GenAI options, and general UI preferences.',
+        )
         self.app = app
         self.settings = settings
         self.ai_repo = ai_repo
         self.caching = caching
-
-        # --- Page Help (Context Help) setup ---
-        self.page_help_text = 'Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, GenAI options, and general UI preferences. Use this tab to start, connect, and customize your analysis environment.'
-        self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
-        self.page_help_label = tk.Label(self.page_help_frame, anchor='w', justify='left', wraplength=900, height=2)
-        self.page_help_label.pack(fill='x', padx=14, pady=5)
-        self._apply_page_help_style()
-        self.update_page_help_visibility()
-        self.set_page_help_text(self.page_help_text)
+        self.page_help_text = self.default_help_text
+        # Remove redundant page_help_frame, label, and methods; now in base
 
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
@@ -71,6 +61,8 @@ class SettingsTab(ttk.Frame):
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
         self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', False))
+        # ----- NEW: Load All Users Option -----
+        self.load_all_users_var = tk.BooleanVar(value=self.settings.get('load_all_users', True))
         self.ai_compartment_var = tk.StringVar(
             value=self.settings.get('ai_compartment_ocid', '<use compartment or tenancy ocid with genai permission>')
         )
@@ -93,69 +85,7 @@ class SettingsTab(ttk.Frame):
         self._build_ui()
 
     # ----- Page Help (Context Help) helpers -----
-    def set_page_help_text(self, text, temporary=False):
-        """
-        Set the content of the page help label if visible.
-        """
-        if self.settings.get('context_help', False):
-            self.page_help_label.configure(text=text)
-            self._apply_page_help_style()
-
-    def update_page_help_visibility(self):
-        """
-        Show or hide the Page Help frame at the top, based on context_help setting.
-        """
-        self.page_help_frame.pack_forget()
-        if self.settings.get('context_help', False):
-            children = self.winfo_children()
-            # Find the first child that is currently packed (winfo_manager == 'pack')
-            packed_target = None
-            for child in children:
-                try:
-                    if child.winfo_manager() == 'pack':
-                        packed_target = child
-                        break
-                except Exception:
-                    continue
-            if packed_target:
-                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0), before=packed_target)
-            else:
-                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0))
-
-    def _apply_page_help_style(self):
-        """
-        Apply consistent background/font settings to the Page Help label.
-        """
-        bg = self._get_style_background()
-        self.page_help_frame.configure(style='Custom.TLabelframe')
-        self.page_help_label.configure(bg=bg, font=self._get_help_font())
-
-    def _get_help_font(self):
-        font_size_map = {
-            'Small': 9,
-            'Medium': 11,
-            'Large': 13,
-            'Extra Large': 16,
-        }
-        size = font_size_map.get(self.settings.get('font_size', 'Medium'), 11)
-        return ('TkDefaultFont', size)
-
-    def _get_style_background(self):
-        s = ttk.Style()
-        try:
-            bg = s.lookup('TFrame', 'background')
-            if not bg:
-                raise ValueError
-            return bg
-        except Exception:
-            return self.winfo_toplevel().cget('bg') if hasattr(self, 'winfo_toplevel') else '#f0f0f0'
-
-    def refresh_context_help(self):
-        """
-        Public API: Refresh style/visibility of Page Help label. Call after theme/font/setting changes.
-        """
-        self._apply_page_help_style()
-        self.update_page_help_visibility()
+    # (Now inherited from BaseUITab. Any customizations can override as needed.)
 
     def _build_ui(self):  # noqa: C901
         # ---- Top Row: Display + MCP ----
@@ -167,29 +97,17 @@ class SettingsTab(ttk.Frame):
         disp.pack(side='left', fill='both', expand=True, padx=(0, 8), pady=0)
 
         # --- Page Help context for Display Options ---
-        def _show_disp_help(_event=None):
-            self.set_page_help_text(
-                'Adjust display preferences such as font size and toggle features like Context Help, Console, Maintenance, and Advanced tabs. These settings impact the UI experience and enable power-user features.'
-            )
-
-        def _restore_default_help(_event=None):
-            self.set_page_help_text(self.page_help_text)
-
-        disp.bind('<Enter>', _show_disp_help)
-        disp.bind('<Leave>', _restore_default_help)
+        self.add_context_help(
+            disp, 'Adjust display, font size, and power-user tab features. Affects the entire UI experience.'
+        )
 
         # MCP Config (LabelFrame, RIGHT of display)
         label_frm_mcp_config = ttk.LabelFrame(top_row, text='Embedded MCP')
         label_frm_mcp_config.pack(side='left', fill='both', expand=True)
-
-        # --- Page Help context for Embedded MCP ---
-        def _show_mcp_help(_event=None):
-            self.set_page_help_text(
-                'Configure the built-in MCP (Model Context Protocol) server. Edit host and port values to connect to the local MCP instance that enables integration with external tools and automated analysis features.'
-            )
-
-        label_frm_mcp_config.bind('<Enter>', _show_mcp_help)
-        label_frm_mcp_config.bind('<Leave>', _restore_default_help)
+        self.add_context_help(
+            label_frm_mcp_config,
+            'Configure the built-in MCP server for advanced automation and API analysis integration.',
+        )
 
         # Font size (in Display Panel)
         ttk.Label(disp, text='Font Size:').pack(side='left', padx=(8, 4))
@@ -202,6 +120,8 @@ class SettingsTab(ttk.Frame):
             width=10,
         )
         font_combo.pack(side='left')
+        # Instead of direct apply_theme,
+        # call App.apply_theme, which itself triggers refresh_all_tabs_settings.
         font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
 
         # --- Context Help Checkbox ---
@@ -268,32 +188,45 @@ class SettingsTab(ttk.Frame):
             )
 
         label_frm_tenancy_config.bind('<Enter>', _show_tenancy_help)
-        label_frm_tenancy_config.bind('<Leave>', _restore_default_help)
+        label_frm_tenancy_config.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
+
+        # --- Checkbox group: Instance Principal, Load All Users, Recursive ---
+        frm_chkboxes = ttk.Frame(label_frm_tenancy_config)
+        frm_chkboxes.grid(row=0, column=0, rowspan=2, padx=(0, 2), pady=(0, 1), sticky='nw')
 
         # Instance Principal checkbox
         chk_instance_principal = ttk.Checkbutton(
-            label_frm_tenancy_config,
+            frm_chkboxes,
             text='Instance Principal',
             variable=self.ip_var,
         )
-        chk_instance_principal.grid(row=0, column=0, padx=5, pady=5, sticky='w')
+        chk_instance_principal.grid(row=0, column=0, padx=4, pady=(2, 2), sticky='w')
+        self.add_context_help(
+            chk_instance_principal, 'Use when running from OCI Compute with permissions. No config needed.'
+        )
+
+        # Load All Users checkbox
+        self.load_all_users_check = ttk.Checkbutton(
+            frm_chkboxes,
+            text='Load All Users',
+            variable=self.load_all_users_var,
+            command=self._on_load_all_users_changed,
+        )
+        self.load_all_users_check.grid(row=1, column=0, padx=4, pady=(2, 2), sticky='w')
+        self.add_context_help(
+            self.load_all_users_check, 'If checked, loads all users for analysis. Uncheck for groups-only mode.'
+        )
 
         # Recursion checkbox
         self.recursive_load = ttk.Checkbutton(
-            label_frm_tenancy_config,
+            frm_chkboxes,
             text='Recursive',
             variable=self.recursive_var,
         )
-        self.recursive_load.grid(row=1, column=0, padx=5, pady=5, sticky='w')
-
-        # --- Page Help context for Recursive checkbox ---
-        def _show_recursive_help(_event=None):
-            self.set_page_help_text(
-                'By checking this option, all policies will be loaded from all compartments. If unchecked, only policies in the ROOT compartment will be loaded.'
-            )
-
-        self.recursive_load.bind('<Enter>', _show_recursive_help)
-        self.recursive_load.bind('<Leave>', _restore_default_help)
+        self.recursive_load.grid(row=2, column=0, padx=4, pady=(2, 2), sticky='w')
+        self.add_context_help(
+            self.recursive_load, 'If checked, load policies from all compartments.\nUncheck for root compartment only.'
+        )
 
         # Profile Selection
         self.label_profile = ttk.Label(label_frm_tenancy_config, text='Profile:')
@@ -341,6 +274,10 @@ class SettingsTab(ttk.Frame):
             text='Session Token (oci session authenticate)',
             cursor='hand2',
             foreground='#0000EE',  # Make it a link
+        )
+        self.add_context_help(
+            session_auth_link_label,
+            "Paste temporary token from 'oci session authenticate'. Use for cloud OCI CLI auth.",
         )
         session_auth_link_label.bind('<Button-1>', open_link)
         session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
@@ -392,6 +329,7 @@ class SettingsTab(ttk.Frame):
                     'complete': self._on_load_finished,
                     'error': self._on_load_finished,
                 },
+                load_all_users=self.load_all_users_var.get(),
             )
 
         self.btn_load_compliance = ttk.Button(
@@ -409,7 +347,7 @@ class SettingsTab(ttk.Frame):
             )
 
         self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
-        self.btn_load_compliance.bind('<Leave>', _restore_default_help)
+        self.btn_load_compliance.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
 
         ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
 
@@ -429,7 +367,7 @@ class SettingsTab(ttk.Frame):
             )
 
         self.label_frm_ai_config.bind('<Enter>', _show_genai_help)
-        self.label_frm_ai_config.bind('<Leave>', _restore_default_help)
+        self.label_frm_ai_config.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
 
         # AI Toggle
         self.ai_toggle_btn = ttk.Button(
@@ -514,19 +452,23 @@ class SettingsTab(ttk.Frame):
 
         # (Moved MCP block to top and made autosave; original section removed)
 
+    # -------------------------
+    # Context Help Handlers
+    # -------------------------
     def _on_context_help_changed(self):
-        """Callback when Context Help checkbox is toggled; saves to settings and updates Page Help on all tabs."""
+        """
+        Callback when Context Help checkbox is toggled.
+        Notifies main.py to globally propagate the update to all tabs using App.refresh_all_tabs_settings.
+        """
         self.settings['context_help'] = self.context_help_var.get()
         config.save_settings(self.settings)
-        self.refresh_context_help()
-        # Trigger refresh_context_help on tabs that implement it
-        # Policies Tab
-        if hasattr(self.app, 'policies_tab') and hasattr(self.app.policies_tab, 'refresh_context_help'):
-            self.app.policies_tab.refresh_context_help()
-        # Users Tab (Page Help context)
-        if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'refresh_context_help'):
-            self.app.users_tab.refresh_context_help()
-        # Add more tabs here as needed (e.g., cross_tenancy_tab, etc.) if/when they gain Page Help
+        logger.info(f'Context Help setting changed to: {self.context_help_var.get()}')
+        if hasattr(self.app, 'refresh_all_tabs_settings'):
+            self.app.refresh_all_tabs_settings()
+
+    def refresh_context_help(self):
+        """Refresh style/visibility of Page Help label. (SettingsTab extension point)"""
+        BaseUITab.refresh_context_help(self)  # type: ignore
 
     # -------------------------
     # Loading of tenancy buttons
@@ -555,19 +497,16 @@ class SettingsTab(ttk.Frame):
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
         self.settings['ai_compartment_ocid'] = self.profile_var.get()
-
-        # Save the settings now
+        self.settings['load_all_users'] = self.load_all_users_var.get()
         config.save_settings(self.settings)
-
-        # Kick off async call in main app
         self.app.load_tenancy_async(
             tenancy_id=self.tenancy_var.get(),
             recursive=self.recursive_var.get(),
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
-            # named_cache=self.cache_var.get().replace('\n', '_') if use_cache else None,
             named_cache=self.cache_var.get() if use_cache else None,
+            load_all_users=self.load_all_users_var.get(),
             callback={
                 'progress': self._on_load_progress,
                 'complete': self._on_load_finished,
@@ -625,6 +564,18 @@ class SettingsTab(ttk.Frame):
             self.cache_var.set(self.cache_list[0])
         else:
             self.cache_var.set('No Cache Available')
+
+    def _on_load_all_users_changed(self):
+        """Callback when Load All Users checkbox is toggled; saves to settings."""
+        self.settings['load_all_users'] = self.load_all_users_var.get()
+        config.save_settings(self.settings)
+        # Optionally: Trigger UI hide/show of user info on tabs if implemented
+        if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'on_load_all_users_setting_changed'):
+            self.app.users_tab.on_load_all_users_setting_changed(self.load_all_users_var.get())
+        if hasattr(self.app, 'simulation_tab') and hasattr(
+            self.app.simulation_tab, 'on_load_all_users_setting_changed'
+        ):
+            self.app.simulation_tab.on_load_all_users_setting_changed(self.load_all_users_var.get())
 
     # -------------------------
     # AI Enablement
@@ -693,9 +644,9 @@ class SettingsTab(ttk.Frame):
             self.app.console_visible = False
             logger.info('Console and Debug tabs hidden')
         else:
-            notebook.add(console_tab, text='Console Logging\n(Admin)')
+            notebook.add(console_tab, text='Console Logging\n(Internal)')
             if debugger_tab:
-                notebook.add(debugger_tab, text='JSON Debugger\n(Admin)')
+                notebook.add(debugger_tab, text='JSON Debugger\n(Internal)')
             self.console_btn_var.set('Hide Console and Debug Tab')
             self.app.console_visible = True
             logger.info('Console and Debug tabs shown')
@@ -715,7 +666,7 @@ class SettingsTab(ttk.Frame):
             self.app.maintenance_visible = False
             logger.info('Maintenance tab hidden')
         else:
-            notebook.add(maintenance_tab, text='Maintenance\n(Admin)')
+            notebook.add(maintenance_tab, text='Maintenance\n(Internal)')
             self.maintenance_btn_var.set('Hide Maintenance Tab')
             self.app.maintenance_visible = True
             logger.info('Maintenance tab shown')

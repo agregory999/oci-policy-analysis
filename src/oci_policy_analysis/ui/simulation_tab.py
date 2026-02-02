@@ -68,11 +68,7 @@ class SimulationTab(ttk.Frame):
     def refresh_dropdowns(self):  # noqa: C901
         """Refreshes the dropdowns for compartment and principals.
 
-        Populates members used by the compartment, principal type, and principal name comboboxes.
-        Principal values are tuples (domain, name); 'any-user'/services will use (None, name).
-
-        Returns:
-            None
+        - If users are not loaded, will hide/remove "user" as a principal type.
         """
         logger.info('SimulationTab: refreshing dropdowns for compartment/principal types/names.')
         compartments = set()
@@ -96,7 +92,6 @@ class SimulationTab(ttk.Frame):
                 for subj in subjects:
                     if isinstance(subj, tuple | list) and len(subj) == 2:
                         domain, name = subj
-                        # Defensive: skip cases where domain or name is unhashable list/dict (multinested)
                         if isinstance(domain, list | dict) or isinstance(name, list | dict):
                             logger.debug(
                                 f'Skipping nested subject value domain={domain!r} name={name!r} in {subject_type}'
@@ -109,14 +104,18 @@ class SimulationTab(ttk.Frame):
                         principals_by_type[subject_type].add((None, subj))
                     else:
                         logger.info(f'Skipping unhashable subject value={subj} for subject_type={subject_type}')
-        # Fallbacks
-        # Always include 'user' in principal types and populate user principals from repo, not just statements
-        principal_types.add('user')
+        # Only include "user" if users exist
+        users_loaded = bool(getattr(self.policy_repo, 'users', []))
+        if users_loaded:
+            principal_types.add('user')
+        else:
+            if 'user' in principal_types:
+                principal_types.discard('user')
         if not compartments:
             compartments = {'ROOT'}
         self._sim_index_compartments = sorted(compartments)
-        # Build _sim_index_principals['user'] from repo.users if available
-        if hasattr(self.policy_repo, 'users'):
+        # Build _sim_index_principals['user'] from repo.users if available and requested
+        if hasattr(self.policy_repo, 'users') and users_loaded:
             user_set = set()
             for entry in getattr(self.policy_repo, 'users', []):
                 domain = entry.get('domain_name')
@@ -129,27 +128,26 @@ class SimulationTab(ttk.Frame):
         self._sim_index_principals.update(
             {k: sorted(v, key=lambda tup: ((tup[0] or ''), tup[1])) for k, v in principals_by_type.items()}
         )
-        # Update comboboxes
-        self._sim_index_principals.update(
-            {k: sorted(v, key=lambda tup: ((tup[0] or ''), tup[1])) for k, v in principals_by_type.items()}
-        )
-        # Update comboboxes
         try:
             self.compartment_combobox['values'] = self._sim_index_compartments
             self.principal_type_combobox['values'] = sorted(principal_types)
         except Exception as ex:
             logger.info(f'refresh_dropdowns: unable to update combos ({ex})')
+        # If current type is "user" but no users, reset to "any-user" instead
+        if not users_loaded and self.selected_principal_type.get() == 'user':
+            self.selected_principal_type.set('any-user')
         if self.selected_compartment.get() not in self._sim_index_compartments:
             self.selected_compartment.set(next(iter(self._sim_index_compartments), 'ROOT'))
         if self.selected_principal_type.get() not in principal_types:
             self.selected_principal_type.set(next(iter(principal_types), 'any-user'))
-        # Populate principal combobox with names (show "domain/name" if domain present for UI)
         self._update_principal_list()
-        # After dropdowns are updated, refresh the debug tab if it exists
         if hasattr(self.app, 'sim_debugger_tab') and getattr(self.app, 'sim_debugger_tab', None):
-            # For debug: show (domain, name)
             debug_index = {k: [f'{d}/{n}' if d else n for (d, n) in v] for k, v in self._sim_index_principals.items()}
             self.app.sim_debugger_tab.show_index(self._sim_index_compartments, debug_index)
+
+    def on_load_all_users_setting_changed(self, enabled: bool):
+        """Called if settings change for Load All Users to refresh simulation principal types and UI."""
+        self.refresh_dropdowns()
 
     def _update_principal_list(self, *_):  # noqa: C901
         pt = self.selected_principal_type.get()

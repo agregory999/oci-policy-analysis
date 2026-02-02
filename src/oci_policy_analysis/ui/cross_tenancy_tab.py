@@ -19,6 +19,7 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_admit, for_display_define, for_display_endorse
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # For cross-tenancy policies, just show all details we have
@@ -72,39 +73,40 @@ ENDORSE_POLICY_COLUMN_WIDTHS['Creation Time'] = 150
 logger = get_logger(component='cross_tenancy_tab')
 
 
-class CrossTenancyTab(ttk.Frame):
+class CrossTenancyTab(BaseUITab):
     """
     Cross-Tenancy Tab for OCI Policy Analysis UI.
+
     Allows viewing defined aliases and associated cross-tenancy policy statements.
-    Methods:
-         __init__: Initializes the CrossTenancyTab with UI components and callbacks.
-         update_cross_tenancy_output: Updates the defined aliases and cross-tenancy policy statements displayed.  Called from main app and when selections are changed.
+    Features label frames, page help, and proper context help wiring.
     """
 
-    def __init__(
-        self,
-        parent,
-        main_app,
-    ):
-        super().__init__(parent)
+    def __init__(self, parent, main_app):
+        super().__init__(
+            parent,
+            default_help_text='View and analyze cross-tenancy OCI policies, including defined OCID aliases, Admit, and Endorse statement details.',
+        )
         self.main_app = main_app
         self.policy_compartment_analysis = main_app.policy_compartment_analysis
-        self.create_tab()
+        self._build_ui()
 
-    def create_tab(self):
-        self.grid_rowconfigure(0, weight=3)
-        self.grid_rowconfigure(1, weight=6)
-        self.grid_rowconfigure(2, weight=1)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=6)
-
+    def _build_ui(self):
         logger.info('Creating Cross-Tenancy Tab')
+        # Layout: vertical sections (Defined Aliases; Admits; Endorses) using pack/LabelFrames.
+
+        # ---- Defined Aliases Section ----
+        defined_labelframe = ttk.LabelFrame(self, text='Defined Aliases')
+        defined_labelframe.pack(fill='x', padx=6, pady=(8, 3))
+        self.add_context_help(defined_labelframe, 'Shows OCID alias definitions used in cross-tenancy policies.')
+
+        defined_labelframe.grid_columnconfigure(0, weight=1)
+        defined_labelframe.grid_rowconfigure(0, weight=1)
 
         ttk.Label(
-            self,
-            text='Select one or more rows to the right\nin order to narrow down cross-tenancy policies\n\nSort by clicking column headers',
-            font=('TkFixedFont', 10, 'normal'),
-        ).grid(row=0, column=0, padx=5, pady=5, sticky='w')
+            defined_labelframe,
+            text='Select alias rows to filter cross-tenancy policies below. Sort via column headers.',
+            font=('TkFixedFont', 10),
+        ).grid(row=0, column=0, sticky='w', padx=5, pady=(4, 3))
 
         def cross_tenancy_define_selection_callback(selected_rows: list[dict]) -> None:
             # Selection callback for Defined Aliases (adapt or remove as appropriate in the split-table UI)
@@ -178,10 +180,9 @@ class CrossTenancyTab(ttk.Frame):
 
             return menu
 
-        # Defined Aliases
-        # Show all possible fields for defines (extract from first dict if available)
+        # Defined Aliases Table
         self.defined_aliases_table = DataTable(
-            self,
+            defined_labelframe,
             columns=DEFINED_ALIAS_COLUMNS,
             display_columns=DEFINED_ALIAS_COLUMNS,
             data=[],
@@ -190,18 +191,28 @@ class CrossTenancyTab(ttk.Frame):
             row_context_menu_callback=defined_aliases_row_details,
             multi_select=True,
         )
-        self.defined_aliases_table.grid(row=0, column=1, sticky='nsew')
+        self.defined_aliases_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(2, 6))
 
-        # Checkbox for Admit policies: "Show All"
-        self.show_all_admit = tk.BooleanVar(value=True)
-        admit_checkbox = tk.Checkbutton(
-            self, text='Show All Fields (Admit)', variable=self.show_all_admit, command=self.toggle_admit_columns
+        # ---- Admit Policies Section ----
+        admit_labelframe = ttk.LabelFrame(self, text='Admit Policies')
+        admit_labelframe.pack(fill='x', padx=6, pady=(3, 3))
+        self.add_context_help(
+            admit_labelframe, "OCI 'Admit' policies define which external tenancy principals may act on resources here."
         )
-        admit_checkbox.grid(row=1, column=2, sticky='e', padx=5, pady=4)
+
+        admit_labelframe.grid_columnconfigure(0, weight=1)
+        admit_labelframe.grid_rowconfigure(2, weight=1)
+
+        self.show_all_admit = tk.BooleanVar(value=True)
+        admit_checkbox = ttk.Checkbutton(
+            admit_labelframe, text='Show All Fields', variable=self.show_all_admit, command=self.toggle_admit_columns
+        )
+        admit_checkbox.grid(row=0, column=0, sticky='w', padx=(6, 2), pady=(4, 3))
+        self.add_context_help(admit_checkbox, 'Toggle between basic and full details for Admit policy view.')
 
         # Admit Policies Table
         self.admit_table = DataTable(
-            self,
+            admit_labelframe,
             columns=ADMIT_POLICY_ALL_COLUMNS,
             display_columns=ADMIT_POLICY_ALL_COLUMNS,
             data=[],
@@ -209,18 +220,32 @@ class CrossTenancyTab(ttk.Frame):
             selection_callback=None,  # add as needed
             multi_select=False,
         )
-        self.admit_table.grid(row=1, column=0, columnspan=2, sticky='nsew')
+        self.admit_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(1, 6))
 
-        # Checkbox for Endorse policies: "Show All"
-        self.show_all_endorse = tk.BooleanVar(value=True)
-        endorse_checkbox = tk.Checkbutton(
-            self, text='Show All Fields (Endorse)', variable=self.show_all_endorse, command=self.toggle_endorse_columns
+        # ---- Endorse Policies Section ----
+        endorse_labelframe = ttk.LabelFrame(self, text='Endorse Policies')
+        endorse_labelframe.pack(fill='x', padx=6, pady=(3, 8))
+        self.add_context_help(
+            endorse_labelframe,
+            "OCI 'Endorse' policies allow local tenancy to authorize actions in external OCI tenancies.",
         )
-        endorse_checkbox.grid(row=2, column=2, sticky='e', padx=5, pady=4)
+
+        endorse_labelframe.grid_columnconfigure(0, weight=1)
+        endorse_labelframe.grid_rowconfigure(2, weight=1)
+
+        self.show_all_endorse = tk.BooleanVar(value=True)
+        endorse_checkbox = ttk.Checkbutton(
+            endorse_labelframe,
+            text='Show All Fields',
+            variable=self.show_all_endorse,
+            command=self.toggle_endorse_columns,
+        )
+        endorse_checkbox.grid(row=0, column=0, sticky='w', padx=(6, 2), pady=(4, 3))
+        self.add_context_help(endorse_checkbox, 'Toggle between basic and full details for Endorse policy view.')
 
         # Endorse Policies Table
         self.endorse_table = DataTable(
-            self,
+            endorse_labelframe,
             columns=ENDORSE_POLICY_ALL_COLUMNS,
             display_columns=ENDORSE_POLICY_ALL_COLUMNS,
             data=[],
@@ -228,7 +253,7 @@ class CrossTenancyTab(ttk.Frame):
             selection_callback=None,  # add as needed
             multi_select=False,
         )
-        self.endorse_table.grid(row=2, column=0, columnspan=2, sticky='nsew')
+        self.endorse_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(1, 10))
 
     def toggle_admit_columns(self):
         if self.show_all_admit.get():

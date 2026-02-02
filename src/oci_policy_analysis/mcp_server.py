@@ -578,7 +578,7 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStateme
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
-        logger.info(f"Filtering cross-tenancy policies for alias '{alias}'")
+        logger.info(f"Filtering cross-tenancy statements for alias '{alias}'")
         raw_results = pca.filter_cross_tenancy_policy_statements([alias])
         logger.info(f"Found {len(raw_results)} policy statements matching alias '{alias}'")
         logger.debug(f'Policies: {raw_results}')
@@ -629,7 +629,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
             'policies': pca.regular_statements,
             'dynamic_groups': pca.dynamic_groups,
             'defined_aliases': pca.defined_aliases,
-            'cross_tenancy_policies': pca.cross_tenancy_statements,
+            'cross_tenancy_statements': pca.cross_tenancy_statements,
             'compartments': pca.compartments,
             'identity_domains': pca._get_domains(),
             'groups': pca.groups,
@@ -643,7 +643,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
             f'Previous cache data counts: policies={len(data_a.get("policies", []))}, '
             f'dynamic_groups={len(data_a.get("dynamic_groups", []))}, '
             f'defined_aliases={len(data_a.get("defined_aliases", []))}, '
-            f'cross_tenancy_policies={len(data_a.get("cross_tenancy_policies", []))}, '
+            f'cross_tenancy_statements={len(data_a.get("cross_tenancy_statements", []))}, '
             f'compartments={len(data_a.get("compartments", []))}, '
             f'identity_domains={len(data_a.get("identity_domains", []))}, '
             f'groups={len(data_a.get("groups", []))}, '
@@ -653,7 +653,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
             f'Current in-memory data counts: policies={len(data_b.get("policies", []))}, '
             f'dynamic_groups={len(data_b.get("dynamic_groups", []))}, '
             f'defined_aliases={len(data_b.get("defined_aliases", []))}, '
-            f'cross_tenancy_policies={len(data_b.get("cross_tenancy_policies", []))}, '
+            f'cross_tenancy_statements={len(data_b.get("cross_tenancy_statements", []))}, '
             f'compartments={len(data_b.get("compartments", []))}, '
             f'identity_domains={len(data_b.get("identity_domains", []))}, '
             f'groups={len(data_b.get("groups", []))}, '
@@ -667,7 +667,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
         right_filtered = canonical_filter(data_b)
 
         ddiff = DeepDiff(left_filtered, right_filtered, ignore_order=True, verbose_level=2)
-        diff_summary = ', '.join(f'{k}: {len(v)}' for k, v in ddiff.items() if isinstance(v, (dict, list)) or v)  # noqa: UP038
+        diff_summary = ', '.join(f'{k}: {len(v)}' for k, v in ddiff.items() if isinstance(v, dict | list) or v)  # noqa: UP038
         if not diff_summary:
             diff_summary = 'No differences detected.'
         message = f"Compared previous cache '{previous_cache_name}' vs current memory. {diff_summary}"

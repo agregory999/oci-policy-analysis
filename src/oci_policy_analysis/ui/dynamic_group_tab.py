@@ -19,6 +19,7 @@ from tkinter import ttk
 from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch, PolicySearch
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Column Data
@@ -97,36 +98,32 @@ POLICY_COLUMN_WIDTHS = {
 logger = get_logger(component='dynamic_group_tab')
 
 
-class DynamicGroupsTab(ttk.Frame):
+class DynamicGroupsTab(BaseUITab):
     """
     Dynamic Groups Tab for OCI Policy Analysis UI.
-    Supports filtering and detailed policy statement views.
 
-    Methods:
-        __init__: Initializes the DynamicGroupsTab with UI components and callbacks.
-        enable_controls: Enables the controls once data is loaded.  Called from main app.
-        _build_ui: (Internal) Creates the tab UI components.
-        _update_dg_output: (Internal) Updates the dynamic group table based on filters.
+    Browse, filter, and analyze dynamic groups and related policies.
+    Select dynamic groups to reveal matching policy statements below.
     """
 
     def __init__(self, parent, app):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text='Browse, filter, and analyze dynamic groups and related policies.\nSelect dynamic groups to see matching policy statements below.',
+        )
         self.app = app
         self.policy_compartment_analysis = app.policy_compartment_analysis
         self._build_ui()
 
     def _build_ui(self):
-        # Configure grid
-        self.grid_rowconfigure(0, weight=2)
-        self.grid_rowconfigure(1, weight=4)
-        self.grid_rowconfigure(2, weight=4)
-        self.grid_columnconfigure(0, weight=1)
+        # Top Filter Area (LabelFrame)
+        label_frm_filters = ttk.LabelFrame(self, text='Dynamic Group Filters')
+        label_frm_filters.pack(fill='x', padx=10, pady=6)
+        self.add_context_help(
+            label_frm_filters,
+            'Filter the list of dynamic groups by domain, name, or rule. Use | for OR logic in fields.',
+        )
 
-        # Filter options (LabelFrame)
-        label_frm = ttk.LabelFrame(self, text='Dynamic Group Filters')
-        label_frm.pack(fill='both', padx=10, pady=10)
-
-        # Clear filters function
         def clear_dg_filters():
             for entry in [self.domain_filter_var, self.dg_name_var, self.dg_rule_var]:
                 entry.set('')
@@ -139,8 +136,7 @@ class DynamicGroupsTab(ttk.Frame):
         self.dg_name_var = tk.StringVar()
         self.dg_rule_var = tk.StringVar()
 
-        # Top of frame
-        frm_dg_filter = ttk.Frame(label_frm)
+        frm_dg_filter = ttk.Frame(label_frm_filters)
         frm_dg_filter.grid(row=0, column=0, sticky='w', padx=5, pady=5)
         frm_dg_filter.columnconfigure([1, 3], weight=1)
         ttk.Label(frm_dg_filter, text='Filters (| for OR, AND between fields)').grid(
@@ -158,65 +154,104 @@ class DynamicGroupsTab(ttk.Frame):
         self.dg_entry_type = ttk.Entry(frm_dg_filter, textvariable=self.dg_rule_var, state=tk.DISABLED, width=40)
         self.dg_entry_type.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
 
-        # Buttons
         self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear Filters', state=tk.DISABLED, command=clear_dg_filters)
         self.dg_btn_clear.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
 
-        # Bottom of frame
-        label_frm2 = ttk.LabelFrame(self, text='Output Filters')
-        label_frm2.pack(fill='both', padx=10, pady=10)
+        # Output Filter Area (LabelFrame)
+        label_frm_output = ttk.LabelFrame(self, text='Dynamic Group Output Filters')
+        label_frm_output.pack(fill='x', padx=10, pady=0)
+        self.add_context_help(
+            label_frm_output, 'Customize which dynamic groups to show and control column output below.'
+        )
 
-        self.dg_label_statement_count = ttk.Label(label_frm2, text='Dynamic Groups (Filtered):')
-        self.dg_label_statement_count.grid(row=0, column=0, columnspan=2, padx=5, pady=3, sticky='w')
+        self.dg_label_statement_count = ttk.Label(label_frm_output, text='Dynamic Groups (Filtered):')
+        self.dg_label_statement_count.grid(row=0, column=0, columnspan=2, padx=5, pady=2, sticky='w')
 
         ttk.Checkbutton(
-            label_frm2,
+            label_frm_output,
             text='Show Only Instance Principals',
             variable=self.chk_show_instance_principals,
             command=self._update_dg_output,
-        ).grid(row=0, column=2, padx=5, pady=3)
+        ).grid(row=0, column=2, padx=5, pady=2)
         ttk.Checkbutton(
-            label_frm2,
+            label_frm_output,
             text='Show Only Unused Dynamic Groups',
             variable=self.chk_show_not_in_use,
             command=self._update_dg_output,
-        ).grid(row=0, column=4, padx=5, pady=3)
+        ).grid(row=0, column=3, padx=5, pady=2)
         ttk.Checkbutton(
-            label_frm2,
+            label_frm_output,
             text='Show OCID and Creation Time',
             variable=self.chk_show_dg_ocid,
             command=self._update_dg_output,
-        ).grid(row=0, column=5, padx=5, pady=3)
+        ).grid(row=0, column=4, padx=5, pady=2)
 
-        ttk.Separator(label_frm2, orient=tk.VERTICAL).grid(row=0, column=6, sticky='ns', pady=5)
-        self.label_policy_count = ttk.Label(label_frm2, text='Policy Statements\n(Shown Below): 0')
-        self.label_policy_count.grid(row=0, column=7, padx=5, pady=3)
+        ttk.Separator(label_frm_output, orient=tk.VERTICAL).grid(row=0, column=5, sticky='ns', pady=2)
+        self.label_policy_count = ttk.Label(label_frm_output, text='Policy Statements\n(Shown Below): 0')
+        self.label_policy_count.grid(row=0, column=6, padx=5, pady=2)
+
+        # Trace to update on change
+        self.domain_filter_var.trace_add('write', lambda *args: self._update_dg_output())
+        self.dg_name_var.trace_add('write', lambda *args: self._update_dg_output())
+        self.dg_rule_var.trace_add('write', lambda *args: self._update_dg_output())
+
+        # Dynamic Groups Table Area (LabelFrame)
+        label_frm_dynamicgroups = ttk.LabelFrame(self, text='Dynamic Groups Table')
+        label_frm_dynamicgroups.pack(fill='both', expand=False, padx=5, pady=(8, 2))
+        self.add_context_help(
+            label_frm_dynamicgroups,
+            'This table lists all discovered dynamic groups matching your filters. Select rows to see their matching policies below.',
+        )
 
         def dg_selection_callback(selected_rows: list[dict]) -> None:
-            """When a Dynamic Group is selected, update the policy statements below"""
             dgs_for_filter = []
-            # Make the DG list (Domain,Name) for all selected rows
             for row in selected_rows:
                 logger.info(f"Selected DG: {row.get('Domain')}, {row.get('DG Name')}")
                 dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
             logger.info(f'DGs for filter: {dgs_for_filter}')
-            # Call the main filter
             exact_dg_filter: list[DynamicGroup] = [
                 DynamicGroup(domain_name=dg[0], dynamic_group_name=dg[1]) for dg in dgs_for_filter
             ]  # type: ignore
             policy_filter: PolicySearch = PolicySearch(exact_dynamic_groups=exact_dg_filter)
             filtered = self.policy_compartment_analysis.filter_policy_statements(filters=policy_filter)
-            # Normalize using helper
             filtered = [for_display_policy(stmt) for stmt in filtered]
-            # Set them into the next table
             self.dg_policy_table.update_data(filtered)
             logger.info(f'Policies added to policy table: {len(filtered)}')
-
-            # Update Policy shown label
             self.label_policy_count.config(text=f'Statements Shown: {len(self.dg_policy_table.data)}')
 
+        def dg_table_right_click(row_index: int) -> tk.Menu:
+            dg_domain_ocid_text = self.custom_data_dynamic_group.data[row_index].get('Domain OCID')
+            dg_ocid_text = self.custom_data_dynamic_group.data[row_index].get('DG OCID')
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label='Show Dynamic Group in logged-in Browser',
+                command=lambda: self.app.open_link(
+                    f'https://cloud.oracle.com/identity/domains/{dg_domain_ocid_text}/dynamic-groups/{dg_ocid_text}'
+                ),
+            )
+            return menu
+
+        self.custom_data_dynamic_group = DataTable(
+            label_frm_dynamicgroups,
+            columns=ALL_DG_COLUMNS,
+            display_columns=BASIC_DG_COLUMNS,
+            column_widths=DG_COLUMN_WIDTHS,
+            data=[],
+            selection_callback=dg_selection_callback,
+            row_context_menu_callback=dg_table_right_click,
+            multi_select=True,
+        )
+        self.custom_data_dynamic_group.pack(fill='both', expand=True, padx=0, pady=0)
+
+        # Dynamic Group Policy Table Area (LabelFrame)
+        label_frm_policies = ttk.LabelFrame(self, text='Policies Matching Selected Dynamic Groups')
+        label_frm_policies.pack(fill='both', expand=True, padx=5, pady=(2, 12))
+        self.add_context_help(
+            label_frm_policies,
+            'Shows policies applying to the selected dynamic groups. Right-click rows for details or jump to the Policies tab to analyze.',
+        )
+
         def dg_policy_selection_callback(selected_rows: list[dict]) -> None:
-            """When a Policy Statement is selected, update the policy statement below"""
             if len(selected_rows) == 1:
                 selected_statement = selected_rows[0].get('Statement Text', '')
                 logger.info(f'Selected policy statement: {selected_statement}')
@@ -234,14 +269,10 @@ class DynamicGroupsTab(ttk.Frame):
         def policy_more_details_menu(row_index: int) -> tk.Menu:
             menu = tk.Menu(self, tearoff=0)
             row_data = self.dg_policy_table.data[row_index]
-            logger.info(f'Creating more details menu for row {row_index}: {row_data}')
 
-            # Create a policy search filter by policy name from selected row
             def switch_tab_policy_analysis():
                 self.app.notebook.select(tab_id=1)  # Policy Analysis tab
-                # Set the policy name entry
                 logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
-                # Check the dynamic groups box and set the filter for policy name
                 self.app.policies_tab.chk_show_dynamic.set(True)
                 self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
 
@@ -250,35 +281,8 @@ class DynamicGroupsTab(ttk.Frame):
             )
             return menu
 
-        def dg_table_right_click(row_index: int) -> tk.Menu:
-            dg_domain_ocid_text = self.custom_data_dynamic_group.data[row_index].get('Domain OCID')
-            dg_ocid_text = self.custom_data_dynamic_group.data[row_index].get('DG OCID')
-            menu = tk.Menu(self, tearoff=0)
-            menu.add_command(
-                label='Show Dynamic Group in logged-in Browser',
-                # https://cloud.oracle.com/identity/domains/ocid1.domain.oc1..aaaaaaaaefn7ucmzvtwxh6dz4hytruqafkrl2ryhbuxotrhx4kntezbqll3q/dynamic-groups?region=us-ashburn-1
-                command=lambda: self.app.open_link(
-                    f'https://cloud.oracle.com/identity/domains/{dg_domain_ocid_text}/dynamic-groups/{dg_ocid_text}'
-                ),
-            )
-            return menu
-
-        # Dynamic Groups
-        self.custom_data_dynamic_group = DataTable(
-            self,
-            columns=ALL_DG_COLUMNS,
-            display_columns=BASIC_DG_COLUMNS,
-            column_widths=DG_COLUMN_WIDTHS,
-            data=[],
-            selection_callback=dg_selection_callback,
-            row_context_menu_callback=dg_table_right_click,
-            multi_select=True,
-        )
-        self.custom_data_dynamic_group.pack(fill='both', expand=True, padx=10, pady=5)
-
-        # Use a Policy Table here with fields
         self.dg_policy_table = DataTable(
-            self,
+            label_frm_policies,
             columns=ALL_POLICY_COLUMNS,
             display_columns=BASIC_POLICY_COLUMNS,
             data=[],
@@ -287,18 +291,17 @@ class DynamicGroupsTab(ttk.Frame):
             selection_callback=dg_policy_selection_callback,
             multi_select=False,
         )
-        # self.dg_policy_table.grid(row=0, column=0, columnspan=3, sticky='nsew')
-        self.dg_policy_table.pack(fill='both', expand=True, padx=10, pady=5)
+        self.dg_policy_table.pack(fill='both', expand=True, padx=0, pady=0)
 
-        # Label for context menu
-        ttk.Label(self, text='Matching Policies Table - right-click on a policy for more details').pack(
-            anchor='w', padx=15, pady=(0, 5)
+        # Context note for policy table
+        context_note_lbl = ttk.Label(
+            label_frm_policies, text='Right-click a policy for more details or jump to Policy Analysis tab.'
         )
-
-        # Trace to update on change
-        self.domain_filter_var.trace_add('write', lambda *args: self._update_dg_output())
-        self.dg_name_var.trace_add('write', lambda *args: self._update_dg_output())
-        self.dg_rule_var.trace_add('write', lambda *args: self._update_dg_output())
+        context_note_lbl.pack(anchor='w', padx=10, pady=(3, 0))
+        self.add_context_help(
+            context_note_lbl,
+            'Right-click a row for more advanced policy analysis. Click to open in the Policies tab for deeper review.',
+        )
 
     def _update_dg_output(self):
         if self.chk_show_instance_principals.get():
@@ -350,6 +353,13 @@ class DynamicGroupsTab(ttk.Frame):
             text=f'Dynamic Groups (Total): {len(self.policy_compartment_analysis.dynamic_groups)}\nDynamic Groups (Filtered): {len(output_filtered)}'
         )
 
+    def apply_settings(self, context_help: bool, font_size: str):
+        """
+        Update context help and font settings (called globally from main app).
+        """
+        super().apply_settings(context_help, font_size)
+        # Optionally propagate font size to main DataTable widgets if required.
+
     def enable_controls(self):
         """
         Called from main app when data is loaded to enable the controls
@@ -358,5 +368,4 @@ class DynamicGroupsTab(ttk.Frame):
             entry.config(state=tk.NORMAL)
         for btn in [self.dg_btn_clear]:
             btn.config(state=tk.NORMAL)
-        # Set the data
         self._update_dg_output()
