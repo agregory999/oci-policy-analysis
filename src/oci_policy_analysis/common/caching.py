@@ -68,35 +68,50 @@ class CacheManager:
         # Date of the cache
         CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 
-        # Create the file as JSON first, collecting all details
+        # BREAKING: Only support new structure: "policies" (BasePolicy objects), "policy_statements" (statements list)
         combined_data = {
             'tenancy_name': policy_analysis.tenancy_name,
             'tenancy_ocid': policy_analysis.tenancy_ocid,
-            'policies': policy_analysis.regular_statements,
+            'policies': policy_analysis.policies,  # BasePolicy objects only!
+            'policy_statements': policy_analysis.regular_statements,  # List of statements
             'dynamic_groups': policy_analysis.dynamic_groups,
             'defined_aliases': policy_analysis.defined_aliases,
-            'cross_tenancy_policies': policy_analysis.cross_tenancy_statements,
+            'cross_tenancy_statements': policy_analysis.cross_tenancy_statements,
             'compartments': policy_analysis.compartments,
             'identity_domains': policy_analysis._get_domains(),
             'groups': policy_analysis.groups,
             'users': policy_analysis.users,
             'data_as_of': policy_analysis.data_as_of,
         }
+        logger.info(
+            'Saving cache with BREAKING format: "policies"=BasePolicy objects, "policy_statements"=statement list. Old cache files are no longer supported.'
+        )
+
+        def _serialize_for_json(obj):
+            """Recursively convert datetime objects to ISO format (str)."""
+            if isinstance(obj, dict):
+                return {k: _serialize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_serialize_for_json(x) for x in obj]
+            elif isinstance(obj, tuple):
+                return tuple(_serialize_for_json(x) for x in obj)
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
+            else:
+                return obj
+
+        combined_data_serializable = _serialize_for_json(combined_data)
 
         if export_file:
             with open(export_file.name, 'w', newline='', encoding='utf-8') as filehandle:
-                json.dump(combined_data, filehandle, ensure_ascii=False)
+                json.dump(combined_data_serializable, filehandle, ensure_ascii=False, default=str)
             logger.info(f'Exported combined cache to: {export_file.name}')
             return str(export_file.name)
 
         else:
-            # Just write to cache as normal
-            # CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
             combined_cache_file = self.cache_dir / f'combined_cache_{policy_analysis.tenancy_name}_{CACHE_DATE}.json'
-
             with open(combined_cache_file, 'w', encoding='utf-8') as filehandle:
-                json.dump(combined_data, filehandle, ensure_ascii=False)
+                json.dump(combined_data_serializable, filehandle, ensure_ascii=False)
             logger.info(f'Saved combined cache to: {combined_cache_file}')
 
         # Update cache entries
@@ -137,7 +152,7 @@ class CacheManager:
                 except Exception:
                     continue
 
-        # Match file: combined_cache_<tenancy_name>_YYYY-MM-DD-HH-MM-SS-ZZZ.json
+        # Only include files whose name matches date pattern
         def parse_date_from_file(f):
             # Example: combined_cache_andrew_2025-11-20-16-22-49-UTC.json
             m = re.search(r'_(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-[A-Z]+)\.json$', f.name)
@@ -145,21 +160,22 @@ class CacheManager:
                 try:
                     return datetime.strptime(m.group(1), '%Y-%m-%d-%H-%M-%S-%Z')
                 except Exception:
-                    return datetime.min
-            return datetime.min
+                    return None
+            return None
 
-        # Sort newest first
-        cache_files.sort(key=parse_date_from_file, reverse=True)
+        dated_files = [(parse_date_from_file(f), f) for f in cache_files if parse_date_from_file(f)]
+        dated_files.sort(key=lambda x: x[0], reverse=True)
+        to_delete = [f for dt, f in dated_files[10:] if f.name not in preserved_files]
         pruned = 0
-        # Do not delete preserved files
-        files_to_delete = [f for f in cache_files[10:] if f.name not in preserved_files]
-        for old_file in files_to_delete:
+        # Do not delete preserved files or non-date-named
+        for old_file in to_delete:
             try:
                 old_file.unlink()
                 logger.info(f'Pruned old cache file: {old_file}')
                 pruned += 1
             except Exception as e:
                 logger.error(f'Could not remove old cache file {old_file}: {e}')
+        # Note: non-dated (renamed) caches are never automatically deleted here.
 
         # Cull the cache_entries.json as well
         if entries_path.exists():
@@ -206,18 +222,26 @@ class CacheManager:
                 with open(combined_cache_file, encoding='utf-8') as filehandle:
                     cache_data = json.load(filehandle)
                     # Grab all of the elements of the cache
-                    policies = cache_data.get('policies', [])
+                    # BREAKING: Require new structure - "policies" and "policy_statements" must be present
+                    if 'policies' not in cache_data or 'policy_statements' not in cache_data:
+                        logger.error(
+                            "Loaded cache file is missing required keys: 'policies' and/or 'policy_statements'."
+                        )
+                        raise RuntimeError(
+                            'This cache file is not compatible with the current application version. '
+                            'Please reload OCI data to generate a new cache file via the application UI.'
+                        )
+                    policy_analysis.policies = cache_data['policies']
+                    policy_analysis.regular_statements = cache_data['policy_statements']
+
                     dynamic_groups = cache_data.get('dynamic_groups', [])
-                    cross_tenancy_data = cache_data.get('cross_tenancy_policies', [])
+                    cross_tenancy_data = cache_data.get('cross_tenancy_statements', [])
                     defined_aliases = cache_data.get('defined_aliases', [])
-                    # Set the data in the policy analysis object
                     policy_analysis.tenancy_name = cache_data.get('tenancy_name', '')
                     policy_analysis.tenancy_ocid = cache_data.get('tenancy_ocid', '')
                     policy_analysis.compartments = cache_data.get('compartments', [])
-                    policy_analysis.regular_statements = policies
                     policy_analysis.defined_aliases = defined_aliases
                     policy_analysis.cross_tenancy_statements = cross_tenancy_data
-                    # Set the data in the domains analysis object
                     policy_analysis.dynamic_groups = dynamic_groups
                     policy_analysis.identity_domains = [
                         Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
@@ -225,13 +249,11 @@ class CacheManager:
                     ]
                     policy_analysis.groups = cache_data.get('groups', {})
                     policy_analysis.users = cache_data.get('users', {})
-
-                    # Set the data as of time
-                    policy_analysis.data_as_of = cache_data.get('data_as_of')
-                    logger.info(f'Loaded combined cache from: {combined_cache_file}')
-                    # Show counts of each loaded element
+                    # Set the data as of time, always a str
+                    policy_analysis.data_as_of = cache_data.get('data_as_of') or ''
+                    logger.info(f'Loaded combined cache (strict mode) from: {combined_cache_file}')
                     logger.info(
-                        f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
+                        f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                         f'{len(cross_tenancy_data)} cross-tenancy policies, '
                         f'{len(policy_analysis.identity_domains)} identity domains, '
                         f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
@@ -260,19 +282,25 @@ class CacheManager:
         """
         try:
             # Grab all of the elements of the cache
-            policies = loaded_json.get('policies', [])
+            # BREAKING: Require both "policies" and "policy_statements" keys
+            if 'policies' not in loaded_json or 'policy_statements' not in loaded_json:
+                logger.error("Loaded cache (from JSON) missing required keys: 'policies' and/or 'policy_statements'.")
+                raise RuntimeError(
+                    'This cache structure is incompatible with the current application version. '
+                    'Please reload OCI data to create a new cache file.'
+                )
+            policy_analysis.policies = loaded_json['policies']
+            policy_analysis.regular_statements = loaded_json['policy_statements']
+
             dynamic_groups = loaded_json.get('dynamic_groups', [])
-            cross_tenancy_data = loaded_json.get('cross_tenancy_policies', [])
+            cross_tenancy_data = loaded_json.get('cross_tenancy_statements', [])
             defined_aliases = loaded_json.get('defined_aliases', [])
 
-            # Set the data in the policy analysis object
             policy_analysis.tenancy_name = loaded_json.get('tenancy_name', '')
             policy_analysis.tenancy_ocid = loaded_json.get('tenancy_ocid', '')
             policy_analysis.compartments = loaded_json.get('compartments', [])
-            policy_analysis.regular_statements = policies
             policy_analysis.defined_aliases = defined_aliases
             policy_analysis.cross_tenancy_statements = cross_tenancy_data
-            # Set the data in the domains analysis object
             policy_analysis.dynamic_groups = dynamic_groups
             policy_analysis.identity_domains = [
                 Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
@@ -280,14 +308,13 @@ class CacheManager:
             ]
             policy_analysis.groups = loaded_json.get('groups', {})
             policy_analysis.users = loaded_json.get('users', {})
-            # Set the data as of time
-            policy_analysis.data_as_of = loaded_json.get('data_as_of')
-            # Show counts of each loaded element
+            # Set the data as of time, always a str
+            policy_analysis.data_as_of = loaded_json.get('data_as_of') or ''
             logger.info(
-                f'Loaded {len(policies)} policies, {len(dynamic_groups)} dynamic groups, '
+                f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
                 f'{len(policy_analysis.identity_domains)} identity domains, '
-                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
+                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache (JSON input).'
             )
             return True
         except json.JSONDecodeError as e:
@@ -398,7 +425,7 @@ class CacheManager:
                     f.write(line)
         return removed_file and updated
 
-    def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:
+    def rename_cache_entry(self, old_named_cache: str, new_named_cache: str) -> bool:  # noqa: C901
         """
         Rename both the cache file and its entry in cache_entries.json.
 
@@ -407,10 +434,34 @@ class CacheManager:
             new_named_cache: The new tenancy_date string of the cache name
 
         Returns:
-            True if both file and entry were renamed, False otherwise
+            True if both file and entry were renamed, False otherwise.
+            Returns False (and does NOT rename) if a cache file or entry already exists with the new name.
         """
         old_file = self.cache_dir / f'combined_cache_{old_named_cache}.json'
         new_file = self.cache_dir / f'combined_cache_{new_named_cache}.json'
+
+        # Defensive: if new_file exists, refuse to rename.
+        if new_file.exists():
+            logger.error(f'Refusing to rename: target exists: {new_file}')
+            return False
+
+        # Defensive: refuse if target new_named_cache already in entries
+        entries_path = self.cache_dir / 'cache_entries.json'
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                entry_lines = f.readlines()
+            for line in entry_lines:
+                try:
+                    cache = json.loads(line)
+                    entry_name = f"{cache['tenancy_name']}_{cache['cache_date']}"
+                    if entry_name == new_named_cache:
+                        logger.error(
+                            f'Refusing to rename: entry already exists in cache_entries.json as {new_named_cache}'
+                        )
+                        return False
+                except Exception:
+                    continue
+
         renamed_file = False
         if old_file.exists():
             try:
@@ -419,8 +470,6 @@ class CacheManager:
                 logger.info(f'Renamed cache file {old_file} -> {new_file}')
             except Exception as e:
                 logger.error(f'Could not rename cache file {old_file}: {e}')
-        # Update cache_entries.json
-        entries_path = self.cache_dir / 'cache_entries.json'
         updated = False
         if entries_path.exists():
             with open(entries_path, encoding='utf-8') as f:

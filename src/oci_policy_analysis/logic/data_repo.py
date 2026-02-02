@@ -210,27 +210,27 @@ class PolicyAnalysisRepository:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
-    def _get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
-        """Recursive function to generate a compartment's path to the root"""
-        hierarchy_ocids = [compartment.id]
-        logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
-        if not compartment.compartment_id:
-            logger.debug(f'Reached root compartment: {compartment.name} (OCID: {compartment.id})')
-            return f'ROOT{comp_string}', hierarchy_ocids  # type: ignore
-        try:
-            parent_response = self.identity_client.get_compartment(compartment_id=compartment.compartment_id)
-            if parent_response.data is None:
-                logger.warning(f'Failed to get parent compartment for {compartment.id}')
-                return comp_string, hierarchy_ocids  # type: ignore
-            parent_path, parent_ocids = self._get_compartment_path(
-                parent_response.data, level + 1, f'/{compartment.name}{comp_string}'
-            )
-            hierarchy_ocids.extend(parent_ocids)
-            logger.debug(f'Compartment {compartment.name} path: {parent_path}, OCIDs: {hierarchy_ocids}')
-            return parent_path, hierarchy_ocids
-        except Exception as e:
-            logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
-            return comp_string, hierarchy_ocids
+    # def _get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
+    #     """Recursive function to generate a compartment's path to the root"""
+    #     hierarchy_ocids = [compartment.id]
+    #     logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
+    #     if not compartment.compartment_id:
+    #         logger.debug(f'Reached root compartment: {compartment.name} (OCID: {compartment.id})')
+    #         return f'ROOT{comp_string}', hierarchy_ocids  # type: ignore
+    #     try:
+    #         parent_response = self.identity_client.get_compartment(compartment_id=compartment.compartment_id)
+    #         if parent_response.data is None:
+    #             logger.warning(f'Failed to get parent compartment for {compartment.id}')
+    #             return comp_string, hierarchy_ocids  # type: ignore
+    #         parent_path, parent_ocids = self._get_compartment_path(
+    #             parent_response.data, level + 1, f'/{compartment.name}{comp_string}'
+    #         )
+    #         hierarchy_ocids.extend(parent_ocids)
+    #         logger.debug(f'Compartment {compartment.name} path: {parent_path}, OCIDs: {hierarchy_ocids}')
+    #         return parent_path, hierarchy_ocids
+    #     except Exception as e:
+    #         logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
+    #         return comp_string, hierarchy_ocids
 
     def check_statement_location_validity(self, st):
         """
@@ -280,7 +280,7 @@ class PolicyAnalysisRepository:
                 k: statement[k]
                 for k in [
                     'policy_name',
-                    'policy_description',
+                    # 'policy_description',
                     'policy_ocid',
                     'compartment_ocid',
                     'compartment_path',
@@ -324,7 +324,7 @@ class PolicyAnalysisRepository:
                 k: statement[k]
                 for k in [
                     'policy_name',
-                    'policy_description',
+                    # 'policy_description',
                     'policy_ocid',
                     'compartment_ocid',
                     'compartment_path',
@@ -367,7 +367,7 @@ class PolicyAnalysisRepository:
                 k: statement[k]
                 for k in [
                     'policy_name',
-                    'policy_description',
+                    # 'policy_description',
                     'policy_ocid',
                     'compartment_ocid',
                     'compartment_path',
@@ -458,7 +458,7 @@ class PolicyAnalysisRepository:
                 k: statement[k]
                 for k in [
                     'policy_name',
-                    'policy_description',
+                    # 'policy_description',
                     'policy_ocid',
                     'compartment_ocid',
                     'compartment_path',
@@ -555,7 +555,7 @@ class PolicyAnalysisRepository:
                         'name': comp.name if comp.id != self.tenancy_ocid else 'ROOT',
                         'parent_id': comp.compartment_id,
                         'hierarchy_path': None,
-                        'hierarchy_ocids': None,
+                        'description': comp.description if hasattr(comp, 'description') else None,
                     }
                 )
             logger.info('Building compartment hierarchy paths and lookup tables...')
@@ -606,7 +606,7 @@ class PolicyAnalysisRepository:
                                 base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                                     policy_name=policy_response.data.name,
                                     policy_ocid=policy_response.data.id,
-                                    policy_description=policy_response.data.description or '',
+                                    # policy_description=policy_response.data.description or '',
                                     compartment_ocid=policy_response.data.compartment_id,
                                     compartment_path=hierarchy_path,
                                     statement_text=statement,
@@ -657,11 +657,14 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load policies and compartments: {e}')
             return False
 
-    def load_complete_identity_domains(self) -> bool:  # noqa: C901
+    def load_complete_identity_domains(self, load_all_users: bool = True) -> bool:  # noqa: C901
         """Loads everything into the cetntral JSON
 
         Identity Domains are loaded via the Identity Client.
         For each Identity Domain, load the Dynamic Groups, Groups, and Users
+
+        Args:
+            load_all_users (bool): If False, skip loading users. Default is True (backwards compatible).
 
         Returns:
             A boolean indicating success of the data load.  False indicates there was some failure in loading data,
@@ -705,13 +708,20 @@ class PolicyAnalysisRepository:
                     self.domain_clients[domain.id] = domain_client
 
                     # Load Dynamic Groups
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['all'])
+                    # Now we need to get each one and cause additional calls
+                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['never'])
+                    # dg_response = domain_client.list_dynamic_resource_groups(attributes='matching_rule')
                     if dg_response and dg_response.data:
                         logger.debug(
                             f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
                         )
-                        for dg in dg_response.data.resources:
-                            logger.debug(f'DG: {dg.display_name}')
+                        for _dg in dg_response.data.resources:
+                            # Do a full on get to get all attributes
+                            full_dg = domain_client.get_dynamic_resource_group(
+                                dynamic_resource_group_id=_dg.id, attribute_sets=['all']
+                            ).data
+                            dg = full_dg
+                            logger.debug(f'DG: {dg.display_name} Matching Rule: {dg.matching_rule}')
                             # Append the Dynamic Group dict to the list
                             self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
                     else:
@@ -751,62 +761,65 @@ class PolicyAnalysisRepository:
                         start_index += limit
                     logger.debug(f'All Groups: {self.groups}')
 
-                    # Load Users
-                    start_index = 1
-                    while True:
-                        user_response = domain_client.list_users(
-                            start_index=start_index,
-                            count=limit,
-                            sort_by='displayName',
-                            sort_order='ASCENDING',
-                            attribute_sets=['never'],
-                        )
-                        if user_response.data is None or not user_response.data.resources:
-                            break
-                        for u in user_response.data.resources:
-                            logger.debug(f'User: {u}')
-
-                            user_attributes = domain_client.get_user(user_id=u.id, attribute_sets=['all']).data
-                            # Print this for now
-                            logger.debug(f'***User Attributes: {user_attributes}')
-                            groups_list = []
-                            # If there are groups, loop them
-                            if user_attributes.groups:
-                                logger.debug(f'User {u.display_name} Groups: {user_attributes.groups}')
-                                for gg in user_attributes.groups:
-                                    groups_list.append(gg.ocid)
-                            else:
-                                logger.debug(f'No groups for user {u.display_name}')
-                            # Default the email to None
-                            email = 'None'
-                            if hasattr(user_attributes, 'emails') and user_attributes.emails:
-                                for em in user_attributes.emails:
-                                    if em.primary:
-                                        email = em.value
-                                        break
-                            else:
-                                logger.debug(f'No emails for user {u.display_name}')
-                            # Set the user into the bigger picture JSON
-                            self.users.append(
-                                User(
-                                    domain_name=domain.display_name,
-                                    user_name=u.user_name,
-                                    user_ocid=u.ocid,
-                                    display_name=u.display_name,
-                                    email=email,
-                                    user_id=u.id,
-                                    groups=groups_list,
-                                )
+                    # --- LOAD USERS if enabled ---
+                    if load_all_users:
+                        start_index = 1
+                        while True:
+                            user_response = domain_client.list_users(
+                                start_index=start_index,
+                                count=limit,
+                                sort_by='displayName',
+                                sort_order='ASCENDING',
+                                attribute_sets=['never'],
                             )
+                            if user_response.data is None or not user_response.data.resources:
+                                break
+                            for u in user_response.data.resources:
+                                logger.debug(f'User: {u}')
 
-                        # Loop Logic
-                        if (
-                            len(user_response.data.resources) < limit
-                            or start_index + limit > user_response.data.total_results
-                        ):
-                            break
-                        start_index += limit
-                    logger.debug(f'All Users: {self.users}')
+                                user_attributes = domain_client.get_user(user_id=u.id, attribute_sets=['all']).data
+                                # Print this for now
+                                logger.debug(f'***User Attributes: {user_attributes}')
+                                groups_list = []
+                                # If there are groups, loop them
+                                if user_attributes.groups:
+                                    logger.debug(f'User {u.display_name} Groups: {user_attributes.groups}')
+                                    for gg in user_attributes.groups:
+                                        groups_list.append(gg.ocid)
+                                else:
+                                    logger.debug(f'No groups for user {u.display_name}')
+                                # Default the email to None
+                                email = 'None'
+                                if hasattr(user_attributes, 'emails') and user_attributes.emails:
+                                    for em in user_attributes.emails:
+                                        if em.primary:
+                                            email = em.value
+                                            break
+                                else:
+                                    logger.debug(f'No emails for user {u.display_name}')
+                                # Set the user into the bigger picture JSON
+                                self.users.append(
+                                    User(
+                                        domain_name=domain.display_name,
+                                        user_name=u.user_name,
+                                        user_ocid=u.ocid,
+                                        display_name=u.display_name,
+                                        email=email,
+                                        user_id=u.id,
+                                        groups=groups_list,
+                                    )
+                                )
+
+                            # Loop Logic
+                            if (
+                                len(user_response.data.resources) < limit
+                                or start_index + limit > user_response.data.total_results
+                            ):
+                                break
+                            start_index += limit
+                        logger.debug(f'All Users: {self.users}')
+                    else:
+                        self.users = []
 
                     self.data_as_of = str(datetime.now(UTC))
 
@@ -1419,7 +1432,7 @@ class PolicyAnalysisRepository:
                 cache_data = json.load(filehandle)
             cached_policies = cache_data.get('policies', [])
             self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
-            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_policies', [])
+            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_statements', [])
             logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
             logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
 
@@ -1573,7 +1586,7 @@ class PolicyAnalysisRepository:
         logger.debug(f'Compartment {comp_string} full path: {full_path}')
         return full_path
 
-    def load_from_compliance_output_dir(self, dir_path: str) -> bool:  # noqa: C901
+    def load_from_compliance_output_dir(self, dir_path: str, load_all_users: bool = True) -> bool:  # noqa: C901
         """
         Load all compartments, domains, groups, users, dynamic groups, and policies from compliance tool output files.
 
@@ -1581,11 +1594,8 @@ class PolicyAnalysisRepository:
         This function is for offline/compliance output analysis: no attempt to initialize any OCI client.
 
         Args:
-            dir_path (str): Path to a directory containing the expected compliance output files:
-                - raw_data_all_resources.json
-                - raw_data_identity_groups_and_membership.csv
-                - raw_data_identity_compartments.csv
-                - raw_data_identity_policies.csv
+            dir_path (str): Path to a directory containing the expected compliance output files.
+            load_all_users (bool): If False, skip loading users. Default is True.
 
         Returns:
             bool: True if all files parsed and data loaded successfully, False otherwise.
@@ -1594,21 +1604,7 @@ class PolicyAnalysisRepository:
         logger.info(f'Loading compliance data from output dir: {dir_path}')
         # We need to only use the CSV files and stop using the JSON file altogether
         try:
-            # # Step 0: Load all resources JSON
-            # all_resources_file = os.path.join(dir_path, 'raw_data_all_resources.json')
-            # with open(all_resources_file, encoding='utf-8') as f:
-            #     all_resources_data = json.load(f)
-
-            # # Get the first region found in the data
-            # if not all_resources_data or len(all_resources_data.keys()) == 0:
-            #     logger.error('No regions found in all resources data')
-            #     return False
-            # first_region = list(all_resources_data.keys())[0]
-            # logger.info(f'First region found in all resources data: {first_region}')
-
             # Step 1: Set the tenancy OCID and Name from the data
-            # To get this properly, we need to open the raw_data_identity_compartments.csv and look for the row with id that starts with ocid1.tenancy.
-            # That ID and name are the tenancy values
             with open(os.path.join(dir_path, 'raw_data_identity_compartments.csv'), encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
@@ -1622,20 +1618,16 @@ class PolicyAnalysisRepository:
                 return False
 
             # --- Step 2: Load Dynamic Groups ---
-            # For some reason the matching rules are not in the JSON output, so grab from the CSV instead
-            # Open the dynamic groups CSV to build a mapping of OCID to matching rule
             dgs_file = os.path.join(dir_path, 'raw_data_identity_dynamic_groups.csv')
             with open(dgs_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # idcs_created_by is a json itself within CSV
                     created_by = row.get('idcs_created_by', '{}')
                     try:
                         created_by_json = json.loads(created_by)
                         created_by_ocid = created_by_json.get('odid', 'n/a')
                     except json.JSONDecodeError:
                         created_by_ocid = 'n/a'
-                    # To get domain name, we need to map from domain_ocid
                     domain_ocid = row.get('domain_ocid', '')
                     domain_name = self._get_domain_name_from_ocid(domain_ocid)
                     dg: DynamicGroup = {
@@ -1655,90 +1647,77 @@ class PolicyAnalysisRepository:
 
             # --- Step 3: Load Groups ---
             groups_file = os.path.join(dir_path, 'raw_data_identity_groups_and_membership.csv')
-            # This file has the groups with membership info, so the group row is duplicated for each member
-            # We only want to load unique groups, so we will use a set to track seen groups
-            # We also should track membership here, and then add it to the users later
-            # Track this by user OCID to list of group OCIDs that user is a member of
             user_membership: dict[str, list[str]] = {}
-            # Also, the users file has no domain, but we can create it from the group, which must be in a domain
             user_domains: dict[str, str] = {}
             seen_groups = set()
             with open(groups_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # For some reason, the domain name is locked inside a field called "domain_deeplink" - looks like this:
-                    # =HYPERLINK("https://cloud.oracle.com/identity/domains/ocid1.domain.oc1..aaaaaaaaypnehepjxcfqbu72dcprlxlbkxj24zpakezfiuvd623jbxq4gmyq","Default")
-                    # We need to parse the last field from the deeplink URL which is the domain name
                     group: Group = {
                         'domain_name': row.get('domain_deeplink', '').split('","')[-1].rstrip('")')
                         if 'domain_deeplink' in row
                         else 'Default',
-                        # 'domain_name': row.get('domain_name', 'N/A'),
                         'group_name': row.get('name') or '',
                         'group_ocid': row.get('id') or '',
                         'description': row.get('description') or '',
                         'group_id': row.get('id') or '',
                     }
                     logger.debug(f'Processing group: {group}')
-                    # Add the user membership in this group to user_membership
                     member_user_ocid = row.get('user_id', '')
                     if member_user_ocid and member_user_ocid != '':
                         if member_user_ocid not in user_membership:
                             user_membership[member_user_ocid] = []
                         user_membership[member_user_ocid].append(row.get('id'))
                     group_key = (group['domain_name'], group['group_name'])
-                    # Add the domain for the user
                     if member_user_ocid and member_user_ocid != '':
                         user_domains[member_user_ocid] = group['domain_name']
-                    # If group has been seen, skip
                     if group_key in seen_groups:
                         continue
-                    # If it hasn't been seen yet, add it
                     seen_groups.add(group_key)
                     self.groups.append(group)
             logger.debug(f'Loaded {len(self.groups)} groups')
 
-            # --- Step 4: Load Users ---
-            users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
-            with open(users_file, encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for user_item in reader:
-                    # Pretty print raw user item
-                    logger.debug(f'Processing user item: {user_item}')
-                    # Add the groups from the user_membership mapping
-                    # If needed, use the row 21 mapping
-                    user: User = {
-                        'domain_name': user_item.get('domain_deeplink', '').split('","')[-1].rstrip('")')
-                        if 'domain_deeplink' in user_item
-                        else 'Default',
-                        # 'domain_name': user_item.get('domain_name', 'N/A'),
-                        'user_name': user_item.get('name') or '',  # No way to get username or email
-                        'user_ocid': user_item.get('id') or '',
-                        'display_name': user_item.get('name') or '',
-                        'email': user_item.get('email') or '',
-                        'user_id': user_item.get('external_identifier') or '',
-                        'groups': [],
-                    }
-                    group_names_str = user_item.get('groups', '') or ''
-                    group_names = eval(group_names_str) if group_names_str else []
-                    # Build this for now
-                    group_ocids = []
-                    for group_name in group_names:
-                        group_obj = next(
-                            (
-                                g
-                                for g in self.groups
-                                if g.get('group_name') == group_name and g.get('domain_name') == user.get('domain_name')
-                            ),
-                            None,
-                        )
-                        if group_obj:
-                            group_ocids.append(group_obj.get('group_ocid', ''))
-                    user['groups'] = group_ocids
+            # --- Step 4: Load Users, unless disabled ---
+            self.users = []
+            if load_all_users:
+                users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
+                with open(users_file, encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for user_item in reader:
+                        logger.debug(f'Processing user item: {user_item}')
+                        user: User = {
+                            'domain_name': user_item.get('domain_deeplink', '').split('","')[-1].rstrip('")')
+                            if 'domain_deeplink' in user_item
+                            else 'Default',
+                            'user_name': user_item.get('name') or '',  # No way to get username or email
+                            'user_ocid': user_item.get('id') or '',
+                            'display_name': user_item.get('name') or '',
+                            'email': user_item.get('email') or '',
+                            'user_id': user_item.get('external_identifier') or '',
+                            'groups': [],
+                        }
+                        group_names_str = user_item.get('groups', '') or ''
+                        group_names = eval(group_names_str) if group_names_str else []
+                        group_ocids = []
+                        for group_name in group_names:
+                            group_obj = next(
+                                (
+                                    g
+                                    for g in self.groups
+                                    if g.get('group_name') == group_name
+                                    and g.get('domain_name') == user.get('domain_name')
+                                ),
+                                None,
+                            )
+                            if group_obj:
+                                group_ocids.append(group_obj.get('group_ocid', ''))
+                        user['groups'] = group_ocids
 
-                    logger.info(f'Loaded user: {user}')
-                    self.users.append(user)
-            logger.info(f'Loaded {len(self.users)} users')
+                        logger.info(f'Loaded user: {user}')
+                        self.users.append(user)
+                logger.info(f'Loaded {len(self.users)} users')
+            else:
+                logger.info('Skipping load of users due to load_all_users=False')
 
             # # In order to populate group membership for users, we need get group data from raw_data_identity_users.csv
             # # It will be in column row[22] when loading using csv.reader
@@ -1864,7 +1843,7 @@ class PolicyAnalysisRepository:
                         base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                             policy_name=policy_name,
                             policy_ocid=policy_ocid,
-                            policy_description=policy_item.get('description') or '',
+                            # policy_description=policy_item.get('description') or '',
                             compartment_ocid=comp_id,
                             compartment_path=comp_path,
                             statement_text=stripped_statement,

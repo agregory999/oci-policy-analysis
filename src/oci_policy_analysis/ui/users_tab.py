@@ -20,6 +20,7 @@ from oci_policy_analysis.common.helpers import for_display_group, for_display_po
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Global logger for this module
@@ -84,16 +85,20 @@ POLICY_COLUMN_WIDTHS = {
 }
 
 
-class UsersTab(ttk.Frame):
+class UsersTab(BaseUITab):
     """
     Users Tab for OCI Policy Analysis UI.
     Allows selection of Groups or Users, and displays associated policy statements.
     Supports filtering and detailed policy statement views.
-
     """
 
     def __init__(self, parent, app):  # noqa: C901
-        super().__init__(parent)
+        default_help_text = (
+            'Select users and groups to view their effective policy statements. '
+            'Use filters to narrow the results below. '
+            'Mouse over each section for tips.'
+        )
+        super().__init__(parent, default_help_text=default_help_text)
 
         # Reference to main app and data repository
         self.app = app
@@ -110,19 +115,6 @@ class UsersTab(ttk.Frame):
         self.selected_groups_table = None
         self.user_label_count = None
 
-        # --- Page Help setup (adapted from policies_tab.py) ---
-        self.page_help_text = (
-            'Select users and groups to view their effective policy statements. '
-            'Use filters to narrow the results below. '
-            'Mouse over each section for tips.'
-        )
-        self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
-        self.page_help_label = tk.Label(self.page_help_frame, anchor='w', justify='left', wraplength=900)
-        self.page_help_label.pack(fill='x', padx=14, pady=5)
-        self._apply_page_help_style()
-        self.update_page_help_visibility()
-        self.set_page_help_text(self.page_help_text)
-
         self.grid_rowconfigure(0, weight=2)
         self.grid_rowconfigure(1, weight=7)
         # self.grid_rowconfigure(2, weight=1)
@@ -138,6 +130,10 @@ class UsersTab(ttk.Frame):
         # --- SECTION 1: User/Group Selection ---
         self.lf_user_selection = ttk.LabelFrame(self, text='User/Group Selection')
         self.lf_user_selection.pack(fill='x', padx=12, pady=(8, 0))
+        # Internal state: are users loaded?
+        self.users_available = lambda: len(self.policy_compartment_analysis.users) > 0
+        # for UI toggling message when users are disabled
+        self.disabled_users_label = None
 
         def _show_user_selection_help(_event=None):
             self.set_page_help_text(
@@ -145,13 +141,15 @@ class UsersTab(ttk.Frame):
             )
 
         def _restore_user_selection_help(_event=None):
-            self.set_page_help_text(self.page_help_text)
+            self.set_page_help_text(self.default_help_text)
 
         self.lf_user_selection.bind('<Enter>', _show_user_selection_help)
         self.lf_user_selection.bind('<Leave>', _restore_user_selection_help)
 
         # Retain old frm_user_top as the organizer within the label frame
         self._build_ui_user_group_selection(self.lf_user_selection)
+
+    # All context help methods now inherited from BaseUITab.
 
     def _build_ui_user_group_selection(self, parent):  # noqa: C901
         frm_user_top = ttk.Frame(parent)
@@ -173,11 +171,12 @@ class UsersTab(ttk.Frame):
             row=0, column=0, columnspan=2, padx=5, pady=2, sticky='w'
         )
         # Dropdown: GROUPS/USERS
+        # Patch: Only offer USERS if users are present, else just GROUPS
         self.groups_users_dropdown = ttk.OptionMenu(
             frm_user_selection,
             self.groups_option_var,
             self.groups_option_var.get(),
-            *['GROUPS', 'USERS'],
+            *(['GROUPS', 'USERS'] if self.users_available() else ['GROUPS']),
             command=lambda *_: self.update_user_analysis_output(),
         )
         self.groups_users_dropdown.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
@@ -187,6 +186,15 @@ class UsersTab(ttk.Frame):
         entry_search = ttk.Entry(frm_user_selection, textvariable=self.user_group_search, width=35)
         entry_search.grid(row=1, column=1, columnspan=2, padx=5, pady=2, sticky='ew')
         self.user_group_search.trace_add('write', lambda *_: self.update_user_analysis_output())
+
+        # Disabled label for USERS mode disabled (add but keep hidden)
+        self.disabled_users_label = ttk.Label(
+            frm_user_selection,
+            text='Loading of individual users is disabled.\nEnable "Load All Users" in Settings to use this feature.',
+            foreground='red',
+            wraplength=380,
+            justify='left',
+        )
 
         # Search instructions
         ttk.Label(
@@ -267,7 +275,7 @@ class UsersTab(ttk.Frame):
             )
 
         def _restore_statement_filters_help(_event=None):
-            self.set_page_help_text(self.page_help_text)
+            self.set_page_help_text(self.default_help_text)
 
         self.lf_statement_filters.bind('<Enter>', _show_statement_filters_help)
         self.lf_statement_filters.bind('<Leave>', _restore_statement_filters_help)
@@ -285,7 +293,7 @@ class UsersTab(ttk.Frame):
             )
 
         def _restore_filtered_statements_help(_event=None):
-            self.set_page_help_text(self.page_help_text)
+            self.set_page_help_text(self.default_help_text)
 
         self.lf_filtered_statements.bind('<Enter>', _show_filtered_statements_help)
         self.lf_filtered_statements.bind('<Leave>', _restore_filtered_statements_help)
@@ -335,29 +343,33 @@ class UsersTab(ttk.Frame):
             return
 
         # Grid the correct table
+        # Patch: Hide USERS mode if unavailable, and display red warning instead
         if self.groups_option_var.get() == 'GROUPS':
-            # Load the groups into grid and search
+            if self.disabled_users_label.winfo_manager():
+                self.disabled_users_label.grid_remove()
             self.users_users_table.grid_forget()
             self.users_groups_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
-            # Only filter on name for now
             group_filter: GroupSearch = GroupSearch(
                 group_name=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
-            # Filter and display
             filtered_groups: list[Group] = self.policy_compartment_analysis.filter_groups(group_filter=group_filter)
             display_groups = [for_display_group(g) for g in filtered_groups]
             self.users_groups_table.update_data(display_groups)
             logger.info(f'Loaded {len(filtered_groups)} groups into table')
         elif self.groups_option_var.get() == 'USERS':
+            if not self.users_available():
+                self.users_users_table.grid_forget()
+                self.disabled_users_label.grid(row=3, column=0, columnspan=3, sticky='w', padx=5, pady=(8, 2))
+                logger.info('User view disabled due to no users loaded')
+                return
+            self.disabled_users_label.grid_remove()
             self.users_groups_table.grid_forget()
             self.users_users_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
-            # Only filter on username for now
             user_filter: UserSearch = UserSearch(
                 search=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
-            # Filter and display
             filtered_users: list[User] = self.policy_compartment_analysis.filter_users(user_filter=user_filter)
             display_users = [for_display_user(u) for u in filtered_users]
             self.users_users_table.update_data(display_users)
@@ -447,81 +459,14 @@ class UsersTab(ttk.Frame):
 
     # ----------- Page Help Methods (adapted from policies_tab.py) ----------------
 
-    def set_page_help_text(self, text, temporary=False):
-        """
-        Updates the content of the page help label if visible.
-        """
-        # If context help setting is available in app.settings; otherwise always show it
-        settings = getattr(self.app, 'settings', None)
-        show_help = True if not settings else settings.get('context_help', True)
-        if show_help:
-            self.page_help_label.configure(text=text)
-            self._apply_page_help_style()
-
-    def update_page_help_visibility(self):
-        """
-        Show or hide Page Help frame based on context_help setting, always pinned at the top.
-        Should be called after settings['context_help'] changes.
-        """
-        # Hide first, then decide whether/how to show
-        self.page_help_frame.pack_forget()
-        settings = getattr(self.app, 'settings', None)
-        show_help = True if not settings else settings.get('context_help', True)
-        if show_help:
-            children = self.winfo_children()
-            packed_target = None
-            for child in children:
-                try:
-                    if getattr(child, 'winfo_manager', lambda: None)() == 'pack':
-                        packed_target = child
-                        break
-                except Exception:
-                    continue
-            if packed_target:
-                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0), before=packed_target)
-            else:
-                self.page_help_frame.pack(fill='x', padx=10, pady=(10, 0))
-
-    def _apply_page_help_style(self):
-        """
-        Enforce consistent look for Page Help according to theme/font.
-        """
-        bg = self._get_style_background()
-        self.page_help_frame.configure(style='Custom.TLabelframe')
-        self.page_help_label.configure(bg=bg, font=self._get_help_font())
-
-    def _get_help_font(self):
-        """
-        Retrieve font tuple for help label from settings.
-        """
-        settings = getattr(self.app, 'settings', None)
-        font_size_map = {
-            'Small': 9,
-            'Medium': 11,
-            'Large': 13,
-            'Extra Large': 16,
-        }
-        size = 11  # default
-        if settings:
-            size = font_size_map.get(settings.get('font_size', 'Medium'), 11)
-        return ('TkDefaultFont', size)
-
-    def _get_style_background(self):
-        """
-        Try to get a background color consistent with ttk theme.
-        """
-        s = ttk.Style()
-        try:
-            bg = s.lookup('TFrame', 'background')
-            if not bg:
-                raise ValueError
-            return bg
-        except Exception:
-            return self.winfo_toplevel().cget('bg') if hasattr(self, 'winfo_toplevel') else '#f0f0f0'
-
-    def refresh_context_help(self):
-        """
-        Public API: Call from settings tab or theme handler when help/frame status should update.
-        """
-        self._apply_page_help_style()
-        self.update_page_help_visibility()
+    def on_load_all_users_setting_changed(self, enabled: bool):
+        """Called if settings change for Load All Users to refresh user/group options and UI."""
+        # If users are now NOT loaded, switch view to GROUPS forcibly and refresh dropdown/menu
+        if not enabled:
+            self.groups_option_var.set('GROUPS')
+        menu = self.groups_users_dropdown['menu']
+        menu.delete(0, 'end')
+        menu.add_command(label='GROUPS', command=lambda: self.groups_option_var.set('GROUPS'))
+        if enabled:
+            menu.add_command(label='USERS', command=lambda: self.groups_option_var.set('USERS'))
+        self.update_user_analysis_output()

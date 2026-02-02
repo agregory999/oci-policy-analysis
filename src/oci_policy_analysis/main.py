@@ -55,6 +55,7 @@ from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
 from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
 from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
+from oci_policy_analysis.ui.policy_browser_tab import PolicyBrowserTab
 from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendationsTab
 from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
@@ -158,6 +159,7 @@ class App(tk.Tk):
 
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
+        self.policy_browser_tab = PolicyBrowserTab(self.notebook, self, self.settings)
         self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
         self.permissions_report_tab = PermissionsReportTab(self.notebook, self)
         self.users_tab = UsersTab(self.notebook, self)
@@ -176,6 +178,7 @@ class App(tk.Tk):
 
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
+        self.notebook.add(self.policy_browser_tab, text='Compartment/Policy\nBrowser')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
@@ -185,11 +188,14 @@ class App(tk.Tk):
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
-        self.notebook.add(self.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
+        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
-        self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Admin)')
-        self.notebook.add(self.console_tab, text='Console Logging\n(Admin)')
-        self.notebook.add(self.maintenance_tab, text='Maintenance\n(Admin)')
+        self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
+        self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
+        self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
+
+        # Propagate context help and font size settings to all tabs at startup
+        self.refresh_all_tabs_settings()
 
         # Bottom frame (Entry + output text area)
         self.bottom_frame = ttk.Frame(self.pw, height=200)
@@ -254,6 +260,37 @@ class App(tk.Tk):
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
 
+    def refresh_all_tabs_settings(self):
+        """
+        Call apply_settings (context help and font) for all tabs that support it.
+        """
+        tabs = [
+            self.settings_tab,
+            self.policy_browser_tab,
+            self.policies_tab,
+            self.users_tab,
+            self.dynamic_groups_tab,
+            self.resource_principals_tab,
+            self.cross_tenancy_tab,
+            self.historical_tab,
+            self.mcp_tab,
+            self.permissions_report_tab,
+            self.condition_tester_tab,
+            self.policy_recommendations_tab,
+            self.simulation_tab,
+            self.debugger_tab,
+            self.console_tab,
+            self.maintenance_tab,
+        ]
+        context_help = self.settings.get('context_help', True)
+        font_size = self.settings.get('font_size', 'Medium')
+        for tab in tabs:
+            if hasattr(tab, 'apply_settings'):
+                try:
+                    tab.apply_settings(context_help=context_help, font_size=font_size)
+                except Exception:
+                    pass
+
     # Theme switching via settings/config/combobox is removed; theme is fixed to 'clam'.
     # The following remains solely for font size setting.
     def apply_theme(self, *args):
@@ -283,13 +320,8 @@ class App(tk.Tk):
         config.save_settings(self.settings)
         logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
-        # Ensure Page Help and other special widgets refresh font when theme is applied
-        if hasattr(self.policies_tab, 'refresh_context_help'):
-            self.policies_tab.refresh_context_help()
-        if hasattr(self.users_tab, 'refresh_context_help'):
-            self.users_tab.refresh_context_help()
-        if hasattr(self.settings_tab, 'refresh_context_help'):
-            self.settings_tab.refresh_context_help()
+        # Refresh all tab settings (context help & font) after applying font size
+        self.refresh_all_tabs_settings()
 
     # All output is now plain text only.
 
@@ -372,6 +404,7 @@ class App(tk.Tk):
         self.users_tab.update_user_analysis_output()
         self.policies_tab.update_policy_output()
         self.policies_tab.enable_widgets_after_load()
+        self.policy_browser_tab.refresh_tree()
         self.dynamic_groups_tab.enable_controls()
         self.cross_tenancy_tab.update_cross_tenancy_output()
         # self.report_tab.update_report_output()
@@ -386,13 +419,14 @@ class App(tk.Tk):
 
     def load_tenancy_async(  # noqa: C901
         self,
-        tenancy_id: str,
-        recursive: bool,
-        instance_principal: bool,
-        named_profile: str,
-        named_session: str,
-        named_cache: str,
-        callback: dict | None = None,
+        tenancy_id,
+        recursive,
+        instance_principal,
+        named_profile=None,
+        named_session=None,
+        named_cache=None,
+        load_all_users=True,
+        callback=None,
     ):
         """
         Asynchronously loads tenancy data, policies, and compartments.  Requires parameters for authentication method, whether to load compartments recursively, and optional named profile/session/cache.
@@ -461,7 +495,9 @@ class App(tk.Tk):
                         if cb is not None and callable(cb):
                             self.after(0, lambda: cb('Loading Identity Domains'))
 
-                    success = self.policy_compartment_analysis.load_complete_identity_domains()
+                    success = self.policy_compartment_analysis.load_complete_identity_domains(
+                        load_all_users=load_all_users
+                    )
                     if not success:
                         raise RuntimeError('Failed to load identity domains')
                     if callback:
@@ -524,21 +560,26 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def load_compliance_output_async(self, dir_path: str, callback: dict | None = None):
+    def load_compliance_output_async(self, dir_path: str, callback: dict | None = None, load_all_users: bool = True):
         """
         Asynchronously loads policy, compartment, group, user, dynamic group, and domain data from compliance output .csv files.
         Args:
             dir_path (str): The directory containing compliance output files as per spec.
             callback (dict, optional): Callbacks for progress, error, and complete.
+            load_all_users (bool, optional): If False, skip loading users. Defaults to True.
         """
-        logger.info(f'[ASYNC] Loading compliance analysis data from directory: {dir_path}')
+        logger.info(
+            f'[ASYNC] Loading compliance analysis data from directory: {dir_path} (load_all_users={load_all_users})'
+        )
 
         def worker():
             try:
                 progress_cb = callback.get('progress') if callback else None
                 if progress_cb is not None and callable(progress_cb):
                     self.after(0, lambda m='Loading compliance output data': progress_cb(m))
-                success = self.policy_compartment_analysis.load_from_compliance_output_dir(dir_path)
+                success = self.policy_compartment_analysis.load_from_compliance_output_dir(
+                    dir_path, load_all_users=load_all_users
+                )
                 msg = f'Loaded compliance data from {dir_path}'
                 logger.info(msg)
                 # Post-processing after load

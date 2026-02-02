@@ -366,7 +366,7 @@ class BasePolicyStatement(TypedDict):
     """
 
     policy_name: Annotated[str, 'Display name of the policy containing this statement.']
-    policy_description: Annotated[str, 'Description of the policy containing this statement.']
+    # policy_description: Annotated[str, 'Description of the policy containing this statement.']
     policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
     compartment_ocid: Annotated[str, 'OCID of the compartment where this policy is defined.']
     compartment_path: Annotated[str, 'Path of the compartment that owns this policy.']
