@@ -22,5 +22,5 @@ For the executables, disable the OS Security for the application so it can run.
 - MAC: Settings -> Privacy & Security - Open Anyway
 - Windows: Double-click EXE -> More Info - Run Anyway
 
-![Mac|50%](images/mac_security_bypass.png)
-![Windows|50%](images/windows_security_bypass.png)
+![Mac](/images/mac_security_bypass.png)
+![Windows](/images/windows_security_bypass.png)
