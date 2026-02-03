@@ -17,7 +17,7 @@ fi
 source .venv/bin/activate
 
 echo "🔄 Ensuring pip + tools are installed..."
-python -m pip install --upgrade pip
+python -m pip install "pip==25.3"
 python -m pip install setuptools wheel build pip-tools pyinstaller ruff
 
 echo "🔒 Locking dependencies with pip-compile..."

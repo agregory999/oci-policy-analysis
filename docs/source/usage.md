@@ -74,6 +74,11 @@ The only options here are a host and port.  If the MCP embedded server is starte
 **See also**:
 - [Overview](overview.md) for a feature/architecture summary.
 
+
+## Policy Browser Tab
+
+This tab simply shows all compartments and policies in a hierarchy, with the ability to search for anything that appears in names, descriptions, or statements.  From there, it is possible to right-click and focus in on a specific policy, statement, or compartment.
+
 ## Policy Tab
 
 Searching, sorting and filtering of all policy statements in a tenancy is available on this page.  When the policies are parsed into parts, each field is available in this tab.  Filters can be chained by simply by setting multiple fields and looking at the results.
@@ -164,21 +169,13 @@ By selecting a define statement, the related cross-tenancy statements are shown.
 
 **NOTE:** No parsing is being done at this time - it is a TODO.
 
-## Policy Overlap Tab
-
-Allows for inspection of overlapping policies for each policy statement.  Each policy statement references a given list of subjects, applies to a specific effective path, and covers a verb/resource or set of individual permissions.  If any other policy has an overlap, this can be detected.  
-
-Resources in OCI are comprised of underlying permissions, so it is possible to conflict where a resource from one policy statement and a permission from another conflict.
-
-When there are conflicts, it is not necessarily a problem.  However, if a statement is removed, the permission may still be covered by another statement.  Seeing this information can help detect what will happen if changes are made.
-
 ## Permissions Report Tab
 
 Allows for a report of permissions granted by compartment and principal (group, service, dynamic group).  This information is generated using the policy data, the IAM data, and a set of reference data containing resource to permission mappings.  These mappings form the basis of actually is checked at runtime.  
 
 ## Historical Comparison Tab
 
-Allows a comparison of policy data over time.
+Allows a comparison of policy data over time.  For example, if the tenancy IAM and policy set was loaded on some interval (ex: every 2 weeks), this tab allows a full comparison of policy and IAM data between now and then.  If anything changed, it will be highlighted.
 
 ## Embedded MCP Tab
 
@@ -188,19 +185,42 @@ The Debug option allows for the logs to display more information as each call is
 
 ## Condition Tester Tab
 
-Allows a test of a specific where clause with parsing and analysis
-
-### Log Override
-
-By component, you can select a higher or lower log level for all components.  Overriding with DEBUG allows you to see the detailed debug only in the shell, not the console tab.
+Allows a test of a specific where clause with parsing and analysis.  The potential values from the where clause are loaded and can be tested with values to see if the where clause passes.  
 
 ## API Simulation
 
 Creates and runs a scenario where a test of an OCI API is available.  See [Simulation](./simulation.md) for more details.
 
+## Recommendations Tab
+
+**NOTE:** Work in Progress
+
+This tab and sub-tabs are where the intelligence that is gathered is displayed.  It shows the general recommendations, derived as counts of specific items identified as potential issues or risks.
+
+### Risk Details
+
+Scores each policy statement with a risk number, normalized against all statements in tenancy.  Based on the overall number of permissions granted, and the compartment exposures.  For example, `manage` verbs against a family resource will score higher, and if exposed to a large compartment hierarchy, the overall score will be higher.
+
+Where clauses can limit exposure, so there is control over estimating the reduction of exposure against unlimited (no where clause) statements.
+
+### Overlap Details
+Allows for inspection of overlapping policies for each policy statement.  Each policy statement references a given list of subjects, applies to a specific effective path, and covers a verb/resource or set of individual permissions.  If any other policy has an overlap, this can be detected.  
+
+Resources in OCI are comprised of underlying permissions, so it is possible to conflict where a resource from one policy statement and a permission from another conflict.
+
+When there are conflicts, it is not necessarily a problem.  However, if a statement is removed, the permission may still be covered by another statement.  Seeing this information can help detect what will happen if changes are made.
+
+### Consolidation Details
+
+Consolidation is where it may be possible to detect and take action on reducing multiple statements or policies into more concise or more succinct policy statements.  Currently partially implemented, but will feed into the overall recommendations.
+
 ## Console Tab
 
 If enabled, shows the `sysout` information.  This is helpful when starting from an executable file, where there is no log output.  Global logging level is set via this tab.   You can also clear the output prior to a specific operation.
+
+### Log Override
+
+By component, you can select a higher or lower log level for all components.  Overriding with DEBUG allows you to see the detailed debug only in the shell, not the console tab.
 
 ## Maintenance Tab
 

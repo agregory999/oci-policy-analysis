@@ -51,16 +51,11 @@ class PolicyBrowserTab(BaseUITab):
             f'self.winfo_class={self.winfo_class()} is mapped: {self.winfo_ismapped()}, size: {self.winfo_width()}x{self.winfo_height()}'
         )
 
-        # Reload and Expand/Collapse Button Row
+        # Search, Expand/Collapse Button Row
         button_row = ttk.Frame(self)
         button_row.pack(fill='x', expand=False, padx=10, pady=(8, 2))
-        reload_btn = ttk.Button(button_row, text='Reload / Refresh', command=self.refresh_tree)
-        reload_btn.pack(side='left', padx=(0, 6))
-        self.add_context_help(
-            reload_btn,
-            'Click to manually reload and debug-refresh the compartment/policy/statement tree from the data repository.',
-        )
 
+        # --- Button/Entry/Labelling UI (reordered per feedback) ---
         expand_all_btn = ttk.Button(
             button_row, text='Expand All', command=lambda: self.expand_collapse_all(expand=True)
         )
@@ -81,7 +76,38 @@ class PolicyBrowserTab(BaseUITab):
         expand_comp_btn.pack(side='left', padx=(8, 3))
         self.add_context_help(expand_comp_btn, 'Expand compartments only, collapse all policies/statements under them.')
 
-        logger.info('Reload/Expand/Collapse buttons added to Policy Browser tab UI.')
+        # Vertical separator for clarity
+        sep = ttk.Separator(button_row, orient='vertical')
+        sep.pack(side='left', fill='y', padx=(8, 8), pady=3)
+
+        # Label for text search, then live search box, then clear button
+        search_label = ttk.Label(button_row, text='Search:')
+        search_label.pack(side='left', padx=(0, 2), pady=2)
+
+        self.search_var = tk.StringVar()
+        search_entry = ttk.Entry(button_row, textvariable=self.search_var, width=32)
+        search_entry.pack(side='left', padx=(0, 4), pady=2)
+
+        clear_btn = ttk.Button(button_row, text='Clear', command=self.on_clear_search)
+        clear_btn.pack(side='left', padx=(0, 3), pady=2)
+
+        self.add_context_help(
+            search_entry,
+            'Type to search compartments, policies, or statements (case-insensitive). Filtering occurs as you type.',
+        )
+        self.add_context_help(
+            search_label,
+            'Live text search for nodes. All containing/hierarchical nodes will be shown, results highlighted.',
+        )
+        self.add_context_help(
+            clear_btn,
+            'Reset the search and show all compartments, policies, and statements.',
+        )
+
+        # Live search via Var trace
+        self.search_var.trace_add('write', lambda *args: self.on_search())
+
+        logger.info('Expand/collapse/search/clear buttons and entry added to Policy Browser tab UI.')
 
         label_frm_tree = ttk.LabelFrame(self, text='Compartment / Policy / Statement Tree', borderwidth=5)
         label_frm_tree.pack(fill='both', expand=True, padx=10, pady=10)
@@ -107,9 +133,153 @@ class PolicyBrowserTab(BaseUITab):
         # Bind right-click menu
         self.tree.bind('<Button-3>', self._on_right_click)
 
+    def on_search(self):  # noqa: C901
+        """Perform case-insensitive search with highlighting and rebuild tree."""
+        query = self.search_var.get().strip().lower()
+        if not query:
+            self.refresh_tree()
+            return
+        # Gather data from repo
+        compartments = self.policy_repo.compartments or []
+        policies = self.policy_repo.policies or []
+        statements = (
+            (self.policy_repo.regular_statements or [])
+            + (self.policy_repo.defined_aliases or [])
+            + (self.policy_repo.cross_tenancy_statements or [])
+        )
+        # Helper: recursively filter hierarchy and collect node info for tree
+        children_by_parent = {}
+        for c in compartments:
+            parent = c.get('parent_id', None)
+            if parent not in children_by_parent:
+                children_by_parent[parent] = []
+            children_by_parent[parent].append(c)
+        policies_by_compartment = {}
+        for p in policies:
+            comp_ocid = p.get('compartment_ocid', None)
+            if comp_ocid not in policies_by_compartment:
+                policies_by_compartment[comp_ocid] = []
+            policies_by_compartment[comp_ocid].append(p)
+        statements_by_policy = {}
+        for s in statements:
+            policy_name = s.get('policy_name')
+            if not policy_name:
+                continue
+            if policy_name not in statements_by_policy:
+                statements_by_policy[policy_name] = []
+            statements_by_policy[policy_name].append(s)
+
+        # Recursive filter
+        def highlight(text):
+            """Return text with query bolded (with ***), case-insensitive."""
+            if not query or not text:
+                return text
+            low = text.lower()
+            idx = low.find(query)
+            if idx == -1:
+                return text
+            before = text[:idx]
+            match = text[idx : idx + len(query)]
+            after = text[idx + len(query) :]
+            # Simple: wrap with ***
+            return before + '***' + match + '***' + after
+
+        def search_statements(policy_name):
+            """Return list of stmts with highlight if matching, else empty if none match query."""
+            stmts = statements_by_policy.get(policy_name, [])
+            # Each: ("Statement: ...", highlight) or None
+            results = []
+            for s in stmts:
+                stmt_txt = s.get('statement_text', '(No statement text)')
+                if query in stmt_txt.lower():
+                    results.append(('Statement: ' + highlight(stmt_txt), True))
+                else:
+                    # Still show if parent path matches, but not highlighted
+                    results.append(('Statement: ' + stmt_txt, False))
+            return [r for r in results if r[1]]
+
+        def recurse_compartments(parent_ocid):
+            nodes = []
+            for c in children_by_parent.get(parent_ocid, []):
+                comp_id_val = c.get('id')
+                comp_name = c.get('name', '(Unnamed Compartment)')
+                comp_desc = c.get('description') or '(No description)'
+                match_this = (query in comp_name.lower()) or (query in comp_desc.lower())
+                # Policies for this compartment
+                nodes_policies = []
+                policies_here = policies_by_compartment.get(comp_id_val, [])
+                for p in policies_here:
+                    pol_name = p.get('policy_name', '(Unnamed Policy)')
+                    # policy_ocid = p.get('policy_ocid', 'unknown_ocid')
+                    match_policy = query in pol_name.lower()
+                    highlight_policy_name = highlight(pol_name) if match_policy else pol_name
+                    # Filter statements
+                    highlight_stmts = []
+                    for s in statements_by_policy.get(pol_name, []):
+                        stmt_txt = s.get('statement_text', '(No statement text)')
+                        match_stmt = query in stmt_txt.lower()
+                        if match_stmt:
+                            highlight_stmts.append(('Statement: ' + highlight(stmt_txt), True))
+                    if match_policy or highlight_stmts:
+                        nodes_policies.append(
+                            (
+                                highlight_policy_name,  # Policy (possibly highlighted)
+                                highlight_stmts,  # Always only matching stmts
+                            )
+                        )
+                # Descendant compartments
+                descendant_nodes = recurse_compartments(comp_id_val)
+                # If anything below (or this) matches, include
+                if match_this or nodes_policies or descendant_nodes:
+                    out = {
+                        'comp_name': highlight(comp_name) if match_this else comp_name,
+                        'comp_desc': highlight(comp_desc) if query in comp_desc.lower() else comp_desc,
+                        'policies': nodes_policies,  # [(policy_name, [stmts])]
+                        'descendants': descendant_nodes,
+                        'should_expand': True,  # All matching paths expanded
+                    }
+                    nodes.append(out)
+            return nodes
+
+        # Build root
+        all_ids = {c.get('id') for c in compartments if 'id' in c}
+        root_parent_id_set = set()
+        for c in compartments:
+            parent = c.get('parent_id')
+            if not parent or parent not in all_ids:
+                root_parent_id_set.add(parent)
+        roots = []
+        for root_parent in root_parent_id_set:
+            roots += recurse_compartments(root_parent)
+        # Fallback if no roots
+        if not roots:
+            roots += recurse_compartments(None)
+        # Populate treeview from nodes
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+
+        def tree_from_nodes(nodes, parent_id):
+            for c in nodes:
+                comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
+                self.tree.insert(comp_node, 'end', text=f'Description: {c["comp_desc"]}', open=False)
+                policies = c.get('policies', [])
+                if policies:
+                    policies_parent = self.tree.insert(comp_node, 'end', text='Policies', open=True)
+                    for pol_name, stmts in policies:
+                        pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=True)
+                        for stmt_txt, _ in stmts:
+                            self.tree.insert(pol_node, 'end', text=stmt_txt, open=False)
+                tree_from_nodes(c.get('descendants', []), comp_node)
+
+        tree_from_nodes(roots, '')
+
+    def on_clear_search(self):
+        """Clear search box and show full unfiltered tree."""
+        self.search_var.set('')
+        self.refresh_tree()
+
     def refresh_tree(self):
         """Refresh the compartment/policy/statement tree from latest repo data."""
-        # Clear all previous nodes before repopulating
         for i in self.tree.get_children():
             self.tree.delete(i)
         self._populate_tree()

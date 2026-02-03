@@ -63,9 +63,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
-            spec: oci_policy_analysis_linux.spec
+          # - os: ubuntu-latest
+          #   platform: linux
+          #   spec: oci_policy_analysis_linux.spec
           - os: macos-latest
             platform: macos
             spec: oci_policy_analysis_macos.spec
@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
-          python -m pip install --upgrade pip
+          python -m pip install "pip==25.3"
 
           # ensure build toolchain (pip uses wheels, but this is allowed)
           pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
@@ -171,7 +171,7 @@ jobs:
           echo "${{ env.VERSION }}" > src/oci_policy_analysis/version.txt
           cat src/oci_policy_analysis/version.txt
 
-      - name: Build (macOS & Linux)
+      - name: Build (macOS)
         if: steps.skip_build.outputs.skip != 'true' && runner.os != 'Windows'
         shell: bash
         run: |
