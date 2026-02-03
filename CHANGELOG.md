@@ -1,3 +1,24 @@
+# [4.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v3.3.1...v4.0.0) (2026-02-03)
+
+
+### Bug Fixes
+
+* data repo need to get DG fully ([956ae21](https://github.com/agregory999/oci-policy-analysis/commit/956ae2110f8be1a9f2d1c97b16b9abe3a269698a))
+
+
+* feat!: Merge pull request #28 from agregory999/develop ([3a7cddd](https://github.com/agregory999/oci-policy-analysis/commit/3a7cddd6130c258940e72f99b64ed728ad4433a0)), closes [#28](https://github.com/agregory999/oci-policy-analysis/issues/28)
+
+
+### Features
+
+* Policy browser, changes to model, fixed historical tab, context help. ([5b3691e](https://github.com/agregory999/oci-policy-analysis/commit/5b3691eb44101b3bda6e7895e2ec21e3ad5e156c))
+
+
+### BREAKING CHANGES
+
+* - Cache and Data model needed updates
+Added Policy Browser
+Historical Tab updated
 
 ## [3.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v3.3.0...v3.3.1) (2026-01-26)
 
