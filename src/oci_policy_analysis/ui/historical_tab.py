@@ -303,16 +303,16 @@ class HistoricalTab(BaseUITab):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    # ------------------------------------------------------------------
-    def _filter_sections(self, diff_dict: dict, include_tokens: tuple[str, ...]) -> dict:
-        filtered = {}
-        for section, payload in diff_dict.items():
-            if isinstance(payload, dict):
-                kept = {p: v for p, v in payload.items() if any(tok in str(p) for tok in include_tokens)}
-                if kept:
-                    filtered[section] = kept
-        logger.debug(f'Filtered {len(filtered)} items for tokens {include_tokens}.')
-        return filtered
+    # # ------------------------------------------------------------------
+    # def _filter_sections(self, diff_dict: dict, include_tokens: tuple[str, ...]) -> dict:
+    #     filtered = {}
+    #     for section, payload in diff_dict.items():
+    #         if isinstance(payload, dict):
+    #             kept = {p: v for p, v in payload.items() if any(tok in str(p) for tok in include_tokens)}
+    #             if kept:
+    #                 filtered[section] = kept
+    #     logger.debug(f'Filtered {len(filtered)} items for tokens {include_tokens}.')
+    #     return filtered
 
     # ------------------------------------------------------------------
     def _display_grouped(self, policy_sections: dict, identity_sections: dict):

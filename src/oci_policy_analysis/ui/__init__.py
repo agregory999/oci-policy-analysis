@@ -8,6 +8,7 @@ from .maintenance_tab import MaintenanceTab
 from .mcp_tab import McpTab
 from .permissions_report_tab import PermissionsReportTab
 from .policies_tab import PoliciesTab
+from .policy_browser_tab import PolicyBrowserTab
 from .policy_recommendations_tab import PolicyRecommendationsTab
 from .report_tab import ReportTab
 from .resource_principals_tab import ResourcePrincipalsTab
@@ -17,6 +18,7 @@ from .users_tab import UsersTab
 __all__ = [
     'SettingsTab',
     'PoliciesTab',
+    'PolicyBrowserTab',
     'DynamicGroupsTab',
     'UsersTab',
     'ReportTab',

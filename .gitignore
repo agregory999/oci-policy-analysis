@@ -18,6 +18,12 @@ wheelhouse/
 *.spec
 *.log
 docs/build/
+frozen.txt
+uv.lock
+package*.json
+
+# Parser Jar
+src/oci_policy_analysis/logic/parsers/antlr-4.13.2-complete.jar
 
 # --- OS & Editor files ---
 .DS_Store
@@ -27,6 +33,7 @@ Thumbs.db
 *.swp
 *.bak
 *.tmp
+*.bkp
 
 # --- Ruff & MyPy caches ---
 .ruff_cache/

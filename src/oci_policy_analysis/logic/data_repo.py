@@ -24,7 +24,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Third-party imports
-from deepdiff import DeepDiff, parse_path
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
@@ -209,28 +208,6 @@ class PolicyAnalysisRepository:
         except (ConfigFileNotFound, Exception) as exc:
             logger.fatal(f'Authentication failed: {exc}')
             return False
-
-    # def _get_compartment_path(self, compartment: Compartment, level: int, comp_string: str) -> tuple[str, list[str]]:
-    #     """Recursive function to generate a compartment's path to the root"""
-    #     hierarchy_ocids = [compartment.id]
-    #     logger.debug(f'Processing compartment {compartment.name} (OCID: {compartment.id}) at level {level}')
-    #     if not compartment.compartment_id:
-    #         logger.debug(f'Reached root compartment: {compartment.name} (OCID: {compartment.id})')
-    #         return f'ROOT{comp_string}', hierarchy_ocids  # type: ignore
-    #     try:
-    #         parent_response = self.identity_client.get_compartment(compartment_id=compartment.compartment_id)
-    #         if parent_response.data is None:
-    #             logger.warning(f'Failed to get parent compartment for {compartment.id}')
-    #             return comp_string, hierarchy_ocids  # type: ignore
-    #         parent_path, parent_ocids = self._get_compartment_path(
-    #             parent_response.data, level + 1, f'/{compartment.name}{comp_string}'
-    #         )
-    #         hierarchy_ocids.extend(parent_ocids)
-    #         logger.debug(f'Compartment {compartment.name} path: {parent_path}, OCIDs: {hierarchy_ocids}')
-    #         return parent_path, hierarchy_ocids
-    #     except Exception as e:
-    #         logger.error(f'Error getting parent compartment for {compartment.id}: {e}')
-    #         return comp_string, hierarchy_ocids
 
     def check_statement_location_validity(self, st):
         """
@@ -1417,90 +1394,6 @@ class PolicyAnalysisRepository:
         return results
 
     # --- Other Public Functions ---
-    def compare_against_cache(self, cached_tenancy: str, cached_date: str) -> str:
-        """Loads a cache set and compares with the currently loaded policy set and return changes"""
-        # What I need to do is be given the names of a cache file, load it, and then compare the policies to what is in memory
-        # Loading the cache is similar to the main loading, but do not want these in memory
-        changes = []
-
-        # Load the referenced cache
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        combined_cache_file = CACHE_DIR / f'combined_cache_{cached_tenancy}_{cached_date}.json'
-        # Load policies
-        if combined_cache_file.exists():
-            with open(combined_cache_file, encoding='utf-8') as filehandle:
-                cache_data = json.load(filehandle)
-            cached_policies = cache_data.get('policies', [])
-            self.cached_dynamic_groups = cache_data.get('dynamic_groups', [])
-            self.cached_cross_tenency_policies = cache_data.get('cross_tenancy_statements', [])
-            logger.info(f'Loaded {len(cached_policies)} statements from cache: {combined_cache_file}')
-            logger.info(f'Currently {len(self.regular_statements)} statements in memory from {self.data_as_of}')
-
-            # Do the comparison with deepdiff (do we need to sort the policies first?)
-            # Include paths for the maximum length
-            # max_len = max(len(self.regular_statements), len(cached_policies))
-            # include_paths = [f"root[{i}]['statement_text']" for i in range(max_len)]
-            diff = DeepDiff(
-                self.regular_statements,
-                cached_policies,
-                ignore_order=True,
-                verbose_level=2,
-                # include_paths=include_paths,
-                # exclude_paths=["root['data']"]
-                # include_paths="root[*]['statement_text']"  # Only compare the statement text
-                # group_by=
-            )
-
-            logger.info(
-                f'Found {len(diff.get("iterable_item_added", []))} added, '
-                f'{len(diff.get("iterable_item_removed", []))} removed, '
-                f'{len(diff.get("values_changed", []))} changed policies'
-            )
-            for change_type, changes_list in diff.items():
-                logger.info(f'Change Type: {change_type}')
-                if change_type == 'values_changed':
-                    for i, change in enumerate(changes_list):
-                        change_index_parsed = parse_path(change)
-                        logger.info(f'Changed{i}: Index:{change} Parsed: {change_index_parsed}')
-                        if len(change_index_parsed) == 2 and change_index_parsed[1] == 'statement_text':
-                            # Change to statement
-                            this_change = changes_list[change]
-                            # logger.info(f'- New: {this_change["new_value"]}\n')
-                            # logger.info(f'- Old: {this_change["old_value"]}\n')
-                            changes.append(
-                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
-                            )
-                            logger.info(
-                                f'Changed Statement #{change_index_parsed[0]} from {this_change["old_value"]} to {this_change["new_value"]}'
-                            )
-                        else:
-                            logger.info(f'Change: {changes_list[change]}\n')
-
-                elif change_type == 'iterable_item_removed':
-                    for i, change in enumerate(changes_list):
-                        this_change = changes_list[change]
-                        change_index_parsed = parse_path(change)
-                        changes.append(
-                            f'Removed Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
-                        )
-                        logger.info(f'Removed Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
-
-                        # logger.info(f'Removed({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
-                elif change_type == 'iterable_item_added':
-                    for i, change in enumerate(changes_list):
-                        this_change = changes_list[change]
-                        change_index_parsed = parse_path(change)
-                        changes.append(
-                            f'Added Statement{i} #{change_index_parsed[0]} - {this_change["statement_text"]}'
-                        )
-                        logger.info(f'Added Statement #{change_index_parsed[0]} - {this_change["statement_text"]}')
-
-                        # logger.info(f'Added({i}): Index:{change_index_parsed}: {changes_list[change]}\n\n')
-
-        else:
-            logger.warning(f'Policies cache file not found: {combined_cache_file}')
-            return ''
-        return '\n'.join(changes)
 
     # Not in use
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
@@ -1719,43 +1612,6 @@ class PolicyAnalysisRepository:
             else:
                 logger.info('Skipping load of users due to load_all_users=False')
 
-            # # In order to populate group membership for users, we need get group data from raw_data_identity_users.csv
-            # # It will be in column row[22] when loading using csv.reader
-            # # As we iterate, find the matching user in self.users and update groups
-            # # Record the Group OCID list for each user in the groups
-            # # Use the existing self.groups to look up OCID from the name and domain
-            # users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
-            # with open(users_file, encoding='utf-8') as f:
-            #     reader = csv.reader(f)
-            #     for row in reader:
-            #         # Skip header row if present
-            #         if row[0] == 'id':
-            #             continue
-            #         user_ocid = row[0] or ''
-            #         group_names_str = row[21] or ''
-            #         group_names = eval(group_names_str) if group_names_str else []
-            #         # Find the user in self.users
-            #         user_obj = next((u for u in self.users if u.get('user_ocid') == user_ocid), None)
-            #         if user_obj:
-            #             # turn group names into OCIDs
-            #             group_ocids = []
-            #             for group_name in group_names:
-            #                 group_obj = next(
-            #                     (
-            #                         g
-            #                         for g in self.groups
-            #                         if g.get('group_name') == group_name
-            #                         and g.get('domain_name') == user_obj.get('domain_name')
-            #                     ),
-            #                     None,
-            #                 )
-            #                 if group_obj:
-            #                     group_ocids.append(group_obj.get('group_ocid', ''))
-            #             user_obj['groups'] = group_ocids
-            #             # user_obj['groups'] = group_names
-            #             logger.info(
-            #                 f"Updated user group memberships from CSV. User: {user_obj['user_name']} Groups: {group_ocids}"
-            #             )
             # -- Step 5: Load Compartments ---
             compartments_file = os.path.join(dir_path, 'raw_data_identity_compartments.csv')
             with open(compartments_file, encoding='utf-8') as f:
@@ -1881,16 +1737,6 @@ class PolicyAnalysisRepository:
                             logger.debug(f'Parsed regular policy statement: {regular_statement}')
 
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
-
-            # --- Finally, Build indexes and analyze as in OCI loads ---
-            # self._build_compartment_index()
-            # self._calculate_effective_compartments_for_statements()
-            # self._find_invalid_statements()
-            # self.run_dg_in_use_analysis()
-            # self._build_compartment_index()
-            # self._calculate_effective_compartments_for_statements()
-            # self._find_invalid_statements()
-            # self.run_dg_in_use_analysis()
 
             self.data_as_of = datetime.now(UTC).isoformat()
             self.loaded_from_compliance_output = True
