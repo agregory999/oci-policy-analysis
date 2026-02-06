@@ -108,12 +108,18 @@ class UsersTab(BaseUITab):
         self.chk_show_expanded = tk.BooleanVar(value=False)
         self.chk_show_any_group_user = tk.BooleanVar(value=False)
         self.groups_option_var = tk.StringVar(value='GROUPS')
+        self.groups_option_var.trace_add('write', lambda *_: self.update_user_analysis_output())
         self.user_group_search = tk.StringVar()
         self.users_groups_table = None
         self.users_users_table = None
         self.users_policy_table = None
         self.selected_groups_table = None
         self.user_label_count = None
+
+        # Synchronize "load_all_users" state from repository to checkbox/UI as available
+        self._load_all_users_state = tk.BooleanVar(
+            value=getattr(self.policy_compartment_analysis, 'load_all_users', True)
+        )
 
         self.grid_rowconfigure(0, weight=2)
         self.grid_rowconfigure(1, weight=7)
@@ -151,6 +157,39 @@ class UsersTab(BaseUITab):
 
     # All context help methods now inherited from BaseUITab.
 
+    def sync_load_all_users_checkbox(self):
+        """
+        Ensures the checkbox/UI for load_all_users matches the repository state.
+        Should be called after loading data/cache if UI lags behind data model.
+        """
+        current_repo_val = getattr(self.policy_compartment_analysis, 'load_all_users', True)
+        self._load_all_users_state.set(current_repo_val)
+
+    def should_show_users_option(self):
+        """
+        Returns True if the USERS option should be available in the dropdown, i.e.,
+        only if load_all_users is True AND there are users loaded.
+        """
+        repo = self.policy_compartment_analysis
+        return getattr(repo, 'load_all_users', True) and len(getattr(repo, 'users', [])) > 0
+
+    def update_users_dropdown_options(self):
+        """
+        Update the GROUPS/USERS dropdown menu to reflect actual repo state.
+        Should be called after any tenancy/repo load; safe to call any time.
+        Also forces the table below to reload for the current selection.
+        """
+        menu = self.groups_users_dropdown['menu']
+        menu.delete(0, 'end')
+        menu.add_command(label='GROUPS', command=lambda: self.groups_option_var.set('GROUPS'))
+        if self.should_show_users_option():
+            menu.add_command(label='USERS', command=lambda: self.groups_option_var.set('USERS'))
+        # If the currently selected option is not available, reset to GROUPS
+        if self.groups_option_var.get() == 'USERS' and not self.should_show_users_option():
+            self.groups_option_var.set('GROUPS')
+        # Always force the corresponding table to reload
+        self.update_user_analysis_output()
+
     def _build_ui_user_group_selection(self, parent):  # noqa: C901
         frm_user_top = ttk.Frame(parent)
         frm_user_top.grid_rowconfigure(0, weight=1)
@@ -176,8 +215,7 @@ class UsersTab(BaseUITab):
             frm_user_selection,
             self.groups_option_var,
             self.groups_option_var.get(),
-            *(['GROUPS', 'USERS'] if self.users_available() else ['GROUPS']),
-            command=lambda *_: self.update_user_analysis_output(),
+            *(['GROUPS', 'USERS'] if self.should_show_users_option() else ['GROUPS']),
         )
         self.groups_users_dropdown.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
 
@@ -460,7 +498,13 @@ class UsersTab(BaseUITab):
     # ----------- Page Help Methods (adapted from policies_tab.py) ----------------
 
     def on_load_all_users_setting_changed(self, enabled: bool):
-        """Called if settings change for Load All Users to refresh user/group options and UI."""
+        """
+        Called if settings change for Load All Users to refresh user/group options and UI.
+        Synchronizes between UI and model: both directions.
+        """
+        # Always update the model repository field so next cache save/load is accurate
+        self.policy_compartment_analysis.load_all_users = enabled
+
         # If users are now NOT loaded, switch view to GROUPS forcibly and refresh dropdown/menu
         if not enabled:
             self.groups_option_var.set('GROUPS')

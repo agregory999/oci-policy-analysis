@@ -14,6 +14,7 @@
 ##########################################################################
 
 import argparse
+import time
 import warnings
 
 from oci_policy_analysis.common.caching import CacheManager
@@ -23,6 +24,7 @@ from oci_policy_analysis.common.helpers import (
 from oci_policy_analysis.common.logger import get_logger, set_log_level
 from oci_policy_analysis.common.models import PolicySearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -140,6 +142,21 @@ def main():  # noqa: C901
             f'{len(policy_analysis.groups)} groups, {len(policy_analysis.compartments)} compartments, '
             f'{len(policy_analysis.regular_statements)} policy statements'
         )
+
+        # ---- Policy Intelligence step (CLI) ----
+        logger.info('[CLI] Running minimal post-load policy intelligence')
+        t0 = time.perf_counter()
+        try:
+            policy_intel = PolicyIntelligenceEngine(policy_analysis)
+            policy_intel.calculate_all_effective_compartments()
+            policy_intel.find_invalid_statements()
+            policy_intel.run_dg_in_use_analysis()
+        except Exception as exc:
+            logger.warning(f'[CLI] Post-load policy intelligence raised exception: {exc}')
+        t1 = time.perf_counter()
+        logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
+        # ----------------------------------------
+
     else:
         # Just show caches and quit
         if args.get_caches:  # If get_caches is provided, list available caches
@@ -180,6 +197,20 @@ def main():  # noqa: C901
                 logger.info('Saving combined cache after loading from OCI')
                 cache_manager.save_combined_cache(policy_analysis=policy_analysis)
 
+        # ---- Policy Intelligence step (CLI) ----
+        logger.info('[CLI] Running minimal post-load policy intelligence')
+        t0 = time.perf_counter()
+        try:
+            policy_intel = PolicyIntelligenceEngine(policy_analysis)
+            policy_intel.calculate_all_effective_compartments()
+            policy_intel.find_invalid_statements()
+            policy_intel.run_dg_in_use_analysis()
+        except Exception as exc:
+            logger.warning(f'[CLI] Post-load policy intelligence raised exception: {exc}')
+        t1 = time.perf_counter()
+        logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
+        # ----------------------------------------
+
     # Print some basic details
     logger.info('-' * 80)
     logger.info(f'Tenancy Name: {policy_analysis.tenancy_name}')
@@ -195,6 +226,7 @@ def main():  # noqa: C901
         filtered_statements = policy_analysis.filter_policy_statements(filters=filter)
         logger.info(f'Filtered down to {len(filtered_statements)} policy statements:')
         for i, stmt in enumerate(filtered_statements, start=1):
+            stmt = for_display_policy(stmt)
             logger.info(f'{i} Policy Name: {stmt.get("Policy Name")} | Statement: {stmt.get("Statement Text")}')
         logger.info('-' * 80)
 
