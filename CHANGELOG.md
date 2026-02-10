@@ -1,3 +1,10 @@
+## [4.0.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.1...v4.0.2) (2026-02-10)
+
+
+### Bug Fixes
+
+* AI integration via supported tabs only ([3715a07](https://github.com/agregory999/oci-policy-analysis/commit/3715a07cb76e36ce94fefab0bf11590ea5dd4d25))
+
 ## [4.0.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.0...v4.0.1) (2026-02-10)
 
 
