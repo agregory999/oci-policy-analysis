@@ -1,3 +1,10 @@
+## [4.0.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.2...v4.0.3) (2026-02-10)
+
+
+### Bug Fixes
+
+* Data Table adjustment for vertical size ([a6f95f5](https://github.com/agregory999/oci-policy-analysis/commit/a6f95f583c595f2164984432ecc94eece1ab280a))
+
 ## [4.0.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.1...v4.0.2) (2026-02-10)
 
 
