@@ -589,7 +589,7 @@ class SettingsTab(BaseUITab):
         endpoint = self.endpoint_var.get().strip()
         compartment_ocid = self.ai_compartment_var.get().strip()
         logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
-        self.ai_progress_var.set('⌛ Running AI test call…')
+        self.ai_progress_var.set('[-] Running AI test call…')
 
         try:
             self.ai_repo.update_config(model_ocid=model_id, endpoint=endpoint, compartment_ocid=compartment_ocid)

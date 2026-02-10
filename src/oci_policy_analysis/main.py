@@ -629,7 +629,9 @@ class App(tk.Tk):
                 with open(filepath, encoding='utf-8') as jsonfile:
                     loaded_json = json.load(jsonfile)
                     logger.debug(f'JSON Data: {loaded_json}')
-                success = self.caching.load_cache_from_json(loaded_json=loaded_json)
+                success = self.caching.load_cache_from_json(
+                    loaded_json=loaded_json, policy_analysis=self.policy_compartment_analysis
+                )
                 if success:
                     self.last_load_time = self.policy_compartment_analysis.data_as_of
                     logger.info(f'***Loaded cached data from file as of {self.last_load_time}')
