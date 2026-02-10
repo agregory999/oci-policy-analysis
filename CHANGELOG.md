@@ -1,3 +1,10 @@
+## [4.0.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.4...v4.0.5) (2026-02-10)
+
+
+### Bug Fixes
+
+* Linux and AI-generated glyphs ([17ea7e5](https://github.com/agregory999/oci-policy-analysis/commit/17ea7e5b67028345968811c028ce7a3913abaec0))
+
 ## [4.0.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.3...v4.0.4) (2026-02-10)
 
 
