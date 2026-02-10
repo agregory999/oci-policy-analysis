@@ -188,11 +188,14 @@ class App(tk.Tk):
         self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
-        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
+        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Preview)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
+
+        # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
         # Propagate context help and font size settings to all tabs at startup
         self.refresh_all_tabs_settings()
@@ -660,7 +663,7 @@ class App(tk.Tk):
         else:
             logger.info('Export cancelled by user')
 
-    def ask_genai_async(self, prompt: str, additional_instruction: str = '', callback=None):
+    def ask_genai_async(self, prompt: str, additional_instruction: str = '', callback=None, test_call: bool = False):
         """
         Asynchronously queries the GenAI model with the given prompt and additional instructions.
 
@@ -670,7 +673,7 @@ class App(tk.Tk):
             callback (dict, optional): A dictionary of callback functions for different stages of the query.
         """
         logger.info(f'Submitting GenAI prompt: {prompt} with additional instructions: {additional_instruction}')
-        self.set_bottom_output(f'Querying GenAI for:\n\n{prompt}')
+        self.set_bottom_output(content=f'Querying GenAI for:\n\n{prompt}', test_call=test_call)
 
         def worker():
             try:
@@ -689,7 +692,7 @@ class App(tk.Tk):
                 )
                 ai_text_response = q.get()  # Get the result from the queue
                 logger.debug(f'Received AI result from queue, posting update to UI: {ai_text_response}')
-                self.after(0, lambda: self.set_bottom_output(str(ai_text_response)))
+                self.after(0, lambda: self.set_bottom_output(content=str(ai_text_response), test_call=test_call))
 
                 if callback is not None:
                     if ai_text_response.startswith('Error:'):
@@ -711,22 +714,21 @@ class App(tk.Tk):
                 )
             except Exception as e:
                 logger.error(f'GenAI request failed: {e}')
-                self.after(0, lambda e=e: self.set_bottom_output(f'**Error:** {str(e)}'))
+                self.after(0, lambda e=e: self.set_bottom_output(f'**Error:** {str(e)}', test_call=test_call))
                 if callback is not None:
                     self.after(0, lambda e=e: callback(success=False, message=f'Failed AI: {e}'))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def set_bottom_output(self, content: str):
+    def set_bottom_output(self, content: str, test_call: bool = False):
         """
         Display the given string content as plain text in the output_text widget.
 
         Args:
             content (str): The text content to display in the output area.
+            test_call (bool): Indicates if this is a test call to set output.
         """
-        import json
 
-        # Support legacy case: AI may return [{"text": ...}] list (output from previous code path)
         output_string = content
         if content and not content.startswith('<'):
             try:
@@ -741,6 +743,11 @@ class App(tk.Tk):
             except Exception:
                 output_string = content
 
+        # If test call, don't add the response to the widget, just print it to the console and save it to last_output_text for potential copying.
+        if test_call:
+            logger.info(f'Test call - output: {output_string}')
+            return
+        # Actually put it in the display
         self.last_output_text = output_string or ''
         self.output_text.configure(state='normal')
         self.output_text.delete('1.0', tk.END)
@@ -786,6 +793,36 @@ class App(tk.Tk):
         self.notebook.select(self.condition_tester_tab)
         self.condition_tester_tab.clause_var.set(condition_text)
         self.condition_tester_tab._generate_inputs()
+
+    def _on_tab_changed(self, event):
+        """
+        Auto-disable AI pane if navigating to a tab that does not support it.
+        Update AI Assist button on supported tab.
+        """
+        # Only these tabs support AI currently (can expand this in the future)
+        supported_tabs = {
+            str(self.policy_browser_tab),
+            str(self.policies_tab),
+            str(self.users_tab),
+            str(self.dynamic_groups_tab),
+            str(self.resource_principals_tab),
+            # str(self.cross_tenancy_tab),
+        }
+        # Which tab is now selected?
+        selected_tab_id = self.notebook.select()
+        # All tabs: list of tab IDs -> widget names
+        # e.g. tuple(self.notebook.tabs())
+        # e.g. self.notebook.nametowidget(selected_tab_id)
+        selected_widget = self.nametowidget(selected_tab_id) if selected_tab_id else None
+
+        # If the new tab is NOT in supported, and AI (bottom_frame) is shown, hide it.
+        if selected_widget is not None and str(selected_widget) not in supported_tabs:
+            if self.bottom_frame.winfo_ismapped():
+                logger.info('AI pane will be hidden due to tab switch to unsupported tab.')
+                self.toggle_bottom()
+        # # Update AI Assist button (Policy Browser Tab only for now)
+        # if hasattr(self, "policy_browser_tab") and hasattr(self.policy_browser_tab, "update_ai_assist_button"):
+        #     self.policy_browser_tab.update_ai_assist_button()
 
 
 if __name__ == '__main__':

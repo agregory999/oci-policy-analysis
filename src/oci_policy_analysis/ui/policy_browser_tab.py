@@ -51,25 +51,27 @@ class PolicyBrowserTab(BaseUITab):
             f'self.winfo_class={self.winfo_class()} is mapped: {self.winfo_ismapped()}, size: {self.winfo_width()}x{self.winfo_height()}'
         )
 
-        # Search, Expand/Collapse Button Row
-        button_row = ttk.Frame(self)
-        button_row.pack(fill='x', expand=False, padx=10, pady=(8, 2))
-
+        # --- Display Options LabelFrame with buttons ---
+        display_frame = ttk.LabelFrame(self, text='Display Options')
+        display_frame.pack(fill='x', expand=False, padx=10, pady=5)
+        # Search, Expand/Collapse Button Row (packed inside new label frame)
+        self.button_row = ttk.Frame(display_frame)
+        self.button_row.pack(fill='x', expand=False, padx=0, pady=0)
         # --- Button/Entry/Labelling UI (reordered per feedback) ---
         expand_all_btn = ttk.Button(
-            button_row, text='Expand All', command=lambda: self.expand_collapse_all(expand=True)
+            self.button_row, text='Expand All', command=lambda: self.expand_collapse_all(expand=True)
         )
         expand_all_btn.pack(side='left', padx=(0, 3))
         self.add_context_help(expand_all_btn, 'Expand all nodes in the tree.')
 
         collapse_all_btn = ttk.Button(
-            button_row, text='Collapse All', command=lambda: self.expand_collapse_all(expand=False)
+            self.button_row, text='Collapse All', command=lambda: self.expand_collapse_all(expand=False)
         )
         collapse_all_btn.pack(side='left', padx=(0, 3))
         self.add_context_help(collapse_all_btn, 'Collapse all nodes in the tree.')
 
         expand_comp_btn = ttk.Button(
-            button_row,
+            self.button_row,
             text='Expand Compartments Only',
             command=lambda: self.expand_collapse_compartments(only=True, expand=True),
         )
@@ -77,18 +79,18 @@ class PolicyBrowserTab(BaseUITab):
         self.add_context_help(expand_comp_btn, 'Expand compartments only, collapse all policies/statements under them.')
 
         # Vertical separator for clarity
-        sep = ttk.Separator(button_row, orient='vertical')
+        sep = ttk.Separator(self.button_row, orient='vertical')
         sep.pack(side='left', fill='y', padx=(8, 8), pady=3)
 
         # Label for text search, then live search box, then clear button
-        search_label = ttk.Label(button_row, text='Search:')
+        search_label = ttk.Label(self.button_row, text='Search:')
         search_label.pack(side='left', padx=(0, 2), pady=2)
 
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(button_row, textvariable=self.search_var, width=32)
+        search_entry = ttk.Entry(self.button_row, textvariable=self.search_var, width=32)
         search_entry.pack(side='left', padx=(0, 4), pady=2)
 
-        clear_btn = ttk.Button(button_row, text='Clear', command=self.on_clear_search)
+        clear_btn = ttk.Button(self.button_row, text='Clear', command=self.on_clear_search)
         clear_btn.pack(side='left', padx=(0, 3), pady=2)
 
         self.add_context_help(
@@ -103,6 +105,16 @@ class PolicyBrowserTab(BaseUITab):
             clear_btn,
             'Reset the search and show all compartments, policies, and statements.',
         )
+
+        # --- AI Assist Button ---
+        self.ai_assist_btn = ttk.Button(self.button_row, text='AI Assist', command=self._on_ai_assist_clicked)
+        self.add_context_help(
+            self.ai_assist_btn,
+            'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
+        )
+        # Pack the button as disabled initially; enable when AI is ready
+        self.ai_assist_btn.pack(side='left', padx=(14, 2), pady=2)
+        self.ai_assist_btn.config(state=tk.DISABLED)
 
         # Live search via Var trace
         self.search_var.trace_add('write', lambda *args: self.on_search())
@@ -130,8 +142,22 @@ class PolicyBrowserTab(BaseUITab):
         )
         self._populate_tree()
         logger.info('Finished _build_ui; tree and parent should be visible and expanded')
-        # Bind right-click menu
-        self.tree.bind('<Button-3>', self._on_right_click)
+        # Bind context menu for universal cross-platform support
+        self.tree.bind('<Button-3>', self._on_right_click)  # Right-click (Win/Linux)
+        self.tree.bind('<Button-2>', self._on_right_click)  # Middle-click (Control+Click on Mac, some setups)
+        self.tree.bind('<Control-Button-1>', self._on_right_click)  # Ctrl+Click (Mac legacy)
+        # Bind item selection in tree to propagate selected statement for AI
+        self.tree.bind('<<TreeviewSelect>>', self._on_tree_select)
+
+    def _ai_btn_is_packed(self):
+        # Helper: return True if the AI Assist button is packed in the button row
+        return self.ai_assist_btn.winfo_ismapped()
+
+    def _on_ai_assist_clicked(self):
+        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
+        if hasattr(self.app, 'toggle_bottom'):
+            self.app.toggle_bottom()
+            logger.info('Policy Browser Tab: AI Assist button clicked, toggled bottom pane.')
 
     def on_search(self):  # noqa: C901
         """Perform case-insensitive search with highlighting and rebuild tree."""
@@ -456,6 +482,26 @@ class PolicyBrowserTab(BaseUITab):
         self.tree.item(node, open=expand)
         for child in self.tree.get_children(node):
             self._expand_collapse_recursive(child, expand)
+
+    def _on_tree_select(self, event):
+        # When a Statement node is selected, populate statement for AI context
+        selected_id = self.tree.focus()
+        if not selected_id:
+            return
+        node_text = self.tree.item(selected_id, 'text')
+        if node_text.startswith('Statement: '):
+            statement = node_text.replace('Statement:', '', 1).strip()
+            # Populate for AI
+            if hasattr(self.app, 'policy_query_var'):
+                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
+                self.app.policy_query_var.set(statement)
+            if hasattr(self.app, 'ai_additional_instructions'):
+                self.app.ai_additional_instructions = (
+                    'Analyze the selected OCI policy statement. Show how the statement breaks down '
+                    'into its components such as action, subject, verb, resource, conditions, and effective path. '
+                    'Explain its implications on permissions within the OCI environment.'
+                )
+            logger.info(f'Selected statement for AI: {statement}')
 
     def _focus_in_next_tab(self, item_id, node_text):
         # This function determines what the user clicked on and applies filter logic to the Policies Tab.

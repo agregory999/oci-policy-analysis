@@ -319,6 +319,12 @@ class PoliciesTab(BaseUITab):
         )
         self.btn_clear.grid(row=5, column=6, columnspan=2, padx=5, pady=5, sticky='ew')
 
+    def _on_ai_assist_clicked(self):
+        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
+        if hasattr(self.app, 'toggle_bottom'):
+            self.app.toggle_bottom()
+            logger.info('Policies Tab: AI Assist button clicked, toggled bottom pane.')
+
     def _get_current_search_dict(self):  # noqa: C901
         # Build filter dict using update_policy_output convention
         filters: PolicySearch = {}
@@ -494,8 +500,9 @@ class PoliciesTab(BaseUITab):
             tkmessagebox.showinfo('Export Complete', f'Exported {len(filtered)} policy statements to {filepath}')
 
     def _build_ui_policy_output(self):  # noqa: C901
-        label_frm_output = ttk.LabelFrame(self, text='Output Filters')
-        label_frm_output.pack(fill='both', padx=10, pady=10)
+        # Display Options label frame (with AI Assist button inside)
+        label_frm_output = ttk.LabelFrame(self, text='Display Options')
+        label_frm_output.pack(fill='x', padx=10, pady=(10, 0))
 
         # Page Help: Output section mouseover
         self.add_context_help(
@@ -532,6 +539,16 @@ class PoliciesTab(BaseUITab):
         ttk.Checkbutton(
             label_frm_output, text='Parsed Output', variable=self.chk_show_expanded, command=self.update_policy_output
         ).grid(row=0, column=10, padx=5, pady=3)
+
+        # AI Assist button inside Output Filters, anchored east/right
+        self.ai_assist_btn = ttk.Button(
+            label_frm_output, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
+        )
+        self.ai_assist_btn.grid(row=0, column=11, sticky='e', padx=(20, 8), pady=4)
+        self.add_context_help(
+            self.ai_assist_btn,
+            'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab.',
+        )
 
         def selection_callback(selected_rows: list[dict]) -> None:
             for row in selected_rows:

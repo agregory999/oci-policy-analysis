@@ -371,7 +371,7 @@ class SettingsTab(BaseUITab):
 
         # AI Toggle
         self.ai_toggle_btn = ttk.Button(
-            self.label_frm_ai_config, state=tk.DISABLED, text='Toggle AI Pane', command=self.app.toggle_bottom
+            self.label_frm_ai_config, state=tk.DISABLED, text='(3) Toggle AI Pane', command=self.app.toggle_bottom
         )
         self.ai_toggle_btn.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
 
@@ -399,7 +399,7 @@ class SettingsTab(BaseUITab):
                 logger.warning('AI client not initialized, cannot list models')
 
         self.refresh_button = ttk.Button(
-            self.label_frm_ai_config, text='Refresh Models (using selected profile)', command=populate_model_tree
+            self.label_frm_ai_config, text='(1) Refresh Models (using selected profile)', command=populate_model_tree
         )
         self.refresh_button.grid(row=0, column=1, padx=3, pady=3, sticky='ew')
 
@@ -445,7 +445,7 @@ class SettingsTab(BaseUITab):
         self.ai_compartment_entry.grid(row=4, column=1, padx=3, pady=3, sticky='ew')
 
         apply_button = ttk.Button(
-            self.label_frm_ai_config, text='Apply and Test GenAI Settings', command=self.apply_config
+            self.label_frm_ai_config, text='(2) Apply and Test GenAI Settings', command=self.apply_config
         )
         apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
         logger.debug('Apply button created')
@@ -600,12 +600,13 @@ class SettingsTab(BaseUITab):
                 prompt='What is the meaning of life?',
                 additional_instruction='TEST',
                 callback=self._on_ai_enablement_finished,
+                test_call=True,  # Flag to indicate this is just a test call for enablement purposes
             )
 
         except Exception as e:
             logger.error('Failed to update configuration: %s', e)
 
-    def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):
+    def _on_ai_enablement_finished(self, success: bool, message: str, clear: bool = False):  # noqa: C901
         """
         Callback from App once AI loading completes. Used to enable AI toggle button if successful.
 
@@ -618,7 +619,39 @@ class SettingsTab(BaseUITab):
             self.ai_progress_var.set(f'[OK] {message}')
             # Enable the toggle button
             self.ai_toggle_btn.config(state=tk.NORMAL)
-            logger.info('AI Enablement successful, toggle button enabled')
+            # Enable AI Assist button on PoliciesTab after AI enablement success
+            if hasattr(self.app, 'policies_tab') and hasattr(self.app.policies_tab, 'ai_assist_btn'):
+                self.app.policies_tab.ai_assist_btn.config(state=tk.NORMAL)
+                logger.info('AI Assist button on PoliciesTab enabled')
+            # Enable AI Assist button on PolicyBrowserTab after AI enablement success
+            if hasattr(self.app, 'policy_browser_tab') and hasattr(self.app.policy_browser_tab, 'ai_assist_btn'):
+                self.app.policy_browser_tab.ai_assist_btn.config(state=tk.NORMAL)
+                logger.info('AI Assist button on PolicyBrowserTab enabled')
+            # Enable AI Assist button on DynamicGroupTab after AI enablement success
+            if hasattr(self.app, 'dynamic_groups_tab') and hasattr(self.app.dynamic_groups_tab, 'ai_assist_btn'):
+                self.app.dynamic_groups_tab.ai_assist_btn.config(state=tk.NORMAL)
+                logger.info('AI Assist button on DynamicGroupsTab enabled')
+            # Enable UsersTab (and other tabs in the future) to show the AI Assist button
+            if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'ai_assist_btn'):
+                self.app.users_tab.ai_assist_btn.config(state=tk.NORMAL)
+                logger.info('AI Assist button on UsersTab enabled')
+            # Enable ResourcePrincipalsTab (and other tabs in the future) to show the AI Assist button
+            if hasattr(self.app, 'resource_principals_tab') and hasattr(
+                self.app.resource_principals_tab, 'ai_assist_btn'
+            ):
+                self.app.resource_principals_tab.ai_assist_btn.config(state=tk.NORMAL)
+                logger.info('AI Assist button on ResourcePrincipalsTab enabled')
+            # Clear previous AI Assistant search and results after enablement
+            if hasattr(self.app, 'policy_query_var'):
+                self.app.policy_query_var.set('')
+            # if hasattr(self.app, "policy_query_label_text"):
+            #     self.app.policy_query_label_text.set('')
+            self.app.output_text.delete('1.0', tk.END)
+            # Common for result/response variable: ai_output_var or genai_response_var or similar
+            if hasattr(self.app, 'ai_output_var'):
+                self.app.ai_output_var.set('')
+            if hasattr(self.app, 'genai_response_var'):
+                self.app.genai_response_var.set('')
         else:
             self.ai_progress_var.set(f'[X] {message}')
 
@@ -695,7 +728,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
-            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
+            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

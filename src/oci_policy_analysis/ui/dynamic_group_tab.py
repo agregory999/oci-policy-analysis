@@ -186,6 +186,19 @@ class DynamicGroupsTab(BaseUITab):
             command=self._update_dg_output,
         ).grid(row=0, column=4, padx=5, pady=2)
 
+        # --- AI Assist Button (parallels policies_tab.py) ---
+        self.ai_assist_btn = ttk.Button(
+            label_frm_output,
+            text='AI Assist',
+            command=self._on_ai_assist_clicked,
+            state=tk.DISABLED,
+        )
+        self.ai_assist_btn.grid(row=0, column=7, sticky='e', padx=(20, 8), pady=4)
+        self.add_context_help(
+            self.ai_assist_btn,
+            'Show or hide the AI Assistant pane below to analyze dynamic groups and related policies.\nNOTE: AI must be enabled in Settings Tab.',
+        )
+
         ttk.Separator(label_frm_output, orient=tk.VERTICAL).grid(row=0, column=5, sticky='ns', pady=2)
         self.label_policy_count = ttk.Label(label_frm_output, text='Policy Statements\n(Shown Below): 0')
         self.label_policy_count.grid(row=0, column=6, padx=5, pady=2)
@@ -302,6 +315,12 @@ class DynamicGroupsTab(BaseUITab):
             context_note_lbl,
             'Right-click a row for more advanced policy analysis. Click to open in the Policies tab for deeper review.',
         )
+
+    def _on_ai_assist_clicked(self):
+        """Callback for AI Assist button - toggles the AI assistant (bottom) pane."""
+        if hasattr(self.app, 'toggle_bottom'):
+            self.app.toggle_bottom()
+            logger.info('Dynamic Group Tab: AI Assist button clicked, toggled bottom pane.')
 
     def _update_dg_output(self):
         if self.chk_show_instance_principals.get():

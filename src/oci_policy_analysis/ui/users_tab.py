@@ -303,23 +303,33 @@ class UsersTab(BaseUITab):
             multi_select=True,
         )
 
-        # --- SECTION 2: Statement Filters ---
-        self.lf_statement_filters = ttk.LabelFrame(self, text='Statement Filters')
-        self.lf_statement_filters.pack(fill='x', padx=12, pady=(12, 0))
+        # --- SECTION 2: Display Options with AI Assist Button in LabelFrame ---
+        self.lf_display_options = ttk.LabelFrame(self, text='Display Options')
+        self.lf_display_options.pack(fill='x', padx=12, pady=(12, 0))
 
-        def _show_statement_filters_help(_event=None):
+        def _show_display_options_help(_event=None):
             self.set_page_help_text(
-                'Configure filtering options for statements, such as parsed/expanded output or user/group scope.'
+                'Adjust output display options, filters, and access AI assistance for user/group policies.'
             )
 
-        def _restore_statement_filters_help(_event=None):
+        def _restore_display_options_help(_event=None):
             self.set_page_help_text(self.default_help_text)
 
-        self.lf_statement_filters.bind('<Enter>', _show_statement_filters_help)
-        self.lf_statement_filters.bind('<Leave>', _restore_statement_filters_help)
+        self.lf_display_options.bind('<Enter>', _show_display_options_help)
+        self.lf_display_options.bind('<Leave>', _restore_display_options_help)
 
-        # A frame for filter checkboxes (will be filled in in later step)
-        self._build_ui_statement_filters(self.lf_statement_filters)
+        # Filter checkboxes section
+        self._build_ui_statement_filters(self.lf_display_options)
+
+        # AI Assist button inside Display Options frame, packed to the right
+        self.ai_assist_btn = ttk.Button(
+            self.lf_display_options, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
+        )
+        self.ai_assist_btn.pack(side='right', anchor='e', padx=(16, 8), pady=8)
+        self.add_context_help(
+            self.ai_assist_btn,
+            'Show or hide the AI Assistant pane below to analyze user/group policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
+        )
 
         # --- SECTION 3: Filtered Policy Statements ---
         self.lf_filtered_statements = ttk.LabelFrame(self, text='Filtered Policy Statements')
@@ -367,6 +377,12 @@ class UsersTab(BaseUITab):
             variable=self.chk_show_any_group_user,
             command=lambda: self.update_user_policy_output(),
         ).pack(side='left', padx=10)
+
+    def _on_ai_assist_clicked(self):
+        """Callback for AI Assist button. Toggles the AI (bottom) pane."""
+        if hasattr(self.app, 'toggle_bottom'):
+            self.app.toggle_bottom()
+            logger.info('Users Tab: AI Assist button clicked, toggled bottom pane.')
 
     def update_user_analysis_output(self):
         """
