@@ -56,8 +56,10 @@ class DataTable(ttk.Frame):
         column_widths: dict[str, int] | None = None,
         highlights: list[tuple[str, Any, str]] | None = None,
         row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
+        height: int | None = None,
     ) -> None:
         super().__init__(parent)
+        self._height = height
         logger.debug('Initializing DataTable with %d columns and %d rows', len(columns), len(data))
 
         self.all_columns = columns
@@ -104,12 +106,15 @@ class DataTable(ttk.Frame):
         self.table_frame.grid_columnconfigure(0, weight=1)
 
         # Configure Treeview
-        self.tree = ttk.Treeview(
-            self.table_frame,
-            columns=self.display_columns,
-            show='headings',
-            selectmode='extended' if self.multi_select else 'browse',
-        )
+        treeview_args = {
+            'master': self.table_frame,
+            'columns': self.display_columns,
+            'show': 'headings',
+            'selectmode': 'extended' if self.multi_select else 'browse',
+        }
+        if self._height is not None:
+            treeview_args['height'] = self._height
+        self.tree = ttk.Treeview(**treeview_args)
         self.tree.grid(row=0, column=0, sticky='nsew')
         logger.debug('Treeview configured with %d columns', len(self.display_columns))
 

@@ -247,16 +247,19 @@ class UsersTab(BaseUITab):
 
         # Selected Groups label & table
         self.user_selected_groups = ttk.Label(frm_user_selection, text='Selected Groups: ')
-        self.user_selected_groups.grid(row=3, column=0, columnspan=3, padx=5, pady=2, sticky='w')
+        self.user_selected_groups.grid(row=3, column=0, columnspan=3, padx=5, pady=1, sticky='w')
 
         self.selected_groups_table = DataTable(
             frm_user_selection,
             columns=['Domain', 'Group'],
             display_columns=['Domain', 'Group'],
             data=[],
-            column_widths={'Domain': 200, 'Group': 300},
+            column_widths={'Domain': 140, 'Group': 180},
+            height=3,
         )
-        self.selected_groups_table.grid(row=4, column=0, columnspan=3, padx=5, pady=2, sticky='w')
+        self.selected_groups_table.grid(row=4, column=0, columnspan=3, padx=5, pady=1, sticky='w')
+        # Reduce height for selected groups table row
+        frm_user_selection.grid_rowconfigure(4, minsize=48, weight=0)
 
         # --- Table area: groups/users table (right) ---
         # --- Callbacks for table selection ---
@@ -289,19 +292,34 @@ class UsersTab(BaseUITab):
             columns=GROUPS_COLUMNS,
             display_columns=GROUPS_COLUMNS,
             data=[],
-            column_widths=GROUPS_COLUMNS_WIDTHS,
+            column_widths={'Domain Name': 120, 'Group Name': 180, 'Group OCID': 220},
             selection_callback=users_group_selection_callback,
             multi_select=True,
+            height=7,
         )
         self.users_users_table = DataTable(
             frm_user_top,
             columns=USERS_COLUMNS,
             display_columns=USERS_COLUMNS,
             data=[],
-            column_widths=USERS_COLUMNS_WIDTHS,
+            column_widths={
+                'Username': 100,
+                'Display Name': 120,
+                'Primary Email': 120,
+                'User ID': 160,
+                'Domain Name': 100,
+            },
             selection_callback=users_user_selection_callback,
             multi_select=True,
+            height=7,
         )
+
+        # # Reduce groups/users table vertical space
+        # frm_user_top.grid_rowconfigure(0, minsize=85, weight=0)
+        # frm_user_top.grid_rowconfigure(1, minsize=85, weight=0)
+        # frm_user_top.grid_rowconfigure(2, minsize=0, weight=0)
+        # frm_user_top.grid_rowconfigure(3, minsize=0, weight=0)
+        # frm_user_top.grid_rowconfigure(4, minsize=0, weight=0)
 
         # --- SECTION 2: Display Options with AI Assist Button in LabelFrame ---
         self.lf_display_options = ttk.LabelFrame(self, text='Display Options')
@@ -334,6 +352,10 @@ class UsersTab(BaseUITab):
         # --- SECTION 3: Filtered Policy Statements ---
         self.lf_filtered_statements = ttk.LabelFrame(self, text='Filtered Policy Statements')
         self.lf_filtered_statements.pack(fill='both', expand=True, padx=10, pady=10)
+        # Make main tab panel rows expand so the policy table area is prioritized
+        self.grid_rowconfigure(2, weight=50)  # Give filtered statements lots of expand room
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=2)
 
         def _show_filtered_statements_help(_event=None):
             self.set_page_help_text(
@@ -346,6 +368,14 @@ class UsersTab(BaseUITab):
         self.lf_filtered_statements.bind('<Enter>', _show_filtered_statements_help)
         self.lf_filtered_statements.bind('<Leave>', _restore_filtered_statements_help)
 
+        def selection_callback(selected_rows: list[dict]) -> None:
+            for row in selected_rows:
+                logger.info(f"Selected policy statement: {row.get('Statement Text')}")
+                # Update the policy box
+                self.app.ai_additional_instructions = 'Analyze the selected OCI policy statement. Show how the statement breaks down into its components such as action, subject, verb, resource, conditions, and effective path. Explain its implications on permissions within the OCI environment.'
+                self.app.policy_query_label_text.set('Policy Statement\nInsights:')
+                self.app.policy_query_var.set(row.get('Statement Text'))
+
         # Data Table for filtered policy statements
         self.users_policy_table = DataTable(
             self.lf_filtered_statements,
@@ -354,7 +384,7 @@ class UsersTab(BaseUITab):
             data=[],
             column_widths=POLICY_COLUMN_WIDTHS,
             # font_size=10,
-            selection_callback=None,  # Will be set/rewired as needed,
+            selection_callback=selection_callback,
             multi_select=False,
         )
         self.users_policy_table.pack(expand=True, fill='both', padx=0, pady=0)
