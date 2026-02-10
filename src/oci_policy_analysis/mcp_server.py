@@ -37,6 +37,7 @@ if sys.stderr is None:
 import argparse  # noqa: E402
 import json  # noqa: E402
 import threading  # noqa: E402
+import time  # noqa: E402
 
 from deepdiff import DeepDiff  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
@@ -75,6 +76,7 @@ from oci_policy_analysis.common.models import (  # noqa: E402
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
+from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine  # noqa: E402
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine  # noqa: E402
 
 # Global logger for this module
@@ -883,6 +885,20 @@ def main():
         # Save combined cache after loading from OCI
         logger.info('Saving combined cache after loading from OCI')
         cache_manager.save_combined_cache(policy_analysis=pca)
+
+    # ---- Policy Intelligence step (MCP) ----
+    logger.info('[MCP] Running minimal post-load policy intelligence')
+    t0 = time.perf_counter()
+    try:
+        policy_intel = PolicyIntelligenceEngine(pca)
+        policy_intel.calculate_all_effective_compartments()
+        policy_intel.find_invalid_statements()
+        policy_intel.run_dg_in_use_analysis()
+    except Exception as exc:
+        logger.warning(f'[MCP] Post-load policy intelligence raised exception: {exc}')
+    t1 = time.perf_counter()
+    logger.info(f'[MCP] Post-load policy intelligence completed in {t1 - t0:.2f}s')
+    # ----------------------------------------
 
     logger.info(
         f'Tenancy loaded ({"from cache" if args.use_cache else "live"}). Policies: {len(pca.regular_statements)} regular, '

@@ -402,6 +402,7 @@ class App(tk.Tk):
     def _post_load_update_ui(self):
         """Internal: Re-enable and update UI components after data load."""
         self.users_tab.update_user_analysis_output()
+        self.users_tab.update_users_dropdown_options()
         self.policies_tab.update_policy_output()
         self.policies_tab.enable_widgets_after_load()
         self.policy_browser_tab.refresh_tree()

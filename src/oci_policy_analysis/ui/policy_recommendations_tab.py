@@ -412,6 +412,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         except Exception:
             where_pct = 50
 
+        logger.info(f'Recalculating analytics with WHERE clause reduction pct: {where_pct}%')
         pi = self.app.policy_intelligence
         pi.calculate_potential_risk_scores(where_clause_reduction_pct=where_pct)
         pi.analyze_policy_overlap()

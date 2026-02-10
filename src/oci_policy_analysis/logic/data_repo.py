@@ -100,6 +100,8 @@ class PolicyAnalysisRepository:
         self.identity_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
+        self.version = 2
+        self.load_all_users = True
         # Keep the refence data repo as a member
         self.permission_reference_repo = ReferenceDataRepo()
         # self.on_policy_statements_updated = None  # Optional callback, set by UI for reload hooks
@@ -127,6 +129,8 @@ class PolicyAnalysisRepository:
         self.identity_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
+        self.version = 1
+        self.load_all_users = True
         self.permission_reference_repo = ReferenceDataRepo()
         # If there are additional ephemeral analysis/cache attributes, reset them here
         # (e.g., self._policy_progress_queue, self.normalizer, cached_*, etc.)
@@ -847,7 +851,7 @@ class PolicyAnalysisRepository:
         self._resolve_exact_users(filters=filters)
 
         # At this point we have exact groups or exact dynamic groups to deal with
-        logger.debug(f'Post-fuzzy/exact search filters: {filters}')
+        logger.info(f'Post-fuzzy/exact search filters: {filters}')
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
 

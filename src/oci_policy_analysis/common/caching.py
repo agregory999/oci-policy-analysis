@@ -70,6 +70,7 @@ class CacheManager:
 
         # BREAKING: Only support new structure: "policies" (BasePolicy objects), "policy_statements" (statements list)
         combined_data = {
+            'version': 2,
             'tenancy_name': policy_analysis.tenancy_name,
             'tenancy_ocid': policy_analysis.tenancy_ocid,
             'policies': policy_analysis.policies,  # BasePolicy objects only!
@@ -82,6 +83,7 @@ class CacheManager:
             'groups': policy_analysis.groups,
             'users': policy_analysis.users,
             'data_as_of': policy_analysis.data_as_of,
+            'load_all_users': getattr(policy_analysis, 'load_all_users', True),
         }
         logger.info(
             'Saving cache with BREAKING format: "policies"=BasePolicy objects, "policy_statements"=statement list. Old cache files are no longer supported.'
@@ -247,8 +249,10 @@ class CacheManager:
                         Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                         for d in cache_data.get('identity_domains', [])
                     ]
-                    policy_analysis.groups = cache_data.get('groups', {})
-                    policy_analysis.users = cache_data.get('users', {})
+                    policy_analysis.groups = cache_data.get('groups', [])
+                    policy_analysis.users = cache_data.get('users', [])
+                    policy_analysis.version = cache_data.get('version', 1)
+                    policy_analysis.load_all_users = cache_data.get('load_all_users', True)
                     # Set the data as of time, always a str
                     policy_analysis.data_as_of = cache_data.get('data_as_of') or ''
                     logger.info(f'Loaded combined cache (strict mode) from: {combined_cache_file}')
@@ -306,8 +310,10 @@ class CacheManager:
                 Domain(id=d['id'], display_name=d['display_name'], url=d['url'])
                 for d in loaded_json.get('identity_domains', [])
             ]
-            policy_analysis.groups = loaded_json.get('groups', {})
-            policy_analysis.users = loaded_json.get('users', {})
+            policy_analysis.groups = loaded_json.get('groups', [])
+            policy_analysis.users = loaded_json.get('users', [])
+            policy_analysis.version = loaded_json.get('version', 1)
+            policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
             # Set the data as of time, always a str
             policy_analysis.data_as_of = loaded_json.get('data_as_of') or ''
             logger.info(
