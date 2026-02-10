@@ -23,11 +23,12 @@ from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
+from oci_policy_analysis.ui.base_tab import BaseUITab
 
 logger = get_logger('condition_tester_tab')
 
 
-class ConditionTesterTab(ttk.Frame):
+class ConditionTesterTab(BaseUITab):
     """
     UI Tab for interactively testing OCI Condition (Where) clauses using an AST simulation (ANTLR).
     Allows user to provide a where clause and simulated environment variables,
@@ -35,18 +36,35 @@ class ConditionTesterTab(ttk.Frame):
     """
 
     def __init__(self, parent, app):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Test OCI policy condition (where) clauses interactively. Enter the condition clause, '
+                'generate input variables, and evaluate result using simulated inputs below. '
+                "Use 'Actions' for formatting, generating, or evaluating the expression."
+            ),
+        )
         self.app = app
         self._build_ui()
+
+    def apply_settings(self, context_help: bool, font_size: str):
+        """
+        Apply main settings for context help and font size.
+        """
+        super().apply_settings(context_help, font_size)
 
     def _build_ui(self):
         # Row 0: Where Clause Entry (multiline, with Format)
         clause_frame = ttk.LabelFrame(self, text='Condition (Where) Clause')
         clause_frame.pack(fill=tk.X, padx=10, pady=5)
+        self.add_context_help(
+            clause_frame,
+            "Enter an OCI policy 'where' condition clause here. Example: all { request.principal.id=target.bucket.owner.id }",
+        )
+
         # Make clause text 6 lines, resizable if tab expands
         self.clause_text = ScrolledText(clause_frame, height=10, width=120, wrap=tk.WORD, font=('Consolas', 10))
         self.clause_text.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.BOTH, expand=True)
-        # No manual pack_propagate or columnconfigure! Let default geometry work.
         # Keep clause_var for compatibility, but keep in sync with clause_text content
         self.clause_var = tk.StringVar()
 
@@ -54,27 +72,38 @@ class ConditionTesterTab(ttk.Frame):
             self.clause_var.set(self.clause_text.get('1.0', tk.END).strip())
 
         self.clause_text.bind('<FocusOut>', sync_clause_var)
+        self.add_context_help(self.clause_text, 'Edit the policy WHERE clause here (multi-line allowed).')
 
-        # Row 1: Generate and Format buttons (below clause input)
-        generate_row = ttk.Frame(self)
-        generate_row.pack(fill=tk.X, padx=10, pady=(0, 5))
-        gen_btn = ttk.Button(generate_row, text='Generate/Clear Inputs', command=self._generate_inputs)
-        gen_btn.pack(side=tk.LEFT, padx=(0, 8))
-        format_btn = ttk.Button(generate_row, text='Format', command=self._format_clause)
-        format_btn.pack(side=tk.LEFT, padx=3)
+        # Actions Frame: Row 1+3 together in a single label frame, all horizontally
+        actions_frame = ttk.LabelFrame(self, text='Actions')
+        actions_frame.pack(fill=tk.X, padx=10, pady=(2, 6))
+        self.add_context_help(
+            actions_frame,
+            'Use these action buttons to generate variable inputs, format the clause, '
+            'evaluate the clause with variables, or clear the output log.',
+        )
+
+        gen_btn = ttk.Button(actions_frame, text='Generate/Clear Inputs', command=self._generate_inputs)
+        gen_btn.pack(side=tk.LEFT, padx=(8, 8), pady=7)
+        self.add_context_help(gen_btn, 'Parse the clause and generate input fields for required variables.')
+
+        format_btn = ttk.Button(actions_frame, text='Format', command=self._format_clause)
+        format_btn.pack(side=tk.LEFT, padx=(0, 8), pady=7)
+        self.add_context_help(format_btn, 'Auto-format and indent the condition clause for readability.')
+
+        eval_btn = ttk.Button(actions_frame, text='Evaluate Condition', command=self._evaluate_condition)
+        eval_btn.pack(side=tk.LEFT, padx=(0, 8), pady=7)
+        self.add_context_help(eval_btn, 'Run the condition clause against provided input variables.')
+
+        clear_btn = ttk.Button(actions_frame, text='Clear Output', command=self._clear_output)
+        clear_btn.pack(side=tk.LEFT, padx=(0, 8), pady=7)
+        self.add_context_help(clear_btn, 'Clear the output/results log below.')
 
         # Row 2: Simulated Inputs (Tk widgets, dynamic) - dynamically sized to content
         self.vars_frame = ttk.LabelFrame(self, text='Simulated Input Variables')
         self.vars_frame.pack(fill=tk.X, padx=10, pady=5)
         self.input_widgets = {}
-
-        # Row 3: Evaluate/Clear
-        button_frame = ttk.Frame(self)
-        button_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
-        eval_btn = ttk.Button(button_frame, text='Evaluate Condition', command=self._evaluate_condition)
-        eval_btn.pack(side=tk.LEFT, padx=(0, 8))
-        clear_btn = ttk.Button(button_frame, text='Clear Output', command=self._clear_output)
-        clear_btn.pack(side=tk.LEFT, padx=3)
+        self.add_context_help(self.vars_frame, 'Input example values for the variables referenced in your clause.')
 
         # Row 4: Results/Log
         results_group = ttk.LabelFrame(self, text='Evaluation Result / Log')
@@ -82,6 +111,7 @@ class ConditionTesterTab(ttk.Frame):
         self.results_text = ScrolledText(results_group, height=12, width=100, wrap=tk.WORD, font=('Consolas', 10))
         self.results_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.results_text.insert(tk.END, 'Result details will appear here.\n')
+        self.add_context_help(self.results_text, 'Result log: evaluation result, step-by-step comparison/computation.')
         # Setup tags for colored logging
         self.results_text.tag_configure('log_granted', foreground='green')
         self.results_text.tag_configure('log_denied', foreground='red')

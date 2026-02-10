@@ -19,6 +19,7 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
 # Note: CheckboxTable now supports a `column_widths` dict argument (pixel widths only).
@@ -109,7 +110,7 @@ POLICY_CONSOLIDATION_COLUMN_WIDTHS = {
 logger = get_logger(component='policy_recommendations_tab')
 
 
-class PolicyRecommendationsTab(ttk.Frame):
+class PolicyRecommendationsTab(BaseUITab):
     """
     Unified UI tab for displaying Oracle Cloud Policy Recommendations and analytics.
 
@@ -137,7 +138,15 @@ class PolicyRecommendationsTab(ttk.Frame):
 
     def __init__(self, parent, app):
         logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Review policy recommendations and analytics: '
+                'overall security hygiene, risk, policy overlap, consolidation, and fix suggestions. '
+                'Switch tabs below for different analysis views. '
+                'Use the summary table to quickly see top issues and recommendations.'
+            ),
+        )
         self.app = app
         self.policy_repo = app.policy_compartment_analysis
         # Do NOT cache self.intelligence_engine here; always use self.app.policy_intelligence at use-time!
@@ -149,6 +158,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         # --- TOP: Recommendation Summary Table ---
         summary_frame = ttk.LabelFrame(self, text='Overall Recommendation Summary')
         summary_frame.pack(fill='x', padx=10, pady=(8, 0))
+        self.add_context_help(summary_frame, 'Top recommendations and actions based on full OCI policy analysis.')
 
         self.recommendation_table = DataTable(
             summary_frame,
@@ -159,39 +169,51 @@ class PolicyRecommendationsTab(ttk.Frame):
             multi_select=True,
         )
         self.recommendation_table.pack(fill='x', padx=2, pady=4)
+        self.add_context_help(
+            self.recommendation_table, 'High-level summary of all recommended changes or mitigations.'
+        )
 
         # Outer controls for notebook itself (title, reload)
         button_frame = ttk.Frame(self)
         button_frame.pack(fill='x', padx=10, pady=(5, 5))
+        self.add_context_help(button_frame, 'Reload or review all policy analytics in unified tabs below.')
         ttk.Label(button_frame, text='Policy Intelligence: Unified Analytics (prototype)').pack(side='left')
         reload_btn = ttk.Button(button_frame, text='Reload All', command=self.reload_all_analytics)
         reload_btn.pack(side='left', padx=8)
+        self.add_context_help(reload_btn, 'Recompute and reload all analytics/recommendations live.')
 
         # ==== Begin Notebook Prototype ====
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+        self.add_context_help(
+            self.notebook, 'Switch between risk, overlap, consolidation, and fix tabs for deep-dive analytics.'
+        )
 
         # === Risk Overview Tab ===
         risk_frame = ttk.Frame(self.notebook)
         risk_frame.pack(fill='both', expand=True)
+        self.add_context_help(risk_frame, 'View risk scoring and assessment for all policy statements.')
         self._build_risk_tab(risk_frame)
         self.notebook.add(risk_frame, text='Risk Overview')
 
         # === Overlap Analysis Tab ===
         overlap_frame = ttk.Frame(self.notebook)
         overlap_frame.pack(fill='both', expand=True)
+        self.add_context_help(overlap_frame, 'Analyze statement overlap, potential policy overrides, and conflicts.')
         self._build_overlap_tab(overlap_frame)
         self.notebook.add(overlap_frame, text='Overlap Analysis')
 
         # === Policy Consolidation Tab ===
         consolidation_frame = ttk.Frame(self.notebook)
         consolidation_frame.pack(fill='both', expand=True)
+        self.add_context_help(consolidation_frame, 'Opportunities for consolidating or organizing policy statements.')
         self._build_consolidation_tab(consolidation_frame)
         self.notebook.add(consolidation_frame, text='Policy Consolidation')
 
         # === Cleanup / Fix Tab ===
         cleanup_frame = ttk.Frame(self.notebook)
         cleanup_frame.pack(fill='both', expand=True)
+        self.add_context_help(cleanup_frame, 'Identify invalid, dangerous, or redundant policies to clean up.')
         # self.cleanup_frame = cleanup_frame
         self._build_cleanup_tab(cleanup_frame)
         self.notebook.add(cleanup_frame, text='Cleanup / Fix')
@@ -200,6 +222,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         future_frame = ttk.Frame(self.notebook)
         lbl = ttk.Label(future_frame, text='Future analytics or visualizations can go here...')
         lbl.pack(padx=30, pady=30)
+        self.add_context_help(future_frame, 'Reserved for future or custom analytics dashboards.')
         self.notebook.add(future_frame, text='[Future/More]')
 
         logger.debug('Unified PolicyRecommendationsTab: initial analytics reload.')
@@ -210,6 +233,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         # Filter Controls - now inside risk tab only
         filter_frame = ttk.Frame(parent)
         filter_frame.pack(fill='x', padx=10, pady=(8, 2))
+        self.add_context_help(filter_frame, 'Tune risk scoring by WHERE clause impact or risk threshold.')
 
         ttk.Label(filter_frame, text='WHERE clause risk reduction:').pack(side='left', padx=(0, 2))
         self.where_reduction_pct_var = tk.StringVar(value='50%')
@@ -223,6 +247,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         )
         where_pct_combo.pack(side='left', padx=2)
         where_pct_combo.bind('<<ComboboxSelected>>', lambda e: self.reload_all_analytics())
+        self.add_context_help(where_pct_combo, 'Adjust how much WHERE clauses reduce statement risk.')
 
         ttk.Label(filter_frame, text='Relative Risk threshold:').pack(side='left', padx=(15, 2))
         self.risk_threshold_var = tk.StringVar(value='Show all')
@@ -235,6 +260,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         )
         threshold_combo.pack(side='left', padx=2)
         threshold_combo.bind('<<ComboboxSelected>>', lambda e: self.update_risk_tab_output())
+        self.add_context_help(threshold_combo, 'Show only statements above a relative risk threshold.')
 
         # Table
         def on_row_select(selected_rows: list[dict]) -> None:
@@ -265,12 +291,16 @@ class PolicyRecommendationsTab(ttk.Frame):
             multi_select=True,
         )
         self.risk_table.pack(fill='both', expand=True, padx=10, pady=(10, 0))
+        self.add_context_help(self.risk_table, 'Full list of policy statements, with risk and mitigation guidance.')
 
         # Lower tree/frame for risk detail
         risk_detail_frame = ttk.LabelFrame(parent, text='Risk Statement Details & Recommendations')
         risk_detail_frame.pack(fill='x', padx=10, pady=(0, 10))
         risk_detail_frame.grid_rowconfigure(0, weight=1)
         risk_detail_frame.grid_columnconfigure(0, weight=1)
+        self.add_context_help(
+            risk_detail_frame, 'More granular details and action items for the selected risky statement.'
+        )
 
         self.risk_detail_tree = ttk.Treeview(
             risk_detail_frame,
@@ -283,12 +313,14 @@ class PolicyRecommendationsTab(ttk.Frame):
         self.risk_detail_tree.configure(yscrollcommand=scrollbar.set)
         self.risk_detail_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
+        self.add_context_help(self.risk_detail_tree, 'Expanded statement details, scoring notes, recommendations.')
 
     # ==== Overlap Tab Logic ====
     def _build_overlap_tab(self, parent):
         # Filtering (compartment/resource) ONLY for overlap tab for now, as demo
         filter_frame = ttk.Frame(parent)
         filter_frame.pack(fill='x', padx=10, pady=(8, 2))
+        self.add_context_help(filter_frame, 'Filter overlap analysis by compartment or resource for focused review.')
 
         ttk.Label(filter_frame, text='Filter by Effective Compartment:').pack(side='left')
         self.overlap_compartment_filter = 'ALL'
@@ -302,6 +334,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         self.overlap_compartment_combo.set('ALL')
         self.overlap_compartment_combo.pack(side='left', padx=(4, 8))
         self.overlap_compartment_combo.bind('<<ComboboxSelected>>', self._on_overlap_compartment_selected)
+        self.add_context_help(self.overlap_compartment_combo, 'Limit view to policies for a specific compartment.')
 
         ttk.Label(filter_frame, text='Filter by Resource:').pack(side='left')
         self.overlap_resource_filter = 'ALL'
@@ -315,6 +348,9 @@ class PolicyRecommendationsTab(ttk.Frame):
         self.overlap_resource_combo.set('ALL')
         self.overlap_resource_combo.pack(side='left', padx=(4, 8))
         self.overlap_resource_combo.bind('<<ComboboxSelected>>', self._on_overlap_resource_selected)
+        self.add_context_help(
+            self.overlap_resource_combo, 'Limit view to policies for a specific type of OCI resource.'
+        )
 
         ttk.Label(filter_frame, text='(Only statements with overlaps appear)').pack(side='left', padx=10)
 
@@ -382,12 +418,14 @@ class PolicyRecommendationsTab(ttk.Frame):
             highlights=[('Action', 'deny', '#FF0000')],
         )
         self.overlap_table.pack(fill='both', expand=True, padx=10, pady=(10, 0))
+        self.add_context_help(self.overlap_table, 'See where custom policies may override or duplicate one another.')
 
         # Lower tree/frame for overlap detail
         overlap_detail_frame = ttk.LabelFrame(parent, text='Overlap Details')
         overlap_detail_frame.pack(fill='x', padx=10, pady=(0, 10))
         overlap_detail_frame.grid_rowconfigure(0, weight=1)
         overlap_detail_frame.grid_columnconfigure(0, weight=1)
+        self.add_context_help(overlap_detail_frame, 'For a selected statement, see detailed overlap/override notes.')
 
         self.overlap_detail_tree = ttk.Treeview(
             overlap_detail_frame,
@@ -400,6 +438,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         self.overlap_detail_tree.configure(yscrollcommand=scrollbar.set)
         self.overlap_detail_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
+        self.add_context_help(self.overlap_detail_tree, 'Details of all overlapping/conflicting policy relationships.')
 
     # ==== Data/Logic Methods ====
     def reload_all_analytics(self):
@@ -599,6 +638,9 @@ class PolicyRecommendationsTab(ttk.Frame):
             checked_by_default=True,
         )
         self.consolidation_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
+        self.add_context_help(
+            self.consolidation_table, 'Review consolidation candidates and organize statements as indicated.'
+        )
 
     def update_consolidation_tab_output(self):
         """Refresh the consolidation tab's data after analytics reload."""
@@ -637,7 +679,6 @@ class PolicyRecommendationsTab(ttk.Frame):
         Build the Cleanup / Fix notebook sub-tab using CheckboxTable for issues/actions.
         Adds a vertical scrollbar and positions the Take Action button so it never scrolls out of view.
         """
-        from oci_policy_analysis.ui.data_table import CheckboxTable
 
         self.cleanup_columns = ['Type', 'Name', 'Reason', 'Action']
         cleanup_column_widths = {'Type': 150, 'Name': 330, 'Reason': 650, 'Action': 270}
@@ -657,6 +698,7 @@ class PolicyRecommendationsTab(ttk.Frame):
         )
         # Make the table (and thus all internal widgets) expand to full width
         self.cleanup_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
+        self.add_context_help(self.cleanup_table, 'Select and resolve security hygiene issues for policies.')
 
         # Anchor Take Action button to always be visible at the bottom (also part of CheckboxTable, but double-sure)
         # This is handled by CheckboxTable, but if you have a custom action bar, you would add it here.
@@ -739,9 +781,9 @@ class PolicyRecommendationsTab(ttk.Frame):
 
         return issues
 
-    def _take_cleanup_action(self):
-        sel = [row for var, row in self.cleanup_items_vars if var.get()]
-        logger.info(f"Take Action called for {len(sel)} items: {[x['Type'] + ': ' + x['Name'] for x in sel]}")
+    def apply_settings(self, context_help: bool, font_size: str):
+        """Apply context help and font size settings for the recommendations tab."""
+        super().apply_settings(context_help, font_size)
 
     # --- Recommendation Summary source (prototype/stub) ---
     def _get_recommendation_summary(self):

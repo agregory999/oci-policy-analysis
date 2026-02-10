@@ -24,12 +24,13 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable
 
 logger = get_logger(component='simulation_tab')
 
 
-class SimulationTab(ttk.Frame):
+class SimulationTab(BaseUITab):
     """
     UI Tab for Policy Simulation:
       - Section 1: Compartment and Principal chooser (dropdowns, load button)
@@ -49,7 +50,16 @@ class SimulationTab(ttk.Frame):
             settings (object): Application settings object.
 
         """
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Simulate OCI policy enforcement: '
+                '1. Select a compartment and principal identity. '
+                '2. Preview all applicable policy statements. '
+                '3. Choose an API operation and enter variable values, then run the simulation. '
+                '4. View the evaluated allow/deny decision, permissions, and full simulation trace.'
+            ),
+        )
         self.app = app
         self.settings = settings
         self.policy_repo = app.policy_compartment_analysis
@@ -238,26 +248,46 @@ class SimulationTab(ttk.Frame):
         # Top: Section 1 — Compartment/Principal selection
         select_frame = ttk.LabelFrame(self, text='1. Principal and Compartment Selection')
         select_frame.pack(fill='x', padx=8, pady=8)
+        self.add_context_help(
+            select_frame,
+            (
+                'Step 1: Select the compartment and principal (user, group, dynamic group, or service) for the simulation. '
+                'Use the dropdowns for compartment, principal type, and principal name. '
+                "Then click 'Load Simulation' to preview relevant policies."
+            ),
+        )
         ttk.Label(select_frame, text='Compartment:').grid(row=0, column=0, sticky='w')
         self.compartment_combobox = ttk.Combobox(select_frame, textvariable=self.selected_compartment, width=50)
         self.compartment_combobox.grid(row=0, column=1, padx=2)
+        self.add_context_help(self.compartment_combobox, 'Choose the compartment for the simulation context.')
         ttk.Label(select_frame, text='Principal Type:').grid(row=0, column=2, sticky='w')
         self.principal_type_combobox = ttk.Combobox(
             select_frame, textvariable=self.selected_principal_type, width=20, state='normal'
         )
         self.principal_type_combobox.grid(row=0, column=3, padx=2)
         self.principal_type_combobox.bind('<<ComboboxSelected>>', self._update_principal_list)
+        self.add_context_help(self.principal_type_combobox, 'Select the type of principal (user, group, service, etc).')
         ttk.Label(select_frame, text='Principal:').grid(row=0, column=4, sticky='w')
         self.principal_combobox = ttk.Combobox(
             select_frame, textvariable=self.selected_principal, width=30, state='normal'
         )
         self.principal_combobox.grid(row=0, column=5, padx=2)
+        self.add_context_help(self.principal_combobox, 'Select the identity (user/group name) for simulation.')
         self.load_button = ttk.Button(select_frame, text='Load Simulation', command=self.load_statements)
         self.load_button.grid(row=0, column=6, padx=8)
+        self.add_context_help(self.load_button, 'Load all policy statements relevant to your context.')
 
         # Middle: Section 2 — Policy statement and where-clause preview
         self.preview_frame = ttk.LabelFrame(self, text='2. Applicable Policies')
         self.preview_frame.pack(fill='both', padx=8, pady=8, expand=True)
+        self.add_context_help(
+            self.preview_frame,
+            (
+                'Step 2: See all policies that apply to the selected context. '
+                'You may select (check/uncheck) those that should be used for the simulation. '
+                'Load where-clause variables from checked policies.'
+            ),
+        )
         # self.preview_frame.columnconfigure(0, weight=1)
         # self.preview_frame.rowconfigure(0, weight=1)
 
@@ -265,11 +295,21 @@ class SimulationTab(ttk.Frame):
         # Section 3 — API Operation and where inputs, simulate button
         simulate_frame = ttk.LabelFrame(self, text='3. API Operation and Simulation Inputs')
         simulate_frame.pack(fill='x', padx=8, pady=8)
+        self.add_context_help(
+            simulate_frame,
+            (
+                'Step 3: Choose the API operation to simulate and enter values for any required variables. '
+                'You may add/edit where-clause inputs below if needed. Click a simulation button to analyze.'
+            ),
+        )
         # Where-Clause Inputs label in section 3
         self.where_fields_label = ttk.Label(
             simulate_frame, text='Where-Clause Inputs: [None]', anchor='w', font=('TkDefaultFont', 9, 'bold')
         )
         self.where_fields_label.grid(row=0, column=0, columnspan=4, sticky='w', padx=(4, 0), pady=(0, 4))
+        self.add_context_help(
+            self.where_fields_label, 'Variables required by where clauses. Enter values before simulating.'
+        )
         # Container for dynamic variable inputs
         self.where_inputs_frame = ttk.Frame(simulate_frame)
         self.where_inputs_frame.grid(row=1, column=0, columnspan=4, pady=(2, 8), sticky='ew')
@@ -277,15 +317,18 @@ class SimulationTab(ttk.Frame):
         ttk.Label(simulate_frame, text='API Operation:').grid(row=2, column=0, sticky='w')
         self.api_operation_combobox = ttk.Combobox(simulate_frame, textvariable=self.selected_api_operation, width=60)
         self.api_operation_combobox.grid(row=2, column=1, padx=2)
+        self.add_context_help(self.api_operation_combobox, 'Pick the target OCI API call to simulate.')
         self.simulate_button = ttk.Button(simulate_frame, text='Run Simulation', command=self.run_simulation)
         self.simulate_button.grid(row=2, column=2, padx=8)
         self.simulate_button.config(state='disabled')  # Disabled at startup
+        self.add_context_help(self.simulate_button, 'Run simulation using selected context, operation, and variables.')
 
         self.simulate_trace_button = ttk.Button(
             simulate_frame, text='Run Simulation (Trace)', command=self.run_simulation_trace
         )
         self.simulate_trace_button.grid(row=2, column=3, padx=(4, 0))
         self.simulate_trace_button.config(state='disabled')  # Disabled at startup
+        self.add_context_help(self.simulate_trace_button, 'Run simulation with full evaluation trace history.')
 
         # Callback for strict activation of simulate buttons based on an actual valid selection
         def _maybe_enable_sim_buttons(event=None):
@@ -324,6 +367,13 @@ class SimulationTab(ttk.Frame):
         # Section 4 — Results and trace
         results_frame = ttk.LabelFrame(self, text='4. Simulation Results')
         results_frame.pack(fill='both', expand=True, padx=8, pady=8)
+        self.add_context_help(
+            results_frame,
+            (
+                'Step 4: View simulation output and the full trace for policy evaluation. '
+                'Choose from history, export results, or inspect full allow/deny rationale.'
+            ),
+        )
 
         # Export button for simulation history as JSON
         def _export_simulation_history():
@@ -352,10 +402,21 @@ class SimulationTab(ttk.Frame):
         )
         self.trace_history_dropdown.pack(side='left', padx=(0, 8))
         self.trace_history_dropdown.bind('<<ComboboxSelected>>', self.on_trace_history_selected)
+        self.add_context_help(
+            self.trace_history_dropdown, 'Select a previous simulation run to view its results and trace.'
+        )
         export_btn = ttk.Button(trace_row, text='Export All Simulations to JSON', command=_export_simulation_history)
         export_btn.pack(side='left', padx=(0, 0), pady=(0, 0))
+        self.add_context_help(export_btn, 'Export all prior simulation results to a JSON file.')
         self.results_text = tk.Text(results_frame, height=10, wrap='word')
         self.results_text.pack(fill='both', expand=True)
+        self.add_context_help(
+            self.results_text, 'Simulation summary and full policy trace details. See allow/deny and permissions here.'
+        )
+
+    def apply_settings(self, context_help: bool, font_size: str):
+        """Apply main settings for context help and font size."""
+        super().apply_settings(context_help, font_size)
 
     def load_statements(self):  # noqa: C901
         """Loads and displays policy statements for the currently selected compartment and principal.
@@ -417,8 +478,9 @@ class SimulationTab(ttk.Frame):
         else:
             all_stmts = []
         # Remove old checklist/table if present
-        if getattr(self, 'statement_checkbox_table', None) is not None:
-            self.statement_checkbox_table.destroy()
+        table = getattr(self, 'statement_checkbox_table', None)
+        if table is not None:
+            table.destroy()
             self.statement_checkbox_table = None
         data = []
         for st in all_stmts:

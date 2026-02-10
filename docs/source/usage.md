@@ -64,6 +64,22 @@ Once AI has been enabled and the AI pane is toggled, each tab in the UI will hav
 
 Settings for font size, additional tabs.
 
+#### Contextual Help
+
+On each page, there is a contextual help area at the top of the tab.  Mousing over a section that has a specific message causes the message to be displayed at the top.  Enable the help on the Settings Tab with the "Context Help" checkbox.
+
+#### Show Console / Debug
+
+Enables tabs that show live console (shell) and is configurable down the level of individual loggers.  The JSON debugger gives access to larger internal JSON structures, primarily for debugging.
+
+#### Show Maintenance Tab
+
+Enables various maintenance operations, such as renaming caches, testing permissions, etc.
+
+#### Show Advanced Tabs
+
+Enabled multiple advanced tabs - Permissions Report, COndition Tester, API Simulation, and Recommendations tabs.
+
 ### Embedded MCP Server
 
 The only options here are a host and port.  If the MCP embedded server is started, it will use these settings to start.  Provided there isn't a listening service on the selected port, the service will start from the "Embedded MCP" tab using these.
