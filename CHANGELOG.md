@@ -1,3 +1,11 @@
+## [4.0.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.0...v4.0.1) (2026-02-10)
+
+
+### Bug Fixes
+
+* Ensure groups and users load properly ([c8058af](https://github.com/agregory999/oci-policy-analysis/commit/c8058af5ce05f98313e6b66d7b72256b3e496119))
+* Merge pull request [#29](https://github.com/agregory999/oci-policy-analysis/issues/29) from agregory999/develop ([7890991](https://github.com/agregory999/oci-policy-analysis/commit/7890991b40752340ca99f5aa2b725c82aa371448))
+
 ## [4.0.1-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.0...v4.0.1-dev.1) (2026-02-06)
 
 
