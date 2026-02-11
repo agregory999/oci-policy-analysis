@@ -54,21 +54,20 @@ class ReferenceDataRepo:
 
     def __init__(self, json_dir='permissions'):
         self.json_dir = os.path.join(os.path.dirname(__file__), json_dir)
-        logger.info(f'Loading reference data from directory: {self.json_dir}')
-        self.data = self._load_data()
-
-        # Create case-insensitive maps for resources and families
-        self.resource_name_map = {k.lower(): k for k in self.data['resources'].keys()}
-        self.family_name_map = {k.lower(): k for k in self.data['families'].keys()}
+        # Always define keys needed by consumers, even if load_data hasn't run yet
+        self.data = {'resources': {}, 'families': {}}
+        self.resource_name_map = {}
+        self.family_name_map = {}
         self.verb_set = {'inspect', 'read', 'use', 'manage'}
 
-    def _load_data(self):
-        data = {'resources': {}, 'families': {}}
+    def load_data(self):
+        logger.info(f'Loading reference data from directory: {self.json_dir}')
+        self.data = {'resources': {}, 'families': {}}
         files_loaded = 0
         # Store operations for all loaded files in new field (flat)
-        data['operations'] = {}
+        self.data['operations'] = {}
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
-        data['operations_by_api'] = {}
+        self.data['operations_by_api'] = {}
         verb_risk = {'inspect': 1, 'read': 2, 'use': 10, 'manage': 50}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
@@ -91,29 +90,32 @@ class ReferenceDataRepo:
                     logger.debug(
                         f'File {file_path}: contains {len(debug_resources)} resources, {len(debug_families)} families, {len(debug_operations)} operations'
                     )
-                    data['resources'].update(debug_resources)
-                    data['families'].update(debug_families)
+                    self.data['resources'].update(debug_resources)
+                    self.data['families'].update(debug_families)
                     # Determine api_name from filename (basename, no extension)
                     api_name = os.path.splitext(os.path.basename(file_path))[0]
                     if debug_operations:
-                        data['operations'].update(debug_operations)
+                        self.data['operations'].update(debug_operations)
                         # group by api_name: {op_name: op_data + 'api_name': ...}
                         ops = {}
                         for op_name, meta in debug_operations.items():
                             meta_copy = dict(meta)  # don't mutate input
                             meta_copy['api_name'] = api_name
                             ops[op_name] = meta_copy
-                        data['operations_by_api'][api_name] = ops
+                        self.data['operations_by_api'][api_name] = ops
                     logger.debug(
-                        f'File {file_path} loaded/merged. Cumulative resources: {len(data["resources"])}, families: {len(data["families"])}, operations: {len(data["operations"])}, operations_by_api: {len(data["operations_by_api"])}'
+                        f'File {file_path} loaded/merged. Cumulative resources: {len(self.data["resources"])}, families: {len(self.data["families"])}, operations: {len(self.data["operations"])}, operations_by_api: {len(self.data["operations_by_api"])}'
                     )
                     files_loaded += 1
             except Exception as e:
                 logger.error(f'Error loading {file_path}: {e}')
         logger.info(
-            f'Loaded {files_loaded} reference data files. Total resources: {len(data["resources"])}, families: {len(data["families"])}, operations: {len(data["operations"])}, operations_by_api: {len(data["operations_by_api"])}'
+            f'Loaded {files_loaded} reference data files. Total resources: {len(self.data["resources"])}, families: {len(self.data["families"])}, operations: {len(self.data["operations"])}, operations_by_api: {len(self.data["operations_by_api"])}'
         )
-        return data
+        # Create case-insensitive maps for resources and families
+        self.resource_name_map = {k.lower(): k for k in self.data['resources'].keys()}
+        self.family_name_map = {k.lower(): k for k in self.data['families'].keys()}
+        self.verb_set = {'inspect', 'read', 'use', 'manage'}
 
     def get_permission_risk(self, permission: str, resource: str = None):
         """

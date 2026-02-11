@@ -470,7 +470,7 @@ class PolicyRecommendationsTab(BaseUITab):
         logger.info(f'Updating recommendation summary with {len(recs)} entries.')
         if recs and hasattr(logger, 'info'):
             logger.info(
-                f"[DEBUG] First recommendation keys: {list(recs[0].keys()) if isinstance(recs[0], dict) else 'Not a dict'}"
+                f"First recommendation keys: {list(recs[0].keys()) if isinstance(recs[0], dict) else 'Not a dict'}"
             )
         # Ensure all required columns are present for every row (prevent blank table w/ field mismatch)
         required_cols = ['Recommendation', 'Priority', 'Category', 'Notes', 'Action']

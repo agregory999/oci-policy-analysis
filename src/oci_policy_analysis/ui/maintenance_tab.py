@@ -11,16 +11,16 @@
 # coding: utf-8
 ##########################################################################
 
+import json
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
-logger = get_logger(component='internal.maintenance')
+logger = get_logger(component='maintenance_tab')
 
 
 class MaintenanceTab(ttk.Frame):
@@ -39,14 +39,17 @@ class MaintenanceTab(ttk.Frame):
         _maintenance_check_overlap: (Internal) Checks for overlap between two permission statements.
     """
 
-    def __init__(self, parent, app, caching, settings):
+    def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-        self.caching = caching
-        self.settings = settings
-        self.settings_tab = self.app.settings_tab  # Optional link for settings tab live refresh
-        self.policies_tab = self.app.policies_tab  # Optional link to policies tab
+        self.caching = app.caching
+        self.settings = app.settings
+        self.settings_tab = app.settings_tab  # Optional link for settings tab live refresh
+        self.policies_tab = app.policies_tab  # Optional link to policies tab
+        # Build the UI components
+        self.build_ui()
 
+    def build_ui(self):
         # -------- Maintenance UI Build (CACHE & SAVED SEARCHES, 50/50) ----------
         frm_top = ttk.LabelFrame(self, text='Cache & Saved Search Management')
         frm_top.pack(fill='x', padx=10, pady=10)
@@ -65,6 +68,7 @@ class MaintenanceTab(ttk.Frame):
         self.maintenance_cache_list = tk.Listbox(frm_cache, selectmode=tk.SINGLE, height=8, width=40)
         self.maintenance_cache_list.pack(side='left', padx=8, pady=6, fill='y')
         self._refresh_maintenance_cache_list()
+        # Do NOT call any reference-data dependent methods here; they are called by app when data is ready
 
         # Scrollbar for Listbox
         scroll = ttk.Scrollbar(frm_cache, orient='vertical', command=self.maintenance_cache_list.yview)
@@ -105,6 +109,7 @@ class MaintenanceTab(ttk.Frame):
         self.saved_search_list.pack(side='left', padx=8, pady=6, fill='y')
         # Example data for saved searches -- replace with real integration as needed
         self._refresh_saved_search_list()
+        # Do NOT call any reference-data dependent methods here; they are called by app when data is ready
 
         saved_scroll = ttk.Scrollbar(frm_saved, orient='vertical', command=self.saved_search_list.yview)
         self.saved_search_list.config(yscrollcommand=saved_scroll.set)
@@ -139,7 +144,7 @@ class MaintenanceTab(ttk.Frame):
 
         self.json_text = ScrolledText(frm_json, height=10, width=70, wrap=tk.WORD)
         self.json_text.pack(pady=5, fill='both', expand=True)
-        self._maintenance_display_json()
+        # self._maintenance_display_json()  # (Commented: now done in refresh_data)
         # Removed Save JSON button
 
         # Operations JSON (Raw/Debug) to the right
@@ -148,7 +153,7 @@ class MaintenanceTab(ttk.Frame):
 
         self.operations_json_text = ScrolledText(frm_ops_json, height=10, width=70, wrap=tk.WORD)
         self.operations_json_text.pack(pady=5, fill='both', expand=True)
-        self._maintenance_display_operations_json()
+        # self._maintenance_display_operations_json()  # (Commented: now done in refresh_data)
 
         # -------- Main Maintenance UI Build (PERMISSIONS TESTER and API OPERATIONS TESTER side-by-side) ----------
         frm_testers_wrap = ttk.Frame(self)
@@ -208,7 +213,7 @@ class MaintenanceTab(ttk.Frame):
 
         self.permissions_overlap_text = tk.Text(frm_permissions, height=14, width=50, wrap=tk.WORD)
         self.permissions_overlap_text.pack(fill='both', padx=2, pady=2, expand=True)
-        self._maintenance_permissions_load_data()
+        # self._maintenance_permissions_load_data()  # (Commented: now done in refresh_data)
 
         # API Operations Tester (RIGHT)
         frm_ops_tester_lbl = ttk.LabelFrame(frm_testers_wrap, text='API Operations Tester')
@@ -258,7 +263,26 @@ class MaintenanceTab(ttk.Frame):
         )
         self.apiop_note_label.grid(row=5, column=0, columnspan=2, sticky='w', padx=3, pady=(6, 3))
 
+        # self._maintenance_ops_tester_load_data()  # (Commented: now done in refresh_data)
+
+    def refresh_data(self):
+        """
+        Public method: must be called after reference data is loaded and ready.
+        Loads or reloads all data-dependent UI elements (comboboxes, JSON viewers, permissions, etc).
+        """
+        logger.info(
+            f'Refreshing MaintenanceTab data and UI elements...{self.app.reference_data_repo.data.keys() if hasattr(self.app, "reference_data_repo") else "No repo available"}'
+        )
+        self._ref_repo = self.app.reference_data_repo
+
+        self._maintenance_permissions_load_data()
+        self._maintenance_display_json()
+        self._maintenance_display_operations_json()
         self._maintenance_ops_tester_load_data()
+        self._refresh_saved_search_list()
+        logger.info(
+            f'MaintenanceTab data refresh - Saved searches count: {len(self.settings.get("saved_policy_searches", []))}.'
+        )
 
     def _refresh_saved_search_list(self):
         """Populate the saved searches Listbox using app settings (shared with policies tab)."""
@@ -320,14 +344,13 @@ class MaintenanceTab(ttk.Frame):
 
     def _maintenance_display_json(self):
         """Refresh the raw permissions JSON in the debug display."""
-        import json
 
         if hasattr(self, '_ref_repo'):
             json_str = json.dumps(self._ref_repo.data, indent=2)
+            logger.debug(f'Permissions JSON data keys: {self._ref_repo}')
         else:
             try:
                 # lazy-load repo if not loaded
-                self._ref_repo = ReferenceDataRepo()
                 json_str = json.dumps(self._ref_repo.data, indent=2)
             except Exception as ex:
                 json_str = f'Error loading permissions data: {ex}'
@@ -343,7 +366,6 @@ class MaintenanceTab(ttk.Frame):
             json_str = json.dumps(display_data, indent=2)
         else:
             try:
-                self._ref_repo = ReferenceDataRepo()
                 json_str = json.dumps(self._ref_repo.data.get('operations_by_api', {}), indent=2)
             except Exception as ex:
                 json_str = f'Error loading operations data: {ex}'
@@ -438,13 +460,14 @@ class MaintenanceTab(ttk.Frame):
                     pass
         else:
             self.maintenance_status_var.set(f'Failed to update preserve state for {cache_name}')
+        logger.info(f'Cache "{cache_name}" preserve toggled to {not is_preserved}.')
 
     def _maintenance_permissions_load_data(self):
         # Load reference data
         try:
-            self._ref_repo = ReferenceDataRepo()
-            data = self._ref_repo.data
-            all_items = sorted(data['resources'].keys()) + [f'Family: {f}' for f in sorted(data['families'].keys())]
+            all_items = sorted(self._ref_repo.data['resources'].keys()) + [
+                f'Family: {f}' for f in sorted(self._ref_repo.data['families'].keys())
+            ]
             for widget_combo in [
                 self.permissions_resource_combo,
                 self.permissions_res1_combo,
@@ -497,17 +520,11 @@ class MaintenanceTab(ttk.Frame):
 
     def _maintenance_ops_tester_load_data(self):
         """Populate the operations tester controls with available APIs and permissions."""
-        if not hasattr(self, '_ref_repo'):
-            try:
-                self._ref_repo = ReferenceDataRepo()
-            except Exception:
-                return
 
-        data = self._ref_repo.data
         # API operations as "apiname:Operation"
         apiops = []
         op_to_api = {}
-        for api, ops in data.get('operations_by_api', {}).items():
+        for api, ops in self._ref_repo.data.get('operations_by_api', {}).items():
             for op in ops:
                 label = f'{api}:{op}'
                 apiops.append(label)
@@ -519,7 +536,7 @@ class MaintenanceTab(ttk.Frame):
 
         # Permissions: union of all permissions in all resources/verbs
         permset = set()
-        for resval in data.get('resources', {}).values():
+        for resval in self._ref_repo.data.get('resources', {}).values():
             verbs = resval.get('verbs', {})
             for plist in verbs.values():
                 permset.update(p.upper() for p in plist)

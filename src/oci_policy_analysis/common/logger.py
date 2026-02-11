@@ -32,7 +32,15 @@ class ForceFlushStreamHandler(logging.StreamHandler):
 
 
 def _setup_logging() -> None:
-    """Configure root logger once."""
+    """
+    Configure root logger and handlers once, early in process lifetime.
+
+    - Always attaches a ForceFlushStreamHandler for shell/file logging (DEBUG shown here when enabled).
+    - Handlers relevant to the in-app ConsoleTab (UI) should always filter at INFO or higher (see ConsoleTab implementation), never DEBUG.
+    - No handler here will enforce INFO or higher: responsibility for filtering DEBUG from UI is solely in ConsoleTab.
+
+    The rest of the application (including the UI) should only alter log levels via set_log_level/set_component_level, never by re-attaching handlers.
+    """
     root = logging.getLogger()
     if root.handlers:  # Already setup? Skip.
         return
@@ -50,13 +58,13 @@ def _setup_logging() -> None:
     # Add StreamHandler to root for shell console (all logs)
     # If using MCP stdio mode, log to stderr to avoid mixing with MCP stdio
     if os.environ.get('MCP_STDIO_MODE', '0') == '1':
-        stream = ForceFlushStreamHandler(sys.stderr)  # Use stderr for logs
+        stream = ForceFlushStreamHandler(sys.stderr)
     else:
-        stream = ForceFlushStreamHandler(sys.stdout)  # Use stdout for logs
+        stream = ForceFlushStreamHandler(sys.stdout)
     stream.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s'))
     root.addHandler(stream)
 
-    # Add rotating file handler (always, for EXE/shell)
+    # Add rotating file handler (always, for EXE/shell); DEBUG records also routed here if enabled
     log_dir = os.path.expanduser('~/.oci-policy-analysis/logs')
     os.makedirs(log_dir, exist_ok=True)  # Create if needed (cross-platform safe)
     file_handler = RotatingFileHandler(
@@ -88,7 +96,13 @@ def get_logger(component: str | None = None) -> logging.Logger:
 
 def set_log_level(level: str | int) -> None:
     """
-    Set root level (affects everything). Log level int can be passed too. Options are:
+    Set root logger level (affects all non-overridden loggers).
+
+    - Use for global (root) logging threshold, e.g., on app startup or when user changes global log level.
+    - When --verbose is active, will force DEBUG everywhere (but UI always filters DEBUG).
+    - Do not use to configure UI/ConsoleTab handler; that always filters at INFO+.
+
+    Options:
         - CRITICAL  50
         - ERROR     40
         - WARNING   30

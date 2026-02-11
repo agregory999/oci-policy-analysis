@@ -103,7 +103,8 @@ class PolicyAnalysisRepository:
         self.version = 2
         self.load_all_users = True
         # Keep the refence data repo as a member
-        self.permission_reference_repo = ReferenceDataRepo()
+        # self.permission_reference_repo = ReferenceDataRepo()
+        self.permission_reference_repo = None
         # self.on_policy_statements_updated = None  # Optional callback, set by UI for reload hooks
         logger.info('Initialized PolicyAnalysisRepo')
         # Create a Normalizer instance

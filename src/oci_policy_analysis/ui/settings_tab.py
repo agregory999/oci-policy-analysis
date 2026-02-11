@@ -32,7 +32,7 @@ AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Dat
 AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
 
 # Global logger for this module
-logger = get_logger(component='settings')
+logger = get_logger(component='settings_tab')
 
 
 class SettingsTab(BaseUITab):
@@ -60,7 +60,7 @@ class SettingsTab(BaseUITab):
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
-        self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', False))
+        self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', True))
         # ----- NEW: Load All Users Option -----
         self.load_all_users_var = tk.BooleanVar(value=self.settings.get('load_all_users', True))
         self.ai_compartment_var = tk.StringVar(

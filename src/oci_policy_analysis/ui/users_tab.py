@@ -423,7 +423,7 @@ class UsersTab(BaseUITab):
 
         # Defensive: Only try to display tables if they've been initialized
         if self.users_groups_table is None or self.users_users_table is None:
-            logger.warning('Table widgets not initialized yet; skipping analysis output update.')
+            logger.info('Table widgets not initialized yet; skipping analysis output update.')
             return
 
         # Grid the correct table

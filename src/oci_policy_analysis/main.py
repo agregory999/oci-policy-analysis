@@ -12,33 +12,27 @@
 #
 # coding: utf-8
 ##########################################################################
-##########################################################################
-# Safe startup patches for PyInstaller / FastMCP builds
-##########################################################################
 
 # Standard library imports
-import argparse  # noqa: E402
-import asyncio  # noqa: E402
-
-# import io
-import json  # noqa: E402
-import logging  # noqa: E402
-import queue  # noqa: E402
-
-# import sys
-import threading  # noqa: E402
-import time  # noqa: E402
-import tkinter as tk  # noqa: E402
-import tkinter.filedialog as tkfiledialog  # noqa: E402
-import tkinter.font as tkfont  # noqa: E402
+import argparse
+import asyncio
+import json
+import logging
+import queue
+import threading
+import time
+import tkinter as tk
+import tkinter.filedialog as tkfiledialog
+import tkinter.font as tkfont
 import tkinter.ttk as ttk
 import traceback
 import warnings
-import webbrowser  # noqa: E402
+import webbrowser
 from importlib.resources import files
 
-from oci_policy_analysis.common import config  # noqa: E402
-from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
+# Application imports
+from oci_policy_analysis.common import config
+from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
@@ -61,7 +55,7 @@ from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.simulation_tab import SimulationTab
-from oci_policy_analysis.ui.users_tab import UsersTab  # noqa: E402
+from oci_policy_analysis.ui.users_tab import UsersTab
 
 # ----------- POST-IMPORT SETUP ------------
 # Version extraction
@@ -108,20 +102,29 @@ class App(tk.Tk):
         self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1400x900')
 
-        # Shared config & logger
+        # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
 
-        # Restore global logger level from settings (default INFO)
-        level_name = self.settings.get('log_level', 'INFO')
-        # If --verbose (force_debug) is set, override any setting-driven log level
+        # === CENTRALIZED LOGGER CONFIGURATION (run before any tab is constructed) ===
+        log_levels = self.settings.get('log_levels', {})
+        global_log_level = log_levels.get('global_log_level', self.settings.get('global_log_level', 'INFO'))
+        from oci_policy_analysis.common.logger import set_component_level
+
+        # If --verbose is set, override global/component levels (shell and file only; ConsoleTab still shows INFO+)
         if force_debug:
             self.log_level_var = tk.StringVar(value='DEBUG')
             logger.info('Log level forcibly set to DEBUG due to --verbose argument (settings ignored)')
             set_log_level('DEBUG')
+            for component in log_levels.keys():
+                set_component_level(component, 'DEBUG')
         else:
-            self.log_level_var = tk.StringVar(value=level_name)
+            self.log_level_var = tk.StringVar(value=global_log_level)
+            set_log_level(global_log_level)
+            for component, level in log_levels.items():
+                if component == 'global_log_level':
+                    continue
+                set_component_level(component, level)
             logger.info(f'Log level set to {logging.getLevelName(logger.level)} from settings')
-            set_log_level(level=level_name)
 
         # Style / fonts (standard tkinter only)
         self.style = ttk.Style()
@@ -130,7 +133,6 @@ class App(tk.Tk):
         self.style.theme_use('clam')
         self.default_font = tkfont.nametofont('TkDefaultFont')
         self.style.configure('.', font=('Oracle Sans', 12))
-
         self.style.configure('Treeview', padding=(0, 0, 8, 0))
 
         # PanedWindow (vertical split)
@@ -145,9 +147,13 @@ class App(tk.Tk):
         self.notebook.pack(fill='both', expand=True)
 
         # Repository / Data / Simulation Engine
-        self.policy_compartment_analysis = PolicyAnalysisRepository()
-        self.ai = AI()
         self.reference_data_repo = ReferenceDataRepo()
+        self.reference_data_repo.load_data()
+        self.policy_compartment_analysis = PolicyAnalysisRepository()
+        self.policy_compartment_analysis.permission_reference_repo = (
+            self.reference_data_repo
+        )  # Inject reference data repo into main repo for access during loading and analysis
+        self.ai = AI()
         self.simulation_engine = PolicySimulationEngine(
             policy_repo=self.policy_compartment_analysis,
             ref_data_repo=self.reference_data_repo,
@@ -171,10 +177,13 @@ class App(tk.Tk):
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
         self.console_tab = ConsoleTab(self.notebook, self)
-        self.maintenance_tab = MaintenanceTab(self.notebook, self, caching=self.caching, settings=self.settings)
+        self.maintenance_tab = MaintenanceTab(self.notebook, self)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
+
+        # Able to refresh maintenance tab with new data
+        self.maintenance_tab.refresh_data()
 
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
@@ -836,7 +845,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logger = get_logger(component='main')
-    logger.info('Logging to Console only')
 
     # --- OVERRIDE: Force ALL loggers to DEBUG level if --verbose is set ---
     if args.verbose:

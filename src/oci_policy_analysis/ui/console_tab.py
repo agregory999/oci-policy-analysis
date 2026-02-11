@@ -87,27 +87,52 @@ class ConsoleTab(ttk.Frame):
         self._attach_console_log_handler()
 
     def _build_ui(self):  # noqa: C901
-        # ttk.Label(self, text='Console Log').pack(pady=10)
+        top_frame = ttk.Frame(self)
+        top_frame.pack(fill=tk.X, padx=5, pady=(8, 0))
+
+        # Detect if verbose mode is active
+        verbose_active = self.app.log_level_var.get() == 'DEBUG'
+
+        if verbose_active:
+            banner = ttk.Label(
+                top_frame,
+                text=(
+                    'Verbose mode (--verbose) is active. Only INFO+ logs appear below, but DEBUG output is available in the shell and app.log file.\n'
+                    'No logging configuration changes are allowed during this session. To modify logging, restart without --verbose.'
+                ),
+                foreground='red',
+                justify='left',
+                padding=6,
+                font=('Arial', 11, 'bold'),
+            )
+            banner.pack(anchor=tk.W, pady=(0, 9))
+
         ctrl_frame = ttk.Frame(self)
         ctrl_frame.pack(pady=10)
 
-        ttk.Button(ctrl_frame, text='Clear', command=lambda: self.console_log.delete('1.0', tk.END)).pack(
-            side=tk.LEFT, padx=5
+        clear_btn = ttk.Button(
+            ctrl_frame, text='Clear Console Tab', command=lambda: self.console_log.delete('1.0', tk.END)
         )
+        clear_btn.pack(side=tk.LEFT, padx=5)
 
         # --- Global logger controls ---
         ttk.Label(ctrl_frame, text='Log Level (Debug only to shell):').pack(side=tk.LEFT, padx=(15, 0))
         level_combo = ttk.Combobox(
             ctrl_frame,
-            textvariable=self.app.log_level_var,  # Reuse from App
-            values=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],  # No DEBUG globally!
+            textvariable=self.app.log_level_var,
+            values=['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
             width=10,
+            state='disabled' if verbose_active else 'readonly',
         )
         level_combo.pack(side=tk.LEFT)
         # Show/hide checkbox added here
         self.show_loggers_var = tk.BooleanVar(value=False)
         show_loggers_chk = ttk.Checkbutton(
-            ctrl_frame, text='Show loggers', variable=self.show_loggers_var, command=self._toggle_logger_grid
+            ctrl_frame,
+            text='Configure Component Loggers (as override to global level)',
+            variable=self.show_loggers_var,
+            command=self._toggle_logger_grid,
+            state='disabled' if verbose_active else 'normal',
         )
         show_loggers_chk.pack(side=tk.LEFT, padx=10)
 
@@ -116,7 +141,7 @@ class ConsoleTab(ttk.Frame):
         self.logger_components_by_pkg = {
             'Common': ['cli', 'caching', 'config', 'main', 'mcp_server'],
             'Logic': [
-                'policy_simulation_engine',
+                'simulation_engine',
                 'ai_repo',
                 'reference_data_repo',
                 'policy_parser',
@@ -135,10 +160,10 @@ class ConsoleTab(ttk.Frame):
                 'data_table',
                 'historical_tab',
                 'dynamic_group_tab',
-                'settings',
+                'settings_tab',
                 'mcp_tab',
                 'cross_tenancy_tab',
-                'maintenance',
+                'maintenance_tab',
                 'users_tab',
                 'internal',
             ],
@@ -221,7 +246,8 @@ class ConsoleTab(ttk.Frame):
                 )
                 combo.grid(row=row + 1, column=col * 2 + 1, sticky='w', padx=(1, 8), pady=2)
                 combo.bind('<<ComboboxSelected>>', lambda e, c=comp, v=var: on_logger_level_change(e, c, v))
-                set_component_level(comp, level)
+                # Only reflect state in UI; don't set log level at init
+                # set_component_level(comp, level)  # NO OP at startup
             # Each group uses space equal to 2 * (width) columns
             col_offset += 2 * ncol + 2
 
@@ -247,15 +273,13 @@ class ConsoleTab(ttk.Frame):
 
             config.save_settings(self.app.settings)
 
-        # On startup: apply global, then overrides
+        # On startup: only reflect/restore UI state; don't set loggers
         global_level = log_levels.get('global_log_level') or self.app.settings.get('global_log_level')
         if global_level:
-            set_log_level(global_level)
             self.app.log_level_var.set(global_level)
         for comp, var in self.logger_level_vars.items():
             level = log_levels.get(comp)
             if level:
-                set_component_level(comp, level)
                 var.set(level)
 
         # Ensure global level combo DOES NOT INCLUDE DEBUG
@@ -277,6 +301,11 @@ class ConsoleTab(ttk.Frame):
     def _attach_console_log_handler(self):
         """Attach handler to root (unfiltered)."""
         ui_handler = ConsoleTextHandler(self.console_log)
+
+        # Always filter handler to INFO+ so DEBUG never appears in ConsoleTab (even with root/component at DEBUG)
+        import logging as _logging
+
+        ui_handler.setLevel(_logging.INFO)
 
         root_logger = logging.getLogger()  # Root
         root_logger.addHandler(ui_handler)
