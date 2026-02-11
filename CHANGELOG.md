@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0) (2026-02-11)
+
+
+### Features
+
+* UI refinements ([34468a3](https://github.com/agregory999/oci-policy-analysis/commit/34468a379a530f1eae84a6960614be66a62b543d))
+
 ## [4.0.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.5...v4.0.6) (2026-02-11)
 
 
