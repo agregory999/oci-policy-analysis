@@ -330,6 +330,24 @@ class CacheManager:
             logger.error(f'Error loading combined cache file: {e}')
             return False
 
+    def get_preserved_cache_set(self) -> set:
+        """Get a set of cache names which are marked as preserved."""
+        preserved_files = set()
+        entries_path = self.cache_dir / 'cache_entries.json'
+        import json
+
+        if entries_path.exists():
+            with open(entries_path, encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line)
+                        key = f"{entry['tenancy_name']}_{entry['cache_date']}"
+                        if entry.get('preserved', False):
+                            preserved_files.add(key)
+                    except Exception:
+                        continue
+        return preserved_files
+
     def get_available_cache(self, tenancy_name: str | None) -> list[str]:
         """Get available cache files for a given profile
 

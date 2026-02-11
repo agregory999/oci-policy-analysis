@@ -31,6 +31,31 @@ from oci_policy_analysis.ui.data_table import DataTable
 AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
 AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
 
+# Context help messages for the SettingsTab
+CONTEXT_HELP = {
+    'DISPLAY_OPTIONS': 'Adjust display, font size, and power-user tab features. Affects the entire UI experience.',
+    'MCP_CONFIG': 'Configure the built-in MCP server for advanced automation and API analysis integration.',
+    'TENANCY_CONFIG': (
+        'Set your OCI tenancy and authentication method. Choose between instance principal, named profile, or session token. '
+        'Load data either directly from OCI or from a cached JSON, manage policy data, and import/export backups. '
+        'Use these controls to initialize or refresh the core analysis dataset.'
+    ),
+    'INSTANCE_PRINCIPAL': 'Use when running from OCI Compute with permissions. No config needed.',
+    'LOAD_ALL_USERS': 'If checked, loads all users for analysis. Uncheck for groups-only mode.',
+    'RECURSIVE_LOAD': 'If checked, load policies from all compartments.\nUncheck for root compartment only.',
+    'CACHE_LABEL': "A (P) before a cache means it is 'preserved' and will not be automatically overwritten or deleted. To update or manage the cache list, use the Maintenance Tab.",
+    'CACHE_DROPDOWN': "A (P) before a cache means it is 'preserved' and will not be automatically overwritten or deleted. To update or manage the cache list, use the Maintenance Tab.",
+    'SESSION_TOKEN': "Paste temporary token from 'oci session authenticate'. Use for cloud OCI CLI auth.",
+    'COMPLIANCE_OUTPUT': (
+        'Load from the output of an unzipped CIS Complaince run - these scripts are provided by Oracle as part of MAP engagement, '
+        'or freely downloadable from https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md'
+    ),
+    'OCI_GENAI': (
+        'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. '
+        'Use this panel to enable policy text analysis and AI-driven explanations.'
+    ),
+}
+
 # Global logger for this module
 logger = get_logger(component='settings_tab')
 
@@ -97,16 +122,14 @@ class SettingsTab(BaseUITab):
         disp.pack(side='left', fill='both', expand=True, padx=(0, 8), pady=0)
 
         # --- Page Help context for Display Options ---
-        self.add_context_help(
-            disp, 'Adjust display, font size, and power-user tab features. Affects the entire UI experience.'
-        )
+        self.add_context_help(disp, CONTEXT_HELP['DISPLAY_OPTIONS'])
 
         # MCP Config (LabelFrame, RIGHT of display)
         label_frm_mcp_config = ttk.LabelFrame(top_row, text='Embedded MCP')
         label_frm_mcp_config.pack(side='left', fill='both', expand=True)
         self.add_context_help(
             label_frm_mcp_config,
-            'Configure the built-in MCP server for advanced automation and API analysis integration.',
+            CONTEXT_HELP['MCP_CONFIG'],
         )
 
         # Font size (in Display Panel)
@@ -183,9 +206,7 @@ class SettingsTab(BaseUITab):
 
         # --- Page Help context for Tenancy and Config ---
         def _show_tenancy_help(_event=None):
-            self.set_page_help_text(
-                'Set your OCI tenancy and authentication method. Choose between instance principal, named profile, or session token. Load data either directly from OCI or from a cached JSON, manage policy data, and import/export backups. Use these controls to initialize or refresh the core analysis dataset.'
-            )
+            self.set_page_help_text(CONTEXT_HELP['TENANCY_CONFIG'])
 
         label_frm_tenancy_config.bind('<Enter>', _show_tenancy_help)
         label_frm_tenancy_config.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
@@ -201,9 +222,7 @@ class SettingsTab(BaseUITab):
             variable=self.ip_var,
         )
         chk_instance_principal.grid(row=0, column=0, padx=4, pady=(2, 2), sticky='w')
-        self.add_context_help(
-            chk_instance_principal, 'Use when running from OCI Compute with permissions. No config needed.'
-        )
+        self.add_context_help(chk_instance_principal, CONTEXT_HELP['INSTANCE_PRINCIPAL'])
 
         # Load All Users checkbox
         self.load_all_users_check = ttk.Checkbutton(
@@ -213,9 +232,7 @@ class SettingsTab(BaseUITab):
             command=self._on_load_all_users_changed,
         )
         self.load_all_users_check.grid(row=1, column=0, padx=4, pady=(2, 2), sticky='w')
-        self.add_context_help(
-            self.load_all_users_check, 'If checked, loads all users for analysis. Uncheck for groups-only mode.'
-        )
+        self.add_context_help(self.load_all_users_check, CONTEXT_HELP['LOAD_ALL_USERS'])
 
         # Recursion checkbox
         self.recursive_load = ttk.Checkbutton(
@@ -224,9 +241,7 @@ class SettingsTab(BaseUITab):
             variable=self.recursive_var,
         )
         self.recursive_load.grid(row=2, column=0, padx=4, pady=(2, 2), sticky='w')
-        self.add_context_help(
-            self.recursive_load, 'If checked, load policies from all compartments.\nUncheck for root compartment only.'
-        )
+        self.add_context_help(self.recursive_load, CONTEXT_HELP['RECURSIVE_LOAD'])
 
         # Profile Selection
         self.label_profile = ttk.Label(label_frm_tenancy_config, text='Profile:')
@@ -240,14 +255,24 @@ class SettingsTab(BaseUITab):
         # Get available cached copies
         self.label_cache = ttk.Label(label_frm_tenancy_config, text='Cache:')
         self.label_cache.grid(row=1, column=1, padx=5, pady=3)
+        self.add_context_help(self.label_cache, CONTEXT_HELP['CACHE_LABEL'])
         self.cache_list = self.caching.get_available_cache(None)
-        self.cache_var = tk.StringVar(value=self.cache_list[0] if len(self.cache_list) > 0 else 'No Cache Available')
-        # self.cache_var = tk.StringVar()
+        # Use preserved_caches set from CacheManager for cache list display
+        preserved_caches = self.caching.get_preserved_cache_set()
+        self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
+        # Mapping: display -> actual cache key
+        self.display_to_cache_key = {
+            f'(P) {name}' if name in preserved_caches else name: name for name in self.cache_list
+        }
+        self.cache_var = tk.StringVar(
+            value=self.cache_list_display[0] if len(self.cache_list_display) > 0 else 'No Cache Available'
+        )
         self.cache_list_dropdown = ttk.OptionMenu(
-            label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list
+            label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list_display
         )
         self.cache_list_dropdown.config(width=20)
         self.cache_list_dropdown.grid(row=1, column=2, padx=5, pady=3)
+        self.add_context_help(self.cache_list_dropdown, CONTEXT_HELP['CACHE_DROPDOWN'])
 
         # Load button (lambda function with boolean for cache)
         ttk.Button(
@@ -277,7 +302,7 @@ class SettingsTab(BaseUITab):
         )
         self.add_context_help(
             session_auth_link_label,
-            "Paste temporary token from 'oci session authenticate'. Use for cloud OCI CLI auth.",
+            CONTEXT_HELP['SESSION_TOKEN'],
         )
         session_auth_link_label.bind('<Button-1>', open_link)
         session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
@@ -342,9 +367,7 @@ class SettingsTab(BaseUITab):
 
         # --- Page Help context for Compliance Output button ---
         def _show_compliance_help(_event=None):
-            self.set_page_help_text(
-                'Load from the output of an unzipped CIS Complaince run - these scripts are provided by Oracle as part of MAP engagement, or freely downloadable from https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md'
-            )
+            self.set_page_help_text(CONTEXT_HELP['COMPLIANCE_OUTPUT'])
 
         self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
         self.btn_load_compliance.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
@@ -362,9 +385,7 @@ class SettingsTab(BaseUITab):
 
         # --- Page Help context for OCI GenAI ---
         def _show_genai_help(_event=None):
-            self.set_page_help_text(
-                'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. Use this panel to enable policy text analysis and AI-driven explanations.'
-            )
+            self.set_page_help_text(CONTEXT_HELP['OCI_GENAI'])
 
         self.label_frm_ai_config.bind('<Enter>', _show_genai_help)
         self.label_frm_ai_config.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
@@ -505,7 +526,7 @@ class SettingsTab(BaseUITab):
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
-            named_cache=self.cache_var.get() if use_cache else None,
+            named_cache=self.display_to_cache_key.get(self.cache_var.get(), None) if use_cache else None,
             load_all_users=self.load_all_users_var.get(),
             callback={
                 'progress': self._on_load_progress,
@@ -556,12 +577,17 @@ class SettingsTab(BaseUITab):
     def refresh_cache_list(self):
         """Update the cache list OptionMenu in the Settings tab to reflect the current state."""
         self.cache_list = self.caching.get_available_cache(None)
+        preserved_caches = self.caching.get_preserved_cache_set()
+        self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
+        self.display_to_cache_key = {
+            f'(P) {name}' if name in preserved_caches else name: name for name in self.cache_list
+        }
         menu = self.cache_list_dropdown['menu']
         menu.delete(0, 'end')
-        for cache_name in self.cache_list:
-            menu.add_command(label=cache_name, command=lambda value=cache_name: self.cache_var.set(value))
-        if self.cache_list:
-            self.cache_var.set(self.cache_list[0])
+        for display_name in self.cache_list_display:
+            menu.add_command(label=display_name, command=lambda value=display_name: self.cache_var.set(value))
+        if self.cache_list_display:
+            self.cache_var.set(self.cache_list_display[0])
         else:
             self.cache_var.set('No Cache Available')
 

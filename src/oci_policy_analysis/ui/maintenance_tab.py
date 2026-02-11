@@ -399,7 +399,7 @@ class MaintenanceTab(ttk.Frame):
             pass
         for cache in caches:
             preserved = preserved_map.get(cache, False)
-            entry_str = f'🛡️ {cache}' if preserved else f'{cache}'
+            entry_str = f'(P) {cache}' if preserved else f'{cache}'
             self.maintenance_cache_list.insert(tk.END, entry_str)
 
     def _maintenance_remove_selected_cache(self):
@@ -408,7 +408,7 @@ class MaintenanceTab(ttk.Frame):
             self.maintenance_status_var.set('Select cache to remove.')
             return
         entry_str = self.maintenance_cache_list.get(idx[0])
-        cache_name = entry_str.replace('🛡️ ', '')  # Remove prefix if present
+        cache_name = entry_str.replace('(P) ', '')  # Remove prefix if present
         if self.caching.remove_cache_entry(cache_name):
             self.maintenance_status_var.set(f'Removed {cache_name}')
             self._refresh_maintenance_cache_list()
@@ -421,7 +421,7 @@ class MaintenanceTab(ttk.Frame):
             self.maintenance_status_var.set('Select cache to rename.')
             return
         entry_str = self.maintenance_cache_list.get(idx[0])
-        cache_name = entry_str.replace('🛡️ ', '')
+        cache_name = entry_str.replace('(P) ', '')
         new_name = simpledialog.askstring(
             'Rename Cache', 'Enter new name (format tenancy_cache-date):', initialvalue=cache_name
         )
@@ -444,8 +444,8 @@ class MaintenanceTab(ttk.Frame):
             self.maintenance_status_var.set('Select cache to preserve/unpreserve.')
             return
         entry_str = self.maintenance_cache_list.get(idx[0])
-        cache_name = entry_str.replace('🛡️ ', '')
-        is_preserved = entry_str.startswith('🛡️ ')
+        cache_name = entry_str.replace('(P) ', '')
+        is_preserved = entry_str.startswith('(P) ')
         if self.caching.preserve_cache_entry(cache_name, preserve=not is_preserved):
             if not is_preserved:
                 self.maintenance_status_var.set(f'Marked {cache_name} as preserved')
