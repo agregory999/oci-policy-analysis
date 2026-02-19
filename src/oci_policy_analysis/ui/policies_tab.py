@@ -169,27 +169,45 @@ class PoliciesTab(BaseUITab):
         )
         self.btn_export_policy.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
 
+        # ---- Reload Policy Data button ----
+        self.btn_reload_policies = ttk.Button(
+            self.label_frm_actions,
+            text='Reload Policy Data',
+            state=tk.DISABLED,
+            command=self._handle_reload_policies,
+        )
+        self.btn_reload_policies.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.add_context_help(
+            self.btn_reload_policies,
+            (
+                'Reload policies and compartment data directly from tenancy (using original authentication and recursion settings).\n'
+                'Enabled only if current data was loaded from tenancy, not cache/compliance.\n'
+                'IAM group, Dynamic Group, and User data are NOT reloaded.\n'
+                "After reload, a separate 'Policy data reloaded' timestamp will be shown in the Settings tab alongside the original cache date."
+            ),
+        )
+
         # Saved Search Name entry/label
         ttk.Label(self.label_frm_actions, text='Saved Search Name:').grid(
-            row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w'
+            row=2, column=0, columnspan=2, padx=5, pady=5, sticky='w'
         )
         self.saved_search_name_var = tk.StringVar()
         self.entry_saved_search_name = ttk.Entry(
             self.label_frm_actions, textvariable=self.saved_search_name_var, width=22
         )
-        self.entry_saved_search_name.grid(row=2, column=0, padx=5, pady=5, sticky='ew')
+        self.entry_saved_search_name.grid(row=3, column=0, padx=5, pady=5, sticky='ew')
 
         # Save Search button - binds to custom method
         self.btn_save_search = ttk.Button(self.label_frm_actions, text='Save Search', command=self._handle_save_search)
-        self.btn_save_search.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
+        self.btn_save_search.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
 
         # Saved Searches ComboBox
-        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=3, column=0, padx=5, pady=5, sticky='w')
+        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=4, column=0, padx=5, pady=5, sticky='w')
         self.saved_searches_var = tk.StringVar()
         self.cb_saved_searches = ttk.Combobox(
             self.label_frm_actions, textvariable=self.saved_searches_var, state='readonly', width=22, values=[]
         )
-        self.cb_saved_searches.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
+        self.cb_saved_searches.grid(row=4, column=1, padx=5, pady=5, sticky='ew')
         self.cb_saved_searches.bind('<<ComboboxSelected>>', self._handle_restore_search)
 
         # Helper to adjust expandability if needed:
@@ -207,6 +225,9 @@ class PoliciesTab(BaseUITab):
         if 'saved_policy_searches' not in self.settings or not isinstance(self.settings['saved_policy_searches'], list):
             self.settings['saved_policy_searches'] = []
         self._refresh_saved_searches_dropdown()
+
+        # -- After UI is built, check if Reload button should be enabled
+        self._update_reload_policy_button_state()
 
     def _build_ui_policy_filters(self):
         # All logic to build the policy filter frame moved to separate method for clarity
@@ -324,6 +345,55 @@ class PoliciesTab(BaseUITab):
         if hasattr(self.app, 'toggle_bottom'):
             self.app.toggle_bottom()
             logger.info('Policies Tab: AI Assist button clicked, toggled bottom pane.')
+
+    def _update_reload_policy_button_state(self):
+        """Enable or disable the reload button depending on whether reload is allowed."""
+        allowed = False
+        if hasattr(self, 'policy_repo'):
+            repo = self.policy_repo
+            if getattr(repo, 'policies_loaded_from_tenancy', False) and not getattr(
+                repo, 'loaded_from_compliance_output', False
+            ):
+                allowed = True
+        if hasattr(self, 'btn_reload_policies'):
+            if allowed:
+                self.btn_reload_policies['state'] = tk.NORMAL
+            else:
+                self.btn_reload_policies['state'] = tk.DISABLED
+
+    def _handle_reload_policies(self):
+        """Handler for Reload Policy Data button. Delegates actual reload+cache+UI to App."""
+        if not (
+            hasattr(self.policy_repo, 'policies_loaded_from_tenancy') and self.policy_repo.policies_loaded_from_tenancy
+        ) or getattr(self.policy_repo, 'loaded_from_compliance_output', False):
+            tkmessagebox.showwarning(
+                'Not allowed',
+                'Policy data can only be reloaded from tenancy (not cache/compliance). Please load from tenancy first.',
+            )
+            self._update_reload_policy_button_state()
+            return
+        try:
+            self.configure(cursor='watch')
+            self.update_idletasks()
+            # Let App coordinate the reload, cache update, and UI refresh
+            ok = False
+            if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
+                ok = self.app.reload_policies_and_compartments_and_update_cache()
+            self.configure(cursor='')
+            if ok:
+                tkmessagebox.showinfo(
+                    'Policy Data Reloaded', 'Policies and compartments have been reloaded from tenancy.'
+                )
+            else:
+                self._update_reload_policy_button_state()
+                tkmessagebox.showerror(
+                    'Reload Failed',
+                    'Policy data reload from tenancy failed. See application logs for details.',
+                )
+        except Exception as e:
+            self.configure(cursor='')
+            self._update_reload_policy_button_state()
+            tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
 
     def _get_current_search_dict(self):  # noqa: C901
         # Build filter dict using update_policy_output convention
@@ -732,3 +802,4 @@ class PoliciesTab(BaseUITab):
         # Clear/export button
         self.btn_clear.configure(state='normal')
         self.btn_export_policy.configure(state='normal')
+        self._update_reload_policy_button_state()

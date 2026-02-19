@@ -632,8 +632,7 @@ class PolicyRecommendationsTab(BaseUITab):
             columns=POLICY_CONSOLIDATION_COLUMNS,
             data=[],
             column_widths=POLICY_CONSOLIDATION_COLUMN_WIDTHS,
-            action_button_text='Take Actions',
-            action_callback=on_take_action,
+            action_buttons=[('Take Actions', on_take_action)],
             enable_select_all=True,
             checked_by_default=True,
         )
@@ -691,8 +690,7 @@ class PolicyRecommendationsTab(BaseUITab):
             columns=self.cleanup_columns,
             data=self._get_cleanup_issues(),
             column_widths=cleanup_column_widths,
-            action_button_text='Take Action',
-            action_callback=on_take_action,
+            action_buttons=[('Take Action', on_take_action)],
             enable_select_all=True,
             checked_by_default=True,
         )

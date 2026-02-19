@@ -148,6 +148,7 @@ class ConsoleTab(ttk.Frame):
                 'data_repo',
                 'policy_intelligence',
                 'where_clause_evaluator',
+                'consolidation_engine',
             ],
             'UI': [
                 'policies_tab',
@@ -163,6 +164,7 @@ class ConsoleTab(ttk.Frame):
                 'settings_tab',
                 'mcp_tab',
                 'cross_tenancy_tab',
+                'consolidation_workbench_tab',
                 'maintenance_tab',
                 'users_tab',
                 'internal',

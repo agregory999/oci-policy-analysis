@@ -134,6 +134,44 @@ class MaintenanceTab(ttk.Frame):
         )
         self.saved_search_status_label.pack(side='bottom', fill='x', pady=(4, 0))
 
+        # --- RIGHT: Consolidation Plans (Delete/Rename) ---
+        frm_consolidation = ttk.Frame(frm_top_content)
+        frm_consolidation.pack(side='left', fill='both', expand=True, padx=(8, 0))
+
+        consolidation_lbl = ttk.Label(frm_consolidation, text='Consolidation Plans', font=('TkDefaultFont', 10, 'bold'))
+        consolidation_lbl.pack(anchor='nw', padx=3, pady=(2, 0))
+
+        self.consolidation_plan_list = tk.Listbox(frm_consolidation, selectmode=tk.SINGLE, height=8, width=44)
+        self.consolidation_plan_list.pack(side='left', padx=8, pady=6, fill='y')
+        self._refresh_consolidation_plan_list()
+
+        consolidation_scroll = ttk.Scrollbar(
+            frm_consolidation, orient='vertical', command=self.consolidation_plan_list.yview
+        )
+        self.consolidation_plan_list.config(yscrollcommand=consolidation_scroll.set)
+        consolidation_scroll.pack(side='left', fill='y')
+
+        consolidation_btns_frm = ttk.Frame(frm_consolidation)
+        consolidation_btns_frm.pack(side='left', padx=5, fill='y')
+        ttk.Button(
+            consolidation_btns_frm,
+            text='Delete Selected',
+            command=self._maintenance_remove_selected_consolidation_plan,
+        ).pack(pady=2)
+        ttk.Button(
+            consolidation_btns_frm,
+            text='Rename Selected',
+            command=self._maintenance_rename_selected_consolidation_plan,
+        ).pack(pady=2)
+
+        self.consolidation_plan_status_var = tk.StringVar(value='')
+        self.consolidation_plan_status_label = ttk.Label(
+            frm_consolidation,
+            textvariable=self.consolidation_plan_status_var,
+            foreground='blue',
+        )
+        self.consolidation_plan_status_label.pack(side='bottom', fill='x', pady=(4, 0))
+
         # -------- Maintenance UI Build (PERMISSIONS/OPERATIONS JSON VIEWERS) ----------
         frm_json_wrap = ttk.Frame(self)
         frm_json_wrap.pack(fill='x', padx=10, pady=(0, 5))
@@ -461,6 +499,84 @@ class MaintenanceTab(ttk.Frame):
         else:
             self.maintenance_status_var.set(f'Failed to update preserve state for {cache_name}')
         logger.info(f'Cache "{cache_name}" preserve toggled to {not is_preserved}.')
+
+    def _refresh_consolidation_plan_list(self):
+        """Populate the Consolidation Plans listbox from all consolidation state files."""
+        if not getattr(self, 'consolidation_plan_list', None):
+            return
+        self.consolidation_plan_list.delete(0, tk.END)
+        self._consolidation_plan_items = []
+        try:
+            plans = self.caching.list_all_consolidation_plans()
+        except Exception as e:
+            logger.warning('Failed to list consolidation plans: %s', e)
+            return
+        for item in plans:
+            corpus_id = item.get('corpus_id', '')
+            effort_id = item.get('consolidation_effort_id', '')
+            created = (item.get('created_at') or '')[:19].replace('T', ' ')
+            corpus_short = corpus_id[-12:] if len(corpus_id) > 12 else corpus_id
+            label = f'{corpus_short} | {effort_id[:24]} | {created}'
+            self.consolidation_plan_list.insert(tk.END, label)
+            self._consolidation_plan_items.append(item)
+        if getattr(self, 'consolidation_plan_status_var', None):
+            self.consolidation_plan_status_var.set(f'{len(self._consolidation_plan_items)} plan(s) across corpuses')
+
+    def _maintenance_remove_selected_consolidation_plan(self):
+        """Delete the selected consolidation plan from its corpus history."""
+        status_var = getattr(self, 'consolidation_plan_status_var', None)
+        idx = self.consolidation_plan_list.curselection()
+        if not idx:
+            if status_var:
+                status_var.set('Select a plan to delete.')
+            return
+        items = getattr(self, '_consolidation_plan_items', [])
+        if idx[0] >= len(items):
+            return
+        item = items[idx[0]]
+        corpus_id = item['corpus_id']
+        effort_id = item['consolidation_effort_id']
+        if not messagebox.askyesno('Confirm Delete', f'Remove plan "{effort_id}" from corpus history?'):
+            return
+        if self.caching.remove_run_record(corpus_id, effort_id):
+            if status_var:
+                status_var.set(f'Removed plan {effort_id}')
+            self._refresh_consolidation_plan_list()
+            logger.info('Removed consolidation plan %s from corpus %s', effort_id, corpus_id[:16])
+        else:
+            if status_var:
+                status_var.set(f'Failed to remove plan {effort_id}')
+
+    def _maintenance_rename_selected_consolidation_plan(self):
+        """Rename the selected plan (set an optional display label stored in the run record)."""
+        status_var = getattr(self, 'consolidation_plan_status_var', None)
+        idx = self.consolidation_plan_list.curselection()
+        if not idx:
+            if status_var:
+                status_var.set('Select a plan to rename.')
+            return
+        items = getattr(self, '_consolidation_plan_items', [])
+        if idx[0] >= len(items):
+            return
+        item = items[idx[0]]
+        corpus_id = item['corpus_id']
+        effort_id = item['consolidation_effort_id']
+        run = item.get('run', {})
+        current_label = run.get('label') or effort_id
+        new_label = simpledialog.askstring(
+            'Rename Consolidation Plan',
+            'Display label (optional; leave blank to clear):',
+            initialvalue=current_label,
+        )
+        if new_label is None:
+            return
+        if self.caching.update_run_record(corpus_id, effort_id, {'label': new_label.strip() or None}):
+            if status_var:
+                status_var.set(f'Updated label for {effort_id}')
+            self._refresh_consolidation_plan_list()
+        else:
+            if status_var:
+                status_var.set(f'Failed to update plan {effort_id}')
 
     def _maintenance_permissions_load_data(self):
         # Load reference data

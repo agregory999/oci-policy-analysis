@@ -390,6 +390,13 @@ class PolicyBrowserTab(BaseUITab):
                 comp_desc = c.get('description') or '(No description)'
                 self.tree.insert(comp_node, 'end', text=f'Description: {comp_desc}', open=False)
 
+                # Add compartment tags if present
+                comp_tags = c.get('tags') or {}
+                if comp_tags:
+                    tags_node = self.tree.insert(comp_node, 'end', text='Tags:', open=False)
+                    for tag_k, tag_v in sorted(comp_tags.items()):
+                        self.tree.insert(tags_node, 'end', text=f'{tag_k}: {tag_v}', open=False)
+
                 # Add all policies under this compartment, grouped under "Policies" node
                 policies_here = policies_by_compartment.get(comp_id_val, [])
                 # Only add "Policies" node if there are policies here
@@ -403,6 +410,13 @@ class PolicyBrowserTab(BaseUITab):
                         policy_ocid = p.get('policy_ocid', 'unknown_ocid')
                         pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=False)
                         logger.info(f'Inserted policy: {pol_name} (ocid={policy_ocid}) under compartment {comp_name}')
+
+                        # If policy contains tags, show them as expandable child node
+                        tags = p.get('tags') or {}
+                        if tags:
+                            tags_node = self.tree.insert(pol_node, 'end', text='Tags:', open=False)
+                            for k, v in sorted(tags.items()):
+                                self.tree.insert(tags_node, 'end', text=f'{k}: {v}', open=False)
 
                         # Statements for this policy
                         stmts = statements_by_policy.get(pol_name, [])

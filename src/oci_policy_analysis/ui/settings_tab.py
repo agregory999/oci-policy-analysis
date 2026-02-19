@@ -539,24 +539,39 @@ class SettingsTab(BaseUITab):
         """Callback from App to update progress during tenancy loading."""
         self.progress_var.set(f'{message}')
         if clear:
-            self.after(2000, lambda: self.progress_var.set(''))
+            self.after(1000, lambda: self.progress_var.set(''))
 
-    def _on_load_finished(self, success: bool, message: str, clear: bool = False):
+    def _on_load_finished(self, success: bool, message: str, clear: bool = False):  # noqa: C901
         """Callback from App once tenancy loading completes."""
         if success:
-            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"
-            data_as_of = getattr(getattr(self.app, 'policy_compartment_analysis', None), 'data_as_of', None)
-            if data_as_of:
+            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"; show reload (if present)
+            data_repo = getattr(self.app, 'policy_compartment_analysis', None)
+            date_note = ''
+            if data_repo is not None:
+                data_as_of = getattr(data_repo, 'data_as_of', None)
+                policy_reload = getattr(data_repo, 'policy_data_reloaded', None)
                 import datetime
 
-                try:
-                    dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
-                    date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
-                except Exception:
-                    date_str = str(data_as_of)
-                date_note = f'Data as of: {date_str}'
-            else:
-                date_note = ''
+                date_str = ''
+                reload_str = ''
+                if data_as_of:
+                    try:
+                        dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
+                        date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
+                    except Exception:
+                        date_str = str(data_as_of)
+                if policy_reload:
+                    try:
+                        dt2 = datetime.datetime.fromisoformat(policy_reload.replace('Z', '+00:00'))
+                        reload_str = dt2.strftime('%Y-%b-%d %H:%M:%SZ')
+                    except Exception:
+                        reload_str = str(policy_reload)
+                if date_str and reload_str:
+                    date_note = f'Data as of: {date_str}\nPolicy data reloaded: {reload_str}'
+                elif date_str:
+                    date_note = f'Data as of: {date_str}'
+                elif reload_str:
+                    date_note = f'Policy data reloaded: {reload_str}'
             self.progress_var.set(f'[OK]{message}')
             self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
             # logger.info('Updating UI after load')
@@ -742,6 +757,7 @@ class SettingsTab(BaseUITab):
             self.app.condition_tester_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
+            self.app.consolidation_tab,
         ]
 
         if self.app.advanced_tabs_visible:
@@ -755,6 +771,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
+            notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Advanced)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

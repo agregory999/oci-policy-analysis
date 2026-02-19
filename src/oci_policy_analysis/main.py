@@ -24,23 +24,28 @@ import time
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.font as tkfont
+import tkinter.messagebox as messagebox
 import tkinter.ttk as ttk
 import traceback
 import warnings
 import webbrowser
 from importlib.resources import files
 
+from dateutil import parser as dtparser
+
 # Application imports
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
+from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
+from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.debugger_tab import DebuggerTab
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
@@ -92,6 +97,8 @@ class App(tk.Tk):
     Inherits from tk.Tk (TKinter) to create the main application window.
     Tabbed interface with multiple tabs for different analysis features.
     Helper classes and Repositories for data management and AI integration.
+
+    Adds a fixed status bar at the window bottom showing policy data load status/source/time/reload.
     """
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
@@ -159,9 +166,18 @@ class App(tk.Tk):
             ref_data_repo=self.reference_data_repo,
         )
         self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+        # Consolidation Engine (middle tier; repo is bound but data is loaded later)
+        self.consolidation_engine = ConsolidationEngine(
+            cache_mgr=CacheManager(),
+            reference_data_repo=self.reference_data_repo,
+            policy_repo=self.policy_compartment_analysis,
+        )
 
         # Caching Manager (policy caching only, no AI result caching)
         self.caching = CacheManager()
+
+        # Guard: prevent overlapping tenancy loads
+        self._tenancy_load_in_progress = False
 
         # Tab References
         self.settings_tab = SettingsTab(self.notebook, self, self.caching, self.ai, self.settings)
@@ -181,6 +197,7 @@ class App(tk.Tk):
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
+        self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
@@ -202,7 +219,7 @@ class App(tk.Tk):
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
-
+        self.notebook.add(self.consolidation_tab, text='Consolidation Workbench\n(Advanced)')
         # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
@@ -268,9 +285,77 @@ class App(tk.Tk):
         self.notebook.forget(self.condition_tester_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)
+        self.notebook.forget(self.consolidation_tab)
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
+
+        # === STATUS BAR (Fixed 1-line) at window bottom ===
+        self.status_var = tk.StringVar(value='Policy Data: (Not Loaded)')
+        # Use a dedicated font for the status bar, will sync with theme/font size in apply_theme()
+        self.status_font = (
+            tkfont.Font(name='StatusFont', exists=True)
+            if 'StatusFont' in tkfont.names()
+            else tkfont.Font(
+                name='StatusFont', family=self.default_font.actual('family'), size=self.default_font.actual('size')
+            )
+        )
+        self.status_bar = ttk.Label(
+            self, textvariable=self.status_var, relief=tk.SUNKEN, anchor='w', padding=4, font=self.status_font
+        )
+        self.status_bar.pack(side='bottom', fill='x')
+        self.update_status_bar()
+
+    def update_status_bar(self):
+        """
+        Update the status bar to reflect current policy data load status.
+        Shows source, timestamp, and reload mark if applicable.
+        """
+        repo = getattr(self, 'policy_compartment_analysis', None)
+        if not repo:
+            self.status_var.set('Policy Data: (Not Loaded)')
+            return
+        # Determine source
+        loaded = False
+        load_source = None
+        tenancy_name = getattr(repo, 'tenancy_name', None)
+        # Flags set by PolicyAnalysisRepository load paths
+        if getattr(repo, 'policies_loaded_from_tenancy', False):
+            load_source = f'Tenancy "{tenancy_name or ""}"'
+            loaded = True
+        elif getattr(repo, 'loaded_from_compliance_output', False):
+            load_source = 'CIS Compliance'
+            loaded = True
+        else:
+            # If no "from tenancy" or "from compliance", but data_as_of is set, treat as cache
+            if getattr(repo, 'data_as_of', None):
+                load_source = 'Cache'
+                loaded = True
+
+        # Get timestamp
+        if loaded:
+            dt_value = getattr(repo, 'data_as_of', None)
+            ts_str = ''
+            if dt_value:
+                # Try format as "YYYY-MM-DD HH:MM UTC", stripping off seconds, Z, etc.
+                try:
+                    dt_obj = dtparser.parse(dt_value)
+                    ts_str = dt_obj.strftime('%Y-%m-%d %H:%M UTC')
+                except Exception:
+                    ts_str = dt_value
+            # Check policy_data_reloaded
+            reloaded_str = ''
+            reload_time = getattr(repo, 'policy_data_reloaded', None)
+            if reload_time:
+                try:
+                    reloaddt = dtparser.parse(reload_time)
+                    reloaded_str = f" [Reloaded at {reloaddt.strftime('%Y-%m-%d %H:%M UTC')}]"
+                except Exception:
+                    reloaded_str = f' [Reloaded at {reload_time}]'
+            self.status_var.set(f'Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
+        else:
+            # Not loaded
+            self.status_var.set('Policy Data: (Not Loaded)')
 
     def refresh_all_tabs_settings(self):
         """
@@ -293,6 +378,7 @@ class App(tk.Tk):
             self.debugger_tab,
             self.console_tab,
             self.maintenance_tab,
+            self.consolidation_tab,
         ]
         context_help = self.settings.get('context_help', True)
         font_size = self.settings.get('font_size', 'Medium')
@@ -324,6 +410,12 @@ class App(tk.Tk):
 
         font = (family, size)
         self.style.configure('.', font=font)
+
+        # Update status bar font to keep in sync with app font
+        if hasattr(self, 'status_font'):
+            self.status_font.config(family=family, size=size)
+        if hasattr(self, 'status_bar'):
+            self.status_bar.configure(font=self.status_font)
 
         treeview_font = size * 2
         self.style.configure('Treeview', rowheight=treeview_font)
@@ -420,7 +512,6 @@ class App(tk.Tk):
         self.policy_browser_tab.refresh_tree()
         self.dynamic_groups_tab.enable_controls()
         self.cross_tenancy_tab.update_cross_tenancy_output()
-        # self.report_tab.update_report_output()
         self.resource_principals_tab.update_principals_sheets()
         self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
         self.dynamic_groups_tab.enable_controls()
@@ -428,7 +519,45 @@ class App(tk.Tk):
         self.simulation_tab.refresh_dropdowns()
         # Immediately update analytics tab with new data
         self.policy_recommendations_tab.reload_all_analytics()
+        self.consolidation_tab.load_policies_and_statements()
+        # --- Validate protected set and refresh plan history for this corpus ---
+        if hasattr(self, 'consolidation_tab'):
+            self.consolidation_tab.reload_and_validate_protection_set()
+            self.consolidation_tab.refresh_plan_history_for_corpus()
         logger.info('All tabs reloaded after data load.')
+
+    def reload_policies_and_compartments_and_update_cache(self):
+        """
+        Reload just policies, compartments, statements (not IAM) from tenancy,
+        update the 'policy_data_reloaded' timestamp, persist sections in cache,
+        and update all UI components as if a tenancy load had completed.
+        """
+        logger.info(
+            'Initiating reload of policies and compartments (main driver, includes cache update and UI refresh)'
+        )
+        repo = self.policy_compartment_analysis
+        if not hasattr(repo, 'reload_compartment_policy_data'):
+            logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
+            return False
+        reload_ok = repo.reload_compartment_policy_data()
+        if not reload_ok:
+            logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
+            return False
+
+        # Now update the cache for just these sections
+        try:
+            from oci_policy_analysis.common.caching import CacheManager
+
+            CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+        except Exception as e:
+            logger.error(f'Policy/compartment cache update failed after reload: {e}')
+
+        # Update the UI (replicates post-load signal)
+        self._post_load_update_ui()
+        # Update status bar to indicate reload
+        self.after(0, self.update_status_bar)
+        logger.info('Reload policies/compartments complete; cache and UI updated')
+        return True
 
     def load_tenancy_async(  # noqa: C901
         self,
@@ -455,6 +584,15 @@ class App(tk.Tk):
         """
         logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
 
+        if self._tenancy_load_in_progress:
+            messagebox.showinfo(
+                'Load in progress',
+                'A tenancy load is already in progress. Please wait for it to complete.',
+            )
+            return
+
+        self._tenancy_load_in_progress = True
+
         def worker():  # noqa: C901
             """Worker thread to load tenancy data."""
             try:
@@ -470,6 +608,14 @@ class App(tk.Tk):
                     success = self.caching.load_combined_cache(
                         self.policy_compartment_analysis, named_cache=named_cache
                     )
+                    # Patch: Ensure tenancy_name is set so all downstream UI consumers work
+                    repo = self.policy_compartment_analysis
+                    if not hasattr(repo, 'tenancy_name') or repo.tenancy_name is None:
+                        # Try to infer name from data, fallback to tenancy_ocid string if not available
+                        if hasattr(repo, 'tenancy_ocid') and repo.tenancy_ocid:
+                            repo.tenancy_name = str(repo.tenancy_ocid)
+                        else:
+                            repo.tenancy_name = 'Loaded from Cache'
 
                 elif named_profile or instance_principal or named_session:
                     if instance_principal:
@@ -537,13 +683,8 @@ class App(tk.Tk):
                     if not success:
                         raise RuntimeError('Failed to load policies and compartments')
 
-                    if callback:
-                        cb = callback.get('progress')
-                        if cb is not None and callable(cb):
-                            self.after(
-                                300,
-                                lambda m='Running post-load policy intelligence analyses': cb(success=True, message=m),
-                            )
+                    # Ensure status bar shows loaded data
+                    self.after(0, self.update_status_bar)
 
                     # Save cache after loading from tenancy
                     self.caching.save_combined_cache(self.policy_compartment_analysis)
@@ -555,21 +696,39 @@ class App(tk.Tk):
                     if cb is not None and callable(cb):
                         self.after(0, lambda e=e: cb(False, f'Failed to load tenancy - {e} - please try again', True))  # type: ignore
                 return
+            else:
+                end_time = time.perf_counter()
+                msg = f'Finished loading tenancy in {end_time - start_time:.2f} seconds'
+                logger.info(f'[OK] {msg}')
 
-            end_time = time.perf_counter()
-            msg = f'Finished loading tenancy in {end_time - start_time:.2f} seconds'
-            logger.info(f'[OK] {msg}')
+                # Ensure status bar accurately reflects finalized repo state
+                self.after(0, self.update_status_bar)
 
-            if callback:
-                cb = callback.get('complete')
-                if cb is not None and callable(cb):
-                    self.after(0, lambda msg=msg: cb(True, msg, False))  # type: ignore
+                # Intelligence Running Message
+                if callback:
+                    cb = callback.get('progress')
+                    if cb is not None and callable(cb):
+                        self.after(
+                            300,
+                            lambda cb=cb, m='Running post-load policy intelligence analyses': cb(message=m),
+                        )
 
-            logger.info('Tenancy Load complete. Reloading all tabs')
+                # Run post-load intelligence analysis
+                self._post_load_create_intelligence()
 
-            # Run post-load intelligence analysis
-            self._post_load_create_intelligence()
-            self._post_load_update_ui()
+                # Show completion message
+                if callback:
+                    cb = callback.get('complete')
+                    if cb is not None and callable(cb):
+                        self.after(0, lambda msg=msg: cb(True, msg, False))  # type: ignore
+
+                logger.info('Tenancy Load complete. Reloading all tabs')
+
+                self._post_load_update_ui()
+                # Ensure status bar accurately reflects finalized repo state
+                self.after(0, self.update_status_bar)
+            finally:
+                self.after(0, lambda: setattr(self, '_tenancy_load_in_progress', False))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -600,6 +759,8 @@ class App(tk.Tk):
                 progress_cb = callback.get('progress') if callback else None
                 if progress_cb is not None and callable(progress_cb):
                     self.after(0, lambda m='Running post-load policy intelligence analyses': progress_cb(m))
+                    # Ensure status bar accurately reflects finalized repo state
+                    self.after(0, self.update_status_bar)
                 self._post_load_create_intelligence()
 
                 complete_cb = callback.get('complete') if callback else None
@@ -608,6 +769,9 @@ class App(tk.Tk):
                 if success:
                     logger.info('[OK] Compliance Output Load complete. Reloading all tabs.')
                     self._post_load_update_ui()
+                    # Ensure status bar accurately reflects finalized repo state
+                    self.after(0, self.update_status_bar)
+
             except Exception as e:
                 logger.error(f'Error occurred during compliance output load: {e}')
                 # Show stack trace if debug on main
@@ -641,10 +805,29 @@ class App(tk.Tk):
                 success = self.caching.load_cache_from_json(
                     loaded_json=loaded_json, policy_analysis=self.policy_compartment_analysis
                 )
+                # Patch: Ensure tenancy_name is set so all downstream UI consumers work
+                repo = self.policy_compartment_analysis
+                if not hasattr(repo, 'tenancy_name') or repo.tenancy_name is None:
+                    # Try to infer name from data, fallback to tenancy_ocid string if not available
+                    if hasattr(repo, 'tenancy_ocid') and repo.tenancy_ocid:
+                        repo.tenancy_name = str(repo.tenancy_ocid)
+                    else:
+                        repo.tenancy_name = 'Loaded from Cache'
                 if success:
                     self.last_load_time = self.policy_compartment_analysis.data_as_of
                     logger.info(f'***Loaded cached data from file as of {self.last_load_time}')
                     logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
+                    # Ensure status bar accurately reflects finalized repo state after cache load
+                    self.after(0, self.update_status_bar)
+                    # Show intelligence running message (same pattern as tenancy load)
+                    if callback:
+                        cb = callback.get('progress')
+                        if cb is not None and callable(cb):
+                            self.after(
+                                300,
+                                lambda m='Running post-load policy intelligence analyses': cb(success=True, message=m),
+                            )
+                    # Run the same post-load intelligence and UI update steps as a tenancy load
                     self._post_load_create_intelligence()
                 complete_cb = callback.get('complete') if callback else None
                 if complete_cb is not None and callable(complete_cb):
@@ -654,6 +837,8 @@ class App(tk.Tk):
 
                 logger.info('Cache Load JSON complete - Reload all tabs')
                 self._post_load_update_ui()
+                # Ensure status bar reflects final state after display updates
+                self.after(0, self.update_status_bar)
             except Exception as e:
                 logger.error(f'Error importing policies from CSV: {e}')
                 error_cb = callback.get('error') if callback else None

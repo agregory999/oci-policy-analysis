@@ -121,8 +121,25 @@ class SimulationBatchResponse(TypedDict):
 
 
 # ================================
-# Entity Models (Policies, Dynamic Groups, Users, Groups)
+# Entity Models (Policies, Dynamic Groups, Users, Groups, Compartments)
 # ================================
+class Compartment(TypedDict):
+    """
+    Model representing an OCI compartment (identity and metadata).
+    Captures id, name, parent, description, path, lifecycle, and tags where available.
+    """
+
+    id: Annotated[str, 'Compartment OCID']
+    name: Annotated[str, 'Display name of the compartment']
+    parent_id: Annotated[str, 'Parent compartment OCID']
+    hierarchy_path: Annotated[str, 'Full compartment hierarchy path, e.g., "ROOT/HR/Payroll"']
+    description: NotRequired[Annotated[str, 'Description of the compartment']]
+    lifecycle_state: NotRequired[Annotated[str, 'Lifecycle state (e.g., ACTIVE, DELETED)']]
+    tags: NotRequired[
+        Annotated[dict[str, str], 'Optional. All freeform and defined tags associated with the compartment.']
+    ]
+
+
 class Group(TypedDict):
     """
     Model representing an OCI IAM group (identity and metadata).
@@ -178,11 +195,13 @@ class DynamicGroup(TypedDict):
     ]
 
 
-class BasePolicy(TypedDict):
+class BasePolicy(TypedDict, total=False):
     """
     Model representing an OCI IAM policy.
     Captures policy identity and metadata but omits policy statements themselves.
     Policies are unique by their name within a compartment.
+
+    Optionally includes tags if available.
     """
 
     policy_name: Annotated[str, 'The name of the policy.']
@@ -190,6 +209,19 @@ class BasePolicy(TypedDict):
     description: Annotated[str | None, 'The description of the policy. Not required for filters.']
     compartment_ocid: Annotated[str, 'The OCID of the compartment containing the policy. Not required for filters.']
     creation_time: Annotated[str, 'The creation time of the policy. Not required for filters.']
+    tags: NotRequired[
+        Annotated[
+            dict[str, str],
+            'Optional. Flattened tag map for display only (freeform plus defined flattened as "namespace:key").',
+        ]
+    ]
+    freeform_tags: NotRequired[Annotated[dict[str, str], 'Optional. Freeform tag map as stored in OCI.']]
+    defined_tags: NotRequired[
+        Annotated[
+            dict[str, dict[str, str]],
+            'Optional. Defined tag map as stored in OCI (namespace -> key -> value).',
+        ]
+    ]
 
 
 # Search Models

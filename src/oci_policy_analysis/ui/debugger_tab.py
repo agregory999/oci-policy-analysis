@@ -47,6 +47,7 @@ class DebuggerTab(ttk.Frame):
             'Policy Repo Policies',
             'Reference Data',
             'Simulation History',
+            'Consolidation (In-Flight Session)',  # NEW
         ] + overlay_sources
 
         self.source_combo = ttk.Combobox(
@@ -86,7 +87,7 @@ class DebuggerTab(ttk.Frame):
         self._init_reference_data_subsets()
         self._on_source_combo()
 
-    def _get_source_data(self):
+    def _get_source_data(self):  # noqa: C901
         if not self.app:
             return {}
         try:
@@ -97,10 +98,22 @@ class DebuggerTab(ttk.Frame):
 
             elif source == 'Simulation History':
                 return self.app.simulation_engine.simulation_history
+
             elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements
             elif source == 'Policy Repo Compartments':
                 return self.app.policy_compartment_analysis.compartments
+
+            elif source == 'Consolidation (In-Flight Session)':
+                try:
+                    from oci_policy_analysis.common.caching import CacheManager
+                except ImportError:
+                    return {'error': 'CacheManager not available'}
+                cache_mgr = CacheManager()
+                corpus_id = getattr(self.app, 'tenancy_ocid', 'unknown')
+                # Try to load latest protected_set for this corpus
+                session = cache_mgr.load_consolidation_session(plan_id='protected_set', corpus_id=corpus_id)
+                return session if session else {'note': 'No saved consolidation session/overlay found.'}
 
             # Overlay sources
             elif source.startswith('Policy Intelligence: '):

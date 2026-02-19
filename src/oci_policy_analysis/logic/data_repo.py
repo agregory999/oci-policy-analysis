@@ -28,7 +28,6 @@ from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
 from oci.identity import IdentityClient
-from oci.identity.models import Compartment
 from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
@@ -42,6 +41,7 @@ from oci_policy_analysis.common.models import (
     AdmitStatement,
     BasePolicy,
     BasePolicyStatement,
+    Compartment,
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
@@ -529,17 +529,28 @@ class PolicyAnalysisRepository:
             all_comps = [root_comp] + (list(comp_response.data) if comp_response and comp_response.data else [])
             logger.info(f'Total compartments loaded: {len(all_comps)}')
 
-            self.compartments = []
+            # Loop through compartments and build our internal list with hierarchy paths - also extract tags if present
             for comp in all_comps:
-                self.compartments.append(
-                    {
-                        'id': comp.id,
-                        'name': comp.name if comp.id != self.tenancy_ocid else 'ROOT',
-                        'parent_id': comp.compartment_id,
-                        'hierarchy_path': None,
-                        'description': comp.description if hasattr(comp, 'description') else None,
-                    }
+                tags = {}
+                if hasattr(comp, 'freeform_tags') and comp.freeform_tags:
+                    tags.update(comp.freeform_tags)
+                if hasattr(comp, 'defined_tags') and comp.defined_tags:
+                    for ns, val in comp.defined_tags.items():
+                        if isinstance(val, dict):
+                            for k, v in val.items():
+                                tags[f'{ns}:{k}'] = v
+                        else:
+                            tags[ns] = val
+                compartment = Compartment(
+                    id=comp.id,
+                    name=(comp.name if comp.id != self.tenancy_ocid else 'ROOT'),
+                    parent_id=comp.compartment_id,
+                    hierarchy_path='',
+                    description=getattr(comp, 'description', '') or '',
+                    lifecycle_state=getattr(comp, 'lifecycle_state', '') or '',
+                    **({'tags': tags} if tags else {}),
                 )
+                self.compartments.append(compartment)
             logger.info('Building compartment hierarchy paths and lookup tables...')
             for compartment in self.compartments:
                 compartment['hierarchy_path'] = self._get_hierarchy_path_for_compartment(compartment, '')
@@ -552,6 +563,7 @@ class PolicyAnalysisRepository:
                 policy_query = 'query policy resources'
             else:
                 policy_query = f"query policy resources where compartmentId = '{self.tenancy_ocid}'"
+            # Run policy search and then for each result, fetch the full policy details and statements - do this in threads for speed
             policy_search_results = self.resource_search_client.search_resources(
                 search_details=StructuredSearchDetails(type='Structured', query=policy_query), limit=1000
             )
@@ -561,18 +573,45 @@ class PolicyAnalysisRepository:
                 )
                 total_policies = len(policy_search_results.data.items)
 
-                def _process_policy_resource(item, position, total_policies):
+                def _process_policy_resource(item, position, total_policies):  # noqa: C901
                     policy_ocid = item.identifier
                     compartment_ocid = item.compartment_id
                     try:
                         policy_response = self.identity_client.get_policy(policy_id=policy_ocid)
                         if policy_response and policy_response.data:
+                            # Extract tags (keep original structure for round-trip)
+                            freeform_tags = {}
+                            defined_tags = {}
+                            if hasattr(policy_response.data, 'freeform_tags') and policy_response.data.freeform_tags:
+                                freeform_tags = dict(policy_response.data.freeform_tags)
+                            if hasattr(policy_response.data, 'defined_tags') and policy_response.data.defined_tags:
+                                # OCI SDK shape: {namespace: {key: value}}
+                                try:
+                                    defined_tags = dict(policy_response.data.defined_tags)
+                                except Exception:
+                                    defined_tags = {}
+
+                            # Flatten tags for UI display (namespace:key for defined tags)
+                            tags = {}
+                            if freeform_tags:
+                                tags.update(freeform_tags)
+                            if defined_tags:
+                                for ns, val in defined_tags.items():
+                                    if isinstance(val, dict):
+                                        for k, v in val.items():
+                                            tags[f'{ns}:{k}'] = v
+                                    else:
+                                        # Defensive: if defined_tags contains a non-dict value, keep it visible
+                                        tags[str(ns)] = str(val)
                             policy_obj = BasePolicy(
                                 policy_ocid=policy_response.data.id,
                                 policy_name=policy_response.data.name,
                                 description=policy_response.data.description or '',
                                 compartment_ocid=policy_response.data.compartment_id,
                                 creation_time=policy_response.data.time_created,
+                                tags=tags if tags else None,
+                                freeform_tags=freeform_tags if freeform_tags else None,
+                                defined_tags=defined_tags if defined_tags else None,
                             )
                             self.policies.append(policy_obj)
                             for statement in policy_response.data.statements:
@@ -638,6 +677,22 @@ class PolicyAnalysisRepository:
         except Exception as e:
             logger.error(f'Failed to load policies and compartments: {e}')
             return False
+
+    def reload_compartment_policy_data(self) -> bool:
+        """
+        Reload just the policy/compartment/statement data (not IAM), and update the in-memory timestamp.
+        (No cache operations here—see main.py/App for cache update and UI triggers.)
+
+        Returns:
+            bool: True if the reload succeeded, False otherwise.
+        """
+        logger.info('Reloading only compartment+policy+statement data (not IAM)... (No cache ops in repo)')
+        success = self.load_policies_and_compartments()
+        if not success:
+            logger.error('Policy/compartment reload failed!')
+            return False
+        self.policy_data_reloaded = datetime.now(UTC).isoformat()
+        return True
 
     def load_complete_identity_domains(self, load_all_users: bool = True) -> bool:  # noqa: C901
         """Loads everything into the cetntral JSON
@@ -1640,13 +1695,14 @@ class PolicyAnalysisRepository:
                             f"Skipping compartment {compartment['name']} with lifecycle state {compartment['lifecycle_state']}"
                         )
                 # For some reason the root compartment is not included - add it manually
-                root_compartment = {
-                    'id': self.tenancy_ocid,
-                    'name': 'ROOT',
-                    'hierarchy_path': None,
-                    'lifecycle_state': 'ACTIVE',
-                    'parent_id': '',
-                }
+                root_compartment = Compartment(
+                    id=self.tenancy_ocid,
+                    name='ROOT',
+                    parent_id='',
+                    hierarchy_path='',
+                    description='',
+                    lifecycle_state='ACTIVE',
+                )
                 self.compartments.append(root_compartment)
 
             logger.debug(f'Loaded {len(self.compartments)} compartments')
@@ -1667,12 +1723,27 @@ class PolicyAnalysisRepository:
                 reader = csv.DictReader(f)
                 for policy_item in reader:
                     # Create a Policy object for the Policy itself
+                    # Try to extract tags from CSV: expects column "tags" as a JSON or stringified dict (optional)
+                    tags = None
+                    if 'tags' in policy_item:
+                        tags_str = policy_item.get('tags') or ''
+                        if tags_str:
+                            try:
+                                tags_candidate = eval(tags_str) if tags_str.startswith('{') else tags_str
+                                if isinstance(tags_candidate, dict):
+                                    tags = tags_candidate
+                            except Exception:
+                                pass
+
                     policy_obj = BasePolicy(
                         policy_name=policy_item.get('name') or '',
                         policy_ocid=policy_item.get('id') or '',
                         compartment_ocid=policy_item.get('compartment_id') or '',
                         description=policy_item.get('description') or '',
                         creation_time='',
+                        # Compliance output does not distinguish freeform/defined; treat as freeform for round-trip.
+                        tags=tags,
+                        freeform_tags=tags if isinstance(tags, dict) else None,
                     )
                     logger.debug(f'Processing policy: {policy_obj}')
                     # Not really appending policies itself right now, use for parsing statements though

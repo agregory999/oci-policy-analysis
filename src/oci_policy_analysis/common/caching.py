@@ -34,11 +34,177 @@ logger = get_logger(component='caching')
 class CacheManager:
     """
     Handles saving and loading cached JSON data (IAM + AI).
-    Also is able to list caches, remove caches, and rename caches.
+    Also supports canonical consolidation session persistence: per-corpus state files for protected_set + plan history.
     Each cache is tied to a tenancy name and date.
     The cache directory is ~/.oci-policy-analysis/cache by default, but can be overridden.
     Caches have the concept of being "preserved" to avoid automatic deletion during culling.
     """
+
+    # ----
+    # NEW: Canonical per-corpus consolidation session file with protected_set & history
+    # ----
+
+    def _consolidation_state_path(self, corpus_id):
+        # Returns standard location for per-corpus session state
+        if not corpus_id or str(corpus_id).lower() in ['unknown', '', 'none']:
+            raise ValueError('corpus_id required for consolidation session persistence.')
+        outdir = self.cache_dir / 'consolidation'
+        outdir.mkdir(parents=True, exist_ok=True)
+        return outdir / f'consolidation_{corpus_id}.json'
+
+    def get_or_create_consolidation_state(self, corpus_id) -> dict:
+        """
+        Loads the canonical consolidation state file for this corpus_id.
+        If it does not exist, creates a blank state (protected_set={}, history=[]).
+        Returns the state dict; saves it if it was new.
+        """
+        full_path = self._consolidation_state_path(corpus_id)
+        if full_path.exists():
+            try:
+                with open(full_path, encoding='utf-8') as f:
+                    data = json.load(f)
+                if 'protected_set' not in data:
+                    data['protected_set'] = {}
+                if 'history' not in data:
+                    data['history'] = []
+                return data
+            except Exception as e:
+                logger.error(f'Failed to load consolidation state for {corpus_id}: {e}')
+                # Try to reinitialize state if corrupt
+        # New or failed to load: write default, return blank state
+        state = {'protected_set': {}, 'history': []}
+        with open(full_path, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+        logger.info(f'Created new consolidation state file for corpus_id={corpus_id} at {full_path}')
+        return state
+
+    def save_consolidation_state(self, corpus_id, state: dict):
+        """
+        Overwrites the canonical consolidation state file for this corpus_id.
+        """
+        full_path = self._consolidation_state_path(corpus_id)
+        with open(full_path, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+        logger.info(f'Saved consolidation state for corpus_id={corpus_id} at {full_path}')
+
+    def get_protected_set(self, corpus_id):
+        """
+        Returns the protected_set from consolidation state. Creates file if needed.
+        """
+        state = self.get_or_create_consolidation_state(corpus_id)
+        return state.get('protected_set', {})
+
+    def set_protected_set(self, corpus_id, protected_set: dict):
+        """
+        Updates and persists the protected_set in the canonical consolidation state file.
+        """
+        state = self.get_or_create_consolidation_state(corpus_id)
+        state['protected_set'] = protected_set
+        self.save_consolidation_state(corpus_id, state)
+        logger.info(f'Updated protected_set for corpus_id={corpus_id}')
+
+    def get_history(self, corpus_id):
+        """
+        Returns the list of run/plan history for this corpus_id.
+        If no corpus_id, returns empty list (safe for new sessions/when no consolidation sets are present).
+        """
+        if not corpus_id or str(corpus_id).lower() in ['unknown', '', 'none']:
+            logger.info('get_history: No corpus_id provided, returning empty history list.')
+            return []
+        state = self.get_or_create_consolidation_state(corpus_id)
+        return state.get('history', [])
+
+    def add_run_record(self, corpus_id, run_record: dict):
+        """
+        Appends a new run/plan record to history and saves the canonical file.
+        """
+        state = self.get_or_create_consolidation_state(corpus_id)
+        if 'history' not in state:
+            state['history'] = []
+        state['history'].append(run_record)
+        self.save_consolidation_state(corpus_id, state)
+        logger.info(
+            f"Added run_record ({run_record.get('consolidation_effort_id', 'unknown')}) for corpus_id={corpus_id}"
+        )
+
+    def update_run_record(self, corpus_id: str, consolidation_effort_id: str, updates: dict) -> bool:
+        """
+        Update an existing run record in history by consolidation_effort_id.
+        Merges `updates` into the first matching record and saves state.
+
+        Args:
+            corpus_id: Tenancy/corpus id.
+            consolidation_effort_id: Run identifier (plan_id).
+            updates: Dict of fields to merge into the run record (e.g. status, step_status).
+
+        Returns:
+            True if a record was found and updated, False otherwise.
+        """
+        if not corpus_id or str(corpus_id).lower() in ('unknown', '', 'none'):
+            return False
+        state = self.get_or_create_consolidation_state(corpus_id)
+        history = state.get('history', [])
+        for i, run in enumerate(history):
+            if run.get('consolidation_effort_id') == consolidation_effort_id:
+                history[i] = {**run, **updates}
+                self.save_consolidation_state(corpus_id, state)
+                logger.info(f'Updated run_record {consolidation_effort_id} for corpus_id={corpus_id}')
+                return True
+        return False
+
+    def remove_run_record(self, corpus_id: str, consolidation_effort_id: str) -> bool:
+        """
+        Remove a run record from history by consolidation_effort_id.
+
+        Args:
+            corpus_id: Tenancy/corpus id.
+            consolidation_effort_id: Run identifier (plan_id) to remove.
+
+        Returns:
+            True if a record was removed, False if not found.
+        """
+        if not corpus_id or str(corpus_id).lower() in ('unknown', '', 'none'):
+            return False
+        state = self.get_or_create_consolidation_state(corpus_id)
+        history = state.get('history', [])
+        new_history = [r for r in history if r.get('consolidation_effort_id') != consolidation_effort_id]
+        if len(new_history) == len(history):
+            return False
+        state['history'] = new_history
+        self.save_consolidation_state(corpus_id, state)
+        logger.info(f'Removed run_record {consolidation_effort_id} from corpus_id={corpus_id}')
+        return True
+
+    def list_consolidation_corpus_ids(self) -> list[str]:
+        """Return list of corpus_ids that have consolidation state files."""
+        outdir = self.cache_dir / 'consolidation'
+        if not outdir.exists():
+            return []
+        ids = []
+        for f in outdir.glob('consolidation_*.json'):
+            name = f.stem
+            if name.startswith('consolidation_'):
+                ids.append(name[14:])
+        return ids
+
+    def list_all_consolidation_plans(self) -> list[dict]:
+        """
+        Return a flat list of all consolidation plans across corpuses.
+        Each item has corpus_id, consolidation_effort_id, created_at, and run (full record).
+        """
+        result = []
+        for corpus_id in self.list_consolidation_corpus_ids():
+            history = self.get_history(corpus_id)
+            for run in history:
+                result.append(
+                    {
+                        'corpus_id': corpus_id,
+                        'consolidation_effort_id': run.get('consolidation_effort_id', ''),
+                        'created_at': run.get('created_at', ''),
+                        'run': run,
+                    }
+                )
+        return result
 
     def __init__(
         self,
@@ -49,7 +215,71 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f'Initialized Caching at {self.cache_dir}')
 
-        # AI result cache functionality removed
+    # ----
+    # Consolidation Session Save/Load
+    # ----
+
+    def save_consolidation_session(
+        self, session_data: dict, plan_id: str = None, corpus_id: str = None, preserved: bool = False
+    ) -> str:
+        """
+        Save a consolidation session (see models_consolidation.ConsolidationSession) to disk as JSON.
+        Returns file name/path.
+        Args:
+            session_data: The dict/TypedDict structure matching ConsolidationSession (pluggable, robust to version drift)
+            plan_id: Optional label/ID for file naming, else uses timestamp.
+            corpus_id: Optional for nested cache structure.
+            preserved: Mark this session as not-to-be-deleted.
+        Returns:
+            The output file path string.
+        """
+        # imports already present at the top
+
+        CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
+        tag = plan_id or f'session_{CACHE_DATE}'
+        corpus_subdir = Path(str(corpus_id)) if corpus_id else Path()
+        outdir = self.cache_dir / 'consolidation' / corpus_subdir
+        outdir.mkdir(parents=True, exist_ok=True)
+        file_path = outdir / f'{tag}.json'
+
+        def _serialize_for_json(obj):
+            if isinstance(obj, dict):
+                return {k: _serialize_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_serialize_for_json(x) for x in obj]
+            elif isinstance(obj, tuple):
+                return tuple(_serialize_for_json(x) for x in obj)
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
+            else:
+                return obj
+
+        data = _serialize_for_json(session_data)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f'Saved consolidation session to {file_path}')
+        return str(file_path)
+
+    def load_consolidation_session(self, plan_id: str, corpus_id: str = None) -> dict | None:
+        """
+        Load a consolidation session from cache.
+        Args:
+            plan_id: Label/filename (w/o json) for the session/plan.
+            corpus_id: Optional subdir
+        Returns:
+            session_data (dict) or None
+        """
+        # imports already present at the top
+        corpus_subdir = Path(str(corpus_id)) if corpus_id else Path()
+        input_file = self.cache_dir / 'consolidation' / corpus_subdir / f'{plan_id}.json'
+        try:
+            with open(input_file, encoding='utf-8') as f:
+                session_data = json.load(f)
+            logger.info(f'Loaded consolidation session from {input_file}')
+            return session_data
+        except Exception as e:
+            logger.error(f'Failed to load consolidation session {input_file}: {e}')
+            return None
 
     # Utility functions for loading and saving cache, using combined caching strategy
     def save_combined_cache(
@@ -255,6 +485,8 @@ class CacheManager:
                     policy_analysis.load_all_users = cache_data.get('load_all_users', True)
                     # Set the data as of time, always a str
                     policy_analysis.data_as_of = cache_data.get('data_as_of') or ''
+                    # --- Load the last policy reload timestamp if present
+                    policy_analysis.policy_data_reloaded = cache_data.get('policy_data_reloaded', '')
                     logger.info(f'Loaded combined cache (strict mode) from: {combined_cache_file}')
                     logger.info(
                         f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
@@ -316,6 +548,8 @@ class CacheManager:
             policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
             # Set the data as of time, always a str
             policy_analysis.data_as_of = loaded_json.get('data_as_of') or ''
+            # --- Load last policy reload timestamp if present
+            policy_analysis.policy_data_reloaded = loaded_json.get('policy_data_reloaded', '')
             logger.info(
                 f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
@@ -544,3 +778,45 @@ class CacheManager:
                         pass
                     f.write(line)
         return updated
+
+    def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str):
+        """
+        Update ONLY the policies, policy_statements, compartments, defined_aliases, and cross_tenancy_statements in
+        the most recent cache file for a given tenancy, and set 'policy_data_reloaded' with the supplied timestamp.
+        This preserves IAM/user/group data and other session metadata. No effect if no cache is present.
+
+        Args:
+            policy_analysis: PolicyAnalysisRepository with fresh policy/compartment data in memory
+            policy_data_reloaded: ISO timestamp string for reloaded policy data
+        """
+        cache_files = list(self.cache_dir.glob(f'combined_cache_{policy_analysis.tenancy_name}_*.json'))
+        if not cache_files:
+            logger.warning(
+                f"[CacheManager.update_policy_section] No existing cache file for tenancy '{policy_analysis.tenancy_name}', skipping."
+            )
+            return
+        # Use newest cache file (sorted by filename so creation time works due to naming convention)
+        cache_files.sort(reverse=True)
+        cache_file = cache_files[0]
+        try:
+            with open(cache_file, encoding='utf-8') as f:
+                cache_data = json.load(f)
+        except Exception as e:
+            logger.error(f"[CacheManager.update_policy_section] Failed to load cache file '{cache_file}': {e}")
+            return
+
+        # Update the compartment/policy section fields (other identity data are left untouched)
+        cache_data['policies'] = policy_analysis.policies
+        cache_data['policy_statements'] = policy_analysis.regular_statements
+        cache_data['compartments'] = policy_analysis.compartments
+        cache_data['defined_aliases'] = policy_analysis.defined_aliases
+        cache_data['cross_tenancy_statements'] = policy_analysis.cross_tenancy_statements
+        cache_data['policy_data_reloaded'] = policy_data_reloaded
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2, default=str)
+            logger.info(
+                f'[CacheManager.update_policy_section] Updated policy/compartment section of {cache_file} with new policy_data_reloaded: {policy_data_reloaded}'
+            )
+        except Exception as e:
+            logger.error(f"[CacheManager.update_policy_section] Could not save cache file '{cache_file}': {e}")
