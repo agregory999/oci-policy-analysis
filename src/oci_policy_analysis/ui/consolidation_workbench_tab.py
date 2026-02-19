@@ -932,18 +932,36 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
             rows = []
             for i, step in enumerate(plan['plan_steps'], 1):
-                pol = policies_by_ocid.get(step.get('policy_ocid', ''), {}) or {}
-                pol_name = pol.get('policy_name', '(unknown policy)')
-                policy_compartment = _policy_compartment_path(pol)
-                effective_path = policy_compartment
-                action = (step.get('action') or '').upper()
-                details = ''
-                if step.get('action') == 'modify':
-                    details = f"Statements: {len(step.get('before_statements', []))} -> {len(step.get('after_statements', []))}"
-                elif step.get('action') == 'delete':
-                    details = (
-                        f"Delete policy (rollback recreates with {len(step.get('before_statements', []))} statements)"
-                    )
+                action_key = step.get('action') or ''
+                if action_key == 'add':
+                    policy_compartment = 'ROOT'
+                    pol_name = (step.get('create_policy_name') or 'Consolidated-Root') + ' (suggested)'
+                    effective_path = policy_compartment
+                    n_stmts = len(step.get('after_statements', []))
+                    details = f'New Policy with {n_stmts} statements and updated location'
+                else:
+                    pol = policies_by_ocid.get(step.get('policy_ocid', ''), {}) or {}
+                    # For delete steps, retain compartment/name from plan when policy is gone (already deleted)
+                    if action_key == 'delete' and not pol:
+                        policy_compartment = (
+                            (
+                                (comp_by_id.get(step.get('compartment_ocid'), {}) or {}).get('hierarchy_path') or ''
+                            ).strip()
+                            or step.get('compartment_ocid')
+                            or ''
+                        )
+                        pol_name = (step.get('create_policy_name') or '(unknown policy)') + ' (deleted)'
+                        effective_path = policy_compartment
+                    else:
+                        pol_name = pol.get('policy_name', '(unknown policy)')
+                        policy_compartment = _policy_compartment_path(pol)
+                        effective_path = policy_compartment
+                    details = ''
+                    if action_key == 'modify':
+                        details = f"Statements: {len(step.get('before_statements', []))} -> {len(step.get('after_statements', []))}"
+                    elif action_key == 'delete':
+                        details = f"Delete policy (rollback recreates with {len(step.get('before_statements', []))} statements)"
+                action = (action_key or '').upper()
                 status = 'Pending'
                 if progress and isinstance(progress, dict):
                     pi = progress.get(step.get('step_id'), {})

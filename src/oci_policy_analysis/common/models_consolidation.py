@@ -98,9 +98,9 @@ class PlanStep(TypedDict):
             list[str], 'Notes when statement location was rewritten due to policy move (e.g. compartment X to A:B).'
         ]
     ]
-    # For action='add' (create new policy): policy_ocid is empty; use these to render create/rollback.
-    compartment_ocid: NotRequired[Annotated[str, 'Compartment OCID where to create the policy (add step only)']]
-    create_policy_name: NotRequired[Annotated[str, 'Name for the new policy (add step only); user may change.']]
+    # For action='add': policy_ocid empty; use these to render create/rollback. For action='delete': store original for display/rollback.
+    compartment_ocid: NotRequired[Annotated[str, 'Compartment OCID (add: where to create; delete: original)']]
+    create_policy_name: NotRequired[Annotated[str, 'Policy name (add: new; delete: original, for display/rollback)']]
     create_policy_description: NotRequired[
         Annotated[str, 'Description for the new policy (add step only); user may change.']
     ]

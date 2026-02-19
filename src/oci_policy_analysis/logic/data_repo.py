@@ -659,7 +659,10 @@ class PolicyAnalysisRepository:
                                     )
                                     self._parse_statement(policy_obj, policy_statement)  # include validation as before
                     except Exception as e:
-                        logger.warning(f'Failed to get policy {policy_ocid}: {e}')
+                        logger.warning(
+                            f'Failed to get policy {policy_ocid}: {e}. '
+                            'This may be expected if the policy was deleted as part of a consolidation plan execution.'
+                        )
 
                 with ThreadPoolExecutor(max_workers=THREADS) as executor:
                     for idx, item in enumerate(policy_search_results.data.items):
