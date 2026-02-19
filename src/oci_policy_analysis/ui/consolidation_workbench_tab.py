@@ -1515,6 +1515,17 @@ class ConsolidationWorkbenchTab(BaseUITab):
             except Exception:
                 pass
             return
+        # Move to Root Compartment: OCI allows max 50 statements per policy
+        if strategy_name == 'Move to Root Compartment' and len(self.candidate_statement_ids) > 50:
+            try:
+                tkmessagebox.showerror(
+                    'Too Many Statements',
+                    'Move to Root Compartment allows at most 50 policy statements. '
+                    f'You have selected {len(self.candidate_statement_ids)}. Please reduce the selection.',
+                )
+            except Exception:
+                pass
+            return
         try:
             plan = self.engine.generate_plan(
                 candidate_internal_ids=set(self.candidate_statement_ids),
