@@ -84,16 +84,16 @@ flowchart LR
 sequenceDiagram
     participant Strategy
     participant Engine
-    Strategy->>Strategy: required_compartment = LCA(candidate scopes)
-    Strategy->>Strategy: valid_policies = policies in required comp or above
-    Strategy->>Strategy: target = policy with most candidates
+    Strategy->>Strategy: required_compartment LCA of candidate scopes
+    Strategy->>Strategy: valid_policies in required comp or above
+    Strategy->>Strategy: target policy with most candidates
     Strategy->>Strategy: rewrite statement locations for target path
-    Strategy->>Engine: PlanStep(modify, target_policy, after_statements, marker tag)
+    Strategy->>Engine: PlanStep modify target_policy after_statements marker tag
     loop each source policy with moved statements
-        alt remaining statements > 0
-            Strategy->>Engine: PlanStep(modify, source, after_statements)
-        else remaining statements == 0
-            Strategy->>Engine: PlanStep(delete, source)
+        alt remaining statements gt 0
+            Strategy->>Engine: PlanStep modify source after_statements
+        else remaining statements eq 0
+            Strategy->>Engine: PlanStep delete source
         end
     end
 ```
@@ -116,7 +116,7 @@ flowchart LR
         P[Protected]
     end
     subgraph checks["Checks"]
-        L{≤50 statements?}
+        L{max 50 statements?}
         R{Root available?}
     end
     subgraph strategy["Move to Root"]
@@ -126,7 +126,7 @@ flowchart LR
     end
     C --> L
     P --> L
-    L -->|No| empty[Empty plan + error label]
+    L -->|No| empty[Empty plan and error label]
     L -->|Yes| R
     R -->|No| empty
     R -->|Yes| W
@@ -141,20 +141,20 @@ sequenceDiagram
     participant UI
     participant Engine
     participant Strategy
-    UI->>UI: if strategy==Move to Root and candidates>50 → show error, return
-    UI->>Engine: generate_plan(candidates, strategy="Move to Root Compartment")
-    Engine->>Strategy: build_plan(repo, candidate_internal_ids, ...)
-    Strategy->>Strategy: root_ocid = tenancy_ocid; rewrite each statement for ROOT
-    Strategy->>Engine: PlanStep(add, compartment_ocid=root, create_policy_name, create_policy_description, after_statements, NOTE)
+    UI->>UI: if Move to Root and candidates gt 50 show error return
+    UI->>Engine: generate_plan with strategy Move to Root Compartment
+    Engine->>Strategy: build_plan repo candidate_internal_ids
+    Strategy->>Strategy: root_ocid tenancy_ocid rewrite for ROOT
+    Strategy->>Engine: PlanStep add compartment_ocid root create_policy_name after_statements NOTE
     loop each source policy with moved statements
-        alt remaining statements > 0
-            Strategy->>Engine: PlanStep(modify, source, after_statements)
-        else remaining statements == 0
-            Strategy->>Engine: PlanStep(delete, source)
+        alt remaining statements gt 0
+            Strategy->>Engine: PlanStep modify source after_statements
+        else remaining eq 0
+            Strategy->>Engine: PlanStep delete source
         end
     end
     Strategy-->>Engine: ConsolidationPlan
-    Engine-->>UI: plan (script + rollback)
+    Engine-->>UI: plan script and rollback
 ```
 
 ---
@@ -225,33 +225,33 @@ sequenceDiagram
     participant Engine as ConsolidationEngine
     participant Cache as CacheManager
 
-    App->>Workbench: __init__(parent, app)
-    Workbench->>App: getattr(consolidation_engine)
+    App->>Workbench: init parent app
+    Workbench->>App: getattr consolidation_engine
     alt engine exists
-        Workbench->>Workbench: use app.consolidation_engine
+        Workbench->>Workbench: use app consolidation_engine
     else no engine
-        Workbench->>Engine: ConsolidationEngine(cache_mgr, reference_data_repo, policy_repo)
+        Workbench->>Engine: ConsolidationEngine cache_mgr reference_data_repo policy_repo
     end
-    Workbench->>Workbench: _build_notebook_ui()
-    Workbench->>Workbench: _build_protection_tab(parent)
-    Workbench->>Workbench: load_policies_and_statements()
-    Workbench->>App: getattr(policy_compartment_analysis)
+    Workbench->>Workbench: _build_notebook_ui
+    Workbench->>Workbench: _build_protection_tab parent
+    Workbench->>Workbench: load_policies_and_statements
+    Workbench->>App: getattr policy_compartment_analysis
     loop regular_statements
         Workbench->>Workbench: build protection_full_data
     end
-    Workbench->>Cache: get_protected_set(tenancy_ocid)
+    Workbench->>Cache: get_protected_set tenancy_ocid
     Cache-->>Workbench: protected_set
-    Workbench->>Workbench: _refresh_filter_protect_table()
-    Workbench->>Workbench: _update_selected_statements_table()
-    Workbench->>Workbench: _build_candidate_tab(parent)
-    Workbench->>Workbench: _build_proposal_tab(parent)
-    Workbench->>Workbench: _refresh_plan_history_dropdown()
-    Workbench->>Cache: get_history(tenancy_ocid)
+    Workbench->>Workbench: _refresh_filter_protect_table
+    Workbench->>Workbench: _update_selected_statements_table
+    Workbench->>Workbench: _build_candidate_tab parent
+    Workbench->>Workbench: _build_proposal_tab parent
+    Workbench->>Workbench: _refresh_plan_history_dropdown
+    Workbench->>Cache: get_history tenancy_ocid
     Cache-->>Workbench: history
-    Workbench->>Workbench: plan_history_dropdown["values"], _on_select_plan_history() if items
-    Workbench->>Workbench: _refresh_plan_history_table()
-    Workbench->>Workbench: _build_plan_history_tab(parent)
-    Workbench->>Workbench: _refresh_plan_history_table()
+    Workbench->>Workbench: plan_history_dropdown values and _on_select_plan_history if items
+    Workbench->>Workbench: _refresh_plan_history_table
+    Workbench->>Workbench: _build_plan_history_tab parent
+    Workbench->>Workbench: _refresh_plan_history_table
 ```
 
 ### 2. Tenancy (or cache/compliance) loaded
@@ -264,9 +264,9 @@ sequenceDiagram
     participant Workbench as ConsolidationWorkbenchTab
     participant Cache as CacheManager
 
-    App->>App: _post_load_update_ui()
-    App->>Workbench: load_policies_and_statements()
-    Workbench->>App: getattr(policy_compartment_analysis)
+    App->>App: _post_load_update_ui
+    App->>Workbench: load_policies_and_statements
+    Workbench->>App: getattr policy_compartment_analysis
     Workbench->>Workbench: protection_full_data from repo
     Workbench->>Cache: get_protected_set(tenancy_ocid)
     Cache-->>Workbench: protected_set
@@ -275,7 +275,7 @@ sequenceDiagram
 
     App->>Workbench: reload_and_validate_protection_set()
     Workbench->>App: getattr(policy_compartment_analysis), regular_statements
-    Workbench->>Workbench: current_ids, missing_ids; remove from protected_statement_ids if missing
+    Workbench->>Workbench: current_ids missing_ids remove from protected_statement_ids if missing
     Workbench->>Workbench: _refresh_filter_protect_table()
     Workbench->>Workbench: _update_selected_statements_table()
     Workbench->>Workbench: _update_protected_display()
@@ -283,10 +283,10 @@ sequenceDiagram
 
     App->>Workbench: refresh_plan_history_for_corpus()
     Workbench->>Workbench: _refresh_plan_history_dropdown()
-    Workbench->>Cache: get_history(tenancy_ocid)
+    Workbench->>Cache: get_history tenancy_ocid
     Cache-->>Workbench: history
-    Workbench->>Workbench: plan_history_id_lookup, dropdown values
-    Workbench->>Workbench: _refresh_plan_history_table()
+    Workbench->>Workbench: plan_history_id_lookup dropdown values
+    Workbench->>Workbench: _refresh_plan_history_table
 ```
 
 ### 3. Protecting statements and writing to cache
@@ -299,18 +299,18 @@ sequenceDiagram
     participant Workbench as ConsolidationWorkbenchTab
     participant Cache as CacheManager
 
-    User->>Workbench: check/uncheck rows or Select All
-    Workbench->>Workbench: _on_protect_check_changed(checked_rows) or _on_protect_select_all(visible_ids, check_state)
-    Workbench->>Workbench: protect_table_selected_ids add/remove
-    Workbench->>Workbench: _refresh_filter_protect_table() [if select all]
-    Workbench->>Workbench: _update_selected_statements_table()
+    User->>Workbench: check or uncheck rows or Select All
+    Workbench->>Workbench: _on_protect_check_changed or _on_protect_select_all
+    Workbench->>Workbench: protect_table_selected_ids add or remove
+    Workbench->>Workbench: _refresh_filter_protect_table if select all
+    Workbench->>Workbench: _update_selected_statements_table
 
-    User->>Workbench: click "Save Protected"
-    Workbench->>Workbench: _on_mark_as_protected(selected_rows)
-    Workbench->>Workbench: protected_statement_ids = selected_ids; build protected_list (ProtectedStatementReference)
-    Workbench->>Workbench: _get_corpus_id() via app/repo
-    Workbench->>Cache: set_protected_set(tenancy_ocid, protected_set)
-    Cache->>Cache: get_or_create_consolidation_state(); state['protected_set'] = protected_set; save_consolidation_state()
+    User->>Workbench: click Save Protected
+    Workbench->>Workbench: _on_mark_as_protected selected_rows
+    Workbench->>Workbench: protected_statement_ids selected_ids build protected_list
+    Workbench->>Workbench: _get_corpus_id via app repo
+    Workbench->>Cache: set_protected_set tenancy_ocid protected_set
+    Cache->>Cache: get_or_create_consolidation_state then state protected_set then save_consolidation_state
     Workbench->>Workbench: _update_protected_display()
     Workbench->>Workbench: _load_candidate_statements()
     Workbench->>Workbench: _update_selected_statements_table()
@@ -327,27 +327,27 @@ sequenceDiagram
     participant Engine as ConsolidationEngine
     participant Cache as CacheManager
 
-    User->>Workbench: select candidates, click "Create Consolidation Proposal" or Generate
-    Workbench->>Workbench: _on_create_consolidation_proposal(selected_rows) or _on_generate_proposal()
-    Workbench->>Workbench: candidate_statement_ids = candidate_table_selected_ids
-    Workbench->>Workbench: _on_generate_proposal()
-    Workbench->>Engine: get_strategy_display_names()
-    Engine-->>Workbench: [strategy names]
-    alt strategy == "Move to Root Compartment" and candidates > 50
-        Workbench->>Workbench: messagebox.showerror("Too Many Statements"); return
+    User->>Workbench: select candidates click Create Consolidation Proposal or Generate
+    Workbench->>Workbench: _on_create_consolidation_proposal or _on_generate_proposal
+    Workbench->>Workbench: candidate_statement_ids from candidate_table_selected_ids
+    Workbench->>Workbench: _on_generate_proposal
+    Workbench->>Engine: get_strategy_display_names
+    Engine-->>Workbench: strategy names list
+    alt Move to Root and candidates gt 50
+        Workbench->>Workbench: messagebox showerror Too Many Statements then return
     else proceed
-        Workbench->>Engine: generate_plan(candidate_internal_ids, protected_internal_ids, strategy_display_name, params)
-        Engine->>Engine: strategy.build_plan(repo, corpus_id, ...)
+        Workbench->>Engine: generate_plan candidate_internal_ids protected_internal_ids strategy_display_name params
+        Engine->>Engine: strategy build_plan repo corpus_id
         Engine-->>Workbench: ConsolidationPlan
 
-        Workbench->>Workbench: _build_proposal_rows(plan, progress=None)
-        Workbench->>Workbench: proposal_table.update_data(rows)
-        Workbench->>Workbench: _set_script_content_from_plan(plan)
-        Workbench->>Workbench: _get_corpus_id()
-        Workbench->>Cache: add_run_record(corpus_id, run_record)
-        Cache->>Cache: get_or_create_consolidation_state(); state['history'].append(run_record); save_consolidation_state()
+        Workbench->>Workbench: _build_proposal_rows plan progress
+        Workbench->>Workbench: proposal_table update_data rows
+        Workbench->>Workbench: _set_script_content_from_plan plan
+        Workbench->>Workbench: _get_corpus_id
+        Workbench->>Cache: add_run_record corpus_id run_record
+        Cache->>Cache: get_or_create_consolidation_state append run_record save_consolidation_state
         Workbench->>Workbench: _refresh_plan_history_dropdown()
-        Workbench->>Cache: get_history(tenancy_ocid)
+        Workbench->>Cache: get_history tenancy_ocid
         Workbench->>Workbench: _refresh_plan_history_table()
     end
 ```
@@ -364,25 +364,25 @@ sequenceDiagram
     participant Engine as ConsolidationEngine
     participant Cache as CacheManager
 
-    User->>Workbench: click "Reload and Check Progress"
-    Workbench->>Workbench: _on_reload_and_check_progress()
-    Workbench->>Workbench: plan_history_var.get(), plan_history_id_lookup[sel] -> run, plan
-    Workbench->>App: reload_policies_and_compartments_and_update_cache()
-    App->>App: repo.reload_compartment_policy_data(); CacheManager().update_policy_section(repo)
-    App->>App: _post_load_update_ui()
-    App->>Workbench: load_policies_and_statements(); reload_and_validate_protection_set(); refresh_plan_history_for_corpus()
+    User->>Workbench: click Reload and Check Progress
+    Workbench->>Workbench: _on_reload_and_check_progress
+    Workbench->>Workbench: plan_history_var get plan_history_id_lookup to run plan
+    Workbench->>App: reload_policies_and_compartments_and_update_cache
+    App->>App: repo reload_compartment_policy_data CacheManager update_policy_section
+    App->>App: _post_load_update_ui
+    App->>Workbench: load_policies_and_statements reload_and_validate_protection_set refresh_plan_history_for_corpus
     App-->>Workbench: return
 
     Workbench->>Engine: check_plan_progress(plan)
     Engine->>Engine: for each step: policy presence / marker tag -> executed
-    Engine-->>Workbench: progress (step_id -> {executed, notes, ...})
+    Engine-->>Workbench: progress step_id executed notes
 
     alt all steps executed
-        Workbench->>Cache: update_run_record(corpus_id, effort_id, {status: "completed", step_status: {..., progress}, completed_at})
-        Workbench->>Workbench: _refresh_plan_history_dropdown(); _refresh_plan_history_table()
+        Workbench->>Cache: update_run_record status completed step_status progress completed_at
+        Workbench->>Workbench: _refresh_plan_history_dropdown and _refresh_plan_history_table
     end
     Workbench->>Workbench: _build_proposal_rows(plan, progress)
-    Workbench->>Workbench: proposal_table.update_data(data); plan_status_label [Executed: n/m]
+    Workbench->>Workbench: proposal_table update_data plan_status_label Executed n of m
 ```
 
 ### 6. Showing history with conflicts (Plan History tab)
@@ -398,33 +398,33 @@ sequenceDiagram
 
     User->>Workbench: open Plan History tab or click Refresh
     Workbench->>Workbench: _refresh_plan_history_table()
-    Workbench->>Workbench: _get_corpus_id()
-    Workbench->>Cache: get_history(corpus_id)
+    Workbench->>Workbench: _get_corpus_id
+    Workbench->>Cache: get_history corpus_id
     Cache-->>Workbench: history
     loop for each run in sorted_hist
-        Workbench->>Workbench: plan, step_status.progress, executed count, status
+        Workbench->>Workbench: plan step_status progress executed count status
         alt non-completed and plan has steps
             Workbench->>Engine: get_plan_tag_conflicts(plan)
-            Engine->>Engine: for each step: policy freeform_tags[marker] -> prefix != plan_id?
+            Engine->>Engine: for each step policy freeform_tags marker prefix vs plan_id
             Engine-->>Workbench: conflicts list
-            Workbench->>Workbench: Validity = "Conflicted (n)" or "OK"
+            Workbench->>Workbench: Validity Conflicted n or OK
         end
-        Workbench->>Workbench: rows.append({Effort ID, Created, Strategy, Status, Steps, Validity, ...})
+        Workbench->>Workbench: rows append Effort ID Created Strategy Status Steps Validity
     end
-    Workbench->>Workbench: plan_history_table.update_data(rows)
+    Workbench->>Workbench: plan_history_table update_data rows
 
     User->>Workbench: select a row in Plan History table
     Workbench->>Workbench: _on_plan_history_row_selected(selected_rows)
-    Workbench->>Workbench: _plan_history_selected_rows = selected_rows; view_plan_btn state
+    Workbench->>Workbench: _plan_history_selected_rows selected_rows view_plan_btn state
     Workbench->>Workbench: _update_plan_history_detail_pane()
     Workbench->>Cache: get_history(corpus_id)
     Workbench->>Workbench: find run by consolidation_effort_id
-    Workbench->>Workbench: detail: Plan summary (Effort ID, Created, Strategy, Status, Steps)
-    Workbench->>Engine: get_plan_tag_conflicts(plan)
+    Workbench->>Workbench: detail Plan summary Effort ID Created Strategy Status Steps
+    Workbench->>Engine: get_plan_tag_conflicts plan
     Engine-->>Workbench: conflicts
-    Workbench->>Workbench: detail: Conflicts (policy_ocid, current_tag_value, conflicting_plan_id)
-    Workbench->>Workbench: detail: "OCI Audit Data (selected policy) — (Not implemented yet.)"
-    Workbench->>Workbench: plan_history_detail_text.insert(detail)
+    Workbench->>Workbench: detail Conflicts policy_ocid current_tag_value conflicting_plan_id
+    Workbench->>Workbench: detail OCI Audit Data selected policy Not implemented yet
+    Workbench->>Workbench: plan_history_detail_text insert detail
 ```
 
 ---
