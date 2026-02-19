@@ -1,3 +1,11 @@
+# [4.1.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.1...v4.1.0-dev.2) (2026-02-19)
+
+
+### Bug Fixes
+
+* Another Consolidation Strategy and Added Context files ([45417fd](https://github.com/agregory999/oci-policy-analysis/commit/45417fdf643fb9026b2acc6e1aca006fee876780))
+* Consolidation Move to Root Strategy fixes ([52a8ad5](https://github.com/agregory999/oci-policy-analysis/commit/52a8ad52bbfccf08486fc2be7e54534a4943c6fd))
+
 # [4.1.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0-dev.1) (2026-02-19)
 
 
