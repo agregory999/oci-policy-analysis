@@ -1,3 +1,11 @@
+# [4.1.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0-dev.1) (2026-02-19)
+
+
+### Features
+
+* Consolidation Workbench ([7c9dec4](https://github.com/agregory999/oci-policy-analysis/commit/7c9dec4db21cf041b094bd84307b95ba47af8979))
+* UI refinements ([34468a3](https://github.com/agregory999/oci-policy-analysis/commit/34468a379a530f1eae84a6960614be66a62b543d))
+
 ## [4.0.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.5...v4.0.6) (2026-02-11)
 
 
