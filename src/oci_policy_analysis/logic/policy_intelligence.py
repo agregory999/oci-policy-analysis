@@ -14,12 +14,41 @@
 ##########################################################################
 
 import time
+from typing import TYPE_CHECKING
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicyIntelligence, PolicyOverlap
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
+if TYPE_CHECKING:
+    from oci_policy_analysis.logic.intelligence_strategies.base import IntelligenceStrategy
+
 logger = get_logger(component='policy_intelligence')
+
+# OCI Identity Domains system group that cannot be deleted and may have zero members; exclude from cleanup.
+ALL_DOMAIN_USERS_GROUP_NAME = 'All Domain Users'
+
+# Cleanup check IDs; when enabled_check_ids is passed to build_cleanup_items, only these run.
+CLEANUP_CHECK_IDS = (
+    'invalid_statements',
+    'unused_groups',
+    'unused_dynamic_groups',
+    'statements_too_open',
+    'anyuser_no_where',
+)
+
+# Default run order for intelligence strategies (strategy_id). Ensures e.g. cleanup before recommendations.
+DEFAULT_STRATEGY_RUN_ORDER = [
+    'risk_scores',
+    'overlap',
+    'consolidation_suggestion',
+    'invalid_statements',
+    'unused_groups',
+    'unused_dynamic_groups',
+    'statements_too_open',
+    'anyuser_no_where',
+    'recommendations',
+]
 
 
 class PolicyIntelligenceEngine:
@@ -38,12 +67,14 @@ class PolicyIntelligenceEngine:
         permissions_report (dict): Holds the effective permissions report used by various UI components.
     """
 
-    def __init__(self, policy_repo):
+    def __init__(self, policy_repo, strategies: list['IntelligenceStrategy'] | None = None):
         """
         Initialize the PolicyIntelligenceEngine and prepare analytics overlay structures.
 
         Args:
             policy_repo (PolicyAnalysisRepository): Repository with loaded compartment, policy, and identity data.
+            strategies: Optional list of IntelligenceStrategy implementations. If None, uses built-in default(s)
+                when run_all() is called with strategies registered elsewhere, or legacy method calls.
         """
         self.policy_repo = policy_repo
         # Explicitly type and instantiate the overlay using the model
@@ -51,7 +82,93 @@ class PolicyIntelligenceEngine:
             overlaps=[], recommendations=[], risk_scores=[], consolidations=[]
         )
         self.permissions_report = {}
-        logger.info('Initialized PolicyIntelligenceEngine with repo.')
+        self._strategies: dict[str, 'IntelligenceStrategy'] = {}
+        self._run_order: list[str] = list(DEFAULT_STRATEGY_RUN_ORDER)
+        to_register = strategies if strategies is not None else self._get_default_strategies()
+        for s in to_register:
+            self.register_strategy(s)
+        logger.info(
+            'Initialized PolicyIntelligenceEngine with repo; strategies=%s',
+            list(self._strategies.keys()) if self._strategies else 'none (legacy mode)',
+        )
+
+    def _get_default_strategies(self) -> list['IntelligenceStrategy']:
+        """Lazy import to avoid circular import at module load."""
+        from oci_policy_analysis.logic.intelligence_strategies import get_default_intelligence_strategies
+
+        return get_default_intelligence_strategies()
+
+    def register_strategy(self, strategy: 'IntelligenceStrategy') -> None:
+        """Register a single intelligence strategy (pluggable)."""
+        self._strategies[strategy.strategy_id] = strategy
+        logger.debug('Registered intelligence strategy: %s (%s)', strategy.strategy_id, strategy.display_name)
+
+    def get_strategy_ids(self) -> list[str]:
+        """Return strategy_ids in run order (for Settings and run_all filtering)."""
+        return list(self._run_order)
+
+    def get_strategies_for_settings(self) -> list[tuple[str, str, str]]:
+        """Return (strategy_id, display_name, category) for all registered strategies, in run order."""
+        seen = set()
+        out = []
+        for sid in self._run_order:
+            s = self._strategies.get(sid)
+            if s and sid not in seen:
+                seen.add(sid)
+                out.append((s.strategy_id, s.display_name, s.category))
+        return out
+
+    def run_all(
+        self,
+        enabled_strategy_ids: list[str] | None = None,
+        params: dict | None = None,
+    ) -> None:
+        """
+        Run all enabled intelligence strategies in order and merge results into overlay.
+
+        Ensures prerequisites (compartment index, invalid statements, DG in-use) are run first.
+        If no strategies are registered, falls back to legacy method calls for backward compatibility.
+
+        Args:
+            enabled_strategy_ids: If None, run all registered strategies (or legacy path). Otherwise run only these.
+            params: Optional dict (e.g. where_clause_reduction_pct, service_principal_reduction_pct,
+                enabled_cleanup_check_ids, consolidation_strategy_names). Passed to each strategy; engine ref added.
+        """
+        params = dict(params or {})
+        params['engine'] = self
+        repo = self.policy_repo
+        overlay = self.overlay
+
+        # Prerequisites used by one or more strategies
+        if not getattr(self, 'compartments_by_path', None) and repo.compartments:
+            self.build_compartment_index()
+        self.find_invalid_statements()
+        self.run_dg_in_use_analysis()
+
+        if not self._strategies:
+            # Legacy path: call existing methods in order
+            where_pct = params.get('where_clause_reduction_pct', 50)
+            svc_pct = params.get('service_principal_reduction_pct', 50)
+            self.calculate_potential_risk_scores(
+                where_clause_reduction_pct=where_pct,
+                service_principal_reduction_pct=svc_pct,
+            )
+            self.analyze_policy_overlap()
+            self.build_policy_consolidation()
+            enabled_checks = params.get('enabled_cleanup_check_ids')
+            self.build_cleanup_items(enabled_check_ids=enabled_checks)
+            self.build_overall_recommendations()
+            return
+
+        run_ids = set(enabled_strategy_ids) if enabled_strategy_ids else set(self._strategies)
+        for strategy_id in self._run_order:
+            if strategy_id not in run_ids or strategy_id not in self._strategies:
+                continue
+            strategy = self._strategies[strategy_id]
+            try:
+                strategy.run(repo, overlay, params)
+            except Exception as e:
+                logger.warning('Intelligence strategy %s failed: %s', strategy_id, e)
 
     def build_permissions_report(self):  # noqa: C901
         """
@@ -510,24 +627,39 @@ class PolicyIntelligenceEngine:
             logger.debug(f'Compartment OCID {compartment_ocid} not valid: {e}')
             return False
 
-    def calculate_potential_risk_scores(self, where_clause_reduction_pct=50):  # noqa: C901
+    def calculate_potential_risk_scores(self, where_clause_reduction_pct=50, service_principal_reduction_pct=50):  # noqa: C901
         """
-        Calculates potential risk scores for each policy statement based on permission risk values (from reference data)
-        and multiplies by a compartment exposure factor based on scope in the compartment hierarchy.
-        Applies a raw score reduction for statements with a WHERE clause ('conditions'), adjustable as a percentage.
+        Calculates potential risk scores for each policy statement.
+
+        Formula: risk = exposure_points × compartments_in_scope (then optional reductions for WHERE clause
+        or service principal). Exposure points = sum of each permission's risk by verb level from the
+        reference data (inspect=1, read=5, use=20, manage=50). When the statement has a permission list,
+        each permission is looked up and its verb-level risk is summed. When it has no permission list,
+        the reference repo returns the sum of all permissions for that verb/resource (each weighted by
+        its verb). Compartments in scope = number of compartments at or below the statement's effective
+        path in the hierarchy (e.g. "in tenancy" with 12 compartments => multiplier 12; a statement
+        effective in a sub-compartment has a smaller multiplier).
+
+        Applies a raw score reduction for statements with a WHERE clause, and a further reduction for
+        service-principal statements with use/manage verbs (adjustable via service_principal_reduction_pct).
 
         Results are stored in self.overlay["risk_scores"] as a list of dicts:
           { "statement_internal_id", "score", "notes", "recommendations" }
         """
         logger.info(
-            'Calculating potential risk scores for all policy statements with where_clause_reduction_pct=%s',
+            'Calculating potential risk scores with where_clause_reduction_pct=%s, service_principal_reduction_pct=%s',
             where_clause_reduction_pct,
+            service_principal_reduction_pct,
         )
         repo = self.policy_repo
         ref_repo = repo.permission_reference_repo
         # Ensure compartment index is built
         if not hasattr(self, 'compartments_by_path') or not self.compartments_by_path:
             self.build_compartment_index()
+
+        # Cap for unknown family/resource: assume no unknown type scores more than 10% of manage all-resources
+        all_resources_manage_risk = ref_repo.get_verb_resource_risk('manage', 'all-resources') if ref_repo else 0
+        cap_unknown_risk = max(1, int(0.10 * (all_resources_manage_risk or 1)))
 
         risk_scores = []
         for st in repo.regular_statements:
@@ -537,52 +669,70 @@ class PolicyIntelligenceEngine:
             permissions = st.get('permission', [])
             effective_path = st.get('effective_path', '') or ''
             compartment_exposure = 1
-
-            # Compute permission risk sum
-            if permissions:
-                perm_risk_base = ref_repo.get_permissions_risk_sum(permissions, resource)
-                risk_detail = f"Sum of permission risks ({', '.join(permissions)}): {perm_risk_base}"
-            else:
-                verb_risk_map = {'inspect': 1, 'read': 2, 'use': 10, 'manage': 50}
-                perm_risk_base = ref_repo.get_verb_resource_risk(verb, resource)
-                if perm_risk_base == 0:
-                    is_family = '-family' in resource
-                    if verb == 'inspect':
-                        base = 1 * (2 if is_family else 1)
-                        expl = f'inspect verb base ({base})'
-                    elif verb == 'read':
-                        base = 2 * (2 if is_family else 1)
-                        expl = f'read verb base ({base})'
-                    else:
-                        base = 2 if is_family else 1
-                        expl = f'default base ({base})'
-                    risk_factor = verb_risk_map.get(verb, 1)
-                    perm_risk_base = base * risk_factor
-                    risk_detail = f'No permissions for verb/resource ({verb}, {resource}): rubric base {base}*verb_mult{risk_factor}={perm_risk_base} ({expl})'
-                else:
-                    risk_detail = f'Verb/resource risk for ({verb}, {resource}): {perm_risk_base}'
-            notes = [risk_detail]
+            notes = []
             recommendations = []
 
-            # Compartment exposure: count all subcompartments-in-scope (including self)
+            # Exposure points: sum of each permission's risk by verb level (inspect=1, read=5, use=20, manage=50 from reference data)
+            if permissions:
+                exposure_points = ref_repo.get_permissions_risk_sum(permissions, resource)
+                notes.append(
+                    f'Exposure points (sum of per-permission risk by verb level from reference data): {exposure_points} '
+                    f'for {len(permissions)} permission(s).'
+                )
+            else:
+                exposure_points = ref_repo.get_verb_resource_risk(verb, resource)
+                if exposure_points == 0:
+                    # Unknown resource or no permissions in reference data; use a small rubric and cap later
+                    verb_risk_map = {'inspect': 1, 'read': 5, 'use': 20, 'manage': 50}
+                    risk_factor = verb_risk_map.get(verb, 1)
+                    is_family = '-family' in resource
+                    base = 2 if is_family else 1
+                    exposure_points = base * risk_factor
+                    notes.append(
+                        f'No permissions in reference for ({verb}, {resource}); assumed exposure points: {exposure_points} '
+                        f'(base {base} × verb weight {risk_factor}).'
+                    )
+                else:
+                    notes.append(
+                        f'Exposure points (sum of permissions at verb "{verb}" for resource from reference data): {exposure_points}.'
+                    )
+            perm_risk_base = exposure_points
+
+            # Cap unknown family/resource so they do not outrank manage all-resources (assume at most 10%)
+            resource_ci = (resource or '').lower()
+            is_known_family = resource_ci in getattr(ref_repo, 'family_name_map', {})
+            res_key = getattr(ref_repo, 'resource_name_map', {}).get(resource_ci)
+            is_known_resource = res_key in (ref_repo.data.get('resources', {}) if ref_repo else {})
+            if not is_known_family and not is_known_resource and resource_ci and resource_ci != 'all-resources':
+                if perm_risk_base > cap_unknown_risk:
+                    notes.append(
+                        f'Unknown resource: exposure points capped to {cap_unknown_risk} '
+                        f'(10% of manage all-resources exposure).'
+                    )
+                    perm_risk_base = cap_unknown_risk
+
+            # Compartment multiplier: number of compartments at or below this statement's effective path in the hierarchy
             path_lower = effective_path.lower()
-            exposure_count = 0
-            scope_label = '(path unknown)'
+            compartments_in_scope = 0
             if path_lower:
                 for other_path in self.compartments_by_path or {}:
                     if other_path and other_path.lower().startswith(path_lower):
-                        exposure_count += 1
-                if exposure_count == 0:
-                    exposure_count = 1
-                scope_label = f'Effective path: {effective_path}, Exposure compartments covered: {exposure_count}'
+                        compartments_in_scope += 1
+                if compartments_in_scope == 0:
+                    compartments_in_scope = 1
+                notes.append(
+                    f'Compartments at or below effective path "{effective_path}": {compartments_in_scope} '
+                    f'(statement applies to this compartment and all descendants).'
+                )
             else:
-                exposure_count = 1
-                scope_label = 'Scope unknown: exposure x1'
-            compartment_exposure = exposure_count
-            notes.append(scope_label)
+                compartments_in_scope = 1
+                notes.append('Compartments at or below effective path: 1 (path unknown).')
+            compartment_exposure = compartments_in_scope
 
             total_risk = perm_risk_base * compartment_exposure
-            notes.append(f'Final potential risk: {perm_risk_base} x {compartment_exposure} = {total_risk}')
+            notes.append(
+                f'Risk = exposure points × compartments: {perm_risk_base} × {compartment_exposure} = {total_risk}'
+            )
 
             # WHERE clause reduction and recommendation
             has_where_clause = bool(st.get('conditions'))
@@ -596,6 +746,18 @@ class PolicyIntelligenceEngine:
                 recommendations.append(
                     'Test and tighten where clause definition to reduce policy statement blast radius'
                 )
+
+            # Service principal reduction: use/manage for service principals is inherently lower risk than group/dynamic-group
+            subject_type = (st.get('subject_type') or '').lower()
+            if subject_type == 'service' and verb in ('use', 'manage'):
+                reduction_pct = (
+                    service_principal_reduction_pct if isinstance(service_principal_reduction_pct, int | float) else 50
+                )
+                reduced_risk = int(total_risk * (1.0 - (reduction_pct / 100.0)))
+                notes.append(
+                    f'Service principal with {verb}: risk reduced by {reduction_pct}% to {reduced_risk} (lower than group/dynamic-group).'
+                )
+                total_risk = reduced_risk
 
             # Generate other recommendations (least privilege, scope reduction, etc.)
             path_is_root = effective_path.lower() == 'root'
@@ -642,39 +804,69 @@ class PolicyIntelligenceEngine:
         self.overlay['risk_scores'] = risk_scores
         logger.info(f'Calculated risk scores for {len(risk_scores)} statements.')
 
-    def build_cleanup_items(self):
+    def build_cleanup_items(self, enabled_check_ids=None):
         """
         Analyze policy repository and collect actionable cleanup items for all key risk categories.
         This should be called BEFORE build_overall_recommendations.
+
+        Args:
+            enabled_check_ids: If None, all checks run. Otherwise only run checks whose ID is in this list
+                (use CLEANUP_CHECK_IDS). Disabled keys are set to empty list in overlay.
+
         The lists are attached to self.overlay["cleanup_items"].
         """
         repo = self.policy_repo
+        run_all = enabled_check_ids is None
+        enabled = set(enabled_check_ids) if enabled_check_ids else set(CLEANUP_CHECK_IDS)
+
+        def _run(check_id):
+            return run_all or check_id in enabled
 
         # (1) Invalid Policy Statements
-        invalid_statements = [st for st in repo.regular_statements if st.get('invalid_reasons')]
+        invalid_statements = (
+            [st for st in repo.regular_statements if st.get('invalid_reasons')] if _run('invalid_statements') else []
+        )
 
-        # (2) Unused Groups
-        unused_groups = [group for group in repo.groups if not repo.get_users_for_group(group)]
+        # (2) Unused Groups (only when users were loaded; otherwise we intentionally did not load users).
+        # Exclude the special "All Domain Users" group (one per domain); it cannot be deleted and may have zero members.
+        if _run('unused_groups') and getattr(repo, 'load_all_users', True):
+            unused_groups = [
+                group
+                for group in repo.groups
+                if (group.get('group_name') or '').strip().lower() != ALL_DOMAIN_USERS_GROUP_NAME.lower()
+                and not repo.get_users_for_group(group)
+            ]
+        else:
+            unused_groups = []
 
         # (3) Unused Dynamic Groups
-        self.run_dg_in_use_analysis()  # ensure DG in_use fields are updated
-        unused_dgs = repo.filter_dynamic_groups({'in_use': [False]})
+        if _run('unused_dynamic_groups'):
+            self.run_dg_in_use_analysis()  # ensure DG in_use fields are updated
+            unused_dgs = repo.filter_dynamic_groups({'in_use': [False]})
+        else:
+            unused_dgs = []
 
         # (4) Overly broad manage all-resources
-        statements_too_open = [
-            st
-            for st in repo.regular_statements
-            if (
-                st.get('verb', '').lower() == 'manage'
-                and st.get('resource', '').lower() == 'all-resources'
-                and st.get('policy_name', '') != 'Tenant Admin Policy'
-            )
-        ]
+        statements_too_open = (
+            [
+                st
+                for st in repo.regular_statements
+                if (
+                    st.get('verb', '').lower() == 'manage'
+                    and st.get('resource', '').lower() == 'all-resources'
+                    and st.get('policy_name', '') != 'Tenant Admin Policy'
+                )
+            ]
+            if _run('statements_too_open')
+            else []
+        )
 
         # (5) Any-user without where
-        anyuser_no_where = [
-            st for st in repo.regular_statements if st.get('subject_type') == 'any-user' and not st.get('conditions')
-        ]
+        anyuser_no_where = (
+            [st for st in repo.regular_statements if st.get('subject_type') == 'any-user' and not st.get('conditions')]
+            if _run('anyuser_no_where')
+            else []
+        )
 
         self.overlay['cleanup_items'] = {
             'invalid_statements': invalid_statements,
@@ -684,12 +876,13 @@ class PolicyIntelligenceEngine:
             'anyuser_no_where': anyuser_no_where,
         }
 
-    def build_overall_recommendations(self):
+    def build_overall_recommendations(self, params: dict | None = None):  # noqa: C901
         """
         Build the overall (user-facing) recommendations list for overlay["recommendations"].
         Each recommendation summarizes the count of existing actionable issues.
         Assumes build_cleanup_items has already been called and populated "cleanup_items".
         If no real recommendations are found, yields one informational finding as a placeholder.
+        params may include consolidation_strategy_names (list of display names) for workbench cross-link.
 
         Example of recommendation dict::
 
@@ -704,8 +897,27 @@ class PolicyIntelligenceEngine:
 
         This could change in the future to include risk score-based recommendations.
         """
+        params = params or {}
+        consolidation_strategy_names = params.get('consolidation_strategy_names') or []
         cleanup = self.overlay.get('cleanup_items', {})
+        consolidations = self.overlay.get('consolidations') or []
         recommendations = []
+
+        # Consolidation: direct user to Consolidation Workbench and suggest strategies
+        if consolidations:
+            strategy_hint = ''
+            if consolidation_strategy_names:
+                strategy_hint = f" Consider strategies: {', '.join(consolidation_strategy_names)}."
+            recommendations.append(
+                {
+                    'Recommendation': 'Consider consolidating policies',
+                    'Priority': 'Medium',
+                    'Category': 'Consolidation',
+                    'Notes': f'{len(consolidations)} consolidation opportunity(ies) detected. Use the Consolidation Workbench to generate a plan.',
+                    'Action': 'Use Consolidation Workbench',
+                    'ActionDetail': f'Open the Consolidation Workbench tab, select candidate statements, and generate a consolidation plan.{strategy_hint}',
+                }
+            )
 
         if cleanup.get('invalid_statements'):
             recommendations.append(
@@ -763,8 +975,30 @@ class PolicyIntelligenceEngine:
                 }
             )
 
-        # Existing logic for critical recommendations (unchanged)
+        # Low-priority informational: statements referencing the special "All Domain Users" group
         repo = self.policy_repo
+        all_domain_users_refs = 0
+        for st in repo.regular_statements:
+            if st.get('subject_type') != 'group':
+                continue
+            for subject in st.get('subject') or []:
+                _domain, name = (subject[0] or ''), (subject[1] or '')
+                if (name or '').strip().lower() == ALL_DOMAIN_USERS_GROUP_NAME.lower():
+                    all_domain_users_refs += 1
+                    break
+        if all_domain_users_refs:
+            recommendations.append(
+                {
+                    'Recommendation': 'Review usage of the All Domain Users group',
+                    'Priority': 'Low',
+                    'Category': 'Identity Management',
+                    'Notes': f"{all_domain_users_refs} policy statement(s) reference the special 'All Domain Users' group. Consider reviewing whether this broad membership is appropriate.",
+                    'Action': 'No action recommended',
+                    'ActionDetail': 'Informational only. The All Domain Users group cannot be deleted and may appear in each Identity Domain.',
+                }
+            )
+
+        # Existing logic for critical recommendations (unchanged)
         for st in repo.regular_statements:
             policy_name = st.get('policy_name', '')
             verb = st.get('verb', '').lower()
@@ -822,7 +1056,7 @@ class PolicyIntelligenceEngine:
             f'Built overall recommendations: {len(recommendations)} total, {critical_count} critical, {high_count} high.'
         )
 
-    def build_policy_consolidation(self):
+    def build_policy_consolidation(self, skip_demo: bool = False):
         """
         Analyze policies/statements for possible consolidation opportunities and
         populate overlay["consolidations"] with a list of dicts::
@@ -862,13 +1096,14 @@ class PolicyIntelligenceEngine:
                 compartment = st.get('effective_path', '')
                 principal = _principal_str(st)
                 resource = st.get('resource', '')
+                permissions = st.get('permission', [])
                 consolidation_findings.append(
                     {
                         'Statement': statement_text,
                         'Policy Name(s)': pol,
                         'Compartment': compartment,
                         'Principal': principal,
-                        'Service/Resource': resource,
+                        'Service/Resource': resource or permissions,
                         'Consolidation Reason': f'Policy {pol} has only one statement; consider consolidation if other similar policies exist.',
                         'Action': f"Plan: Review and possibly merge '{pol}' into another policy with similar principal or scope.",
                         'ActionDetail': f"Review statement '{statement_text}' in policy '{pol}' for merge candidates.",
@@ -904,19 +1139,20 @@ class PolicyIntelligenceEngine:
                     }
                 )
 
-        # Always append a sample/demo row at the end for display testing.
-        consolidation_findings.append(
-            {
-                'Statement': '[Sample] Consolidation not yet implemented: demo stub row',
-                'Policy Name(s)': '[demo]',
-                'Compartment': '[sample]',
-                'Principal': '[sample]',
-                'Service/Resource': '[sample]',
-                'Consolidation Reason': 'Demo: Consolidation engine stubbed/not implemented yet.',
-                'Action': 'Not yet implemented',
-                'ActionDetail': 'Policy consolidation is not implemented in this version. This is a stub/demo entry for UI and engine plumbing.',
-            }
-        )
+        if not skip_demo:
+            # Demo stub row (legacy display testing); skip when run via strategy.
+            consolidation_findings.append(
+                {
+                    'Statement': '[Sample] Consolidation not yet implemented: demo stub row',
+                    'Policy Name(s)': '[demo]',
+                    'Compartment': '[sample]',
+                    'Principal': '[sample]',
+                    'Service/Resource': '[sample]',
+                    'Consolidation Reason': 'Demo: Consolidation engine stubbed/not implemented yet.',
+                    'Action': 'Not yet implemented',
+                    'ActionDetail': 'Policy consolidation is not implemented in this version. This is a stub/demo entry for UI and engine plumbing.',
+                }
+            )
         self.overlay['consolidations'] = consolidation_findings
 
 

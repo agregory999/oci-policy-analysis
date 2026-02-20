@@ -37,10 +37,10 @@ class ProtectedStatementReference(TypedDict):
 class ProtectedStatementSet(TypedDict):
     """
     Canonical set of protected (non-consolidatable) statements for a session/project.
-    Tied to a corpus/policy set for context, supports load validation and orphan reporting.
+    Tied to a tenancy for context, supports load validation and orphan reporting.
     """
 
-    corpus_id: Annotated[str, 'Unique ID (e.g., tenancy OCID or user label) for this policy corpus']
+    tenancy_ocid: Annotated[str, 'Tenancy OCID for this policy set']
     dataset_version: NotRequired[Annotated[str, 'Version label or hash for this snapshot of policy set']]
     protected: Annotated[list[ProtectedStatementReference], 'List of protected statements (with context)']
     orphaned_internal_ids: NotRequired[Annotated[list[str], 'Protected internal_ids not found on load']]
@@ -63,7 +63,7 @@ class CandidateSelectionSet(TypedDict):
     Explicit set of statements selected as candidates for consolidation (per session/project).
     """
 
-    corpus_id: Annotated[str, 'Unique ID of policy corpus']
+    tenancy_ocid: Annotated[str, 'Tenancy OCID']
     candidates: Annotated[list[CandidateStatementReference], 'Current set of candidate statements']
     orphaned_internal_ids: NotRequired[Annotated[list[str], 'Candidates not found on load']]
     last_updated: NotRequired[Annotated[str, 'Timestamp']]
@@ -72,6 +72,16 @@ class CandidateSelectionSet(TypedDict):
 # ================================
 # Consolidation Plan & Plan Steps
 # ================================
+
+
+class SkippedStatement(TypedDict):
+    """
+    A candidate statement that the strategy did not include in the plan (e.g. does not fit strategy rules).
+    """
+
+    internal_id: Annotated[str, 'Statement internal_id that was skipped']
+    reason: Annotated[str, 'Why this statement was not applied (e.g. "Does not match strategy scope")']
+    statement_text: NotRequired[Annotated[str, 'Snippet or full text for display']]
 
 
 class PlanStep(TypedDict):
@@ -108,17 +118,21 @@ class PlanStep(TypedDict):
 
 class ConsolidationPlan(TypedDict):
     """
-    Full consolidation plan: corpus, steps, plan label, execution log.
+    Full consolidation plan: tenancy, steps, plan label, execution log.
     Supports before/after tags/statements, per-policy, per-step.
     """
 
     plan_id: Annotated[str, 'Unique ID for this plan']
-    corpus_id: Annotated[str, 'Corpus or tenancy ID']
+    tenancy_ocid: Annotated[str, 'Tenancy OCID']
     plan_label: Annotated[str, 'User label for this plan (optional)']
     created_at: Annotated[str, 'Creation timestamp']
     plan_steps: Annotated[list[PlanStep], 'Full set of steps for the plan']
     execution_log: NotRequired[Annotated[list[str], 'History of execution attempts']]
     plan_tags: NotRequired[Annotated[dict[str, str], 'Tags used to mark plan/steps in OCI']]
+    notes: NotRequired[Annotated[str, 'Free-form plan notes (strategy or user)']]
+    skipped_statements: NotRequired[
+        Annotated[list[SkippedStatement], 'Candidates not applied by this strategy, with reason']
+    ]
 
 
 # ================================
@@ -153,11 +167,11 @@ class ConsolidationSessionAuditEntry(TypedDict):
 
 class ConsolidationSession(TypedDict):
     """
-    Links together a persistent session: corpus, protection, candidates, plan, and audit.
+    Links together a persistent session: tenancy, protection, candidates, plan, and audit.
     This is the root object to (de)serialize to disk/cloud for long-lived projects.
     """
 
-    corpus_id: Annotated[str, 'Policy corpus/tenancy']
+    tenancy_ocid: Annotated[str, 'Tenancy OCID']
     dataset_version: NotRequired[Annotated[str, 'Loaded data version']]
     protected_set: Annotated[ProtectedStatementSet, 'Set of protected statements']
     candidate_set: Annotated[CandidateSelectionSet, 'Selected statements to consolidate']

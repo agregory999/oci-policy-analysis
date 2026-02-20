@@ -110,9 +110,9 @@ class DebuggerTab(ttk.Frame):
                 except ImportError:
                     return {'error': 'CacheManager not available'}
                 cache_mgr = CacheManager()
-                corpus_id = getattr(self.app, 'tenancy_ocid', 'unknown')
-                # Try to load latest protected_set for this corpus
-                session = cache_mgr.load_consolidation_session(plan_id='protected_set', corpus_id=corpus_id)
+                tenancy_ocid = getattr(self.app, 'tenancy_ocid', 'unknown')
+                # Try to load latest protected_set for this tenancy
+                session = cache_mgr.load_consolidation_session(plan_id='protected_set', tenancy_ocid=tenancy_ocid)
                 return session if session else {'note': 'No saved consolidation session/overlay found.'}
 
             # Overlay sources

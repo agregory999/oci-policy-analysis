@@ -512,18 +512,18 @@ class MaintenanceTab(ttk.Frame):
             logger.warning('Failed to list consolidation plans: %s', e)
             return
         for item in plans:
-            corpus_id = item.get('corpus_id', '')
+            tenancy_ocid = item.get('tenancy_ocid', '')
             effort_id = item.get('consolidation_effort_id', '')
             created = (item.get('created_at') or '')[:19].replace('T', ' ')
-            corpus_short = corpus_id[-12:] if len(corpus_id) > 12 else corpus_id
-            label = f'{corpus_short} | {effort_id[:24]} | {created}'
+            tenancy_short = tenancy_ocid[-12:] if len(tenancy_ocid) > 12 else tenancy_ocid
+            label = f'{tenancy_short} | {effort_id[:24]} | {created}'
             self.consolidation_plan_list.insert(tk.END, label)
             self._consolidation_plan_items.append(item)
         if getattr(self, 'consolidation_plan_status_var', None):
-            self.consolidation_plan_status_var.set(f'{len(self._consolidation_plan_items)} plan(s) across corpuses')
+            self.consolidation_plan_status_var.set(f'{len(self._consolidation_plan_items)} plan(s) across tenancies')
 
     def _maintenance_remove_selected_consolidation_plan(self):
-        """Delete the selected consolidation plan from its corpus history."""
+        """Delete the selected consolidation plan from its tenancy history."""
         status_var = getattr(self, 'consolidation_plan_status_var', None)
         idx = self.consolidation_plan_list.curselection()
         if not idx:
@@ -534,15 +534,15 @@ class MaintenanceTab(ttk.Frame):
         if idx[0] >= len(items):
             return
         item = items[idx[0]]
-        corpus_id = item['corpus_id']
+        tenancy_ocid = item['tenancy_ocid']
         effort_id = item['consolidation_effort_id']
-        if not messagebox.askyesno('Confirm Delete', f'Remove plan "{effort_id}" from corpus history?'):
+        if not messagebox.askyesno('Confirm Delete', f'Remove plan "{effort_id}" from tenancy history?'):
             return
-        if self.caching.remove_run_record(corpus_id, effort_id):
+        if self.caching.remove_run_record(tenancy_ocid, effort_id):
             if status_var:
                 status_var.set(f'Removed plan {effort_id}')
             self._refresh_consolidation_plan_list()
-            logger.info('Removed consolidation plan %s from corpus %s', effort_id, corpus_id[:16])
+            logger.info('Removed consolidation plan %s from tenancy %s', effort_id, tenancy_ocid[:16])
         else:
             if status_var:
                 status_var.set(f'Failed to remove plan {effort_id}')
@@ -559,7 +559,7 @@ class MaintenanceTab(ttk.Frame):
         if idx[0] >= len(items):
             return
         item = items[idx[0]]
-        corpus_id = item['corpus_id']
+        tenancy_ocid = item['tenancy_ocid']
         effort_id = item['consolidation_effort_id']
         run = item.get('run', {})
         current_label = run.get('label') or effort_id
@@ -570,7 +570,7 @@ class MaintenanceTab(ttk.Frame):
         )
         if new_label is None:
             return
-        if self.caching.update_run_record(corpus_id, effort_id, {'label': new_label.strip() or None}):
+        if self.caching.update_run_record(tenancy_ocid, effort_id, {'label': new_label.strip() or None}):
             if status_var:
                 status_var.set(f'Updated label for {effort_id}')
             self._refresh_consolidation_plan_list()
@@ -603,25 +603,60 @@ class MaintenanceTab(ttk.Frame):
         sel = self.permissions_resource_combo.get()
         verb = self.permissions_verb_combo.get()
         self.permissions_result_label.config(text='')
-        if sel and verb and hasattr(self, '_ref_repo'):
-            is_family = sel.startswith('Family: ')
-            entity = sel.replace('Family: ', '') if is_family else sel
-            perms = self._ref_repo.get_permissions(entity, verb)
-            label = f'Family: {entity}' if is_family else entity
-            if perms is None:
-                self.permissions_result_label.config(text='Invalid selection.')
-            else:
-                source = self._ref_repo.get_source(entity)
-                source_text = f'\nSource URL: {source}' if source else ''
-                if perms:
-                    upper_perms = [p.upper() for p in perms]
-                    self.permissions_result_label.config(
-                        text=f"{label} | {verb}: {', '.join(upper_perms)}{source_text}"
-                    )
-                else:
-                    self.permissions_result_label.config(text=f'{label} | {verb}: (no permissions){source_text}')
-        else:
+        self.permissions_overlap_text.delete(1.0, tk.END)
+        if not (sel and verb and hasattr(self, '_ref_repo')):
             self.permissions_result_label.config(text='Select resource/family and verb.')
+            self.permissions_overlap_text.insert(tk.END, 'Select resource/family and verb.')
+            return
+        ref_repo = self._ref_repo
+        is_family = sel.startswith('Family: ')
+        entity = sel.replace('Family: ', '') if is_family else sel
+        perms = ref_repo.get_permissions(entity, verb)
+        label = f'Family: {entity}' if is_family else entity
+
+        # Build detailed output in permissions_overlap_text (resource/verb details + risk calculation)
+        lines = [f'--- Get Permissions: {label} | verb: {verb} ---', '']
+        if perms is None:
+            lines.append('Invalid selection.')
+            self.permissions_result_label.config(text='Invalid selection.')
+        else:
+            entity_ci = entity.lower()
+            if entity_ci in ref_repo.family_name_map:
+                fam_key = ref_repo.family_name_map[entity_ci]
+                resources_in_family = ref_repo.data['families'][fam_key].get('resources', [])
+                lines.append('Entity type: family')
+                lines.append(f'Resources in family: {", ".join(resources_in_family)}')
+            else:
+                lines.append('Entity type: resource')
+            lines.append(f'Verb: {verb}')
+            lines.append('')
+            if perms:
+                lines.append(f'Permissions ({len(perms)}):')
+                for p in sorted(perms):
+                    lines.append(f'  {p}')
+                lines.append('')
+                lines.append('Risk score (exposure points) calculation:')
+                lines.append('  Verb weights: inspect=1, read=5, use=20, manage=50')
+                for p in sorted(perms):
+                    r = ref_repo.get_permission_risk(p, entity)
+                    lines.append(f'  {p} -> {r}')
+                total_risk = ref_repo.get_verb_resource_risk(verb, entity)
+                lines.append(f'  Sum (exposure points) = {total_risk}')
+            else:
+                lines.append('(no permissions)')
+                total_risk = ref_repo.get_verb_resource_risk(verb, entity)
+                lines.append(f'Risk score (exposure points) = {total_risk}')
+            source = ref_repo.get_source(entity)
+            _source_text = f'\nSource URL: {source}' if source else ''
+            if perms:
+                _upper_perms = [p.upper() for p in perms]
+                # self.permissions_result_label.config(
+                #     text=f"{label} | {verb}: {', '.join(upper_perms)}{source_text}"
+                # )
+            else:
+                pass
+                # self.permissions_result_label.config(text=f'{label} | {verb}: (no permissions){source_text}')
+        self.permissions_overlap_text.insert(tk.END, '\n'.join(lines))
 
     def _on_apiop_perm_select(self, event=None):
         """Display selected permissions in the preview text box (non-editable)."""

@@ -5,7 +5,7 @@
 # consolidation_engine.py
 #
 # Middle tier for the Consolidation Workbench:
-# - Owns session/plan state (per-corpus/tenancy)
+# - Owns session/plan state (per-tenancy)
 # - Generates consolidation plans using pluggable strategies
 # - Renders execution + rollback command text for administrators
 # - Validates execution progress after reload by inspecting policy tags / policy presence
@@ -176,8 +176,8 @@ class ConsolidationEngine:
             return 'cache'
         return 'unknown'
 
-    def corpus_id(self) -> str | None:
-        """Return tenancy or corpus id from the bound repo.
+    def tenancy_ocid(self) -> str | None:
+        """Return tenancy OCID from the bound repo.
 
         Returns:
             Tenancy OCID string if repo is bound and has tenancy_ocid, else None.
@@ -220,20 +220,20 @@ class ConsolidationEngine:
             A ConsolidationPlan with plan_id, plan_steps, and plan_tags.
 
         Raises:
-            RuntimeError: If policy repo is not bound or corpus_id is missing.
+            RuntimeError: If policy repo is not bound or tenancy_ocid is missing.
             ValueError: If strategy_display_name does not match any registered strategy.
         """
         if not self.policy_repo:
             raise RuntimeError('Policy repository not bound.')
-        corpus_id = self.corpus_id()
-        if not corpus_id:
-            raise RuntimeError('No corpus_id/tenancy_ocid available.')
+        tenancy_ocid = self.tenancy_ocid()
+        if not tenancy_ocid:
+            raise RuntimeError('No tenancy_ocid available.')
         source_type = self.detect_source_type()
-        plan_id = self._new_plan_id(corpus_id, candidate_internal_ids, strategy_display_name)
+        plan_id = self._new_plan_id(tenancy_ocid, candidate_internal_ids, strategy_display_name)
 
         logger.info(
-            'Generating consolidation plan: corpus_id=%s, source_type=%s, strategy=%s, candidates=%d, protected=%d, plan_id=%s',
-            corpus_id,
+            'Generating consolidation plan: tenancy_ocid=%s, source_type=%s, strategy=%s, candidates=%d, protected=%d, plan_id=%s',
+            tenancy_ocid,
             source_type,
             strategy_display_name,
             len(candidate_internal_ids),
@@ -268,7 +268,7 @@ class ConsolidationEngine:
 
         plan = strat.build_plan(
             repo=self.policy_repo,
-            corpus_id=corpus_id,
+            tenancy_ocid=tenancy_ocid,
             dataset_version=self.dataset_version(),
             candidate_internal_ids=set(candidate_internal_ids),
             protected_internal_ids=set(protected_internal_ids),
@@ -283,10 +283,10 @@ class ConsolidationEngine:
         )
         return plan
 
-    def _new_plan_id(self, corpus_id: str, candidate_ids: set[str], strategy: str) -> str:
-        """Generate a stable-ish plan id from corpus suffix, timestamp, and strategy hash."""
+    def _new_plan_id(self, tenancy_ocid: str, candidate_ids: set[str], strategy: str) -> str:
+        """Generate a stable-ish plan id from tenancy suffix, timestamp, and strategy hash."""
         ts = datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')
-        return f'{corpus_id[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}'
+        return f'{tenancy_ocid[-6:]}-{ts}-{abs(hash(strategy)) % 10000:04d}'
 
     # ---- Rendering (execution + rollback) ----
 
@@ -312,7 +312,7 @@ class ConsolidationEngine:
         lines: list[str] = []
         lines.append(f"# Consolidation plan: {plan.get('plan_id')} | {plan.get('plan_label')}")
         lines.append(
-            f"# Corpus: {plan.get('corpus_id')} | Dataset: {self.dataset_version() or 'n/a'} | Source: {self.detect_source_type()}"
+            f"# Tenancy: {plan.get('tenancy_ocid')} | Dataset: {self.dataset_version() or 'n/a'} | Source: {self.detect_source_type()}"
         )
         version_date = datetime.now(UTC).strftime('%Y-%m-%d')
         lines.append('#')
@@ -407,7 +407,7 @@ class ConsolidationEngine:
 
         lines: list[str] = []
         lines.append(f"Consolidation plan: {plan.get('plan_id')} | {plan.get('plan_label')}")
-        lines.append(f"Corpus: {plan.get('corpus_id')} | Source: {self.detect_source_type()}")
+        lines.append(f"Tenancy: {plan.get('tenancy_ocid')} | Source: {self.detect_source_type()}")
         lines.append('')
 
         if section in ('all', 'execution'):

@@ -54,6 +54,14 @@ CONTEXT_HELP = {
         'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. '
         'Use this panel to enable policy text analysis and AI-driven explanations.'
     ),
+    'RECOMMENDATION_CONSOLIDATION': (
+        'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
+        'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
+    ),
+    'DOMAIN_COMPARTMENTS': (
+        'Optional: list of compartment OCIDs (one per line or comma-separated) in addition to the root compartment '
+        'from which to list Identity Domains. Stored per tenancy. Leave empty to use root compartment only.'
+    ),
 }
 
 # Global logger for this module
@@ -372,12 +380,72 @@ class SettingsTab(BaseUITab):
         self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
         self.btn_load_compliance.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
 
-        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=5, pady=5, sticky='w')
 
         # Progress indicator - move to its own row below buttons, at right
         self.progress_var = tk.StringVar(value='')
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
         self.progress_label.grid(row=1, column=6, padx=5, pady=(1, 5), sticky='w')
+
+        # --- Additional Identity Domain compartment OCIDs (optional; per tenancy) ---
+        domain_compartments_label = ttk.Label(
+            label_frm_tenancy_config, text='Additional Identity Domain Compartment OCIDs:'
+        )
+        domain_compartments_label.grid(row=3, column=0, columnspan=2, padx=5, pady=(6, 2), sticky='nw')
+        self.add_context_help(domain_compartments_label, CONTEXT_HELP['DOMAIN_COMPARTMENTS'])
+        self.domain_compartment_ocids_text = tk.Text(label_frm_tenancy_config, height=3, width=100, wrap=tk.WORD)
+        self.domain_compartment_ocids_text.grid(row=3, column=2, columnspan=4, padx=5, pady=(4, 6), sticky='ew')
+        self._refresh_domain_compartment_ocids_from_settings()
+
+        # --- Recommendation / Consolidation (LabelFrame) ---
+        label_frm_rec_cons = ttk.Labelframe(self, text='Recommendation / Consolidation')
+        label_frm_rec_cons.pack(fill='x', padx=10, pady=10)
+
+        def _show_rec_cons_help(_event=None):
+            self.set_page_help_text(CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+
+        label_frm_rec_cons.bind('<Enter>', _show_rec_cons_help)
+        label_frm_rec_cons.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
+
+        # Intelligence strategies: get list from engine (risk, overlap, cleanup, consolidation, recommendations)
+        strategy_list = []
+        if hasattr(self.app, 'policy_intelligence') and self.app.policy_intelligence:
+            strategy_list = getattr(self.app.policy_intelligence, 'get_strategies_for_settings', lambda: [])()
+        saved_ids = self.settings.get('enabled_intelligence_checks', None)
+        # None or [] means all enabled; otherwise only those in the list are enabled
+        all_enabled = saved_ids is None or (
+            isinstance(saved_ids, list) and (len(saved_ids) == 0 or len(saved_ids) >= len(strategy_list))
+        )
+        self.enabled_intelligence_check_vars = {}
+        for sid, _display_name, _category in strategy_list:
+            self.enabled_intelligence_check_vars[sid] = tk.BooleanVar(
+                value=all_enabled or (isinstance(saved_ids, list) and sid in saved_ids)
+            )
+
+        def _on_intelligence_check_toggled():
+            enabled = [sid for sid, var in self.enabled_intelligence_check_vars.items() if var.get()]
+            self.settings['enabled_intelligence_checks'] = (
+                enabled if len(enabled) < len(self.enabled_intelligence_check_vars) else []
+            )
+            config.save_settings(self.settings)
+            if hasattr(self.app, 'policy_recommendations_tab') and hasattr(
+                self.app.policy_recommendations_tab, 'on_enabled_cleanup_checks_changed'
+            ):
+                self.app.policy_recommendations_tab.on_enabled_cleanup_checks_changed()
+
+        checks_inner = ttk.Frame(label_frm_rec_cons)
+        checks_inner.pack(fill='x', padx=8, pady=6)
+        self.add_context_help(checks_inner, CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+        for sid, display_name, _category in strategy_list:
+            if sid not in self.enabled_intelligence_check_vars:
+                continue
+            cb = ttk.Checkbutton(
+                checks_inner,
+                text=display_name,
+                variable=self.enabled_intelligence_check_vars[sid],
+                command=_on_intelligence_check_toggled,
+            )
+            cb.pack(side='left', padx=(0, 16), pady=4)
 
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
@@ -508,26 +576,50 @@ class SettingsTab(BaseUITab):
         config.save_settings(self.settings)
         logger.info('MCP configuration saved to settings.')
 
+    def _refresh_domain_compartment_ocids_from_settings(self):
+        """Reload the Additional Identity Domain Compartment OCIDs text from settings for the current tenancy.
+        Call when the Settings tab is shown so the widget reflects persisted values (e.g. after restart or tab switch).
+        """
+        by_tenancy = self.settings.get('domain_compartment_ocids_by_tenancy') or {}
+        tenancy = (self.tenancy_var.get() or '').strip()
+        ocids = by_tenancy.get(tenancy, [])
+        self.domain_compartment_ocids_text.delete('1.0', tk.END)
+        self.domain_compartment_ocids_text.insert('1.0', '\n'.join(ocids))
+
     def _on_load_clicked(self, use_cache: bool):
         """Handle Load Tenancy button click.  Calls main app to load tenancy asynchronously.
         Args:
             use_cache (bool): Whether to load from cache or live tenancy.
         """
-        self.settings['tenancy_ocid'] = self.tenancy_var.get()
+        tenancy_ocid = (self.tenancy_var.get() or '').strip()
+        self.settings['tenancy_ocid'] = tenancy_ocid
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
         self.settings['ai_compartment_ocid'] = self.profile_var.get()
         self.settings['load_all_users'] = self.load_all_users_var.get()
+        # Persist Additional Identity Domain Compartment OCIDs per tenancy (key = tenancy_ocid).
+        # Flow: on "Load from Tenancy" we save the text box contents under current tenancy to
+        # settings['domain_compartment_ocids_by_tenancy']; config.save_settings() writes to disk.
+        # When the Settings tab is shown we call _refresh_domain_compartment_ocids_from_settings()
+        # so the text box shows the list for the current tenancy (from memory or file after restart).
+        raw = self.domain_compartment_ocids_text.get('1.0', tk.END)
+        ocids = [s.strip() for line in raw.splitlines() for s in line.split(',') if s.strip()]
+        by_tenancy = self.settings.get('domain_compartment_ocids_by_tenancy') or {}
+        if tenancy_ocid:
+            by_tenancy[tenancy_ocid] = ocids
+        self.settings['domain_compartment_ocids_by_tenancy'] = by_tenancy
         config.save_settings(self.settings)
+        domain_compartment_ocids = ocids if not use_cache else None
         self.app.load_tenancy_async(
-            tenancy_id=self.tenancy_var.get(),
+            tenancy_id=tenancy_ocid,
             recursive=self.recursive_var.get(),
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
             named_cache=self.display_to_cache_key.get(self.cache_var.get(), None) if use_cache else None,
             load_all_users=self.load_all_users_var.get(),
+            domain_compartment_ocids=domain_compartment_ocids,
             callback={
                 'progress': self._on_load_progress,
                 'complete': self._on_load_finished,
@@ -771,7 +863,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
-            notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Advanced)')
+            notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

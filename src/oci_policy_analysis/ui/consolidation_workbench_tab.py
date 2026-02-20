@@ -29,6 +29,9 @@ from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
 logger = get_logger('consolidation_workbench_tab')
 
+# Locked/system policies whose statements are omitted from consolidation (by policy name)
+LOCKED_POLICY_NAME = 'Tenant Admin Policy'
+
 # =========================
 # ConsolidationWorkbenchTab
 # =========================
@@ -135,11 +138,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
             f'Protection set validated after reload. {before_count - after_count} missing internal_id(s) removed; {after_count} protected remain.'
         )
 
-    def refresh_plan_history_for_corpus(self):
+    def refresh_plan_history_for_tenancy(self):
         """
-        Refresh the plan list for the current tenancy/corpus in the Proposal dropdown and Plan History tab.
+        Refresh the plan list for the current tenancy in the Proposal dropdown and Plan History tab.
 
-        Call after any load (tenancy, cache, or compliance) so all plans tied to this corpus_id
+        Call after any load (tenancy, cache, or compliance) so all plans tied to this tenancy_ocid
         are visible. Reload and Check Progress is enabled only when data is from OCI (current).
 
         Returns:
@@ -270,7 +273,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             row_colors=('#FAFFF8', '#F3F3FF'),
             column_widths={
                 'Policy Name': 180,
-                'Statement Text': 320,
+                'Statement Text': 500,
                 'Internal ID': 90,
             },
             height=5,
@@ -301,7 +304,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             outer,
             text=(
                 'Select policies and statements for consolidation. Use the search box to find by name, compartment, or resource. '
-                'Protected policies/statements are listed below, and cannot be selected for consolidation.'
+                'Protected and invalid statements are excluded from the list and from consolidation.'
             ),
             wraplength=1100,
             justify='left',
@@ -332,16 +335,30 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.candidate_search_entry.pack(side='left', padx=(2, 16))
         self.candidate_search_var.trace_add('write', lambda *_: self._load_candidate_statements())
 
-        # Protected count label + help
+        # Protected and Invalid counts (excluded from consolidation)
         self.candidate_protected_count = ttk.Label(strat_row, text='Protected: 0')
         self.candidate_protected_count.pack(side='left', padx=(10, 1))
         self.add_context_help(
             self.candidate_protected_count,
             'Protected statements are not shown as candidates. To edit them, use the Statement/Protection tab.',
         )
+        self.candidate_invalid_count = ttk.Label(strat_row, text='Invalid: 0')
+        self.candidate_invalid_count.pack(side='left', padx=(8, 1))
+        self.add_context_help(
+            self.candidate_invalid_count,
+            'Invalid statements (parse/validation failures) are omitted from consolidation entirely.',
+        )
+        self.candidate_system_count = ttk.Label(strat_row, text='System: 0')
+        self.candidate_system_count.pack(side='left', padx=(8, 1))
+        self.add_context_help(
+            self.candidate_system_count,
+            f'Statements in locked/system policies (e.g. "{LOCKED_POLICY_NAME}") are omitted from consolidation.',
+        )
 
-        # Candidate table (with checkboxes)
+        # Candidate table (with checkboxes); excluded IDs set in _load_candidate_statements
         self.candidate_table_selected_ids = set()  # persistent selection
+        self.invalid_statement_ids = set()
+        self.system_statement_ids = set()  # statements in locked policy (e.g. Tenant Admin Policy)
         self.candidate_table = CheckboxTable(
             outer,
             columns=[
@@ -421,18 +438,9 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.selected_candidates_table, 'Current candidate selection (always visible, display-only).'
         )
 
-        # Protected statements/IDs (readonly, current state)
-        ttk.Label(outer, text='Protected Statements (currently excluded):').pack(anchor='w', padx=16, pady=(8, 0))
-        self.protected_display_list = tk.Text(outer, height=4, width=150, wrap='word', state='disabled')
-        self.protected_display_list.pack(fill='x', padx=16, pady=(0, 8))
-        self.add_context_help(
-            self.protected_display_list, 'List of internal_ids (or names/text) of currently protected statements.'
-        )
-
-        # Load initial candidates and protected display
+        # Load initial candidates and counts
         self._load_candidate_statements()
         self._update_selected_candidates_table()
-        self._update_protected_display()
 
     # === Subtab 3: Proposal ===
 
@@ -490,6 +498,47 @@ class ConsolidationWorkbenchTab(BaseUITab):
         status_frame.pack(fill='x', padx=10, pady=(2, 6))
         self.plan_status_label = ttk.Label(status_frame, text='', foreground='blue', wraplength=1000, justify='left')
         self.plan_status_label.pack(anchor='w', fill='x')
+
+        # --- Plan notes (editable) and Skipped statements (read-only) ---
+        notes_skipped_frame = ttk.Frame(parent)
+        notes_skipped_frame.pack(fill='x', padx=10, pady=(2, 4))
+
+        notes_lf = ttk.LabelFrame(notes_skipped_frame, text='Plan notes')
+        notes_lf.pack(fill='x', pady=(0, 4))
+        self.plan_notes_text = tk.Text(notes_lf, height=3, wrap='word', state='normal', width=80)
+        self.plan_notes_text.pack(fill='x', padx=4, pady=4)
+        notes_btn_row = ttk.Frame(notes_lf)
+        notes_btn_row.pack(fill='x', padx=4, pady=(0, 4))
+        ttk.Button(notes_btn_row, text='Save notes to plan', command=self._on_save_plan_notes).pack(
+            side='left', padx=(0, 8)
+        )
+        self.add_context_help(
+            notes_lf,
+            'Optional notes for this plan (strategy or your own). Save to persist to plan history.',
+        )
+
+        self.skipped_statements_lf = ttk.LabelFrame(notes_skipped_frame, text='Skipped statements (0)')
+        self.skipped_statements_lf.pack(fill='x', pady=(0, 4))
+        self.skipped_statements_tree = ttk.Treeview(
+            self.skipped_statements_lf,
+            columns=('reason', 'statement_snippet'),
+            show='headings',
+            height=4,
+        )
+        self.skipped_statements_tree.heading('reason', text='Reason')
+        self.skipped_statements_tree.heading('statement_snippet', text='Statement (snippet)')
+        self.skipped_statements_tree.column('reason', width=280)
+        self.skipped_statements_tree.column('statement_snippet', width=500)
+        skipped_scroll = ttk.Scrollbar(
+            self.skipped_statements_lf, orient='vertical', command=self.skipped_statements_tree.yview
+        )
+        self.skipped_statements_tree.configure(yscrollcommand=skipped_scroll.set)
+        self.skipped_statements_tree.pack(side='left', fill='x', expand=True, padx=4, pady=4)
+        skipped_scroll.pack(side='right', fill='y', pady=4)
+        self.add_context_help(
+            self.skipped_statements_lf,
+            'Statements that this strategy did not include (e.g. do not match strategy rules).',
+        )
 
         # Plan table: numbered steps, no column sort, row click highlights script; Policy Compartment before Policy Name
         self.proposal_table = DataTable(
@@ -638,12 +687,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
         """
         if not getattr(self, 'plan_history_table', None):
             return
-        corpus_id = self._get_corpus_id()
-        if not corpus_id:
+        tenancy_ocid = self._get_tenancy_ocid()
+        if not tenancy_ocid:
             self.plan_history_table.update_data([])
             return
         cache_mgr = CacheManager()
-        history = cache_mgr.get_history(corpus_id)
+        history = cache_mgr.get_history(tenancy_ocid)
         sorted_hist = sorted(history, key=lambda r: r.get('created_at', ''), reverse=True)
         rows = []
         for run in sorted_hist:
@@ -700,13 +749,13 @@ class ConsolidationWorkbenchTab(BaseUITab):
             return
         row = selected[0]
         effort_id = row.get('consolidation_effort_id') or row.get('Effort ID', '')
-        corpus_id = self._get_corpus_id()
-        if not corpus_id:
-            detail.insert('end', 'No corpus/tenancy loaded.')
+        tenancy_ocid = self._get_tenancy_ocid()
+        if not tenancy_ocid:
+            detail.insert('end', 'No tenancy loaded.')
             detail.config(state='disabled')
             return
         cache_mgr = CacheManager()
-        history = cache_mgr.get_history(corpus_id)
+        history = cache_mgr.get_history(tenancy_ocid)
         run = next((r for r in history if r.get('consolidation_effort_id') == effort_id), None)
         if not run:
             detail.insert('end', f'Plan {effort_id} not found in history.')
@@ -764,11 +813,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if not effort_id:
             return
         # Find dropdown label that matches this run (same as in plan_history_id_lookup)
-        corpus_id = self._get_corpus_id()
-        if not corpus_id:
+        tenancy_ocid = self._get_tenancy_ocid()
+        if not tenancy_ocid:
             return
         cache_mgr = CacheManager()
-        history = cache_mgr.get_history(corpus_id)
+        history = cache_mgr.get_history(tenancy_ocid)
         run = next((r for r in history if r.get('consolidation_effort_id') == effort_id), None)
         if not run:
             return
@@ -787,8 +836,8 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
     # ====== Private (Helper/UI) Methods ======
 
-    def _get_corpus_id(self):
-        """Resolve corpus/tenancy id for consolidation state from app or repo.
+    def _get_tenancy_ocid(self):
+        """Resolve tenancy OCID for consolidation state from app or repo.
 
         Returns:
             str | None: Tenancy OCID if available, else None.
@@ -803,14 +852,14 @@ class ConsolidationWorkbenchTab(BaseUITab):
     def _refresh_plan_history_dropdown(self):
         """Load plan history from state and populate the history dropdown.
 
-        Uses corpus_id from app or policy_compartment_analysis so history is found for
+        Uses tenancy_ocid from app or policy_compartment_analysis so history is found for
         cache-loaded tenancies. Most recent run is selected by default.
 
         Returns:
             None
         """
         cache_mgr = CacheManager()
-        tenancy_ocid = self._get_corpus_id()
+        tenancy_ocid = self._get_tenancy_ocid()
         history = cache_mgr.get_history(tenancy_ocid)
         # Show most recent first (by created_at)
         sorted_hist = sorted(history, key=lambda r: r.get('created_at', ''), reverse=True)
@@ -833,6 +882,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.plan_history_var.set('')
             self.plan_status_label.config(text='No prior consolidation runs found.')
             self.proposal_table.update_data([])
+            self._set_plan_notes_and_skipped_from_plan(None)
             self._last_plan_for_script = None
             self.script_text.config(state='normal')
             self.script_text.delete(1.0, 'end')
@@ -849,6 +899,69 @@ class ConsolidationWorkbenchTab(BaseUITab):
         )
         if hasattr(self, 'btn_check_progress'):
             self.btn_check_progress['state'] = tk.NORMAL if can_check else tk.DISABLED
+
+    def _set_plan_notes_and_skipped_from_plan(self, plan):
+        """Populate Plan notes and Skipped statements widgets from plan.
+
+        Args:
+            plan: ConsolidationPlan dict or None; if None, clear notes and skipped.
+        """
+        notes = (plan.get('notes') or '').strip() if plan else ''
+        self.plan_notes_text.config(state='normal')
+        self.plan_notes_text.delete('1.0', 'end')
+        self.plan_notes_text.insert('1.0', notes)
+        self.plan_notes_text.config(state='normal')
+
+        skipped = (plan.get('skipped_statements') or []) if plan else []
+        for item in self.skipped_statements_tree.get_children():
+            self.skipped_statements_tree.delete(item)
+        for s in skipped:
+            reason = (s.get('reason') or '').strip()
+            snippet = (s.get('statement_text') or s.get('internal_id', ''))[:120]
+            if len(s.get('statement_text') or '') > 120:
+                snippet += '…'
+            self.skipped_statements_tree.insert('', 'end', values=(reason, snippet))
+        self.skipped_statements_lf.config(text=f'Skipped statements ({len(skipped)})')
+
+    def _on_save_plan_notes(self):
+        """Save current plan notes text to the selected plan in history."""
+        label = getattr(self, 'plan_history_var', None) and self.plan_history_var.get()
+        if not label or not getattr(self, 'plan_history_id_lookup', None) or label not in self.plan_history_id_lookup:
+            try:
+                tkmessagebox.showinfo('No plan selected', 'Select a consolidation plan from the dropdown first.')
+            except Exception:
+                pass
+            return
+        run = self.plan_history_id_lookup[label]
+        plan = run.get('plan')
+        if not plan:
+            try:
+                tkmessagebox.showinfo('No plan', 'This run has no plan to attach notes to.')
+            except Exception:
+                pass
+            return
+        new_notes = self.plan_notes_text.get('1.0', 'end').strip()
+        tenancy_ocid = self._get_tenancy_ocid()
+        if not tenancy_ocid:
+            try:
+                tkmessagebox.showwarning('Cannot save', 'No tenancy OCID; notes not persisted.')
+            except Exception:
+                pass
+            return
+        effort_id = run.get('consolidation_effort_id')
+        updated_plan = {**plan, 'notes': new_notes}
+        if CacheManager().update_run_record(tenancy_ocid, effort_id, {'plan': updated_plan}):
+            self.plan_history_id_lookup[label] = {**run, 'plan': updated_plan}
+            logger.info('Saved plan notes for %s', effort_id)
+            try:
+                tkmessagebox.showinfo('Saved', 'Plan notes saved to history.')
+            except Exception:
+                pass
+        else:
+            try:
+                tkmessagebox.showerror('Save failed', 'Could not update plan in history.')
+            except Exception:
+                pass
 
     def _set_script_content_from_plan(self, plan):
         """Set script text from plan using current format (OCI CLI or UI-based Steps).
@@ -1069,8 +1182,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 except Exception as e:
                     logger.debug('Could not check plan progress: %s', e)
             data = self._build_proposal_rows(plan=plan, progress=progress)
+            self._set_plan_notes_and_skipped_from_plan(plan)
         else:
             data = self._build_proposal_rows(results_fallback=run.get('results', []))
+            self._set_plan_notes_and_skipped_from_plan(None)
         self.proposal_table.update_data(data)
         # Render script from plan (CLI or UI per format dropdown)
         if plan:
@@ -1143,7 +1258,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
         Populates the protection table from the bound policy repository (app.policy_compartment_analysis).
         Loads the current protected statement set from the canonical consolidation state file for
-        this tenancy/corpus and restores checkboxes and protected display. Call after tenancy or
+        this tenancy and restores checkboxes and protected display. Call after tenancy or
         cache load so the workbench reflects current data.
 
         Returns:
@@ -1248,7 +1363,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.protect_table_selected_ids = set(selected_ids)  # Persist current checked Internal IDs
         logger.debug('Protected statement IDs set to: %s', self.protected_statement_ids)
 
-        # --- NEW: Store protected_set in canonical per-corpus consolidation state file ---
+        # --- Store protected_set in canonical per-tenancy consolidation state file ---
         protected_list = []
         seen_ids = set()
         for entry in self.protection_full_data:
@@ -1274,10 +1389,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 tenancy_ocid = getattr(repo, 'tenancy_ocid', None)
 
         if not tenancy_ocid:
-            logger.warning('No valid tenancy_ocid/corpus_id available; cannot persist protected set. Action skipped.')
+            logger.warning('No valid tenancy_ocid available; cannot persist protected set. Action skipped.')
         else:
             protected_set: ProtectedStatementSet = {
-                'corpus_id': tenancy_ocid,
+                'tenancy_ocid': tenancy_ocid,
                 'protected': protected_list,
             }
             cache_mgr.set_protected_set(tenancy_ocid, protected_set)
@@ -1296,28 +1411,45 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.notebook.select(1)  # Candidate Selection & Strategy
 
     def _load_candidate_statements(self):
-        """Load candidate table: all non-protected statements, optionally filtered by search text.
+        """Load candidate table: all non-protected, non-invalid statements, optionally filtered by search text.
 
+        Invalid statements (those with invalid_reasons) are omitted from consolidation entirely.
         Returns:
             None
         """
-        logger.debug('Loading candidate statement data (excluding protected).')
+        logger.debug('Loading candidate statement data (excluding protected and invalid).')
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         if not repo or not hasattr(repo, 'regular_statements'):
+            self.invalid_statement_ids = set()
+            self.system_statement_ids = set()
             self.candidate_table.update_data([])
             if hasattr(self, 'selected_candidates_table'):
                 self.selected_candidates_table.update_data([])
+            self._update_candidate_counts()
             return
+        # Statements with invalid_reasons are omitted from consolidation entirely
+        self.invalid_statement_ids = {
+            st.get('internal_id')
+            for st in repo.regular_statements
+            if st.get('internal_id') and st.get('invalid_reasons')
+        }
+        # Statements in locked/system policy (e.g. Tenant Admin Policy) are omitted
+        self.system_statement_ids = {
+            st.get('internal_id')
+            for st in repo.regular_statements
+            if st.get('internal_id') and (st.get('policy_name') or '').strip() == LOCKED_POLICY_NAME
+        }
         cfilter = self.candidate_search_var.get().strip().lower()
         logger.debug("Candidate search filter applied: '%s'", cfilter)
         data = []
         for st in repo.regular_statements:
             internal_id = st.get('internal_id', '')
-            # Skip protected
             if internal_id in self.protected_statement_ids:
-                logger.debug('Skipping candidate (protected): %s', internal_id)
                 continue
-            # Apply filter
+            if internal_id in self.invalid_statement_ids:
+                continue
+            if internal_id in self.system_statement_ids:
+                continue
             pname = st.get('policy_name', '').lower()
             stxt = st.get('statement_text', '').lower()
             if not cfilter or (cfilter in pname or cfilter in stxt):
@@ -1331,19 +1463,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
                     'Resource': st.get('resource', ''),
                     'Internal ID': internal_id,
                 }
-                logger.debug('Candidate statement loaded: %s', entry)
                 data.append(entry)
-        # Mark as checked if in persistent candidate selection set
         for row in data:
             row['checked'] = row.get('Internal ID', '') in self.candidate_table_selected_ids
         self.candidate_table.update_data(data)
-        excluded = len(self.protected_statement_ids)
         logger.info(
-            'Candidate table loaded: %d candidates (excluding %d protected).',
+            'Candidate table loaded: %d candidates (excluding %d protected, %d invalid, %d system).',
             len(data),
-            excluded,
+            len(self.protected_statement_ids),
+            len(self.invalid_statement_ids),
+            len(self.system_statement_ids),
         )
-        self._update_candidate_protected_count()
+        self._update_candidate_counts()
         self._update_selected_candidates_table()
 
     def _on_candidate_check_changed(self, checked_rows):
@@ -1364,9 +1495,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if repo and hasattr(repo, 'regular_statements'):
             cfilter = self.candidate_search_var.get().strip().lower()
             visible_ids = set()
+            invalid_ids = getattr(self, 'invalid_statement_ids', set())
+            system_ids = getattr(self, 'system_statement_ids', set())
             for st in repo.regular_statements:
                 internal_id = st.get('internal_id', '')
-                if internal_id in self.protected_statement_ids:
+                if (
+                    internal_id in self.protected_statement_ids
+                    or internal_id in invalid_ids
+                    or internal_id in system_ids
+                ):
                     continue
                 pname = st.get('policy_name', '').lower()
                 stxt = st.get('statement_text', '').lower()
@@ -1404,12 +1541,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
         candidate_ids = self.candidate_table_selected_ids
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         records = []
+        system_ids = getattr(self, 'system_statement_ids', set())
         if repo and hasattr(repo, 'regular_statements'):
             for st in repo.regular_statements:
-                if (
-                    st.get('internal_id', '') in candidate_ids
-                    and st.get('internal_id', '') not in self.protected_statement_ids
-                ):
+                iid = st.get('internal_id', '')
+                if iid in candidate_ids and iid not in self.protected_statement_ids and iid not in system_ids:
                     records.append(
                         {
                             'Policy Name': st.get('policy_name', ''),
@@ -1426,16 +1562,22 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if hasattr(self, 'selected_candidates_table'):
             self.selected_candidates_table.update_data(records)
 
-    def _update_candidate_protected_count(self):
-        """Update the protected-count label in the candidate tab.
+    def _update_candidate_counts(self):
+        """Update the Protected, Invalid, and System count labels in the candidate tab.
 
         Returns:
-            int: Number of protected statements.
+            tuple[int, int, int]: (protected_count, invalid_count, system_count).
         """
-        n = len(self.protected_statement_ids) if hasattr(self, 'protected_statement_ids') else 0
+        n_prot = len(self.protected_statement_ids) if hasattr(self, 'protected_statement_ids') else 0
+        n_inv = len(self.invalid_statement_ids) if hasattr(self, 'invalid_statement_ids') else 0
+        n_sys = len(self.system_statement_ids) if hasattr(self, 'system_statement_ids') else 0
         if hasattr(self, 'candidate_protected_count'):
-            self.candidate_protected_count.config(text=f'Protected: {n}')
-        return n
+            self.candidate_protected_count.config(text=f'Protected: {n_prot}')
+        if hasattr(self, 'candidate_invalid_count'):
+            self.candidate_invalid_count.config(text=f'Invalid: {n_inv}')
+        if hasattr(self, 'candidate_system_count'):
+            self.candidate_system_count.config(text=f'System: {n_sys}')
+        return n_prot, n_inv, n_sys
 
     def _on_create_consolidation_proposal(self, selected_rows):
         """Handle Create Consolidation Proposal: use persistent candidate selection, generate plan, show proposal tab.
@@ -1449,39 +1591,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
         logger.info(
             'User triggered: Create Consolidation Proposal. Selected: %d', len(self.candidate_table_selected_ids)
         )
-        self.candidate_statement_ids = set(self.candidate_table_selected_ids)
+        # Exclude invalid and system (locked policy) statements from consolidation
+        invalid_ids = getattr(self, 'invalid_statement_ids', set())
+        system_ids = getattr(self, 'system_statement_ids', set())
+        self.candidate_statement_ids = set(self.candidate_table_selected_ids) - invalid_ids - system_ids
         self._on_generate_proposal()
         # Switch to proposal subtab (3rd tab, index 2)
         if hasattr(self, 'notebook'):
             self.notebook.select(2)
 
     def _update_protected_display(self):
-        """Refresh the readonly protected-statements list (IDs and text) in the candidate tab.
-
-        Returns:
-            None
-        """
-        try:
-            self.protected_display_list.config(state='normal')
-            self.protected_display_list.delete(1.0, 'end')
-            if not self.protected_statement_ids:
-                self.protected_display_list.insert('end', '(none)')
-            else:
-                # Build a mapping Internal ID -> statement_text
-                id2text = {}
-                for entry in self.protection_full_data:
-                    internal_id = entry.get('Internal ID')
-                    text = entry.get('Statement Text', '')
-                    if internal_id:
-                        id2text[internal_id] = text
-                items = []
-                for pid in sorted(self.protected_statement_ids):
-                    txt = id2text.get(pid, '(not found)')
-                    items.append(f'{pid}: "{txt}"')
-                self.protected_display_list.insert('end', '\n'.join(items))
-            self.protected_display_list.config(state='disabled')
-        except Exception as e:
-            logger.warning(f'Protected display update failed: {e}')
+        """No-op: protected statements display box was removed from Candidate Selection subtab."""
+        pass
 
     def _update_selected_statements_table(self):
         """Refresh the selected-statements table in the protection tab from current selection.
@@ -1554,6 +1675,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         except Exception as e:
             logger.warning('Failed to generate consolidation plan: %s', e)
             self.proposal_table.update_data([])
+            self._set_plan_notes_and_skipped_from_plan(None)
             self.script_text.config(state='normal')
             self.script_text.delete(1.0, 'end')
             self.script_text.insert('end', f'(failed to generate plan: {e})')
@@ -1562,6 +1684,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
         rows = self._build_proposal_rows(plan=plan, progress=None)
         self.proposal_table.update_data(rows)
+        self._set_plan_notes_and_skipped_from_plan(plan)
 
         # Render script using current format (OCI CLI or UI-based Steps)
         self._set_script_content_from_plan(plan)
@@ -1574,15 +1697,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
         logger.info('Consolidation plan generated: %s steps, plan_id=%s', num_steps, plan.get('plan_id'))
 
         # Persist plan/run to canonical plan history; only refresh dropdown if save succeeded (otherwise we would wipe the UI)
-        corpus_id = self._get_corpus_id()
-        if not corpus_id:
+        tenancy_ocid = self._get_tenancy_ocid()
+        if not tenancy_ocid:
             logger.warning(
-                'No corpus_id (tenancy_ocid) available; plan not saved to history. Plan is still shown in table and script.'
+                'No tenancy_ocid available; plan not saved to history. Plan is still shown in table and script.'
             )
             try:
                 tkmessagebox.showwarning(
                     'Plan not saved to history',
-                    'Tenancy/corpus id is missing, so this plan could not be added to the dropdown. '
+                    'Tenancy OCID is missing, so this plan could not be added to the dropdown. '
                     'The plan and script are shown below. Reload from tenancy or load a cache that sets tenancy to save plans.',
                 )
             except Exception:
@@ -1606,9 +1729,9 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 'plan': plan,  # full plan for re-display and progress check
             }
             cache_mgr = CacheManager()
-            cache_mgr.add_run_record(corpus_id, run_record)
+            cache_mgr.add_run_record(tenancy_ocid, run_record)
             self._refresh_plan_history_dropdown()
-            logger.info('Consolidation run saved to history for corpus_id=%s', corpus_id)
+            logger.info('Consolidation run saved to history for tenancy_ocid=%s', tenancy_ocid)
         except Exception as e:
             logger.warning('Failed to persist consolidation proposal/run: %s', e)
             try:
@@ -1702,12 +1825,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
         # If all steps executed, persist plan as completed
         effort_id = run.get('consolidation_effort_id', '')
         if total > 0 and executed >= total and effort_id:
-            corpus_id = self._get_corpus_id()
-            if corpus_id:
+            tenancy_ocid = self._get_tenancy_ocid()
+            if tenancy_ocid:
                 try:
                     cache_mgr = CacheManager()
                     cache_mgr.update_run_record(
-                        corpus_id,
+                        tenancy_ocid,
                         effort_id,
                         {
                             'status': 'completed',

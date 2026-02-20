@@ -38,7 +38,7 @@ class Strategy(Protocol):
         self,
         *,
         repo: PolicyAnalysisRepository,
-        corpus_id: str,
+        tenancy_ocid: str,
         dataset_version: str | None,
         candidate_internal_ids: set[str],
         protected_internal_ids: set[str],
@@ -49,7 +49,7 @@ class Strategy(Protocol):
 
         Args:
             repo: Policy repository with policies, compartments, regular_statements.
-            corpus_id: Tenancy or corpus id for the plan.
+            tenancy_ocid: Tenancy OCID for the plan.
             dataset_version: Optional dataset version label.
             candidate_internal_ids: Set of statement internal_ids to consolidate.
             protected_internal_ids: Set of statement internal_ids to exclude.

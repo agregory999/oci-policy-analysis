@@ -57,6 +57,8 @@ class DataTable(ttk.Frame):
         highlights: list[tuple[str, Any, str]] | None = None,
         row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
         height: int | None = None,
+        initial_sort_column: str | None = None,
+        initial_sort_descending: bool = False,
     ) -> None:
         super().__init__(parent)
         self._height = height
@@ -68,6 +70,8 @@ class DataTable(ttk.Frame):
         self.sortable = sortable
         self.row_colors = row_colors
         self.sort_directions: dict[str, bool] = {col: False for col in columns}
+        self.last_sorted_column: str | None = None
+        self.last_sort_descending: bool = False
         self.hidden_columns = set(columns) - set(display_columns)
         self.column_widths: dict[str, int] = (
             column_widths if column_widths is not None else {col: 100 for col in columns}
@@ -95,6 +99,11 @@ class DataTable(ttk.Frame):
             raise ValueError('All column_widths keys must be in columns')
 
         self._setup_ui()
+        if initial_sort_column and initial_sort_column in self.all_columns:
+            self.last_sorted_column = initial_sort_column
+            self.last_sort_descending = initial_sort_descending
+            self.sort_directions[initial_sort_column] = initial_sort_descending
+            self._apply_sort()
         logger.debug('UI setup completed')
 
     def _setup_ui(self) -> None:
@@ -185,6 +194,22 @@ class DataTable(ttk.Frame):
             item_id = self.tree.insert('', 'end', values=values, tags=tags)
             self.data_map[item_id] = i
 
+    def _apply_sort(self) -> None:
+        """Apply current sort (last_sorted_column / last_sort_descending) to self.data and refresh display."""
+        col = self.last_sorted_column
+        if not col or col not in self.all_columns or not self.data:
+            self._populate_data()
+            return
+        reverse = self.last_sort_descending
+        try:
+            self.data.sort(key=lambda x: x.get(col, ''), reverse=reverse)
+        except (ValueError, TypeError):
+            self.data.sort(key=lambda x: str(x.get(col, '')), reverse=reverse)
+        for c in self.tree['columns']:
+            indicator = ' ▼' if (c == col and reverse) else (' ▲' if (c == col and not reverse) else '')
+            self.tree.heading(c, text=f'{c}{indicator}', anchor='w', command=lambda c=c: self._sort_column(c))
+        self._populate_data()
+
     def _sort_column(self, col: str) -> None:
         """Sort the table by the specified column and update indicators."""
         if not self.sortable or col not in self.tree['columns']:
@@ -194,6 +219,8 @@ class DataTable(ttk.Frame):
         logger.debug('Sorting column %s', col)
         self.sort_directions[col] = not self.sort_directions[col]
         reverse = self.sort_directions[col]
+        self.last_sorted_column = col
+        self.last_sort_descending = reverse
 
         try:
             self.data.sort(key=lambda x: x.get(col, ''), reverse=reverse)
@@ -346,14 +373,13 @@ class DataTable(ttk.Frame):
         logger.debug('Selected %d rows', len(selected_rows))
 
     def update_data(self, new_data: list[dict]) -> None:
-        """Update table data and refresh display.
-
-        Args:
-            new_data: List of dictionaries containing new row data.
-        """
+        """Update table data and refresh display. Re-applies current sort if one was set."""
         logger.debug('Updating data with %d rows', len(new_data))
         self.data = new_data
-        self._populate_data()
+        if self.last_sorted_column and self.last_sorted_column in self.all_columns:
+            self._apply_sort()
+        else:
+            self._populate_data()
 
     def apply_theme(self, theme: str) -> None:
         """
@@ -441,9 +467,7 @@ class CheckboxTable(ttk.Frame):
         if action_buttons is not None and len(action_buttons) > 0:
             self._action_buttons = list(action_buttons)
         else:
-            self._action_buttons = [
-                (action_button_text, action_callback if action_callback is not None else (lambda _: None))
-            ]
+            self._action_buttons = []  # No buttons when not passed or empty; no default button
         self.enable_select_all = enable_select_all
         self.max_height = max_height
         self.checked_by_default = checked_by_default

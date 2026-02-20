@@ -34,31 +34,31 @@ logger = get_logger(component='caching')
 class CacheManager:
     """
     Handles saving and loading cached JSON data (IAM + AI).
-    Also supports canonical consolidation session persistence: per-corpus state files for protected_set + plan history.
+    Also supports canonical consolidation session persistence: per-tenancy state files for protected_set + plan history.
     Each cache is tied to a tenancy name and date.
     The cache directory is ~/.oci-policy-analysis/cache by default, but can be overridden.
     Caches have the concept of being "preserved" to avoid automatic deletion during culling.
     """
 
     # ----
-    # NEW: Canonical per-corpus consolidation session file with protected_set & history
+    # Canonical per-tenancy consolidation session file with protected_set & history
     # ----
 
-    def _consolidation_state_path(self, corpus_id):
-        # Returns standard location for per-corpus session state
-        if not corpus_id or str(corpus_id).lower() in ['unknown', '', 'none']:
-            raise ValueError('corpus_id required for consolidation session persistence.')
+    def _consolidation_state_path(self, tenancy_ocid):
+        """Return path to per-tenancy consolidation state file."""
+        if not tenancy_ocid or str(tenancy_ocid).lower() in ['unknown', '', 'none']:
+            raise ValueError('tenancy_ocid required for consolidation session persistence.')
         outdir = self.cache_dir / 'consolidation'
         outdir.mkdir(parents=True, exist_ok=True)
-        return outdir / f'consolidation_{corpus_id}.json'
+        return outdir / f'consolidation_{tenancy_ocid}.json'
 
-    def get_or_create_consolidation_state(self, corpus_id) -> dict:
+    def get_or_create_consolidation_state(self, tenancy_ocid) -> dict:
         """
-        Loads the canonical consolidation state file for this corpus_id.
-        If it does not exist, creates a blank state (protected_set={}, history=[]).
+        Load the canonical consolidation state file for this tenancy_ocid.
+        If it does not exist, create a blank state (protected_set={}, history=[]).
         Returns the state dict; saves it if it was new.
         """
-        full_path = self._consolidation_state_path(corpus_id)
+        full_path = self._consolidation_state_path(tenancy_ocid)
         if full_path.exists():
             try:
                 with open(full_path, encoding='utf-8') as f:
@@ -69,114 +69,99 @@ class CacheManager:
                     data['history'] = []
                 return data
             except Exception as e:
-                logger.error(f'Failed to load consolidation state for {corpus_id}: {e}')
+                logger.error(f'Failed to load consolidation state for {tenancy_ocid}: {e}')
                 # Try to reinitialize state if corrupt
         # New or failed to load: write default, return blank state
         state = {'protected_set': {}, 'history': []}
         with open(full_path, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2)
-        logger.info(f'Created new consolidation state file for corpus_id={corpus_id} at {full_path}')
+        logger.info(f'Created new consolidation state file for tenancy_ocid={tenancy_ocid} at {full_path}')
         return state
 
-    def save_consolidation_state(self, corpus_id, state: dict):
-        """
-        Overwrites the canonical consolidation state file for this corpus_id.
-        """
-        full_path = self._consolidation_state_path(corpus_id)
+    def save_consolidation_state(self, tenancy_ocid, state: dict):
+        """Overwrite the canonical consolidation state file for this tenancy_ocid."""
+        full_path = self._consolidation_state_path(tenancy_ocid)
         with open(full_path, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2)
-        logger.info(f'Saved consolidation state for corpus_id={corpus_id} at {full_path}')
+        logger.info(f'Saved consolidation state for tenancy_ocid={tenancy_ocid} at {full_path}')
 
-    def get_protected_set(self, corpus_id):
-        """
-        Returns the protected_set from consolidation state. Creates file if needed.
-        """
-        state = self.get_or_create_consolidation_state(corpus_id)
+    def get_protected_set(self, tenancy_ocid):
+        """Return the protected_set from consolidation state. Creates file if needed."""
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         return state.get('protected_set', {})
 
-    def set_protected_set(self, corpus_id, protected_set: dict):
-        """
-        Updates and persists the protected_set in the canonical consolidation state file.
-        """
-        state = self.get_or_create_consolidation_state(corpus_id)
+    def set_protected_set(self, tenancy_ocid, protected_set: dict):
+        """Update and persist the protected_set in the canonical consolidation state file."""
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         state['protected_set'] = protected_set
-        self.save_consolidation_state(corpus_id, state)
-        logger.info(f'Updated protected_set for corpus_id={corpus_id}')
+        self.save_consolidation_state(tenancy_ocid, state)
+        logger.info(f'Updated protected_set for tenancy_ocid={tenancy_ocid}')
 
-    def get_history(self, corpus_id):
+    def get_history(self, tenancy_ocid):
         """
-        Returns the list of run/plan history for this corpus_id.
-        If no corpus_id, returns empty list (safe for new sessions/when no consolidation sets are present).
+        Return the list of run/plan history for this tenancy_ocid.
+        If no tenancy_ocid, returns empty list (safe for new sessions).
         """
-        if not corpus_id or str(corpus_id).lower() in ['unknown', '', 'none']:
-            logger.info('get_history: No corpus_id provided, returning empty history list.')
+        if not tenancy_ocid or str(tenancy_ocid).lower() in ['unknown', '', 'none']:
+            logger.info('get_history: No tenancy_ocid provided, returning empty history list.')
             return []
-        state = self.get_or_create_consolidation_state(corpus_id)
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         return state.get('history', [])
 
-    def add_run_record(self, corpus_id, run_record: dict):
-        """
-        Appends a new run/plan record to history and saves the canonical file.
-        """
-        state = self.get_or_create_consolidation_state(corpus_id)
+    def add_run_record(self, tenancy_ocid, run_record: dict):
+        """Append a new run/plan record to history and save the canonical file."""
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         if 'history' not in state:
             state['history'] = []
         state['history'].append(run_record)
-        self.save_consolidation_state(corpus_id, state)
+        self.save_consolidation_state(tenancy_ocid, state)
         logger.info(
-            f"Added run_record ({run_record.get('consolidation_effort_id', 'unknown')}) for corpus_id={corpus_id}"
+            f"Added run_record ({run_record.get('consolidation_effort_id', 'unknown')}) for tenancy_ocid={tenancy_ocid}"
         )
 
-    def update_run_record(self, corpus_id: str, consolidation_effort_id: str, updates: dict) -> bool:
+    def update_run_record(self, tenancy_ocid: str, consolidation_effort_id: str, updates: dict) -> bool:
         """
         Update an existing run record in history by consolidation_effort_id.
-        Merges `updates` into the first matching record and saves state.
 
         Args:
-            corpus_id: Tenancy/corpus id.
+            tenancy_ocid: Tenancy OCID.
             consolidation_effort_id: Run identifier (plan_id).
             updates: Dict of fields to merge into the run record (e.g. status, step_status).
-
-        Returns:
-            True if a record was found and updated, False otherwise.
         """
-        if not corpus_id or str(corpus_id).lower() in ('unknown', '', 'none'):
+        if not tenancy_ocid or str(tenancy_ocid).lower() in ('unknown', '', 'none'):
             return False
-        state = self.get_or_create_consolidation_state(corpus_id)
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         history = state.get('history', [])
         for i, run in enumerate(history):
             if run.get('consolidation_effort_id') == consolidation_effort_id:
                 history[i] = {**run, **updates}
-                self.save_consolidation_state(corpus_id, state)
-                logger.info(f'Updated run_record {consolidation_effort_id} for corpus_id={corpus_id}')
+                self.save_consolidation_state(tenancy_ocid, state)
+                logger.info(f'Updated run_record {consolidation_effort_id} for tenancy_ocid={tenancy_ocid}')
                 return True
         return False
 
-    def remove_run_record(self, corpus_id: str, consolidation_effort_id: str) -> bool:
+    def remove_run_record(self, tenancy_ocid: str, consolidation_effort_id: str) -> bool:
         """
         Remove a run record from history by consolidation_effort_id.
 
         Args:
-            corpus_id: Tenancy/corpus id.
+            tenancy_ocid: Tenancy OCID.
             consolidation_effort_id: Run identifier (plan_id) to remove.
-
-        Returns:
-            True if a record was removed, False if not found.
         """
-        if not corpus_id or str(corpus_id).lower() in ('unknown', '', 'none'):
+        if not tenancy_ocid or str(tenancy_ocid).lower() in ('unknown', '', 'none'):
             return False
-        state = self.get_or_create_consolidation_state(corpus_id)
+        state = self.get_or_create_consolidation_state(tenancy_ocid)
         history = state.get('history', [])
         new_history = [r for r in history if r.get('consolidation_effort_id') != consolidation_effort_id]
         if len(new_history) == len(history):
             return False
         state['history'] = new_history
-        self.save_consolidation_state(corpus_id, state)
-        logger.info(f'Removed run_record {consolidation_effort_id} from corpus_id={corpus_id}')
+        self.save_consolidation_state(tenancy_ocid, state)
+        logger.info(f'Removed run_record {consolidation_effort_id} from tenancy_ocid={tenancy_ocid}')
         return True
 
-    def list_consolidation_corpus_ids(self) -> list[str]:
-        """Return list of corpus_ids that have consolidation state files."""
+    def list_consolidation_tenancy_ocids(self) -> list[str]:
+        """Return list of tenancy OCIDs that have consolidation state files."""
         outdir = self.cache_dir / 'consolidation'
         if not outdir.exists():
             return []
@@ -189,16 +174,16 @@ class CacheManager:
 
     def list_all_consolidation_plans(self) -> list[dict]:
         """
-        Return a flat list of all consolidation plans across corpuses.
-        Each item has corpus_id, consolidation_effort_id, created_at, and run (full record).
+        Return a flat list of all consolidation plans across tenancies.
+        Each item has tenancy_ocid, consolidation_effort_id, created_at, and run (full record).
         """
         result = []
-        for corpus_id in self.list_consolidation_corpus_ids():
-            history = self.get_history(corpus_id)
+        for tenancy_ocid in self.list_consolidation_tenancy_ocids():
+            history = self.get_history(tenancy_ocid)
             for run in history:
                 result.append(
                     {
-                        'corpus_id': corpus_id,
+                        'tenancy_ocid': tenancy_ocid,
                         'consolidation_effort_id': run.get('consolidation_effort_id', ''),
                         'created_at': run.get('created_at', ''),
                         'run': run,
@@ -220,7 +205,7 @@ class CacheManager:
     # ----
 
     def save_consolidation_session(
-        self, session_data: dict, plan_id: str = None, corpus_id: str = None, preserved: bool = False
+        self, session_data: dict, plan_id: str = None, tenancy_ocid: str = None, preserved: bool = False
     ) -> str:
         """
         Save a consolidation session (see models_consolidation.ConsolidationSession) to disk as JSON.
@@ -228,7 +213,7 @@ class CacheManager:
         Args:
             session_data: The dict/TypedDict structure matching ConsolidationSession (pluggable, robust to version drift)
             plan_id: Optional label/ID for file naming, else uses timestamp.
-            corpus_id: Optional for nested cache structure.
+            tenancy_ocid: Optional for nested cache structure.
             preserved: Mark this session as not-to-be-deleted.
         Returns:
             The output file path string.
@@ -237,8 +222,8 @@ class CacheManager:
 
         CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
         tag = plan_id or f'session_{CACHE_DATE}'
-        corpus_subdir = Path(str(corpus_id)) if corpus_id else Path()
-        outdir = self.cache_dir / 'consolidation' / corpus_subdir
+        tenancy_subdir = Path(str(tenancy_ocid)) if tenancy_ocid else Path()
+        outdir = self.cache_dir / 'consolidation' / tenancy_subdir
         outdir.mkdir(parents=True, exist_ok=True)
         file_path = outdir / f'{tag}.json'
 
@@ -260,18 +245,18 @@ class CacheManager:
         logger.info(f'Saved consolidation session to {file_path}')
         return str(file_path)
 
-    def load_consolidation_session(self, plan_id: str, corpus_id: str = None) -> dict | None:
+    def load_consolidation_session(self, plan_id: str, tenancy_ocid: str = None) -> dict | None:
         """
         Load a consolidation session from cache.
         Args:
             plan_id: Label/filename (w/o json) for the session/plan.
-            corpus_id: Optional subdir
+            tenancy_ocid: Optional subdir
         Returns:
             session_data (dict) or None
         """
         # imports already present at the top
-        corpus_subdir = Path(str(corpus_id)) if corpus_id else Path()
-        input_file = self.cache_dir / 'consolidation' / corpus_subdir / f'{plan_id}.json'
+        tenancy_subdir = Path(str(tenancy_ocid)) if tenancy_ocid else Path()
+        input_file = self.cache_dir / 'consolidation' / tenancy_subdir / f'{plan_id}.json'
         try:
             with open(input_file, encoding='utf-8') as f:
                 session_data = json.load(f)

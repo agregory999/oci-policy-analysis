@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
-from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep
+from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep, SkippedStatement
 from oci_policy_analysis.logic.consolidation_helpers import (
     flatten_defined_tags,
     internal_id_to_statement,
@@ -52,7 +52,7 @@ class MoveToRootCompartment:
         self,
         *,
         repo: PolicyAnalysisRepository,
-        corpus_id: str,
+        tenancy_ocid: str,
         dataset_version: str | None,
         candidate_internal_ids: set[str],
         protected_internal_ids: set[str],
@@ -71,11 +71,12 @@ class MoveToRootCompartment:
             logger.info('build_plan: no effective candidates; returning empty plan')
             return ConsolidationPlan(
                 plan_id=plan_id,
-                corpus_id=corpus_id,
+                tenancy_ocid=tenancy_ocid,
                 plan_label=f'{self.display_name} (empty)',
                 created_at=now_iso(),
                 plan_steps=[],
                 plan_tags={'strategy_id': self.strategy_id},
+                notes='No effective candidates (all protected or not found in repository).',
             )
 
         if len(effective_candidates) > MAX_STATEMENTS_MOVE_TO_ROOT:
@@ -84,25 +85,47 @@ class MoveToRootCompartment:
                 len(effective_candidates),
                 MAX_STATEMENTS_MOVE_TO_ROOT,
             )
+            reason = f'Exceeds max {MAX_STATEMENTS_MOVE_TO_ROOT} statements for this strategy'
+            skipped: list[SkippedStatement] = [
+                {
+                    'internal_id': iid,
+                    'reason': reason,
+                    'statement_text': (st_idx.get(iid) or {}).get('statement_text', '')[:200] or iid,
+                }
+                for iid in effective_candidates
+            ]
             return ConsolidationPlan(
                 plan_id=plan_id,
-                corpus_id=corpus_id,
+                tenancy_ocid=tenancy_ocid,
                 plan_label=f'{self.display_name}: max {MAX_STATEMENTS_MOVE_TO_ROOT} statements allowed (selected {len(effective_candidates)})',
                 created_at=now_iso(),
                 plan_steps=[],
                 plan_tags={'strategy_id': self.strategy_id},
+                notes=f'Strategy did not apply any statements: {reason}. Reduce selection to ≤{MAX_STATEMENTS_MOVE_TO_ROOT} or use another strategy.',
+                skipped_statements=skipped,
             )
 
         root_ocid = getattr(repo, 'tenancy_ocid', None) or ''
         if not root_ocid:
             logger.warning('build_plan: no tenancy_ocid on repo; cannot resolve root compartment')
+            reason = 'Tenancy root not available'
+            skipped: list[SkippedStatement] = [
+                {
+                    'internal_id': iid,
+                    'reason': reason,
+                    'statement_text': (st_idx.get(iid) or {}).get('statement_text', '')[:200] or iid,
+                }
+                for iid in effective_candidates
+            ]
             return ConsolidationPlan(
                 plan_id=plan_id,
-                corpus_id=corpus_id,
+                tenancy_ocid=tenancy_ocid,
                 plan_label=f'{self.display_name}: tenancy (root) not available',
                 created_at=now_iso(),
                 plan_steps=[],
                 plan_tags={'strategy_id': self.strategy_id},
+                notes=reason,
+                skipped_statements=skipped,
             )
 
         policies_by_ocid: dict[str, BasePolicy] = {
@@ -230,7 +253,7 @@ class MoveToRootCompartment:
         )
         return ConsolidationPlan(
             plan_id=plan_id,
-            corpus_id=corpus_id,
+            tenancy_ocid=tenancy_ocid,
             plan_label=f'{self.display_name} ({len(effective_candidates)} statements)',
             created_at=now_iso(),
             plan_steps=steps,

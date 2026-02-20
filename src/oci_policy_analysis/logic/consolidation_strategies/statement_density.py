@@ -47,7 +47,7 @@ class PackPoliciesByStatementDensity:
         self,
         *,
         repo: PolicyAnalysisRepository,
-        corpus_id: str,
+        tenancy_ocid: str,
         dataset_version: str | None,
         candidate_internal_ids: set[str],
         protected_internal_ids: set[str],
@@ -66,11 +66,12 @@ class PackPoliciesByStatementDensity:
             logger.info('build_plan: no effective candidates (after excluding protected); returning empty plan')
             return ConsolidationPlan(
                 plan_id=plan_id,
-                corpus_id=corpus_id,
+                tenancy_ocid=tenancy_ocid,
                 plan_label=f'{self.display_name} (empty)',
                 created_at=now_iso(),
                 plan_steps=[],
                 plan_tags={'strategy_id': self.strategy_id},
+                notes='No effective candidates (all protected or not found in repository).',
             )
 
         required_compartment_ocid = required_policy_compartment_for_candidates(repo, effective_candidates, st_idx)
@@ -98,19 +99,20 @@ class PackPoliciesByStatementDensity:
                 counts[pol] = counts.get(pol, 0) + 1
 
         if not counts:
-            tenancy_ocid = getattr(repo, 'tenancy_ocid', '') or ''
-            root_note = ' (tenancy root)' if required_compartment_ocid == tenancy_ocid else ''
+            tenancy_ocid_val = getattr(repo, 'tenancy_ocid', '') or ''
+            root_note = ' (tenancy root)' if required_compartment_ocid == tenancy_ocid_val else ''
             logger.info(
                 'build_plan: no valid policy in required compartment %s; returning empty plan with explanatory label',
                 required_compartment_ocid,
             )
             return ConsolidationPlan(
                 plan_id=plan_id,
-                corpus_id=corpus_id,
+                tenancy_ocid=tenancy_ocid,
                 plan_label=f'{self.display_name}: no policy in required compartment{root_note} — move statements to a policy at or above scope',
                 created_at=now_iso(),
                 plan_steps=[],
                 plan_tags={'strategy_id': self.strategy_id},
+                notes='No policy in required compartment scope; move statements to a policy at or above scope first.',
             )
 
         target_policy_ocid = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[0][0]
@@ -256,7 +258,7 @@ class PackPoliciesByStatementDensity:
         )
         return ConsolidationPlan(
             plan_id=plan_id,
-            corpus_id=corpus_id,
+            tenancy_ocid=tenancy_ocid,
             plan_label=f'{self.display_name} ({len(effective_candidates)} candidates)',
             created_at=now_iso(),
             plan_steps=steps,

@@ -68,7 +68,8 @@ class ReferenceDataRepo:
         self.data['operations'] = {}
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
         self.data['operations_by_api'] = {}
-        verb_risk = {'inspect': 1, 'read': 2, 'use': 10, 'manage': 50}
+        # Per-verb risk weights: each permission is scored by the verb it belongs to (exposure points)
+        verb_risk = {'inspect': 1, 'read': 5, 'use': 20, 'manage': 50}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
@@ -220,7 +221,7 @@ class ReferenceDataRepo:
             # For allow, we allow verb and everything LESS powerful
             for v in [v.lower() for v in verbs_order][: index + 1]:
                 perms.extend(self.data['resources'][resource_key]['verbs'].get(v, []))
-        return list({p.upper() for p in perms})  # Dedup and uppercase
+        return list({p.upper() for p in perms})
 
     def check_overlap(self, perm_set1, perm_set2):
         """

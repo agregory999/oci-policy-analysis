@@ -24,13 +24,14 @@ Implemented in `ConsolidationWorkbenchTab` (`src/oci_policy_analysis/ui/consolid
 
 - Browser with advanced filtering/search.
 - Users can mark specific statements or entire policies as "protected"—these are **excluded** from consolidation consideration.
-- All selections are immediately saved to the canonical overlay/session file for the current corpus/tenancy.
+- All selections are immediately saved to the canonical overlay/session file for the current tenancy.
 - "Protected" entries auto-exclude from candidate pool in following tabs; missing/internal_ID validation on reload.
 - Always-visible table for current protected set (live, editable).
 
 ### 2. Candidate Selection & Strategy
 
 - Presents unprotected statements for candidate selection; supports search/filter by name/text/compartment.
+- **Locked/system policies** are omitted from consolidation. For now, the policy named **"Tenant Admin Policy"** and every statement in that policy are excluded from the candidate pool and from any proposal. The UI shows **"System: X"** (next to Protected and Invalid) as the count of statements omitted for this reason.
 - Choose consolidation strategy (pluggable; two implemented):
     - **Statement Density (Pack Policies)** — Packs selected statements into a single existing policy (the one with most candidates in the required compartment or above), then updates or deletes source policies.
     - **Move to Root Compartment** — Creates a new policy at the root compartment with all selected statements (location rewritten); then updates or deletes each source policy. **Max 50 statements** (OCI limit); the UI shows an error and does not generate a plan if more than 50 are selected.
@@ -161,7 +162,7 @@ sequenceDiagram
 
 ## Overlay Model: Persistence & Session Architecture
 
-All workbench state is persisted in a **per-tenancy overlay session file** (`consolidation_{corpus_id}.json`)—this is managed by the `CacheManager` and referenced throughout the UI, following a robust, future-extensible schema:
+All workbench state is persisted in a **per-tenancy overlay session file** (`consolidation_{tenancy_ocid}.json`)—this is managed by the `CacheManager` and referenced throughout the UI, following a robust, future-extensible schema:
 
 ### Consolidation Overlay Models
 
@@ -171,7 +172,7 @@ Defined primarily in `src/oci_policy_analysis/common/models.py`, these encapsula
 
 - Tracks statements marked protected (excluded from consolidation).
 - Fields:
-    - `corpus_id`: Tenancy or project scope (typically tenancy OCID).
+    - `tenancy_ocid`: Tenancy OCID for this policy set.
     - `protected`: List of `ProtectedStatementReference` (internal_id, policy_ocid, policy_name, statement_text, ...).
     - `orphaned_internal_ids` (optional): IDs protected but no longer present after reload (flagged for reconciliation).
 
@@ -179,7 +180,7 @@ Defined primarily in `src/oci_policy_analysis/common/models.py`, these encapsula
 
 - Captures all currently selected _candidate_ statements for consolidation.
 - Fields:
-    - `corpus_id`
+    - `tenancy_ocid`
     - `candidates`: List of candidate references (internal_id, policy_ocid, etc.).
 
 #### 3. **Consolidation Plan and Proposal/Run Records**
@@ -202,9 +203,9 @@ Defined primarily in `src/oci_policy_analysis/common/models.py`, these encapsula
 
 #### 5. **Session Context/Overlay**
 
-- All overlays and plan history are bundled per-corpus/tenancy in a single JSON session file.
+- All overlays and plan history are bundled per-tenancy in a single JSON session file.
 - Fields:
-    - `corpus_id`, `dataset_version` (optional snapshot/version label)
+    - `tenancy_ocid`, `dataset_version` (optional snapshot/version label)
     - Overlays: `protected_set`, `candidate_set`, `plan`, `audit_log`, `execution_results`
 - Canonical data is always loaded via the `CacheManager`, using overlay models as source of truth.
 
@@ -281,7 +282,7 @@ sequenceDiagram
     Workbench->>Workbench: _update_protected_display()
     Workbench->>Workbench: _load_candidate_statements()
 
-    App->>Workbench: refresh_plan_history_for_corpus()
+    App->>Workbench: refresh_plan_history_for_tenancy
     Workbench->>Workbench: _refresh_plan_history_dropdown()
     Workbench->>Cache: get_history tenancy_ocid
     Cache-->>Workbench: history
@@ -308,7 +309,7 @@ sequenceDiagram
     User->>Workbench: click Save Protected
     Workbench->>Workbench: _on_mark_as_protected selected_rows
     Workbench->>Workbench: protected_statement_ids selected_ids build protected_list
-    Workbench->>Workbench: _get_corpus_id via app repo
+    Workbench->>Workbench: _get_tenancy_ocid via app repo
     Workbench->>Cache: set_protected_set tenancy_ocid protected_set
     Cache->>Cache: get_or_create_consolidation_state then state protected_set then save_consolidation_state
     Workbench->>Workbench: _update_protected_display()
@@ -337,14 +338,14 @@ sequenceDiagram
         Workbench->>Workbench: messagebox showerror Too Many Statements then return
     else proceed
         Workbench->>Engine: generate_plan candidate_internal_ids protected_internal_ids strategy_display_name params
-        Engine->>Engine: strategy build_plan repo corpus_id
+        Engine->>Engine: strategy build_plan repo tenancy_ocid
         Engine-->>Workbench: ConsolidationPlan
 
         Workbench->>Workbench: _build_proposal_rows plan progress
         Workbench->>Workbench: proposal_table update_data rows
         Workbench->>Workbench: _set_script_content_from_plan plan
-        Workbench->>Workbench: _get_corpus_id
-        Workbench->>Cache: add_run_record corpus_id run_record
+        Workbench->>Workbench: _get_tenancy_ocid
+        Workbench->>Cache: add_run_record tenancy_ocid run_record
         Cache->>Cache: get_or_create_consolidation_state append run_record save_consolidation_state
         Workbench->>Workbench: _refresh_plan_history_dropdown()
         Workbench->>Cache: get_history tenancy_ocid
@@ -370,7 +371,7 @@ sequenceDiagram
     Workbench->>App: reload_policies_and_compartments_and_update_cache
     App->>App: repo reload_compartment_policy_data CacheManager update_policy_section
     App->>App: _post_load_update_ui
-    App->>Workbench: load_policies_and_statements reload_and_validate_protection_set refresh_plan_history_for_corpus
+    App->>Workbench: load_policies_and_statements reload_and_validate_protection_set refresh_plan_history_for_tenancy
     App-->>Workbench: return
 
     Workbench->>Engine: check_plan_progress(plan)
@@ -398,8 +399,8 @@ sequenceDiagram
 
     User->>Workbench: open Plan History tab or click Refresh
     Workbench->>Workbench: _refresh_plan_history_table()
-    Workbench->>Workbench: _get_corpus_id
-    Workbench->>Cache: get_history corpus_id
+    Workbench->>Workbench: _get_tenancy_ocid
+    Workbench->>Cache: get_history tenancy_ocid
     Cache-->>Workbench: history
     loop for each run in sorted_hist
         Workbench->>Workbench: plan step_status progress executed count status
@@ -417,7 +418,7 @@ sequenceDiagram
     Workbench->>Workbench: _on_plan_history_row_selected(selected_rows)
     Workbench->>Workbench: _plan_history_selected_rows selected_rows view_plan_btn state
     Workbench->>Workbench: _update_plan_history_detail_pane()
-    Workbench->>Cache: get_history(corpus_id)
+    Workbench->>Cache: get_history tenancy_ocid
     Workbench->>Workbench: find run by consolidation_effort_id
     Workbench->>Workbench: detail Plan summary Effort ID Created Strategy Status Steps
     Workbench->>Engine: get_plan_tag_conflicts plan
@@ -452,7 +453,7 @@ Defined in `models_consolidation.py` (or referenced from overlay schema). Protec
 ```python
 class ConsolidationPlan(TypedDict):
     plan_id: str
-    corpus_id: str
+    tenancy_ocid: str
     plan_label: str
     created_at: str
     plan_steps: list[PlanStep]
@@ -486,7 +487,7 @@ class PlanStep(TypedDict):
 ### **Session (Overlay Root)**
 ```python
 class ConsolidationSession(TypedDict):
-    corpus_id: str
+    tenancy_ocid: str
     dataset_version: NotRequired[str]
     protected_set: ProtectedStatementSet
     candidate_set: CandidateSelectionSet
@@ -494,7 +495,7 @@ class ConsolidationSession(TypedDict):
     audit_log: list[dict]
     execution_results: list[dict]
 ```
-- Complete snapshot for all interactive/workbench state for a corpus/tenancy.
+- Complete snapshot for all interactive/workbench state for a tenancy.
 
 ---
 
@@ -554,6 +555,6 @@ if protected['internal_id'] not in live_ids: session['protected_set'].setdefault
 
 - **Overlay Helper APIs and Caching:**  
   - `src/oci_policy_analysis/common/caching.py` (see: `CacheManager`)
-  - Overlay is stored as: `consolidation_{corpus_id}.json`
+  - Overlay is stored as: `consolidation_{tenancy_ocid}.json`
 
 ---

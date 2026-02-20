@@ -54,7 +54,6 @@ from oci_policy_analysis.common.models import (
     UserSearch,
 )
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
@@ -132,7 +131,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 1
         self.load_all_users = True
-        self.permission_reference_repo = ReferenceDataRepo()
+        # Do not replace permission_reference_repo: it is injected by the app (main) and
+        # must remain the loaded ReferenceDataRepo so risk scoring and permission lookups work.
         # If there are additional ephemeral analysis/cache attributes, reset them here
         # (e.g., self._policy_progress_queue, self.normalizer, cached_*, etc.)
         logger.info('PolicyAnalysisRepository state has been reset.')
@@ -697,28 +697,50 @@ class PolicyAnalysisRepository:
         self.policy_data_reloaded = datetime.now(UTC).isoformat()
         return True
 
-    def load_complete_identity_domains(self, load_all_users: bool = True) -> bool:  # noqa: C901
-        """Loads everything into the cetntral JSON
+    def load_complete_identity_domains(  # noqa: C901
+        self, load_all_users: bool = True, domain_compartment_ocids: list[str] | None = None
+    ) -> bool:  # noqa: C901
+        """Loads everything into the central JSON.
 
-        Identity Domains are loaded via the Identity Client.
-        For each Identity Domain, load the Dynamic Groups, Groups, and Users
+        Identity Domains are loaded via the Identity Client from the root (tenancy) compartment
+        and optionally from additional compartment OCIDs. For each Identity Domain, load the
+        Dynamic Groups, Groups, and Users.
 
         Args:
-            load_all_users (bool): If False, skip loading users. Default is True (backwards compatible).
+            load_all_users: If False, skip loading users. Default is True (backwards compatible).
+            domain_compartment_ocids: Optional list of compartment OCIDs to list domains from in
+                addition to the tenancy root. Domains are deduplicated by domain id.
 
         Returns:
-            A boolean indicating success of the data load.  False indicates there was some failure in loading data,
-            so it may be incomplete.
+            True if the data load succeeded; False if there was a failure (data may be incomplete).
         """
-
         try:
-            domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
-            if domain_response.data is None:  # type: ignore
-                logger.error('Failed to list identity domains')
+            seen_domain_ids = set()
+            all_domains = []
+
+            def add_domains_from_compartment(compartment_id: str) -> bool:
+                resp = self.identity_client.list_domains(compartment_id=compartment_id)  # type: ignore
+                if resp.data is None:  # type: ignore
+                    logger.error('Failed to list identity domains for compartment %s', compartment_id)
+                    return False
+                for d in resp.data:
+                    if d.id not in seen_domain_ids:
+                        seen_domain_ids.add(d.id)
+                        all_domains.append(d)
+                return True
+
+            if not add_domains_from_compartment(self.tenancy_ocid):
                 return False
-            # Should we really keep the full thing?
-            self.identity_domains = domain_response.data
-            logger.info(f'Loaded {len(self.identity_domains)} identity domains')
+            for comp_ocid in domain_compartment_ocids or []:
+                if comp_ocid.strip():
+                    if not add_domains_from_compartment(comp_ocid.strip()):
+                        return False
+            self.identity_domains = all_domains
+            logger.info(
+                'Loaded %s identity domains (root + %s additional compartment(s))',
+                len(self.identity_domains),
+                len([c for c in (domain_compartment_ocids or []) if c.strip()]),
+            )
 
             self.domain_clients = {}
 

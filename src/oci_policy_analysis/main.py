@@ -219,7 +219,7 @@ class App(tk.Tk):
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
-        self.notebook.add(self.consolidation_tab, text='Consolidation Workbench\n(Advanced)')
+        self.notebook.add(self.consolidation_tab, text='Consolidation Workbench\n(Preview)')
         # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
@@ -474,26 +474,10 @@ class App(tk.Tk):
         start_post_process_time = time.perf_counter()
         logger.info('Calculating effective compartments for all policy statements')
         self.policy_intelligence.calculate_all_effective_compartments()
-        logger.info('Finding invalid policy statements')
-        self.policy_intelligence.find_invalid_statements()
-        logger.info('Running dynamic group in-use analysis')
-        self.policy_intelligence.run_dg_in_use_analysis()
-        logger.info('Analyzing policy overlaps')
-        self.policy_intelligence.analyze_policy_overlap()
-        logger.info('Calculating policy risk scores')
-        self.policy_intelligence.calculate_potential_risk_scores()
-        logger.info('Building policy consolidation findings')
-        self.policy_intelligence.build_policy_consolidation()
+        logger.info('Running intelligence strategies (risk, overlap, cleanup, consolidation, recommendations)')
+        self.policy_intelligence.run_all(enabled_strategy_ids=None, params={})
         logger.info('Building permissions report for advanced report tab')
         self.policy_intelligence.build_permissions_report()
-
-        # NEW: Build cleanup items before building overall recommendations
-        logger.info('Building actionable cleanup items')
-        self.policy_intelligence.build_cleanup_items()
-
-        # Ensure recommendations are built last to leverage all overlays and intelligence
-        logger.info('Building overall recommendations')
-        self.policy_intelligence.build_overall_recommendations()
 
         self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
         # self.simulation_engine.build_index()
@@ -520,10 +504,10 @@ class App(tk.Tk):
         # Immediately update analytics tab with new data
         self.policy_recommendations_tab.reload_all_analytics()
         self.consolidation_tab.load_policies_and_statements()
-        # --- Validate protected set and refresh plan history for this corpus ---
+        # --- Validate protected set and refresh plan history for this tenancy ---
         if hasattr(self, 'consolidation_tab'):
             self.consolidation_tab.reload_and_validate_protection_set()
-            self.consolidation_tab.refresh_plan_history_for_corpus()
+            self.consolidation_tab.refresh_plan_history_for_tenancy()
         logger.info('All tabs reloaded after data load.')
 
     def reload_policies_and_compartments_and_update_cache(self):
@@ -552,6 +536,9 @@ class App(tk.Tk):
         except Exception as e:
             logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
+        # Re-run policy intelligence (effective compartments, invalid statements, cleanup, recommendations)
+        self._post_load_create_intelligence()
+
         # Update the UI (replicates post-load signal)
         self._post_load_update_ui()
         # Update status bar to indicate reload
@@ -568,6 +555,7 @@ class App(tk.Tk):
         named_session=None,
         named_cache=None,
         load_all_users=True,
+        domain_compartment_ocids=None,
         callback=None,
     ):
         """
@@ -580,6 +568,8 @@ class App(tk.Tk):
             named_profile (str): The named profile to use for authentication.
             named_session (str): The named session token if applicable.
             named_cache (str): The named cache file to load if applicable.
+            load_all_users (bool): Whether to load all users from identity domains.
+            domain_compartment_ocids (list[str], optional): Optional compartment OCIDs in addition to root to list Identity Domains from.
             callback (dict, optional): A dictionary of callback functions for progress, error, and completion
         """
         logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
@@ -655,7 +645,8 @@ class App(tk.Tk):
                             self.after(0, lambda: cb('Loading Identity Domains'))
 
                     success = self.policy_compartment_analysis.load_complete_identity_domains(
-                        load_all_users=load_all_users
+                        load_all_users=load_all_users,
+                        domain_compartment_ocids=domain_compartment_ocids,
                     )
                     if not success:
                         raise RuntimeError('Failed to load identity domains')
@@ -1010,6 +1001,12 @@ class App(tk.Tk):
         # e.g. tuple(self.notebook.tabs())
         # e.g. self.notebook.nametowidget(selected_tab_id)
         selected_widget = self.nametowidget(selected_tab_id) if selected_tab_id else None
+
+        # When switching to Settings tab, refresh Additional Identity Domain Compartment OCIDs from persisted settings
+        if selected_widget is self.settings_tab and hasattr(
+            self.settings_tab, '_refresh_domain_compartment_ocids_from_settings'
+        ):
+            self.settings_tab._refresh_domain_compartment_ocids_from_settings()
 
         # If the new tab is NOT in supported, and AI (bottom_frame) is shown, hide it.
         if selected_widget is not None and str(selected_widget) not in supported_tabs:
