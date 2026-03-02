@@ -181,9 +181,7 @@ class PoliciesTab(BaseUITab):
             self.btn_reload_policies,
             (
                 'Reload policies and compartment data directly from tenancy (using original authentication and recursion settings).\n'
-                'Enabled only if current data was loaded from tenancy, not cache/compliance.\n'
-                'IAM group, Dynamic Group, and User data are NOT reloaded.\n'
-                "After reload, a separate 'Policy data reloaded' timestamp will be shown in the Settings tab alongside the original cache date."
+                'Enabled only if current data was loaded from tenancy, not cache/compliance. IAM group, Dynamic Group, and User data are NOT reloaded.'
             ),
         )
 

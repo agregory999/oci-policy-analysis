@@ -496,19 +496,11 @@ class PolicyAnalysisRepository:
         )
 
     # --- Main Data Loading Functions for Tenancy ---
-    def load_policies_and_compartments(self) -> bool:  # noqa: C901
+    def load_compartments_only(self) -> bool:
         """
-        Optimized bulk loading of all compartments and all policies using OCI Clients.
-
-        1. Fetch compartments (hierarchy, flat)
-        2. Fetch policies (threaded fetch/parse) from OCI Resource Search
-        3. No queue or milestone progress emission
+        Loads only compartments (hierarchy, flat) using OCI Clients.
         """
         self.compartments = []
-        self.policies = []
-        self.regular_statements: list[RegularPolicyStatement] = []
-        self.cross_tenancy_statements: list[BasePolicyStatement] = []
-        self.defined_aliases: list[DefineStatement] = []
         start_time = time.perf_counter()
         try:
             logger.info('Bulk fetching all compartments...')
@@ -529,7 +521,8 @@ class PolicyAnalysisRepository:
             all_comps = [root_comp] + (list(comp_response.data) if comp_response and comp_response.data else [])
             logger.info(f'Total compartments loaded: {len(all_comps)}')
 
-            # Loop through compartments and build our internal list with hierarchy paths - also extract tags if present
+            # Build our internal list with hierarchy paths - also extract tags if present
+            self.compartments.clear()
             for comp in all_comps:
                 tags = {}
                 if hasattr(comp, 'freeform_tags') and comp.freeform_tags:
@@ -554,11 +547,24 @@ class PolicyAnalysisRepository:
             logger.info('Building compartment hierarchy paths and lookup tables...')
             for compartment in self.compartments:
                 compartment['hierarchy_path'] = self._get_hierarchy_path_for_compartment(compartment, '')
+            total_time = time.perf_counter() - start_time
+            logger.info(f'Loaded {len(self.compartments)} compartments in {total_time:.2f}s')
+            return True
+        except Exception as e:
+            logger.error(f'Failed to load compartments: {e}')
+            return False
 
-            logger.info(
-                'Bulk fetching all policies for all compartments using Resource Search or tenancy-wide method...'
-            )
-            # This query should be different if we want to limit to root compartment only
+    def load_policies_only(self) -> bool:  # noqa: C901
+        """
+        Loads policies/statements only, assuming compartments are already loaded.
+        """
+        self.policies = []
+        self.regular_statements = []
+        self.cross_tenancy_statements = []
+        self.defined_aliases = []
+        start_time = time.perf_counter()
+        try:
+            logger.info('Bulk fetching all policies for all compartments...')
             if self.recursive:
                 policy_query = 'query policy resources'
             else:
@@ -585,12 +591,10 @@ class PolicyAnalysisRepository:
                             if hasattr(policy_response.data, 'freeform_tags') and policy_response.data.freeform_tags:
                                 freeform_tags = dict(policy_response.data.freeform_tags)
                             if hasattr(policy_response.data, 'defined_tags') and policy_response.data.defined_tags:
-                                # OCI SDK shape: {namespace: {key: value}}
                                 try:
                                     defined_tags = dict(policy_response.data.defined_tags)
                                 except Exception:
                                     defined_tags = {}
-
                             # Flatten tags for UI display (namespace:key for defined tags)
                             tags = {}
                             if freeform_tags:
@@ -601,7 +605,6 @@ class PolicyAnalysisRepository:
                                         for k, v in val.items():
                                             tags[f'{ns}:{k}'] = v
                                     else:
-                                        # Defensive: if defined_tags contains a non-dict value, keep it visible
                                         tags[str(ns)] = str(val)
                             policy_obj = BasePolicy(
                                 policy_ocid=policy_response.data.id,
@@ -615,7 +618,6 @@ class PolicyAnalysisRepository:
                             )
                             self.policies.append(policy_obj)
                             for statement in policy_response.data.statements:
-                                # DO NOT lowercase statement text - preserve original case
                                 hierarchy_path = next(
                                     (
                                         comp['hierarchy_path']
@@ -627,7 +629,6 @@ class PolicyAnalysisRepository:
                                 base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                                     policy_name=policy_response.data.name,
                                     policy_ocid=policy_response.data.id,
-                                    # policy_description=policy_response.data.description or '',
                                     compartment_ocid=policy_response.data.compartment_id,
                                     compartment_path=hierarchy_path,
                                     statement_text=statement,
@@ -657,7 +658,7 @@ class PolicyAnalysisRepository:
                                     policy_statement: RegularPolicyStatement = RegularPolicyStatement(
                                         **base_policy_statement
                                     )
-                                    self._parse_statement(policy_obj, policy_statement)  # include validation as before
+                                    self._parse_statement(policy_obj, policy_statement)
                     except Exception as e:
                         logger.warning(
                             f'Failed to get policy {policy_ocid}: {e}. '
@@ -669,17 +670,26 @@ class PolicyAnalysisRepository:
                         executor.submit(_process_policy_resource, item, idx, total_policies)
             self.data_as_of = str(datetime.now(UTC))
             total_time = time.perf_counter() - start_time
-            total_time = time.perf_counter() - start_time
-            logger.info(
-                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
-                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
-            )
-            # Return True because we loaded successfully
+            logger.info(f'Bulk loaded {len(self.regular_statements)} policy statements in {total_time:.2f}s')
+            self._enrich_compartments_with_statement_counts()
             self.policies_loaded_from_tenancy = True
             return True
         except Exception as e:
-            logger.error(f'Failed to load policies and compartments: {e}')
+            logger.error(f'Failed to load policies: {e}')
             return False
+
+    def load_policies_and_compartments(self) -> bool:  # noqa: C901
+        """
+        Loads both compartments and all policies using OCI Clients. (Convenience function)
+        """
+        ok1 = self.load_compartments_only()
+        if not ok1:
+            return False
+        ok2 = self.load_policies_only()
+        # Remove policy_data_reloaded since a full load makes the reload timestamp irrelevant
+        if hasattr(self, 'policy_data_reloaded'):
+            self.policy_data_reloaded = ''
+        return ok2
 
     def reload_compartment_policy_data(self) -> bool:
         """
@@ -698,29 +708,24 @@ class PolicyAnalysisRepository:
         return True
 
     def load_complete_identity_domains(  # noqa: C901
-        self, load_all_users: bool = True, domain_compartment_ocids: list[str] | None = None
-    ) -> bool:  # noqa: C901
-        """Loads everything into the central JSON.
-
-        Identity Domains are loaded via the Identity Client from the root (tenancy) compartment
-        and optionally from additional compartment OCIDs. For each Identity Domain, load the
-        Dynamic Groups, Groups, and Users.
-
-        Args:
-            load_all_users: If False, skip loading users. Default is True (backwards compatible).
-            domain_compartment_ocids: Optional list of compartment OCIDs to list domains from in
-                addition to the tenancy root. Domains are deduplicated by domain id.
-
-        Returns:
-            True if the data load succeeded; False if there was a failure (data may be incomplete).
+        self, load_all_users: bool = True, compartment_domain_search_depth: int = 1
+    ) -> bool:
         """
+        Loads users, groups, dynamic groups, and domains for all compartments up to the given depth
+        below the root compartment. No longer uses explicit domain_compartment_ocids.
+        """
+        import collections
+
         try:
             seen_domain_ids = set()
             all_domains = []
 
             def add_domains_from_compartment(compartment_id: str) -> bool:
-                resp = self.identity_client.list_domains(compartment_id=compartment_id)  # type: ignore
-                if resp.data is None:  # type: ignore
+                resp = self.identity_client.list_domains(compartment_id=compartment_id)
+                logger.info(
+                    f'Listed domains for compartment {compartment_id}: {len(resp.data) if resp and resp.data else 0}'
+                )
+                if resp.data is None:
                     logger.error('Failed to list identity domains for compartment %s', compartment_id)
                     return False
                 for d in resp.data:
@@ -729,17 +734,47 @@ class PolicyAnalysisRepository:
                         all_domains.append(d)
                 return True
 
-            if not add_domains_from_compartment(self.tenancy_ocid):
-                return False
-            for comp_ocid in domain_compartment_ocids or []:
-                if comp_ocid.strip():
-                    if not add_domains_from_compartment(comp_ocid.strip()):
-                        return False
+            # Ensure compartments are loaded (critical for depth BFS)
+            if not hasattr(self, 'compartments') or not self.compartments:
+                logger.warning('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
+                self.load_policies_and_compartments()
+            if not self.compartments:
+                logger.error('Compartment load failed or returned empty. Falling back to root-only search.')
+                compartments_to_enumerate = [self.tenancy_ocid]
+            else:
+                parent_map = collections.defaultdict(list)
+                for comp in self.compartments:
+                    parent_id = comp.get('parent_id') or self.tenancy_ocid
+                    parent_map[parent_id].append(comp)
+                cur_level = [self.tenancy_ocid]
+                all_ocids = set(cur_level)
+                for _lvl in range(1, max(1, compartment_domain_search_depth)):
+                    next_level = []
+                    for cid in cur_level:
+                        for child in parent_map.get(cid, []):
+                            child_id = child.get('id')
+                            if child_id and child_id not in all_ocids:
+                                next_level.append(child_id)
+                                all_ocids.add(child_id)
+                    cur_level = next_level
+                    if not cur_level:
+                        break
+                compartments_to_enumerate = list(all_ocids)
+
+            logger.info(
+                f'Enumerating domains from compartments at depth {compartment_domain_search_depth}: {compartments_to_enumerate}'
+            )
+
+            for comp_ocid in compartments_to_enumerate:
+                logger.info(f'Calling add_domains_from_compartment with: {comp_ocid}')
+                if not add_domains_from_compartment(comp_ocid):
+                    return False
+
             self.identity_domains = all_domains
             logger.info(
-                'Loaded %s identity domains (root + %s additional compartment(s))',
+                'Loaded %s identity domains from %s compartments',
                 len(self.identity_domains),
-                len([c for c in (domain_compartment_ocids or []) if c.strip()]),
+                len(compartments_to_enumerate),
             )
 
             self.domain_clients = {}
@@ -900,6 +935,42 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load identity domains: {e}')
             # return False
             raise e
+
+    def _enrich_compartments_with_statement_counts(self):
+        """
+        For each compartment, assign:
+        - statement_count_direct: # of policy statements defined directly in this compartment.
+        - statement_count_cumulative: cumulative total including ancestors.
+        """
+        # Build direct count for each compartment by OCID using up-to-date self.regular_statements
+        statements = getattr(self, 'regular_statements', []) or []
+        direct_statement_count = {}
+        for st in statements:
+            coid = st.get('compartment_ocid')
+            if not coid:
+                continue
+            direct_statement_count[coid] = direct_statement_count.get(coid, 0) + 1
+        # Assign direct count
+        for comp in self.compartments or []:
+            comp_id = comp.get('id')
+            comp['statement_count_direct'] = direct_statement_count.get(comp_id, 0)
+        # Now cumulative (for each compartment, sum direct count for self and all ancestors)
+        comp_by_id = {c.get('id'): c for c in self.compartments or []}
+        for comp in self.compartments or []:
+            cumulative = 0
+            c = comp
+            visited = set()
+            while c:
+                cid = c.get('id')
+                if cid in visited or not cid:
+                    break
+                cumulative += direct_statement_count.get(cid, 0)
+                visited.add(cid)
+                pid = c.get('parent_id')
+                if not pid or pid == cid or pid not in comp_by_id:
+                    break
+                c = comp_by_id[pid]
+            comp['statement_count_cumulative'] = cumulative
 
     # --- Main Filtering Functions ---
     # Filtering logic - return a list of policy statements matching given filter
@@ -1841,6 +1912,9 @@ class PolicyAnalysisRepository:
 
             self.data_as_of = datetime.now(UTC).isoformat()
             self.loaded_from_compliance_output = True
+
+            # After all policy statements loaded, enrich compartment counts
+            self._enrich_compartments_with_statement_counts()
 
             # logger.warning(f"on_policy_statements_updated callback failed: {e}")
 

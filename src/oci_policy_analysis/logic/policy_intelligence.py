@@ -28,6 +28,10 @@ logger = get_logger(component='policy_intelligence')
 # OCI Identity Domains system group that cannot be deleted and may have zero members; exclude from cleanup.
 ALL_DOMAIN_USERS_GROUP_NAME = 'All Domain Users'
 
+# Compartment policy statement limits (hard OCI rules)
+POLICY_STATEMENT_HARD_LIMIT = 500
+POLICY_STATEMENT_WARNING_THRESHOLD = int(POLICY_STATEMENT_HARD_LIMIT * 0.9)  # 450
+
 # Cleanup check IDs; when enabled_check_ids is passed to build_cleanup_items, only these run.
 CLEANUP_CHECK_IDS = (
     'invalid_statements',
@@ -1036,6 +1040,52 @@ class PolicyIntelligenceEngine:
                         'ActionDetail': f"Work with compartment admins to restrict '{policy_name}' or replace 'manage all-resources' with least privilege.",
                     }
                 )
+
+        # ---- POLICY STATEMENT PER-COMPARTMENT LIMIT RECOMMENDATIONS ----
+        for comp in repo.compartments:
+            name = comp.get('name', '')
+            path = comp.get('hierarchy_path', '')
+            n_direct = comp.get('statement_count_direct', 0)
+            n_cumulative = comp.get('statement_count_cumulative', 0)
+            if n_cumulative >= POLICY_STATEMENT_HARD_LIMIT:
+                # CRITICAL: Over the limit
+                recommendations.append(
+                    {
+                        'Recommendation': 'Compartment policy statement limit EXCEEDED',
+                        'Priority': 'Critical',
+                        'Category': 'Limits',
+                        'Notes': (
+                            f"Compartment '{name}' (path: {path}) has {n_cumulative} cumulative policy statements "
+                            f'(limit = {POLICY_STATEMENT_HARD_LIMIT}). New policies cannot be created unless count is reduced below limit. '
+                            f'Direct in compartment: {n_direct}.'
+                        ),
+                        'Action': 'Reduce policy statements',
+                        'ActionDetail': (
+                            'Consolidate, delete, or refactor policy statements in this or parent compartments. See OCI docs for limits.'
+                        ),
+                    }
+                )
+            elif n_cumulative >= POLICY_STATEMENT_WARNING_THRESHOLD:
+                # WARNING: Approaching limit
+                percentages = int(100 * n_cumulative / POLICY_STATEMENT_HARD_LIMIT)
+                recommendations.append(
+                    {
+                        'Recommendation': 'Compartment policy statement count approaching limit',
+                        'Priority': 'High',
+                        'Category': 'Limits',
+                        'Notes': (
+                            f"Compartment '{name}' (path: {path}) has {n_cumulative} cumulative policy statements "
+                            f'({percentages}% of the hard limit of {POLICY_STATEMENT_HARD_LIMIT}).'
+                            f' Direct in compartment: {n_direct}.'
+                        ),
+                        'Action': 'Plan policy statement reduction',
+                        'ActionDetail': (
+                            'Review and consolidate/refactor policy statements before hitting the absolute limit. '
+                            'Statements in ancestor compartments count toward this limit.'
+                        ),
+                    }
+                )
+
         # Guarantee at least one recommendation so UI never appears empty:
         if not recommendations:
             recommendations.append(

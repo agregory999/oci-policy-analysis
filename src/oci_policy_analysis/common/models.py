@@ -123,10 +123,15 @@ class SimulationBatchResponse(TypedDict):
 # ================================
 # Entity Models (Policies, Dynamic Groups, Users, Groups, Compartments)
 # ================================
-class Compartment(TypedDict):
+class Compartment(TypedDict, total=False):
     """
     Model representing an OCI compartment (identity and metadata).
     Captures id, name, parent, description, path, lifecycle, and tags where available.
+    Adds optional analysis/derived fields for policy statement counts.
+
+    Optional/derived fields (set after loading and analysis):
+      - statement_count_direct: Number of policy statements directly in this compartment.
+      - statement_count_cumulative: Cumulative policy statements (this + all ancestors in path).
     """
 
     id: Annotated[str, 'Compartment OCID']
@@ -137,6 +142,12 @@ class Compartment(TypedDict):
     lifecycle_state: NotRequired[Annotated[str, 'Lifecycle state (e.g., ACTIVE, DELETED)']]
     tags: NotRequired[
         Annotated[dict[str, str], 'Optional. All freeform and defined tags associated with the compartment.']
+    ]
+    statement_count_direct: NotRequired[
+        Annotated[int, 'Number of policy statements directly in this compartment (analysis-derived, optional)']
+    ]
+    statement_count_cumulative: NotRequired[
+        Annotated[int, 'Cumulative number of policy statements including all ancestors (analysis-derived, optional)']
     ]
 
 

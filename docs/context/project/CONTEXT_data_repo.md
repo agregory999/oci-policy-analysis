@@ -20,17 +20,32 @@ This context file explains the core architecture for data management in OCI Poli
 ## 2. Central Data Repository (`logic/data_repo.py`)
 
 - **Purpose**: `PolicyAnalysisRepository` encapsulates all data loading, parsing, filtering, and search logic for tenancy, identity, and policy analysis.
+
+### **Compartment Domain Discovery Depth (v2026+)**
+
+- Starting in 2026, the logic for locating Identity Domains in compartments is wholly *depth-based*, rather than relying on user-supplied lists of additional compartment OCIDs.
+- When loading a tenancy, the Settings UI passes a field called "Compartment Level for Additional Domains" (range 1–6; 1 = root only).
+- The data repository enumerates compartments from root using a BFS up to this depth. For each compartment discovered, it queries for Identity Domains and loads them.
+- This means:  
+    - **No more per-tenancy list of compartment OCIDs is consulted or persisted.**
+    - Users always get domains found anywhere up to the configured depth; level 1 = just root, 2 = root + 1 level down, etc.
+    - This approach is robust to compartment hierarchy changes and avoids stale or missing OCID configuration.
+
 - **Initialization / Data Load**:
   - Loads all compartments, policies, users, groups, dynamic groups from OCI or offline sources.
+  - Enumerates compartments with a fixed depth (see above) for Identity Domain search.
   - Recursively parses the entire policy document tree, assigning fields/metadata per models.py.
   - Caches and indexes canonical objects in in-memory lists: policies, statements, users, groups, etc.
+
 - **Filtering/Search**:
   - Provides public filter methods (`filter_policy_statements`, `filter_groups`, `filter_users`, etc.) that accept filter/search criteria modeled in models.py.
   - Resolves fuzzy-to-exact searches (auto-expands group/user/dg queries), always returning lists of model-conformant results.
   - Handles compound search logic: OR within fields, AND across fields; summary/full discriminated unions, etc.
+
 - **Parsing and Normalization**:
   - All parsing, normalization, and validation of statements ("allow/deny/define/admit/endorse") happens centrally, with outputs strictly conforming to the canonical models.
   - Statement normalization, subject resolution, and policy overlap/risk analysis are run post-load and attached to the relevant output objects.
+
 - **Caching, Import/Export**:
   - Loads/saves cached tenancy analysis using JSON/CSV; ensures all persisted data matches the defined models.
   - Supports comparison/diff, offline analysis from compliance output, and easy reload for UI experimentation or backup.

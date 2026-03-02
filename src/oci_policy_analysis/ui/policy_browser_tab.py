@@ -258,7 +258,10 @@ class PolicyBrowserTab(BaseUITab):
                 # If anything below (or this) matches, include
                 if match_this or nodes_policies or descendant_nodes:
                     out = {
-                        'comp_name': highlight(comp_name) if match_this else comp_name,
+                        # Add counts to compartment display string
+                        'comp_name': (highlight(comp_name) if match_this else comp_name),
+                        'statement_count_direct': c.get('statement_count_direct', 0),
+                        'statement_count_cumulative': c.get('statement_count_cumulative', 0),
                         'comp_desc': highlight(comp_desc) if query in comp_desc.lower() else comp_desc,
                         'policies': nodes_policies,  # [(policy_name, [stmts])]
                         'descendants': descendant_nodes,
@@ -287,6 +290,9 @@ class PolicyBrowserTab(BaseUITab):
         def tree_from_nodes(nodes, parent_id):
             for c in nodes:
                 comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
+                # Insert counts node
+                counts_display = f'Statement count - direct: {c.get("statement_count_direct", 0)}, cumulative: {c.get("statement_count_cumulative", 0)}'
+                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
                 self.tree.insert(comp_node, 'end', text=f'Description: {c["comp_desc"]}', open=False)
                 policies = c.get('policies', [])
                 if policies:
@@ -383,8 +389,16 @@ class PolicyBrowserTab(BaseUITab):
                     logger.info(f'Skipping compartment with missing id: {c!r}')
                     continue  # skip compartments missing a valid id
                 comp_name = c.get('name', '(Unnamed Compartment)')
-                comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {comp_name}', open=True)
-                logger.info(f'Inserted compartment: {comp_name} (id={comp_id_val}) parent_id={parent_ocid}')
+                # Pull in direct/cumulative statement counts
+                direct_count = c.get('statement_count_direct', 0)
+                cumulative_count = c.get('statement_count_cumulative', 0)
+                comp_display = f'Compartment: {comp_name}'
+                comp_node = self.tree.insert(parent_id, 'end', text=comp_display, open=True)
+                logger.info(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
+
+                # Add separate policy count node
+                counts_display = f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}'
+                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
 
                 # Add compartment description node
                 comp_desc = c.get('description') or '(No description)'
@@ -577,4 +591,4 @@ class PolicyBrowserTab(BaseUITab):
         if hasattr(self.app, 'status_var'):
             self.app.status_var.set(status)
         logger.info(f'Policy Browser navigation: {status}')
-        print(status)
+        logger.info(status)

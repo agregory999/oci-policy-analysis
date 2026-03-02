@@ -259,7 +259,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         ttk.Label(filter_frame, text='WHERE clause risk reduction:').pack(side='left', padx=(0, 2))
         self.where_reduction_pct_var = tk.StringVar(value='50%')
-        self.where_reduction_options = ['0%', '25%', '50%', '75%']
+        self.where_reduction_options = ['0%', '25%', '50%', '75%', '90%']
         where_pct_combo = ttk.Combobox(
             filter_frame,
             textvariable=self.where_reduction_pct_var,

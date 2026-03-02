@@ -346,12 +346,14 @@ class App(tk.Tk):
             # Check policy_data_reloaded
             reloaded_str = ''
             reload_time = getattr(repo, 'policy_data_reloaded', None)
-            if reload_time:
+            if reload_time and str(reload_time).strip():
                 try:
                     reloaddt = dtparser.parse(reload_time)
                     reloaded_str = f" [Reloaded at {reloaddt.strftime('%Y-%m-%d %H:%M UTC')}]"
                 except Exception:
                     reloaded_str = f' [Reloaded at {reload_time}]'
+            else:
+                reloaded_str = ''
             self.status_var.set(f'Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
         else:
             # Not loaded
@@ -555,7 +557,8 @@ class App(tk.Tk):
         named_session=None,
         named_cache=None,
         load_all_users=True,
-        domain_compartment_ocids=None,
+        domain_compartment_ocids=None,  # DEPRECATED, kept for API compatibility for now
+        compartment_domain_search_depth=1,  # New parameter!
         callback=None,
     ):
         """
@@ -569,10 +572,12 @@ class App(tk.Tk):
             named_session (str): The named session token if applicable.
             named_cache (str): The named cache file to load if applicable.
             load_all_users (bool): Whether to load all users from identity domains.
-            domain_compartment_ocids (list[str], optional): Optional compartment OCIDs in addition to root to list Identity Domains from.
+            compartment_domain_search_depth (int): How many levels below root to enumerate for domains (1 = root only).
             callback (dict, optional): A dictionary of callback functions for progress, error, and completion
         """
-        logger.info(f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal})')
+        logger.info(
+            f'Starting async tenancy load: {tenancy_id} (recursive={recursive}, ip={instance_principal}, domain_enum_depth={compartment_domain_search_depth})'
+        )
 
         if self._tenancy_load_in_progress:
             messagebox.showinfo(
@@ -644,16 +649,21 @@ class App(tk.Tk):
                         if cb is not None and callable(cb):
                             self.after(0, lambda: cb('Loading Identity Domains'))
 
+                    # Always load compartments (required for correct domain enumeration)
+                    success = self.policy_compartment_analysis.load_compartments_only()
+                    if not success:
+                        raise RuntimeError('Failed to load compartments (required for domain discovery)')
+                    # Now run identity domain discovery on loaded compartments
                     success = self.policy_compartment_analysis.load_complete_identity_domains(
                         load_all_users=load_all_users,
-                        domain_compartment_ocids=domain_compartment_ocids,
+                        compartment_domain_search_depth=compartment_domain_search_depth,
                     )
                     if not success:
                         raise RuntimeError('Failed to load identity domains')
                     if callback:
                         cb = callback.get('progress')
                         if cb is not None and callable(cb):
-                            self.after(0, lambda: cb('Loading Compartments and Policies'))
+                            self.after(0, lambda: cb('Loading Policies'))
 
                     # Start polling the repo's progress per second
                     def poll_policy_repo_progress():
@@ -669,10 +679,10 @@ class App(tk.Tk):
 
                     self.after(0, poll_policy_repo_progress)
 
-                    # Now make the call to load policies and compartments
-                    success = self.policy_compartment_analysis.load_policies_and_compartments()
+                    # Now make the call to load policies only (compartments already done)
+                    success = self.policy_compartment_analysis.load_policies_only()
                     if not success:
-                        raise RuntimeError('Failed to load policies and compartments')
+                        raise RuntimeError('Failed to load policies after compartment/domain load')
 
                     # Ensure status bar shows loaded data
                     self.after(0, self.update_status_bar)

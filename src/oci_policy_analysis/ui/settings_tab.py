@@ -58,10 +58,7 @@ CONTEXT_HELP = {
         'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
         'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
     ),
-    'DOMAIN_COMPARTMENTS': (
-        'Optional: list of compartment OCIDs (one per line or comma-separated) in addition to the root compartment '
-        'from which to list Identity Domains. Stored per tenancy. Leave empty to use root compartment only.'
-    ),
+    # 'DOMAIN_COMPARTMENTS': Removed; replaced by compartment depth selector.
 }
 
 # Global logger for this module
@@ -91,6 +88,12 @@ class SettingsTab(BaseUITab):
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
+        # Remove: tenancy_var trace for domain compartment OCID field, as that textbox/feature is now gone.
+
+        # When profile_var changes, optionally auto-update tenancy OCID if a profile->tenancy mapping is present.
+        # This ensures that if the application keeps a mapping of profiles to tenancy OCIDs, changing
+        # the profile will also automatically update tenancy_var, which itself triggers the OCID refresh logic.
+        # If no such mapping exists in settings (profile_ocid_map), nothing happens.
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
         self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', True))
@@ -257,6 +260,76 @@ class SettingsTab(BaseUITab):
         self.input_profile = ttk.OptionMenu(
             label_frm_tenancy_config, self.profile_var, self.profile_var.get(), *self.profile_list
         )
+
+        # --- Compartment Level for Additional Domains ---
+        lvl_label = ttk.Label(label_frm_tenancy_config, text='Compartment Level for Additional Domains:')
+        lvl_label.grid(row=3, column=0, columnspan=2, padx=5, pady=(10, 2), sticky='w')
+        self.add_context_help(
+            lvl_label,
+            'Choose how many levels below the root compartment will be searched for identity domains. '
+            'Level 1 is root only (fastest, recommended), higher levels (up to 6) will search deeper compartment trees. '
+            'Selecting the maximum level may cause much longer load times and many extra API calls in large environments.',
+        )
+        COMPARTMENT_DEPTH_CHOICES = [('1 (Root Only)', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6)]
+        self.compartment_depth_var = tk.IntVar(value=1)
+
+        def update_depth_from_settings():
+            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+            tenancy = (self.tenancy_var.get() or '').strip()
+            depth = by_tenancy.get(tenancy, 1)
+            self.compartment_depth_var.set(depth)
+            self.compartment_depth_dropdown.set(self.depth_string_map.get(depth, '1 (Root Only)'))
+
+        def depth_on_tenancy_change(*_):
+            update_depth_from_settings()
+
+        # Bind update logic on tenancy switch
+        self.tenancy_var.trace_add('write', depth_on_tenancy_change)
+        # Dropdown UI
+        depth_val_strings = [label for label, val in COMPARTMENT_DEPTH_CHOICES]
+        self.depth_value_map = dict(COMPARTMENT_DEPTH_CHOICES)
+        self.depth_string_map = {val: label for label, val in COMPARTMENT_DEPTH_CHOICES}
+        self.compartment_depth_dropdown = ttk.Combobox(
+            label_frm_tenancy_config, state='readonly', width=16, values=depth_val_strings
+        )
+        self.compartment_depth_dropdown.grid(row=3, column=2, padx=5, pady=(10, 2), sticky='w')
+
+        def on_depth_select(event):
+            selected_label = self.compartment_depth_dropdown.get()
+            selected_val = self.depth_value_map.get(selected_label, 1)
+            # Save for this tenancy
+            tenancy = (self.tenancy_var.get() or '').strip()
+            if tenancy:
+                by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+                by_tenancy[tenancy] = selected_val
+                self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
+                config.save_settings(self.settings)
+            self.compartment_depth_var.set(selected_val)
+
+        # Bind update logic on dropdown selection
+        self.compartment_depth_dropdown.bind('<<ComboboxSelected>>', on_depth_select)
+        # Set initial value
+        self.compartment_depth_dropdown.set(
+            self.depth_string_map.get(self.compartment_depth_var.get(), '1 (Root Only)')
+        )
+        # Context Help
+        self.add_context_help(
+            self.compartment_depth_dropdown,
+            'Controls how many levels below the root compartment will be searched for identity domains. '
+            'Level 1 is root only (recommended for most tenancies). Selecting higher levels increases search depth, but can significantly slow load times (many more API calls in large hierarchies).',
+        )
+
+        # When profile_var is changed, optionally auto-update tenancy OCID from settings (if your app does this)
+        def _on_profile_changed(*_args):
+            # This logic assumes a mapping from profile name to tenancy_ocid in settings
+            profiles_by_tenancy = self.settings.get('profile_ocid_map', {})
+            tenancy_for_profile = profiles_by_tenancy.get(self.profile_var.get())
+            if tenancy_for_profile:
+                self.tenancy_var.set(tenancy_for_profile)
+            else:
+                self.tenancy_var.set('')
+
+        self.profile_var.trace_add('write', _on_profile_changed)
         self.input_profile.config(width=20, state='normal' if len(self.profile_list) > 0 else 'disabled')
         self.input_profile.grid(row=0, column=2, padx=5, pady=3)
 
@@ -387,15 +460,9 @@ class SettingsTab(BaseUITab):
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
         self.progress_label.grid(row=1, column=6, padx=5, pady=(1, 5), sticky='w')
 
-        # --- Additional Identity Domain compartment OCIDs (optional; per tenancy) ---
-        domain_compartments_label = ttk.Label(
-            label_frm_tenancy_config, text='Additional Identity Domain Compartment OCIDs:'
-        )
-        domain_compartments_label.grid(row=3, column=0, columnspan=2, padx=5, pady=(6, 2), sticky='nw')
-        self.add_context_help(domain_compartments_label, CONTEXT_HELP['DOMAIN_COMPARTMENTS'])
-        self.domain_compartment_ocids_text = tk.Text(label_frm_tenancy_config, height=3, width=100, wrap=tk.WORD)
-        self.domain_compartment_ocids_text.grid(row=3, column=2, columnspan=4, padx=5, pady=(4, 6), sticky='ew')
-        self._refresh_domain_compartment_ocids_from_settings()
+        # --- Additional Identity Domain Compartment OCIDs UI (REMOVED) ---
+        # All widgets and logic for manual compartment OCID entry have been removed.
+        # Instead, a dropdown for compartment search depth will be added in a following step.
 
         # --- Recommendation / Consolidation (LabelFrame) ---
         label_frm_rec_cons = ttk.Labelframe(self, text='Recommendation / Consolidation')
@@ -576,15 +643,9 @@ class SettingsTab(BaseUITab):
         config.save_settings(self.settings)
         logger.info('MCP configuration saved to settings.')
 
-    def _refresh_domain_compartment_ocids_from_settings(self):
-        """Reload the Additional Identity Domain Compartment OCIDs text from settings for the current tenancy.
-        Call when the Settings tab is shown so the widget reflects persisted values (e.g. after restart or tab switch).
-        """
-        by_tenancy = self.settings.get('domain_compartment_ocids_by_tenancy') or {}
-        tenancy = (self.tenancy_var.get() or '').strip()
-        ocids = by_tenancy.get(tenancy, [])
-        self.domain_compartment_ocids_text.delete('1.0', tk.END)
-        self.domain_compartment_ocids_text.insert('1.0', '\n'.join(ocids))
+    # def _refresh_domain_compartment_ocids_from_settings(self):
+    #     """REMOVED: No longer tracking OCID list per tenancy (now using compartment depth)."""
+    #     pass
 
     def _on_load_clicked(self, use_cache: bool):
         """Handle Load Tenancy button click.  Calls main app to load tenancy asynchronously.
@@ -592,25 +653,50 @@ class SettingsTab(BaseUITab):
             use_cache (bool): Whether to load from cache or live tenancy.
         """
         tenancy_ocid = (self.tenancy_var.get() or '').strip()
+        # If tenancy_var is empty, try to look it up from the OCI config for the current profile
+        if not tenancy_ocid:
+            profile = (self.profile_var.get() or '').strip() or 'DEFAULT'
+            config_path = os.path.expanduser('~/.oci/config')
+            try:
+                with open(config_path) as fp:
+                    cur_profile = None
+                    cur_tenancy = None
+                    for line in fp:
+                        line = line.strip()
+                        if line.startswith('[') and line.endswith(']'):
+                            cur_profile = line[1:-1].strip()
+                        elif '=' in line and cur_profile == profile:
+                            key, val = line.split('=', 1)
+                            key = key.strip().lower()
+                            val = val.strip()
+                            if key == 'tenancy':
+                                cur_tenancy = val
+                        if cur_profile == profile and cur_tenancy:
+                            tenancy_ocid = cur_tenancy
+                            break
+            except Exception as e:
+                logger.warning(f'Failed to load OCI tenancy from config: {e}')
+            if tenancy_ocid:
+                self.tenancy_var.set(tenancy_ocid)
+                logger.info(f"Auto-populated tenancy_ocid for profile '{profile}': {tenancy_ocid}")
+            else:
+                logger.warning(f"Could not find tenancy OCID for profile '{profile}'")
         self.settings['tenancy_ocid'] = tenancy_ocid
+
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
         self.settings['ai_compartment_ocid'] = self.profile_var.get()
         self.settings['load_all_users'] = self.load_all_users_var.get()
-        # Persist Additional Identity Domain Compartment OCIDs per tenancy (key = tenancy_ocid).
-        # Flow: on "Load from Tenancy" we save the text box contents under current tenancy to
-        # settings['domain_compartment_ocids_by_tenancy']; config.save_settings() writes to disk.
-        # When the Settings tab is shown we call _refresh_domain_compartment_ocids_from_settings()
-        # so the text box shows the list for the current tenancy (from memory or file after restart).
-        raw = self.domain_compartment_ocids_text.get('1.0', tk.END)
-        ocids = [s.strip() for line in raw.splitlines() for s in line.split(',') if s.strip()]
-        by_tenancy = self.settings.get('domain_compartment_ocids_by_tenancy') or {}
-        if tenancy_ocid:
-            by_tenancy[tenancy_ocid] = ocids
-        self.settings['domain_compartment_ocids_by_tenancy'] = by_tenancy
-        config.save_settings(self.settings)
-        domain_compartment_ocids = ocids if not use_cache else None
+        # Remove persistence, save, and variable harvesting for Additional Identity Domain Compartment OCIDs.
+        # (Entire block deleted.)
+        # Save compartment depth for tenancy being loaded (guarantee up-to-date)
+        tenancy = (self.tenancy_var.get() or '').strip()
+        if tenancy:
+            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+            by_tenancy[tenancy] = self.compartment_depth_var.get()
+            self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
+            config.save_settings(self.settings)
         self.app.load_tenancy_async(
             tenancy_id=tenancy_ocid,
             recursive=self.recursive_var.get(),
@@ -619,7 +705,8 @@ class SettingsTab(BaseUITab):
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
             named_cache=self.display_to_cache_key.get(self.cache_var.get(), None) if use_cache else None,
             load_all_users=self.load_all_users_var.get(),
-            domain_compartment_ocids=domain_compartment_ocids,
+            # Pass depth configuration for downstream domain search logic
+            compartment_domain_search_depth=self.compartment_depth_var.get(),
             callback={
                 'progress': self._on_load_progress,
                 'complete': self._on_load_finished,

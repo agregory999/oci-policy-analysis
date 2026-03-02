@@ -69,7 +69,7 @@ class ReferenceDataRepo:
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
         self.data['operations_by_api'] = {}
         # Per-verb risk weights: each permission is scored by the verb it belongs to (exposure points)
-        verb_risk = {'inspect': 1, 'read': 5, 'use': 20, 'manage': 50}
+        verb_risk = {'inspect': 1, 'read': 5, 'use': 50, 'manage': 100}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
