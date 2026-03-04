@@ -10,14 +10,13 @@
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy, RegularPolicyStatement
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
-logger = get_logger(component='consolidation_helpers')
+logger = get_logger(component='consolidation_engine')
 
 
 def now_iso() -> str:
@@ -131,6 +130,50 @@ def normalize_compartment_path_segments(path: str) -> list[str]:
     return [p.strip() for p in path.replace('\\', '/').split('/') if p.strip()]
 
 
+def lca_path(paths: list[list[str]]) -> list[str]:
+    """
+    Find the longest common ancestor path among a list of path lists.
+    For example, [['ROOT','A','B'], ['ROOT','A','C']] => ['ROOT','A']
+    Returns the shared prefix as a list; returns empty list if none.
+    Logs info about all paths and details of the comparison at each level.
+    """
+    logger.info('lca_path: INPUT paths:')
+    for idx, p in enumerate(paths):
+        logger.info('  path[%d] = %r', idx, p)
+    if not paths:
+        logger.info('lca_path: received empty list of paths, returning [].')
+        return []
+    min_len = min(len(p) for p in paths)
+    res = []
+    for i in range(min_len):
+        ith_elements = [p[i] for p in paths]
+        unique = set(ith_elements)
+        logger.info('  lca_path: at index %d, values=%r', i, ith_elements)
+        if len(unique) == 1:
+            res.append(list(unique)[0])
+            logger.info('    All values matched (%r), appended to result.', list(unique)[0])
+        else:
+            logger.info('    Divergence at index %d, found differing values %r; stopping.', i, unique)
+            break
+    logger.info('lca_path: FINAL result=%r', res)
+    return res
+
+
+def find_compartment_by_hierarchy_path(path: str, compartments: list[dict]) -> dict | None:
+    """
+    Looks up a compartment dict by case-insensitive match on hierarchy_path string.
+    Example: path='ROOT/department/foo'
+    Returns the compartment dict if found, else None.
+    """
+    for c in compartments:
+        hpath = c.get('hierarchy_path') or ''
+        if hpath and hpath.lower() == path.lower():
+            logger.debug('find_compartment_by_hierarchy_path: found %r for path=%r', c.get('id'), path)
+            return c
+    logger.debug('find_compartment_by_hierarchy_path: not found for path=%r', path)
+    return None
+
+
 def resolve_policy_compartment_path(policy: BasePolicy, compartments: list) -> str:
     """Return compartment hierarchy path for a policy: from policy.compartment_path or lookup by compartment_ocid."""
     path = (policy.get('compartment_path') or '').strip()
@@ -180,88 +223,40 @@ def effective_path_segments_for_rewrite(st: RegularPolicyStatement, old_location
     return segs
 
 
-def rewrite_statement_location_for_target(  # noqa: C901
-    statement_text: str,
-    st: RegularPolicyStatement,
-    target_comp_path: str,
-) -> tuple[str, str | None]:
+def rewritten_location_for_target(effective_path: list[str], target_comp_path: list[str]) -> str:
     """
-    Rewrite the "in compartment X" part of a statement when it is moved to a policy at target_comp_path.
-    Effective path does not change; returns (rewritten_text, note_or_none).
+    Computes new location for a policy statement when moving to a new policy compartment.
+
+    Args:
+        effective_path: List of strings, segments of the full effective path of the statement (e.g. ['ROOT','LZ1-Top','app']).
+        target_comp_path: List of strings, segments of the target policy's compartment path (e.g. ['ROOT','LZ1-Top'])
+
+    Returns:
+        A string representing the new location (the remainder after removing target_comp_path from effective_path, joined with :)
+
+    Notes:
+    - No regex, no parsing of statement text is used.
+    - If target_comp_path does not match the prefix of effective_path, returns original effective_path joined by ':'.
     """
-    source_comp_path = (st.get('compartment_path') or '').strip()
-    eff_path = (st.get('effective_path') or '').strip()
-    st_location = (st.get('location') or '').strip()
-    logger.debug(
-        '[location rewrite] ENTRY: st.compartment_path=%r, st.effective_path=%r, st.location=%r, target_comp_path=%r',
-        source_comp_path or '(empty)',
-        eff_path or '(empty)',
-        st_location or '(empty)',
-        target_comp_path or '(empty)',
-    )
-    if not statement_text or not statement_text.strip():
-        logger.debug('[location rewrite] SKIP: empty statement')
-        return statement_text, None
-    text_lower = statement_text.lower()
-    if 'in tenancy' in text_lower and 'in compartment' not in text_lower:
-        logger.debug('[location rewrite] SKIP: statement is tenancy-scoped (no compartment location)')
-        return statement_text, None
-    target_segments = normalize_compartment_path_segments(target_comp_path or '')
-    if not target_comp_path and not target_segments:
-        logger.debug('[location rewrite] SKIP: target_comp_path is empty (cannot compute new location)')
-        return statement_text, None
-
-    match = re.search(r'\bin\s+compartment\s+([^\s]+)', statement_text, re.IGNORECASE)
-    if not match:
-        logger.debug("[location rewrite] SKIP: no 'in compartment X' found in statement")
-        return statement_text, None
-
-    old_location = match.group(1).strip()
-    prefix = statement_text[: match.start(1)]
-    suffix = statement_text[match.end(1) :]
-    effective_segments = effective_path_segments_for_rewrite(st, old_location)
-    if not effective_segments:
-        logger.debug('[location rewrite] SKIP: could not resolve effective path segments from statement')
-        return statement_text, None
-
-    source_segments = normalize_compartment_path_segments(source_comp_path or '')
-    if source_segments == target_segments:
-        logger.debug('[location rewrite] SKIP: source and target path identical')
-        return statement_text, None
-
-    if is_root_path(target_segments):
-        if effective_segments and effective_segments[0].upper() == 'ROOT':
-            remainder = effective_segments[1:]
-        else:
-            remainder = effective_segments
-    else:
-        tlen = len(target_segments)
-        eff_prefix = [s.upper() for s in effective_segments[:tlen]]
-        tgt_upper = [s.upper() for s in target_segments]
-        if eff_prefix == tgt_upper and len(effective_segments) >= tlen:
-            remainder = effective_segments[tlen:]
-        else:
-            remainder = effective_segments
-
-    new_location = ':'.join(remainder) if remainder else old_location
-    if new_location == old_location:
-        logger.debug('[location rewrite] SKIP: new_location same as old (no change needed)')
-        return statement_text, None
-
-    rewritten = f'{prefix}{new_location}{suffix}'
-    note = (
-        f"NOTE: compartment referenced changes from {old_location} to {new_location} because the "
-        f"policy statement moved from {source_comp_path or '(unknown)'} to {target_comp_path or '(unknown)'}."
-    )
     logger.info(
-        '[location rewrite] rewritten %r -> %r (policy moved to %s)',
-        old_location,
-        new_location,
-        target_comp_path or '(root)',
+        'rewritten_location_for_target: effective_path=%r, target_comp_path=%r', effective_path, target_comp_path
     )
-    return rewritten, note
+    if effective_path == target_comp_path:
+        # If the only segment is ROOT or the path is empty, return ""
+        if not effective_path or (len(effective_path) == 1 and effective_path[0].upper() == 'ROOT'):
+            logger.info('  Paths exactly match ROOT or empty; returning empty string.')
+            return ''
+        logger.info('  Paths are an exact match (not ROOT); returning last segment: %r', effective_path[-1])
+        return effective_path[-1]
+    elif len(target_comp_path) <= len(effective_path) and effective_path[: len(target_comp_path)] == target_comp_path:
+        remainder = effective_path[len(target_comp_path) :]
+        logger.info('  Remainder segments after stripping target prefix: %r', remainder)
+        return ':'.join(remainder)
+    logger.info('  Target compartment path does not match prefix; returning empty string.')
+    return ''
 
 
+# For maximum clarity, callers should compose/replace the location in the statement using this function.
 def required_policy_compartment_for_candidates(
     repo: PolicyAnalysisRepository,
     candidate_internal_ids: list[str],

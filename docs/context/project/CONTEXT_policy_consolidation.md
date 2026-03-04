@@ -1,65 +1,69 @@
-# Policy Consolidation Workbench: Architecture, UI Flow & Overlay Models
+# Policy Consolidation Workbench: Architecture, Data Flow & Overlay Models
 
-_Last updated: Feb 2026_
+_Last updated: Mar 2026_
 
 ---
 
 ## Overview
 
-Policy consolidation is the process of refactoring, merging, or reducing Oracle Cloud Infrastructure (OCI) IAM policy statements to improve manageability, compliance, and reduce redundancy. The "Consolidation Workbench" provides advanced, interactive controls for batch-driven, auditable consolidation of OCI policies and statements, supporting both end-users (through an interactive UI) and programmatic/automated workflows.
+**Policy consolidation** streamlines Oracle Cloud Infrastructure (OCI) IAM policies by merging or reducing statements to maximize manageability, minimize redundancy, and meet compliance/audit goals. The "Consolidation Workbench" provides advanced, interactive workflows for batch, auditable consolidation of OCI policies and statements via a robust UI and API, leveraging a persistent, overlay-based session model and a set of pluggable strategies.
 
-This document describes:
-- UI structure and data/state flow of the **Consolidation Workbench** (see `src/oci_policy_analysis/ui/consolidation_workbench_tab.py`)
-- The **two implemented consolidation strategies**: Statement Density (Pack Policies) and Move to Root Compartment, with plan shapes, limits, and rollback
-- The overlay model architecture for protection, candidate selection, plan/run proposals, and auditing/persistence (see `src/oci_policy_analysis/common/models_consolidation.py` and overlay in `CacheManager`)
-- Persisted overlay/session JSON for per-tenancy, future extensibility, and robust compliance state
+_This document describes:_
+- UI and data/state flow of the **Consolidation Workbench** (`src/oci_policy_analysis/ui/consolidation_workbench_tab.py`).
+- **Consolidation strategies**: Statement Density (Pack Policies), Move to Root Compartment, and Move Closer to Target Compartment (see Strategies section). Each strategy's implementation, plan shapes, limits, and rollback.
+- Overlay model architecture for protection, candidate selection, plan/run proposals, and auditing/persistence (see `src/oci_policy_analysis/common/models_consolidation.py`, `CacheManager`).
+- Persisted overlay/session JSON for tenancy-specific, future-proof state and robust compliance reporting.
+- Key shared helpers and reasoning from `logic/consolidation_helpers.py`.
 
 ---
 
 ## Workbench UI/UX: Subtab-Driven Flow
 
-Implemented in `ConsolidationWorkbenchTab` (`src/oci_policy_analysis/ui/consolidation_workbench_tab.py`), the workbench provides a three-stage, interactive approach:
+Implemented in `ConsolidationWorkbenchTab`, the workbench offers a **three-stage, interactive workflow**:
 
 ### 1. Policy/Statement Protection
 
-- Browser with advanced filtering/search.
-- Users can mark specific statements or entire policies as "protected"—these are **excluded** from consolidation consideration.
-- All selections are immediately saved to the canonical overlay/session file for the current tenancy.
-- "Protected" entries auto-exclude from candidate pool in following tabs; missing/internal_ID validation on reload.
-- Always-visible table for current protected set (live, editable).
+- Advanced browser with filtering/search to identify policies/statements.
+- Users mark statements or policies as "protected"—these are always **excluded** from consolidation.
+- Selections are saved instantly to the tenancy overlay/session.
+- Protection auto-excludes from downstream steps/tabs; robust against data drift (i.e., missing/internal_ID validation on reload).
+- Always-visible table shows/editable protected set.
 
 ### 2. Candidate Selection & Strategy
 
-- Presents unprotected statements for candidate selection; supports search/filter by name/text/compartment.
-- **Locked/system policies** are omitted from consolidation. For now, the policy named **"Tenant Admin Policy"** and every statement in that policy are excluded from the candidate pool and from any proposal. The UI shows **"System: X"** (next to Protected and Invalid) as the count of statements omitted for this reason.
-- Choose consolidation strategy (pluggable; two implemented):
-    - **Statement Density (Pack Policies)** — Packs selected statements into a single existing policy (the one with most candidates in the required compartment or above), then updates or deletes source policies.
-    - **Move to Root Compartment** — Creates a new policy at the root compartment with all selected statements (location rewritten); then updates or deletes each source policy. **Max 50 statements** (OCI limit); the UI shows an error and does not generate a plan if more than 50 are selected.
-- Select one or more statements as consolidation candidates.
-- Candidate selections are cumulative and can be revisited before generating a proposal.
+- Unprotected statements presented for selection as candidates, with search/filter by text/compartment.
+- System/locked exclusions: Policy named **"Tenant Admin Policy"** and all its statements are omitted from consolidation and proposal pools. "System: X" in the UI shows these counts.
+- Select statements as consolidation candidates (additive, can be revised).
+- Strategy choice: **Three built-in strategies are available (see below)**. Strategy parameters (compartment/limit checks) are auto-validated; UI/engine blocks invalid actions.
 
-### 3. Consolidation Proposal / Batch
+### 3. Consolidation Proposal & Batch Run
 
-- Runs chosen consolidation strategy on the selected candidate set.
-- Generates an explicit, staged plan: each step specifies proposed action (add, modify, delete, merge), before/after state, and details.
-- Plan/run records are uniquely identified, timestamped, and persisted with per-effort strategy and input for history, reload, compliance trace.
-- Provides dropdown to review/run history; view details/scripts from all previous consolidation proposals.
-- Displays "proposed script output" for manual/automated execution (e.g., OCI CLI, UI-based steps).
+- Chosen strategy is applied to selected statements; engine generates a structured, stepwise plan.
+- The plan includes explicit `add`, `modify`, or `delete` actions, full before/after state, rollback logic, and required details for UI/CLI/script execution and compliance.
+- Plans and history are uniquely identified, timestamped, and persisted; all proposal/run records support reload, audit, and consistent replay.
+- "Run history" UI allows browsing/summary of all prior/batched proposals.
+- "Proposed script output" gives actionable steps.
 
 ---
 
 ## Consolidation Strategies (Implemented)
 
-The engine uses pluggable strategies (see `src/oci_policy_analysis/logic/consolidation_strategies/`). Each strategy implements the `Strategy` protocol (`strategy_id`, `display_name`, `build_plan(...)`). The following two strategies are built-in and available in the UI.
+Strategies are pluggable (see `logic/consolidation_strategies/`; base in `base.py`). Each implements the `Strategy` protocol, with a unique `strategy_id`, `display_name`, and `.build_plan(...)` API. **As of Mar 2026, four strategies are available:**
 
-### Strategy 1: Statement Density (Pack Policies)
+### 1. Statement Density (Pack Policies)
 
-- **Goal:** Pack all selected candidate statements into a **single existing** policy, then update or delete the source policies that lost statements.
-- **Target policy choice:** The policy that already contains the most candidates and lives in the **required compartment** (or an ancestor). The required compartment is the least common ancestor of all candidate statement scopes—a policy cannot live below a statement’s scope (e.g. tenancy-scoped statements must be in root).
-- **Location rewrite:** When a statement is moved to a policy in a different compartment, its “in compartment X” clause is rewritten using effective path so the logical scope is unchanged (see `consolidation_helpers.rewrite_statement_location_for_target`).
-- **Plan shape:** One **modify** step (target policy: add moved statements, set marker tag) plus zero or more **modify** or **delete** steps (each source policy: remove moved statements; delete if the policy would have zero statements).
-- **Rollback:** Engine renders rollback commands to restore target and source policies (re-create deleted policies with original statements).
+- **Goal:** Pack all selected statements into a **single existing** policy, updating or deleting source policies accordingly.
+- **Target policy:** Chosen as the one already containing most candidates and residing in the least common ancestor (LCA) compartment compatible with all statements (no statement may move "down").
+- **Location rewrite:** When moving statements between compartments, the “in compartment X” clause is rewritten (using helpers, e.g. `rewrite_statement_location_for_target()`) so effective scope is preserved. See helpers below.
+- **Plan shape:** 
+  - **1** `modify` step (add all new statements, set marker tag).
+  - `modify` or `delete` steps for each affected source policy (remove moved statements/delete empty).
+- **Rollback:** Rollback steps enable restoration of both target/source policies, using original statement sets.
+- **Helpers involved:** 
+  - `required_policy_compartment_for_candidates` for computing LCA.
+  - `rewritten_location_for_target` for precise path rewriting.
 
+**Sequence Flow:**
 ```mermaid
 flowchart LR
     subgraph inputs["Inputs"]
@@ -67,10 +71,10 @@ flowchart LR
         P[Protected]
     end
     subgraph strategy["Statement Density"]
-        T[Pick target policy: most candidates in required compartment]
-        R[Rewrite locations for target compartment]
+        T[Pick target policy: most candidates at required compartment]
+        R[Rewrite locations for target]
         M[Modify target policy]
-        S[Modify or delete source policies]
+        S[Modify/delete source policies]
     end
     C --> T
     P --> T
@@ -78,22 +82,20 @@ flowchart LR
     R --> M
     M --> S
 ```
-
-**Plan steps (Mermaid):**
-
+**Plan Steps:**
 ```mermaid
 sequenceDiagram
     participant Strategy
     participant Engine
-    Strategy->>Strategy: required_compartment LCA of candidate scopes
-    Strategy->>Strategy: valid_policies in required comp or above
-    Strategy->>Strategy: target policy with most candidates
-    Strategy->>Strategy: rewrite statement locations for target path
-    Strategy->>Engine: PlanStep modify target_policy after_statements marker tag
-    loop each source policy with moved statements
-        alt remaining statements gt 0
-            Strategy->>Engine: PlanStep modify source after_statements
-        else remaining statements eq 0
+    Strategy->>Strategy: Compute LCA of candidate compartments via helpers
+    Strategy->>Strategy: Find valid target policies above LCA
+    Strategy->>Strategy: Pick target with most candidates
+    Strategy->>Strategy: Rewrite locations for move
+    Strategy->>Engine: PlanStep modify target_policy (+marker)
+    loop Each source policy losing statements
+        alt Not empty after move
+            Strategy->>Engine: PlanStep modify source
+        else Empty
             Strategy->>Engine: PlanStep delete source
         end
     end
@@ -101,15 +103,19 @@ sequenceDiagram
 
 ---
 
-### Strategy 2: Move to Root Compartment
+### 2. Move to Root Compartment
 
-- **Goal:** Create a **new** policy at the **root compartment** (tenancy) with all selected statements; then update or delete each source policy that had statements moved.
-- **Limit:** OCI allows at most **50 statements per policy**. If more than 50 candidates are selected, the **UI shows an error** and does not call the engine; the strategy also returns an empty plan with an explanatory label if invoked with >50 candidates.
-- **Location rewrite:** Same effective-path rewrite as above; statements are rewritten so that when the policy lives at root, the “in compartment X” location string yields the same effective scope.
-- **Plan shape:** One **add** step (create new policy at root: `compartment_ocid`, `create_policy_name`, `create_policy_description`, `after_statements`, marker tag) plus zero or more **modify** or **delete** steps for source policies.
-- **NOTE in plan:** The plan includes a note that the user **may change the Policy Name and Description** as desired; a suitable default is provided (e.g. `Consolidated-Root-<plan_id>` and a short description).
-- **Rollback:** Engine renders rollback so the created policy can be deleted (find by marker tag in root compartment) and source policies can be restored or re-created.
+- **Goal:** Create a new policy at the **root/tenancy compartment**, adding all selected statements.
+- **Limit:** **No more than 50 statements** per target policy (OCI constraint); UI/engine blocks excess.
+- **Location rewrite:** Effective paths for all statements are recalculated and rewritten for root context (using helpers).
+- **Plan shape:** 
+  - **1** `add` step for the new policy (includes `compartment_ocid`, `create_policy_name`, description, and marker tag).
+  - `modify` or `delete` steps for each original policy as appropriate.
+- **Rollback:** Undo/restore via markers and before/after snapshot states.
+- **Helpers involved:** 
+  - `rewritten_location_for_target` and path normalization for statements.
 
+**Sequence Flow:**
 ```mermaid
 flowchart LR
     subgraph inputs["Inputs"]
@@ -117,107 +123,256 @@ flowchart LR
         P[Protected]
     end
     subgraph checks["Checks"]
-        L{max 50 statements?}
+        L{<= 50 statements?}
         R{Root available?}
     end
     subgraph strategy["Move to Root"]
-        W[Rewrite locations for ROOT]
-        A[ADD: new policy at root]
-        S[Modify or delete source policies]
+        W[Rewrite for ROOT]
+        A[Add new policy at root]
+        S[Update/delete sources]
     end
     C --> L
     P --> L
-    L -->|No| empty[Empty plan and error label]
+    L -->|No| empty[Error]
     L -->|Yes| R
     R -->|No| empty
     R -->|Yes| W
     W --> A
     A --> S
 ```
-
-**Plan steps (Mermaid):**
-
+**Plan Steps:**
 ```mermaid
 sequenceDiagram
     participant UI
     participant Engine
     participant Strategy
-    UI->>UI: if Move to Root and candidates gt 50 show error return
-    UI->>Engine: generate_plan with strategy Move to Root Compartment
-    Engine->>Strategy: build_plan repo candidate_internal_ids
-    Strategy->>Strategy: root_ocid tenancy_ocid rewrite for ROOT
-    Strategy->>Engine: PlanStep add compartment_ocid root create_policy_name after_statements NOTE
-    loop each source policy with moved statements
-        alt remaining statements gt 0
-            Strategy->>Engine: PlanStep modify source after_statements
-        else remaining eq 0
-            Strategy->>Engine: PlanStep delete source
+    UI->>UI: Block >50 statements for Move to Root
+    UI->>Engine: generate_plan (strategy: Move to Root)
+    Engine->>Strategy: build_plan(candidate_internal_ids)
+    Strategy->>Strategy: Compute root_ocid, rewrite locations
+    Strategy->>Engine: PlanStep add(create_policy_name, description, after_statements)
+    loop Source policy with statements moved
+        alt Remains statements
+            Strategy->>Engine: PlanStep modify
+        else None remain
+            Strategy->>Engine: PlanStep delete
         end
     end
     Strategy-->>Engine: ConsolidationPlan
-    Engine-->>UI: plan script and rollback
+    Engine-->>UI: plan details
 ```
 
+---
+
+### 3. Move Closer to Target Compartment
+
+- **Goal:** For selected statements—especially those in ROOT—move each as close as possible to its actual target compartment, following OCI's policy hierarchy rules.
+- **Process:** 
+  - **(1) Group:** Statements grouped by effective paths; for each group, compute the deepest valid compartment (using helpers, e.g. LCA logic).
+  - **(2) Rewriting:** Locations are rewritten relative to new compartment host (`rewritten_location_for_target()`).
+  - **(3) Existing/New:** If policy in that compartment exists, it is modified; otherwise, new policy created. OCI per-policy limits enforced.
+  - **(4) Cleanup:** Empty source policies deleted; those with remaining statements updated.
+- **Helpers involved:** 
+  - lca_path, compartment_ancestors_including_self, and rewritten_location_for_target—all defined in `consolidation_helpers.py`.
+- **Plan shape:** Multiple `add`, `modify`, and `delete` plan steps; all changes carefully tracked for rollback and audit.
+- **Why:** Minimizes policy sprawl in ROOT, increases compartment alignment, and reflects administrative intent.
+
+**Sequence Flow:**
+```mermaid
+flowchart LR
+    S[Selected statements]
+    R{Already at root?}
+    G[Group by effective target compartment]
+    RW[Rewrite locations per compartment]
+    E{Policy exists?}
+    X[Keep at root]
+    N[Create new policy]
+    M[Modify existing policy]
+    U[Update/delete sources]
+    S --> R
+    R -- Yes --> X
+    R -- No --> G
+    G --> RW
+    RW --> E
+    E -- Yes --> M
+    E -- No --> N
+    N --> U
+    M --> U
+```
+**Plan Steps:**
+```mermaid
+sequenceDiagram
+    participant Strategy
+    participant Engine
+    Strategy->>Strategy: For each selected policy
+    Strategy->>Strategy: For each candidate: if root, skip
+    Strategy->>Strategy: Group by closest valid target
+    Strategy->>Strategy: Rewrite locations
+    loop Per compartment group
+        alt Policy exists
+            Strategy->>Engine: PlanStep modify (add/merge/rewrite)
+        else Not exists
+            Strategy->>Engine: PlanStep add (new policy)
+        end
+    end
+    loop Source policy post-move
+        alt Remains statements
+            Strategy->>Engine: PlanStep modify
+        else Empty
+            Strategy->>Engine: PlanStep delete
+        end
+    end
+```
+---
+
+### 4. Move Into Target Compartment
+
+- **Goal:** For each selected statement, move it directly into a policy located in its precise (lowest) effective target compartment (not the LCA of a group).
+- **Process:**
+  - **(1) For each statement:** Determine the target compartment from its `effective_path`.
+  - **(2) Group by target compartment and policy name:** If multiple statements share a compartment and name, they consolidate together.
+  - **(3) Rewrite statement 'location' using `rewritten_location_for_target()` relative to the destination compartment.
+  - **(4) Modify existing policy if present, create new if not.
+  - **(5) Remove statements from their origin policies; modify or delete source as appropriate.
+- **Helpers involved:**
+  - `find_compartment_by_hierarchy_path`, `normalize_compartment_path_segments`, `rewritten_location_for_target`, `internal_id_to_statement` (all from `consolidation_helpers.py`).
+- **Plan shape:** Multiple `add` or `modify` steps—one per compartment+policy name as needed; source `modify` or `delete` cleanup steps.
+- **Why:** Ensures every statement ends up exactly in its correct OCI compartment, 1:1 with its scope; avoids over-consolidation or accidental resource exposure outside intended administrative domain.
+
+**Sequence Flow:**
+```mermaid
+flowchart LR
+    S[Selected statements]
+    R{Already at root?}
+    G[Group by statement's effective compartment and name]
+    RW[Rewrite location for each to target compartment]
+    E{Policy exists?}
+    X[Keep at root]
+    N[Create new policy]
+    M[Modify existing policy]
+    U[Update/delete original sources]
+    S --> R
+    R -- Yes --> X
+    R -- No --> G
+    G --> RW
+    RW --> E
+    E -- Yes --> M
+    E -- No --> N
+    N --> U
+    M --> U
+```
+**Plan Steps:**
+```mermaid
+sequenceDiagram
+    participant Strategy
+    participant Engine
+    Strategy->>Strategy: For each selected statement
+    Strategy->>Strategy: If already at ROOT, skip
+    Strategy->>Strategy: Group by (compartment, policy name)
+    Strategy->>Strategy: Rewrite location to match compartment
+    loop Per (compartment, policy name) group
+        alt Policy exists
+            Strategy->>Engine: PlanStep modify (add/merge/rewrite)
+        else Not exists
+            Strategy->>Engine: PlanStep add (new policy)
+        end
+    end
+    loop Source policy post-move
+        alt Remains statements
+            Strategy->>Engine: PlanStep modify
+        else Empty
+            Strategy->>Engine: PlanStep delete
+        end
+    end
+```
 ---
 
 ## Overlay Model: Persistence & Session Architecture
 
-All workbench state is persisted in a **per-tenancy overlay session file** (`consolidation_{tenancy_ocid}.json`)—this is managed by the `CacheManager` and referenced throughout the UI, following a robust, future-extensible schema:
+_All workbench state is recorded in a **per-tenancy overlay session file** (`consolidation_{tenancy_ocid}.json`), providing robust, extensible, and auditable history across runs:_
 
 ### Consolidation Overlay Models
 
-Defined primarily in `src/oci_policy_analysis/common/models.py`, these encapsulate all user and plan state _separate_ from OCI live/parsed policy data (but linkable by internal IDs/OCIDs):
+Defined in `common/models_consolidation.py`, with helpers in `consolidation_helpers.py`. Key structures:
 
-#### 1. **ProtectedStatementSet**
+**1. ProtectedStatementSet**
+- Tracks all protected statement references (`internal_id`, plus policy/name/text metadata).
+- Includes `orphaned_internal_ids` for protected statements missing in current data.
 
-- Tracks statements marked protected (excluded from consolidation).
-- Fields:
-    - `tenancy_ocid`: Tenancy OCID for this policy set.
-    - `protected`: List of `ProtectedStatementReference` (internal_id, policy_ocid, policy_name, statement_text, ...).
-    - `orphaned_internal_ids` (optional): IDs protected but no longer present after reload (flagged for reconciliation).
+**2. CandidateSelectionSet**
+- List of current candidate statements eligible for consolidation.
 
-#### 2. **CandidateSelectionSet**
+**3. Consolidation Plan & Run Records**
+- Each plan is a set of `PlanStep`s, persisted with effort/run ID, creation timestamp, and full context (inputs, candidate list, strategy, status, etc.).
 
-- Captures all currently selected _candidate_ statements for consolidation.
-- Fields:
-    - `tenancy_ocid`
-    - `candidates`: List of candidate references (internal_id, policy_ocid, etc.).
+**4. PlanStep**
+- Each plan step has:
+  - `action` (`add`, `modify`, `delete`)
+  - before/after statements
+  - before/after tags
+  - policy/context identifiers
+  - for `add`: compartment/details for creation
+  - rollback/execution helpers
 
-#### 3. **Consolidation Plan and Proposal/Run Records**
+**5. ConsolidationSession**
+- Complete snapshot of overlays mapped to their tenancy, including version, plan, audit/log data, and compliance state.
 
-- Each consolidation action (proposal/run) is saved as a structured dict in plan/run history:
-    - `consolidation_effort_id`: Unique (hash of tenancy, timestamp, candidate set).
-    - `created_at`: ISO timestamp.
-    - `candidate_statements`: List of internal_ids included in this proposal.
-    - `strategy`: String describing chosen consolidation method (e.g. strategy_id or display name).
-    - `step_status`: Dict keyed by step/proposal phase (with per-step status, progress, timestamp).
-    - `results`: List of plan steps (action **add** | **modify** | **delete**, policy info, before/after statements and tags, see `PlanStep` in `models_consolidation.py`).
+**Example models:**
+```python
+# models_consolidation.py (see file for full details)
+class ConsolidationPlan(TypedDict): ...
+class PlanStep(TypedDict): ...
+class ProtectedStatementSet(TypedDict): ...
+class CandidateSelectionSet(TypedDict): ...
+class ConsolidationSession(TypedDict): ...
+```
 
-#### 4. **Consolidation Plan Step (Plan/Batch Table Row)**
-
-- Each step in a plan specifies (see `PlanStep` in `models_consolidation.py`):
-    - **Action:** `add` (create new policy), `modify` (update statements/tags), or `delete` (remove policy).
-    - **Policy OCID**, before/after statements, before/after tags, plan_tags (marker for execution check).
-    - For **add** steps: `compartment_ocid`, `create_policy_name`, `create_policy_description` (user may change; default provided).
-    - Optional: `location_change_notes`, `rollback_command`, execution status.
-
-#### 5. **Session Context/Overlay**
-
-- All overlays and plan history are bundled per-tenancy in a single JSON session file.
-- Fields:
-    - `tenancy_ocid`, `dataset_version` (optional snapshot/version label)
-    - Overlays: `protected_set`, `candidate_set`, `plan`, `audit_log`, `execution_results`
-- Canonical data is always loaded via the `CacheManager`, using overlay models as source of truth.
+**Overlay Usage Example:**
+```python
+session = load_consolidation_session_json("consolidation_OCIDXXX.json")
+session['protected_set']['protected'].append({...})
+```
 
 ---
 
-## Function flow: sequence diagrams
+## Shared Helpers, Utilities & Policy Reasoning
 
-The following Mermaid sequence diagrams trace the main function calls for the Consolidation Workbench: tab instantiation, tenancy load, protecting statements and writing to cache, creating a plan, execution/reload/check progress, and showing history with conflicts. Participants are **App** (main), **Workbench** (`ConsolidationWorkbenchTab`), **Engine** (`ConsolidationEngine`), and **Cache** (`CacheManager`). The policy repo is used by Workbench and Engine but omitted for clarity.
+All consolidation logic (engine and strategies) relies on standardized, well-tested helpers (`consolidation_helpers.py`):
 
-### 1. Tab instantiation
+- **Compartment/Hierarchy Calculation:**  
+  - `compartment_ancestors_including_self()`: Ensures all ancestors up to ROOT are correctly traversed.
+  - `lca_compartment_ocids()`: Robustly computes the least common ancestor (LCA) of compartments for a candidate set—enforces OCI rules for policy location.
+- **Statement/Policy Location Rewriting:**
+  - `normalize_compartment_path_segments()`: Splits compartment paths robustly.
+  - `rewritten_location_for_target()`: Recomputes the `location` clause for each statement when moving it between compartments; ensures logical access is unchanged regardless of physical move. Handles all path/corner cases.
+- **Indexing/Fast Lookup:** 
+  - `internal_id_to_statement()`: Fast map of statement IDs to their dicts.
+  - `policy_statement_texts()`: Extracts all statement texts for fast comparison.
+- **Overlay/Batch Logic:**
+  - All overlay file IO and tenancy/session handling are performed through `CacheManager`, always via the overlay. Live data is strictly input-only.
+- **Auditability:**
+  - Rollback, result/plan tagging, and action tracking are supported throughout by overlay helpers and robust model schema.
 
-When the Consolidation Workbench tab is created (or when the user first opens it), the notebook and all four subtabs are built. The Protection tab triggers an initial load of policies/statements and restores the protected set from cache; the Proposal tab loads plan history into its dropdown.
+**_Practical Effect_**: All plan/step reasoning flows through these helpers, ensuring correct scoping, compartment handling, statement movement, and persistent/undo operation.
+
+---
+
+## Key End-to-End Data Flow (as implemented)
+
+- All candidate, protected, and plan sets are **validated at load** against current OCI data (missing/internal_id drift is auto-flagged).
+- All changes (protect, candidate, plan) immediately persist to overlay.
+- Every action is captured in run history; previous plans can be reloaded.
+- UI, helpers, and engine always reference overlays; live OCI data acts solely as a feed for parsing and drift resolution.
+
+---
+
+## Main UI/Engine Sequence Diagrams
+
+Below are updated main sequence diagrams for the consolidation workbench. _Note: Actor and label names have been made code-accurate. Helpers are now directly referenced in plan and proposal steps. All helper/overlay interaction is reflected in the plan generation and audit paths._
+
+> **Viewers: All diagrams render with Mermaid.js. Use View in VSCode/Markdown preview or an online Mermaid renderer for visual diagrams.**
+
+### 1. Tab Instantiation
 
 ```mermaid
 sequenceDiagram
@@ -226,335 +381,100 @@ sequenceDiagram
     participant Engine as ConsolidationEngine
     participant Cache as CacheManager
 
-    App->>Workbench: init parent app
+    App->>Workbench: Create tab/init UI
     Workbench->>App: getattr consolidation_engine
-    alt engine exists
-        Workbench->>Workbench: use app consolidation_engine
-    else no engine
-        Workbench->>Engine: ConsolidationEngine cache_mgr reference_data_repo policy_repo
+    alt already present
+        Workbench->>Workbench: reuse engine
+    else
+        Workbench->>Engine: Construct new engine
     end
-    Workbench->>Workbench: _build_notebook_ui
-    Workbench->>Workbench: _build_protection_tab parent
-    Workbench->>Workbench: load_policies_and_statements
-    Workbench->>App: getattr policy_compartment_analysis
-    loop regular_statements
-        Workbench->>Workbench: build protection_full_data
-    end
-    Workbench->>Cache: get_protected_set tenancy_ocid
+    Workbench->>Cache: get_protected_set (load overlay)
     Cache-->>Workbench: protected_set
-    Workbench->>Workbench: _refresh_filter_protect_table
-    Workbench->>Workbench: _update_selected_statements_table
-    Workbench->>Workbench: _build_candidate_tab parent
-    Workbench->>Workbench: _build_proposal_tab parent
-    Workbench->>Workbench: _refresh_plan_history_dropdown
-    Workbench->>Cache: get_history tenancy_ocid
-    Cache-->>Workbench: history
-    Workbench->>Workbench: plan_history_dropdown values and _on_select_plan_history if items
-    Workbench->>Workbench: _refresh_plan_history_table
-    Workbench->>Workbench: _build_plan_history_tab parent
-    Workbench->>Workbench: _refresh_plan_history_table
+    Workbench->>Workbench: build UI notebook/subtabs
+    Workbench->>Cache: get_history
+    Cache-->>Workbench: plan history
+    Workbench->>Workbench: refresh UI/data based on cache/overlay
 ```
 
-### 2. Tenancy (or cache/compliance) loaded
-
-After a tenancy is loaded from OCI, cache, or compliance, the main app calls the workbench to refresh data and plan history. Protected set is validated (missing IDs removed); both Protection and Candidate subtabs are refreshed; plan dropdown and Plan History table are repopulated.
+### 2. Tenancy (Cache Load)
 
 ```mermaid
 sequenceDiagram
     participant App
-    participant Workbench as ConsolidationWorkbenchTab
+    participant Workbench
     participant Cache as CacheManager
 
-    App->>App: _post_load_update_ui
+    App->>App: reload tenancy/OCI data, update cache
     App->>Workbench: load_policies_and_statements
-    Workbench->>App: getattr policy_compartment_analysis
-    Workbench->>Workbench: protection_full_data from repo
-    Workbench->>Cache: get_protected_set(tenancy_ocid)
+    Workbench->>Cache: get_protected_set
     Cache-->>Workbench: protected_set
-    Workbench->>Workbench: _refresh_filter_protect_table()
-    Workbench->>Workbench: _update_selected_statements_table()
-
-    App->>Workbench: reload_and_validate_protection_set()
-    Workbench->>App: getattr(policy_compartment_analysis), regular_statements
-    Workbench->>Workbench: current_ids missing_ids remove from protected_statement_ids if missing
-    Workbench->>Workbench: _refresh_filter_protect_table()
-    Workbench->>Workbench: _update_selected_statements_table()
-    Workbench->>Workbench: _update_protected_display()
-    Workbench->>Workbench: _load_candidate_statements()
-
-    App->>Workbench: refresh_plan_history_for_tenancy
-    Workbench->>Workbench: _refresh_plan_history_dropdown()
-    Workbench->>Cache: get_history tenancy_ocid
-    Cache-->>Workbench: history
-    Workbench->>Workbench: plan_history_id_lookup dropdown values
-    Workbench->>Workbench: _refresh_plan_history_table
+    Workbench->>Workbench: refresh tables (protected/candidate)
+    App->>Workbench: refresh_plan_history
+    Workbench->>Cache: get_history
+    Cache-->>Workbench: plan history
+    Workbench->>Workbench: refresh UI/history table
 ```
 
-### 3. Protecting statements and writing to cache
-
-User selects rows in the Protection tab (checkboxes or Select All) and clicks "Save Protected". Selection is persisted in memory; on Save, the protected set is written to the canonical consolidation state file and the Candidate tab is refreshed.
+### 3. Protecting Statements
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Workbench as ConsolidationWorkbenchTab
+    participant Workbench
     participant Cache as CacheManager
 
-    User->>Workbench: check or uncheck rows or Select All
-    Workbench->>Workbench: _on_protect_check_changed or _on_protect_select_all
-    Workbench->>Workbench: protect_table_selected_ids add or remove
-    Workbench->>Workbench: _refresh_filter_protect_table if select all
-    Workbench->>Workbench: _update_selected_statements_table
-
-    User->>Workbench: click Save Protected
-    Workbench->>Workbench: _on_mark_as_protected selected_rows
-    Workbench->>Workbench: protected_statement_ids selected_ids build protected_list
-    Workbench->>Workbench: _get_tenancy_ocid via app repo
-    Workbench->>Cache: set_protected_set tenancy_ocid protected_set
-    Cache->>Cache: get_or_create_consolidation_state then state protected_set then save_consolidation_state
-    Workbench->>Workbench: _update_protected_display()
-    Workbench->>Workbench: _load_candidate_statements()
-    Workbench->>Workbench: _update_selected_statements_table()
+    User->>Workbench: select statements + Save Protected
+    Workbench->>Cache: set_protected_set (update overlay)
+    Cache->>Cache: save_consolidation_state
+    Workbench->>Workbench: refresh candidate set/table
 ```
 
-### 4. Creating a plan
-
-User selects candidates in the Candidate tab and triggers "Create Consolidation Proposal" or generates from the Proposal tab. If the strategy is "Move to Root Compartment" and more than 50 candidates are selected, the UI shows an error and does not call the engine. Otherwise the engine builds the plan via the selected strategy; the run record is saved to history and the dropdown/Plan History tab are refreshed.
+### 4. Creating a Proposal Plan
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Workbench as ConsolidationWorkbenchTab
-    participant Engine as ConsolidationEngine
+    participant Workbench
+    participant Engine
     participant Cache as CacheManager
 
-    User->>Workbench: select candidates click Create Consolidation Proposal or Generate
-    Workbench->>Workbench: _on_create_consolidation_proposal or _on_generate_proposal
-    Workbench->>Workbench: candidate_statement_ids from candidate_table_selected_ids
-    Workbench->>Workbench: _on_generate_proposal
-    Workbench->>Engine: get_strategy_display_names
-    Engine-->>Workbench: strategy names list
-    alt Move to Root and candidates gt 50
-        Workbench->>Workbench: messagebox showerror Too Many Statements then return
-    else proceed
-        Workbench->>Engine: generate_plan candidate_internal_ids protected_internal_ids strategy_display_name params
-        Engine->>Engine: strategy build_plan repo tenancy_ocid
-        Engine-->>Workbench: ConsolidationPlan
-
-        Workbench->>Workbench: _build_proposal_rows plan progress
-        Workbench->>Workbench: proposal_table update_data rows
-        Workbench->>Workbench: _set_script_content_from_plan plan
-        Workbench->>Workbench: _get_tenancy_ocid
-        Workbench->>Cache: add_run_record tenancy_ocid run_record
-        Cache->>Cache: get_or_create_consolidation_state append run_record save_consolidation_state
-        Workbench->>Workbench: _refresh_plan_history_dropdown()
-        Workbench->>Cache: get_history tenancy_ocid
-        Workbench->>Workbench: _refresh_plan_history_table()
-    end
-```
-
-### 5. Execution and Reload and Check Progress
-
-Execution of steps is done outside the app (OCI Console or CLI). "Reload and Check Progress" is only allowed when data is from OCI. Main app reloads policies/compartments and updates cache; then the workbench re-evaluates the selected plan’s progress (tags/policy presence) and optionally marks the plan completed and refreshes history.
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Workbench as ConsolidationWorkbenchTab
-    participant App
-    participant Engine as ConsolidationEngine
-    participant Cache as CacheManager
-
-    User->>Workbench: click Reload and Check Progress
-    Workbench->>Workbench: _on_reload_and_check_progress
-    Workbench->>Workbench: plan_history_var get plan_history_id_lookup to run plan
-    Workbench->>App: reload_policies_and_compartments_and_update_cache
-    App->>App: repo reload_compartment_policy_data CacheManager update_policy_section
-    App->>App: _post_load_update_ui
-    App->>Workbench: load_policies_and_statements reload_and_validate_protection_set refresh_plan_history_for_tenancy
-    App-->>Workbench: return
-
-    Workbench->>Engine: check_plan_progress(plan)
-    Engine->>Engine: for each step: policy presence / marker tag -> executed
-    Engine-->>Workbench: progress step_id executed notes
-
-    alt all steps executed
-        Workbench->>Cache: update_run_record status completed step_status progress completed_at
-        Workbench->>Workbench: _refresh_plan_history_dropdown and _refresh_plan_history_table
-    end
-    Workbench->>Workbench: _build_proposal_rows(plan, progress)
-    Workbench->>Workbench: proposal_table update_data plan_status_label Executed n of m
-```
-
-### 6. Showing history with conflicts (Plan History tab)
-
-When the user opens the Plan History subtab or refreshes it, the table is filled from cache. For each non-completed plan, the engine checks tag conflicts (policies tagged by another plan). Selecting a row updates the detail pane with summary, conflicts, and OCI Audit placeholder.
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Workbench as ConsolidationWorkbenchTab
-    participant Cache as CacheManager
-    participant Engine as ConsolidationEngine
-
-    User->>Workbench: open Plan History tab or click Refresh
-    Workbench->>Workbench: _refresh_plan_history_table()
-    Workbench->>Workbench: _get_tenancy_ocid
-    Workbench->>Cache: get_history tenancy_ocid
-    Cache-->>Workbench: history
-    loop for each run in sorted_hist
-        Workbench->>Workbench: plan step_status progress executed count status
-        alt non-completed and plan has steps
-            Workbench->>Engine: get_plan_tag_conflicts(plan)
-            Engine->>Engine: for each step policy freeform_tags marker prefix vs plan_id
-            Engine-->>Workbench: conflicts list
-            Workbench->>Workbench: Validity Conflicted n or OK
-        end
-        Workbench->>Workbench: rows append Effort ID Created Strategy Status Steps Validity
-    end
-    Workbench->>Workbench: plan_history_table update_data rows
-
-    User->>Workbench: select a row in Plan History table
-    Workbench->>Workbench: _on_plan_history_row_selected(selected_rows)
-    Workbench->>Workbench: _plan_history_selected_rows selected_rows view_plan_btn state
-    Workbench->>Workbench: _update_plan_history_detail_pane()
-    Workbench->>Cache: get_history tenancy_ocid
-    Workbench->>Workbench: find run by consolidation_effort_id
-    Workbench->>Workbench: detail Plan summary Effort ID Created Strategy Status Steps
-    Workbench->>Engine: get_plan_tag_conflicts plan
-    Engine-->>Workbench: conflicts
-    Workbench->>Workbench: detail Conflicts policy_ocid current_tag_value conflicting_plan_id
-    Workbench->>Workbench: detail OCI Audit Data selected policy Not implemented yet
-    Workbench->>Workbench: plan_history_detail_text insert detail
+    User->>Workbench: select candidates + Create Proposal
+    Workbench->>Engine: generate_plan(strategy, candidate_ids)
+    Engine->>consolidation_helpers.py: LCA, rewrite helpers
+    Engine-->>Workbench: ConsolidationPlan (plan_steps)
+    Workbench->>Cache: add_run_record (save to overlay)
+    Cache->>Cache: save_consolidation_state
+    Workbench->>Workbench: refresh proposal tables and run history in UI
 ```
 
 ---
 
-## End-to-End Data/UX Flow (as implemented)
+## Extension and Development Guidance
 
-- State for protection, candidates, and plan is _always_ loaded/validated against current parsed/live OCI data, and missing entries are auto-flagged for reconciliation.
-- All changes (protection/candidate/plan) in the UI immediately persist to overlay.
-- Past plan/proposals can be reloaded, examined, or re-applied, supporting both batch/manual and automated workflows.
-- Every action (protect, candidate select, generate proposal) triggers overlay update; run history is auto-maintained.
-- UI and API helpers always reference overlays for "source of truth"—live OCI data is input only (never source of overlay fields).
-
----
-
-## Models for Consolidation
-
-Canonical plan and step types are defined in `src/oci_policy_analysis/common/models_consolidation.py`. Overlay/session structures (protected set, candidate set, run history) are used by `CacheManager` and the workbench UI.
-
-### **ProtectedStatementSet / CandidateSelectionSet**
-
-Defined in `models_consolidation.py` (or referenced from overlay schema). Protected set tracks statements excluded from consolidation; candidate set tracks selected candidates. See overlay section above for field summaries.
-
-### **Consolidation Plan and PlanStep** (`models_consolidation.py`)
-
-```python
-class ConsolidationPlan(TypedDict):
-    plan_id: str
-    tenancy_ocid: str
-    plan_label: str
-    created_at: str
-    plan_steps: list[PlanStep]
-    execution_log: NotRequired[list[str]]
-    plan_tags: NotRequired[dict[str, str]]  # e.g. strategy_id, marker_tag_key
-
-class PlanStep(TypedDict):
-    step_id: str
-    action: Literal['add', 'modify', 'delete']
-    policy_ocid: str                    # empty for action='add'
-    before_statements: list[str]
-    after_statements: list[str]
-    before_tags: dict[str, str]
-    after_tags: dict[str, str]
-    plan_tags: NotRequired[dict[str, str]]   # marker_tag_key, marker_tag_value
-    executed: NotRequired[bool]
-    execution_status: NotRequired[Literal['PENDING', 'COMPLETE', 'ROLLED_BACK', 'DRIFTED']]
-    rollback_command: NotRequired[str]
-    location_change_notes: NotRequired[list[str]]
-    # For action='add' (create new policy at root or elsewhere):
-    compartment_ocid: NotRequired[str]
-    create_policy_name: NotRequired[str]
-    create_policy_description: NotRequired[str]
-```
-- Each run/proposal is a plan; each plan contains zero or more steps. **add** = create new policy (e.g. Move to Root); **modify** = update statements/tags; **delete** = remove policy.
-- Run records in overlay history store plan + step_status/results for UI and progress check.
-
-### **Auditing/Execution Results**
-- Audit trails and result logs (historic, per-step, user/time/action, for compliance/rollback).
-
-### **Session (Overlay Root)**
-```python
-class ConsolidationSession(TypedDict):
-    tenancy_ocid: str
-    dataset_version: NotRequired[str]
-    protected_set: ProtectedStatementSet
-    candidate_set: CandidateSelectionSet
-    plan: ConsolidationPlan
-    audit_log: list[dict]
-    execution_results: list[dict]
-```
-- Complete snapshot for all interactive/workbench state for a tenancy.
-
----
-
-### Example: Overlay Overlay Usage
-
-```python
-# Load session from overlay
-from src.oci_policy_analysis.common.models import ConsolidationSession
-session = load_consolidation_session_json("consolidation_OCID123.json")
-
-# Mark statement protected
-session['protected_set']['protected'].append({
-    "internal_id": "abc123",
-    "policy_ocid": "...",
-    "policy_name": "...",
-    "statement_text": "...",
-})
-# Validate/protect against drift:
-if protected['internal_id'] not in live_ids: session['protected_set'].setdefault('orphaned_internal_ids', []).append(protected['internal_id'])
-```
-
----
-
-## Why This Architecture?
-
-- **Future-proof/Extensible:** New strategies, external scripts, or compliance tooling always plug into the same overlay/session model.
-- **Persistent & Auditable:** Overlay file contains full run/proposal/audit history, protected set, and stepwise status.
-- **Compliance:** All actions, plan decisions, and audit records are stable, portable, and recoverable across OCI state reload or tool changes.
-- **Decoupling:** Sessions never mutate live data—overlays are self-contained, robust for multi-user or team environments.
-
----
-
-## Extension/Development Guidance
-
-- **To add new strategies:** Implement the `Strategy` protocol in `src/oci_policy_analysis/logic/consolidation_strategies/base.py` (e.g. in a new module under `consolidation_strategies/`), register with `ConsolidationEngine` via constructor or `register_strategy()`, and ensure the UI strategy dropdown is populated from `engine.get_strategy_display_names()`. See `statement_density.py` and `move_to_root.py` for examples.
-- **To extend overlays or session models:** Extend the overlay/session models in `models_consolidation.py`; UI and `CacheManager` already support JSON versioning.
-- **To integrate new audit/compliance controls:** Extend `audit_log` and run records; overlay format forwards compatible.
-- **To support automation and external review:** All overlays are JSON-serializable, documented, and can be loaded/modified by external tools.
+- **Add new strategies:** Create new module inheriting `Strategy` protocol in `logic/consolidation_strategies/`, register in engine, and update UI lists.
+- **Extend overlays or plan steps:** Update models in `models_consolidation.py` and relevant helpers (see above).
+- **Upgrade auditing/tools:** Overlay and helper model supports log extension; overlays are JSON for automation and compliance.
 
 ---
 
 ## References
 
-- **UI and Overlay Implementation:**  
+- **UI & Overlay:**  
   - `src/oci_policy_analysis/ui/consolidation_workbench_tab.py`
   - `src/oci_policy_analysis/common/models.py`
 
-- **Consolidation Engine and Strategies:**  
-  - `src/oci_policy_analysis/logic/consolidation_engine.py` — plan generation, render (CLI/UI/rollback), progress check
-  - `src/oci_policy_analysis/logic/consolidation_strategies/` — pluggable strategies:
-    - `statement_density.py` — Statement Density (Pack Policies)
-    - `move_to_root.py` — Move to Root Compartment (max 50 statements)
-  - `src/oci_policy_analysis/logic/consolidation_helpers.py` — shared helpers (location rewrite, tag maps, etc.)
+- **Consolidation Engine & Strategies:**  
+  - `src/oci_policy_analysis/logic/consolidation_engine.py`
+  - `src/oci_policy_analysis/logic/consolidation_strategies/`
+      - `statement_density.py`
+      - `move_to_root.py`
+      - `move_closer_to_target.py`
+  - `src/oci_policy_analysis/logic/consolidation_helpers.py`
 
-- **Plan and Step Types:**  
-  - `src/oci_policy_analysis/common/models_consolidation.py` — `ConsolidationPlan`, `PlanStep`, `ProtectedStatementSet`, `CandidateSelectionSet`
-
-- **Overlay Helper APIs and Caching:**  
-  - `src/oci_policy_analysis/common/caching.py` (see: `CacheManager`)
-  - Overlay is stored as: `consolidation_{tenancy_ocid}.json`
+- **Models, Overlay, Cache:**  
+  - `src/oci_policy_analysis/common/models_consolidation.py`
+  - `src/oci_policy_analysis/common/caching.py` (CacheManager)
 
 ---
+
+**This document is canonical—sync codebase changes here as helpers/strategies evolve.**

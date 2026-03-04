@@ -769,7 +769,10 @@ class SettingsTab(BaseUITab):
         self.refresh_cache_list()
 
     def refresh_cache_list(self):
-        """Update the cache list OptionMenu in the Settings tab to reflect the current state."""
+        """Update the cache list OptionMenu in the Settings tab to reflect the current state, preserving selection."""
+        # Save the currently selected value (user's selection)
+        previous_selection = self.cache_var.get()
+
         self.cache_list = self.caching.get_available_cache(None)
         preserved_caches = self.caching.get_preserved_cache_set()
         self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
@@ -780,7 +783,10 @@ class SettingsTab(BaseUITab):
         menu.delete(0, 'end')
         for display_name in self.cache_list_display:
             menu.add_command(label=display_name, command=lambda value=display_name: self.cache_var.set(value))
-        if self.cache_list_display:
+        # Restore previous selection if it's still in the new list, otherwise fallback to first item
+        if previous_selection in self.cache_list_display:
+            self.cache_var.set(previous_selection)
+        elif self.cache_list_display:
             self.cache_var.set(self.cache_list_display[0])
         else:
             self.cache_var.set('No Cache Available')

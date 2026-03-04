@@ -13,5 +13,15 @@
 ##########################################################################
 
 from oci_policy_analysis.logic.consolidation_strategies.base import Strategy
+from oci_policy_analysis.logic.consolidation_strategies.move_closer_to_target import MoveCloserToTargetCompartment
+from oci_policy_analysis.logic.consolidation_strategies.move_into_target import MoveIntoTargetCompartment
+from oci_policy_analysis.logic.consolidation_strategies.move_to_root import MoveToRootCompartment
+from oci_policy_analysis.logic.consolidation_strategies.statement_density import PackPoliciesByStatementDensity
 
-__all__ = ['Strategy']
+__all__ = [
+    'Strategy',
+    'MoveCloserToTargetCompartment',
+    'MoveIntoTargetCompartment',
+    'MoveToRootCompartment',
+    'PackPoliciesByStatementDensity',
+]

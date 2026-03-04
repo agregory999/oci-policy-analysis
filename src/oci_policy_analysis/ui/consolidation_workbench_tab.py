@@ -15,6 +15,7 @@
 # coding: utf-8
 ##########################################################################
 
+import time
 import tkinter as tk
 import tkinter.messagebox as tkmessagebox
 from datetime import UTC, datetime
@@ -94,7 +95,6 @@ class ConsolidationWorkbenchTab(BaseUITab):
     def reload_and_validate_protection_set(self):
         """
         Validate the current protected statements after policy data reload.
-
         When called after tenancy data/policy reload, checks that all internal_ids in the
         protected set are still present in policy data. Any missing statements are logged
         (warning) and removed from protection/candidate sets. UI is automatically refreshed.
@@ -102,6 +102,17 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
+        import time
+
+        timings = []
+        start = time.perf_counter()
+
+        def step(label, fn):
+            t0 = time.perf_counter()
+            fn()
+            t1 = time.perf_counter()
+            timings.append((label, t1 - t0))
+
         logger.info('Validating protected set after policy data reload.')
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         if not repo or not hasattr(repo, 'regular_statements'):
@@ -109,9 +120,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
             return
 
         # Build set of current valid internal_ids
+        t0 = time.perf_counter()
         current_ids = {st.get('internal_id', '') for st in repo.regular_statements if st.get('internal_id', '')}
         before_count = len(self.protected_statement_ids)
         missing_ids = {iid for iid in self.protected_statement_ids if iid not in current_ids}
+        t1 = time.perf_counter()
+        timings.append(('Build valid current_ids + find missing', t1 - t0))
 
         for iid in sorted(missing_ids):
             logger.warning(
@@ -127,15 +141,19 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if changed:
             logger.info('Updating UI after removed protected statements: %s', missing_ids)
 
-        # Always refresh both subtabs so data reflects current repo after any reload
-        self._refresh_filter_protect_table()
-        self._update_selected_statements_table()
-        self._update_protected_display()
-        self._load_candidate_statements()
+        step('_refresh_filter_protect_table', self._refresh_filter_protect_table)
+        step('_update_selected_statements_table', self._update_selected_statements_table)
+        step('_update_protected_display', self._update_protected_display)
+        step('_load_candidate_statements', self._load_candidate_statements)
 
         after_count = len(self.protected_statement_ids)
         logger.info(
             f'Protection set validated after reload. {before_count - after_count} missing internal_id(s) removed; {after_count} protected remain.'
+        )
+        logger.info(
+            'consolidation_tab.reload_and_validate_protection_set timing (seconds): '
+            + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
+            + f' | TOTAL: {time.perf_counter()-start:.2f}s'
         )
 
     def refresh_plan_history_for_tenancy(self):
@@ -499,14 +517,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.plan_status_label = ttk.Label(status_frame, text='', foreground='blue', wraplength=1000, justify='left')
         self.plan_status_label.pack(anchor='w', fill='x')
 
-        # --- Plan notes (editable) and Skipped statements (read-only) ---
+        # --- Plan notes (editable, left) and Skipped statements (read-only, right) ---
         notes_skipped_frame = ttk.Frame(parent)
         notes_skipped_frame.pack(fill='x', padx=10, pady=(2, 4))
 
-        notes_lf = ttk.LabelFrame(notes_skipped_frame, text='Plan notes')
-        notes_lf.pack(fill='x', pady=(0, 4))
-        self.plan_notes_text = tk.Text(notes_lf, height=3, wrap='word', state='normal', width=80)
-        self.plan_notes_text.pack(fill='x', padx=4, pady=4)
+        h_container = ttk.Frame(notes_skipped_frame)
+        h_container.pack(fill='both', expand=True)
+
+        # Left: Plan Notes
+        notes_lf = ttk.LabelFrame(h_container, text='Plan notes')
+        notes_lf.pack(side='left', fill='both', expand=True, padx=(0, 6), pady=(0, 4))
+        self.plan_notes_text = tk.Text(notes_lf, height=6, wrap='word', state='normal', width=45)
+        self.plan_notes_text.pack(fill='both', expand=True, padx=4, pady=4)
         notes_btn_row = ttk.Frame(notes_lf)
         notes_btn_row.pack(fill='x', padx=4, pady=(0, 4))
         ttk.Button(notes_btn_row, text='Save notes to plan', command=self._on_save_plan_notes).pack(
@@ -517,23 +539,24 @@ class ConsolidationWorkbenchTab(BaseUITab):
             'Optional notes for this plan (strategy or your own). Save to persist to plan history.',
         )
 
-        self.skipped_statements_lf = ttk.LabelFrame(notes_skipped_frame, text='Skipped statements (0)')
-        self.skipped_statements_lf.pack(fill='x', pady=(0, 4))
+        # Right: Skipped Statements
+        self.skipped_statements_lf = ttk.LabelFrame(h_container, text='Skipped statements (0)')
+        self.skipped_statements_lf.pack(side='left', fill='both', expand=True, padx=(8, 0), pady=(0, 4))
         self.skipped_statements_tree = ttk.Treeview(
             self.skipped_statements_lf,
             columns=('reason', 'statement_snippet'),
             show='headings',
-            height=4,
+            height=8,
         )
         self.skipped_statements_tree.heading('reason', text='Reason')
         self.skipped_statements_tree.heading('statement_snippet', text='Statement (snippet)')
-        self.skipped_statements_tree.column('reason', width=280)
-        self.skipped_statements_tree.column('statement_snippet', width=500)
+        self.skipped_statements_tree.column('reason', width=260)
+        self.skipped_statements_tree.column('statement_snippet', width=360)
         skipped_scroll = ttk.Scrollbar(
             self.skipped_statements_lf, orient='vertical', command=self.skipped_statements_tree.yview
         )
         self.skipped_statements_tree.configure(yscrollcommand=skipped_scroll.set)
-        self.skipped_statements_tree.pack(side='left', fill='x', expand=True, padx=4, pady=4)
+        self.skipped_statements_tree.pack(side='left', fill='both', expand=True, padx=4, pady=4)
         skipped_scroll.pack(side='right', fill='y', pady=4)
         self.add_context_help(
             self.skipped_statements_lf,
@@ -1047,7 +1070,16 @@ class ConsolidationWorkbenchTab(BaseUITab):
             for i, step in enumerate(plan['plan_steps'], 1):
                 action_key = step.get('action') or ''
                 if action_key == 'add':
-                    policy_compartment = 'ROOT'
+                    # Use correct compartment path if available, otherwise fallback to compartment OCID, otherwise ROOT
+                    comp_obj = (
+                        comp_by_id.get(step.get('compartment_ocid', ''), {}) if step.get('compartment_ocid', '') else {}
+                    )
+                    policy_compartment = (
+                        comp_obj.get('hierarchy_path')
+                        or comp_obj.get('name')
+                        or step.get('compartment_ocid', '')
+                        or 'ROOT'
+                    )
                     pol_name = (step.get('create_policy_name') or 'Consolidated-Root') + ' (suggested)'
                     effective_path = policy_compartment
                     n_stmts = len(step.get('after_statements', []))
@@ -1164,11 +1196,22 @@ class ConsolidationWorkbenchTab(BaseUITab):
         # Show major info in status section
         txt = []
         txt.append(f"Strategy: {run.get('strategy', '')} | Created: {run.get('created_at', '')}")
-        if run.get('step_status'):
-            latest_step = list(run['step_status'].items())[-1]
-            txt.append(
-                f"Latest step: {latest_step[0]} [{latest_step[1].get('status')}] at {latest_step[1].get('generated_at', '')}"
-            )
+        step_status = run.get('step_status') or {}
+        progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else {}
+        # Find the latest real executed step (not 'proposal') or fallback
+        real_steps = [k for k in step_status.keys() if k != 'proposal']
+        if real_steps:
+            last_key = real_steps[-1]
+            step_info = step_status[last_key]
+            txt.append(f"Latest step: {last_key} [{step_info.get('status')}] at {step_info.get('generated_at', '')}")
+        elif progress:
+            # Fallback if using progress step_id keys
+            executed = [k for k, v in progress.items() if v.get('executed')]
+            if executed:
+                last_key = executed[-1]
+                txt.append(f"Latest executed step: {last_key} at {progress[last_key].get('executed_at', '')}")
+        else:
+            txt.append('Latest step: (not started)')
         self.plan_status_label.config(text=' | '.join(txt))
         plan = run.get('plan')
         if plan:
@@ -1322,11 +1365,14 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
+        timings = []
+        start = time.perf_counter()
         pfilter = self.policy_search_var.get().strip().lower()
         sfilter = self.statement_search_var.get().strip().lower()
         logger.debug(
             "Refreshing filter for protection table with policy filter '%s', statement filter '%s'.", pfilter, sfilter
         )
+        t0 = time.perf_counter()
         filtered = []
         for d in self.protection_full_data:
             pname = d['Policy Name'].lower() if d['Policy Name'] else ''
@@ -1338,9 +1384,22 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 d_checked['checked'] = iid in self.protect_table_selected_ids
                 filtered.append(d_checked)
                 logger.debug('Filtering result: %s', d_checked)
+        t1 = time.perf_counter()
+        timings.append(('Loop/data filter', t1 - t0))
+        t2 = time.perf_counter()
         self.protect_table.update_data(filtered)
+        t3 = time.perf_counter()
+        timings.append(('update_data (CheckboxTable)', t3 - t2))
+        t4 = time.perf_counter()
         self._update_selected_statements_table()
+        t5 = time.perf_counter()
+        timings.append(('_update_selected_statements_table', t5 - t4))
         logger.debug('Protection table filtered: now shows %d statements.', len(filtered))
+        logger.info(
+            '_refresh_filter_protect_table timing (seconds): '
+            + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
+            + f' | TOTAL: {time.perf_counter()-start:.2f}s'
+        )
 
     def _on_mark_as_protected(self, selected_rows):
         """Set protected statements from current selection; persist to cache and refresh UI.

@@ -698,101 +698,143 @@ class PoliciesTab(BaseUITab):
 
     def update_policy_output(self, *args):  # noqa: C901
         """Update the policy output based on current filters."""
-        if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name'):
-            self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
-        else:
-            self.tenancy_name_var.set('Please Load a Tenancy')
+        import time
 
-        # Build filter dict for new call to filter
-        filters: PolicySearch = {}
-        if self.subject_filter_var.get():
-            filters['subject'] = self.subject_filter_var.get().split('|')
-        # Action filter
-        action_value = self.action_filter_var.get().lower()
-        if action_value == 'allow':
-            filters['action'] = ['allow']
-        elif action_value == 'deny':
-            filters['action'] = ['deny']
-        else:  # both
-            filters['action'] = ['allow', 'deny', 'unknown']
+        timings = []
+        start = time.perf_counter()
 
-        # Verb filter
-        if self.verb_filter_var.get():
-            allowed_verbs = {'inspect', 'read', 'use', 'manage'}
-            verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
-            if verbs:
-                filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
-        if self.resource_filter_var.get():
-            filters['resource'] = self.resource_filter_var.get().split('|')
-        if self.location_filter_var.get():
-            filters['location'] = self.location_filter_var.get().split('|')
-        if self.hierarchy_filter_var.get():
-            filters['policy_compartment'] = (
-                ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
-            )
-        # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
-        if self.text_filter_var.get():
-            filters['statement_text'] = self.text_filter_var.get().split('|')
-        if self.policy_filter_var.get():
-            filters['policy_name'] = self.policy_filter_var.get().split('|')
-        if self.effective_path_var.get():
-            filters['effective_path'] = self.effective_path_var.get().split('|')
-        if self.condition_filter_var.get():
-            filters['conditions'] = self.condition_filter_var.get().split('|')
-            pass
-        if self.chk_show_invalid.get():
-            filters['valid'] = False
-            logger.debug('Filtering for invalid policies only')
+        def step(label, fn):
+            t0 = time.perf_counter()
+            result = fn()
+            t1 = time.perf_counter()
+            timings.append((label, t1 - t0))
+            return result
 
-        logger.info(f'Applying policy filters: {filters}')
-        filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
-        logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
-
-        # Apply additional filters for output
-        normalized_statements = [for_display_policy(st) for st in filtered_statements]
-        filtered_statements = normalized_statements
-
-        # Open up all policy types if invalid is checked
-        if self.chk_show_invalid.get():
-            self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
-            self.chk_show_service.set(True)
-            self.chk_show_dynamic.set(True)
-            self.chk_show_resource.set(True)
-            self.chk_show_regular.set(True)
-            logger.debug('Setting policy table to expanded view with invalid columns and undo other output filters')
-        else:
-            self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with basic columns')
-
-        # If expanded is checked, show all columns no matter what
-        if self.chk_show_expanded.get():
-            self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with all columns')
-
-        # Determine which rows to show based on checkboxes
-        rows_to_show: list = [
-            st
-            for st in filtered_statements
-            if (
-                self.chk_show_service.get()
-                and st.get('Subject Type') == 'service'
-                or self.chk_show_dynamic.get()
-                and st.get('Subject Type') == 'dynamic-group'
-                or self.chk_show_resource.get()
-                and st.get('Subject Type') == 'resource'
-                or self.chk_show_regular.get()
-                and st.get('Subject Type') in ['group', 'any-user', 'any-group']
-                or self.chk_show_invalid.get()
-                and (not st.get('Valid') or not st.get('Parsed'))
-            )
-        ]
-        self.label_policy_count.config(
-            text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
+        # UI: tenancy label update
+        step(
+            'set tenancy_name_var',
+            lambda: (
+                self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
+                if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name')
+                else self.tenancy_name_var.set('Please Load a Tenancy')
+            ),
         )
-        # Populate Data Table
-        logger.debug(rows_to_show)
-        self.policy_table.update_data(rows_to_show)
-        logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
+
+        # Filters dict build
+        def _build_filters():  # noqa: C901
+            filters: PolicySearch = {}
+            if self.subject_filter_var.get():
+                filters['subject'] = self.subject_filter_var.get().split('|')
+            action_value = self.action_filter_var.get().lower()
+            if action_value == 'allow':
+                filters['action'] = ['allow']
+            elif action_value == 'deny':
+                filters['action'] = ['deny']
+            else:
+                filters['action'] = ['allow', 'deny', 'unknown']
+            if self.verb_filter_var.get():
+                allowed_verbs = {'inspect', 'read', 'use', 'manage'}
+                verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
+                if verbs:
+                    filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
+            if self.resource_filter_var.get():
+                filters['resource'] = self.resource_filter_var.get().split('|')
+            if self.location_filter_var.get():
+                filters['location'] = self.location_filter_var.get().split('|')
+            if self.hierarchy_filter_var.get():
+                filters['policy_compartment'] = (
+                    ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
+                )
+            if self.text_filter_var.get():
+                filters['statement_text'] = self.text_filter_var.get().split('|')
+            if self.policy_filter_var.get():
+                filters['policy_name'] = self.policy_filter_var.get().split('|')
+            if self.effective_path_var.get():
+                filters['effective_path'] = self.effective_path_var.get().split('|')
+            if self.condition_filter_var.get():
+                filters['conditions'] = self.condition_filter_var.get().split('|')
+            if self.chk_show_invalid.get():
+                filters['valid'] = False
+                logger.debug('Filtering for invalid policies only')
+            return filters
+
+        filters = step('build filters', _build_filters)
+
+        step('log filter info', lambda: logger.info(f'Applying policy filters: {filters}'))
+
+        # Data filtering
+        filtered_statements = step(
+            'filter_policy_statements (main data filter)',
+            lambda: self.policy_repo.filter_policy_statements(filters=filters),
+        )
+        step(
+            'log count after filter',
+            lambda: logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}'),
+        )
+
+        # Normalization
+        filtered_statements = step(
+            'normalize for display', lambda: [for_display_policy(st) for st in filtered_statements]
+        )
+
+        # Output columns/view update
+        def _view_config():
+            if self.chk_show_invalid.get():
+                self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
+                self.chk_show_service.set(True)
+                self.chk_show_dynamic.set(True)
+                self.chk_show_resource.set(True)
+                self.chk_show_regular.set(True)
+                logger.debug('Setting policy table to expanded view with invalid columns and undo other output filters')
+            else:
+                self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
+                logger.debug('Setting policy table to expanded view with basic columns')
+            if self.chk_show_expanded.get():
+                self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
+                logger.debug('Setting policy table to expanded view with all columns')
+
+        step('output column/view config', _view_config)
+
+        # Row filter by toggles (checkboxes)
+        def _row_filter():
+            return [
+                st
+                for st in filtered_statements
+                if (
+                    self.chk_show_service.get()
+                    and st.get('Subject Type') == 'service'
+                    or self.chk_show_dynamic.get()
+                    and st.get('Subject Type') == 'dynamic-group'
+                    or self.chk_show_resource.get()
+                    and st.get('Subject Type') == 'resource'
+                    or self.chk_show_regular.get()
+                    and st.get('Subject Type') in ['group', 'any-user', 'any-group']
+                    or self.chk_show_invalid.get()
+                    and (not st.get('Valid') or not st.get('Parsed'))
+                )
+            ]
+
+        rows_to_show = step('toggle row visibility', _row_filter)
+
+        # Count label update
+        step(
+            'update label_policy_count',
+            lambda: self.label_policy_count.config(
+                text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
+            ),
+        )
+
+        # DataTable update
+        step('update DataTable', lambda: self.policy_table.update_data(rows_to_show))
+
+        step('log final info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements'))
+
+        t_total = time.perf_counter() - start
+        logger.info(
+            'policies_tab.update_policy_output timing (seconds): '
+            + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
+            + f' | TOTAL: {t_total:.2f}s'
+        )
 
     def enable_widgets_after_load(self):
         """Enable widgets after load."""

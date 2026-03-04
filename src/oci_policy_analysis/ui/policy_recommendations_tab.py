@@ -884,7 +884,7 @@ class PolicyRecommendationsTab(BaseUITab):
         ttk.Button(btn_frame, text='Re-show all', command=re_show_all).pack(side='left', padx=(0, 8))
         ttk.Button(btn_frame, text='Cancel', command=dialog.destroy).pack(side='left')
 
-    def _build_cleanup_tab(self, parent):
+    def _build_cleanup_tab(self, parent):  # noqa: C901
         """
         Build the Cleanup / Fix notebook sub-tab using CheckboxTable for issues/actions.
         Which cleanup checks run is controlled in Settings > Recommendation / Consolidation.
@@ -907,11 +907,21 @@ class PolicyRecommendationsTab(BaseUITab):
             'Open a list of cleanup items you previously ignored. Choose which to re-show in the table (removes from ignored).',
         )
 
-        def on_take_action(selected):
+        def on_take_delete_action(selected):
             if not selected:
-                tkinter.messagebox.showinfo('No selection', 'Select one or more cleanup items, then click Take Action.')
+                tkinter.messagebox.showinfo('No selection', 'Select one or more cleanup items, then try again.')
                 return
-            actions = self._build_cleanup_workbench_actions(selected)
+            actions = self._build_cleanup_delete_workbench_actions(selected)
+            if actions:
+                self._add_workbench_actions(actions)
+            else:
+                tkinter.messagebox.showinfo('No actions', 'Could not build actions for the selected items.')
+
+        def on_take_fix_action(selected):
+            if not selected:
+                tkinter.messagebox.showinfo('No selection', 'Select one or more cleanup items, then try again.')
+                return
+            actions = self._build_cleanup_fix_workbench_actions(selected)
             if actions:
                 self._add_workbench_actions(actions)
             else:
@@ -930,21 +940,117 @@ class PolicyRecommendationsTab(BaseUITab):
             self._save_ignored_cleanup_keys_to_state()
             self.update_cleanup_tab_output()
 
+        def row_context_menu_callback(row_index):
+            row = self.cleanup_table.data[row_index]
+            t = row.get('Type', '')
+            # Select menu label based on item type
+            if t == 'Invalid Statement' or t == 'Any-user Without Where' or t == 'Overly Broad Statement':
+                label = 'Policy Statement Detail'
+            elif t == 'Group w/ No Users':
+                label = 'Group Detail'
+            elif t == 'Unused Dynamic Group':
+                label = 'Dynamic Group Detail'
+            else:
+                label = 'Detail'
+            menu = tk.Menu(self.cleanup_table, tearoff=0)
+            menu.add_command(label=label, command=lambda: self._on_focus_cleanup_row(row))
+            return menu
+
         self.cleanup_table = CheckboxTable(
             parent,
             columns=self.cleanup_columns,
             data=self._get_cleanup_issues(),
             column_widths=cleanup_column_widths,
             display_columns=cleanup_display_columns,
-            action_buttons=[('Take Action', on_take_action), ('Ignore Selected', on_ignore_selected)],
+            action_buttons=[
+                ('Delete', on_take_delete_action),
+                ('Attempt Fix', on_take_fix_action),
+                ('Ignore Selected', on_ignore_selected),
+            ],
             enable_select_all=True,
             checked_by_default=False,
+            row_context_menu_callback=row_context_menu_callback,
         )
         # Make the table (and thus all internal widgets) expand to full width
         self.cleanup_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
         self.add_context_help(self.cleanup_table, 'Select and resolve security hygiene issues for policies.')
 
-        # Anchor Take Action button to always be visible at the bottom (also part of CheckboxTable, but double-sure)
+    def _on_focus_cleanup_row(self, row):  # noqa: C901
+        """
+        Handle the 'Focus' action from right-click menu on a cleanup row.
+        Navigates to the relevant tab and focuses/searches as appropriate.
+        """
+        t = row.get('Type', '')
+        name = row.get('Name', '')
+
+        # Defensive fallback to message
+        fallback_msg = f'Focus action is not fully implemented for this item.\n\nType: {t}\nName: {name}'
+
+        # Policy statement cleanup types
+        policy_types = ('Invalid Statement', 'Any-user Without Where', 'Overly Broad Statement')
+        if t in policy_types:
+            # Switch to main Policy Analysis tab, then Policy Statements subview if possible
+            try:
+                # Switch to main Policy Analysis tab (top-level, NOT this subnotebook!)
+                self.app.notebook.select(tab_id=2)  # Policy Analysis tab
+                logger.info(f'Switching to Policy Analysis tab for policy: {name}, type: {t}')
+                # Enable checkboxes for output
+                self.app.policies_tab.chk_show_dynamic.set(True)
+                self.app.policies_tab.chk_show_service.set(True)
+                # Set the filter for text
+                self.app.policies_tab.text_filter_var.set(name)
+                # Update the policy statements table to apply the filter and show results
+                self.app.policies_tab.update_policy_output()
+
+            except Exception as ex:
+                tkinter.messagebox.showinfo('Policy Statement Detail', f'Could not focus Policy Analysis tab: {ex}')
+            return
+
+        # Unused group cleanup
+        if t == 'Group w/ No Users':
+            try:
+                # Switch to main Groups tab at top level, not recommendations notebook
+                self.app.notebook.select(tab_id=3)  # Groups tab
+                # Set the filter in the Groups tab to the group name (which may require parsing if name includes path)
+                group_name = name.split('/', 1)[-1] if '/' in name else name
+                if hasattr(self.app, 'groups_tab') and hasattr(self.app.groups_tab, 'group_filter_var'):
+                    self.app.groups_tab.group_filter_var.set(group_name)
+                    if hasattr(self.app.groups_tab, 'update_output'):
+                        self.app.groups_tab.update_output()
+                else:
+                    tkinter.messagebox.showinfo(
+                        'Group Detail',
+                        f"Switched to Groups tab but could not set filter for '{group_name}'. Please search manually.",
+                    )
+
+            except Exception as ex:
+                tkinter.messagebox.showinfo('Group Detail', f'Could not focus Group tab: {ex}')
+            return
+
+        # Unused dynamic group
+        if t == 'Unused Dynamic Group':
+            try:
+                # Switch to main Dynamic Groups tab at top level, not recommendations notebook
+                self.app.notebook.select(tab_id=4)  # Dynamic Groups tab
+                # set the filter in the Dynamic Groups tab to the group name (which may require parsing if name includes path)
+                group_name = name.split('/', 1)[-1] if '/' in name else name
+                if hasattr(self.app, 'dynamic_groups_tab') and hasattr(self.app.dynamic_groups_tab, 'dg_filter_var'):
+                    self.app.dynamic_groups_tab.dg_filter_var.set(group_name)
+                    if hasattr(self.app.dynamic_groups_tab, 'update_output'):
+                        self.app.dynamic_groups_tab.update_output()
+                else:
+                    tkinter.messagebox.showinfo(
+                        'Dynamic Group Detail',
+                        f"Switched to Dynamic Groups tab but could not set filter for '{group_name}'. Please search manually.",
+                    )
+            except Exception as ex:
+                tkinter.messagebox.showinfo('Dynamic Group Detail', f'Could not focus Dynamic Groups: {ex}')
+            return
+
+        # Fallback: notify user
+        tkinter.messagebox.showinfo('Detail', fallback_msg)
+
+        # Anchor Delete button to always be visible at the bottom (also part of CheckboxTable, but double-sure)
         # This is handled by CheckboxTable, but if you have a custom action bar, you would add it here.
 
     def _build_recommendation_workbench_tab(self, parent):
@@ -1105,7 +1211,7 @@ class PolicyRecommendationsTab(BaseUITab):
         if hasattr(self, 'workbench_table'):
             self.workbench_table.update_data(rows)
 
-    def _build_cleanup_workbench_actions(self, selected_rows):
+    def _build_cleanup_fix_workbench_actions(self, selected_rows):
         """Build workbench action dicts from selected cleanup table rows (with action_key and _cleanup_payload_by_key)."""
         actions = []
         payloads = getattr(self, '_cleanup_payload_by_key', {})
@@ -1127,8 +1233,65 @@ class PolicyRecommendationsTab(BaseUITab):
 
             if cleanup_type == 'invalid_statement':
                 po = payload.get('policy_ocid') or ''
-                ui = f'In OCI Console: Identity & Security > Policies > find policy (OCID: {po}). Edit and remove or fix the invalid statement.'
+                ui = f'In OCI Console: Identity & Security > Policies > find policy (OCID: {po}). Edit or fix the invalid statement.'
                 cli = f'# Get current policy and edit statements, then update:\noci iam policy get --policy-id {po}'
+                rollback = (
+                    f"Re-add the statement via Console or: oci iam policy update --policy-id {po} --statements '[...]'"
+                )
+            elif cleanup_type == 'unused_group':
+                go = payload.get('group_ocid') or ''
+                ui = f'In OCI Console: Identity & Security > Groups (or Identity Domains) > find group (OCID: {go}) and delete or assign users.'
+                cli = f'# Delete unused group (Identity Domains): use Console or API; OCID: {go}'
+                rollback = 'Re-create the group in Console if needed.'
+            elif cleanup_type == 'unused_dynamic_group':
+                do = payload.get('dynamic_group_ocid') or ''
+                ui = f'In OCI Console: Identity & Security > Dynamic Groups > find (OCID: {do}) and delete.'
+                cli = f'# Delete dynamic group via Console; OCID: {do}'
+                rollback = 'Re-create the dynamic group in Console if needed.'
+            elif cleanup_type in ('statement_too_open', 'anyuser_no_where'):
+                po = payload.get('policy_ocid') or ''
+                ui = f'In OCI Console: Identity & Security > Policies > find policy (OCID: {po}). Edit statement to restrict scope or add WHERE clause.'
+                cli = f'# Get policy and edit statement, then update:\noci iam policy get --policy-id {po}'
+                rollback = (
+                    f"Revert the statement via Console or: oci iam policy update --policy-id {po} --statements '[...]'"
+                )
+
+            actions.append(
+                {
+                    'Source': 'Cleanup/Fix',
+                    'Type': issue_type,
+                    'Description': desc,
+                    'cli_command': cli,
+                    'rollback_command': rollback,
+                    'ui_instructions': ui,
+                }
+            )
+        return actions
+
+    def _build_cleanup_delete_workbench_actions(self, selected_rows):
+        """Build workbench action dicts from selected cleanup table rows (with action_key and _cleanup_payload_by_key)."""
+        actions = []
+        payloads = getattr(self, '_cleanup_payload_by_key', {})
+        for row in selected_rows:
+            action_key = row.get('action_key')
+            if not action_key:
+                continue
+            payload = payloads.get(action_key)
+            if not payload:
+                continue
+            cleanup_type = payload.get('cleanup_type', '')
+            issue_type = row.get('Type', '')
+            desc = (row.get('Name') or '')[:120]
+            if payload.get('policy_name'):
+                desc = f"{payload.get('policy_name', '')}: {desc}"
+            cli = ''
+            rollback = ''
+            ui = ''
+
+            if cleanup_type == 'invalid_statement':
+                po = payload.get('policy_ocid') or ''
+                ui = f'In OCI Console: Identity & Security > Policies > find policy (OCID: {po}). Remove the invalid statement. If the policy only has the invalid statement, delete the entire policy.'
+                cli = f'# Get current policy and remove statements, then update:\noci iam policy get --policy-id {po}\n# If the policy only has the invalid statement, delete the entire policy:\noci iam policy delete --policy-id {po}'
                 rollback = (
                     f"Re-add the statement via Console or: oci iam policy update --policy-id {po} --statements '[...]'"
                 )

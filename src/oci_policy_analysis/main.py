@@ -157,6 +157,7 @@ class App(tk.Tk):
         self.reference_data_repo = ReferenceDataRepo()
         self.reference_data_repo.load_data()
         self.policy_compartment_analysis = PolicyAnalysisRepository()
+        self.policy_compartment_analysis.settings = self.settings  # Inject settings for advanced logging
         self.policy_compartment_analysis.permission_reference_repo = (
             self.reference_data_repo
         )  # Inject reference data repo into main repo for access during loading and analysis
@@ -491,25 +492,58 @@ class App(tk.Tk):
 
     def _post_load_update_ui(self):
         """Internal: Re-enable and update UI components after data load."""
-        self.users_tab.update_user_analysis_output()
-        self.users_tab.update_users_dropdown_options()
-        self.policies_tab.update_policy_output()
-        self.policies_tab.enable_widgets_after_load()
-        self.policy_browser_tab.refresh_tree()
-        self.dynamic_groups_tab.enable_controls()
-        self.cross_tenancy_tab.update_cross_tenancy_output()
-        self.resource_principals_tab.update_principals_sheets()
-        self.historical_tab.populate_cache_dropdowns(tenancy_name=self.policy_compartment_analysis.tenancy_name)
-        self.dynamic_groups_tab.enable_controls()
-        self.permissions_report_tab.enable_widgets_after_load()
-        self.simulation_tab.refresh_dropdowns()
-        # Immediately update analytics tab with new data
-        self.policy_recommendations_tab.reload_all_analytics()
-        self.consolidation_tab.load_policies_and_statements()
-        # --- Validate protected set and refresh plan history for this tenancy ---
+        import time
+
+        timings = []
+        start = time.perf_counter()
+
+        def step(label, fn):
+            t0 = time.perf_counter()
+            fn()
+            t1 = time.perf_counter()
+            elapsed = t1 - t0
+            timings.append((label, elapsed))
+            # Log at CRITICAL if always_log_timings, else INFO
+            log_critical = self.settings.get('always_log_timings', False)
+            msg = f'[UI Timing] {label}: {elapsed:.2f}s'
+            if log_critical:
+                logger.critical(msg)
+            else:
+                logger.info(msg)
+
+        step('users_tab.update_user_analysis_output', self.users_tab.update_user_analysis_output)
+        step('users_tab.update_users_dropdown_options', self.users_tab.update_users_dropdown_options)
+        step('policies_tab.update_policy_output', self.policies_tab.update_policy_output)
+        step('policies_tab.enable_widgets_after_load', self.policies_tab.enable_widgets_after_load)
+        step('policy_browser_tab.refresh_tree', self.policy_browser_tab.refresh_tree)
+        step('dynamic_groups_tab.enable_controls', self.dynamic_groups_tab.enable_controls)
+        step('cross_tenancy_tab.update_cross_tenancy_output', self.cross_tenancy_tab.update_cross_tenancy_output)
+        step('resource_principals_tab.update_principals_sheets', self.resource_principals_tab.update_principals_sheets)
+        step(
+            'historical_tab.populate_cache_dropdowns',
+            lambda: self.historical_tab.populate_cache_dropdowns(
+                tenancy_name=self.policy_compartment_analysis.tenancy_name
+            ),
+        )
+        step('dynamic_groups_tab.enable_controls (again)', self.dynamic_groups_tab.enable_controls)
+        step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
+        step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
+        step('policy_recommendations_tab.reload_all_analytics', self.policy_recommendations_tab.reload_all_analytics)
+        step('consolidation_tab.load_policies_and_statements', self.consolidation_tab.load_policies_and_statements)
         if hasattr(self, 'consolidation_tab'):
-            self.consolidation_tab.reload_and_validate_protection_set()
-            self.consolidation_tab.refresh_plan_history_for_tenancy()
+            step(
+                'consolidation_tab.reload_and_validate_protection_set',
+                self.consolidation_tab.reload_and_validate_protection_set,
+            )
+            step(
+                'consolidation_tab.refresh_plan_history_for_tenancy',
+                self.consolidation_tab.refresh_plan_history_for_tenancy,
+            )
+        logger.info(
+            'UI post-load timing (seconds): '
+            + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
+            + f' | TOTAL: {time.perf_counter() - start:.2f}s'
+        )
         logger.info('All tabs reloaded after data load.')
 
     def reload_policies_and_compartments_and_update_cache(self):
@@ -709,13 +743,19 @@ class App(tk.Tk):
                 if callback:
                     cb = callback.get('progress')
                     if cb is not None and callable(cb):
-                        self.after(
-                            300,
-                            lambda cb=cb, m='Running post-load policy intelligence analyses': cb(message=m),
-                        )
+                        self.after(300, lambda cb=cb, m='Running post-load policy intelligence analyses': cb(message=m))
 
                 # Run post-load intelligence analysis
                 self._post_load_create_intelligence()
+
+                # Tabs Loading Message
+                if callback:
+                    cb = callback.get('progress')
+                    if cb is not None and callable(cb):
+                        self.after(300, lambda cb=cb, m='Populating Tab Data': cb(message=m))
+
+                # Force tabs to update with new data (users, policies, compartments, cross-tenancy, etc)
+                self._post_load_update_ui()
 
                 # Show completion message
                 if callback:
@@ -725,7 +765,6 @@ class App(tk.Tk):
 
                 logger.info('Tenancy Load complete. Reloading all tabs')
 
-                self._post_load_update_ui()
                 # Ensure status bar accurately reflects finalized repo state
                 self.after(0, self.update_status_bar)
             finally:

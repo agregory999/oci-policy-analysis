@@ -13,22 +13,25 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep, SkippedStatement
 from oci_policy_analysis.logic.consolidation_helpers import (
+    effective_path_segments_for_rewrite,
     flatten_defined_tags,
     internal_id_to_statement,
+    normalize_compartment_path_segments,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
-    rewrite_statement_location_for_target,
+    rewritten_location_for_target,
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
-logger = get_logger(component='consolidation_strategies.move_to_root')
+logger = get_logger(component='consolidation_strategies')
 
 # OCI limit: max statements per policy
 MAX_STATEMENTS_MOVE_TO_ROOT = 50
@@ -142,12 +145,21 @@ class MoveToRootCompartment:
             raw = (st.get('statement_text') or '').strip()
             if not raw:
                 continue
-            rewritten, note = rewrite_statement_location_for_target(raw, st, ROOT_PATH)
+            eff_segments = effective_path_segments_for_rewrite(st, st.get('location', ''))
+            tgt_segments = normalize_compartment_path_segments(ROOT_PATH)
+            new_location = rewritten_location_for_target(eff_segments, tgt_segments)
+            match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
+            if match:
+                prefix = raw[: match.start(1)]
+                suffix = raw[match.end(1) :]
+                rewritten = f'{prefix}{new_location}{suffix}'
+            else:
+                rewritten = raw
             if rewritten and rewritten not in seen_text:
                 seen_text.add(rewritten)
                 rewritten_texts.append(rewritten)
-            if note:
-                location_change_notes.append(note)
+            note = f'NOTE: location changed to {new_location} when moved to policy at ROOT.'
+            location_change_notes.append(note)
 
         create_policy_name = f'Consolidated-Root-{plan_id[:16]}' if plan_id else 'Consolidated-Root'
         create_policy_description = (

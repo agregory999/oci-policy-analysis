@@ -168,11 +168,7 @@ class PolicyBrowserTab(BaseUITab):
         # Gather data from repo
         compartments = self.policy_repo.compartments or []
         policies = self.policy_repo.policies or []
-        statements = (
-            (self.policy_repo.regular_statements or [])
-            + (self.policy_repo.defined_aliases or [])
-            + (self.policy_repo.cross_tenancy_statements or [])
-        )
+
         # Helper: recursively filter hierarchy and collect node info for tree
         children_by_parent = {}
         for c in compartments:
@@ -186,16 +182,9 @@ class PolicyBrowserTab(BaseUITab):
             if comp_ocid not in policies_by_compartment:
                 policies_by_compartment[comp_ocid] = []
             policies_by_compartment[comp_ocid].append(p)
-        statements_by_policy = {}
-        for s in statements:
-            policy_name = s.get('policy_name')
-            if not policy_name:
-                continue
-            if policy_name not in statements_by_policy:
-                statements_by_policy[policy_name] = []
-            statements_by_policy[policy_name].append(s)
 
-        # Recursive filter
+        # -- Remove old statements_by_policy; search logic now uses correct filter by policy/compartment --
+
         def highlight(text):
             """Return text with query bolded (with ***), case-insensitive."""
             if not query or not text:
@@ -207,22 +196,7 @@ class PolicyBrowserTab(BaseUITab):
             before = text[:idx]
             match = text[idx : idx + len(query)]
             after = text[idx + len(query) :]
-            # Simple: wrap with ***
             return before + '***' + match + '***' + after
-
-        def search_statements(policy_name):
-            """Return list of stmts with highlight if matching, else empty if none match query."""
-            stmts = statements_by_policy.get(policy_name, [])
-            # Each: ("Statement: ...", highlight) or None
-            results = []
-            for s in stmts:
-                stmt_txt = s.get('statement_text', '(No statement text)')
-                if query in stmt_txt.lower():
-                    results.append(('Statement: ' + highlight(stmt_txt), True))
-                else:
-                    # Still show if parent path matches, but not highlighted
-                    results.append(('Statement: ' + stmt_txt, False))
-            return [r for r in results if r[1]]
 
         def recurse_compartments(parent_ocid):
             nodes = []
@@ -236,29 +210,31 @@ class PolicyBrowserTab(BaseUITab):
                 policies_here = policies_by_compartment.get(comp_id_val, [])
                 for p in policies_here:
                     pol_name = p.get('policy_name', '(Unnamed Policy)')
-                    # policy_ocid = p.get('policy_ocid', 'unknown_ocid')
+                    # Match policy name against search
                     match_policy = query in pol_name.lower()
                     highlight_policy_name = highlight(pol_name) if match_policy else pol_name
-                    # Filter statements
+
+                    # Filter statements with the correct compartment/policy pair
+                    filter_dict = {'policy_name': [pol_name]}
+                    if comp_id_val:
+                        filter_dict['compartment_ocid'] = [comp_id_val]
+                    stmts = self.policy_repo.filter_policy_statements(filter_dict)
                     highlight_stmts = []
-                    for s in statements_by_policy.get(pol_name, []):
+                    for s in stmts:
                         stmt_txt = s.get('statement_text', '(No statement text)')
-                        match_stmt = query in stmt_txt.lower()
-                        if match_stmt:
+                        if query in stmt_txt.lower():
                             highlight_stmts.append(('Statement: ' + highlight(stmt_txt), True))
                     if match_policy or highlight_stmts:
                         nodes_policies.append(
                             (
                                 highlight_policy_name,  # Policy (possibly highlighted)
-                                highlight_stmts,  # Always only matching stmts
+                                highlight_stmts,  # Only matching stmts
                             )
                         )
                 # Descendant compartments
                 descendant_nodes = recurse_compartments(comp_id_val)
-                # If anything below (or this) matches, include
                 if match_this or nodes_policies or descendant_nodes:
                     out = {
-                        # Add counts to compartment display string
                         'comp_name': (highlight(comp_name) if match_this else comp_name),
                         'statement_count_direct': c.get('statement_count_direct', 0),
                         'statement_count_cumulative': c.get('statement_count_cumulative', 0),
@@ -364,25 +340,16 @@ class PolicyBrowserTab(BaseUITab):
             f'policies_by_compartment keys (comp_ocids): {list(policies_by_compartment.keys())[:10]}... (showing up to 10)'
         )
 
-        # Build statement mapping: policy name → [statements]
-        statements_by_policy = {}
-        for s in statements:
-            policy_name = s.get('policy_name')
-            if not policy_name:
-                continue
-            if policy_name not in statements_by_policy:
-                statements_by_policy[policy_name] = []
-            statements_by_policy[policy_name].append(s)
+        # -- REMOVE old statements_by_policy mapping --
+        # Instead, will fetch statements per-policy per-compartment below
 
-        logger.info(
-            f'statements_by_policy keys (policy names): {list(statements_by_policy.keys())[:10]}... (showing up to 10)'
-        )
+        logger.info('Ready to build policy browser tree using filtered statements per policy/compartment.')
 
         # Treeview: recursively insert compartments, their policies, then statements
 
-        def insert_compartment_tree(parent_id, parent_ocid):
+        def insert_compartment_tree(parent_id, parent_ocid):  # noqa: C901
             children = children_by_parent.get(parent_ocid, [])
-            logger.info(f'Inserting {len(children)} compartments with parent_id={parent_ocid}')
+            logger.debug(f'Inserting {len(children)} compartments with parent_id={parent_ocid}')
             for c in children:
                 comp_id_val = c.get('id')
                 if not comp_id_val:
@@ -394,7 +361,7 @@ class PolicyBrowserTab(BaseUITab):
                 cumulative_count = c.get('statement_count_cumulative', 0)
                 comp_display = f'Compartment: {comp_name}'
                 comp_node = self.tree.insert(parent_id, 'end', text=comp_display, open=True)
-                logger.info(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
+                logger.debug(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
 
                 # Add separate policy count node
                 counts_display = f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}'
@@ -416,14 +383,15 @@ class PolicyBrowserTab(BaseUITab):
                 # Only add "Policies" node if there are policies here
                 if len(policies_here) > 0:
                     policies_parent = self.tree.insert(comp_node, 'end', text='Policies', open=False)
-                    logger.info(
+                    logger.debug(
                         f'Inserting {len(policies_here)} policies under compartment {comp_name} (id={comp_id_val})'
                     )
                     for p in policies_here:
                         pol_name = p.get('policy_name', '(Unnamed Policy)')
                         policy_ocid = p.get('policy_ocid', 'unknown_ocid')
+                        compartment_ocid = p.get('compartment_ocid', None)
                         pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=False)
-                        logger.info(f'Inserted policy: {pol_name} (ocid={policy_ocid}) under compartment {comp_name}')
+                        logger.debug(f'Inserted policy: {pol_name} (ocid={policy_ocid}) under compartment {comp_name}')
 
                         # If policy contains tags, show them as expandable child node
                         tags = p.get('tags') or {}
@@ -432,14 +400,20 @@ class PolicyBrowserTab(BaseUITab):
                             for k, v in sorted(tags.items()):
                                 self.tree.insert(tags_node, 'end', text=f'{k}: {v}', open=False)
 
-                        # Statements for this policy
-                        stmts = statements_by_policy.get(pol_name, [])
-                        logger.info(f'Inserting {len(stmts)} statements under policy {pol_name}')
+                        # Fetch and display only the correct statements for this policy/compartment pair
+                        filter_dict = {'policy_name': [pol_name]}
+                        if compartment_ocid:
+                            filter_dict['compartment_ocid'] = [compartment_ocid]
+                        stmts = self.policy_repo.filter_policy_statements(filter_dict)
+                        logger.debug(
+                            f'Inserting {len(stmts)} statements under policy {pol_name} in compartment {compartment_ocid}'
+                        )
                         for s in stmts:
                             stmt_txt = s.get('statement_text', '(No statement text)')
-                            # statement_brief = (stmt_txt[:120] + '...') if len(stmt_txt) > 120 else stmt_txt
                             self.tree.insert(pol_node, 'end', text=f'Statement: {stmt_txt}', open=False)
-                            logger.debug(f'Inserted statement under policy {pol_name}: {stmt_txt!r}')
+                            logger.debug(
+                                f'Inserted statement under policy {pol_name} in {compartment_ocid}: {stmt_txt!r}'
+                            )
 
                 insert_compartment_tree(comp_node, comp_id_val)
 

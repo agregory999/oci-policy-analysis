@@ -380,7 +380,7 @@ class CacheManager:
                     return None
             return None
 
-        dated_files = [(parse_date_from_file(f), f) for f in cache_files if parse_date_from_file(f)]
+        dated_files = [(dt, f) for f in cache_files if (dt := parse_date_from_file(f)) is not None]
         dated_files.sort(key=lambda x: x[0], reverse=True)
         to_delete = [f for dt, f in dated_files[10:] if f.name not in preserved_files]
         pruned = 0
@@ -764,7 +764,7 @@ class CacheManager:
                     f.write(line)
         return updated
 
-    def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str):
+    def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str | None):
         """
         Update ONLY the policies, policy_statements, compartments, defined_aliases, and cross_tenancy_statements in
         the most recent cache file for a given tenancy, and set 'policy_data_reloaded' with the supplied timestamp.

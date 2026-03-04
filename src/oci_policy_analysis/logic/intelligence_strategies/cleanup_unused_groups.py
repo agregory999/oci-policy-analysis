@@ -32,8 +32,10 @@ class UnusedGroupsCheck:
         overlay: dict,
         params: dict | None = None,
     ) -> None:
+        # Only perform this check if "Load All Users" was enabled at repo load time.
         if not getattr(repo, 'load_all_users', True):
-            overlay.setdefault('cleanup_items', {})[self.strategy_id] = []
+            # Do NOT add or clear the cleanup_items key for unused_groups—
+            # This avoids displaying a confusing/empty section in the UI.
             return
         unused = [
             g

@@ -441,8 +441,6 @@ class CheckboxTable(ttk.Frame):
         parent,
         columns,
         data,
-        action_button_text='Take Action',
-        action_callback=None,
         action_buttons=None,
         display_columns=None,
         sortable=False,
@@ -453,6 +451,7 @@ class CheckboxTable(ttk.Frame):
         geometry_manager='pack',
         check_changed_callback=None,  # Callback for any checkbox state change
         select_all_callback=None,  # NEW: callback when select-all or select-none is triggered
+        row_context_menu_callback=None,  # NEW: callback for per-row right-click
     ):
         super().__init__(parent)
         self.base_columns = columns
@@ -475,6 +474,7 @@ class CheckboxTable(ttk.Frame):
         self._geometry_manager = geometry_manager
         self.check_changed_callback = check_changed_callback
         self.select_all_callback = select_all_callback  # NEW
+        self.row_context_menu_callback = row_context_menu_callback  # NEW
 
         self._prepare_data(data)
         self._build_ui()
@@ -580,6 +580,7 @@ class CheckboxTable(ttk.Frame):
             row_colors=('#FFFFFF', '#F7F7F7'),
             multi_select=False,
             column_widths=self.column_widths,
+            row_context_menu_callback=self.row_context_menu_callback,  # NEW
         )
         if self.max_height:
             if self._geometry_manager == 'grid':

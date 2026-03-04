@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from oci_policy_analysis.common.logger import get_logger
@@ -17,18 +18,20 @@ from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep
 from oci_policy_analysis.logic.consolidation_helpers import (
     compartment_ancestors_including_self,
+    effective_path_segments_for_rewrite,
     flatten_defined_tags,
     internal_id_to_statement,
+    normalize_compartment_path_segments,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
     required_policy_compartment_for_candidates,
     resolve_policy_compartment_path,
-    rewrite_statement_location_for_target,
+    rewritten_location_for_target,
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
-logger = get_logger(component='consolidation_strategies.statement_density')
+logger = get_logger(component='consolidation_strategies')
 
 
 @dataclass(frozen=True)
@@ -147,10 +150,19 @@ class PackPoliciesByStatementDensity:
                 raw = (st.get('statement_text') or '').strip()
                 if not raw:
                     continue
-                rewritten, note = rewrite_statement_location_for_target(raw, st, target_comp_path)
+                eff_segments = effective_path_segments_for_rewrite(st, st.get('location', ''))
+                tgt_segments = normalize_compartment_path_segments(target_comp_path)
+                new_location = rewritten_location_for_target(eff_segments, tgt_segments)
+                match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
+                if match:
+                    prefix = raw[: match.start(1)]
+                    suffix = raw[match.end(1) :]
+                    rewritten = f'{prefix}{new_location}{suffix}'
+                else:
+                    rewritten = raw
                 moved_texts.append(rewritten)
-                if note:
-                    location_change_notes.append(note)
+                note = f'NOTE: location changed to {new_location} when moved to policy at {target_comp_path}.'
+                location_change_notes.append(note)
         seen = set()
         moved_texts_dedup: list[str] = []
         for t in moved_texts:

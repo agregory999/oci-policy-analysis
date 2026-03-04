@@ -83,6 +83,29 @@ class PolicyAnalysisRepository:
     See `filter_policy_statements` for an example of filtering and returning PolicyStatement objects.
     """
 
+    def _api_call_with_logging(self, label, fn, *args, **kwargs):
+        """Wrap OCI API call for logging+timing at INFO or CRITICAL based on settings."""
+        import time
+
+        log_critical = False
+        try:
+            if self.settings and isinstance(self.settings, dict):
+                log_critical = self.settings.get('always_log_api_calls', False)
+        except Exception:
+            pass
+        level_func = logger.critical if log_critical else logger.info
+
+        t0 = time.perf_counter()
+        try:
+            result = fn(*args, **kwargs)
+            elapsed = time.perf_counter() - t0
+            level_func(f'[API] {label} completed in {elapsed:.2f}s')
+            return result
+        except Exception as e:
+            elapsed = time.perf_counter() - t0
+            logger.error(f'[API] {label} failed after {elapsed:.2f}s: {e}')
+            raise
+
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
@@ -101,6 +124,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 2
         self.load_all_users = True
+        # Settings controlling logging/behavior (injected by App)
+        self.settings = None
         # Keep the refence data repo as a member
         # self.permission_reference_repo = ReferenceDataRepo()
         self.permission_reference_repo = None
@@ -504,12 +529,16 @@ class PolicyAnalysisRepository:
         start_time = time.perf_counter()
         try:
             logger.info('Bulk fetching all compartments...')
-            root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
+            root_comp_response = self._api_call_with_logging(
+                'IdentityClient.get_compartment', self.identity_client.get_compartment, compartment_id=self.tenancy_ocid
+            )
             if not root_comp_response or not root_comp_response.data:
                 logger.error(f'Failed to get root compartment: {self.tenancy_ocid}')
                 return False
             root_comp = root_comp_response.data
-            comp_response = pagination.list_call_get_all_results(
+            comp_response = self._api_call_with_logging(
+                'IdentityClient.list_compartments',
+                pagination.list_call_get_all_results,
                 self.identity_client.list_compartments,
                 self.tenancy_ocid,
                 access_level='ACCESSIBLE',
@@ -570,8 +599,11 @@ class PolicyAnalysisRepository:
             else:
                 policy_query = f"query policy resources where compartmentId = '{self.tenancy_ocid}'"
             # Run policy search and then for each result, fetch the full policy details and statements - do this in threads for speed
-            policy_search_results = self.resource_search_client.search_resources(
-                search_details=StructuredSearchDetails(type='Structured', query=policy_query), limit=1000
+            policy_search_results = self._api_call_with_logging(
+                'ResourceSearchClient.search_resources',
+                self.resource_search_client.search_resources,
+                search_details=StructuredSearchDetails(type='Structured', query=policy_query),
+                limit=1000,
             )
             if policy_search_results and policy_search_results.data and policy_search_results.data.items:
                 logger.info(
@@ -583,7 +615,9 @@ class PolicyAnalysisRepository:
                     policy_ocid = item.identifier
                     compartment_ocid = item.compartment_id
                     try:
-                        policy_response = self.identity_client.get_policy(policy_id=policy_ocid)
+                        policy_response = self._api_call_with_logging(
+                            'IdentityClient.get_policy', self.identity_client.get_policy, policy_id=policy_ocid
+                        )
                         if policy_response and policy_response.data:
                             # Extract tags (keep original structure for round-trip)
                             freeform_tags = {}
@@ -721,7 +755,9 @@ class PolicyAnalysisRepository:
             all_domains = []
 
             def add_domains_from_compartment(compartment_id: str) -> bool:
-                resp = self.identity_client.list_domains(compartment_id=compartment_id)
+                resp = self._api_call_with_logging(
+                    'IdentityClient.list_domains', self.identity_client.list_domains, compartment_id=compartment_id
+                )
                 logger.info(
                     f'Listed domains for compartment {compartment_id}: {len(resp.data) if resp and resp.data else 0}'
                 )
@@ -806,7 +842,11 @@ class PolicyAnalysisRepository:
 
                     # Load Dynamic Groups
                     # Now we need to get each one and cause additional calls
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['never'])
+                    dg_response = self._api_call_with_logging(
+                        'IdentityDomainsClient.list_dynamic_resource_groups',
+                        domain_client.list_dynamic_resource_groups,
+                        attribute_sets=['never'],
+                    )
                     # dg_response = domain_client.list_dynamic_resource_groups(attributes='matching_rule')
                     if dg_response and dg_response.data:
                         logger.debug(
@@ -814,8 +854,11 @@ class PolicyAnalysisRepository:
                         )
                         for _dg in dg_response.data.resources:
                             # Do a full on get to get all attributes
-                            full_dg = domain_client.get_dynamic_resource_group(
-                                dynamic_resource_group_id=_dg.id, attribute_sets=['all']
+                            full_dg = self._api_call_with_logging(
+                                'IdentityDomainsClient.get_dynamic_resource_group',
+                                domain_client.get_dynamic_resource_group,
+                                dynamic_resource_group_id=_dg.id,
+                                attribute_sets=['all'],
                             ).data
                             dg = full_dg
                             logger.debug(f'DG: {dg.display_name} Matching Rule: {dg.matching_rule}')
@@ -829,8 +872,13 @@ class PolicyAnalysisRepository:
                     start_index = 1
                     limit = 1000
                     while True:
-                        group_response = domain_client.list_groups(
-                            start_index=start_index, count=limit, sort_by='displayName', sort_order='ASCENDING'
+                        group_response = self._api_call_with_logging(
+                            'IdentityDomainsClient.list_groups',
+                            domain_client.list_groups,
+                            start_index=start_index,
+                            count=limit,
+                            sort_by='displayName',
+                            sort_order='ASCENDING',
                         )
                         if group_response.data is None or not group_response.data.resources:
                             break
@@ -862,7 +910,9 @@ class PolicyAnalysisRepository:
                     if load_all_users:
                         start_index = 1
                         while True:
-                            user_response = domain_client.list_users(
+                            user_response = self._api_call_with_logging(
+                                'IdentityDomainsClient.list_users',
+                                domain_client.list_users,
                                 start_index=start_index,
                                 count=limit,
                                 sort_by='displayName',
@@ -874,7 +924,12 @@ class PolicyAnalysisRepository:
                             for u in user_response.data.resources:
                                 logger.debug(f'User: {u}')
 
-                                user_attributes = domain_client.get_user(user_id=u.id, attribute_sets=['all']).data
+                                user_attributes = self._api_call_with_logging(
+                                    'IdentityDomainsClient.get_user',
+                                    domain_client.get_user,
+                                    user_id=u.id,
+                                    attribute_sets=['all'],
+                                ).data
                                 # Print this for now
                                 logger.debug(f'***User Attributes: {user_attributes}')
                                 groups_list = []
@@ -1003,7 +1058,7 @@ class PolicyAnalysisRepository:
         self._resolve_exact_users(filters=filters)
 
         # At this point we have exact groups or exact dynamic groups to deal with
-        logger.info(f'Post-fuzzy/exact search filters: {filters}')
+        logger.debug(f'Post-fuzzy/exact search filters: {filters}')
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
 
@@ -1249,7 +1304,7 @@ class PolicyAnalysisRepository:
                 term.lower() in str(u.get('domain_name')).lower() for term in user_filter.get('domain_name')
             )
             matches_username = not user_filter.get('search') or any(
-                term.lower() in str(u.get('username')).lower() for term in user_filter.get('search')
+                term.lower() in str(u.get('user_name')).lower() for term in user_filter.get('search')
             )
             matches_display = not user_filter.get('search') or any(
                 term.lower() in str(u.get('display_name')).lower() for term in user_filter.get('search')
@@ -1275,13 +1330,14 @@ class PolicyAnalysisRepository:
         groups_return: list[Group] = []
         for g in self.groups:
             matches_name = not group_filter.get('group_name') or any(
-                term in str(g.get('group_name')).lower() for term in group_filter.get('group_name')
+                term.lower() in str(g.get('group_name')).lower() for term in group_filter.get('group_name')
             )
             matches_domain = not group_filter.get('domain_name') or any(
-                term in str(g.get('domain_name')).lower() for term in group_filter.get('domain_name', ['default'])
+                term.lower() in str(g.get('domain_name')).lower()
+                for term in group_filter.get('domain_name', ['default'])
             )
             matches_ocid = not group_filter.get('group_ocid') or any(
-                term in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
+                term.lower() in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
             )
             if matches_name and matches_domain and matches_ocid:
                 groups_return.append(g)
@@ -1555,7 +1611,9 @@ class PolicyAnalysisRepository:
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
         the_log = f'{self.tenancy_ocid}/_Audit'
-        logs_returned = self.logging_search_client.search_logs(
+        logs_returned = self._api_call_with_logging(
+            'LogSearchClient.search_logs',
+            self.logging_search_client.search_logs,
             search_logs_details=SearchLogsDetails(
                 search_query=f"search \"{the_log}\" | (type in ('com.oraclecloud.identityControlPlane.UpdatePolicy','com.oraclecloud.identityControlPlane.CreatePolicy','com.oraclecloud.identityControlPlane.DeletePolicy')) | sort by datetime desc",
                 # search_query=f'search \"{the_log}\" where type=\'com.oraclecloud.identityControlPlane.UpdatePolicy\'',
@@ -1839,7 +1897,7 @@ class PolicyAnalysisRepository:
                         creation_time='',
                         # Compliance output does not distinguish freeform/defined; treat as freeform for round-trip.
                         tags=tags,
-                        freeform_tags=tags if isinstance(tags, dict) else None,
+                        freeform_tags=tags if isinstance(tags, dict) else {},
                     )
                     logger.debug(f'Processing policy: {policy_obj}')
                     # Not really appending policies itself right now, use for parsing statements though
@@ -1911,6 +1969,8 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 
             self.data_as_of = datetime.now(UTC).isoformat()
+            # For compliance/JSON loads, explicitly clear the reload date unless recovered from cache elsewhere
+            self.policy_data_reloaded = None
             self.loaded_from_compliance_output = True
 
             # After all policy statements loaded, enrich compartment counts

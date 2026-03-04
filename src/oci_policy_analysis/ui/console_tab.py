@@ -136,6 +136,37 @@ class ConsoleTab(ttk.Frame):
         )
         show_loggers_chk.pack(side=tk.LEFT, padx=10)
 
+        # --- Extra Logging Settings: Always Log Timings / API Calls ---
+        from oci_policy_analysis.common import config as opa_config
+
+        self.always_log_timings_var = tk.BooleanVar(value=bool(self.app.settings.get('always_log_timings', False)))
+        self.always_log_api_calls_var = tk.BooleanVar(value=bool(self.app.settings.get('always_log_api_calls', False)))
+
+        def _on_timings_toggle():
+            self.app.settings['always_log_timings'] = bool(self.always_log_timings_var.get())
+            opa_config.save_settings(self.app.settings)
+
+        def _on_api_calls_toggle():
+            self.app.settings['always_log_api_calls'] = bool(self.always_log_api_calls_var.get())
+            opa_config.save_settings(self.app.settings)
+
+        timings_chk = ttk.Checkbutton(
+            ctrl_frame,
+            text='Always Log Timings (CRITICAL)',
+            variable=self.always_log_timings_var,
+            command=_on_timings_toggle,
+            state='disabled' if verbose_active else 'normal',
+        )
+        timings_chk.pack(side=tk.LEFT, padx=10)
+        api_calls_chk = ttk.Checkbutton(
+            ctrl_frame,
+            text='Always Log API Calls (CRITICAL)',
+            variable=self.always_log_api_calls_var,
+            command=_on_api_calls_toggle,
+            state='disabled' if verbose_active else 'normal',
+        )
+        api_calls_chk.pack(side=tk.LEFT, padx=10)
+
         # --- Individual logger controls: grid layout in a separate frame ---
         # Package mapping for loggers
         self.logger_components_by_pkg = {
@@ -149,6 +180,7 @@ class ConsoleTab(ttk.Frame):
                 'policy_intelligence',
                 'where_clause_evaluator',
                 'consolidation_engine',
+                'consolidation_strategies',
             ],
             'UI': [
                 'policies_tab',

@@ -27,6 +27,8 @@ from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan
 from oci_policy_analysis.logic.consolidation_helpers import flatten_defined_tags, now_iso, policy_tag_maps
 from oci_policy_analysis.logic.consolidation_strategies import Strategy
+from oci_policy_analysis.logic.consolidation_strategies.move_closer_to_target import MoveCloserToTargetCompartment
+from oci_policy_analysis.logic.consolidation_strategies.move_into_target import MoveIntoTargetCompartment
 from oci_policy_analysis.logic.consolidation_strategies.move_to_root import MoveToRootCompartment
 from oci_policy_analysis.logic.consolidation_strategies.statement_density import PackPoliciesByStatementDensity
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
@@ -108,6 +110,8 @@ class ConsolidationEngine:
             else [
                 PackPoliciesByStatementDensity(),
                 MoveToRootCompartment(),
+                MoveCloserToTargetCompartment(),
+                MoveIntoTargetCompartment(),
             ]
         )
         self._strategies: dict[str, Strategy] = {}
