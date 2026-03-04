@@ -1,3 +1,10 @@
+# [4.1.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.3...v4.1.0-dev.4) (2026-03-04)
+
+
+### Bug Fixes
+
+* new consolidation strategy and docs ([d35b394](https://github.com/agregory999/oci-policy-analysis/commit/d35b3948b7a66030c7cea8290f1fa4b455209850))
+
 # [4.1.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.2...v4.1.0-dev.3) (2026-03-02)
 
 
