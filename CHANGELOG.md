@@ -1,3 +1,10 @@
+# [4.1.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.4...v4.1.0-dev.5) (2026-03-05)
+
+
+### Bug Fixes
+
+* added another risk tab for policy level ([1cb8f01](https://github.com/agregory999/oci-policy-analysis/commit/1cb8f01b35dea19a604dd8729b0c0b41e1d90ffd))
+
 # [4.1.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.3...v4.1.0-dev.4) (2026-03-04)
 
 
