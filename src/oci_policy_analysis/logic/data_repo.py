@@ -640,11 +640,20 @@ class PolicyAnalysisRepository:
                                             tags[f'{ns}:{k}'] = v
                                     else:
                                         tags[str(ns)] = str(val)
+                            comp_path = next(
+                                (
+                                    comp['hierarchy_path']
+                                    for comp in self.compartments
+                                    if comp['id'] == policy_response.data.compartment_id
+                                ),
+                                'ROOT',
+                            )
                             policy_obj = BasePolicy(
                                 policy_ocid=policy_response.data.id,
                                 policy_name=policy_response.data.name,
                                 description=policy_response.data.description or '',
                                 compartment_ocid=policy_response.data.compartment_id,
+                                compartment_path=comp_path,
                                 creation_time=policy_response.data.time_created,
                                 tags=tags if tags else None,
                                 freeform_tags=freeform_tags if freeform_tags else None,
@@ -1139,7 +1148,7 @@ class PolicyAnalysisRepository:
                         match = False  # If we get here, no match found
                         break
                 # Compartment special: ROOTONLY
-                elif key == 'policy_compartment' and 'ROOTONLY' in values:
+                elif key == 'compartment_path' and 'ROOTONLY' in values:
                     if stmt.get('compartment_ocid') != self.tenancy_ocid:
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to ROOTONLY restriction')
                         match = False
@@ -1889,21 +1898,6 @@ class PolicyAnalysisRepository:
                             except Exception:
                                 pass
 
-                    policy_obj = BasePolicy(
-                        policy_name=policy_item.get('name') or '',
-                        policy_ocid=policy_item.get('id') or '',
-                        compartment_ocid=policy_item.get('compartment_id') or '',
-                        description=policy_item.get('description') or '',
-                        creation_time='',
-                        # Compliance output does not distinguish freeform/defined; treat as freeform for round-trip.
-                        tags=tags,
-                        freeform_tags=tags if isinstance(tags, dict) else {},
-                    )
-                    logger.debug(f'Processing policy: {policy_obj}')
-                    # Not really appending policies itself right now, use for parsing statements though
-                    self.policies.append(policy_obj)
-
-                    # Look up the compartment path in loaded compartments
                     comp_path = next(
                         (
                             comp['hierarchy_path']
@@ -1912,6 +1906,18 @@ class PolicyAnalysisRepository:
                         ),
                         'ROOT',
                     )
+                    policy_obj = BasePolicy(
+                        policy_name=policy_item.get('name') or '',
+                        policy_ocid=policy_item.get('id') or '',
+                        compartment_ocid=policy_item.get('compartment_id') or '',
+                        compartment_path=comp_path,
+                        description=policy_item.get('description') or '',
+                        creation_time='',
+                        tags=tags if isinstance(tags, dict) else {},
+                        freeform_tags=tags if isinstance(tags, dict) else {},
+                    )
+                    logger.debug(f'Processing policy: {policy_obj}')
+                    self.policies.append(policy_obj)
 
                     # Get the basic details here and then iterate statements - those are to be added to the list
                     policy_ocid = policy_item.get('identifier') or ''

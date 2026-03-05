@@ -497,6 +497,7 @@ class App(tk.Tk):
         timings = []
         start = time.perf_counter()
 
+        # Wrapper for calling of load functions with timing and logging
         def step(label, fn):
             t0 = time.perf_counter()
             fn()

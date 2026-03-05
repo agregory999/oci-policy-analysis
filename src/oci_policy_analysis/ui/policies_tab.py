@@ -415,7 +415,7 @@ class PoliciesTab(BaseUITab):
         if self.location_filter_var.get():
             filters['location'] = self.location_filter_var.get().split('|')
         if self.hierarchy_filter_var.get():
-            filters['policy_compartment'] = (
+            filters['compartment_path'] = (
                 ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
             )
         if self.text_filter_var.get():
@@ -474,8 +474,8 @@ class PoliciesTab(BaseUITab):
         self.resource_filter_var.set('|'.join(filters.get('resource', [])) if 'resource' in filters else '')
         self.location_filter_var.set('|'.join(filters.get('location', [])) if 'location' in filters else '')
         self.hierarchy_filter_var.set(
-            '|'.join(filters.get('policy_compartment', []))
-            if 'policy_compartment' in filters and filters.get('policy_compartment') != ['ROOTONLY']
+            '|'.join(filters.get('compartment_path', []))
+            if 'compartment_path' in filters and filters.get('compartment_path') != ['ROOTONLY']
             else ''
         )
         self.condition_filter_var.set('|'.join(filters.get('conditions', [])) if 'conditions' in filters else '')
@@ -483,7 +483,7 @@ class PoliciesTab(BaseUITab):
         self.policy_filter_var.set('|'.join(filters.get('policy_name', [])) if 'policy_name' in filters else '')
         self.effective_path_var.set('|'.join(filters.get('effective_path', [])) if 'effective_path' in filters else '')
         # Handle booleans
-        self.hierarchy_filter_root.set(bool(filters.get('policy_compartment') == ['ROOTONLY']))
+        self.hierarchy_filter_root.set(bool(filters.get('compartment_path') == ['ROOTONLY']))
         self.location_filter_tenancy.set(bool(filters.get('location') == ['tenancy']))
         # "Action" field already handled above
         self.chk_show_invalid.set(bool(filters.get('valid') is False))
@@ -541,7 +541,7 @@ class PoliciesTab(BaseUITab):
             if self.location_filter_var.get():
                 filters['location'] = self.location_filter_var.get().split('|')
             if self.hierarchy_filter_var.get():
-                filters['policy_compartment'] = (
+                filters['compartment_path'] = (
                     ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
                 )
             # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
@@ -742,7 +742,7 @@ class PoliciesTab(BaseUITab):
             if self.location_filter_var.get():
                 filters['location'] = self.location_filter_var.get().split('|')
             if self.hierarchy_filter_var.get():
-                filters['policy_compartment'] = (
+                filters['compartment_path'] = (
                     ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
                 )
             if self.text_filter_var.get():

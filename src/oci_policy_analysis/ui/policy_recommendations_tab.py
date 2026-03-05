@@ -13,6 +13,7 @@
 # coding: utf-8
 ##########################################################################
 
+import time
 import tkinter as tk
 import tkinter.messagebox
 from datetime import UTC
@@ -137,6 +138,40 @@ class PolicyRecommendationsTab(BaseUITab):
         cleanup_table: CheckboxTable for actionable cleanup/fix items.
     """
 
+    def _log_timing(self, label, elapsed):
+        """Log a timing message with level based on the 'always_log_timings' (Show All Timings) setting."""
+        log_critical = (
+            getattr(self, 'app', None)
+            and getattr(self.app, 'settings', {})
+            and self.app.settings.get('always_log_timings', False)
+        )
+        msg = f'[RecommendationsTab Timing] {label}: {elapsed:.2f}s'
+        if log_critical:
+            logger.critical(msg)
+        else:
+            logger.info(msg)
+
+    def _get_policy_path(self, policy_ocid=None, policy_obj=None):
+        """
+        Given a policy OCID or policy object, return its full path as "ROOT/Compartment/.../PolicyName".
+        """
+        if policy_obj is not None:
+            comp_path = policy_obj.get('compartment_path') or ''
+            name = policy_obj.get('policy_name') or ''
+            # Remove duplicate slashes and trim
+            return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+        if policy_ocid:
+            pol = None
+            for p in self.policy_repo.policies:
+                if p.get('policy_ocid') == policy_ocid:
+                    pol = p
+                    break
+            if pol:
+                comp_path = pol.get('compartment_path') or ''
+                name = pol.get('policy_name') or ''
+                return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+        return '[Unknown Policy Path]'
+
     def __init__(self, parent, app):
         logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
         super().__init__(
@@ -193,12 +228,21 @@ class PolicyRecommendationsTab(BaseUITab):
             self.notebook, 'Switch between risk, overlap, consolidation, and fix tabs for deep-dive analytics.'
         )
 
-        # === Risk Overview Tab ===
-        risk_frame = ttk.Frame(self.notebook)
-        risk_frame.pack(fill='both', expand=True)
-        self.add_context_help(risk_frame, 'View risk scoring and assessment for all policy statements.')
-        self._build_risk_tab(risk_frame)
-        self.notebook.add(risk_frame, text='Risk Overview')
+        # === Risk Overview - Policy Tab ===
+        policy_risk_frame = ttk.Frame(self.notebook)
+        policy_risk_frame.pack(fill='both', expand=True)
+        self.add_context_help(
+            policy_risk_frame, 'View aggregated risk summary for each policy (roll-up of all statements).'
+        )
+        self._build_policy_risk_tab(policy_risk_frame)
+        self.notebook.add(policy_risk_frame, text='Risk Overview - Policy')
+
+        # === Risk Overview - Statement Tab ===
+        statement_risk_frame = ttk.Frame(self.notebook)
+        statement_risk_frame.pack(fill='both', expand=True)
+        self.add_context_help(statement_risk_frame, 'View risk scoring and assessment for all policy statements.')
+        self._build_statement_risk_tab(statement_risk_frame)
+        self.notebook.add(statement_risk_frame, text='Risk Overview - Statement')
 
         # === Overlap Analysis Tab ===
         overlap_frame = ttk.Frame(self.notebook)
@@ -238,17 +282,17 @@ class PolicyRecommendationsTab(BaseUITab):
         self.notebook.add(self.workbench_frame, text='Recommendation Workbench')
 
         # === Future Tab (stubbed/demo) ===
-        future_frame = ttk.Frame(self.notebook)
-        lbl = ttk.Label(future_frame, text='Future analytics or visualizations can go here...')
-        lbl.pack(padx=30, pady=30)
-        self.add_context_help(future_frame, 'Reserved for future or custom analytics dashboards.')
-        self.notebook.add(future_frame, text='[Future/More]')
+        # future_frame = ttk.Frame(self.notebook)
+        # lbl = ttk.Label(future_frame, text='Future analytics or visualizations can go here...')
+        # lbl.pack(padx=30, pady=30)
+        # self.add_context_help(future_frame, 'Reserved for future or custom analytics dashboards.')
+        # self.notebook.add(future_frame, text='[Future/More]')
 
-        logger.debug('Unified PolicyRecommendationsTab: initial analytics reload.')
-        self.reload_all_analytics()
+        # logger.debug('Unified PolicyRecommendationsTab: initial analytics reload.')
+        # self.reload_all_analytics()
 
     # ==== Risk Tab Logic ====
-    def _build_risk_tab(self, parent):
+    def _build_statement_risk_tab(self, parent):
         # Filter Controls - now inside risk tab only
         filter_frame = ttk.Frame(parent)
         filter_frame.pack(fill='x', padx=10, pady=(8, 2))
@@ -319,13 +363,29 @@ class PolicyRecommendationsTab(BaseUITab):
                     else:
                         self.risk_detail_tree.insert('', 'end', text=f'Recommendations: {recommendations}')
 
+        def risk_table_context_menu_callback(row_index):
+            row = self.risk_table.data[row_index]
+            menu = tk.Menu(self.risk_table, tearoff=0)
+            menu.add_command(
+                label='Analyze Statement',
+                command=lambda: self._analyze_selected_statement_in_main_analysis(row.get('Statement Text', '') or ''),
+            )
+            return menu
+
         self.risk_table = DataTable(
             parent,
-            columns=POLICY_RECOMMENDATIONS_ALL_COLUMNS,
-            display_columns=POLICY_RECOMMENDATIONS_DISPLAY_COLUMNS,
+            columns=['Policy Path', 'Effective Path', 'Score', 'Relative Risk', 'Statement Text'],
+            display_columns=['Policy Path', 'Effective Path', 'Score', 'Relative Risk', 'Statement Text'],
             data=[],
-            column_widths=POLICY_RECOMMENDATIONS_COLUMN_WIDTHS,
+            column_widths={
+                'Policy Path': 420,
+                'Effective Path': 200,
+                'Score': 80,
+                'Relative Risk': 80,
+                'Statement Text': 700,
+            },
             selection_callback=on_row_select,
+            row_context_menu_callback=risk_table_context_menu_callback,
             multi_select=True,
             initial_sort_column='Relative Risk',
             initial_sort_descending=True,
@@ -354,6 +414,233 @@ class PolicyRecommendationsTab(BaseUITab):
         self.risk_detail_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         self.add_context_help(self.risk_detail_tree, 'Expanded statement details, scoring notes, recommendations.')
+
+    def _show_policy_statements_in_main_analysis(self, policy_path: str):
+        """
+        Given Policy Path (ROOT/Comp/PolicyName), switch to Policy Analysis tab and apply filters to show all its statements.
+        """
+        try:
+            # Split path into hierarchy and policy_name
+            if '/' in policy_path:
+                components = policy_path.strip('/').split('/')
+                policy_name = components[-1]
+                hierarchy_path = '/'.join(components[:-1])
+            else:
+                policy_name = policy_path
+                hierarchy_path = 'ROOT'
+            # Switch to main Policy Analysis tab
+            self.app.notebook.select(tab_id=2)  # Policy Analysis tab
+            # Set filters and output filters
+            logger.info(
+                f'Switching to Policy Analysis tab and applying filters for policy name: {policy_name} and hierarchy path: {hierarchy_path}'
+            )
+            self.app.policies_tab.hierarchy_filter_var.set(hierarchy_path)
+            self.app.policies_tab.policy_filter_var.set(policy_name)
+            # Enable checkboxes for output
+            self.app.policies_tab.chk_show_dynamic.set(True)
+            self.app.policies_tab.chk_show_service.set(True)
+            # Force a search
+            self.app.policies_tab.update_policy_output()
+        except Exception as ex:
+            tkinter.messagebox.showinfo('Show All Statements', f'Could not focus Policy Analysis tab: {ex}')
+
+    def _analyze_selected_statement_in_main_analysis(self, statement_text: str):
+        """
+        Switch to policies_tab, set text_filter_var to the statement_text, and update.
+        """
+        try:
+            self.app.notebook.select(tab_id=2)
+            self.app.policies_tab.text_filter_var.set(statement_text)
+            # Enable checkboxes for output
+            self.app.policies_tab.chk_show_dynamic.set(True)
+            self.app.policies_tab.chk_show_service.set(True)
+            # Force a search
+            self.app.policies_tab.update_policy_output()
+        except Exception as ex:
+            tkinter.messagebox.showinfo('Analyze Statement', f'Could not focus Policy Analysis tab: {ex}')
+
+    def _build_policy_risk_tab(self, parent):  # noqa: C901
+        """
+        Build the policy-level risk analytics tab.
+        """
+        # Filter Controls - policy risk tab
+        filter_frame = ttk.Frame(parent)
+        filter_frame.pack(fill='x', padx=10, pady=(8, 2))
+        self.add_context_help(
+            filter_frame,
+            'Tune risk scoring: WHERE clause and Service Principal reduction percentages, and relative risk threshold filter (policy view).',
+        )
+
+        self.where_reduction_pct_var_policy = tk.StringVar(value='50%')
+        self.where_reduction_options = ['0%', '25%', '50%', '75%', '90%']
+        ttk.Label(filter_frame, text='WHERE clause risk reduction:').pack(side='left', padx=(0, 2))
+        where_pct_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.where_reduction_pct_var_policy,
+            state='readonly',
+            values=self.where_reduction_options,
+            width=7,
+        )
+        where_pct_combo.pack(side='left', padx=2)
+        where_pct_combo.bind('<<ComboboxSelected>>', lambda e: self.reload_all_analytics())
+        self.add_context_help(where_pct_combo, 'Adjust how much WHERE clauses reduce statement risk for policy tab.')
+
+        ttk.Label(filter_frame, text='Service Principal risk reduction:').pack(side='left', padx=(15, 2))
+        self.service_reduction_pct_var_policy = tk.StringVar(value='50%')
+        service_pct_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.service_reduction_pct_var_policy,
+            state='readonly',
+            values=self.where_reduction_options,
+            width=7,
+        )
+        service_pct_combo.pack(side='left', padx=2)
+        service_pct_combo.bind('<<ComboboxSelected>>', lambda e: self.reload_all_analytics())
+        self.add_context_help(service_pct_combo, 'Reduce risk for statements with service as subject in policy tab.')
+
+        ttk.Label(filter_frame, text='Relative Risk threshold:').pack(side='left', padx=(15, 2))
+        self.policy_risk_threshold_var = tk.StringVar(value='Show all')
+        threshold_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.policy_risk_threshold_var,
+            state='readonly',
+            values=['Show all', 'Relative Risk > 50', 'Relative Risk > 80'],
+            width=14,
+        )
+        threshold_combo.pack(side='left', padx=2)
+        threshold_combo.bind('<<ComboboxSelected>>', lambda e: self.update_policy_risk_tab_output())
+        self.add_context_help(threshold_combo, 'Show only policies above a relative risk threshold.')
+
+        # UI: policy risk table & detail
+        table_frame = ttk.Frame(parent)
+        table_frame.pack(fill='both', expand=True)
+
+        def on_row_select_policy(selected_rows):  # noqa: C901
+            self.policy_risk_detail_tree.delete(*self.policy_risk_detail_tree.get_children())
+            if selected_rows:
+                row = selected_rows[0]
+                policy_path = row.get('Policy Path')
+                # Find policy_ocid for selected Policy Path
+                policy_obj = None
+                for p in self.policy_repo.policies:
+                    path = self._get_policy_path(policy_obj=p)
+                    if path == policy_path:
+                        policy_obj = p
+                        break
+                if not policy_obj:
+                    return
+                pocid = policy_obj.get('policy_ocid')
+                statements = [
+                    st
+                    for st in self.policy_repo.regular_statements
+                    if st.get('policy_ocid') == pocid and st.get('action', '').lower() == 'allow'
+                ]
+                risk_scores = self.app.policy_intelligence.overlay.get('risk_scores', [])
+                risk_by_id = {entry.get('statement_internal_id'): entry for entry in risk_scores}
+                for st in statements:
+                    internal_id = st.get('internal_id')
+                    risk_entry = risk_by_id.get(internal_id) or {}
+                    score = risk_entry.get('score', 0)
+                    notes = risk_entry.get('notes', '')
+                    recs = risk_entry.get('recommendations')
+                    rel_risk = None
+                    # Rel risk for this statement, as on statement tab
+                    try:
+                        all_scores = [risk_by_id.get(bb.get('internal_id'), {}).get('score', 0) for bb in statements]
+                        import math
+
+                        mx = max(all_scores) if all_scores else 1
+                        if score == 0:
+                            rel_risk = 1
+                        elif mx > 1:
+                            rel_risk = int((math.log(score) / math.log(mx)) * 100)
+                            if rel_risk < 1:
+                                rel_risk = 1
+                        else:
+                            rel_risk = 1
+                    except Exception:
+                        rel_risk = 1
+                    text_main = f'Score: {score}  (Relative: {rel_risk})'
+                    self.policy_risk_detail_tree.insert('', 'end', text=text_main)
+                    txt = st.get('statement_text', '---')
+                    self.policy_risk_detail_tree.insert('', 'end', text=f'Statement: {txt[:100]}')
+                    if notes:
+                        self.policy_risk_detail_tree.insert('', 'end', text=f'Risk Notes: {notes}')
+                    if recs:
+                        if isinstance(recs, list):
+                            for rec in recs:
+                                self.policy_risk_detail_tree.insert('', 'end', text=f'Rec: {rec}')
+                        else:
+                            self.policy_risk_detail_tree.insert('', 'end', text=f'Rec: {recs}')
+                    self.policy_risk_detail_tree.insert('', 'end', text='')  # spacer
+
+        def policy_risk_context_menu_callback(row_index):
+            row = self.policy_risk_table.data[row_index]
+            policy_path = row.get('Policy Path', '')
+            menu = tk.Menu(self.policy_risk_table, tearoff=0)
+            menu.add_command(
+                label='Show All Statements', command=lambda: self._show_policy_statements_in_main_analysis(policy_path)
+            )
+            return menu
+
+        self.policy_risk_table = DataTable(
+            table_frame,
+            columns=[
+                'Policy Path',
+                'Total Statements',
+                'Max Score',
+                'Avg Score',
+                'Max Statement Risk (Global %)',
+                'Total Raw Risk',
+                'Risk Summary/Notes',
+                'Example Statement',
+            ],
+            display_columns=[
+                'Policy Path',
+                'Total Statements',
+                'Max Score',
+                'Avg Score',
+                'Max Statement Risk (Global %)',
+                'Total Raw Risk',
+                'Risk Summary/Notes',
+                'Example Statement',
+            ],
+            data=[],
+            selection_callback=on_row_select_policy,
+            row_context_menu_callback=policy_risk_context_menu_callback,
+            column_widths={
+                'Policy Path': 400,
+                'Total Statements': 90,
+                'Max Score': 80,
+                'Avg Score': 80,
+                'Max Statement Risk (Global %)': 100,
+                'Total Raw Risk': 120,
+                'Risk Summary/Notes': 500,
+                'Example Statement': 700,
+            },
+            initial_sort_column='Max Statement Risk (Global %)',
+            initial_sort_descending=True,
+            multi_select=True,
+        )
+        self.policy_risk_table.pack(fill='both', expand=True, padx=10, pady=(8, 8))
+        self.add_context_help(self.policy_risk_table, 'Aggregated risk summary for each policy.')
+
+        detail_frame = ttk.LabelFrame(parent, text='Policy Risk Details (Select row for breakdown)')
+        detail_frame.pack(fill='x', padx=10, pady=(0, 10))
+        self.policy_risk_detail_tree = ttk.Treeview(
+            detail_frame,
+            show='tree',
+            height=8,
+        )
+        self.policy_risk_detail_tree.heading('#0', text='Detail')
+        self.policy_risk_detail_tree.column('#0', width=1200, stretch=True)
+        scrollbar = ttk.Scrollbar(detail_frame, orient='vertical', command=self.policy_risk_detail_tree.yview)
+        self.policy_risk_detail_tree.configure(yscrollcommand=scrollbar.set)
+        self.policy_risk_detail_tree.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        self.add_context_help(
+            self.policy_risk_detail_tree, 'Expanded policy details and risk explanations, as available.'
+        )
 
     # ==== Overlap Tab Logic ====
     def _build_overlap_tab(self, parent):
@@ -501,20 +788,28 @@ class PolicyRecommendationsTab(BaseUITab):
         self._update_reload_all_button_state()
         logger.info('Reloading all policy intelligence analytics for unified recommendations tab.')
 
-        # Always recalculate all analytics: risk, overlap, consolidation, cleanup, recommendations
-        pct_str = self.where_reduction_pct_var.get().replace('%', '')
+        # Select filter vars for statement and policy tab separately
+        pct_str_st = (
+            self.where_reduction_pct_var.get().replace('%', '') if hasattr(self, 'where_reduction_pct_var') else '50'
+        )
+        pct_str_policy = (
+            self.where_reduction_pct_var_policy.get().replace('%', '')
+            if hasattr(self, 'where_reduction_pct_var_policy')
+            else pct_str_st
+        )
         try:
-            where_pct = int(pct_str)
+            where_pct = int(pct_str_policy)
         except Exception:
             where_pct = 50
-        svc_str = getattr(self, 'service_reduction_pct_var', None)
-        service_pct = 50
-        if svc_str:
+        svc_str_policy = getattr(self, 'service_reduction_pct_var_policy', None)
+        if svc_str_policy:
             try:
-                service_pct = int(svc_str.get().replace('%', ''))
+                service_pct = int(svc_str_policy.get().replace('%', ''))
             except Exception:
-                pass
-
+                service_pct = 50
+        else:
+            # fallback
+            service_pct = 50
         logger.info(
             f'Recalculating analytics with WHERE clause reduction pct: {where_pct}%, Service Principal: {service_pct}%'
         )
@@ -535,6 +830,10 @@ class PolicyRecommendationsTab(BaseUITab):
 
         # Now update all display tables
         self.update_risk_tab_output()
+        t0 = time.perf_counter()
+        self.update_policy_risk_tab_output()
+        t1 = time.perf_counter()
+        self._log_timing('update_policy_risk_tab_output', t1 - t0)
         self.update_overlap_tab_output()
         self.update_consolidation_tab_output()
         self.update_cleanup_tab_output()
@@ -558,49 +857,152 @@ class PolicyRecommendationsTab(BaseUITab):
         """Called when Settings > Recommendation/Consolidation cleanup check toggles change. Re-runs analytics with new checks."""
         self.reload_all_analytics()
 
+    def update_policy_risk_tab_output(self):  # noqa: C901
+        """
+        Aggregates risk per policy (from statement risk) and updates the table.
+        Adds globally normalized risk and supporting stats.
+        """
+        tstart = time.perf_counter()
+        policies = self.policy_repo.policies
+        policy_by_ocid = {p.get('policy_ocid'): p for p in policies if p.get('policy_ocid')}
+        statements = self.policy_repo.regular_statements
+        risk_scores = self.app.policy_intelligence.overlay.get('risk_scores', [])
+        risk_score_map = {entry.get('statement_internal_id'): entry for entry in risk_scores}
+
+        # Map policy_ocid to list of statements (allow only)
+        from collections import defaultdict
+
+        policy_stmt_map = defaultdict(list)
+        for st in statements:
+            # Exclude deny
+            if st.get('action', '').lower() == 'deny':
+                continue
+            pol_oid = st.get('policy_ocid')
+            if pol_oid:
+                policy_stmt_map[pol_oid].append(st)
+
+        # Gather all max scores for proper normalization
+        global_max = 1
+        for stmts in policy_stmt_map.values():
+            for st in stmts:
+                internal_id = st.get('internal_id')
+                risk_entry = risk_score_map.get(internal_id, {})
+                score = risk_entry.get('score', 0)
+                if score > global_max:
+                    global_max = score
+
+        data_to_display = []
+        for pol_oid, stmts in policy_stmt_map.items():
+            policy_obj = policy_by_ocid.get(pol_oid, {})
+            policy_path = self._get_policy_path(policy_obj=policy_obj)
+            scores = []
+            note_summaries = set()
+            example_statement = ''
+            example_score = -1
+            for st in stmts:
+                internal_id = st.get('internal_id')
+                risk_entry = risk_score_map.get(internal_id, {})
+                score = risk_entry.get('score', 0)
+                scores.append(score)
+                if score > example_score:
+                    example_score = score
+                    example_statement = st.get('statement_text', '') or ''
+                notes = risk_entry.get('notes')
+                if notes:
+                    note_summaries.add(notes)
+            if scores:
+                max_score = max(scores)
+                avg_score = round(sum(scores) / len(scores), 1)
+                total_raw_risk = sum(scores)
+                try:
+                    max_risk_global_pct = 1
+                    if global_max > 0:
+                        import math
+
+                        if max_score == 0:
+                            max_risk_global_pct = 1
+                        elif global_max > 1:
+                            max_risk_global_pct = int((math.log(max_score) / math.log(global_max)) * 100)
+                            if max_risk_global_pct < 1:
+                                max_risk_global_pct = 1
+                    else:
+                        max_risk_global_pct = 1
+                except Exception:
+                    max_risk_global_pct = 1
+            else:
+                max_score = 0
+                avg_score = 0
+                max_risk_global_pct = 0
+                example_statement = ''
+                total_raw_risk = 0
+            data_to_display.append(
+                {
+                    'Policy Path': policy_path,
+                    'Total Statements': len(stmts),
+                    'Max Score': max_score,
+                    'Avg Score': avg_score,
+                    'Max Statement Risk (Global %)': max_risk_global_pct,
+                    'Total Raw Risk': total_raw_risk,
+                    'Risk Summary/Notes': ';  '.join(note_summaries)[:500],
+                    'Example Statement': example_statement[:300],
+                }
+            )
+
+        threshold_val = (
+            self.policy_risk_threshold_var.get() if hasattr(self, 'policy_risk_threshold_var') else 'Show all'
+        )
+        if threshold_val == 'Relative Risk > 50':
+            filtered = [row for row in data_to_display if (row.get('Max Statement Risk (Global %)') or 0) > 50]
+        elif threshold_val == 'Relative Risk > 80':
+            filtered = [row for row in data_to_display if (row.get('Max Statement Risk (Global %)') or 0) > 80]
+        else:
+            filtered = data_to_display
+
+        self.policy_risk_table.update_data(filtered)
+        tend = time.perf_counter()
+        self._log_timing('Aggregating policy-level risk', tend - tstart)
+
     # ---- Risk Tab update logic ----
     def update_risk_tab_output(self):  # noqa: C901
-        # Overlay already populated by reload_all_analytics() -> run_all(); just read from overlay.
+        """
+        Update statement risk table: only allow statements, columns: Policy Path, Effective Path, Score, Relative Risk, Risk Notes, Statement Text (truncated).
+        """
         statements = self.policy_repo.regular_statements
-        risk_score_map = {}
         risk_scores = self.app.policy_intelligence.overlay.get('risk_scores', [])
-        for entry in risk_scores:
-            rid = entry.get('statement_internal_id')
-            risk_score_map[rid] = (entry.get('score'), entry.get('notes'))
+        risk_score_map = {entry.get('statement_internal_id'): entry for entry in risk_scores}
 
         import math
 
         data_to_display = []
-        missing_risk_scores = 0
         scores_list = []
-        tenant_admin_policy_name = 'Tenant Admin Policy'
         for st in statements:
-            action_allow = st.get('action', '').lower() == 'allow'
-            is_tenant_admin = (st.get('policy_name') or '') == tenant_admin_policy_name
-            if not action_allow and not is_tenant_admin:
+            if st.get('action', '').lower() == 'deny':
                 continue
-            pd = for_display_policy(st)
+            policy_path = self._get_policy_path(policy_ocid=st.get('policy_ocid'))
+            effective_path = st.get('effective_path') or st.get('Effective Path') or ''
             internal_id = st.get('internal_id')
-            score, notes = risk_score_map.get(internal_id, (None, ''))
-            if score is None:
-                missing_risk_scores += 1
-                score = 0
-            pd['Score'] = score
-            pd['Risk Notes'] = notes
-            risk_score_entry = next((x for x in risk_scores if x.get('statement_internal_id') == internal_id), {})
-            recommendations = risk_score_entry.get('recommendations')
-            if recommendations:
-                pd['Recommendations'] = recommendations
+            score = 0
+            notes = ''
+            risk_entry = risk_score_map.get(internal_id, None)
+            if risk_entry:
+                score = risk_entry.get('score', 0)
+                notes = risk_entry.get('notes', '')
+            # Relative risk calculation in table context (using all allowed statement scores)
             scores_list.append(score)
-            data_to_display.append(pd)
+            row = {
+                'Policy Path': policy_path,
+                'Effective Path': effective_path,
+                'Score': score,
+                'Risk Notes': notes,
+                'Statement Text': (st.get('statement_text') or '')[:120],
+            }
+            data_to_display.append(row)
 
-        max_score = max(scores_list) if scores_list else 1
+        # Compute relative risk globally over allowed statements (not per policy)
+        all_scores = [row['Score'] for row in data_to_display]
+        max_score = max(all_scores) if all_scores else 1
         for row in data_to_display:
-            # Tenant Admin Policy is always shown as 100% relative risk in the overview
-            if (row.get('Policy Name') or '') == tenant_admin_policy_name:
-                row['Relative Risk'] = 100
-                continue
-            raw = row.get('Score') or 0
+            raw = row['Score']
             rel_val = 0
             if raw == 0:
                 rel_val = 1

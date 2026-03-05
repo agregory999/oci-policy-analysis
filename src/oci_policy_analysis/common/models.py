@@ -212,6 +212,7 @@ class BasePolicy(TypedDict, total=False):
     Captures policy identity and metadata but omits policy statements themselves.
     Policies are unique by their name within a compartment.
 
+    - compartment_path: String with full path, e.g. "ROOT/DeptA/PolicyOne" (filled during loading).
     Optionally includes tags if available.
     """
 
@@ -219,6 +220,7 @@ class BasePolicy(TypedDict, total=False):
     policy_ocid: Annotated[str, 'The OCID of the policy. Not required for filters.']
     description: Annotated[str | None, 'The description of the policy. Not required for filters.']
     compartment_ocid: Annotated[str, 'The OCID of the compartment containing the policy. Not required for filters.']
+    compartment_path: Annotated[str, 'Full compartment path string for the policy (e.g., "ROOT/CompA/CompB").']
     creation_time: Annotated[str, 'The creation time of the policy. Not required for filters.']
     tags: NotRequired[
         Annotated[
@@ -343,7 +345,7 @@ class PolicySearch(TypedDict, total=False):
 
     policy_name: Annotated[list[str], 'Filter by policy display name(s).']
 
-    policy_compartment: Annotated[
+    compartment_path: Annotated[
         list[str], "Compartment(s) that define the policy. Supports 'ROOTONLY' to restrict to root-level policies."
     ]
 
