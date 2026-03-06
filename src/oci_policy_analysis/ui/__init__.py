@@ -1,7 +1,8 @@
 """Tkinter UI components for OCI Policy Analysis."""
 
 from .console_tab import ConsoleTab
-from .consolidation_workbench_tab import ConsolidationWorkbenchTab
+
+# REMOVED: import of ConsolidationWorkbenchTab (consolidation feature disabled)
 from .data_table import CheckboxTable, DataTable
 from .dynamic_group_tab import DynamicGroupsTab
 from .historical_tab import HistoricalTab
@@ -33,5 +34,4 @@ __all__ = [
     'ConsoleTab',
     'HistoricalTab',
     'PermissionsReportTab',
-    'ConsolidationWorkbenchTab',
 ]

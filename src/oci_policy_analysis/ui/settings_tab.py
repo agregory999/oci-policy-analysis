@@ -942,7 +942,6 @@ class SettingsTab(BaseUITab):
             self.app.condition_tester_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
-            self.app.consolidation_tab,
         ]
 
         if self.app.advanced_tabs_visible:
@@ -956,7 +955,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
-            notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
+            # REMOVED: consolidation_tab from advanced tabs (consolidation feature disabled)
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

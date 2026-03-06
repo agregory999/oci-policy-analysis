@@ -139,3 +139,41 @@ class BaseUITab(ttk.Frame):
         font_size = getattr(self, '_current_font_size', 11)
         self.page_help_frame.configure(style='Custom.TLabelframe')
         self.page_help_label.configure(bg=bg, font=('TkDefaultFont', font_size))
+
+    def timed_step(self, label, fn, *args, **kwargs):
+        """
+        Utility function to measure and log the elapsed time of a function call, using app settings for timing log level.
+        Usage: self.timed_step("my-action", callable[, args...])
+
+        Args:
+            label (str): Name of the step for log labeling.
+            fn (callable): Function to run/timed.
+            *args, **kwargs: Arguments passed to the function.
+
+        Returns:
+            The return value of fn(*args, **kwargs).
+
+        Logs at CRITICAL if self.app.settings['always_log_timings'] is True, else INFO.
+        """
+        import logging
+        import time
+
+        start = time.perf_counter()
+        result = fn(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+
+        # Choose logger: prefer self.logger if set, else fallback to base logger
+        logger = getattr(self, 'logger', None)
+        if logger is None:
+            logger = logging.getLogger('oci-policy-analysis.ui.base_tab')
+
+        always_log_timings = False
+        if hasattr(self, 'app') and hasattr(self.app, 'settings'):
+            always_log_timings = bool(self.app.settings.get('always_log_timings', False))
+
+        msg = f'[UI Timing] {self.__class__.__name__}.{label}: {elapsed:.2f}s'
+        if always_log_timings:
+            logger.critical(msg)
+        else:
+            logger.info(msg)
+        return result

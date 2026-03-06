@@ -13,7 +13,6 @@
 # coding: utf-8
 ##########################################################################
 
-import time
 import tkinter as tk
 import tkinter.messagebox
 from datetime import UTC
@@ -115,65 +114,11 @@ logger = get_logger(component='policy_recommendations_tab')
 class PolicyRecommendationsTab(BaseUITab):
     """
     Unified UI tab for displaying Oracle Cloud Policy Recommendations and analytics.
-
-    This tab contains an internal notebook with subtabs for:
-      - Risk assessment and scores for policy statements
-      - Policy overlap analysis (potential overrides/superseding statements)
-      - Consolidation opportunities
-      - Policy hygiene and clean-up actions
-      - Future analytics extensions
-
-    Args:
-        parent (tk.Widget): The parent widget for this frame.
-        app (Any): The main application object containing state and analysis engines.
-
-    Attributes:
-        app (Any): The main application reference with policy and intelligence engines.
-        policy_repo: Reference to analysis data for rendering UI.
-        recommendation_table: DataTable widget for summary.
-        notebook: ttk.Notebook for switching between analytics views.
-        risk_table: DataTable for risk scores.
-        overlap_table: DataTable for policy overlaps.
-        consolidation_table: CheckboxTable for consolidation findings.
-        cleanup_table: CheckboxTable for actionable cleanup/fix items.
     """
 
-    def _log_timing(self, label, elapsed):
-        """Log a timing message with level based on the 'always_log_timings' (Show All Timings) setting."""
-        log_critical = (
-            getattr(self, 'app', None)
-            and getattr(self.app, 'settings', {})
-            and self.app.settings.get('always_log_timings', False)
-        )
-        msg = f'[RecommendationsTab Timing] {label}: {elapsed:.2f}s'
-        if log_critical:
-            logger.critical(msg)
-        else:
-            logger.info(msg)
-
-    def _get_policy_path(self, policy_ocid=None, policy_obj=None):
-        """
-        Given a policy OCID or policy object, return its full path as "ROOT/Compartment/.../PolicyName".
-        """
-        if policy_obj is not None:
-            comp_path = policy_obj.get('compartment_path') or ''
-            name = policy_obj.get('policy_name') or ''
-            # Remove duplicate slashes and trim
-            return f"{comp_path.strip('/')}/{name}".replace('//', '/')
-        if policy_ocid:
-            pol = None
-            for p in self.policy_repo.policies:
-                if p.get('policy_ocid') == policy_ocid:
-                    pol = p
-                    break
-            if pol:
-                comp_path = pol.get('compartment_path') or ''
-                name = pol.get('policy_name') or ''
-                return f"{comp_path.strip('/')}/{name}".replace('//', '/')
-        return '[Unknown Policy Path]'
-
     def __init__(self, parent, app):
-        logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
+        self.logger = get_logger(component='policy_recommendations_tab')
+        self.logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
         super().__init__(
             parent,
             default_help_text=(
@@ -291,7 +236,39 @@ class PolicyRecommendationsTab(BaseUITab):
         # logger.debug('Unified PolicyRecommendationsTab: initial analytics reload.')
         # self.reload_all_analytics()
 
+    def populate_data(self):
+        """
+        Called after policy analysis/intelligence is refreshed. Reload all analytics/tables, using timing.
+        """
+        self.logger.info('Populating PolicyRecommendationsTab data...')
+        self.timed_step('reload_all_analytics', self.reload_all_analytics)
+        self.logger.info('Finished PolicyRecommendationsTab.populate_data')
+
     # ==== Risk Tab Logic ====
+
+    # NOTE: _log_timing is now obsolete; all timing now comes from BaseUITab.timed_step
+
+    def _get_policy_path(self, policy_ocid=None, policy_obj=None):
+        """
+        Given a policy OCID or policy object, return its full path as "ROOT/Compartment/.../PolicyName".
+        """
+        if policy_obj is not None:
+            comp_path = policy_obj.get('compartment_path') or ''
+            name = policy_obj.get('policy_name') or ''
+            # Remove duplicate slashes and trim
+            return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+        if policy_ocid:
+            pol = None
+            for p in self.policy_repo.policies:
+                if p.get('policy_ocid') == policy_ocid:
+                    pol = p
+                    break
+            if pol:
+                comp_path = pol.get('compartment_path') or ''
+                name = pol.get('policy_name') or ''
+                return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+        return '[Unknown Policy Path]'
+
     def _build_statement_risk_tab(self, parent):
         # Filter Controls - now inside risk tab only
         filter_frame = ttk.Frame(parent)
@@ -830,10 +807,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         # Now update all display tables
         self.update_risk_tab_output()
-        t0 = time.perf_counter()
         self.update_policy_risk_tab_output()
-        t1 = time.perf_counter()
-        self._log_timing('update_policy_risk_tab_output', t1 - t0)
         self.update_overlap_tab_output()
         self.update_consolidation_tab_output()
         self.update_cleanup_tab_output()
@@ -862,7 +836,6 @@ class PolicyRecommendationsTab(BaseUITab):
         Aggregates risk per policy (from statement risk) and updates the table.
         Adds globally normalized risk and supporting stats.
         """
-        tstart = time.perf_counter()
         policies = self.policy_repo.policies
         policy_by_ocid = {p.get('policy_ocid'): p for p in policies if p.get('policy_ocid')}
         statements = self.policy_repo.regular_statements
@@ -959,8 +932,7 @@ class PolicyRecommendationsTab(BaseUITab):
             filtered = data_to_display
 
         self.policy_risk_table.update_data(filtered)
-        tend = time.perf_counter()
-        self._log_timing('Aggregating policy-level risk', tend - tstart)
+        # Obsolete timing removed; handled by timed_step at top level
 
     # ---- Risk Tab update logic ----
     def update_risk_tab_output(self):  # noqa: C901
@@ -1109,18 +1081,13 @@ class PolicyRecommendationsTab(BaseUITab):
         workbench_frame.columnconfigure(1, weight=1)
         ttk.Label(
             workbench_frame,
-            text='Use the Consolidation Workbench to generate a plan. Select candidate statements and a strategy (e.g. Move to Root Compartment or Statement Density), then create a consolidation proposal.',
+            text='Consolidation suggestions show opportunities to streamline policy statements. To act on these suggestions, manage policies manually using the Policy Analysis and Browser tabs. Automated batch consolidation is not available in this version.',
             wraplength=700,
             justify='left',
         ).grid(row=0, column=0, sticky='w', padx=(0, 8))
-        ttk.Button(
-            workbench_frame,
-            text='Open Consolidation Workbench',
-            command=self._on_open_consolidation_workbench,
-        ).grid(row=0, column=1, sticky='e', padx=(8, 0))
         self.add_context_help(
             workbench_frame,
-            'Consolidation findings are listed below. Switch to the Consolidation Workbench tab to select statements and generate an execution plan.',
+            'The table below lists detected consolidation opportunities; review and act on these in the main Policy Analysis and Browser tabs as desired.',
         )
 
         def on_take_action(selected):
@@ -1140,10 +1107,7 @@ class PolicyRecommendationsTab(BaseUITab):
             self.consolidation_table, 'Review consolidation candidates and organize statements as indicated.'
         )
 
-    def _on_open_consolidation_workbench(self):
-        """Switch the main notebook to the Consolidation Workbench tab."""
-        if hasattr(self.app, 'notebook') and hasattr(self.app, 'consolidation_tab'):
-            self.app.notebook.select(self.app.consolidation_tab)
+    # REMOVED: _on_open_consolidation_workbench() (workbench not available)
 
     def update_consolidation_tab_output(self):
         """Refresh the consolidation tab's data after analytics reload."""

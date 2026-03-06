@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-PYTHON_BIN=${PYTHON_BIN:-python3}
+PYTHON_BIN=${PYTHON_BIN:-python3.12}
 
 if [ ! -d ".venv" ]; then
     echo "🐍 Creating fresh venv with ${PYTHON_BIN}..."

@@ -487,7 +487,9 @@ class PoliciesTab(BaseUITab):
         self.location_filter_tenancy.set(bool(filters.get('location') == ['tenancy']))
         # "Action" field already handled above
         self.chk_show_invalid.set(bool(filters.get('valid') is False))
-        self.update_policy_output()
+        self.populate_data()
+        self.populate_data()
+        self.populate_data()
 
         # --- Remove old label_frm_actions and its .place() ---
         # Create the policy filter frame and all fields/buttons (restoring the original layout)
@@ -631,7 +633,9 @@ class PoliciesTab(BaseUITab):
             if isinstance(effective_path, str) and effective_path:
                 self.effective_path_var.set(effective_path)
                 # Update the output
-                self.update_policy_output()
+                self.populate_data()
+                self.populate_data()
+                self.populate_data()
 
         def policy_table_right_click(row_index: int) -> tk.Menu:
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
@@ -686,41 +690,25 @@ class PoliciesTab(BaseUITab):
         label_frm_policy_table.pack(fill='both', expand=True, padx=5, pady=5)
 
         # Trace to update the output when any filter changes
-        self.verb_filter_var.trace_add('write', self.update_policy_output)
-        self.subject_filter_var.trace_add('write', self.update_policy_output)
-        self.resource_filter_var.trace_add('write', self.update_policy_output)
-        self.location_filter_var.trace_add('write', self.update_policy_output)
-        self.hierarchy_filter_var.trace_add('write', self.update_policy_output)
-        self.condition_filter_var.trace_add('write', self.update_policy_output)
-        self.text_filter_var.trace_add('write', self.update_policy_output)
-        self.policy_filter_var.trace_add('write', self.update_policy_output)
-        self.effective_path_var.trace_add('write', self.update_policy_output)
+        self.verb_filter_var.trace_add('write', self.populate_data)
+        self.subject_filter_var.trace_add('write', self.populate_data)
+        self.resource_filter_var.trace_add('write', self.populate_data)
+        self.location_filter_var.trace_add('write', self.populate_data)
+        self.hierarchy_filter_var.trace_add('write', self.populate_data)
+        self.condition_filter_var.trace_add('write', self.populate_data)
+        self.text_filter_var.trace_add('write', self.populate_data)
+        self.policy_filter_var.trace_add('write', self.populate_data)
+        self.effective_path_var.trace_add('write', self.populate_data)
 
-    def update_policy_output(self, *args):  # noqa: C901
-        """Update the policy output based on current filters."""
-        import time
+    def populate_data(self, *args):  # noqa: C901
+        """Populate the policy output using per-step timing ala BaseUITab.timed_step (sub-timings)."""
 
-        timings = []
-        start = time.perf_counter()
-
-        def step(label, fn):
-            t0 = time.perf_counter()
-            result = fn()
-            t1 = time.perf_counter()
-            timings.append((label, t1 - t0))
-            return result
-
-        # UI: tenancy label update
-        step(
-            'set tenancy_name_var',
-            lambda: (
+        def _set_tenancy_label():
+            if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name'):
                 self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
-                if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name')
-                else self.tenancy_name_var.set('Please Load a Tenancy')
-            ),
-        )
+            else:
+                self.tenancy_name_var.set('Please Load a Tenancy')
 
-        # Filters dict build
         def _build_filters():  # noqa: C901
             filters: PolicySearch = {}
             if self.subject_filter_var.get():
@@ -758,27 +746,19 @@ class PoliciesTab(BaseUITab):
                 logger.debug('Filtering for invalid policies only')
             return filters
 
-        filters = step('build filters', _build_filters)
+        def _log_filter_info(filters):
+            logger.info(f'Applying policy filters: {filters}')
 
-        step('log filter info', lambda: logger.info(f'Applying policy filters: {filters}'))
+        def _filter_policy_statements(filters):
+            return self.policy_repo.filter_policy_statements(filters=filters)
 
-        # Data filtering
-        filtered_statements = step(
-            'filter_policy_statements (main data filter)',
-            lambda: self.policy_repo.filter_policy_statements(filters=filters),
-        )
-        step(
-            'log count after filter',
-            lambda: logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}'),
-        )
+        def _log_count_after_filter(filtered_statements):
+            logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
 
-        # Normalization
-        filtered_statements = step(
-            'normalize for display', lambda: [for_display_policy(st) for st in filtered_statements]
-        )
+        def _normalize_for_display(stmts):
+            return [for_display_policy(st) for st in stmts]
 
-        # Output columns/view update
-        def _view_config():
+        def _configure_view_columns():
             if self.chk_show_invalid.get():
                 self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
                 self.chk_show_service.set(True)
@@ -793,48 +773,62 @@ class PoliciesTab(BaseUITab):
                 self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
                 logger.debug('Setting policy table to expanded view with all columns')
 
-        step('output column/view config', _view_config)
+        def _apply_row_toggles(filtered_statements):
+            """
+            Efficient filter for display toggles.
+            - Caches all toggle values in local variables (no per-row .get calls)
+            - Only fetches 'Subject Type' once per row
+            - Uses 'set' for regular subject types for fast membership test
+            """
+            show_service = self.chk_show_service.get()
+            show_dynamic = self.chk_show_dynamic.get()
+            show_resource = self.chk_show_resource.get()
+            show_regular = self.chk_show_regular.get()
+            show_invalid = self.chk_show_invalid.get()
+            regular_types = {'group', 'any-user', 'any-group'}
 
-        # Row filter by toggles (checkboxes)
-        def _row_filter():
-            return [
-                st
-                for st in filtered_statements
+            result = []
+            for st in filtered_statements:
+                stype = st.get('Subject Type')
                 if (
-                    self.chk_show_service.get()
-                    and st.get('Subject Type') == 'service'
-                    or self.chk_show_dynamic.get()
-                    and st.get('Subject Type') == 'dynamic-group'
-                    or self.chk_show_resource.get()
-                    and st.get('Subject Type') == 'resource'
-                    or self.chk_show_regular.get()
-                    and st.get('Subject Type') in ['group', 'any-user', 'any-group']
-                    or self.chk_show_invalid.get()
-                    and (not st.get('Valid') or not st.get('Parsed'))
-                )
-            ]
+                    (show_service and stype == 'service')
+                    or (show_dynamic and stype == 'dynamic-group')
+                    or (show_resource and stype == 'resource')
+                    or (show_regular and stype in regular_types)
+                    or (show_invalid and (not st.get('Valid') or not st.get('Parsed')))
+                ):
+                    result.append(st)
+            return result
 
-        rows_to_show = step('toggle row visibility', _row_filter)
-
-        # Count label update
-        step(
-            'update label_policy_count',
-            lambda: self.label_policy_count.config(
+        def _update_count_labels(filtered_statements, rows_to_show):
+            self.label_policy_count.config(
                 text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
-            ),
+            )
+
+        def _update_policy_table(rows_to_show):
+            self.policy_table.update_data(rows_to_show)
+
+        # === Main sub-steps timed via base class ===
+        self.timed_step('set_tenancy_label', _set_tenancy_label)
+        filters = self.timed_step('build_filters', _build_filters)
+        self.timed_step('log_filter_info', lambda: _log_filter_info(filters))
+        filtered_statements = self.timed_step('filter_policy_statements', lambda: _filter_policy_statements(filters))
+        self.timed_step('log_count_after_filter', lambda: _log_count_after_filter(filtered_statements))
+        filtered_statements = self.timed_step(
+            'normalize_for_display', lambda: _normalize_for_display(filtered_statements)
+        )
+        self.timed_step('output_column_view_config', _configure_view_columns)
+        rows_to_show = self.timed_step('apply_row_toggles', lambda: _apply_row_toggles(filtered_statements))
+        self.timed_step('update_count_labels', lambda: _update_count_labels(filtered_statements, rows_to_show))
+        self.timed_step('update_policy_table', lambda: _update_policy_table(rows_to_show))
+        self.timed_step(
+            'log_final_info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
         )
 
-        # DataTable update
-        step('update DataTable', lambda: self.policy_table.update_data(rows_to_show))
-
-        step('log final info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements'))
-
-        t_total = time.perf_counter() - start
-        logger.info(
-            'policies_tab.update_policy_output timing (seconds): '
-            + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
-            + f' | TOTAL: {t_total:.2f}s'
-        )
+    # Backward compatibility: keep update_policy_output (deprecated) for now
+    def update_policy_output(self, *args, **kwargs):
+        """[DEPRECATED] Use populate_data instead for sub-timing and improved logging."""
+        return self.populate_data(*args, **kwargs)
 
     def enable_widgets_after_load(self):
         """Enable widgets after load."""

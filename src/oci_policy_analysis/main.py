@@ -38,14 +38,16 @@ from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
-from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
+
+# REMOVED: ConsolidationEngine import (consolidation feature disabled)
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
-from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
+
+# REMOVED: ConsolidationWorkbenchTab import (consolidation feature disabled)
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.ui.debugger_tab import DebuggerTab
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
@@ -167,12 +169,7 @@ class App(tk.Tk):
             ref_data_repo=self.reference_data_repo,
         )
         self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
-        # Consolidation Engine (middle tier; repo is bound but data is loaded later)
-        self.consolidation_engine = ConsolidationEngine(
-            cache_mgr=CacheManager(),
-            reference_data_repo=self.reference_data_repo,
-            policy_repo=self.policy_compartment_analysis,
-        )
+        # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
 
         # Caching Manager (policy caching only, no AI result caching)
         self.caching = CacheManager()
@@ -198,7 +195,7 @@ class App(tk.Tk):
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
-        self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
+        # REMOVED: ConsolidationWorkbenchTab instantiation (consolidation feature disabled)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
@@ -220,7 +217,7 @@ class App(tk.Tk):
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
-        self.notebook.add(self.consolidation_tab, text='Consolidation Workbench\n(Preview)')
+        # REMOVED: Adding Consolidation Workbench tab to notebook (consolidation feature disabled)
         # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
@@ -286,7 +283,7 @@ class App(tk.Tk):
         self.notebook.forget(self.condition_tester_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)
-        self.notebook.forget(self.consolidation_tab)
+        # REMOVED: Forgetting consolidation_tab (consolidation feature disabled)
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -381,7 +378,7 @@ class App(tk.Tk):
             self.debugger_tab,
             self.console_tab,
             self.maintenance_tab,
-            self.consolidation_tab,
+            # REMOVED: consolidation_tab (consolidation feature disabled)
         ]
         context_help = self.settings.get('context_help', True)
         font_size = self.settings.get('font_size', 'Medium')
@@ -477,7 +474,7 @@ class App(tk.Tk):
         start_post_process_time = time.perf_counter()
         logger.info('Calculating effective compartments for all policy statements')
         self.policy_intelligence.calculate_all_effective_compartments()
-        logger.info('Running intelligence strategies (risk, overlap, cleanup, consolidation, recommendations)')
+        logger.info('Running intelligence strategies (risk, overlap, cleanup, recommendations)')
         self.policy_intelligence.run_all(enabled_strategy_ids=None, params={})
         logger.info('Building permissions report for advanced report tab')
         self.policy_intelligence.build_permissions_report()
@@ -529,17 +526,8 @@ class App(tk.Tk):
         step('dynamic_groups_tab.enable_controls (again)', self.dynamic_groups_tab.enable_controls)
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
         step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
-        step('policy_recommendations_tab.reload_all_analytics', self.policy_recommendations_tab.reload_all_analytics)
-        step('consolidation_tab.load_policies_and_statements', self.consolidation_tab.load_policies_and_statements)
-        if hasattr(self, 'consolidation_tab'):
-            step(
-                'consolidation_tab.reload_and_validate_protection_set',
-                self.consolidation_tab.reload_and_validate_protection_set,
-            )
-            step(
-                'consolidation_tab.refresh_plan_history_for_tenancy',
-                self.consolidation_tab.refresh_plan_history_for_tenancy,
-            )
+        step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
+        # REMOVED: step for consolidation_tab.populate_data (consolidation feature disabled)
         logger.info(
             'UI post-load timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
