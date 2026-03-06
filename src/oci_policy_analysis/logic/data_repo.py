@@ -19,7 +19,7 @@ import hashlib
 import json
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -59,7 +59,7 @@ from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatemen
 logger = get_logger(component='data_repo')
 
 # Constants
-THREADS = 8
+THREADS = 5
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
@@ -750,6 +750,232 @@ class PolicyAnalysisRepository:
         self.policy_data_reloaded = datetime.now(UTC).isoformat()
         return True
 
+    # --- Internal fetchers for Identity Domain entities ---
+    def _fetch_dynamic_groups_for_domain(self, domain, domain_client):
+        """
+        Fetch all dynamic groups for a domain, returning a list of DynamicGroup model objects.
+        Uses ThreadPoolExecutor to fetch details in parallel and appends incrementally for UI.
+        """
+        import threading
+
+        logger.info(f'Fetching dynamic groups for domain: {domain.display_name}')
+        dg_list = []
+        dg_lock = threading.Lock()
+        try:
+            dg_response = self._api_call_with_logging(
+                'IdentityDomainsClient.list_dynamic_resource_groups',
+                domain_client.list_dynamic_resource_groups,
+                attribute_sets=['never'],
+            )
+            if dg_response and dg_response.data:
+                logger.debug(f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}')
+
+                def fetch_full_dg(_dg):
+                    try:
+                        thread_id = threading.get_ident()
+                        thread_name = threading.current_thread().name
+                        logger.debug(
+                            f"Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        )
+                        full_dg = self._api_call_with_logging(
+                            'IdentityDomainsClient.get_dynamic_resource_group',
+                            domain_client.get_dynamic_resource_group,
+                            dynamic_resource_group_id=_dg.id,
+                            attribute_sets=['all'],
+                        ).data
+                        logger.debug(
+                            f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        )
+                        parsed = self._parse_dynamic_group(domain=domain, dg=full_dg)
+                        with dg_lock:
+                            self.dynamic_groups.append(parsed)
+                        return parsed
+                    except Exception as e:
+                        logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {e}')
+                        return None
+
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    futures = [executor.submit(fetch_full_dg, _dg) for _dg in dg_response.data.resources]
+                    for f in as_completed(futures):
+                        result = f.result()
+                        if result:
+                            dg_list.append(result)
+            else:
+                logger.error('Failed to list dynamic groups')
+                return []
+        except Exception as e:
+            logger.error(f'Exception during dynamic group fetch: {e}')
+            return []
+        logger.info(f'Fetched {len(dg_list)} dynamic groups for domain: {domain.display_name}')
+        return dg_list
+
+    def _fetch_groups_for_domain(self, domain, domain_client):
+        """
+        Fetch all groups for a domain, returning a list of Group model objects using ThreadPoolExecutor.
+        """
+        import threading
+
+        logger.info(f'Fetching groups for domain: {domain.display_name}')
+        group_list = []
+        group_lock = threading.Lock()
+        try:
+            start_index = 1
+            limit = 1000
+
+            def fetch_full_group(g):
+                try:
+                    thread_id = threading.get_ident()
+                    thread_name = threading.current_thread().name
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) starting fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                    )
+                    group_obj = Group(
+                        domain_name=domain.display_name,
+                        group_name=g.display_name,
+                        group_ocid=g.ocid,
+                        group_id=g.id,
+                        description=getattr(
+                            g, 'urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group', None
+                        ).description
+                        if getattr(g, 'urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group', None)
+                        else '',
+                    )
+                    with group_lock:
+                        self.groups.append(group_obj)
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) finished fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                    )
+                    return group_obj
+                except Exception as e:
+                    logger.error(f"Failed to process group details for: {getattr(g, 'id', None)}: {e}")
+                    return None
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            while True:
+                group_response = self._api_call_with_logging(
+                    'IdentityDomainsClient.list_groups',
+                    domain_client.list_groups,
+                    start_index=start_index,
+                    count=limit,
+                    sort_by='displayName',
+                    sort_order='ASCENDING',
+                )
+                if group_response.data is None or not group_response.data.resources:
+                    break
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    futures = [executor.submit(fetch_full_group, g) for g in group_response.data.resources]
+                    for f in as_completed(futures):
+                        res = f.result()
+                        if res:
+                            group_list.append(res)
+                if (
+                    len(group_response.data.resources) < limit
+                    or start_index + limit > group_response.data.total_results
+                ):
+                    break
+                start_index += limit
+            logger.info(f'Fetched {len(group_list)} groups for domain: {domain.display_name}')
+            return group_list
+        except Exception as e:
+            logger.error(f'Exception during group fetch: {e}')
+            return []
+
+    def _fetch_users_for_domain(self, domain, domain_client):  # noqa: C901
+        """
+        Fetch users for a domain using OCI generator + ThreadPoolExecutor for user detail calls.
+        Uses pagination.list_call_get_all_results_generator to list users.
+        """
+
+        logger.info(f'Fetching users for domain: {domain.display_name} with paginator and thread pool')
+
+        def user_summary_generator():
+            start_index = 1
+            limit = 1000
+            while True:
+                user_response = self._api_call_with_logging(
+                    'IdentityDomainsClient.list_users',
+                    domain_client.list_users,
+                    start_index=start_index,
+                    count=limit,
+                    sort_by='displayName',
+                    sort_order='ASCENDING',
+                    attribute_sets=['never'],
+                )
+                if user_response.data is None or not user_response.data.resources:
+                    break
+                yield from user_response.data.resources
+                if len(user_response.data.resources) < limit or start_index + limit > user_response.data.total_results:
+                    break
+                start_index += limit
+
+        import threading
+
+        def fetch_full_user(u):
+            try:
+                thread_id = threading.get_ident()
+                thread_name = threading.current_thread().name
+                logger.debug(
+                    f"Thread {thread_name} (id={thread_id}) starting fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                )
+                user_attributes = self._api_call_with_logging(
+                    'IdentityDomainsClient.get_user',
+                    domain_client.get_user,
+                    user_id=u.id,
+                    attribute_sets=['all'],
+                ).data
+                logger.debug(
+                    f"Thread {thread_name} (id={thread_id}) finished fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                )
+                groups_list = (
+                    [gg.ocid for gg in getattr(user_attributes, 'groups', []) if hasattr(gg, 'ocid')]
+                    if hasattr(user_attributes, 'groups') and user_attributes.groups
+                    else []
+                )
+                email = 'None'
+                if hasattr(user_attributes, 'emails') and user_attributes.emails:
+                    for em in user_attributes.emails:
+                        if getattr(em, 'primary', False):
+                            email = em.value
+                            break
+                return User(
+                    domain_name=domain.display_name,
+                    user_name=u.user_name,
+                    user_ocid=u.ocid,
+                    display_name=u.display_name,
+                    email=email,
+                    user_id=u.id,
+                    groups=groups_list,
+                )
+            except Exception as exc:
+                logger.error(f'Failed to fetch user detail for {u.display_name}: {exc}')
+                return None
+
+        # Thread pool for get_user calls, incrementally append to self.users
+        try:
+            from threading import Lock
+
+            user_list = []
+            user_lock = Lock()
+            with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                futures = []
+                for user_summary in user_summary_generator():
+                    futures.append(executor.submit(fetch_full_user, user_summary))
+                for f in as_completed(futures):
+                    result = f.result()
+                    if result:
+                        # Append incrementally, with lock for thread safety with GUI callbacks
+                        with user_lock:
+                            self.users.append(result)
+                        user_list.append(result)
+            logger.info(f'Fetched {len(user_list)} users for domain: {domain.display_name}')
+        except Exception as e:
+            logger.error(f'Exception during user fetch: {e}')
+
+        return user_list
+
     def load_complete_identity_domains(  # noqa: C901
         self, load_all_users: bool = True, compartment_domain_search_depth: int = 1
     ) -> bool:
@@ -849,142 +1075,49 @@ class PolicyAnalysisRepository:
                         domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
                     self.domain_clients[domain.id] = domain_client
 
-                    # Load Dynamic Groups
-                    # Now we need to get each one and cause additional calls
-                    dg_response = self._api_call_with_logging(
-                        'IdentityDomainsClient.list_dynamic_resource_groups',
-                        domain_client.list_dynamic_resource_groups,
-                        attribute_sets=['never'],
+                    # --- Orchestrate loading of Dynamic Groups, Groups, and Users with comments, timing, and logging ---
+
+                    # Use log level per settings for timing (critical if "Log All Timings" enabled, info otherwise)
+                    log_critical = False
+                    try:
+                        if self.settings and isinstance(self.settings, dict):
+                            log_critical = self.settings.get('always_log_api_calls', False)
+                    except Exception:
+                        pass
+                    timing_logger = logger.critical if log_critical else logger.info
+
+                    # Fetch and aggregate Dynamic Groups
+                    t0 = time.perf_counter()
+                    dg_list = self._fetch_dynamic_groups_for_domain(domain, domain_client)
+                    elapsed = time.perf_counter() - t0
+                    timing_logger(
+                        f'[API] _fetch_dynamic_groups_for_domain got {len(dg_list)} dynamic groups for {domain.display_name} completed in {elapsed:.2f}s'
                     )
-                    # dg_response = domain_client.list_dynamic_resource_groups(attributes='matching_rule')
-                    if dg_response and dg_response.data:
-                        logger.debug(
-                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
-                        )
-                        for _dg in dg_response.data.resources:
-                            # Do a full on get to get all attributes
-                            full_dg = self._api_call_with_logging(
-                                'IdentityDomainsClient.get_dynamic_resource_group',
-                                domain_client.get_dynamic_resource_group,
-                                dynamic_resource_group_id=_dg.id,
-                                attribute_sets=['all'],
-                            ).data
-                            dg = full_dg
-                            logger.debug(f'DG: {dg.display_name} Matching Rule: {dg.matching_rule}')
-                            # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
-                    else:
-                        logger.error('Failed to list dynamic groups')
-                        return False
+                    # Dynamic groups have already been incrementally appended in _fetch_dynamic_groups_for_domain
 
-                    # Load Groups
-                    start_index = 1
-                    limit = 1000
-                    while True:
-                        group_response = self._api_call_with_logging(
-                            'IdentityDomainsClient.list_groups',
-                            domain_client.list_groups,
-                            start_index=start_index,
-                            count=limit,
-                            sort_by='displayName',
-                            sort_order='ASCENDING',
-                        )
-                        if group_response.data is None or not group_response.data.resources:
-                            break
-                        for g in group_response.data.resources:
-                            logger.debug(f'Group: {g}')
+                    # Fetch and aggregate Groups
+                    t0 = time.perf_counter()
+                    group_list = self._fetch_groups_for_domain(domain, domain_client)
+                    elapsed = time.perf_counter() - t0
+                    timing_logger(
+                        f'[API] _fetch_groups_for_domain got {len(group_list)} groups for {domain.display_name} completed in {elapsed:.2f}s'
+                    )
+                    # Groups are already appended incrementally
 
-                            # Set the group into the bigger picture JSON
-                            self.groups.append(
-                                Group(
-                                    domain_name=domain.display_name,
-                                    group_name=g.display_name,
-                                    group_ocid=g.ocid,
-                                    group_id=g.id,
-                                    description=g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group.description
-                                    if g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group
-                                    else '',
-                                )
-                            )
-                        # Logic to re-start new request
-                        if (
-                            len(group_response.data.resources) < limit
-                            or start_index + limit > group_response.data.total_results
-                        ):
-                            break
-                        start_index += limit
-                    logger.debug(f'All Groups: {self.groups}')
-
-                    # --- LOAD USERS if enabled ---
+                    # Fetch and aggregate Users (only if enabled)
                     if load_all_users:
-                        start_index = 1
-                        while True:
-                            user_response = self._api_call_with_logging(
-                                'IdentityDomainsClient.list_users',
-                                domain_client.list_users,
-                                start_index=start_index,
-                                count=limit,
-                                sort_by='displayName',
-                                sort_order='ASCENDING',
-                                attribute_sets=['never'],
-                            )
-                            if user_response.data is None or not user_response.data.resources:
-                                break
-                            for u in user_response.data.resources:
-                                logger.debug(f'User: {u}')
-
-                                user_attributes = self._api_call_with_logging(
-                                    'IdentityDomainsClient.get_user',
-                                    domain_client.get_user,
-                                    user_id=u.id,
-                                    attribute_sets=['all'],
-                                ).data
-                                # Print this for now
-                                logger.debug(f'***User Attributes: {user_attributes}')
-                                groups_list = []
-                                # If there are groups, loop them
-                                if user_attributes.groups:
-                                    logger.debug(f'User {u.display_name} Groups: {user_attributes.groups}')
-                                    for gg in user_attributes.groups:
-                                        groups_list.append(gg.ocid)
-                                else:
-                                    logger.debug(f'No groups for user {u.display_name}')
-                                # Default the email to None
-                                email = 'None'
-                                if hasattr(user_attributes, 'emails') and user_attributes.emails:
-                                    for em in user_attributes.emails:
-                                        if em.primary:
-                                            email = em.value
-                                            break
-                                else:
-                                    logger.debug(f'No emails for user {u.display_name}')
-                                # Set the user into the bigger picture JSON
-                                self.users.append(
-                                    User(
-                                        domain_name=domain.display_name,
-                                        user_name=u.user_name,
-                                        user_ocid=u.ocid,
-                                        display_name=u.display_name,
-                                        email=email,
-                                        user_id=u.id,
-                                        groups=groups_list,
-                                    )
-                                )
-
-                            # Loop Logic
-                            if (
-                                len(user_response.data.resources) < limit
-                                or start_index + limit > user_response.data.total_results
-                            ):
-                                break
-                            start_index += limit
-                        logger.debug(f'All Users: {self.users}')
+                        t0 = time.perf_counter()
+                        user_list = self._fetch_users_for_domain(domain, domain_client)
+                        elapsed = time.perf_counter() - t0
+                        timing_logger(
+                            f'[API] _fetch_users_for_domain got {len(user_list)} users for {domain.display_name} completed in {elapsed:.2f}s'
+                        )
+                        # Users are already appended incrementally
                     else:
                         self.users = []
 
                     self.data_as_of = str(datetime.now(UTC))
 
-                    # Indicate we loaded successfully
                 except Exception as e:
                     logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
                     raise
@@ -1575,7 +1708,11 @@ class PolicyAnalysisRepository:
         """
 
         results = []
-        logger.info(f'Filtering Dynamic Groups based on: {filters}')
+        # Only INFO if non-empty or filters indicate stateful/intentional request, else DEBUG
+        if self.dynamic_groups or filters:
+            logger.info(f'Filtering Dynamic Groups based on: {filters}')
+        else:
+            logger.debug(f'Filtering Dynamic Groups based on: {filters} (no data loaded yet)')
 
         for dg in self.dynamic_groups:
             match = True
@@ -1611,7 +1748,10 @@ class PolicyAnalysisRepository:
             if match:
                 results.append(dg)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)} Dynamic Groups.')
+        if self.dynamic_groups or filters:
+            logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)} Dynamic Groups.')
+        else:
+            logger.debug(f'Filter applied. {len(results)} matched out of 0 Dynamic Groups (pre-load state)')
         return results
 
     # --- Other Public Functions ---

@@ -16,7 +16,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.common.helpers import for_display_group, for_display_policy, for_display_user
+from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import Group, GroupSearch, PolicySearch, User, UserSearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
@@ -26,16 +26,19 @@ from oci_policy_analysis.ui.data_table import DataTable
 # Global logger for this module
 logger = get_logger(component='users_tab')
 
-GROUPS_COLUMNS = ['Domain Name', 'Group Name', 'Group OCID']
-GROUPS_COLUMNS_WIDTHS = {'Domain Name': 150, 'Group Name': 300, 'Group OCID': 450}
+GROUPS_ALL_COLUMNS = ['Domain Name', 'Group Name', 'User Count', 'Group ID', 'Group OCID']
+GROUPS_DEFAULT_COLUMNS = ['Domain Name', 'Group Name', 'User Count']
+GROUPS_COLUMNS_WIDTHS = {'Domain Name': 120, 'Group Name': 250, 'User Count': 80, 'Group ID': 220, 'Group OCID': 300}
 
-USERS_COLUMNS = ['Domain Name', 'Username', 'Display Name', 'Primary Email', 'User ID']
+USERS_ALL_COLUMNS = ['Domain Name', 'Username', 'Display Name', 'Primary Email', 'User ID', 'User OCID']
+USERS_DEFAULT_COLUMNS = ['Domain Name', 'Username', 'Display Name', 'Primary Email']
 USERS_COLUMNS_WIDTHS = {
-    'Username': 150,
-    'Display Name': 200,
-    'Primary Email': 200,
-    'User ID': 300,
-    'Domain Name': 150,
+    'Username': 160,
+    'Display Name': 180,
+    'Primary Email': 160,
+    'User ID': 249,
+    'User OCID': 300,
+    'Domain Name': 100,
 }
 
 BASIC_POLICY_COLUMNS = ['Policy Name', 'Policy Compartment', 'Statement Text', 'Effective Path', 'Valid']
@@ -206,8 +209,8 @@ class UsersTab(BaseUITab):
         frm_user_selection.grid(row=0, column=0, padx=5, pady=2, sticky='w')
 
         # Label: Select Groups / Users
-        ttk.Label(frm_user_selection, text='Select Groups / Users').grid(
-            row=0, column=0, columnspan=2, padx=5, pady=2, sticky='w'
+        ttk.Label(frm_user_selection, text='Show Groups -or- Users').grid(
+            row=0, column=0, columnspan=1, padx=5, pady=2, sticky='w'
         )
         # Dropdown: GROUPS/USERS
         # Patch: Only offer USERS if users are present, else just GROUPS
@@ -217,7 +220,25 @@ class UsersTab(BaseUITab):
             self.groups_option_var.get(),
             *(['GROUPS', 'USERS'] if self.should_show_users_option() else ['GROUPS']),
         )
-        self.groups_users_dropdown.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
+        self.groups_users_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+
+        # Show All Data Checkbutton (right of dropdown, col 3)
+        self.show_all_data_var = tk.BooleanVar(value=False)
+
+        def toggle_show_all_data():
+            if self.users_groups_table is not None:
+                self.users_groups_table.set_display_columns(
+                    GROUPS_ALL_COLUMNS if self.show_all_data_var.get() else GROUPS_DEFAULT_COLUMNS
+                )
+            if self.users_users_table is not None:
+                self.users_users_table.set_display_columns(
+                    USERS_ALL_COLUMNS if self.show_all_data_var.get() else USERS_DEFAULT_COLUMNS
+                )
+
+        self.show_all_data_chkbtn = ttk.Checkbutton(
+            frm_user_selection, text='Show all Data', variable=self.show_all_data_var, command=toggle_show_all_data
+        )
+        self.show_all_data_chkbtn.grid(row=0, column=2, padx=6, pady=5, sticky='ew')
 
         # Label: Search, Entry: user_group_search
         ttk.Label(frm_user_selection, text='Search').grid(row=1, column=0, padx=5, pady=2, sticky='w')
@@ -289,26 +310,20 @@ class UsersTab(BaseUITab):
 
         self.users_groups_table = DataTable(
             frm_user_top,
-            columns=GROUPS_COLUMNS,
-            display_columns=GROUPS_COLUMNS,
+            columns=GROUPS_ALL_COLUMNS,
+            display_columns=GROUPS_DEFAULT_COLUMNS,
             data=[],
-            column_widths={'Domain Name': 120, 'Group Name': 180, 'Group OCID': 220},
+            column_widths=GROUPS_COLUMNS_WIDTHS,
             selection_callback=users_group_selection_callback,
             multi_select=True,
             height=7,
         )
         self.users_users_table = DataTable(
             frm_user_top,
-            columns=USERS_COLUMNS,
-            display_columns=USERS_COLUMNS,
+            columns=USERS_ALL_COLUMNS,
+            display_columns=USERS_DEFAULT_COLUMNS,
             data=[],
-            column_widths={
-                'Username': 100,
-                'Display Name': 120,
-                'Primary Email': 120,
-                'User ID': 160,
-                'Domain Name': 100,
-            },
+            column_widths=USERS_COLUMNS_WIDTHS,
             selection_callback=users_user_selection_callback,
             multi_select=True,
             height=7,
@@ -391,6 +406,15 @@ class UsersTab(BaseUITab):
 
     def _build_ui_statement_filters(self, parent):
         # Everything packed horizontally, no grid.
+
+        # Total Groups and Total Users labels
+        total_groups = len(getattr(self.policy_compartment_analysis, 'groups', []))
+        total_users = len(getattr(self.policy_compartment_analysis, 'users', []))
+        self.total_groups_label = ttk.Label(parent, text=f'Total Groups: {total_groups}')
+        self.total_groups_label.pack(side='left', padx=8, pady=(0, 3))
+        self.total_users_label = ttk.Label(parent, text=f'Total Users: {total_users}')
+        self.total_users_label.pack(side='left', padx=8, pady=(0, 3))
+
         self.user_label_count = ttk.Label(parent, text='Policy Statements (Filtered): 0')
         self.user_label_count.pack(side='left', padx=8, pady=(0, 3))
 
@@ -421,6 +445,13 @@ class UsersTab(BaseUITab):
         """
         logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
 
+        # Update the total counts labels
+        if hasattr(self, 'total_groups_label') and hasattr(self, 'total_users_label'):
+            total_groups = len(getattr(self.policy_compartment_analysis, 'groups', []))
+            total_users = len(getattr(self.policy_compartment_analysis, 'users', []))
+            self.total_groups_label.configure(text=f'Total Groups: {total_groups}')
+            self.total_users_label.configure(text=f'Total Users: {total_users}')
+
         # Defensive: Only try to display tables if they've been initialized
         if self.users_groups_table is None or self.users_users_table is None:
             logger.info('Table widgets not initialized yet; skipping analysis output update.')
@@ -438,7 +469,22 @@ class UsersTab(BaseUITab):
                 group_name=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
             filtered_groups: list[Group] = self.policy_compartment_analysis.filter_groups(group_filter=group_filter)
-            display_groups = [for_display_group(g) for g in filtered_groups]
+            display_groups = []
+            for g in filtered_groups:
+                # Build display dict with all shown keys for full compatibility
+                display_groups.append(
+                    {
+                        'Domain Name': g.get('domain_name', 'Default'),
+                        'Group Name': g.get('group_name', ''),
+                        'User Count': (
+                            len(self.policy_compartment_analysis.get_users_for_group(g))
+                            if hasattr(self.policy_compartment_analysis, 'get_users_for_group')
+                            else 0
+                        ),
+                        'Group ID': g.get('group_id', ''),
+                        'Group OCID': g.get('group_ocid', ''),
+                    }
+                )
             self.users_groups_table.update_data(display_groups)
             logger.info(f'Loaded {len(filtered_groups)} groups into table')
         elif self.groups_option_var.get() == 'USERS':
@@ -455,7 +501,18 @@ class UsersTab(BaseUITab):
                 search=self.user_group_search.get().split('|') if self.user_group_search.get() else [],
             )
             filtered_users: list[User] = self.policy_compartment_analysis.filter_users(user_filter=user_filter)
-            display_users = [for_display_user(u) for u in filtered_users]
+            display_users = []
+            for u in filtered_users:
+                display_users.append(
+                    {
+                        'Domain Name': u.get('domain_name', 'Default'),
+                        'Username': u.get('user_name', ''),
+                        'Display Name': u.get('display_name', ''),
+                        'Primary Email': u.get('email', ''),
+                        'User ID': u.get('user_id', ''),
+                        'User OCID': u.get('user_ocid', ''),
+                    }
+                )
             self.users_users_table.update_data(display_users)
             logger.info(f'Loaded {len(filtered_users)} users into data')
         else:

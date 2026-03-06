@@ -47,7 +47,7 @@ class DebuggerTab(ttk.Frame):
             'Policy Repo Policies',
             'Reference Data',
             'Simulation History',
-            'Consolidation (In-Flight Session)',  # NEW
+            # 'Consolidation (In-Flight Session)',  # NEW
         ] + overlay_sources
 
         self.source_combo = ttk.Combobox(
@@ -79,6 +79,8 @@ class DebuggerTab(ttk.Frame):
         self.tree_area = ttk.Treeview(self, columns=('value',), show='tree headings', height=24)
         self.tree_area.heading('#0', text='Key/Index')
         self.tree_area.heading('value', text='Value')
+        self._tree_node_to_path = {}  # Map: node_id -> JSON path tuple
+        self.tree_area.bind('<<TreeviewOpen>>', self._on_treeview_open)
 
         self.source_combo.bind('<<ComboboxSelected>>', self._on_source_combo)
         self.view_mode_combo.bind('<<ComboboxSelected>>', lambda evt: self._refresh_display())
@@ -104,16 +106,16 @@ class DebuggerTab(ttk.Frame):
             elif source == 'Policy Repo Compartments':
                 return self.app.policy_compartment_analysis.compartments
 
-            elif source == 'Consolidation (In-Flight Session)':
-                try:
-                    from oci_policy_analysis.common.caching import CacheManager
-                except ImportError:
-                    return {'error': 'CacheManager not available'}
-                cache_mgr = CacheManager()
-                tenancy_ocid = getattr(self.app, 'tenancy_ocid', 'unknown')
-                # Try to load latest protected_set for this tenancy
-                session = cache_mgr.load_consolidation_session(plan_id='protected_set', tenancy_ocid=tenancy_ocid)
-                return session if session else {'note': 'No saved consolidation session/overlay found.'}
+            # elif source == 'Consolidation (In-Flight Session)':
+            #     try:
+            #         from oci_policy_analysis.common.caching import CacheManager
+            #     except ImportError:
+            #         return {'error': 'CacheManager not available'}
+            #     cache_mgr = CacheManager()
+            #     tenancy_ocid = getattr(self.app, 'tenancy_ocid', 'unknown')
+            #     # Try to load latest protected_set for this tenancy
+            #     session = cache_mgr.load_consolidation_session(plan_id='protected_set', tenancy_ocid=tenancy_ocid)
+            #     return session if session else {'note': 'No saved consolidation session/overlay found.'}
 
             # Overlay sources
             elif source.startswith('Policy Intelligence: '):
@@ -154,24 +156,61 @@ class DebuggerTab(ttk.Frame):
         else:
             # Clear and build tree
             self.tree_area.delete(*self.tree_area.get_children())
-            self._insert_into_tree('', data)
+            self._tree_node_to_path.clear()
+            self._insert_into_tree('', data, path=())
             self.tree_area.pack(fill='both', expand=True, padx=12, pady=4)
 
-    def _insert_into_tree(self, parent, value, key=''):
-        # Populate one level: dict/list will show keys and immediate values (expandable), scalars show as value
+    def _insert_into_tree(self, parent, value, key='', path=()):
+        """
+        Populate just one level: for dicts and lists, create expandable items,
+        for scalars, just the value. Supply `path` for tracking node position within data.
+        """
         if isinstance(value, dict):
             for k, v in value.items():
+                next_path = path + (k,)
                 node_id = self.tree_area.insert(parent, 'end', text=str(k), values=(self._short_repr(v),))
+                self._tree_node_to_path[node_id] = next_path
                 if isinstance(v, dict | list):
-                    self.tree_area.insert(node_id, 'end', text='...', values=('...',))
+                    # Add a single dummy child so the node is expandable; real children on expand
+                    dummy_id = self.tree_area.insert(node_id, 'end', text='...', values=('...',))
+                    self._tree_node_to_path[dummy_id] = next_path + ('...',)
         elif isinstance(value, list):
             for idx, v in enumerate(value):
+                next_path = path + (idx,)
                 node_id = self.tree_area.insert(parent, 'end', text=f'[{idx}]', values=(self._short_repr(v),))
+                self._tree_node_to_path[node_id] = next_path
                 if isinstance(v, dict | list):
-                    self.tree_area.insert(node_id, 'end', text='...', values=('...',))
+                    dummy_id = self.tree_area.insert(node_id, 'end', text='...', values=('...',))
+                    self._tree_node_to_path[dummy_id] = next_path + ('...',)
         else:
             # Scalar
-            self.tree_area.insert(parent, 'end', text=str(key), values=(self._short_repr(value),))
+            node_id = self.tree_area.insert(parent, 'end', text=str(key), values=(self._short_repr(value),))
+            self._tree_node_to_path[node_id] = path
+
+    def _on_treeview_open(self, event):
+        """
+        On expanding a tree node: if children are just a dummy "...", remove it and load actual children.
+        """
+        selected = self.tree_area.focus()
+        path = self._tree_node_to_path.get(selected)
+        if not path:  # Root may be empty path
+            return
+        # Fetch data at this path in the JSON source
+        data = self._get_source_data()
+        current = data
+        try:
+            for p in path:
+                current = current[p]
+        except Exception:
+            return  # Path invalid or missing
+        # If children already loaded (i.e. not just one child named "..."), do nothing
+        kids = self.tree_area.get_children(selected)
+        if len(kids) == 1:
+            kid_text = self.tree_area.item(kids[0], 'text')
+            if kid_text == '...':
+                self.tree_area.delete(kids[0])
+                self._insert_into_tree(selected, current, path=path)
+                # No need to store new mappings here: _insert_into_tree takes care of it
 
     def _short_repr(self, v):
         # Show a short string for tree value column

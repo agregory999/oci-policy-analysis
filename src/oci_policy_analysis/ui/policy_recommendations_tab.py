@@ -1075,14 +1075,15 @@ class PolicyRecommendationsTab(BaseUITab):
         """
         Build the Policy Consolidation notebook sub-tab.
         """
+        # Workbench area with instructions and button to open consolidation workbench (not implemented yet - manual process for now)
         workbench_frame = ttk.Frame(parent)
         workbench_frame.pack(fill='x', padx=10, pady=(8, 4))
-        workbench_frame.columnconfigure(0, weight=2)
-        workbench_frame.columnconfigure(1, weight=1)
+        workbench_frame.columnconfigure(0, weight=1)
+        workbench_frame.columnconfigure(1, weight=0)
         ttk.Label(
             workbench_frame,
             text='Consolidation suggestions show opportunities to streamline policy statements. To act on these suggestions, manage policies manually using the Policy Analysis and Browser tabs. Automated batch consolidation is not available in this version.',
-            wraplength=700,
+            # wraplength=700,
             justify='left',
         ).grid(row=0, column=0, sticky='w', padx=(0, 8))
         self.add_context_help(

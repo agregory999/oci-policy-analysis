@@ -302,6 +302,11 @@ class App(tk.Tk):
             self, textvariable=self.status_var, relief=tk.SUNKEN, anchor='w', padding=4, font=self.status_font
         )
         self.status_bar.pack(side='bottom', fill='x')
+        # [CROSS-PLATFORM PATCH] Improve status bar visibility on Windows by setting background/foreground.
+        try:
+            self.status_bar.configure(background='#FFF9CC', foreground='black', borderwidth=1)
+        except Exception:
+            pass  # configure fails on some ttk themes, but safe to ignore
         self.update_status_bar()
 
     def update_status_bar(self):
@@ -655,9 +660,10 @@ class App(tk.Tk):
                     # Start polling the repo's progress per second
                     def poll_policy_repo_identity_progress():
                         domain_count = len(self.policy_compartment_analysis.identity_domains)
+                        dynamic_group_count = len(self.policy_compartment_analysis.dynamic_groups)
                         group_count = len(self.policy_compartment_analysis.groups)
                         user_count = len(self.policy_compartment_analysis.users)
-                        msg = f'Loaded {domain_count} domains, {group_count} groups, {user_count} users...'
+                        msg = f'Loaded {domain_count} domains, {dynamic_group_count} DGs, {group_count} groups, {user_count} users...'
                         cb = callback.get('progress') if callback else None
                         if cb is not None and callable(cb):
                             self.after(0, lambda m=msg: cb(m))
