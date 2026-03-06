@@ -1,53 +1,8 @@
-# [4.1.0-dev.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.5...v4.1.0-dev.6) (2026-03-06)
-
-
-### Bug Fixes
-
-* More efficient data load and display ([71ff6b1](https://github.com/agregory999/oci-policy-analysis/commit/71ff6b1a9429411a5d4ae0526ff191f1c55a252c))
-
-# [4.1.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.4...v4.1.0-dev.5) (2026-03-05)
-
-
-### Bug Fixes
-
-* added another risk tab for policy level ([1cb8f01](https://github.com/agregory999/oci-policy-analysis/commit/1cb8f01b35dea19a604dd8729b0c0b41e1d90ffd))
-
-# [4.1.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.3...v4.1.0-dev.4) (2026-03-04)
-
-
-### Bug Fixes
-
-* new consolidation strategy and docs ([d35b394](https://github.com/agregory999/oci-policy-analysis/commit/d35b3948b7a66030c7cea8290f1fa4b455209850))
-
-# [4.1.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.2...v4.1.0-dev.3) (2026-03-02)
-
-
-### Bug Fixes
-
-* Consolidation and Recommendations adjustments ([3a561d8](https://github.com/agregory999/oci-policy-analysis/commit/3a561d8fdf8d98627d23ca9270120dcaaf7f3a9c))
-* UI and alternate identity domain ([c1c4b01](https://github.com/agregory999/oci-policy-analysis/commit/c1c4b019884cf2803331f864be7d50b508b5efce))
-
-# [4.1.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.2...v4.1.0-dev.3) (2026-02-20)
-
-
-### Bug Fixes
-
-* Consolidation and Recommendations adjustments ([3a561d8](https://github.com/agregory999/oci-policy-analysis/commit/3a561d8fdf8d98627d23ca9270120dcaaf7f3a9c))
-
-# [4.1.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.1...v4.1.0-dev.2) (2026-02-19)
-
-
-### Bug Fixes
-
-* Another Consolidation Strategy and Added Context files ([45417fd](https://github.com/agregory999/oci-policy-analysis/commit/45417fdf643fb9026b2acc6e1aca006fee876780))
-* Consolidation Move to Root Strategy fixes ([52a8ad5](https://github.com/agregory999/oci-policy-analysis/commit/52a8ad52bbfccf08486fc2be7e54534a4943c6fd))
-
-# [4.1.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0-dev.1) (2026-02-19)
+# [4.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0) (2026-02-11)
 
 
 ### Features
 
-* Consolidation Workbench ([7c9dec4](https://github.com/agregory999/oci-policy-analysis/commit/7c9dec4db21cf041b094bd84307b95ba47af8979))
 * UI refinements ([34468a3](https://github.com/agregory999/oci-policy-analysis/commit/34468a379a530f1eae84a6960614be66a62b543d))
 
 ## [4.0.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.5...v4.0.6) (2026-02-11)
