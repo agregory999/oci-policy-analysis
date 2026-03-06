@@ -1,0 +1,1429 @@
+{
+    "resources": {
+        "cloud-guard-adhoc-query": {
+            "verbs": {
+                "inspect": [
+                    "CG_ADHOC_QUERY_INSPECT"
+                ],
+                "read": [
+                    "CG_ADHOC_QUERY_READ"
+                ],
+                "use": [
+                    "CG_ADHOC_QUERY_CREATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-condition-metadata-types": {
+            "verbs": {
+                "inspect": [
+                    "CG_CONDITION_METADATA_TYPES_INSPECT"
+                ],
+                "read": [
+                    "CG_CONDITION_METADATA_TYPES_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-config": {
+            "verbs": {
+                "inspect": [
+                    "CG_CONFIG_INSPECT"
+                ],
+                "read": [
+                    "CG_CONFIG_READ"
+                ],
+                "use": [
+                    "CG_CONFIG_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-coverage": {
+            "verbs": {
+                "inspect": [
+                    "CG_COVERAGE_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-data-mask-rules": {
+            "verbs": {
+                "inspect": [
+                    "CG_DATA_MASK_RULE_INSPECT"
+                ],
+                "read": [
+                    "CG_DATA_MASK_RULE_READ"
+                ],
+                "use": [
+                    "CG_DATA_MASK_RULE_UPDATE"
+                ],
+                "manage": [
+                    "CG_DATA_MASK_RULE_CREATE",
+                    "CG_DATA_MASK_RULE_DELETE"
+                ]
+            }
+        },
+        "cloud-guard-data-sources": {
+            "verbs": {
+                "inspect": [
+                    "CG_DATA_SOURCE_INSPECT"
+                ],
+                "read": [
+                    "CG_DATA_SOURCE_READ"
+                ],
+                "use": [
+                    "CG_DATA_SOURCE_UPDATE"
+                ],
+                "manage": [
+                    "CG_DATA_SOURCE_CREATE",
+                    "CG_DATA_SOURCE_DELETE",
+                    "CG_DATA_SOURCE_MOVE"
+                ]
+            }
+        },
+        "cloud-guard-detectors": {
+            "verbs": {
+                "inspect": [
+                    "CG_DETECTOR_INSPECT"
+                ],
+                "read": [
+                    "CG_DETECTOR_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-detector-recipes": {
+            "verbs": {
+                "inspect": [
+                    "CG_DETECTOR_RECIPE_INSPECT"
+                ],
+                "read": [
+                    "CG_DETECTOR_RECIPE_READ"
+                ],
+                "use": [
+                    "CG_DETECTOR_RECIPE_UPDATE"
+                ],
+                "manage": [
+                    "CG_DETECTOR_RECIPE_CREATE",
+                    "CG_DETECTOR_RECIPE_DELETE",
+                    "CG_DETECTOR_RECIPE_MOVE"
+                ]
+            }
+        },
+        "cloud-guard-detector-rule-definitions": {
+            "verbs": {
+                "inspect": [
+                    "CG_DETECTOR_RULE_DEFINITION_INSPECT"
+                ],
+                "read": [
+                    "CG_DETECTOR_RULE_DEFINITION_READ"
+                ],
+                "use": [
+                    "CG_DETECTOR_RULE_DEFINITION_UPDATE"
+                ],
+                "manage": [
+                    "CG_DETECTOR_RULE_DEFINITION_CREATE",
+                    "CG_DETECTOR_RULE_DEFINITION_DELETE"
+                ]
+            }
+        },
+        "cloud-guard-findings": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "CG_FINDING_CREATE"
+                ]
+            }
+        },
+        "cloud-guard-managed-lists": {
+            "verbs": {
+                "inspect": [
+                    "CG_MANAGED_LIST_INSPECT"
+                ],
+                "read": [
+                    "CG_MANAGED_LIST_READ"
+                ],
+                "use": [
+                    "CG_MANAGED_LIST_UPDATE"
+                ],
+                "manage": [
+                    "CG_MANAGED_LIST_CREATE",
+                    "CG_MANAGED_LIST_DELETE",
+                    "CG_MANAGED_LIST_MOVE"
+                ]
+            }
+        },
+        "cloud-guard-metadata": {
+            "verbs": {
+                "inspect": [
+                    "CG_METADATA_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-meta-data-sync": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "CG_METADATASYNC_READ"
+                ],
+                "use": [
+                    "CG_METADATASYNC_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-problems": {
+            "verbs": {
+                "inspect": [
+                    "CG_PROBLEM_INSPECT"
+                ],
+                "read": [
+                    "CG_PROBLEM_READ"
+                ],
+                "use": [
+                    "CG_PROBLEM_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-recommendations": {
+            "verbs": {
+                "inspect": [
+                    "CG_RECOMMENDATION_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-resource-profile": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESOURCE_PROFILE_INSPECT"
+                ],
+                "read": [
+                    "CG_RESOURCE_PROFILE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-resource-types": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESOURCE_TYPES_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-resource-view": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESOURCE_VIEW_INSPECT"
+                ],
+                "read": [
+                    "CG_RESOURCE_VIEW_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-responder-recipes": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESPONDER_RECIPE_INSPECT"
+                ],
+                "read": [
+                    "CG_RESPONDER_RECIPE_READ"
+                ],
+                "use": [
+                    "CG_RESPONDER_RECIPE_UPDATE"
+                ],
+                "manage": [
+                    "CG_RESPONDER_RECIPE_CREATE",
+                    "CG_RESPONDER_RECIPE_DELETE",
+                    "CG_RESPONDER_RECIPE_MOVE"
+                ]
+            }
+        },
+        "cloud-guard-responder-rules": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESPONDER_RULE_INSPECT"
+                ],
+                "read": [
+                    "CG_RESPONDER_RULE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-responder-executions": {
+            "verbs": {
+                "inspect": [
+                    "CG_RESPONDER_EXECUTION_INSPECT"
+                ],
+                "read": [
+                    "CG_RESPONDER_EXECUTION_READ"
+                ],
+                "use": [
+                    "CG_RESPONDER_EXECUTION_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-risk-scores": {
+            "verbs": {
+                "inspect": [
+                    "CG_RISK_SCORES_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-saved-query": {
+            "verbs": {
+                "inspect": [
+                    "CG_SAVED_QUERY_INSPECT"
+                ],
+                "read": [
+                    "CG_SAVED_QUERY_READ"
+                ],
+                "use": [
+                    "CG_SAVED_QUERY_UPDATE"
+                ],
+                "manage": [
+                    "CG_SAVED_QUERY_CREATE",
+                    "CG_SAVED_QUERY_DELETE",
+                    "CG_SAVED_QUERY_MOVE"
+                ]
+            }
+        },
+        "cloud-guard-schemas": {
+            "verbs": {
+                "inspect": [
+                    "CG_SCHEMA_INSPECT"
+                ],
+                "read": [
+                    "CG_SCHEMA_READ"
+                ],
+                "use": [
+                    "CG_SCHEMA_UPDATE"
+                ],
+                "manage": [
+                    "CG_SCHEMA_CREATE",
+                    "CG_SCHEMA_DELETE"
+                ]
+            }
+        },
+        "cloud-guard-security-scores": {
+            "verbs": {
+                "inspect": [
+                    "CG_SECURITY_SCORES_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "cloud-guard-service-logging": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "CG_SERVICE_LOGGING_READ"
+                ],
+                "use": [
+                    "CG_SERVICE_LOGGING_UPDATE"
+                ],
+                "manage": [
+                    "CG_SERVICE_LOGGING_CREATE",
+                    "CG_SERVICE_LOGGING_DELETE"
+                ]
+            }
+        },
+        "cloud-guard-signals": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "CG_SIGNAL_CREATE"
+                ]
+            }
+        },
+        "cloud-guard-summary-event": {
+            "verbs": {
+                "inspect": [],
+                "read": [],
+                "use": [],
+                "manage": [
+                    "CG_SUMMARY_EVENT_CREATE"
+                ]
+            }
+        },
+        "cloud-guard-targets": {
+            "verbs": {
+                "inspect": [
+                    "CG_TARGET_INSPECT"
+                ],
+                "read": [
+                    "CG_TARGET_READ"
+                ],
+                "use": [
+                    "CG_TARGET_UPDATE"
+                ],
+                "manage": [
+                    "CG_TARGET_CREATE",
+                    "CG_TARGET_DELETE"
+                ]
+            }
+        },
+        "cloud-guard-user-preferences": {
+            "verbs": {
+                "inspect": [
+                    "CG_USER_PREFERENCE_INSPECT"
+                ],
+                "read": [],
+                "use": [
+                    "CG_USER_PREFERENCE_UPDATE"
+                ],
+                "manage": []
+            }
+        },
+        "cloud-guard-work-requests": {
+            "verbs": {
+                "inspect": [
+                    "CG_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "CG_WORK_REQUEST_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "CG_WORK_REQUEST_DELETE"
+                ]
+            }
+        },
+        "security-policy": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "SECURITY_RECIPE_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "security-recipe": {
+            "verbs": {
+                "inspect": [
+                    "SECURITY_RECIPE_INSPECT"
+                ],
+                "read": [
+                    "SECURITY_RECIPE_READ"
+                ],
+                "use": [
+                    "SECURITY_RECIPE_UPDATE"
+                ],
+                "manage": [
+                    "SECURITY_RECIPE_CREATE",
+                    "SECURITY_RECIPE_DELETE"
+                ]
+            }
+        },
+        "security-zone": {
+            "verbs": {
+                "inspect": [
+                    "SECURITY_ZONE_INSPECT"
+                ],
+                "read": [
+                    "SECURITY_ZONE_READ"
+                ],
+                "use": [
+                    "SECURITY_ZONE_ATTACH",
+                    "SECURITY_ZONE_DETACH",
+                    "SECURITY_ZONE_UPDATE"
+                ],
+                "manage": [
+                    "SECURITY_ZONE_CREATE",
+                    "SECURITY_ZONE_DELETE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "cloud-guard-family": {
+            "resources": [
+                "cloud-guard-adhoc-query",
+                "cloud-guard-condition-metadata-types",
+                "cloud-guard-config",
+                "cloud-guard-coverage",
+                "cloud-guard-data-mask-rules",
+                "cloud-guard-data-sources",
+                "cloud-guard-detector-recipes",
+                "cloud-guard-detector-rule-definitions",
+                "cloud-guard-detectors",
+                "cloud-guard-findings",
+                "cloud-guard-managed-lists",
+                "cloud-guard-metadata",
+                "cloud-guard-meta-data-sync",
+                "cloud-guard-problems",
+                "cloud-guard-recommendations",
+                "cloud-guard-resource-profile",
+                "cloud-guard-resource-types",
+                "cloud-guard-resource-view",
+                "cloud-guard-responder-recipes",
+                "cloud-guard-responder-rules",
+                "cloud-guard-responder-executions",
+                "cloud-guard-risk-scores",
+                "cloud-guard-saved-query",
+                "cloud-guard-schemas",
+                "cloud-guard-security-scores",
+                "cloud-guard-service-logging",
+                "cloud-guard-signals",
+                "cloud-guard-summary-event",
+                "cloud-guard-targets",
+                "cloud-guard-user-preferences",
+                "cloud-guard-work-requests",
+                "security-policy",
+                "security-recipe",
+                "security-zone"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/cloud-guard/using/policies.htm"
+        }
+    },
+    "operations": {
+        "ListAdhocQueries": {
+            "permissions": [
+                "CG_ADHOC_QUERY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetAdhocQuery": {
+            "permissions": [
+                "CG_ADHOC_QUERY_READ"
+            ],
+            "notes": ""
+        },
+        "ListAdhocQueryResults": {
+            "permissions": [
+                "CG_ADHOC_QUERY_READ"
+            ],
+            "notes": ""
+        },
+        "GetAdhocQueryResultContent": {
+            "permissions": [
+                "CG_ADHOC_QUERY_READ"
+            ],
+            "notes": ""
+        },
+        "CreateAdhocQuery": {
+            "permissions": [
+                "CG_ADHOC_QUERY_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardConditionMetadataType": {
+            "permissions": [
+                "CG_CONDITION_METADATA_TYPES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardConditionMetadataType": {
+            "permissions": [
+                "CG_CONDITION_METADATA_TYPES_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuard": {
+            "permissions": [
+                "CG_CONFIG_INSPECT",
+                "CG_CONFIG_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuard": {
+            "permissions": [
+                "CG_CONFIG_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RequestSummarizedCoverage": {
+            "permissions": [
+                "CG_COVERAGE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListDataMaskRules": {
+            "permissions": [
+                "CG_DATA_MASK_RULE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetDataMaskRule": {
+            "permissions": [
+                "CG_DATA_MASK_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDataMaskRule": {
+            "permissions": [
+                "CG_DATA_MASK_RULE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDataMaskRule": {
+            "permissions": [
+                "CG_DATA_MASK_RULE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDataMaskRule": {
+            "permissions": [
+                "CG_DATA_MASK_RULE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListDataSources": {
+            "permissions": [
+                "CG_DATA_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetDataSource": {
+            "permissions": [
+                "CG_CONFIG_READ"
+            ],
+            "notes": "Documented requirement lists CG_CONFIG_READ."
+        },
+        "UpdateDataSource": {
+            "permissions": [
+                "CG_DATA_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDataSource": {
+            "permissions": [
+                "CG_DATA_SOURCE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDataSource": {
+            "permissions": [
+                "CG_DATA_SOURCE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeDataSourceCompartment": {
+            "permissions": [
+                "CG_DATA_SOURCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardDetectors": {
+            "permissions": [
+                "CG_DETECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardDetectorRules": {
+            "permissions": [
+                "CG_DETECTOR_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardDetector": {
+            "permissions": [
+                "CG_DETECTOR_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardDetectorRule": {
+            "permissions": [
+                "CG_DETECTOR_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardDetectorRecipe": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardDetectorRecipe": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardDetectorRecipe": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardDetectorRecipe": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardDetectorRecipe": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeDetectorRecipeCompartment": {
+            "permissions": [
+                "CG_DETECTOR_RECIPE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListDetectorRuleDefinitions": {
+            "permissions": [
+                "CG_DETECTOR_RULE_DEFINITION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetDetectorRuleDefinition": {
+            "permissions": [
+                "CG_DETECTOR_RULE_DEFINITION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateDetectorRuleDefinition": {
+            "permissions": [
+                "CG_DETECTOR_RULE_DEFINITION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateDetectorRuleDefinition": {
+            "permissions": [
+                "CG_DETECTOR_RULE_DEFINITION_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteDetectorRuleDefinition": {
+            "permissions": [
+                "CG_DETECTOR_RULE_DEFINITION_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardFinding": {
+            "permissions": [
+                "CG_FINDING_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardManagedLists": {
+            "permissions": [
+                "CG_MANAGED_LIST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardManagedListTypes": {
+            "permissions": [
+                "CG_MANAGED_LIST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardManagedList": {
+            "permissions": [
+                "CG_MANAGED_LIST_READ"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardManagedList": {
+            "permissions": [
+                "CG_MANAGED_LIST_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardManagedList": {
+            "permissions": [
+                "CG_MANAGED_LIST_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardManagedList": {
+            "permissions": [
+                "CG_MANAGED_LIST_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeManagedListCompartment": {
+            "permissions": [
+                "CG_MANAGED_LIST_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListTactics": {
+            "permissions": [
+                "CG_METADATA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListTechniques": {
+            "permissions": [
+                "CG_METADATA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetMetaDataSyncStatus": {
+            "permissions": [
+                "CG_METADATASYNC_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateResourceSync": {
+            "permissions": [
+                "CG_METADATASYNC_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardProblems": {
+            "permissions": [
+                "CG_PROBLEM_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardProblemHistories": {
+            "permissions": [
+                "CG_PROBLEM_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResponderActivities": {
+            "permissions": [
+                "CG_PROBLEM_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardProblem": {
+            "permissions": [
+                "CG_PROBLEM_READ"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedProblems": {
+            "permissions": [
+                "CG_PROBLEM_READ"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedTrendProblems": {
+            "permissions": [
+                "CG_PROBLEM_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardImpactedResources": {
+            "permissions": [
+                "CG_PROBLEM_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardBulkProblemStatus": {
+            "permissions": [
+                "CG_PROBLEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardProblemStatus": {
+            "permissions": [
+                "CG_PROBLEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "TriggerCloudGuardResponder": {
+            "permissions": [
+                "CG_PROBLEM_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardRecommendations": {
+            "permissions": [
+                "CG_RECOMMENDATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetResourceProfile": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "ListResourceProfileEndpoints": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "ListResourceProfileImpactedResources": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "ListResourceProfiles": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "RequestSummarizedTopTrendResourceRiskScores": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "RequestSummarizedTrendResourceRiskScores": {
+            "permissions": [
+                "CG_RESOURCE_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResourceTypes": {
+            "permissions": [
+                "CG_RESOURCE_TYPES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListResources": {
+            "permissions": [
+                "CG_RESOURCE_VIEW_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetResource": {
+            "permissions": [
+                "CG_RESOURCE_VIEW_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResponderRecipe": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResponderRecipeResponderRule": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardResponderRecipe": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardResponderRecipeResponderRule": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardResponderRecipe": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardResponderRecipe": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeCloudGuardResponderRecipeCompartment": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardResponderRecipeResponderRule": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardResponderRecipe": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeResponderRecipeCompartment": {
+            "permissions": [
+                "CG_RESPONDER_RECIPE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResponderRules": {
+            "permissions": [
+                "CG_RESPONDER_RULE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardResponderRule": {
+            "permissions": [
+                "CG_RESPONDER_RULE_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardResponderExecution": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardResponderExecution": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_READ"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedResponderExecutions": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_READ"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedTrendResponderExecutions": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_READ"
+            ],
+            "notes": ""
+        },
+        "ExecuteCloudGuardResponderExecution": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "SkipCloudGuardBulkResponderExecution": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "SkipCloudGuardResponderExecution": {
+            "permissions": [
+                "CG_RESPONDER_EXECUTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedRiskScores": {
+            "permissions": [
+                "CG_RISK_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardRiskScores": {
+            "permissions": [
+                "CG_RISK_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ChangeSavedQueryCompartment": {
+            "permissions": [
+                "CG_SAVED_QUERY_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateSavedQuery": {
+            "permissions": [
+                "CG_SAVED_QUERY_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSavedQuery": {
+            "permissions": [
+                "CG_SAVED_QUERY_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetSavedQuery": {
+            "permissions": [
+                "CG_SAVED_QUERY_READ"
+            ],
+            "notes": ""
+        },
+        "ListSavedQueries": {
+            "permissions": [
+                "CG_SAVED_QUERY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateSavedQuery": {
+            "permissions": [
+                "CG_SAVED_QUERY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateSchema": {
+            "permissions": [
+                "CG_SCHEMA_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSchema": {
+            "permissions": [
+                "CG_SCHEMA_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetSchema": {
+            "permissions": [
+                "CG_SCHEMA_READ"
+            ],
+            "notes": ""
+        },
+        "ListSchemas": {
+            "permissions": [
+                "CG_SCHEMA_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateSchema": {
+            "permissions": [
+                "CG_SCHEMA_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedSecurityScores": {
+            "permissions": [
+                "CG_SECURITY_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSummarizedTrendSecurityScores": {
+            "permissions": [
+                "CG_SECURITY_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "RequestCloudGuardSecurityScores": {
+            "permissions": [
+                "CG_SECURITY_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "RequestSecurityScoreSummarizedTrend": {
+            "permissions": [
+                "CG_SECURITY_SCORES_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateServiceLogging": {
+            "permissions": [
+                "CG_SERVICE_LOGGING_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteServiceLogging": {
+            "permissions": [
+                "CG_SERVICE_LOGGING_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetServiceLogging": {
+            "permissions": [
+                "CG_SERVICE_LOGGING_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateServiceLogging": {
+            "permissions": [
+                "CG_SERVICE_LOGGING_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardSignal": {
+            "permissions": [
+                "CG_SIGNAL_CREATE"
+            ],
+            "notes": ""
+        },
+        "AddSummaryEvent": {
+            "permissions": [
+                "CG_SUMMARY_EVENT_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardTargets": {
+            "permissions": [
+                "CG_TARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardTargetDetectorRecipes": {
+            "permissions": [
+                "CG_TARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardTargetDetectorRecipeDetectorRules": {
+            "permissions": [
+                "CG_TARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardTarget": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardTargetResponderRecipes": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardTargetResponderRecipe": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "ListCloudGuardTargetResponderRecipeResponderRules": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardTargetResponderRecipeResponderRule": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardTargetDetectorRecipe": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardTargetDetectorRecipeDetectorRule": {
+            "permissions": [
+                "CG_TARGET_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardTarget": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardTargetDetectorRule": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardTargetResponderRecipe": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeCloudGuardTargetResponderRecipeCompartment": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardTargetResponderRecipe": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardTargetResponderRecipeResponderRule": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardTargetDetectorRecipe": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeCloudGuardTargetDetectorRecipeCompartment": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateCloudGuardTargetDetectorRecipe": {
+            "permissions": [
+                "CG_TARGET_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateCloudGuardTarget": {
+            "permissions": [
+                "CG_TARGET_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardTarget": {
+            "permissions": [
+                "CG_TARGET_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardTargetResponderRecipe": {
+            "permissions": [
+                "CG_TARGET_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteCloudGuardTargetDetectorRecipe": {
+            "permissions": [
+                "CG_TARGET_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetCloudGuardUserPreference": {
+            "permissions": [
+                "CG_USER_PREFERENCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ReplaceCloudGuardUserPreference": {
+            "permissions": [
+                "CG_USER_PREFERENCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "CG_WORK_REQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "CG_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "CG_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "CG_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "CancelWorkRequest": {
+            "permissions": [
+                "CG_WORK_REQUEST_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetSecurityPolicy": {
+            "permissions": [
+                "SECURITY_RECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "ListSecurityRecipes": {
+            "permissions": [
+                "SECURITY_RECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetSecurityRecipe": {
+            "permissions": [
+                "SECURITY_RECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "CreateSecurityRecipe": {
+            "permissions": [
+                "SECURITY_RECIPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateSecurityRecipe": {
+            "permissions": [
+                "SECURITY_RECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSecurityRecipe": {
+            "permissions": [
+                "SECURITY_RECIPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListSecurityZones": {
+            "permissions": [
+                "SECURITY_ZONE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetSecurityZone": {
+            "permissions": [
+                "SECURITY_ZONE_READ"
+            ],
+            "notes": ""
+        },
+        "CreateSecurityZone": {
+            "permissions": [
+                "SECURITY_ZONE_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateSecurityZone": {
+            "permissions": [
+                "SECURITY_ZONE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSecurityZone": {
+            "permissions": [
+                "SECURITY_ZONE_DELETE"
+            ],
+            "notes": ""
+        },
+        "AddCompartment": {
+            "permissions": [
+                "SECURITY_ZONE_ATTACH"
+            ],
+            "notes": ""
+        },
+        "RemoveCompartment": {
+            "permissions": [
+                "SECURITY_ZONE_DETACH"
+            ],
+            "notes": ""
+        }
+    }
+}

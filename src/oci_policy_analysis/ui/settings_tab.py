@@ -54,6 +54,11 @@ CONTEXT_HELP = {
         'Set up connectivity to Oracle’s Generative AI services. Select or refresh models, test endpoints and compartments, and verify access. '
         'Use this panel to enable policy text analysis and AI-driven explanations.'
     ),
+    'RECOMMENDATION_CONSOLIDATION': (
+        'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
+        'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
+    ),
+    # 'DOMAIN_COMPARTMENTS': Removed; replaced by compartment depth selector.
 }
 
 # Global logger for this module
@@ -83,6 +88,12 @@ class SettingsTab(BaseUITab):
         # Set the options from the saved settings
         self.tenancy_var = tk.StringVar(value=self.settings.get('tenancy_ocid', ''))
         self.profile_var = tk.StringVar(value=self.settings.get('named_profile', ''))
+        # Remove: tenancy_var trace for domain compartment OCID field, as that textbox/feature is now gone.
+
+        # When profile_var changes, optionally auto-update tenancy OCID if a profile->tenancy mapping is present.
+        # This ensures that if the application keeps a mapping of profiles to tenancy OCIDs, changing
+        # the profile will also automatically update tenancy_var, which itself triggers the OCID refresh logic.
+        # If no such mapping exists in settings (profile_ocid_map), nothing happens.
         self.recursive_var = tk.BooleanVar(value=self.settings.get('recursive', True))
         self.ip_var = tk.BooleanVar(value=self.settings.get('instance_principal', False))
         self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', True))
@@ -249,6 +260,76 @@ class SettingsTab(BaseUITab):
         self.input_profile = ttk.OptionMenu(
             label_frm_tenancy_config, self.profile_var, self.profile_var.get(), *self.profile_list
         )
+
+        # --- Compartment Level for Additional Domains ---
+        lvl_label = ttk.Label(label_frm_tenancy_config, text='Compartment Level for Additional Domains:')
+        lvl_label.grid(row=3, column=0, columnspan=2, padx=5, pady=(10, 2), sticky='w')
+        self.add_context_help(
+            lvl_label,
+            'Choose how many levels below the root compartment will be searched for identity domains. '
+            'Level 1 is root only (fastest, recommended), higher levels (up to 6) will search deeper compartment trees. '
+            'Selecting the maximum level may cause much longer load times and many extra API calls in large environments.',
+        )
+        COMPARTMENT_DEPTH_CHOICES = [('1 (Root Only)', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6)]
+        self.compartment_depth_var = tk.IntVar(value=1)
+
+        def update_depth_from_settings():
+            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+            tenancy = (self.tenancy_var.get() or '').strip()
+            depth = by_tenancy.get(tenancy, 1)
+            self.compartment_depth_var.set(depth)
+            self.compartment_depth_dropdown.set(self.depth_string_map.get(depth, '1 (Root Only)'))
+
+        def depth_on_tenancy_change(*_):
+            update_depth_from_settings()
+
+        # Bind update logic on tenancy switch
+        self.tenancy_var.trace_add('write', depth_on_tenancy_change)
+        # Dropdown UI
+        depth_val_strings = [label for label, val in COMPARTMENT_DEPTH_CHOICES]
+        self.depth_value_map = dict(COMPARTMENT_DEPTH_CHOICES)
+        self.depth_string_map = {val: label for label, val in COMPARTMENT_DEPTH_CHOICES}
+        self.compartment_depth_dropdown = ttk.Combobox(
+            label_frm_tenancy_config, state='readonly', width=16, values=depth_val_strings
+        )
+        self.compartment_depth_dropdown.grid(row=3, column=2, padx=5, pady=(10, 2), sticky='w')
+
+        def on_depth_select(event):
+            selected_label = self.compartment_depth_dropdown.get()
+            selected_val = self.depth_value_map.get(selected_label, 1)
+            # Save for this tenancy
+            tenancy = (self.tenancy_var.get() or '').strip()
+            if tenancy:
+                by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+                by_tenancy[tenancy] = selected_val
+                self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
+                config.save_settings(self.settings)
+            self.compartment_depth_var.set(selected_val)
+
+        # Bind update logic on dropdown selection
+        self.compartment_depth_dropdown.bind('<<ComboboxSelected>>', on_depth_select)
+        # Set initial value
+        self.compartment_depth_dropdown.set(
+            self.depth_string_map.get(self.compartment_depth_var.get(), '1 (Root Only)')
+        )
+        # Context Help
+        self.add_context_help(
+            self.compartment_depth_dropdown,
+            'Controls how many levels below the root compartment will be searched for identity domains. '
+            'Level 1 is root only (recommended for most tenancies). Selecting higher levels increases search depth, but can significantly slow load times (many more API calls in large hierarchies).',
+        )
+
+        # When profile_var is changed, optionally auto-update tenancy OCID from settings (if your app does this)
+        def _on_profile_changed(*_args):
+            # This logic assumes a mapping from profile name to tenancy_ocid in settings
+            profiles_by_tenancy = self.settings.get('profile_ocid_map', {})
+            tenancy_for_profile = profiles_by_tenancy.get(self.profile_var.get())
+            if tenancy_for_profile:
+                self.tenancy_var.set(tenancy_for_profile)
+            else:
+                self.tenancy_var.set('')
+
+        self.profile_var.trace_add('write', _on_profile_changed)
         self.input_profile.config(width=20, state='normal' if len(self.profile_list) > 0 else 'disabled')
         self.input_profile.grid(row=0, column=2, padx=5, pady=3)
 
@@ -372,12 +453,66 @@ class SettingsTab(BaseUITab):
         self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
         self.btn_load_compliance.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
 
-        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=4, pady=5, sticky='w')
+        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=5, pady=5, sticky='w')
 
         # Progress indicator - move to its own row below buttons, at right
         self.progress_var = tk.StringVar(value='')
         self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
         self.progress_label.grid(row=1, column=6, padx=5, pady=(1, 5), sticky='w')
+
+        # --- Additional Identity Domain Compartment OCIDs UI (REMOVED) ---
+        # All widgets and logic for manual compartment OCID entry have been removed.
+        # Instead, a dropdown for compartment search depth will be added in a following step.
+
+        # --- Recommendation / Consolidation (LabelFrame) ---
+        label_frm_rec_cons = ttk.Labelframe(self, text='Recommendation / Consolidation')
+        label_frm_rec_cons.pack(fill='x', padx=10, pady=10)
+
+        def _show_rec_cons_help(_event=None):
+            self.set_page_help_text(CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+
+        label_frm_rec_cons.bind('<Enter>', _show_rec_cons_help)
+        label_frm_rec_cons.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
+
+        # Intelligence strategies: get list from engine (risk, overlap, cleanup, consolidation, recommendations)
+        strategy_list = []
+        if hasattr(self.app, 'policy_intelligence') and self.app.policy_intelligence:
+            strategy_list = getattr(self.app.policy_intelligence, 'get_strategies_for_settings', lambda: [])()
+        saved_ids = self.settings.get('enabled_intelligence_checks', None)
+        # None or [] means all enabled; otherwise only those in the list are enabled
+        all_enabled = saved_ids is None or (
+            isinstance(saved_ids, list) and (len(saved_ids) == 0 or len(saved_ids) >= len(strategy_list))
+        )
+        self.enabled_intelligence_check_vars = {}
+        for sid, _display_name, _category in strategy_list:
+            self.enabled_intelligence_check_vars[sid] = tk.BooleanVar(
+                value=all_enabled or (isinstance(saved_ids, list) and sid in saved_ids)
+            )
+
+        def _on_intelligence_check_toggled():
+            enabled = [sid for sid, var in self.enabled_intelligence_check_vars.items() if var.get()]
+            self.settings['enabled_intelligence_checks'] = (
+                enabled if len(enabled) < len(self.enabled_intelligence_check_vars) else []
+            )
+            config.save_settings(self.settings)
+            if hasattr(self.app, 'policy_recommendations_tab') and hasattr(
+                self.app.policy_recommendations_tab, 'on_enabled_cleanup_checks_changed'
+            ):
+                self.app.policy_recommendations_tab.on_enabled_cleanup_checks_changed()
+
+        checks_inner = ttk.Frame(label_frm_rec_cons)
+        checks_inner.pack(fill='x', padx=8, pady=6)
+        self.add_context_help(checks_inner, CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+        for sid, display_name, _category in strategy_list:
+            if sid not in self.enabled_intelligence_check_vars:
+                continue
+            cb = ttk.Checkbutton(
+                checks_inner,
+                text=display_name,
+                variable=self.enabled_intelligence_check_vars[sid],
+                command=_on_intelligence_check_toggled,
+            )
+            cb.pack(side='left', padx=(0, 16), pady=4)
 
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
@@ -508,26 +643,70 @@ class SettingsTab(BaseUITab):
         config.save_settings(self.settings)
         logger.info('MCP configuration saved to settings.')
 
+    # def _refresh_domain_compartment_ocids_from_settings(self):
+    #     """REMOVED: No longer tracking OCID list per tenancy (now using compartment depth)."""
+    #     pass
+
     def _on_load_clicked(self, use_cache: bool):
         """Handle Load Tenancy button click.  Calls main app to load tenancy asynchronously.
         Args:
             use_cache (bool): Whether to load from cache or live tenancy.
         """
-        self.settings['tenancy_ocid'] = self.tenancy_var.get()
+        tenancy_ocid = (self.tenancy_var.get() or '').strip()
+        # If tenancy_var is empty, try to look it up from the OCI config for the current profile
+        if not tenancy_ocid:
+            profile = (self.profile_var.get() or '').strip() or 'DEFAULT'
+            config_path = os.path.expanduser('~/.oci/config')
+            try:
+                with open(config_path) as fp:
+                    cur_profile = None
+                    cur_tenancy = None
+                    for line in fp:
+                        line = line.strip()
+                        if line.startswith('[') and line.endswith(']'):
+                            cur_profile = line[1:-1].strip()
+                        elif '=' in line and cur_profile == profile:
+                            key, val = line.split('=', 1)
+                            key = key.strip().lower()
+                            val = val.strip()
+                            if key == 'tenancy':
+                                cur_tenancy = val
+                        if cur_profile == profile and cur_tenancy:
+                            tenancy_ocid = cur_tenancy
+                            break
+            except Exception as e:
+                logger.warning(f'Failed to load OCI tenancy from config: {e}')
+            if tenancy_ocid:
+                self.tenancy_var.set(tenancy_ocid)
+                logger.info(f"Auto-populated tenancy_ocid for profile '{profile}': {tenancy_ocid}")
+            else:
+                logger.warning(f"Could not find tenancy OCID for profile '{profile}'")
+        self.settings['tenancy_ocid'] = tenancy_ocid
+
         self.settings['recursive'] = self.recursive_var.get()
         self.settings['instance_principal'] = self.ip_var.get()
         self.settings['named_profile'] = self.profile_var.get()
         self.settings['ai_compartment_ocid'] = self.profile_var.get()
         self.settings['load_all_users'] = self.load_all_users_var.get()
-        config.save_settings(self.settings)
+        # Remove persistence, save, and variable harvesting for Additional Identity Domain Compartment OCIDs.
+        # (Entire block deleted.)
+        # Save compartment depth for tenancy being loaded (guarantee up-to-date)
+        tenancy = (self.tenancy_var.get() or '').strip()
+        if tenancy:
+            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
+            by_tenancy[tenancy] = self.compartment_depth_var.get()
+            self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
+            config.save_settings(self.settings)
         self.app.load_tenancy_async(
-            tenancy_id=self.tenancy_var.get(),
+            tenancy_id=tenancy_ocid,
             recursive=self.recursive_var.get(),
             instance_principal=self.ip_var.get(),
             named_profile=self.profile_var.get() if not use_cache else None,
             named_session=self.session_token_var.get() if self.session_token_var.get() != '' else None,
             named_cache=self.display_to_cache_key.get(self.cache_var.get(), None) if use_cache else None,
             load_all_users=self.load_all_users_var.get(),
+            # Pass depth configuration for downstream domain search logic
+            compartment_domain_search_depth=self.compartment_depth_var.get(),
             callback={
                 'progress': self._on_load_progress,
                 'complete': self._on_load_finished,
@@ -539,24 +718,39 @@ class SettingsTab(BaseUITab):
         """Callback from App to update progress during tenancy loading."""
         self.progress_var.set(f'{message}')
         if clear:
-            self.after(2000, lambda: self.progress_var.set(''))
+            self.after(1000, lambda: self.progress_var.set(''))
 
-    def _on_load_finished(self, success: bool, message: str, clear: bool = False):
+    def _on_load_finished(self, success: bool, message: str, clear: bool = False):  # noqa: C901
         """Callback from App once tenancy loading completes."""
         if success:
-            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"
-            data_as_of = getattr(getattr(self.app, 'policy_compartment_analysis', None), 'data_as_of', None)
-            if data_as_of:
+            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"; show reload (if present)
+            data_repo = getattr(self.app, 'policy_compartment_analysis', None)
+            date_note = ''
+            if data_repo is not None:
+                data_as_of = getattr(data_repo, 'data_as_of', None)
+                policy_reload = getattr(data_repo, 'policy_data_reloaded', None)
                 import datetime
 
-                try:
-                    dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
-                    date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
-                except Exception:
-                    date_str = str(data_as_of)
-                date_note = f'Data as of: {date_str}'
-            else:
-                date_note = ''
+                date_str = ''
+                reload_str = ''
+                if data_as_of:
+                    try:
+                        dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
+                        date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
+                    except Exception:
+                        date_str = str(data_as_of)
+                if policy_reload:
+                    try:
+                        dt2 = datetime.datetime.fromisoformat(policy_reload.replace('Z', '+00:00'))
+                        reload_str = dt2.strftime('%Y-%b-%d %H:%M:%SZ')
+                    except Exception:
+                        reload_str = str(policy_reload)
+                if date_str and reload_str:
+                    date_note = f'Data as of: {date_str}\nPolicy data reloaded: {reload_str}'
+                elif date_str:
+                    date_note = f'Data as of: {date_str}'
+                elif reload_str:
+                    date_note = f'Policy data reloaded: {reload_str}'
             self.progress_var.set(f'[OK]{message}')
             self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
             # logger.info('Updating UI after load')
@@ -575,7 +769,10 @@ class SettingsTab(BaseUITab):
         self.refresh_cache_list()
 
     def refresh_cache_list(self):
-        """Update the cache list OptionMenu in the Settings tab to reflect the current state."""
+        """Update the cache list OptionMenu in the Settings tab to reflect the current state, preserving selection."""
+        # Save the currently selected value (user's selection)
+        previous_selection = self.cache_var.get()
+
         self.cache_list = self.caching.get_available_cache(None)
         preserved_caches = self.caching.get_preserved_cache_set()
         self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
@@ -586,7 +783,10 @@ class SettingsTab(BaseUITab):
         menu.delete(0, 'end')
         for display_name in self.cache_list_display:
             menu.add_command(label=display_name, command=lambda value=display_name: self.cache_var.set(value))
-        if self.cache_list_display:
+        # Restore previous selection if it's still in the new list, otherwise fallback to first item
+        if previous_selection in self.cache_list_display:
+            self.cache_var.set(previous_selection)
+        elif self.cache_list_display:
             self.cache_var.set(self.cache_list_display[0])
         else:
             self.cache_var.set('No Cache Available')
@@ -755,6 +955,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
+            # REMOVED: consolidation_tab from advanced tabs (consolidation feature disabled)
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

@@ -121,8 +121,36 @@ class SimulationBatchResponse(TypedDict):
 
 
 # ================================
-# Entity Models (Policies, Dynamic Groups, Users, Groups)
+# Entity Models (Policies, Dynamic Groups, Users, Groups, Compartments)
 # ================================
+class Compartment(TypedDict, total=False):
+    """
+    Model representing an OCI compartment (identity and metadata).
+    Captures id, name, parent, description, path, lifecycle, and tags where available.
+    Adds optional analysis/derived fields for policy statement counts.
+
+    Optional/derived fields (set after loading and analysis):
+      - statement_count_direct: Number of policy statements directly in this compartment.
+      - statement_count_cumulative: Cumulative policy statements (this + all ancestors in path).
+    """
+
+    id: Annotated[str, 'Compartment OCID']
+    name: Annotated[str, 'Display name of the compartment']
+    parent_id: Annotated[str, 'Parent compartment OCID']
+    hierarchy_path: Annotated[str, 'Full compartment hierarchy path, e.g., "ROOT/HR/Payroll"']
+    description: NotRequired[Annotated[str, 'Description of the compartment']]
+    lifecycle_state: NotRequired[Annotated[str, 'Lifecycle state (e.g., ACTIVE, DELETED)']]
+    tags: NotRequired[
+        Annotated[dict[str, str], 'Optional. All freeform and defined tags associated with the compartment.']
+    ]
+    statement_count_direct: NotRequired[
+        Annotated[int, 'Number of policy statements directly in this compartment (analysis-derived, optional)']
+    ]
+    statement_count_cumulative: NotRequired[
+        Annotated[int, 'Cumulative number of policy statements including all ancestors (analysis-derived, optional)']
+    ]
+
+
 class Group(TypedDict):
     """
     Model representing an OCI IAM group (identity and metadata).
@@ -178,18 +206,35 @@ class DynamicGroup(TypedDict):
     ]
 
 
-class BasePolicy(TypedDict):
+class BasePolicy(TypedDict, total=False):
     """
     Model representing an OCI IAM policy.
     Captures policy identity and metadata but omits policy statements themselves.
     Policies are unique by their name within a compartment.
+
+    - compartment_path: String with full path, e.g. "ROOT/DeptA/PolicyOne" (filled during loading).
+    Optionally includes tags if available.
     """
 
     policy_name: Annotated[str, 'The name of the policy.']
     policy_ocid: Annotated[str, 'The OCID of the policy. Not required for filters.']
     description: Annotated[str | None, 'The description of the policy. Not required for filters.']
     compartment_ocid: Annotated[str, 'The OCID of the compartment containing the policy. Not required for filters.']
+    compartment_path: Annotated[str, 'Full compartment path string for the policy (e.g., "ROOT/CompA/CompB").']
     creation_time: Annotated[str, 'The creation time of the policy. Not required for filters.']
+    tags: NotRequired[
+        Annotated[
+            dict[str, str],
+            'Optional. Flattened tag map for display only (freeform plus defined flattened as "namespace:key").',
+        ]
+    ]
+    freeform_tags: NotRequired[Annotated[dict[str, str], 'Optional. Freeform tag map as stored in OCI.']]
+    defined_tags: NotRequired[
+        Annotated[
+            dict[str, dict[str, str]],
+            'Optional. Defined tag map as stored in OCI (namespace -> key -> value).',
+        ]
+    ]
 
 
 # Search Models
@@ -300,7 +345,7 @@ class PolicySearch(TypedDict, total=False):
 
     policy_name: Annotated[list[str], 'Filter by policy display name(s).']
 
-    policy_compartment: Annotated[
+    compartment_path: Annotated[
         list[str], "Compartment(s) that define the policy. Supports 'ROOTONLY' to restrict to root-level policies."
     ]
 

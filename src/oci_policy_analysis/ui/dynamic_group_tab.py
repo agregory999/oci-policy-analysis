@@ -284,7 +284,7 @@ class DynamicGroupsTab(BaseUITab):
             row_data = self.dg_policy_table.data[row_index]
 
             def switch_tab_policy_analysis():
-                self.app.notebook.select(tab_id=1)  # Policy Analysis tab
+                self.app.notebook.select(tab_id=2)  # Policy Analysis tab
                 logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
                 self.app.policies_tab.chk_show_dynamic.set(True)
                 self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))

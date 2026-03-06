@@ -19,7 +19,7 @@ import hashlib
 import json
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,7 +28,6 @@ from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
 from oci.exceptions import ConfigFileNotFound
 from oci.identity import IdentityClient
-from oci.identity.models import Compartment
 from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
 from oci.loggingsearch import LogSearchClient
@@ -42,6 +41,7 @@ from oci_policy_analysis.common.models import (
     AdmitStatement,
     BasePolicy,
     BasePolicyStatement,
+    Compartment,
     DefineStatement,
     DynamicGroup,
     DynamicGroupSearch,
@@ -54,13 +54,12 @@ from oci_policy_analysis.common.models import (
     UserSearch,
 )
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
 
 # Constants
-THREADS = 8
+THREADS = 5
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
@@ -84,6 +83,29 @@ class PolicyAnalysisRepository:
     See `filter_policy_statements` for an example of filtering and returning PolicyStatement objects.
     """
 
+    def _api_call_with_logging(self, label, fn, *args, **kwargs):
+        """Wrap OCI API call for logging+timing at INFO or CRITICAL based on settings."""
+        import time
+
+        log_critical = False
+        try:
+            if self.settings and isinstance(self.settings, dict):
+                log_critical = self.settings.get('always_log_api_calls', False)
+        except Exception:
+            pass
+        level_func = logger.critical if log_critical else logger.info
+
+        t0 = time.perf_counter()
+        try:
+            result = fn(*args, **kwargs)
+            elapsed = time.perf_counter() - t0
+            level_func(f'[API] {label} completed in {elapsed:.2f}s')
+            return result
+        except Exception as e:
+            elapsed = time.perf_counter() - t0
+            logger.error(f'[API] {label} failed after {elapsed:.2f}s: {e}')
+            raise
+
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
@@ -102,6 +124,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 2
         self.load_all_users = True
+        # Settings controlling logging/behavior (injected by App)
+        self.settings = None
         # Keep the refence data repo as a member
         # self.permission_reference_repo = ReferenceDataRepo()
         self.permission_reference_repo = None
@@ -132,7 +156,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 1
         self.load_all_users = True
-        self.permission_reference_repo = ReferenceDataRepo()
+        # Do not replace permission_reference_repo: it is injected by the app (main) and
+        # must remain the loaded ReferenceDataRepo so risk scoring and permission lookups work.
         # If there are additional ephemeral analysis/cache attributes, reset them here
         # (e.g., self._policy_progress_queue, self.normalizer, cached_*, etc.)
         logger.info('PolicyAnalysisRepository state has been reset.')
@@ -496,28 +521,24 @@ class PolicyAnalysisRepository:
         )
 
     # --- Main Data Loading Functions for Tenancy ---
-    def load_policies_and_compartments(self) -> bool:  # noqa: C901
+    def load_compartments_only(self) -> bool:
         """
-        Optimized bulk loading of all compartments and all policies using OCI Clients.
-
-        1. Fetch compartments (hierarchy, flat)
-        2. Fetch policies (threaded fetch/parse) from OCI Resource Search
-        3. No queue or milestone progress emission
+        Loads only compartments (hierarchy, flat) using OCI Clients.
         """
         self.compartments = []
-        self.policies = []
-        self.regular_statements: list[RegularPolicyStatement] = []
-        self.cross_tenancy_statements: list[BasePolicyStatement] = []
-        self.defined_aliases: list[DefineStatement] = []
         start_time = time.perf_counter()
         try:
             logger.info('Bulk fetching all compartments...')
-            root_comp_response = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid)
+            root_comp_response = self._api_call_with_logging(
+                'IdentityClient.get_compartment', self.identity_client.get_compartment, compartment_id=self.tenancy_ocid
+            )
             if not root_comp_response or not root_comp_response.data:
                 logger.error(f'Failed to get root compartment: {self.tenancy_ocid}')
                 return False
             root_comp = root_comp_response.data
-            comp_response = pagination.list_call_get_all_results(
+            comp_response = self._api_call_with_logging(
+                'IdentityClient.list_compartments',
+                pagination.list_call_get_all_results,
                 self.identity_client.list_compartments,
                 self.tenancy_ocid,
                 access_level='ACCESSIBLE',
@@ -529,31 +550,60 @@ class PolicyAnalysisRepository:
             all_comps = [root_comp] + (list(comp_response.data) if comp_response and comp_response.data else [])
             logger.info(f'Total compartments loaded: {len(all_comps)}')
 
-            self.compartments = []
+            # Build our internal list with hierarchy paths - also extract tags if present
+            self.compartments.clear()
             for comp in all_comps:
-                self.compartments.append(
-                    {
-                        'id': comp.id,
-                        'name': comp.name if comp.id != self.tenancy_ocid else 'ROOT',
-                        'parent_id': comp.compartment_id,
-                        'hierarchy_path': None,
-                        'description': comp.description if hasattr(comp, 'description') else None,
-                    }
+                tags = {}
+                if hasattr(comp, 'freeform_tags') and comp.freeform_tags:
+                    tags.update(comp.freeform_tags)
+                if hasattr(comp, 'defined_tags') and comp.defined_tags:
+                    for ns, val in comp.defined_tags.items():
+                        if isinstance(val, dict):
+                            for k, v in val.items():
+                                tags[f'{ns}:{k}'] = v
+                        else:
+                            tags[ns] = val
+                compartment = Compartment(
+                    id=comp.id,
+                    name=(comp.name if comp.id != self.tenancy_ocid else 'ROOT'),
+                    parent_id=comp.compartment_id,
+                    hierarchy_path='',
+                    description=getattr(comp, 'description', '') or '',
+                    lifecycle_state=getattr(comp, 'lifecycle_state', '') or '',
+                    **({'tags': tags} if tags else {}),
                 )
+                self.compartments.append(compartment)
             logger.info('Building compartment hierarchy paths and lookup tables...')
             for compartment in self.compartments:
                 compartment['hierarchy_path'] = self._get_hierarchy_path_for_compartment(compartment, '')
+            total_time = time.perf_counter() - start_time
+            logger.info(f'Loaded {len(self.compartments)} compartments in {total_time:.2f}s')
+            return True
+        except Exception as e:
+            logger.error(f'Failed to load compartments: {e}')
+            return False
 
-            logger.info(
-                'Bulk fetching all policies for all compartments using Resource Search or tenancy-wide method...'
-            )
-            # This query should be different if we want to limit to root compartment only
+    def load_policies_only(self) -> bool:  # noqa: C901
+        """
+        Loads policies/statements only, assuming compartments are already loaded.
+        """
+        self.policies = []
+        self.regular_statements = []
+        self.cross_tenancy_statements = []
+        self.defined_aliases = []
+        start_time = time.perf_counter()
+        try:
+            logger.info('Bulk fetching all policies for all compartments...')
             if self.recursive:
                 policy_query = 'query policy resources'
             else:
                 policy_query = f"query policy resources where compartmentId = '{self.tenancy_ocid}'"
-            policy_search_results = self.resource_search_client.search_resources(
-                search_details=StructuredSearchDetails(type='Structured', query=policy_query), limit=1000
+            # Run policy search and then for each result, fetch the full policy details and statements - do this in threads for speed
+            policy_search_results = self._api_call_with_logging(
+                'ResourceSearchClient.search_resources',
+                self.resource_search_client.search_resources,
+                search_details=StructuredSearchDetails(type='Structured', query=policy_query),
+                limit=1000,
             )
             if policy_search_results and policy_search_results.data and policy_search_results.data.items:
                 logger.info(
@@ -561,22 +611,56 @@ class PolicyAnalysisRepository:
                 )
                 total_policies = len(policy_search_results.data.items)
 
-                def _process_policy_resource(item, position, total_policies):
+                def _process_policy_resource(item, position, total_policies):  # noqa: C901
                     policy_ocid = item.identifier
                     compartment_ocid = item.compartment_id
                     try:
-                        policy_response = self.identity_client.get_policy(policy_id=policy_ocid)
+                        policy_response = self._api_call_with_logging(
+                            'IdentityClient.get_policy', self.identity_client.get_policy, policy_id=policy_ocid
+                        )
                         if policy_response and policy_response.data:
+                            # Extract tags (keep original structure for round-trip)
+                            freeform_tags = {}
+                            defined_tags = {}
+                            if hasattr(policy_response.data, 'freeform_tags') and policy_response.data.freeform_tags:
+                                freeform_tags = dict(policy_response.data.freeform_tags)
+                            if hasattr(policy_response.data, 'defined_tags') and policy_response.data.defined_tags:
+                                try:
+                                    defined_tags = dict(policy_response.data.defined_tags)
+                                except Exception:
+                                    defined_tags = {}
+                            # Flatten tags for UI display (namespace:key for defined tags)
+                            tags = {}
+                            if freeform_tags:
+                                tags.update(freeform_tags)
+                            if defined_tags:
+                                for ns, val in defined_tags.items():
+                                    if isinstance(val, dict):
+                                        for k, v in val.items():
+                                            tags[f'{ns}:{k}'] = v
+                                    else:
+                                        tags[str(ns)] = str(val)
+                            comp_path = next(
+                                (
+                                    comp['hierarchy_path']
+                                    for comp in self.compartments
+                                    if comp['id'] == policy_response.data.compartment_id
+                                ),
+                                'ROOT',
+                            )
                             policy_obj = BasePolicy(
                                 policy_ocid=policy_response.data.id,
                                 policy_name=policy_response.data.name,
                                 description=policy_response.data.description or '',
                                 compartment_ocid=policy_response.data.compartment_id,
+                                compartment_path=comp_path,
                                 creation_time=policy_response.data.time_created,
+                                tags=tags if tags else None,
+                                freeform_tags=freeform_tags if freeform_tags else None,
+                                defined_tags=defined_tags if defined_tags else None,
                             )
                             self.policies.append(policy_obj)
                             for statement in policy_response.data.statements:
-                                # DO NOT lowercase statement text - preserve original case
                                 hierarchy_path = next(
                                     (
                                         comp['hierarchy_path']
@@ -588,7 +672,6 @@ class PolicyAnalysisRepository:
                                 base_policy_statement: BasePolicyStatement = BasePolicyStatement(
                                     policy_name=policy_response.data.name,
                                     policy_ocid=policy_response.data.id,
-                                    # policy_description=policy_response.data.description or '',
                                     compartment_ocid=policy_response.data.compartment_id,
                                     compartment_path=hierarchy_path,
                                     statement_text=statement,
@@ -618,49 +701,352 @@ class PolicyAnalysisRepository:
                                     policy_statement: RegularPolicyStatement = RegularPolicyStatement(
                                         **base_policy_statement
                                     )
-                                    self._parse_statement(policy_obj, policy_statement)  # include validation as before
+                                    self._parse_statement(policy_obj, policy_statement)
                     except Exception as e:
-                        logger.warning(f'Failed to get policy {policy_ocid}: {e}')
+                        logger.warning(
+                            f'Failed to get policy {policy_ocid}: {e}. '
+                            'This may be expected if the policy was deleted as part of a consolidation plan execution.'
+                        )
 
                 with ThreadPoolExecutor(max_workers=THREADS) as executor:
                     for idx, item in enumerate(policy_search_results.data.items):
                         executor.submit(_process_policy_resource, item, idx, total_policies)
             self.data_as_of = str(datetime.now(UTC))
             total_time = time.perf_counter() - start_time
-            total_time = time.perf_counter() - start_time
-            logger.info(
-                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
-                f'Bulk loaded {len(self.compartments)} compartments and {len(self.regular_statements)} policy statements in {total_time:.2f}s'
-            )
-            # Return True because we loaded successfully
+            logger.info(f'Bulk loaded {len(self.regular_statements)} policy statements in {total_time:.2f}s')
+            self._enrich_compartments_with_statement_counts()
             self.policies_loaded_from_tenancy = True
             return True
         except Exception as e:
-            logger.error(f'Failed to load policies and compartments: {e}')
+            logger.error(f'Failed to load policies: {e}')
             return False
 
-    def load_complete_identity_domains(self, load_all_users: bool = True) -> bool:  # noqa: C901
-        """Loads everything into the cetntral JSON
+    def load_policies_and_compartments(self) -> bool:  # noqa: C901
+        """
+        Loads both compartments and all policies using OCI Clients. (Convenience function)
+        """
+        ok1 = self.load_compartments_only()
+        if not ok1:
+            return False
+        ok2 = self.load_policies_only()
+        # Remove policy_data_reloaded since a full load makes the reload timestamp irrelevant
+        if hasattr(self, 'policy_data_reloaded'):
+            self.policy_data_reloaded = ''
+        return ok2
 
-        Identity Domains are loaded via the Identity Client.
-        For each Identity Domain, load the Dynamic Groups, Groups, and Users
-
-        Args:
-            load_all_users (bool): If False, skip loading users. Default is True (backwards compatible).
+    def reload_compartment_policy_data(self) -> bool:
+        """
+        Reload just the policy/compartment/statement data (not IAM), and update the in-memory timestamp.
+        (No cache operations here—see main.py/App for cache update and UI triggers.)
 
         Returns:
-            A boolean indicating success of the data load.  False indicates there was some failure in loading data,
-            so it may be incomplete.
+            bool: True if the reload succeeded, False otherwise.
+        """
+        logger.info('Reloading only compartment+policy+statement data (not IAM)... (No cache ops in repo)')
+        success = self.load_policies_and_compartments()
+        if not success:
+            logger.error('Policy/compartment reload failed!')
+            return False
+        self.policy_data_reloaded = datetime.now(UTC).isoformat()
+        return True
+
+    # --- Internal fetchers for Identity Domain entities ---
+    def _fetch_dynamic_groups_for_domain(self, domain, domain_client):
+        """
+        Fetch all dynamic groups for a domain, returning a list of DynamicGroup model objects.
+        Uses ThreadPoolExecutor to fetch details in parallel and appends incrementally for UI.
+        """
+        import threading
+
+        logger.info(f'Fetching dynamic groups for domain: {domain.display_name}')
+        dg_list = []
+        dg_lock = threading.Lock()
+        try:
+            dg_response = self._api_call_with_logging(
+                'IdentityDomainsClient.list_dynamic_resource_groups',
+                domain_client.list_dynamic_resource_groups,
+                attribute_sets=['never'],
+            )
+            if dg_response and dg_response.data:
+                logger.debug(f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}')
+
+                def fetch_full_dg(_dg):
+                    try:
+                        thread_id = threading.get_ident()
+                        thread_name = threading.current_thread().name
+                        logger.debug(
+                            f"Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        )
+                        full_dg = self._api_call_with_logging(
+                            'IdentityDomainsClient.get_dynamic_resource_group',
+                            domain_client.get_dynamic_resource_group,
+                            dynamic_resource_group_id=_dg.id,
+                            attribute_sets=['all'],
+                        ).data
+                        logger.debug(
+                            f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                        )
+                        parsed = self._parse_dynamic_group(domain=domain, dg=full_dg)
+                        with dg_lock:
+                            self.dynamic_groups.append(parsed)
+                        return parsed
+                    except Exception as e:
+                        logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {e}')
+                        return None
+
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    futures = [executor.submit(fetch_full_dg, _dg) for _dg in dg_response.data.resources]
+                    for f in as_completed(futures):
+                        result = f.result()
+                        if result:
+                            dg_list.append(result)
+            else:
+                logger.error('Failed to list dynamic groups')
+                return []
+        except Exception as e:
+            logger.error(f'Exception during dynamic group fetch: {e}')
+            return []
+        logger.info(f'Fetched {len(dg_list)} dynamic groups for domain: {domain.display_name}')
+        return dg_list
+
+    def _fetch_groups_for_domain(self, domain, domain_client):
+        """
+        Fetch all groups for a domain, returning a list of Group model objects using ThreadPoolExecutor.
+        """
+        import threading
+
+        logger.info(f'Fetching groups for domain: {domain.display_name}')
+        group_list = []
+        group_lock = threading.Lock()
+        try:
+            start_index = 1
+            limit = 1000
+
+            def fetch_full_group(g):
+                try:
+                    thread_id = threading.get_ident()
+                    thread_name = threading.current_thread().name
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) starting fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                    )
+                    group_obj = Group(
+                        domain_name=domain.display_name,
+                        group_name=g.display_name,
+                        group_ocid=g.ocid,
+                        group_id=g.id,
+                        description=getattr(
+                            g, 'urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group', None
+                        ).description
+                        if getattr(g, 'urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group', None)
+                        else '',
+                    )
+                    with group_lock:
+                        self.groups.append(group_obj)
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) finished fetch_full_group for group_id={getattr(g, 'id', None)} display_name={getattr(g, 'display_name', None)}"
+                    )
+                    return group_obj
+                except Exception as e:
+                    logger.error(f"Failed to process group details for: {getattr(g, 'id', None)}: {e}")
+                    return None
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            while True:
+                group_response = self._api_call_with_logging(
+                    'IdentityDomainsClient.list_groups',
+                    domain_client.list_groups,
+                    start_index=start_index,
+                    count=limit,
+                    sort_by='displayName',
+                    sort_order='ASCENDING',
+                )
+                if group_response.data is None or not group_response.data.resources:
+                    break
+                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                    futures = [executor.submit(fetch_full_group, g) for g in group_response.data.resources]
+                    for f in as_completed(futures):
+                        res = f.result()
+                        if res:
+                            group_list.append(res)
+                if (
+                    len(group_response.data.resources) < limit
+                    or start_index + limit > group_response.data.total_results
+                ):
+                    break
+                start_index += limit
+            logger.info(f'Fetched {len(group_list)} groups for domain: {domain.display_name}')
+            return group_list
+        except Exception as e:
+            logger.error(f'Exception during group fetch: {e}')
+            return []
+
+    def _fetch_users_for_domain(self, domain, domain_client):  # noqa: C901
+        """
+        Fetch users for a domain using OCI generator + ThreadPoolExecutor for user detail calls.
+        Uses pagination.list_call_get_all_results_generator to list users.
         """
 
+        logger.info(f'Fetching users for domain: {domain.display_name} with paginator and thread pool')
+
+        def user_summary_generator():
+            start_index = 1
+            limit = 1000
+            while True:
+                user_response = self._api_call_with_logging(
+                    'IdentityDomainsClient.list_users',
+                    domain_client.list_users,
+                    start_index=start_index,
+                    count=limit,
+                    sort_by='displayName',
+                    sort_order='ASCENDING',
+                    attribute_sets=['never'],
+                )
+                if user_response.data is None or not user_response.data.resources:
+                    break
+                yield from user_response.data.resources
+                if len(user_response.data.resources) < limit or start_index + limit > user_response.data.total_results:
+                    break
+                start_index += limit
+
+        import threading
+
+        def fetch_full_user(u):
+            try:
+                thread_id = threading.get_ident()
+                thread_name = threading.current_thread().name
+                logger.debug(
+                    f"Thread {thread_name} (id={thread_id}) starting fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                )
+                user_attributes = self._api_call_with_logging(
+                    'IdentityDomainsClient.get_user',
+                    domain_client.get_user,
+                    user_id=u.id,
+                    attribute_sets=['all'],
+                ).data
+                logger.debug(
+                    f"Thread {thread_name} (id={thread_id}) finished fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
+                )
+                groups_list = (
+                    [gg.ocid for gg in getattr(user_attributes, 'groups', []) if hasattr(gg, 'ocid')]
+                    if hasattr(user_attributes, 'groups') and user_attributes.groups
+                    else []
+                )
+                email = 'None'
+                if hasattr(user_attributes, 'emails') and user_attributes.emails:
+                    for em in user_attributes.emails:
+                        if getattr(em, 'primary', False):
+                            email = em.value
+                            break
+                return User(
+                    domain_name=domain.display_name,
+                    user_name=u.user_name,
+                    user_ocid=u.ocid,
+                    display_name=u.display_name,
+                    email=email,
+                    user_id=u.id,
+                    groups=groups_list,
+                )
+            except Exception as exc:
+                logger.error(f'Failed to fetch user detail for {u.display_name}: {exc}')
+                return None
+
+        # Thread pool for get_user calls, incrementally append to self.users
         try:
-            domain_response = self.identity_client.list_domains(compartment_id=self.tenancy_ocid)  # type: ignore
-            if domain_response.data is None:  # type: ignore
-                logger.error('Failed to list identity domains')
-                return False
-            # Should we really keep the full thing?
-            self.identity_domains = domain_response.data
-            logger.info(f'Loaded {len(self.identity_domains)} identity domains')
+            from threading import Lock
+
+            user_list = []
+            user_lock = Lock()
+            with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                futures = []
+                for user_summary in user_summary_generator():
+                    futures.append(executor.submit(fetch_full_user, user_summary))
+                for f in as_completed(futures):
+                    result = f.result()
+                    if result:
+                        # Append incrementally, with lock for thread safety with GUI callbacks
+                        with user_lock:
+                            self.users.append(result)
+                        user_list.append(result)
+            logger.info(f'Fetched {len(user_list)} users for domain: {domain.display_name}')
+        except Exception as e:
+            logger.error(f'Exception during user fetch: {e}')
+
+        return user_list
+
+    def load_complete_identity_domains(  # noqa: C901
+        self, load_all_users: bool = True, compartment_domain_search_depth: int = 1
+    ) -> bool:
+        """
+        Loads users, groups, dynamic groups, and domains for all compartments up to the given depth
+        below the root compartment. No longer uses explicit domain_compartment_ocids.
+        """
+        import collections
+
+        try:
+            seen_domain_ids = set()
+            all_domains = []
+
+            def add_domains_from_compartment(compartment_id: str) -> bool:
+                resp = self._api_call_with_logging(
+                    'IdentityClient.list_domains', self.identity_client.list_domains, compartment_id=compartment_id
+                )
+                logger.info(
+                    f'Listed domains for compartment {compartment_id}: {len(resp.data) if resp and resp.data else 0}'
+                )
+                if resp.data is None:
+                    logger.error('Failed to list identity domains for compartment %s', compartment_id)
+                    return False
+                for d in resp.data:
+                    if d.id not in seen_domain_ids:
+                        seen_domain_ids.add(d.id)
+                        all_domains.append(d)
+                return True
+
+            # Ensure compartments are loaded (critical for depth BFS)
+            if not hasattr(self, 'compartments') or not self.compartments:
+                logger.warning('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
+                self.load_policies_and_compartments()
+            if not self.compartments:
+                logger.error('Compartment load failed or returned empty. Falling back to root-only search.')
+                compartments_to_enumerate = [self.tenancy_ocid]
+            else:
+                parent_map = collections.defaultdict(list)
+                for comp in self.compartments:
+                    parent_id = comp.get('parent_id') or self.tenancy_ocid
+                    parent_map[parent_id].append(comp)
+                cur_level = [self.tenancy_ocid]
+                all_ocids = set(cur_level)
+                for _lvl in range(1, max(1, compartment_domain_search_depth)):
+                    next_level = []
+                    for cid in cur_level:
+                        for child in parent_map.get(cid, []):
+                            child_id = child.get('id')
+                            if child_id and child_id not in all_ocids:
+                                next_level.append(child_id)
+                                all_ocids.add(child_id)
+                    cur_level = next_level
+                    if not cur_level:
+                        break
+                compartments_to_enumerate = list(all_ocids)
+
+            logger.info(
+                f'Enumerating domains from compartments at depth {compartment_domain_search_depth}: {compartments_to_enumerate}'
+            )
+
+            for comp_ocid in compartments_to_enumerate:
+                logger.info(f'Calling add_domains_from_compartment with: {comp_ocid}')
+                if not add_domains_from_compartment(comp_ocid):
+                    return False
+
+            self.identity_domains = all_domains
+            logger.info(
+                'Loaded %s identity domains from %s compartments',
+                len(self.identity_domains),
+                len(compartments_to_enumerate),
+            )
 
             self.domain_clients = {}
 
@@ -689,123 +1075,49 @@ class PolicyAnalysisRepository:
                         domain_client = IdentityDomainsClient(config=self.config, service_endpoint=domain.url)
                     self.domain_clients[domain.id] = domain_client
 
-                    # Load Dynamic Groups
-                    # Now we need to get each one and cause additional calls
-                    dg_response = domain_client.list_dynamic_resource_groups(attribute_sets=['never'])
-                    # dg_response = domain_client.list_dynamic_resource_groups(attributes='matching_rule')
-                    if dg_response and dg_response.data:
-                        logger.debug(
-                            f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}'
-                        )
-                        for _dg in dg_response.data.resources:
-                            # Do a full on get to get all attributes
-                            full_dg = domain_client.get_dynamic_resource_group(
-                                dynamic_resource_group_id=_dg.id, attribute_sets=['all']
-                            ).data
-                            dg = full_dg
-                            logger.debug(f'DG: {dg.display_name} Matching Rule: {dg.matching_rule}')
-                            # Append the Dynamic Group dict to the list
-                            self.dynamic_groups.append(self._parse_dynamic_group(domain=domain, dg=dg))
-                    else:
-                        logger.error('Failed to list dynamic groups')
-                        return False
+                    # --- Orchestrate loading of Dynamic Groups, Groups, and Users with comments, timing, and logging ---
 
-                    # Load Groups
-                    start_index = 1
-                    limit = 1000
-                    while True:
-                        group_response = domain_client.list_groups(
-                            start_index=start_index, count=limit, sort_by='displayName', sort_order='ASCENDING'
-                        )
-                        if group_response.data is None or not group_response.data.resources:
-                            break
-                        for g in group_response.data.resources:
-                            logger.debug(f'Group: {g}')
+                    # Use log level per settings for timing (critical if "Log All Timings" enabled, info otherwise)
+                    log_critical = False
+                    try:
+                        if self.settings and isinstance(self.settings, dict):
+                            log_critical = self.settings.get('always_log_api_calls', False)
+                    except Exception:
+                        pass
+                    timing_logger = logger.critical if log_critical else logger.info
 
-                            # Set the group into the bigger picture JSON
-                            self.groups.append(
-                                Group(
-                                    domain_name=domain.display_name,
-                                    group_name=g.display_name,
-                                    group_ocid=g.ocid,
-                                    group_id=g.id,
-                                    description=g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group.description
-                                    if g.urn_ietf_params_scim_schemas_oracle_idcs_extension_group_group
-                                    else '',
-                                )
-                            )
-                        # Logic to re-start new request
-                        if (
-                            len(group_response.data.resources) < limit
-                            or start_index + limit > group_response.data.total_results
-                        ):
-                            break
-                        start_index += limit
-                    logger.debug(f'All Groups: {self.groups}')
+                    # Fetch and aggregate Dynamic Groups
+                    t0 = time.perf_counter()
+                    dg_list = self._fetch_dynamic_groups_for_domain(domain, domain_client)
+                    elapsed = time.perf_counter() - t0
+                    timing_logger(
+                        f'[API] _fetch_dynamic_groups_for_domain got {len(dg_list)} dynamic groups for {domain.display_name} completed in {elapsed:.2f}s'
+                    )
+                    # Dynamic groups have already been incrementally appended in _fetch_dynamic_groups_for_domain
 
-                    # --- LOAD USERS if enabled ---
+                    # Fetch and aggregate Groups
+                    t0 = time.perf_counter()
+                    group_list = self._fetch_groups_for_domain(domain, domain_client)
+                    elapsed = time.perf_counter() - t0
+                    timing_logger(
+                        f'[API] _fetch_groups_for_domain got {len(group_list)} groups for {domain.display_name} completed in {elapsed:.2f}s'
+                    )
+                    # Groups are already appended incrementally
+
+                    # Fetch and aggregate Users (only if enabled)
                     if load_all_users:
-                        start_index = 1
-                        while True:
-                            user_response = domain_client.list_users(
-                                start_index=start_index,
-                                count=limit,
-                                sort_by='displayName',
-                                sort_order='ASCENDING',
-                                attribute_sets=['never'],
-                            )
-                            if user_response.data is None or not user_response.data.resources:
-                                break
-                            for u in user_response.data.resources:
-                                logger.debug(f'User: {u}')
-
-                                user_attributes = domain_client.get_user(user_id=u.id, attribute_sets=['all']).data
-                                # Print this for now
-                                logger.debug(f'***User Attributes: {user_attributes}')
-                                groups_list = []
-                                # If there are groups, loop them
-                                if user_attributes.groups:
-                                    logger.debug(f'User {u.display_name} Groups: {user_attributes.groups}')
-                                    for gg in user_attributes.groups:
-                                        groups_list.append(gg.ocid)
-                                else:
-                                    logger.debug(f'No groups for user {u.display_name}')
-                                # Default the email to None
-                                email = 'None'
-                                if hasattr(user_attributes, 'emails') and user_attributes.emails:
-                                    for em in user_attributes.emails:
-                                        if em.primary:
-                                            email = em.value
-                                            break
-                                else:
-                                    logger.debug(f'No emails for user {u.display_name}')
-                                # Set the user into the bigger picture JSON
-                                self.users.append(
-                                    User(
-                                        domain_name=domain.display_name,
-                                        user_name=u.user_name,
-                                        user_ocid=u.ocid,
-                                        display_name=u.display_name,
-                                        email=email,
-                                        user_id=u.id,
-                                        groups=groups_list,
-                                    )
-                                )
-
-                            # Loop Logic
-                            if (
-                                len(user_response.data.resources) < limit
-                                or start_index + limit > user_response.data.total_results
-                            ):
-                                break
-                            start_index += limit
-                        logger.debug(f'All Users: {self.users}')
+                        t0 = time.perf_counter()
+                        user_list = self._fetch_users_for_domain(domain, domain_client)
+                        elapsed = time.perf_counter() - t0
+                        timing_logger(
+                            f'[API] _fetch_users_for_domain got {len(user_list)} users for {domain.display_name} completed in {elapsed:.2f}s'
+                        )
+                        # Users are already appended incrementally
                     else:
                         self.users = []
 
                     self.data_as_of = str(datetime.now(UTC))
 
-                    # Indicate we loaded successfully
                 except Exception as e:
                     logger.error(f'Failed to load groups/users for domain {domain.id}: {e}')
                     raise
@@ -820,6 +1132,42 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load identity domains: {e}')
             # return False
             raise e
+
+    def _enrich_compartments_with_statement_counts(self):
+        """
+        For each compartment, assign:
+        - statement_count_direct: # of policy statements defined directly in this compartment.
+        - statement_count_cumulative: cumulative total including ancestors.
+        """
+        # Build direct count for each compartment by OCID using up-to-date self.regular_statements
+        statements = getattr(self, 'regular_statements', []) or []
+        direct_statement_count = {}
+        for st in statements:
+            coid = st.get('compartment_ocid')
+            if not coid:
+                continue
+            direct_statement_count[coid] = direct_statement_count.get(coid, 0) + 1
+        # Assign direct count
+        for comp in self.compartments or []:
+            comp_id = comp.get('id')
+            comp['statement_count_direct'] = direct_statement_count.get(comp_id, 0)
+        # Now cumulative (for each compartment, sum direct count for self and all ancestors)
+        comp_by_id = {c.get('id'): c for c in self.compartments or []}
+        for comp in self.compartments or []:
+            cumulative = 0
+            c = comp
+            visited = set()
+            while c:
+                cid = c.get('id')
+                if cid in visited or not cid:
+                    break
+                cumulative += direct_statement_count.get(cid, 0)
+                visited.add(cid)
+                pid = c.get('parent_id')
+                if not pid or pid == cid or pid not in comp_by_id:
+                    break
+                c = comp_by_id[pid]
+            comp['statement_count_cumulative'] = cumulative
 
     # --- Main Filtering Functions ---
     # Filtering logic - return a list of policy statements matching given filter
@@ -852,7 +1200,7 @@ class PolicyAnalysisRepository:
         self._resolve_exact_users(filters=filters)
 
         # At this point we have exact groups or exact dynamic groups to deal with
-        logger.info(f'Post-fuzzy/exact search filters: {filters}')
+        logger.debug(f'Post-fuzzy/exact search filters: {filters}')
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
 
@@ -933,7 +1281,7 @@ class PolicyAnalysisRepository:
                         match = False  # If we get here, no match found
                         break
                 # Compartment special: ROOTONLY
-                elif key == 'policy_compartment' and 'ROOTONLY' in values:
+                elif key == 'compartment_path' and 'ROOTONLY' in values:
                     if stmt.get('compartment_ocid') != self.tenancy_ocid:
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to ROOTONLY restriction')
                         match = False
@@ -1098,7 +1446,7 @@ class PolicyAnalysisRepository:
                 term.lower() in str(u.get('domain_name')).lower() for term in user_filter.get('domain_name')
             )
             matches_username = not user_filter.get('search') or any(
-                term.lower() in str(u.get('username')).lower() for term in user_filter.get('search')
+                term.lower() in str(u.get('user_name')).lower() for term in user_filter.get('search')
             )
             matches_display = not user_filter.get('search') or any(
                 term.lower() in str(u.get('display_name')).lower() for term in user_filter.get('search')
@@ -1124,13 +1472,14 @@ class PolicyAnalysisRepository:
         groups_return: list[Group] = []
         for g in self.groups:
             matches_name = not group_filter.get('group_name') or any(
-                term in str(g.get('group_name')).lower() for term in group_filter.get('group_name')
+                term.lower() in str(g.get('group_name')).lower() for term in group_filter.get('group_name')
             )
             matches_domain = not group_filter.get('domain_name') or any(
-                term in str(g.get('domain_name')).lower() for term in group_filter.get('domain_name', ['default'])
+                term.lower() in str(g.get('domain_name')).lower()
+                for term in group_filter.get('domain_name', ['default'])
             )
             matches_ocid = not group_filter.get('group_ocid') or any(
-                term in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
+                term.lower() in str(g.get('group_ocid')).lower() for term in group_filter.get('group_ocid')
             )
             if matches_name and matches_domain and matches_ocid:
                 groups_return.append(g)
@@ -1359,7 +1708,11 @@ class PolicyAnalysisRepository:
         """
 
         results = []
-        logger.info(f'Filtering Dynamic Groups based on: {filters}')
+        # Only INFO if non-empty or filters indicate stateful/intentional request, else DEBUG
+        if self.dynamic_groups or filters:
+            logger.info(f'Filtering Dynamic Groups based on: {filters}')
+        else:
+            logger.debug(f'Filtering Dynamic Groups based on: {filters} (no data loaded yet)')
 
         for dg in self.dynamic_groups:
             match = True
@@ -1395,7 +1748,10 @@ class PolicyAnalysisRepository:
             if match:
                 results.append(dg)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)} Dynamic Groups.')
+        if self.dynamic_groups or filters:
+            logger.info(f'Filter applied. {len(results)} matched out of {len(self.dynamic_groups)} Dynamic Groups.')
+        else:
+            logger.debug(f'Filter applied. {len(results)} matched out of 0 Dynamic Groups (pre-load state)')
         return results
 
     # --- Other Public Functions ---
@@ -1404,7 +1760,9 @@ class PolicyAnalysisRepository:
     def _check_history(self, policy_ocid: str, start_time: str) -> None:
         """Look at audit logs to track changes to a policy"""
         the_log = f'{self.tenancy_ocid}/_Audit'
-        logs_returned = self.logging_search_client.search_logs(
+        logs_returned = self._api_call_with_logging(
+            'LogSearchClient.search_logs',
+            self.logging_search_client.search_logs,
             search_logs_details=SearchLogsDetails(
                 search_query=f"search \"{the_log}\" | (type in ('com.oraclecloud.identityControlPlane.UpdatePolicy','com.oraclecloud.identityControlPlane.CreatePolicy','com.oraclecloud.identityControlPlane.DeletePolicy')) | sort by datetime desc",
                 # search_query=f'search \"{the_log}\" where type=\'com.oraclecloud.identityControlPlane.UpdatePolicy\'',
@@ -1640,13 +1998,14 @@ class PolicyAnalysisRepository:
                             f"Skipping compartment {compartment['name']} with lifecycle state {compartment['lifecycle_state']}"
                         )
                 # For some reason the root compartment is not included - add it manually
-                root_compartment = {
-                    'id': self.tenancy_ocid,
-                    'name': 'ROOT',
-                    'hierarchy_path': None,
-                    'lifecycle_state': 'ACTIVE',
-                    'parent_id': '',
-                }
+                root_compartment = Compartment(
+                    id=self.tenancy_ocid,
+                    name='ROOT',
+                    parent_id='',
+                    hierarchy_path='',
+                    description='',
+                    lifecycle_state='ACTIVE',
+                )
                 self.compartments.append(root_compartment)
 
             logger.debug(f'Loaded {len(self.compartments)} compartments')
@@ -1667,18 +2026,18 @@ class PolicyAnalysisRepository:
                 reader = csv.DictReader(f)
                 for policy_item in reader:
                     # Create a Policy object for the Policy itself
-                    policy_obj = BasePolicy(
-                        policy_name=policy_item.get('name') or '',
-                        policy_ocid=policy_item.get('id') or '',
-                        compartment_ocid=policy_item.get('compartment_id') or '',
-                        description=policy_item.get('description') or '',
-                        creation_time='',
-                    )
-                    logger.debug(f'Processing policy: {policy_obj}')
-                    # Not really appending policies itself right now, use for parsing statements though
-                    self.policies.append(policy_obj)
+                    # Try to extract tags from CSV: expects column "tags" as a JSON or stringified dict (optional)
+                    tags = None
+                    if 'tags' in policy_item:
+                        tags_str = policy_item.get('tags') or ''
+                        if tags_str:
+                            try:
+                                tags_candidate = eval(tags_str) if tags_str.startswith('{') else tags_str
+                                if isinstance(tags_candidate, dict):
+                                    tags = tags_candidate
+                            except Exception:
+                                pass
 
-                    # Look up the compartment path in loaded compartments
                     comp_path = next(
                         (
                             comp['hierarchy_path']
@@ -1687,6 +2046,18 @@ class PolicyAnalysisRepository:
                         ),
                         'ROOT',
                     )
+                    policy_obj = BasePolicy(
+                        policy_name=policy_item.get('name') or '',
+                        policy_ocid=policy_item.get('id') or '',
+                        compartment_ocid=policy_item.get('compartment_id') or '',
+                        compartment_path=comp_path,
+                        description=policy_item.get('description') or '',
+                        creation_time='',
+                        tags=tags if isinstance(tags, dict) else {},
+                        freeform_tags=tags if isinstance(tags, dict) else {},
+                    )
+                    logger.debug(f'Processing policy: {policy_obj}')
+                    self.policies.append(policy_obj)
 
                     # Get the basic details here and then iterate statements - those are to be added to the list
                     policy_ocid = policy_item.get('identifier') or ''
@@ -1744,7 +2115,12 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 
             self.data_as_of = datetime.now(UTC).isoformat()
+            # For compliance/JSON loads, explicitly clear the reload date unless recovered from cache elsewhere
+            self.policy_data_reloaded = None
             self.loaded_from_compliance_output = True
+
+            # After all policy statements loaded, enrich compartment counts
+            self._enrich_compartments_with_statement_counts()
 
             # logger.warning(f"on_policy_statements_updated callback failed: {e}")
 

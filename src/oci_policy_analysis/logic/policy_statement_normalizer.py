@@ -724,7 +724,7 @@ class PolicyStatementNormalizer:
             perms = [p.upper() for p in perms_original]
         obj = {
             **base,
-            'permission_original': perms_original,
+            # 'permission_original': perms_original,
             'action': fields.get('action', '').lower() or 'allow',
             'valid': True,
             'invalid_reasons': [],

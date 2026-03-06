@@ -57,6 +57,8 @@ class DataTable(ttk.Frame):
         highlights: list[tuple[str, Any, str]] | None = None,
         row_context_menu_callback: Callable[[int], tk.Menu] | None = None,
         height: int | None = None,
+        initial_sort_column: str | None = None,
+        initial_sort_descending: bool = False,
     ) -> None:
         super().__init__(parent)
         self._height = height
@@ -68,6 +70,8 @@ class DataTable(ttk.Frame):
         self.sortable = sortable
         self.row_colors = row_colors
         self.sort_directions: dict[str, bool] = {col: False for col in columns}
+        self.last_sorted_column: str | None = None
+        self.last_sort_descending: bool = False
         self.hidden_columns = set(columns) - set(display_columns)
         self.column_widths: dict[str, int] = (
             column_widths if column_widths is not None else {col: 100 for col in columns}
@@ -95,6 +99,11 @@ class DataTable(ttk.Frame):
             raise ValueError('All column_widths keys must be in columns')
 
         self._setup_ui()
+        if initial_sort_column and initial_sort_column in self.all_columns:
+            self.last_sorted_column = initial_sort_column
+            self.last_sort_descending = initial_sort_descending
+            self.sort_directions[initial_sort_column] = initial_sort_descending
+            self._apply_sort()
         logger.debug('UI setup completed')
 
     def _setup_ui(self) -> None:
@@ -185,6 +194,22 @@ class DataTable(ttk.Frame):
             item_id = self.tree.insert('', 'end', values=values, tags=tags)
             self.data_map[item_id] = i
 
+    def _apply_sort(self) -> None:
+        """Apply current sort (last_sorted_column / last_sort_descending) to self.data and refresh display."""
+        col = self.last_sorted_column
+        if not col or col not in self.all_columns or not self.data:
+            self._populate_data()
+            return
+        reverse = self.last_sort_descending
+        try:
+            self.data.sort(key=lambda x: x.get(col, ''), reverse=reverse)
+        except (ValueError, TypeError):
+            self.data.sort(key=lambda x: str(x.get(col, '')), reverse=reverse)
+        for c in self.tree['columns']:
+            indicator = ' ▼' if (c == col and reverse) else (' ▲' if (c == col and not reverse) else '')
+            self.tree.heading(c, text=f'{c}{indicator}', anchor='w', command=lambda c=c: self._sort_column(c))
+        self._populate_data()
+
     def _sort_column(self, col: str) -> None:
         """Sort the table by the specified column and update indicators."""
         if not self.sortable or col not in self.tree['columns']:
@@ -194,6 +219,8 @@ class DataTable(ttk.Frame):
         logger.debug('Sorting column %s', col)
         self.sort_directions[col] = not self.sort_directions[col]
         reverse = self.sort_directions[col]
+        self.last_sorted_column = col
+        self.last_sort_descending = reverse
 
         try:
             self.data.sort(key=lambda x: x.get(col, ''), reverse=reverse)
@@ -346,14 +373,13 @@ class DataTable(ttk.Frame):
         logger.debug('Selected %d rows', len(selected_rows))
 
     def update_data(self, new_data: list[dict]) -> None:
-        """Update table data and refresh display.
-
-        Args:
-            new_data: List of dictionaries containing new row data.
-        """
+        """Update table data and refresh display. Re-applies current sort if one was set."""
         logger.debug('Updating data with %d rows', len(new_data))
         self.data = new_data
-        self._populate_data()
+        if self.last_sorted_column and self.last_sorted_column in self.all_columns:
+            self._apply_sort()
+        else:
+            self._populate_data()
 
     def apply_theme(self, theme: str) -> None:
         """
@@ -404,6 +430,10 @@ class CheckboxTable(ttk.Frame):
     """
     A DataTable-based Tkinter widget for a table with a first-column checkbox
     and resizable columns, alternating backgrounds, and an action button.
+
+    Optional display_columns restricts which columns are shown (subset of
+    columns; the checkbox column is "☑"). Optional sortable enables column
+    header sorting on the inner DataTable (default False).
     """
 
     def __init__(
@@ -411,34 +441,51 @@ class CheckboxTable(ttk.Frame):
         parent,
         columns,
         data,
-        action_button_text='Take Action',
-        action_callback=None,
+        action_buttons=None,
+        display_columns=None,
+        sortable=False,
         enable_select_all=True,
         checked_by_default=True,
         max_height=None,
         column_widths=None,
         geometry_manager='pack',
+        check_changed_callback=None,  # Callback for any checkbox state change
+        select_all_callback=None,  # NEW: callback when select-all or select-none is triggered
+        row_context_menu_callback=None,  # NEW: callback for per-row right-click
     ):
         super().__init__(parent)
         self.base_columns = columns
         self.columns = ['☑'] + columns
-        self.action_callback = action_callback
+        if display_columns is None:
+            self._display_columns = self.columns
+        else:
+            if not set(display_columns).issubset(self.columns):
+                raise ValueError('All display_columns must be in columns (checkbox column is "☑")')
+            self._display_columns = list(display_columns)
+        self.sortable = sortable
+        if action_buttons is not None and len(action_buttons) > 0:
+            self._action_buttons = list(action_buttons)
+        else:
+            self._action_buttons = []  # No buttons when not passed or empty; no default button
         self.enable_select_all = enable_select_all
         self.max_height = max_height
         self.checked_by_default = checked_by_default
         self.column_widths = {'☑': 34, **(column_widths or {col: 160 for col in columns})}
-        self.action_button_text = action_button_text
         self._geometry_manager = geometry_manager
+        self.check_changed_callback = check_changed_callback
+        self.select_all_callback = select_all_callback  # NEW
+        self.row_context_menu_callback = row_context_menu_callback  # NEW
 
         self._prepare_data(data)
         self._build_ui()
 
     def _prepare_data(self, data):
-        # Store checked state per row
+        # Store checked state per row (use row["checked"] if present, else checked_by_default)
         self.data = []
         self.check_vars = []
         for row in data or []:
-            var = tk.BooleanVar(value=self.checked_by_default)
+            checked_state = row.get('checked', self.checked_by_default)
+            var = tk.BooleanVar(value=checked_state)
             r = dict(row)
             r['☑'] = var
             self.data.append(r)
@@ -471,13 +518,26 @@ class CheckboxTable(ttk.Frame):
         var.set(not var.get())
         self._rebuild_table()
         self._update_select_all_label()
+        if self.check_changed_callback:
+            self.check_changed_callback(self.get_checked_rows())
 
     def _toggle_select_all(self):
         currently_all = all(var.get() for var in self.check_vars)
-        for var in self.check_vars:
-            var.set(not currently_all)
-        self._rebuild_table()
-        self._update_select_all_label()
+        if self.select_all_callback:
+            # Provide visible row Internal IDs and intended state to parent
+            visible_ids = []
+            for _idx, row in enumerate(self.data):
+                if 'Internal ID' in row and row['Internal ID']:
+                    visible_ids.append(row['Internal ID'])
+            self.select_all_callback(visible_ids, not currently_all)
+            # parent will trigger table update reflecting new selection
+        else:
+            for var in self.check_vars:
+                var.set(not currently_all)
+            self._rebuild_table()
+            self._update_select_all_label()
+            if self.check_changed_callback:
+                self.check_changed_callback(self.get_checked_rows())
 
     def _update_select_all_label(self):
         if hasattr(self, 'select_all_btn'):
@@ -485,6 +545,15 @@ class CheckboxTable(ttk.Frame):
                 self.select_all_btn.config(text='Select None')
             else:
                 self.select_all_btn.config(text='Select All')
+        self._update_row_count_label()
+
+    def _update_row_count_label(self):
+        """Refresh the Rows (Total / Shown / Selected) label in the button bar."""
+        if not hasattr(self, '_rows_label'):
+            return
+        total = len(self.data)
+        selected = sum(1 for v in self.check_vars if v.get())
+        self._rows_label.config(text=f'Rows Shown / Selected ({total} / {selected})')
 
     def get_checked_rows(self):
         checked = []
@@ -500,22 +569,18 @@ class CheckboxTable(ttk.Frame):
         self._rebuild_table()
         self._update_select_all_label()
 
-    def _handle_action(self):
-        checked = self.get_checked_rows()
-        if self.action_callback:
-            self.action_callback(checked)
-
     def _build_ui(self):
         # DataTable instantiation
         self.data_table = DataTable(
             self,
             columns=self.columns,
-            display_columns=self.columns,
+            display_columns=self._display_columns,
             data=self._render_table_data(),
-            sortable=False,
+            sortable=self.sortable,
             row_colors=('#FFFFFF', '#F7F7F7'),
             multi_select=False,
             column_widths=self.column_widths,
+            row_context_menu_callback=self.row_context_menu_callback,  # NEW
         )
         if self.max_height:
             if self._geometry_manager == 'grid':
@@ -530,7 +595,9 @@ class CheckboxTable(ttk.Frame):
         # Bind click to toggle check state on first column
         self.data_table.tree.bind('<Button-1>', self._toggle_check_row)
 
-        btn_row = tk.Frame(self)
+        # Button bar: use ttk.Frame so background matches app theme (no distinct bar color)
+        btn_row = ttk.Frame(self)
+        self.action_btns = []
         if self._geometry_manager == 'grid':
             btn_row.grid(row=2, column=0, sticky='ew', padx=8, pady=(4, 7))
             if self.enable_select_all:
@@ -539,13 +606,26 @@ class CheckboxTable(ttk.Frame):
                 col_offset = 1
             else:
                 col_offset = 0
-            self.action_btn = ttk.Button(btn_row, text=self.action_button_text, width=16, command=self._handle_action)
-            self.action_btn.grid(row=0, column=col_offset, sticky='w')
+            for text, cb in self._action_buttons:
+                cmd = (lambda c=cb: lambda: c(self.get_checked_rows()))(cb)
+                btn = ttk.Button(btn_row, text=text, command=cmd)
+                btn.grid(row=0, column=col_offset, padx=(0, 8), sticky='w')
+                col_offset += 1
+                self.action_btns.append(btn)
+            self._rows_label = ttk.Label(btn_row, text='Rows (0 / 0 / 0)')
+            self._rows_label.grid(row=0, column=col_offset, padx=(16, 0), sticky='w')
         else:
             btn_row.pack(fill='x', padx=8, pady=(4, 7))
             if self.enable_select_all:
                 self.select_all_btn = ttk.Button(btn_row, text='Select All', width=11, command=self._toggle_select_all)
                 self.select_all_btn.pack(side='left', padx=(0, 8))
-            self.action_btn = ttk.Button(btn_row, text=self.action_button_text, width=16, command=self._handle_action)
-            self.action_btn.pack(side='left')
+            for text, cb in self._action_buttons:
+                cmd = (lambda c=cb: lambda: c(self.get_checked_rows()))(cb)
+                btn = ttk.Button(btn_row, text=text, command=cmd)
+                btn.pack(side='left', padx=(0, 8))
+                self.action_btns.append(btn)
+            self._rows_label = ttk.Label(btn_row, text='Rows (0 / 0 / 0)')
+            self._rows_label.pack(side='left', padx=(16, 0))
+        if self.action_btns:
+            self.action_btn = self.action_btns[0]
         self._update_select_all_label()

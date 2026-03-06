@@ -34,12 +34,21 @@ logger = get_logger(component='caching')
 class CacheManager:
     """
     Handles saving and loading cached JSON data (IAM + AI).
-    Also is able to list caches, remove caches, and rename caches.
+    Also supports canonical consolidation session persistence: per-tenancy state files for protected_set + plan history.
     Each cache is tied to a tenancy name and date.
     The cache directory is ~/.oci-policy-analysis/cache by default, but can be overridden.
     Caches have the concept of being "preserved" to avoid automatic deletion during culling.
     """
 
+    # ----
+    # REMOVED: Canonical per-tenancy consolidation session file logic (feature disabled)
+    # ----
+
+    # REMOVED: get_or_create_consolidation_state and save_consolidation_state (feature disabled, see plan)
+
+    # REMOVED: get_protected_set, set_protected_set, get_history, add_run_record,
+    # update_run_record, remove_run_record, list_consolidation_tenancy_ocids, list_all_consolidation_plans
+    # (feature disabled; see planning doc for how to restore)
     def __init__(
         self,
         cache_dir: Path = None,
@@ -49,8 +58,7 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f'Initialized Caching at {self.cache_dir}')
 
-        # AI result cache functionality removed
-
+    # REMOVED: save_consolidation_session and load_consolidation_session (feature disabled, see plan for stub)
     # Utility functions for loading and saving cache, using combined caching strategy
     def save_combined_cache(
         self, policy_analysis: PolicyAnalysisRepository, export_file=None, preserved: bool = False
@@ -165,7 +173,7 @@ class CacheManager:
                     return None
             return None
 
-        dated_files = [(parse_date_from_file(f), f) for f in cache_files if parse_date_from_file(f)]
+        dated_files = [(dt, f) for f in cache_files if (dt := parse_date_from_file(f)) is not None]
         dated_files.sort(key=lambda x: x[0], reverse=True)
         to_delete = [f for dt, f in dated_files[10:] if f.name not in preserved_files]
         pruned = 0
@@ -255,6 +263,8 @@ class CacheManager:
                     policy_analysis.load_all_users = cache_data.get('load_all_users', True)
                     # Set the data as of time, always a str
                     policy_analysis.data_as_of = cache_data.get('data_as_of') or ''
+                    # --- Load the last policy reload timestamp if present
+                    policy_analysis.policy_data_reloaded = cache_data.get('policy_data_reloaded', '')
                     logger.info(f'Loaded combined cache (strict mode) from: {combined_cache_file}')
                     logger.info(
                         f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
@@ -316,6 +326,8 @@ class CacheManager:
             policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
             # Set the data as of time, always a str
             policy_analysis.data_as_of = loaded_json.get('data_as_of') or ''
+            # --- Load last policy reload timestamp if present
+            policy_analysis.policy_data_reloaded = loaded_json.get('policy_data_reloaded', '')
             logger.info(
                 f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
@@ -544,3 +556,45 @@ class CacheManager:
                         pass
                     f.write(line)
         return updated
+
+    def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str | None):
+        """
+        Update ONLY the policies, policy_statements, compartments, defined_aliases, and cross_tenancy_statements in
+        the most recent cache file for a given tenancy, and set 'policy_data_reloaded' with the supplied timestamp.
+        This preserves IAM/user/group data and other session metadata. No effect if no cache is present.
+
+        Args:
+            policy_analysis: PolicyAnalysisRepository with fresh policy/compartment data in memory
+            policy_data_reloaded: ISO timestamp string for reloaded policy data
+        """
+        cache_files = list(self.cache_dir.glob(f'combined_cache_{policy_analysis.tenancy_name}_*.json'))
+        if not cache_files:
+            logger.warning(
+                f"[CacheManager.update_policy_section] No existing cache file for tenancy '{policy_analysis.tenancy_name}', skipping."
+            )
+            return
+        # Use newest cache file (sorted by filename so creation time works due to naming convention)
+        cache_files.sort(reverse=True)
+        cache_file = cache_files[0]
+        try:
+            with open(cache_file, encoding='utf-8') as f:
+                cache_data = json.load(f)
+        except Exception as e:
+            logger.error(f"[CacheManager.update_policy_section] Failed to load cache file '{cache_file}': {e}")
+            return
+
+        # Update the compartment/policy section fields (other identity data are left untouched)
+        cache_data['policies'] = policy_analysis.policies
+        cache_data['policy_statements'] = policy_analysis.regular_statements
+        cache_data['compartments'] = policy_analysis.compartments
+        cache_data['defined_aliases'] = policy_analysis.defined_aliases
+        cache_data['cross_tenancy_statements'] = policy_analysis.cross_tenancy_statements
+        cache_data['policy_data_reloaded'] = policy_data_reloaded
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2, default=str)
+            logger.info(
+                f'[CacheManager.update_policy_section] Updated policy/compartment section of {cache_file} with new policy_data_reloaded: {policy_data_reloaded}'
+            )
+        except Exception as e:
+            logger.error(f"[CacheManager.update_policy_section] Could not save cache file '{cache_file}': {e}")

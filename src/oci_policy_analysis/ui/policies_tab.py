@@ -169,27 +169,43 @@ class PoliciesTab(BaseUITab):
         )
         self.btn_export_policy.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
 
+        # ---- Reload Policy Data button ----
+        self.btn_reload_policies = ttk.Button(
+            self.label_frm_actions,
+            text='Reload Policy Data',
+            state=tk.DISABLED,
+            command=self._handle_reload_policies,
+        )
+        self.btn_reload_policies.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.add_context_help(
+            self.btn_reload_policies,
+            (
+                'Reload policies and compartment data directly from tenancy (using original authentication and recursion settings).\n'
+                'Enabled only if current data was loaded from tenancy, not cache/compliance. IAM group, Dynamic Group, and User data are NOT reloaded.'
+            ),
+        )
+
         # Saved Search Name entry/label
         ttk.Label(self.label_frm_actions, text='Saved Search Name:').grid(
-            row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w'
+            row=2, column=0, columnspan=2, padx=5, pady=5, sticky='w'
         )
         self.saved_search_name_var = tk.StringVar()
         self.entry_saved_search_name = ttk.Entry(
             self.label_frm_actions, textvariable=self.saved_search_name_var, width=22
         )
-        self.entry_saved_search_name.grid(row=2, column=0, padx=5, pady=5, sticky='ew')
+        self.entry_saved_search_name.grid(row=3, column=0, padx=5, pady=5, sticky='ew')
 
         # Save Search button - binds to custom method
         self.btn_save_search = ttk.Button(self.label_frm_actions, text='Save Search', command=self._handle_save_search)
-        self.btn_save_search.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
+        self.btn_save_search.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
 
         # Saved Searches ComboBox
-        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=3, column=0, padx=5, pady=5, sticky='w')
+        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=4, column=0, padx=5, pady=5, sticky='w')
         self.saved_searches_var = tk.StringVar()
         self.cb_saved_searches = ttk.Combobox(
             self.label_frm_actions, textvariable=self.saved_searches_var, state='readonly', width=22, values=[]
         )
-        self.cb_saved_searches.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
+        self.cb_saved_searches.grid(row=4, column=1, padx=5, pady=5, sticky='ew')
         self.cb_saved_searches.bind('<<ComboboxSelected>>', self._handle_restore_search)
 
         # Helper to adjust expandability if needed:
@@ -207,6 +223,9 @@ class PoliciesTab(BaseUITab):
         if 'saved_policy_searches' not in self.settings or not isinstance(self.settings['saved_policy_searches'], list):
             self.settings['saved_policy_searches'] = []
         self._refresh_saved_searches_dropdown()
+
+        # -- After UI is built, check if Reload button should be enabled
+        self._update_reload_policy_button_state()
 
     def _build_ui_policy_filters(self):
         # All logic to build the policy filter frame moved to separate method for clarity
@@ -325,6 +344,55 @@ class PoliciesTab(BaseUITab):
             self.app.toggle_bottom()
             logger.info('Policies Tab: AI Assist button clicked, toggled bottom pane.')
 
+    def _update_reload_policy_button_state(self):
+        """Enable or disable the reload button depending on whether reload is allowed."""
+        allowed = False
+        if hasattr(self, 'policy_repo'):
+            repo = self.policy_repo
+            if getattr(repo, 'policies_loaded_from_tenancy', False) and not getattr(
+                repo, 'loaded_from_compliance_output', False
+            ):
+                allowed = True
+        if hasattr(self, 'btn_reload_policies'):
+            if allowed:
+                self.btn_reload_policies['state'] = tk.NORMAL
+            else:
+                self.btn_reload_policies['state'] = tk.DISABLED
+
+    def _handle_reload_policies(self):
+        """Handler for Reload Policy Data button. Delegates actual reload+cache+UI to App."""
+        if not (
+            hasattr(self.policy_repo, 'policies_loaded_from_tenancy') and self.policy_repo.policies_loaded_from_tenancy
+        ) or getattr(self.policy_repo, 'loaded_from_compliance_output', False):
+            tkmessagebox.showwarning(
+                'Not allowed',
+                'Policy data can only be reloaded from tenancy (not cache/compliance). Please load from tenancy first.',
+            )
+            self._update_reload_policy_button_state()
+            return
+        try:
+            self.configure(cursor='watch')
+            self.update_idletasks()
+            # Let App coordinate the reload, cache update, and UI refresh
+            ok = False
+            if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
+                ok = self.app.reload_policies_and_compartments_and_update_cache()
+            self.configure(cursor='')
+            if ok:
+                tkmessagebox.showinfo(
+                    'Policy Data Reloaded', 'Policies and compartments have been reloaded from tenancy.'
+                )
+            else:
+                self._update_reload_policy_button_state()
+                tkmessagebox.showerror(
+                    'Reload Failed',
+                    'Policy data reload from tenancy failed. See application logs for details.',
+                )
+        except Exception as e:
+            self.configure(cursor='')
+            self._update_reload_policy_button_state()
+            tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
+
     def _get_current_search_dict(self):  # noqa: C901
         # Build filter dict using update_policy_output convention
         filters: PolicySearch = {}
@@ -347,7 +415,7 @@ class PoliciesTab(BaseUITab):
         if self.location_filter_var.get():
             filters['location'] = self.location_filter_var.get().split('|')
         if self.hierarchy_filter_var.get():
-            filters['policy_compartment'] = (
+            filters['compartment_path'] = (
                 ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
             )
         if self.text_filter_var.get():
@@ -406,8 +474,8 @@ class PoliciesTab(BaseUITab):
         self.resource_filter_var.set('|'.join(filters.get('resource', [])) if 'resource' in filters else '')
         self.location_filter_var.set('|'.join(filters.get('location', [])) if 'location' in filters else '')
         self.hierarchy_filter_var.set(
-            '|'.join(filters.get('policy_compartment', []))
-            if 'policy_compartment' in filters and filters.get('policy_compartment') != ['ROOTONLY']
+            '|'.join(filters.get('compartment_path', []))
+            if 'compartment_path' in filters and filters.get('compartment_path') != ['ROOTONLY']
             else ''
         )
         self.condition_filter_var.set('|'.join(filters.get('conditions', [])) if 'conditions' in filters else '')
@@ -415,11 +483,13 @@ class PoliciesTab(BaseUITab):
         self.policy_filter_var.set('|'.join(filters.get('policy_name', [])) if 'policy_name' in filters else '')
         self.effective_path_var.set('|'.join(filters.get('effective_path', [])) if 'effective_path' in filters else '')
         # Handle booleans
-        self.hierarchy_filter_root.set(bool(filters.get('policy_compartment') == ['ROOTONLY']))
+        self.hierarchy_filter_root.set(bool(filters.get('compartment_path') == ['ROOTONLY']))
         self.location_filter_tenancy.set(bool(filters.get('location') == ['tenancy']))
         # "Action" field already handled above
         self.chk_show_invalid.set(bool(filters.get('valid') is False))
-        self.update_policy_output()
+        self.populate_data()
+        self.populate_data()
+        self.populate_data()
 
         # --- Remove old label_frm_actions and its .place() ---
         # Create the policy filter frame and all fields/buttons (restoring the original layout)
@@ -473,7 +543,7 @@ class PoliciesTab(BaseUITab):
             if self.location_filter_var.get():
                 filters['location'] = self.location_filter_var.get().split('|')
             if self.hierarchy_filter_var.get():
-                filters['policy_compartment'] = (
+                filters['compartment_path'] = (
                     ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
                 )
             # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
@@ -563,7 +633,9 @@ class PoliciesTab(BaseUITab):
             if isinstance(effective_path, str) and effective_path:
                 self.effective_path_var.set(effective_path)
                 # Update the output
-                self.update_policy_output()
+                self.populate_data()
+                self.populate_data()
+                self.populate_data()
 
         def policy_table_right_click(row_index: int) -> tk.Menu:
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
@@ -618,113 +690,145 @@ class PoliciesTab(BaseUITab):
         label_frm_policy_table.pack(fill='both', expand=True, padx=5, pady=5)
 
         # Trace to update the output when any filter changes
-        self.verb_filter_var.trace_add('write', self.update_policy_output)
-        self.subject_filter_var.trace_add('write', self.update_policy_output)
-        self.resource_filter_var.trace_add('write', self.update_policy_output)
-        self.location_filter_var.trace_add('write', self.update_policy_output)
-        self.hierarchy_filter_var.trace_add('write', self.update_policy_output)
-        self.condition_filter_var.trace_add('write', self.update_policy_output)
-        self.text_filter_var.trace_add('write', self.update_policy_output)
-        self.policy_filter_var.trace_add('write', self.update_policy_output)
-        self.effective_path_var.trace_add('write', self.update_policy_output)
+        self.verb_filter_var.trace_add('write', self.populate_data)
+        self.subject_filter_var.trace_add('write', self.populate_data)
+        self.resource_filter_var.trace_add('write', self.populate_data)
+        self.location_filter_var.trace_add('write', self.populate_data)
+        self.hierarchy_filter_var.trace_add('write', self.populate_data)
+        self.condition_filter_var.trace_add('write', self.populate_data)
+        self.text_filter_var.trace_add('write', self.populate_data)
+        self.policy_filter_var.trace_add('write', self.populate_data)
+        self.effective_path_var.trace_add('write', self.populate_data)
 
-    def update_policy_output(self, *args):  # noqa: C901
-        """Update the policy output based on current filters."""
-        if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name'):
-            self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
-        else:
-            self.tenancy_name_var.set('Please Load a Tenancy')
+    def populate_data(self, *args):  # noqa: C901
+        """Populate the policy output using per-step timing ala BaseUITab.timed_step (sub-timings)."""
 
-        # Build filter dict for new call to filter
-        filters: PolicySearch = {}
-        if self.subject_filter_var.get():
-            filters['subject'] = self.subject_filter_var.get().split('|')
-        # Action filter
-        action_value = self.action_filter_var.get().lower()
-        if action_value == 'allow':
-            filters['action'] = ['allow']
-        elif action_value == 'deny':
-            filters['action'] = ['deny']
-        else:  # both
-            filters['action'] = ['allow', 'deny', 'unknown']
+        def _set_tenancy_label():
+            if self.policy_repo and hasattr(self.policy_repo, 'tenancy_name'):
+                self.tenancy_name_var.set(f'Tenancy:\n{self.policy_repo.tenancy_name}')
+            else:
+                self.tenancy_name_var.set('Please Load a Tenancy')
 
-        # Verb filter
-        if self.verb_filter_var.get():
-            allowed_verbs = {'inspect', 'read', 'use', 'manage'}
-            verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
-            if verbs:
-                filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
-        if self.resource_filter_var.get():
-            filters['resource'] = self.resource_filter_var.get().split('|')
-        if self.location_filter_var.get():
-            filters['location'] = self.location_filter_var.get().split('|')
-        if self.hierarchy_filter_var.get():
-            filters['policy_compartment'] = (
-                ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
+        def _build_filters():  # noqa: C901
+            filters: PolicySearch = {}
+            if self.subject_filter_var.get():
+                filters['subject'] = self.subject_filter_var.get().split('|')
+            action_value = self.action_filter_var.get().lower()
+            if action_value == 'allow':
+                filters['action'] = ['allow']
+            elif action_value == 'deny':
+                filters['action'] = ['deny']
+            else:
+                filters['action'] = ['allow', 'deny', 'unknown']
+            if self.verb_filter_var.get():
+                allowed_verbs = {'inspect', 'read', 'use', 'manage'}
+                verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
+                if verbs:
+                    filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
+            if self.resource_filter_var.get():
+                filters['resource'] = self.resource_filter_var.get().split('|')
+            if self.location_filter_var.get():
+                filters['location'] = self.location_filter_var.get().split('|')
+            if self.hierarchy_filter_var.get():
+                filters['compartment_path'] = (
+                    ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
+                )
+            if self.text_filter_var.get():
+                filters['statement_text'] = self.text_filter_var.get().split('|')
+            if self.policy_filter_var.get():
+                filters['policy_name'] = self.policy_filter_var.get().split('|')
+            if self.effective_path_var.get():
+                filters['effective_path'] = self.effective_path_var.get().split('|')
+            if self.condition_filter_var.get():
+                filters['conditions'] = self.condition_filter_var.get().split('|')
+            if self.chk_show_invalid.get():
+                filters['valid'] = False
+                logger.debug('Filtering for invalid policies only')
+            return filters
+
+        def _log_filter_info(filters):
+            logger.info(f'Applying policy filters: {filters}')
+
+        def _filter_policy_statements(filters):
+            return self.policy_repo.filter_policy_statements(filters=filters)
+
+        def _log_count_after_filter(filtered_statements):
+            logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
+
+        def _normalize_for_display(stmts):
+            return [for_display_policy(st) for st in stmts]
+
+        def _configure_view_columns():
+            if self.chk_show_invalid.get():
+                self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
+                self.chk_show_service.set(True)
+                self.chk_show_dynamic.set(True)
+                self.chk_show_resource.set(True)
+                self.chk_show_regular.set(True)
+                logger.debug('Setting policy table to expanded view with invalid columns and undo other output filters')
+            else:
+                self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
+                logger.debug('Setting policy table to expanded view with basic columns')
+            if self.chk_show_expanded.get():
+                self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
+                logger.debug('Setting policy table to expanded view with all columns')
+
+        def _apply_row_toggles(filtered_statements):
+            """
+            Efficient filter for display toggles.
+            - Caches all toggle values in local variables (no per-row .get calls)
+            - Only fetches 'Subject Type' once per row
+            - Uses 'set' for regular subject types for fast membership test
+            """
+            show_service = self.chk_show_service.get()
+            show_dynamic = self.chk_show_dynamic.get()
+            show_resource = self.chk_show_resource.get()
+            show_regular = self.chk_show_regular.get()
+            show_invalid = self.chk_show_invalid.get()
+            regular_types = {'group', 'any-user', 'any-group'}
+
+            result = []
+            for st in filtered_statements:
+                stype = st.get('Subject Type')
+                if (
+                    (show_service and stype == 'service')
+                    or (show_dynamic and stype == 'dynamic-group')
+                    or (show_resource and stype == 'resource')
+                    or (show_regular and stype in regular_types)
+                    or (show_invalid and (not st.get('Valid') or not st.get('Parsed')))
+                ):
+                    result.append(st)
+            return result
+
+        def _update_count_labels(filtered_statements, rows_to_show):
+            self.label_policy_count.config(
+                text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
             )
-        # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
-        if self.text_filter_var.get():
-            filters['statement_text'] = self.text_filter_var.get().split('|')
-        if self.policy_filter_var.get():
-            filters['policy_name'] = self.policy_filter_var.get().split('|')
-        if self.effective_path_var.get():
-            filters['effective_path'] = self.effective_path_var.get().split('|')
-        if self.condition_filter_var.get():
-            filters['conditions'] = self.condition_filter_var.get().split('|')
-            pass
-        if self.chk_show_invalid.get():
-            filters['valid'] = False
-            logger.debug('Filtering for invalid policies only')
 
-        logger.info(f'Applying policy filters: {filters}')
-        filtered_statements = self.policy_repo.filter_policy_statements(filters=filters)
-        logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
+        def _update_policy_table(rows_to_show):
+            self.policy_table.update_data(rows_to_show)
 
-        # Apply additional filters for output
-        normalized_statements = [for_display_policy(st) for st in filtered_statements]
-        filtered_statements = normalized_statements
-
-        # Open up all policy types if invalid is checked
-        if self.chk_show_invalid.get():
-            self.policy_table.set_display_columns(BASIC_INVALID_POLICY_COLUMNS)
-            self.chk_show_service.set(True)
-            self.chk_show_dynamic.set(True)
-            self.chk_show_resource.set(True)
-            self.chk_show_regular.set(True)
-            logger.debug('Setting policy table to expanded view with invalid columns and undo other output filters')
-        else:
-            self.policy_table.set_display_columns(BASIC_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with basic columns')
-
-        # If expanded is checked, show all columns no matter what
-        if self.chk_show_expanded.get():
-            self.policy_table.set_display_columns(ALL_POLICY_COLUMNS)
-            logger.debug('Setting policy table to expanded view with all columns')
-
-        # Determine which rows to show based on checkboxes
-        rows_to_show: list = [
-            st
-            for st in filtered_statements
-            if (
-                self.chk_show_service.get()
-                and st.get('Subject Type') == 'service'
-                or self.chk_show_dynamic.get()
-                and st.get('Subject Type') == 'dynamic-group'
-                or self.chk_show_resource.get()
-                and st.get('Subject Type') == 'resource'
-                or self.chk_show_regular.get()
-                and st.get('Subject Type') in ['group', 'any-user', 'any-group']
-                or self.chk_show_invalid.get()
-                and (not st.get('Valid') or not st.get('Parsed'))
-            )
-        ]
-        self.label_policy_count.config(
-            text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
+        # === Main sub-steps timed via base class ===
+        self.timed_step('set_tenancy_label', _set_tenancy_label)
+        filters = self.timed_step('build_filters', _build_filters)
+        self.timed_step('log_filter_info', lambda: _log_filter_info(filters))
+        filtered_statements = self.timed_step('filter_policy_statements', lambda: _filter_policy_statements(filters))
+        self.timed_step('log_count_after_filter', lambda: _log_count_after_filter(filtered_statements))
+        filtered_statements = self.timed_step(
+            'normalize_for_display', lambda: _normalize_for_display(filtered_statements)
         )
-        # Populate Data Table
-        logger.debug(rows_to_show)
-        self.policy_table.update_data(rows_to_show)
-        logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
+        self.timed_step('output_column_view_config', _configure_view_columns)
+        rows_to_show = self.timed_step('apply_row_toggles', lambda: _apply_row_toggles(filtered_statements))
+        self.timed_step('update_count_labels', lambda: _update_count_labels(filtered_statements, rows_to_show))
+        self.timed_step('update_policy_table', lambda: _update_policy_table(rows_to_show))
+        self.timed_step(
+            'log_final_info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
+        )
+
+    # Backward compatibility: keep update_policy_output (deprecated) for now
+    def update_policy_output(self, *args, **kwargs):
+        """[DEPRECATED] Use populate_data instead for sub-timing and improved logging."""
+        return self.populate_data(*args, **kwargs)
 
     def enable_widgets_after_load(self):
         """Enable widgets after load."""
@@ -732,3 +836,4 @@ class PoliciesTab(BaseUITab):
         # Clear/export button
         self.btn_clear.configure(state='normal')
         self.btn_export_policy.configure(state='normal')
+        self._update_reload_policy_button_state()

@@ -515,8 +515,7 @@ class SimulationTab(BaseUITab):
             self.preview_frame,
             columns=cols,
             data=data,
-            action_button_text='Load Where Clause Fields',
-            action_callback=self.load_where_fields,
+            action_buttons=[('Load Where Clause Fields', self.load_where_fields)],
             enable_select_all=True,
             checked_by_default=True,
             max_height=260,  # px, approx 30% of default main window

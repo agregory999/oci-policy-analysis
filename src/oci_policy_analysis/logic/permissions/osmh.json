@@ -1,0 +1,1172 @@
+{
+    "resources": {
+        "lifecycle-environments": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_LIFECYCLE_ENVIRONMENT_INSPECT"
+                ],
+                "read": [
+                    "OSMH_LIFECYCLE_ENVIRONMENT_READ"
+                ],
+                "use": [
+                    "OSMH_LIFECYCLE_ENVIRONMENT_UPDATE"
+                ],
+                "manage": [
+                    "OSMH_LIFECYCLE_ENVIRONMENT_CREATE",
+                    "OSMH_LIFECYCLE_ENVIRONMENT_DELETE",
+                    "OSMH_LIFECYCLE_ENVIRONMENT_MOVE"
+                ]
+            }
+        },
+        "lifecycle-stages": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_LIFECYCLE_STAGE_INSPECT"
+                ],
+                "read": [
+                    "OSMH_LIFECYCLE_STAGE_READ"
+                ],
+                "use": [
+                    "OSMH_LIFECYCLE_STAGE_ATTACH_INSTANCE",
+                    "OSMH_LIFECYCLE_STAGE_DETACH_INSTANCE",
+                    "OSMH_LIFECYCLE_STAGE_PROMOTE_SOFTWARE_SOURCE",
+                    "OSMH_LIFECYCLE_STAGE_REBOOT"
+                ]
+            }
+        },
+        "managed-instances": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_MANAGED_INSTANCE_INSPECT"
+                ],
+                "read": [
+                    "OSMH_MANAGED_INSTANCE_READ"
+                ],
+                "use": [
+                    "OSMH_MANAGED_INSTANCE_UPDATE",
+                    "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE",
+                    "OSMH_MANAGED_INSTANCE_REMOVE_PACKAGE",
+                    "OSMH_MANAGED_INSTANCE_INSTALL_UPDATE",
+                    "OSMH_MANAGED_INSTANCE_ADD_SOFTWARE_SOURCE",
+                    "OSMH_MANAGED_INSTANCE_REMOVE_SOFTWARE_SOURCE",
+                    "OSMH_MANAGED_INSTANCE_MANAGE_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_ENABLE_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_DISABLE_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_SWITCH_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_INSTALL_MODULE_STREAM_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_REMOVE_MODULE_STREAM_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_ADD_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_REMOVE_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_REBOOT"
+                ],
+                "manage": [
+                    "OSMH_MANAGED_INSTANCE_DELETE"
+                ]
+            }
+        },
+        "managed-instance-groups": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_MANAGED_INSTANCE_GROUP_INSPECT"
+                ],
+                "read": [
+                    "OSMH_MANAGED_INSTANCE_GROUP_READ"
+                ],
+                "use": [
+                    "OSMH_MANAGED_INSTANCE_GROUP_UPDATE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_PACKAGE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_PACKAGE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_UPDATE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_ADD_SOFTWARE_SOURCE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_SOFTWARE_SOURCE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_ATTACH_INSTANCE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_DETACH_INSTANCE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_MANAGE_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_GROUP_ENABLE_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_MODULE_STREAM_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_MODULE_STREAM_PROFILE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_SWITCH_MODULE_STREAM",
+                    "OSMH_MANAGED_INSTANCE_GROUP_REBOOT"
+                ],
+                "manage": [
+                    "OSMH_MANAGED_INSTANCE_GROUP_CREATE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_DELETE",
+                    "OSMH_MANAGED_INSTANCE_GROUP_MOVE"
+                ]
+            }
+        },
+        "profiles": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_PROFILE_INSPECT"
+                ],
+                "read": [
+                    "OSMH_PROFILE_READ"
+                ],
+                "use": [
+                    "OSMH_PROFILE_UPDATE",
+                    "OSMH_PROFILE_ATTACH_LIFECYCLE_STAGE",
+                    "OSMH_PROFILE_ATTACH_MANAGED_INSTANCE_GROUP",
+                    "OSMH_PROFILE_ATTACH_MANAGEMENT_STATION",
+                    "OSMH_PROFILE_ADD_SOFTWARE_SOURCE",
+                    "OSMH_PROFILE_REMOVE_SOFTWARE_SOURCE"
+                ],
+                "manage": [
+                    "OSMH_PROFILE_CREATE",
+                    "OSMH_PROFILE_DELETE",
+                    "OSMH_PROFILE_MOVE"
+                ]
+            }
+        },
+        "management-stations": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_MANAGEMENT_STATION_INSPECT"
+                ],
+                "read": [
+                    "OSMH_MANAGEMENT_STATION_READ"
+                ],
+                "use": [
+                    "OSMH_MANAGEMENT_STATION_UPDATE"
+                ],
+                "manage": [
+                    "OSMH_MANAGEMENT_STATION_CREATE",
+                    "OSMH_MANAGEMENT_STATION_DELETE",
+                    "OSMH_MANAGEMENT_STATION_MOVE"
+                ]
+            }
+        },
+        "scheduled-jobs": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_SCHEDULED_JOB_INSPECT"
+                ],
+                "read": [
+                    "OSMH_SCHEDULED_JOB_READ"
+                ],
+                "use": [
+                    "OSMH_SCHEDULED_JOB_UPDATE"
+                ],
+                "manage": [
+                    "OSMH_SCHEDULED_JOB_CREATE",
+                    "OSMH_SCHEDULED_JOB_DELETE",
+                    "OSMH_SCHEDULED_JOB_MOVE"
+                ]
+            }
+        },
+        "work-requests": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_WORK_REQUEST_INSPECT"
+                ],
+                "read": [
+                    "OSMH_WORK_REQUEST_READ"
+                ],
+                "use": [
+                    "OSMH_WORK_REQUEST_RERUN"
+                ]
+            }
+        },
+        "software-sources": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_SOFTWARE_SOURCE_INSPECT"
+                ],
+                "read": [
+                    "OSMH_SOFTWARE_SOURCE_READ"
+                ],
+                "use": [
+                    "OSMH_SOFTWARE_SOURCE_UPDATE"
+                ],
+                "manage": [
+                    "OSMH_SOFTWARE_SOURCE_CREATE",
+                    "OSMH_SOFTWARE_SOURCE_DELETE",
+                    "OSMH_SOFTWARE_SOURCE_MOVE"
+                ]
+            }
+        },
+        "entitlements": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_ENTITLEMENTS_INSPECT"
+                ],
+                "manage": [
+                    "OSMH_ENTITLEMENTS_CREATE"
+                ]
+            }
+        },
+        "events": {
+            "verbs": {
+                "inspect": [
+                    "OSMH_EVENT_INSPECT"
+                ],
+                "read": [
+                    "OSMH_EVENT_READ"
+                ],
+                "use": [
+                    "OSMH_EVENT_UPDATE"
+                ],
+                "manage": [
+                    "OSMH_EVENT_CREATE",
+                    "OSMH_EVENT_DELETE",
+                    "OSMH_EVENT_MANAGE",
+                    "OSMH_EVENT_MOVE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "osmh-family": {
+            "resources": [
+                "lifecycle-environments",
+                "lifecycle-stages",
+                "managed-instances",
+                "managed-instance-groups",
+                "profiles",
+                "management-stations",
+                "scheduled-jobs",
+                "work-requests",
+                "software-sources",
+                "entitlements",
+                "events"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/osmh/doc/policies-reference.htm"
+        }
+    },
+    "operations": {
+        "CreateLifecycleEnvironment": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListLifecycleEnvironments": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetLifecycleEnvironment": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateLifecycleEnvironment": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteLifecycleEnvironment": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeLifecycleEnvironmentCompartment": {
+            "permissions": [
+                "OSMH_LIFECYCLE_ENVIRONMENT_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListLifecycleStages": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetLifecycleStage": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_READ"
+            ],
+            "notes": ""
+        },
+        "AttachManagedInstanceToLifecycleStage": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_ATTACH_INSTANCE",
+                "OSMH_MANAGED_INSTANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DetachManagedInstanceFromLifecycleStage": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_DETACH_INSTANCE",
+                "OSMH_MANAGED_INSTANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "PromoteSoftwareSourceToLifecycleStage": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_PROMOTE_SOFTWARE_SOURCE",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListLifecycleStageInstalledPackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ",
+                "OSMH_LIFECYCLE_STAGE_READ"
+            ],
+            "notes": ""
+        },
+        "RebootLifecycleStage": {
+            "permissions": [
+                "OSMH_LIFECYCLE_STAGE_REBOOT"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstances": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_UPDATE"
+            ],
+            "notes": "ONS_TOPIC_PUBLISH required if notificationTopicId is provided."
+        },
+        "DeleteManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceInstalledPackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceAvailablePackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceUpdatablePackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceAvailableWindowsUpdates": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceInstalledWindowsUpdates": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceErrata": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceAvailableSoftwareSource": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "InstallPackagesOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "RemovePackagesFromManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_REMOVE_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "UpdatePackagesOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "InstallWindowsUpdatesOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "RefreshSoftwareOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AttachSoftwareSourcesToManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_ADD_SOFTWARE_SOURCE",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "DetachSoftwareSourcesFromManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_REMOVE_SOFTWARE_SOURCE"
+            ],
+            "notes": ""
+        },
+        "AttachProfileToManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_ADD_PROFILE",
+                "OSMH_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "DetachProfileFromManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_REMOVE_PROFILE"
+            ],
+            "notes": ""
+        },
+        "ManageModuleStreamsOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_MANAGE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "EnableModuleStreamOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_ENABLE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "DisableModuleStreamOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_DISABLE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "SwitchModuleStreamOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_SWITCH_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "InstallModuleStreamProfileOnManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_MODULE_STREAM_PROFILE"
+            ],
+            "notes": ""
+        },
+        "RemoveModuleStreamProfileFromManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_REMOVE_MODULE_STREAM_PROFILE"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceModules": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAllPackagesOnManagedInstancesInCompartment": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "InstallAllWindowsUpdatesOnManagedInstancesInCompartment": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_INSTALL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "SummarizeManagedInstanceAnalytics": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetManagedInstanceAnalyticContent": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetManagedInstanceContent": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_READ"
+            ],
+            "notes": ""
+        },
+        "RebootManagedInstance": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_REBOOT"
+            ],
+            "notes": ""
+        },
+        "AssociateManagedInstancesWithManagementStation": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_UPDATE",
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_CREATE",
+                "OSMH_MANAGED_INSTANCE_GROUP_ADD_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_GROUP_ATTACH_INSTANCE"
+            ],
+            "notes": "ONS_TOPIC_PUBLISH required if notificationTopicId is provided."
+        },
+        "ListManagedInstanceGroups": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_UPDATE"
+            ],
+            "notes": "ONS_TOPIC_PUBLISH required if notificationTopicId is provided."
+        },
+        "DeleteManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_DELETE"
+            ],
+            "notes": ""
+        },
+        "AttachManagedInstancesToManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_ATTACH_INSTANCE",
+                "OSMH_MANAGED_INSTANCE_ADD_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_MANAGE_MODULE_STREAM",
+                "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE"
+            ],
+            "notes": "At least one of the additional managed instance permissions is required."
+        },
+        "DetachManagedInstancesFromManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_DETACH_INSTANCE"
+            ],
+            "notes": ""
+        },
+        "AttachSoftwareSourcesToManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_ADD_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_ADD_SOFTWARE_SOURCE",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "DetachSoftwareSourcesFromManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_SOFTWARE_SOURCE"
+            ],
+            "notes": ""
+        },
+        "InstallPackagesOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "RemovePackagesFromManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "ManageModuleStreamsOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_MANAGE_MODULE_STREAM",
+                "OSMH_MANAGED_INSTANCE_MANAGE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "EnableModuleStreamOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_ENABLE_MODULE_STREAM",
+                "OSMH_MANAGED_INSTANCE_ENABLE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "DisableModuleStreamOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_DISABLE_MODULE_STREAM",
+                "OSMH_MANAGED_INSTANCE_DISABLE_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "InstallModuleStreamProfileOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_MODULE_STREAM_PROFILE",
+                "OSMH_MANAGED_INSTANCE_INSTALL_MODULE_STREAM_PROFILE"
+            ],
+            "notes": ""
+        },
+        "RemoveModuleStreamProfileFromManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_MODULE_STREAM_PROFILE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_MODULE_STREAM_PROFILE"
+            ],
+            "notes": ""
+        },
+        "ChangeManagedInstanceGroupCompartment": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_MOVE"
+            ],
+            "notes": ""
+        },
+        "SwitchModuleStreamOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_SWITCH_MODULE_STREAM"
+            ],
+            "notes": ""
+        },
+        "InstallWindowsUpdatesOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_PACKAGE"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceGroupAvailableModules": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceGroupAvailablePackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceGroupAvailableSoftwareSources": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceGroupInstalledPackages": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "ListManagedInstanceGroupModules": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateAllPackagesOnManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RebootManagedInstanceGroup": {
+            "permissions": [
+                "OSMH_MANAGED_INSTANCE_GROUP_REBOOT"
+            ],
+            "notes": ""
+        },
+        "CreateProfile": {
+            "permissions": [
+                "OSMH_PROFILE_CREATE",
+                "OSMH_MANAGEMENT_STATION_READ",
+                "OSMH_MANAGED_INSTANCE_GROUP_READ",
+                "OSMH_LIFECYCLE_STAGE_READ",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": "Requires management station read and one of the listed resource reads."
+        },
+        "GetProfile": {
+            "permissions": [
+                "OSMH_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "ListProfiles": {
+            "permissions": [
+                "OSMH_PROFILE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "UpdateProfile": {
+            "permissions": [
+                "OSMH_PROFILE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteProfile": {
+            "permissions": [
+                "OSMH_PROFILE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeProfileCompartment": {
+            "permissions": [
+                "OSMH_PROFILE_MOVE"
+            ],
+            "notes": ""
+        },
+        "GetProfileVersion": {
+            "permissions": [
+                "OSMH_PROFILE_READ"
+            ],
+            "notes": ""
+        },
+        "AttachLifecycleStageToProfile": {
+            "permissions": [
+                "OSMH_PROFILE_ATTACH_LIFECYCLE_STAGE",
+                "OSMH_LIFECYCLE_STAGE_READ"
+            ],
+            "notes": ""
+        },
+        "AttachManagedInstanceGroupToProfile": {
+            "permissions": [
+                "OSMH_PROFILE_ATTACH_MANAGED_INSTANCE_GROUP",
+                "OSMH_MANAGED_INSTANCE_GROUP_READ"
+            ],
+            "notes": ""
+        },
+        "AttachManagementStationToProfile": {
+            "permissions": [
+                "OSMH_PROFILE_ATTACH_MANAGEMENT_STATION",
+                "OSMH_MANAGEMENT_STATION_READ"
+            ],
+            "notes": ""
+        },
+        "AttachSoftwareSourcesToProfile": {
+            "permissions": [
+                "OSMH_PROFILE_ADD_SOFTWARE_SOURCE",
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "DetachSoftwareSourcesToProfile": {
+            "permissions": [
+                "OSMH_PROFILE_REMOVE_SOFTWARE_SOURCE"
+            ],
+            "notes": ""
+        },
+        "CreateManagementStation": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_CREATE"
+            ],
+            "notes": ""
+        },
+        "ListManagementStations": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetManagementStation": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateManagementStation": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteManagementStation": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListMirrors": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_READ"
+            ],
+            "notes": ""
+        },
+        "SynchronizeMirrors": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "SynchronizeSingleMirrors": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeManagementStationCompartment": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_MOVE"
+            ],
+            "notes": ""
+        },
+        "RefreshManagementStationConfig": {
+            "permissions": [
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListScheduledJobs": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateScheduledJob": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_CREATE",
+                "OSMH_SOFTWARE_SOURCE_READ",
+                "OSMH_MANAGED_INSTANCE_INSTALL_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_INSTALL_UPDATE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_ADD_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_REMOVE_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_MANAGE_MODULE_STREAM",
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_GROUP_INSTALL_UPDATE",
+                "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_PACKAGE",
+                "OSMH_MANAGED_INSTANCE_GROUP_ADD_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_GROUP_REMOVE_SOFTWARE_SOURCE",
+                "OSMH_MANAGED_INSTANCE_GROUP_MANAGE_MODULE_STREAM",
+                "OSMH_LIFECYCLE_STAGE_PROMOTE_SOFTWARE_SOURCE",
+                "OSMH_MANAGEMENT_STATION_UPDATE"
+            ],
+            "notes": "OSMH_SCHEDULED_JOB_CREATE is required.At least one of the additional permissions is needed depending on job type. If you are denied, check the final permission list"
+        },
+        "GetScheduledJob": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateScheduledJob": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteScheduledJob": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_DELETE"
+            ],
+            "notes": ""
+        },
+        "RunScheduledJobNow": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeScheduledJobCompartment": {
+            "permissions": [
+                "OSMH_SCHEDULED_JOB_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "OSMH_WORK_REQUEST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "OSMH_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "OSMH_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "OSMH_WORK_REQUEST_READ"
+            ],
+            "notes": ""
+        },
+        "RerunWorkRequest": {
+            "permissions": [
+                "OSMH_WORK_REQUEST_RERUN"
+            ],
+            "notes": ""
+        },
+        "ListSoftwareSources": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListSoftwarePackages": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetSoftwarePackage": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListErrata": {
+            "permissions": [],
+            "notes": "Public information; authentication only."
+        },
+        "GetErratum": {
+            "permissions": [],
+            "notes": "Public information; authentication only."
+        },
+        "ListWindowsUpdate": {
+            "permissions": [],
+            "notes": "Public information; authentication only."
+        },
+        "GetWindowsUpdate": {
+            "permissions": [],
+            "notes": "Public information; authentication only."
+        },
+        "ListModuleStreams": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListModuleStreamProfiles": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "QueryModuleStreamProfilesInSoftwareSources": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetModuleStream": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetModuleStreamProfile": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ChangeAvailabilityOfSoftwareSources": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListPackageGroups": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "GetPackageGroup": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "QueryPackageGroupsInSoftwareSources": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListSoftwareSourceVendors": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListEntitlements": {
+            "permissions": [
+                "OSMH_ENTITLEMENTS_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateEntitlement": {
+            "permissions": [
+                "OSMH_ENTITLEMENTS_CREATE"
+            ],
+            "notes": ""
+        },
+        "AddPackagesToSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "GetSoftwarePackageByName": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListAllSoftwarePackages": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "ListSoftwarePackageSoftwareSources": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "SearchSoftwareSourceModules": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "SearchSoftwareSourceModuleStreams": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "SearchSoftwareSourcePackageGroups": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_READ"
+            ],
+            "notes": ""
+        },
+        "RemovePackagesFromSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ReplacePackagesInSoftwareSource": {
+            "permissions": [
+                "OSMH_SOFTWARE_SOURCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ListEvents": {
+            "permissions": [
+                "OSMH_EVENT_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetEvent": {
+            "permissions": [
+                "OSMH_EVENT_READ"
+            ],
+            "notes": ""
+        },
+        "CreateEvent": {
+            "permissions": [
+                "OSMH_EVENT_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateEvent": {
+            "permissions": [
+                "OSMH_EVENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteEvent": {
+            "permissions": [
+                "OSMH_EVENT_DELETE"
+            ],
+            "notes": ""
+        },
+        "GetEventContent": {
+            "permissions": [
+                "OSMH_EVENT_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteEventContent": {
+            "permissions": [
+                "OSMH_EVENT_MANAGE"
+            ],
+            "notes": ""
+        },
+        "ImportEventContent": {
+            "permissions": [
+                "OSMH_EVENT_MANAGE"
+            ],
+            "notes": ""
+        },
+        "UpdateEventOccurrence": {
+            "permissions": [
+                "OSMH_EVENT_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ChangeEventCompartment": {
+            "permissions": [
+                "OSMH_EVENT_MOVE"
+            ],
+            "notes": ""
+        }
+    }
+}

@@ -134,6 +134,8 @@ class MaintenanceTab(ttk.Frame):
         )
         self.saved_search_status_label.pack(side='bottom', fill='x', pady=(4, 0))
 
+        # REMOVED: Consolidation Plans panel and all related plan management UI and logic (feature disabled)
+
         # -------- Maintenance UI Build (PERMISSIONS/OPERATIONS JSON VIEWERS) ----------
         frm_json_wrap = ttk.Frame(self)
         frm_json_wrap.pack(fill='x', padx=10, pady=(0, 5))
@@ -462,6 +464,8 @@ class MaintenanceTab(ttk.Frame):
             self.maintenance_status_var.set(f'Failed to update preserve state for {cache_name}')
         logger.info(f'Cache "{cache_name}" preserve toggled to {not is_preserved}.')
 
+    # REMOVED: All consolidation plan management and status UI/methods (feature disabled)
+
     def _maintenance_permissions_load_data(self):
         # Load reference data
         try:
@@ -487,25 +491,60 @@ class MaintenanceTab(ttk.Frame):
         sel = self.permissions_resource_combo.get()
         verb = self.permissions_verb_combo.get()
         self.permissions_result_label.config(text='')
-        if sel and verb and hasattr(self, '_ref_repo'):
-            is_family = sel.startswith('Family: ')
-            entity = sel.replace('Family: ', '') if is_family else sel
-            perms = self._ref_repo.get_permissions(entity, verb)
-            label = f'Family: {entity}' if is_family else entity
-            if perms is None:
-                self.permissions_result_label.config(text='Invalid selection.')
-            else:
-                source = self._ref_repo.get_source(entity)
-                source_text = f'\nSource URL: {source}' if source else ''
-                if perms:
-                    upper_perms = [p.upper() for p in perms]
-                    self.permissions_result_label.config(
-                        text=f"{label} | {verb}: {', '.join(upper_perms)}{source_text}"
-                    )
-                else:
-                    self.permissions_result_label.config(text=f'{label} | {verb}: (no permissions){source_text}')
-        else:
+        self.permissions_overlap_text.delete(1.0, tk.END)
+        if not (sel and verb and hasattr(self, '_ref_repo')):
             self.permissions_result_label.config(text='Select resource/family and verb.')
+            self.permissions_overlap_text.insert(tk.END, 'Select resource/family and verb.')
+            return
+        ref_repo = self._ref_repo
+        is_family = sel.startswith('Family: ')
+        entity = sel.replace('Family: ', '') if is_family else sel
+        perms = ref_repo.get_permissions(entity, verb)
+        label = f'Family: {entity}' if is_family else entity
+
+        # Build detailed output in permissions_overlap_text (resource/verb details + risk calculation)
+        lines = [f'--- Get Permissions: {label} | verb: {verb} ---', '']
+        if perms is None:
+            lines.append('Invalid selection.')
+            self.permissions_result_label.config(text='Invalid selection.')
+        else:
+            entity_ci = entity.lower()
+            if entity_ci in ref_repo.family_name_map:
+                fam_key = ref_repo.family_name_map[entity_ci]
+                resources_in_family = ref_repo.data['families'][fam_key].get('resources', [])
+                lines.append('Entity type: family')
+                lines.append(f'Resources in family: {", ".join(resources_in_family)}')
+            else:
+                lines.append('Entity type: resource')
+            lines.append(f'Verb: {verb}')
+            lines.append('')
+            if perms:
+                lines.append(f'Permissions ({len(perms)}):')
+                for p in sorted(perms):
+                    lines.append(f'  {p}')
+                lines.append('')
+                lines.append('Risk score (exposure points) calculation:')
+                lines.append('  Verb weights: inspect=1, read=5, use=20, manage=50')
+                for p in sorted(perms):
+                    r = ref_repo.get_permission_risk(p, entity)
+                    lines.append(f'  {p} -> {r}')
+                total_risk = ref_repo.get_verb_resource_risk(verb, entity)
+                lines.append(f'  Sum (exposure points) = {total_risk}')
+            else:
+                lines.append('(no permissions)')
+                total_risk = ref_repo.get_verb_resource_risk(verb, entity)
+                lines.append(f'Risk score (exposure points) = {total_risk}')
+            source = ref_repo.get_source(entity)
+            _source_text = f'\nSource URL: {source}' if source else ''
+            if perms:
+                _upper_perms = [p.upper() for p in perms]
+                # self.permissions_result_label.config(
+                #     text=f"{label} | {verb}: {', '.join(upper_perms)}{source_text}"
+                # )
+            else:
+                pass
+                # self.permissions_result_label.config(text=f'{label} | {verb}: (no permissions){source_text}')
+        self.permissions_overlap_text.insert(tk.END, '\n'.join(lines))
 
     def _on_apiop_perm_select(self, event=None):
         """Display selected permissions in the preview text box (non-editable)."""

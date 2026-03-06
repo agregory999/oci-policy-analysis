@@ -1,3 +1,21 @@
+# [4.2.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0...v4.2.0-dev.1) (2026-03-06)
+
+
+### Bug Fixes
+
+* added another risk tab for policy level ([1cb8f01](https://github.com/agregory999/oci-policy-analysis/commit/1cb8f01b35dea19a604dd8729b0c0b41e1d90ffd))
+* Another Consolidation Strategy and Added Context files ([45417fd](https://github.com/agregory999/oci-policy-analysis/commit/45417fdf643fb9026b2acc6e1aca006fee876780))
+* Consolidation and Recommendations adjustments ([3a561d8](https://github.com/agregory999/oci-policy-analysis/commit/3a561d8fdf8d98627d23ca9270120dcaaf7f3a9c))
+* Consolidation Move to Root Strategy fixes ([52a8ad5](https://github.com/agregory999/oci-policy-analysis/commit/52a8ad52bbfccf08486fc2be7e54534a4943c6fd))
+* More efficient data load and display ([71ff6b1](https://github.com/agregory999/oci-policy-analysis/commit/71ff6b1a9429411a5d4ae0526ff191f1c55a252c))
+* new consolidation strategy and docs ([d35b394](https://github.com/agregory999/oci-policy-analysis/commit/d35b3948b7a66030c7cea8290f1fa4b455209850))
+* UI and alternate identity domain ([c1c4b01](https://github.com/agregory999/oci-policy-analysis/commit/c1c4b019884cf2803331f864be7d50b508b5efce))
+
+
+### Features
+
+* Consolidation Workbench ([7c9dec4](https://github.com/agregory999/oci-policy-analysis/commit/7c9dec4db21cf041b094bd84307b95ba47af8979))
+
 # [4.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.0.6...v4.1.0) (2026-02-11)
 
 
