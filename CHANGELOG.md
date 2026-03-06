@@ -1,3 +1,10 @@
+# [4.1.0-dev.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.5...v4.1.0-dev.6) (2026-03-06)
+
+
+### Bug Fixes
+
+* More efficient data load and display ([71ff6b1](https://github.com/agregory999/oci-policy-analysis/commit/71ff6b1a9429411a5d4ae0526ff191f1c55a252c))
+
 # [4.1.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0-dev.4...v4.1.0-dev.5) (2026-03-05)
 
 
