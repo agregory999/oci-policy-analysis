@@ -1,3 +1,10 @@
+# [4.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.2.0...v4.3.0) (2026-03-09)
+
+
+### Features
+
+* Limits tab on Recommendations page ([5a3bdb6](https://github.com/agregory999/oci-policy-analysis/commit/5a3bdb6f4f4168fde6bce26329f07be5f6fd3281))
+
 # [4.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.1.0...v4.2.0) (2026-03-06)
 
 
