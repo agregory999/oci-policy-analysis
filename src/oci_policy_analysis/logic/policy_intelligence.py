@@ -1041,50 +1041,30 @@ class PolicyIntelligenceEngine:
                     }
                 )
 
-        # ---- POLICY STATEMENT PER-COMPARTMENT LIMIT RECOMMENDATIONS ----
+        # --- AGGREGATED POLICY STATEMENT PER-COMPARTMENT LIMIT RECOMMENDATION ---
+        limit_hit = False
         for comp in repo.compartments:
-            name = comp.get('name', '')
-            path = comp.get('hierarchy_path', '')
-            n_direct = comp.get('statement_count_direct', 0)
             n_cumulative = comp.get('statement_count_cumulative', 0)
-            if n_cumulative >= POLICY_STATEMENT_HARD_LIMIT:
-                # CRITICAL: Over the limit
-                recommendations.append(
-                    {
-                        'Recommendation': 'Compartment policy statement limit EXCEEDED',
-                        'Priority': 'Critical',
-                        'Category': 'Limits',
-                        'Notes': (
-                            f"Compartment '{name}' (path: {path}) has {n_cumulative} cumulative policy statements "
-                            f'(limit = {POLICY_STATEMENT_HARD_LIMIT}). New policies cannot be created unless count is reduced below limit. '
-                            f'Direct in compartment: {n_direct}.'
-                        ),
-                        'Action': 'Reduce policy statements',
-                        'ActionDetail': (
-                            'Consolidate, delete, or refactor policy statements in this or parent compartments. See OCI docs for limits.'
-                        ),
-                    }
-                )
-            elif n_cumulative >= POLICY_STATEMENT_WARNING_THRESHOLD:
-                # WARNING: Approaching limit
-                percentages = int(100 * n_cumulative / POLICY_STATEMENT_HARD_LIMIT)
-                recommendations.append(
-                    {
-                        'Recommendation': 'Compartment policy statement count approaching limit',
-                        'Priority': 'High',
-                        'Category': 'Limits',
-                        'Notes': (
-                            f"Compartment '{name}' (path: {path}) has {n_cumulative} cumulative policy statements "
-                            f'({percentages}% of the hard limit of {POLICY_STATEMENT_HARD_LIMIT}).'
-                            f' Direct in compartment: {n_direct}.'
-                        ),
-                        'Action': 'Plan policy statement reduction',
-                        'ActionDetail': (
-                            'Review and consolidate/refactor policy statements before hitting the absolute limit. '
-                            'Statements in ancestor compartments count toward this limit.'
-                        ),
-                    }
-                )
+            if n_cumulative >= POLICY_STATEMENT_HARD_LIMIT or n_cumulative >= POLICY_STATEMENT_WARNING_THRESHOLD:
+                limit_hit = True
+                break
+        if limit_hit:
+            recommendations.append(
+                {
+                    'Recommendation': 'Compartment policy statement limits exceeded or near limit',
+                    'Priority': 'Critical',
+                    'Category': 'Limits',
+                    'Notes': (
+                        'One or more compartments are near or have exceeded policy statement count limits. '
+                        f'See the Limits tab for details and affected compartments (limit: {POLICY_STATEMENT_HARD_LIMIT} per compartment).'
+                    ),
+                    'Action': 'Review the Limits tab and reduce/consolidate compartment statements as needed.',
+                    'ActionDetail': (
+                        'Review, consolidate, or delete policy statements in affected compartments.'
+                        ' Only a single summary recommendation appears even if multiple limits are exceeded.'
+                    ),
+                }
+            )
 
         # Guarantee at least one recommendation so UI never appears empty:
         if not recommendations:

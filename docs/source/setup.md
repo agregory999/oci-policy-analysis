@@ -22,7 +22,7 @@ This section will help you set up and run OCI Policy Analysis regardless of plat
 - **OCI IAM Policy Permissions**
   - Minimal permissions:
     ```
-    allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+    allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
     allow group <your_group> to use generative-ai-family in tenancy
     ```
   - See [Permissions Section](./overview.md) for instance principal option and dynamic group setup.
@@ -81,10 +81,6 @@ allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to use generative-ai-
 ### Group or Dynamic Group
 
 If you have an existing group or dynamic group for your instance or compartment, you may already have all of the permissions needed.  If you need to create a new user and group, the set of permissions above dictate what policy should exist for that user.
-
-## Running/Using the App
-
-This section is W.I.P.
 
 **See also**:
 - [Overview](overview.md) for a feature/architecture summary.

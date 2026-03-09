@@ -116,6 +116,8 @@ class PolicyRecommendationsTab(BaseUITab):
     Unified UI tab for displaying Oracle Cloud Policy Recommendations and analytics.
     """
 
+    STATEMENTS_PER_COMPARTMENT_LIMIT = 500  # Hard OCI Limit
+
     def __init__(self, parent, app):
         self.logger = get_logger(component='policy_recommendations_tab')
         self.logger.debug('Initializing unified PolicyRecommendationsTab (notebook prototype).')
@@ -211,6 +213,16 @@ class PolicyRecommendationsTab(BaseUITab):
         self._build_cleanup_tab(cleanup_frame)
         self.notebook.add(cleanup_frame, text='Cleanup / Fix')
 
+        # === Limits Tab (Compartment Policy Statement Limits) ===
+        self.limits_frame = ttk.Frame(self.notebook)
+        self.limits_frame.pack(fill='both', expand=True)
+        self.add_context_help(
+            self.limits_frame,
+            'Review compartments for policy statement limits. Clean up or consolidate to avoid exceeding OCI’s per-compartment or tenancy statement limits.',
+        )
+        self._build_limits_tab(self.limits_frame)
+        self.notebook.add(self.limits_frame, text='Limits')
+
         # === Recommendation Workbench Tab ===
         self._workbench_actions = []
         self._workbench_counter = 0
@@ -226,27 +238,250 @@ class PolicyRecommendationsTab(BaseUITab):
         self._build_recommendation_workbench_tab(self.workbench_frame)
         self.notebook.add(self.workbench_frame, text='Recommendation Workbench')
 
-        # === Future Tab (stubbed/demo) ===
-        # future_frame = ttk.Frame(self.notebook)
-        # lbl = ttk.Label(future_frame, text='Future analytics or visualizations can go here...')
-        # lbl.pack(padx=30, pady=30)
-        # self.add_context_help(future_frame, 'Reserved for future or custom analytics dashboards.')
-        # self.notebook.add(future_frame, text='[Future/More]')
-
-        # logger.debug('Unified PolicyRecommendationsTab: initial analytics reload.')
-        # self.reload_all_analytics()
-
     def populate_data(self):
         """
         Called after policy analysis/intelligence is refreshed. Reload all analytics/tables, using timing.
+        Also launches OCI tenancy limits fetch (policies-count, statements-count).
         """
+        import threading
+
         self.logger.info('Populating PolicyRecommendationsTab data...')
+
+        # Get the data for the limits tab and update the output; this is separate from reload_all_analytics since it can run in parallel and may involve API calls to fetch tenancy limits
+        self.timed_step('load_compartment_limits', self.update_limits_tab_output)
+
+        # Fetch tenancy limits in the background; update label when done
+        def update_tenancy_limit_label():
+            if not (
+                hasattr(self.app.policy_compartment_analysis, 'limits_client')
+                and self.app.policy_compartment_analysis.limits_client
+            ):
+                txt = 'Tenancy Limits: n/a'
+            else:
+                limits = self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
+                pol_limit, stmt_limit = limits if limits else (None, None)
+                txt = 'Tenancy Limits: '
+                txt_parts = []
+                txt_parts.append(f"{pol_limit if pol_limit is not None else 'n/a'} policies / tenancy")
+                txt_parts.append(f"{stmt_limit if stmt_limit is not None else 'n/a'} statements / policy")
+                txt += ', '.join(txt_parts)
+            # Always append the hard OCI statements/compartment limit label
+            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+            if hasattr(self, 'tenancy_limit_label_var'):
+                # Set from worker thread: use "after" to update GUI label safely
+                self.after(0, self.tenancy_limit_label_var.set, txt)
+
+        threading.Thread(target=update_tenancy_limit_label, daemon=True).start()
+
         self.timed_step('reload_all_analytics', self.reload_all_analytics)
         self.logger.info('Finished PolicyRecommendationsTab.populate_data')
 
-    # ==== Risk Tab Logic ====
+    def _build_limits_tab(self, parent):
+        # Dropdown and all top controls on single row for compactness
+        controls_frame = ttk.Frame(parent)
+        controls_frame.pack(fill='x', padx=10, pady=(10, 2))
 
-    # NOTE: _log_timing is now obsolete; all timing now comes from BaseUITab.timed_step
+        # Check up-front if we have a live OCI limits client
+        can_check_limits = hasattr(self.policy_repo, 'limits_client') and self.policy_repo.limits_client
+
+        ttk.Label(controls_frame, text='Show:').pack(side='left', padx=(0, 2))
+        self.limits_filter_var = tk.StringVar(value='All compartments')
+        self.limits_filter_options = ['All compartments', 'Nearing/Over Limit', 'Over Limit']
+        limits_combo = ttk.Combobox(
+            controls_frame,
+            textvariable=self.limits_filter_var,
+            state='readonly',
+            values=self.limits_filter_options,
+            width=22,
+        )
+        limits_combo.pack(side='left', padx=(3, 8))
+        limits_combo.bind('<<ComboboxSelected>>', lambda e: self.update_limits_tab_output())
+        self.add_context_help(limits_combo, 'Filter compartments by statement count status.')
+
+        # Tenancy Limit Label - now inline, smaller font and lighter weight
+        label_initial = (
+            'Tenancy Limits: n/a (Not available from cache/compliance load)'
+            if not can_check_limits
+            else 'Tenancy policy statement limit: [not fetched]'
+        )
+        self.tenancy_limit_label_var = tk.StringVar(value=label_initial)
+        self.tenancy_limit_label = ttk.Label(
+            controls_frame,
+            textvariable=self.tenancy_limit_label_var,
+            font=('TkDefaultFont', 9, 'normal'),
+            foreground='#333333',
+        )
+        self.tenancy_limit_label.pack(side='left', padx=(0, 4), pady=2)
+        self.add_context_help(
+            self.tenancy_limit_label,
+            'Tenancy limits shown as "n/a" if unavailable because data was loaded from cache or compliance output. The statements / compartment limits is always 500, as this is a hard limit from OCI. See the link to Docs on the Limits tab.',
+        )
+
+        doc_url = (
+            'https://docs.oracle.com/en-us/iaas/Content/Identity/policymgmt/policy-limits-compartment-hierarchy.htm'
+        )
+        doc_link = ttk.Label(
+            controls_frame, text='Policy Statement Limits Documentation', foreground='#0645AD', cursor='hand2'
+        )
+        doc_link.pack(side='left', padx=(1, 4))
+
+        def open_doc_link(event):
+            try:
+                self.app.open_link(doc_url)
+            except Exception:
+                tk.messagebox.showinfo('Documentation', f'Learn more: {doc_url}')
+
+        doc_link.bind('<Button-1>', open_doc_link)
+        self.add_context_help(
+            doc_link, 'Open Oracle documentation on OCI policy compartment hierarchy statement limits.'
+        )
+
+        # Data Table for compartment statement limits
+        limits_columns = [
+            'Compartment Hierarchy Path',
+            'Direct Statements',
+            'Cumulative Statements',
+            'Status',
+            'Recommendation',
+        ]
+        limits_column_widths = {
+            'Compartment Hierarchy Path': 300,
+            'Direct Statements': 120,
+            'Cumulative Statements': 140,
+            'Status': 120,
+            'Recommendation': 440,
+        }
+        self.limits_table = DataTable(
+            parent,
+            columns=limits_columns,
+            display_columns=limits_columns,
+            data=[],
+            column_widths=limits_column_widths,
+        )
+        self.limits_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
+        self.add_context_help(
+            self.limits_table, 'Compartments that are at, near, or over the statement limit for policy definitions.'
+        )
+
+        # self.update_limits_tab_output()
+
+    def update_limits_tab_output(self):
+        # Thresholds
+        LIMIT = 500
+        NEAR = 0.85
+        compartments = getattr(self.app.policy_compartment_analysis, 'compartments', None)
+        results = []
+        # Debug/log the state and fields for troubleshooting
+        logger = get_logger(component='limits_tab')
+        if not compartments:
+            logger.warning('[LimitsTab] compartments is None or empty. Data population issue.')
+        else:
+            logger.info(f'[LimitsTab] compartments list length: {len(compartments)}')
+        for i, comp in enumerate(compartments or []):
+            path = comp.get('hierarchy_path')
+            direct = comp.get('statement_count_direct')
+            cumulative = comp.get('statement_count_cumulative')
+            # If data missing, log fields for diagnostic
+            if path is None or direct is None or cumulative is None:
+                logger.warning(f'[LimitsTab] Compartment {i} missing key fields: {comp}')
+                continue
+            if cumulative > LIMIT:
+                status = 'Over Limit'
+                rec = (
+                    'Reduce or consolidate policy statements in this compartment/hierarchy to avoid enforcement errors.'
+                )
+            elif cumulative >= int(LIMIT * NEAR):
+                status = 'Nearing Limit'
+                rec = 'Proactively clean up or consolidate policies to stay under the statement limit.'
+            else:
+                status = 'OK'
+                rec = ''
+            results.append(
+                {
+                    'Compartment Hierarchy Path': path,
+                    'Direct Statements': direct,
+                    'Cumulative Statements': cumulative,
+                    'Status': status,
+                    'Recommendation': rec,
+                }
+            )
+
+        # Dropdown filter logic
+        current_filter = self.limits_filter_var.get()
+        if current_filter == 'Over Limit':
+            filtered = [r for r in results if r['Status'] == 'Over Limit']
+        elif current_filter == 'Nearing/Over Limit':
+            filtered = [r for r in results if r['Status'] in ('Over Limit', 'Nearing Limit')]
+        else:
+            filtered = results
+
+        # Sort descending by cumulative statements
+        filtered.sort(key=lambda x: x['Cumulative Statements'], reverse=True)
+        self.limits_table.update_data(filtered)
+
+    # Button callback to fetch tenancy policy/statement limits and update label
+    def fetch_tenancy_policy_statement_limits(self):
+        import threading
+
+        def update_label():
+            repo = self.app.policy_compartment_analysis
+            if not (hasattr(repo, 'limits_client') and repo.limits_client):
+                txt = 'Tenancy Limits: n/a'
+            else:
+                limits = repo.fetch_tenancy_policy_statement_limits()
+                pol_limit, stmt_limit = limits if limits else (None, None)
+                txt = 'Tenancy Limits: '
+                txt_parts = []
+                txt_parts.append(f"{pol_limit if pol_limit is not None else 'n/a'} policies / tenancy")
+                txt_parts.append(f"{stmt_limit if stmt_limit is not None else 'n/a'} statements / policy")
+                txt += ', '.join(txt_parts)
+            # Always append the hard OCI statements/compartment limit label
+            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+            if hasattr(self, 'tenancy_limit_label_var'):
+                self.after(0, self.tenancy_limit_label_var.set, txt)
+
+        threading.Thread(target=update_label, daemon=True).start()
+
+    # In summary: show only one limit row if any compartment is at risk, refer to Limits tab for details
+    def _get_recommendation_summary(self):
+        """
+        Guarantee deduplication of the limit recommendation: only ONE row in the summary table,
+        no matter how many compartments are over/nearing the limit. Direct users to Limits subtab, do not enumerate.
+        """
+        pi = self.app.policy_intelligence
+        recs = pi.overlay.get('recommendations', [])
+        LIMIT = 500
+        NEAR = 0.85
+        compartments = getattr(self.app.policy_compartment_analysis, 'compartments', [])
+        # Remove all existing limit recommendations (by category/title) before inserting
+        title = 'Compartment Policy Statement Limits'
+        new_recs = [
+            r for r in recs if not ((r.get('Category', '') == 'Limits') or (title in r.get('Recommendation', '')))
+        ]
+        has_over = any((c.get('statement_count_cumulative', 0) > LIMIT) for c in compartments)
+        has_near = any(
+            (
+                c.get('statement_count_cumulative', 0) >= int(LIMIT * NEAR)
+                and c.get('statement_count_cumulative', 0) <= LIMIT
+            )
+            for c in compartments
+        )
+        if has_over or has_near:
+            first_status = 'over limit' if has_over else 'nearing the limit'
+            rec = {
+                'Recommendation': title,
+                'Priority': 'HIGH' if has_over else 'WARN',
+                'Category': 'Limits',
+                'Notes': (
+                    f'At least one compartment is {first_status} for the OCI 500 policy statement-per-compartment limit. '
+                    'Review the Limits tab below for details and mitigation steps.'
+                ),
+                'Action': 'Use the Limits tab to review and reduce/consolidate compartment statements as needed.',
+            }
+            new_recs.insert(0, rec)
+        return new_recs
+
+    # ==== Risk Tab Logic ====
 
     def _get_policy_path(self, policy_ocid=None, policy_obj=None):
         """
@@ -1420,6 +1655,7 @@ class PolicyRecommendationsTab(BaseUITab):
         # Anchor Delete button to always be visible at the bottom (also part of CheckboxTable, but double-sure)
         # This is handled by CheckboxTable, but if you have a custom action bar, you would add it here.
 
+    # --- Recommendation Workbench Tab ---
     def _build_recommendation_workbench_tab(self, parent):
         """Build the Recommendation Workbench subtab: actions table, script area, history/audit placeholder."""
         lbl = ttk.Label(
@@ -1697,9 +1933,6 @@ class PolicyRecommendationsTab(BaseUITab):
         issues = self._get_cleanup_issues()
         if hasattr(self, 'cleanup_table'):
             self.cleanup_table.update_data(issues)
-
-    # (Obsolete: update_cleanup_tab and _refresh_cleanup_items removed,
-    # all update logic now handled by CheckboxTable in _build_cleanup_tab.)
 
     def _get_cleanup_issues(self, include_ignored: bool = False):
         """

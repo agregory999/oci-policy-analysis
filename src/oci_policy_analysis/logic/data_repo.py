@@ -14,6 +14,7 @@
 ##########################################################################
 
 # Standard library imports
+import collections
 import csv
 import hashlib
 import json
@@ -59,7 +60,7 @@ from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatemen
 logger = get_logger(component='data_repo')
 
 # Constants
-THREADS = 5
+THREADS = 6
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
@@ -133,6 +134,8 @@ class PolicyAnalysisRepository:
         logger.info('Initialized PolicyAnalysisRepo')
         # Create a Normalizer instance
         self.normalizer = PolicyStatementNormalizer()
+        # Cached tenancy-wide policy statement limit (fetch once per run)
+        self.tenancy_policy_statement_limit = None
 
     def reset_state(self):
         """
@@ -187,17 +190,16 @@ class PolicyAnalysisRepository:
         self.session_token = session_token
         self.use_instance_principal = use_instance_principal
         try:
+            from oci.limits import LimitsClient
+
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
                 # Identity for all policy Data
-                # Identity for all policy Data
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
-                # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
-                # Resource Search Client
-                self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
+                self.limits_client = LimitsClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
             elif session_token:
                 logger.info('Attempt session auth')
@@ -209,10 +211,10 @@ class PolicyAnalysisRepository:
                 private_key = load_private_key_from_file(self.config['key_file'])
                 self.signer = SecurityTokenSigner(token, private_key)
                 self.identity_client = IdentityClient({'region': self.config['region']}, signer=self.signer)
-                # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(
                     {'region': self.config['region']}, signer=self.signer
                 )
+                self.limits_client = LimitsClient({'region': self.config['region']}, signer=self.signer)
                 self.tenancy_ocid = self.config['tenancy']
                 logger.info('Success session auth')
             else:
@@ -221,10 +223,8 @@ class PolicyAnalysisRepository:
                 self.identity_client = IdentityClient(self.config)
                 self.logging_search_client = LogSearchClient(self.config)
                 self.tenancy_ocid = self.config['tenancy']
-                # Resource Search Client
                 self.resource_search_client = ResourceSearchClient(self.config)
-                # Resource Search Client
-                self.resource_search_client = ResourceSearchClient(self.config)
+                self.limits_client = LimitsClient(self.config)
             logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
 
             # Set Recursion
@@ -750,6 +750,60 @@ class PolicyAnalysisRepository:
         self.policy_data_reloaded = datetime.now(UTC).isoformat()
         return True
 
+    def fetch_tenancy_policy_statement_limits(self):
+        """
+        Fetch two key limits from OCI Limits service ("Identity"):
+        - policies-count (max policies in tenancy)
+        - statements-count (max statements per policy)
+        Uses _api_call_with_logging to time/log the call.
+        Returns a tuple: (policies_count_limit, statements_per_policy_limit) or (None, None) if unavailable or error.
+        """
+        logger = get_logger(component='limits_fetch')
+        policies_count = None
+        statements_count = None
+
+        try:
+            if not self.tenancy_ocid:
+                logger.error('No tenancy_ocid set; cannot fetch OCI policy limits')
+                return (None, None)
+            limits_client = getattr(self, 'limits_client', None)
+            if not limits_client:
+                logger.error('No limits_client found. Did you run initialize_client first?')
+                return (None, None)
+
+            result = self._api_call_with_logging(
+                'LimitsClient.list_limit_values (identity)',
+                limits_client.list_limit_values,
+                service_name='identity',
+                compartment_id=self.tenancy_ocid,
+            )
+            limits = result.data if hasattr(result, 'data') else []
+            if not limits:
+                logger.error('No limits returned from OCI API for identity service.')
+                self.tenancy_policy_statement_limit = (None, None)
+                return (None, None)
+
+            for limit in limits:
+                if getattr(limit, 'name', None) == 'policies-count':
+                    policies_count = getattr(limit, 'value', None)
+                    logger.info(f'Limit: {limit}')
+                elif getattr(limit, 'name', None) == 'statements-count':
+                    statements_count = getattr(limit, 'value', None)
+                    logger.info(f'Limit: {limit}')
+
+            self.tenancy_policy_statement_limit = (policies_count, statements_count)
+            if policies_count is None or statements_count is None:
+                logger.warning(
+                    'Failed to find some limit values: policies-count=%s, statements-count=%s',
+                    str(policies_count),
+                    str(statements_count),
+                )
+            return (policies_count, statements_count)
+        except Exception as e:
+            logger.error(f'[API] list_limit_values failed: {e}')
+            self.tenancy_policy_statement_limit = (None, None)
+            return (None, None)
+
     # --- Internal fetchers for Identity Domain entities ---
     def _fetch_dynamic_groups_for_domain(self, domain, domain_client):
         """
@@ -983,7 +1037,6 @@ class PolicyAnalysisRepository:
         Loads users, groups, dynamic groups, and domains for all compartments up to the given depth
         below the root compartment. No longer uses explicit domain_compartment_ocids.
         """
-        import collections
 
         try:
             seen_domain_ids = set()
