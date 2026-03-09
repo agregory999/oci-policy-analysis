@@ -1,5 +1,5 @@
 Policy Recommendations and Consolidation
-=======================================
+=======================================+
 
 Recommendation Strategies
 -------------------------
@@ -65,29 +65,33 @@ Recommendation Strategies
    :no-index:
 
 
-Consolidation Engine and Strategies
------------------------------------
+.. Consolidation Engine and Strategies
+.. -----------------------------------
 
-.. automodule:: oci_policy_analysis.logic.consolidation_engine
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
+..
+   .. automodule:: oci_policy_analysis.logic.consolidation_engine
+      :members:
+      :undoc-members:
+      :show-inheritance:
+      :no-index:
 
-.. automodule:: oci_policy_analysis.logic.consolidation_helpers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
+..
+   .. automodule:: oci_policy_analysis.logic.consolidation_helpers
+      :members:
+      :undoc-members:
+      :show-inheritance:
+      :no-index:
 
-.. automodule:: oci_policy_analysis.logic.consolidation_strategies
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
+..
+   .. automodule:: oci_policy_analysis.logic.consolidation_strategies
+      :members:
+      :undoc-members:
+      :show-inheritance:
+      :no-index:
 
-.. automodule:: oci_policy_analysis.common.models_consolidation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
+..
+   .. automodule:: oci_policy_analysis.common.models_consolidation
+      :members:
+      :undoc-members:
+      :show-inheritance:
+      :no-index:

@@ -4,16 +4,12 @@ The OCI Policy Analysis tool has the following overall architecture:
 
 ![Overall Architecture](./policy-analysis.drawio.svg)
 
-Each tier works together to form a clean separation between presentation, data repository, and associated tools and helpers.  3rd party projects, such as DeepDiff are used for comparisons, which FastMCP is used to expose MCP to clients.  All access to OCI is via the OCI official Python SDK and the supported tenancy configurations.
+Each tier works together to form a clean separation between presentation, data repository, and associated tools and helpers. Third-party projects, such as DeepDiff, are used for comparisons, and FastMCP is used to expose MCP to clients. All access to OCI is via the OCI official Python SDK and the supported tenancy configurations.
 
 ## Data Model
 
-The data model starts out as an empty JSON object, and then is populated via OCI SDK (API Calls) to build a picture 
-of the IAM environment for the tenancy, as well as all of the policy statements.  This is required, because the the evaluation
-of OCI Policy statements required knowledge of compartments, groups, dynamic groups, and many other runtime settings in order to
-"allow" or "deny" the caller from the resource.
+The data model starts as an empty JSON object and is then populated by API calls via the OCI SDK, describing compartments, IAM identities, and policies. The data model captures structure, effective permissions, parsed/derived fields (like effective path or validity), and more.
 
-Here is a representation of the data:
 ```mermaid
 flowchart TD
     A[Tenancy] --> B[Compartment Hierarchy]
@@ -30,76 +26,108 @@ flowchart TD
     R --> CL[Command Line]
 ```
 
-### Policy Parsing
-
-As part of parsing each policy statement, more data is generated about each statement, and is stored in the resulting JSON 
-structure for use by the UI and MCP layers of the tool.   Any new fields which are derived during parsing represent new 
-data for use with analysis.  Examples of this:
-
-**Effective Path** - Consider that each policy statement is part of a policy that lives in a compartment, maybe root, and maybe further down the compartment tree.  When statements in that compartment refer to a
-location, that location must be within (below) the current compartment.   Thus, the "Effective Path" helps us understand at which level this policy statement is applicable.  
-
-**Valid** - Policy statements can become invalid for a variety of reasons, so it makes sense to check and store this information.  An example of an ivalid policy statement is when a location was referred to as "compartment id ocid1.xx.yy.zzz", and then the compartment is later deleted.  
-
-**Invalid Reasons** - If a policy statement is determined (post-parsing) to be invalid, the reason(s) are made available to the data model for display and analysis.
-
-**Policy Overlap** - Using OCI Resource -> Permissions mapping data, the program attempts to infer which policy statements overlap with each statement, and make that available for display.  For example, if 2 statements cover the same underlying permission, it is considered an overlap.
-
 ## Layers
 
-**Data Layer**
-Loads, caches, parses and normalizes tenancy data, including:
-- policy statements, users, groups, dynamic groups
-- exposes efficient queries using JSON
+**Data Layer**  
+Loads, caches, parses, and normalizes tenancy data including policies, users, groups, and dynamic groups. Provides efficient queries on the in-memory model.
 
-**Intelligence**
-After loading policy and identity data, additional intelligence is created from the entire data set as a whole.  For example, recommendations, cleanup operations, and security risks that should be resolved.
+**Intelligence Layer**  
+Derives additional analytics and insights, such as policy recommendations, cleanup tasks, security risks, and overlap/consolidation suggestions.
 
-**MCP Layer**
-FastMCP server exposing typed tools/resources (e.g., filter_policy_statements, search_users_by_groups) for AI clients.
+**MCP Layer**  
+Runs an embedded MCP server using FastMCP to expose the current policy state and analytics as tools/resources to compatible clients.
 
-UI Layer
-Tkinter app with tabs, resizable panes, and an AI output area; integrates tightly with analysis and MCP results.
-
+**UI Layer**  
+Implements all user-visible tabs, resizable panes, and integrates with the full policy/data model and analytics overlays. 
 
 ---
 
-## AI Context
+## Policy Parsing
 
-The **AI Context** system provides a set of standard and project-specific context files that guide how code is developed, documented, and maintained within the OCI Policy Analysis project. These context files are updated as the code changes (or immediately before), ensuring that architectural standards, conventions, and best practices always remain aligned with the source code.
+OCI policies are parsed using a dedicated **ANTLR-based parser**, which incorporates a comprehensive grammar covering the full breadth of OCI Policy Syntax. The parser translates written policy statements into well-structured parse trees, enabling detailed, robust extraction of policy components, conditions, and rules.
 
-The files below are intended to be referenced both by human contributors and by the AI agent(s). When generating, modifying, or reviewing code, always consult these files. 
+Once a policy statement is parsed, a series of derived fields are computed and added to the internal data model:
+- **Effective Path**: Determines which compartments a statement is in scope for, based on the policy's compartment location and referenced locations within statements.
+- **Validity & Invalid Reasons**: Calculates if a policy statement is internally consistent and matches live OCI structures (e.g., references to deleted compartments or malformed subjects).
+- **Parsed Conditions and Statement Breakdown**: Conditionals (WHERE clauses), operators, and subjects are normalized and attached to the data model for fine-grained filtering and analysis.
+- **Policy Overlap**: Leveraging resource-to-permission data, the system computes which statements overlap in their effective permissions, enabling conflict/duplication analysis.
+- **Canonical Models**: All parsed data is mapped to strict TypedDict-based schemas, powering consistent filtering, UI rendering, and MCP responses.
 
-- **Generic** files (in `generic/`) define universal patterns and standards for any OCI/Python application.
-- **Project-specific** files (in `project/`) define policies, conventions, and history unique to this repository.
-- **If project and generic guidance conflict, project-specific guidance takes precedence.**
-- Keep both sets up to date; escalate issues/uncertainties to maintainers.
+The ANTLR grammar and parser implementation ensure that all features and edge cases in the evolving OCI policy language are handled with a high degree of accuracy. See [CONTEXT_logic.md](context/project/CONTEXT_logic.md) and [CONTEXT_policies_tab.md](context/project/CONTEXT_policies_tab.md) for technical and tab-specific integration details.
 
-### Index of Context Files
+---
 
-**Generic context:**
-- [GENERIC_README.md](../context/generic/GENERIC_README.md)
-- [GENERIC_UI_GUIDELINES.md](../context/generic/GENERIC_UI_GUIDELINES.md)
-- [GENERIC_CODING_STANDARDS.md](../context/generic/GENERIC_CODING_STANDARDS.md)
+## Caching
 
-**Project-specific context:**
-- [CONTEXT_cli.md](../context/project/CONTEXT_cli.md)
-- [CONTEXT_config.md](../context/project/CONTEXT_config.md)
-- [CONTEXT_cross_tenancy.md](../context/project/CONTEXT_cross_tenancy.md)
-- [CONTEXT_data_repo.md](../context/project/CONTEXT_data_repo.md)
-- [CONTEXT_docs.md](../context/project/CONTEXT_docs.md)
-- [CONTEXT_historical_analysis.md](../context/project/CONTEXT_historical_analysis.md)
-- [CONTEXT_intelligence_strategies.md](../context/project/CONTEXT_intelligence_strategies.md)
-- [CONTEXT_logging.md](../context/project/CONTEXT_logging.md)
-- [CONTEXT_logic.md](../context/project/CONTEXT_logic.md)
-- [CONTEXT_mcp_server_and_tab.md](../context/project/CONTEXT_mcp_server_and_tab.md)
-- [CONTEXT_policies_tab.md](../context/project/CONTEXT_policies_tab.md)
-- [CONTEXT_policy_browser_tab.md](../context/project/CONTEXT_policy_browser_tab.md)
-- [CONTEXT_policy_changeset.md](../context/project/CONTEXT_policy_changeset.md)
-- [CONTEXT_policy_intelligence_and_recommendations.md](../context/project/CONTEXT_policy_intelligence_and_recommendations.md)
-- [CONTEXT_settings_tab.md](../context/project/CONTEXT_settings_tab.md)
-- [CONTEXT_simulation_engine.md](../context/project/CONTEXT_simulation_engine.md)
-- [CONTEXT_tests.md](../context/project/CONTEXT_tests.md)
-- [CONTEXT_ui.md](../context/project/CONTEXT_ui.md)
+The application persistently caches full tenancy analyses (IAM, policies, derived fields, overlays) as versioned JSON files. Caching serves to:
+- Accelerate reloads (especially when analyzing large tenancies or when OCI credentials are not immediately available)
+- Support offline/remote diagnostics or hand-offs
+- Provide input for diff/historical comparison functionality
 
-For detailed structure and instructions, see [CONTEXT_INDEX.md](../context/CONTEXT_INDEX.md)
+The cache format reflects the canonical data model and overlays as computed at data load time. All filtering, policy intelligence, and tab workflows can operate seamlessly over in-memory or cached data; the data repository manages de-duplication and versioning.
+
+Cache management includes import, export, snapshotting, refreshing, and selection of caches—all directly exposed via the Settings Tab. See [CONTEXT_data_repo.md](context/project/CONTEXT_data_repo.md) and [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md) for more details.
+
+---
+
+## Settings
+
+A robust and extensible settings system governs configuration for all areas of the application. Settings management covers:
+- Tenancy/OCI configuration (profile, session token, compartment selection, recursion, GenAI model selection, MCP server config)
+- UI preferences (font size, tab visibility, context help, advanced tab enablement)
+- Cache import/export, refresh, and selection
+- Application-wide toggles for maintenance/debug features
+
+Settings are saved and loaded automatically to persistent storage, enabling reproducibility between sessions. The settings system ensures all tabs receive relevant configuration updates dynamically, leveraging a propagation mechanism orchestrated by the main UI controller.
+
+See [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md) for full architectural overview and field-by-field design.
+
+---
+
+## Logging
+
+Logging is centrally managed by a flexible, unified system supporting global and per-component log levels, controlled both at startup and dynamically via the Console Tab UI.
+Key characteristics:
+- Log messages from all components go both to the shell and to a persistently-rotated application logfile.
+- In-app Console Tab shows INFO+ logs for all components, while the shell and log file can include DEBUG-level output per logger.
+- Log level selection is fully dynamic, can target individual loggers, and is instantly persisted for the next session.
+- Special modes (like CLI `--verbose`) override all levels and pin logging for troubleshooting.
+- ConsoleTab UI cannot enable global DEBUG logging, only component-level.
+
+See [CONTEXT_logging.md](context/project/CONTEXT_logging.md) for architecture diagrams, detailed workflows, and UI patterns.
+
+---
+
+## Feature/Tab Architecture & Context File Reference
+
+The following context files document the architecture, design patterns, and history for each major feature, tab, or engineering workflow. Use these files as the authoritative references for any technical question, refactor, or implementation detail.
+
+### Generic context:
+
+- [GENERIC_README](context/generic/GENERIC_README.md): Universal project documentation patterns and starter guidance.
+- [GENERIC_UI_GUIDELINES](context/generic/GENERIC_UI_GUIDELINES.md): Generic UI/UX standards for tab layout, naming, and interactions.
+- [GENERIC_CODING_STANDARDS](context/generic/GENERIC_CODING_STANDARDS.md): Foundational code quality, formatting, and structural requirements.
+
+### Project-specific context (with coverage summaries):
+
+- [CONTEXT_cli.md](context/project/CONTEXT_cli.md): Design, options, and usage of the Command Line Interface (CLI) for policy analysis.
+- [CONTEXT_config.md](context/project/CONTEXT_config.md): Rules and best practices for repository configuration and code quality automation.
+- [CONTEXT_cross_tenancy.md](context/project/CONTEXT_cross_tenancy.md): How cross-tenancy statements are modeled, filtered, and displayed in the Cross Tenancy Tab.
+- [CONTEXT_data_repo.md](context/project/CONTEXT_data_repo.md): Core architecture for canonical data models, repository logic, and persistent caching.
+- [CONTEXT_docs.md](context/project/CONTEXT_docs.md): Documentation standards and practices unique to this repository.
+- [CONTEXT_historical_analysis.md](context/project/CONTEXT_historical_analysis.md): Architecture, flow, and UX conventions for the Historical Comparison Tab (policy/IAM diffs over time).
+- [CONTEXT_intelligence_strategies.md](context/project/CONTEXT_intelligence_strategies.md): The strategy pattern and pluggable modules powering analytics and recommendations.
+- [CONTEXT_logging.md](context/project/CONTEXT_logging.md): Logging architecture, configuration, UI/console separation, and DEBUG/per-component controls.
+- [CONTEXT_logic.md](context/project/CONTEXT_logic.md): Business/processing logic layer structure, parsing system, and testability standards.
+- [CONTEXT_mcp_server_and_tab.md](context/project/CONTEXT_mcp_server_and_tab.md): MCP server architecture and how it integrates with the UI's Embedded MCP Tab.
+- [CONTEXT_policies_tab.md](context/project/CONTEXT_policies_tab.md): Details for the UI Policies Tab, including table layouts, filters, parsing flows, and sorting conventions.
+- [CONTEXT_policy_browser_tab.md](context/project/CONTEXT_policy_browser_tab.md): Patterns and architecture for the Policy Browser Tab (hierarchical tree view).
+- [CONTEXT_policy_intelligence_and_recommendations.md](context/project/CONTEXT_policy_intelligence_and_recommendations.md): How analytics overlays and cleanup/fix/recommendations are produced and surfaced in the Recommendations Tab.
+- [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md): Architecture and features managed by the Settings Tab, including configuration fields, cache management, and UI control propagation.
+- [CONTEXT_simulation_engine.md](context/project/CONTEXT_simulation_engine.md): Simulation engine data flows, models, and automation for the API Simulation/Condition Tester tabs.
+- [CONTEXT_tests.md](context/project/CONTEXT_tests.md): Required test practices, edge cases, and integration with CI/CD and pre-commit.
+- [CONTEXT_ui.md](context/project/CONTEXT_ui.md): UI layer conventions, tab base class, context help/patterns, and registration requirements.
+
+For any new feature or major tab, start by documenting its rationale and conventions in a new or updated context file below `docs/context/project/`.
+
+For detailed table of contents and links to all supporting context files, see above and the [CONTEXT_INDEX.md](context/CONTEXT_INDEX.md).

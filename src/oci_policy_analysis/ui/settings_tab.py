@@ -294,6 +294,37 @@ class SettingsTab(BaseUITab):
         )
         self.compartment_depth_dropdown.grid(row=3, column=2, padx=5, pady=(10, 2), sticky='w')
 
+        # Add Setup Guide link next to compartment depth selector
+        setup_guide_link = ttk.Label(
+            label_frm_tenancy_config,
+            text='Tenancy Setup Guide',
+            foreground='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 10, 'underline'),
+        )
+        setup_guide_link.grid(row=3, column=3, padx=3, pady=(10, 2), sticky='w')
+        setup_doc_url = self.DOCROOT + '/setup.html'
+        setup_guide_link.bind('<Button-1>', lambda e: self.open_link(setup_doc_url))
+        self.add_context_help(
+            setup_guide_link,
+            'Open the full OCI Policy Analysis setup instructions (docs/source/setup.md) in your web browser.',
+        )
+
+        # Add Settings link next to compartment depth selector
+        settings_link = ttk.Label(
+            label_frm_tenancy_config,
+            text='Settings Page Guide',
+            foreground='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 10, 'underline'),
+        )
+        settings_link.grid(row=3, column=5, padx=3, pady=(10, 2), sticky='w')
+        settings_doc_url = self.DOCROOT + '/usage.html#settings-tab-start-here'
+        settings_link.bind('<Button-1>', lambda e: self.open_link(settings_doc_url))
+        self.add_context_help(
+            settings_link, 'Open the Settings Tab as part of Usage documentation in your web browser.'
+        )
+
         def on_depth_select(event):
             selected_label = self.compartment_depth_dropdown.get()
             selected_val = self.depth_value_map.get(selected_label, 1)

@@ -13,7 +13,7 @@ Policy Repository
 Reference Data Repository
 -------------------------
 
-.. automodule:: oci_policy_analysis.logic.ref_data_repo
+.. automodule:: oci_policy_analysis.logic.reference_data_repo
    :members:
    :undoc-members:
    :show-inheritance:

@@ -20,12 +20,31 @@ from tkinter import ttk
 class BaseUITab(ttk.Frame):
     """
     Base UI Tab: Provides context (page) help label/area and simplified context help wiring for widgets.
+    Provides utility to open documentation/help links and reference a common doc root for documentation.
     Usage:
         - Inherit from BaseUITab.
         - Pass parent and default_help_text on init.
         - Call self.add_context_help(widget, message) on widgets needing hover help.
         - Call self.set_page_help_text(msg) to override help area text.
+        - Use self.open_link(url) to open web links. Use self.DOCROOT for base docs root.
     """
+
+    DOCROOT = 'https://agregory999.github.io/oci-policy-analysis'
+
+    def open_link(self, url: str):
+        """
+        Open a link in the user's web browser. If browser opening fails, display the URL in a messagebox.
+        """
+        import webbrowser
+
+        try:
+            opened = webbrowser.open_new_tab(url)
+            if not opened:
+                raise RuntimeError('webbrowser failed to open the link.')
+        except Exception:
+            import tkinter.messagebox
+
+            tkinter.messagebox.showinfo('Open Link', f'Open this link in your browser:\n{url}')
 
     def __init__(self, parent, default_help_text='', *args, **kwargs):
         super().__init__(parent, *args, **kwargs)

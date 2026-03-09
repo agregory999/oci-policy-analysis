@@ -28,6 +28,28 @@ Due to the volume of logging, DEBUG output, if set, is only available on the she
 
 **NOTE:** Global DEBUG is very noisy, so only do this if you really need to.
 
+### 1b. API and Timing Logging Options
+
+In addition to standard component-based logging levels, the application offers dedicated logging for specific events such as API calls (external integrations, requests to OCI, etc.) and timing/performance data.
+
+- **API Logging:**  
+  - API-related logs can be configured to output at higher levels (such as `CRITICAL`), allowing you to always see important API activity or errors even if the global logger is set to `WARNING` or above.
+  - This ensures that key API successes, failures, or latencies are always visible for troubleshooting, regardless of the overall log verbosity.
+  - Some API and external integration logs may include timing or performance diagnostics for requests and responses.
+
+- **Timing Logging:**  
+  - Timing/performance logs (operation durations, critical-path timings, long-running queries) can also be emitted at high log levels (`CRITICAL` or `ERROR`) so they're never missed, regardless of global settings.
+  - Useful for investigating slowness or identifying bottlenecks without increasing general log noise.
+
+- **How Levels Affect Visibility:**  
+  - When a message is logged at a high level like `CRITICAL`, it is always output unless logging is globally silenced.
+  - This approach makes sure operationally significant API/timing events get through, even if most components are set to `WARNING` or lower.
+
+**Example:**  
+If the global logger is set to `WARNING`, but API logger is emitting certain messages at `CRITICAL`, those API log entries will still appear in your logs/Console.
+
+*To configure more granular logging for API and timing, use either the UI log level overrides (via the "Show Loggers" checkbox) or set log levels programmatically in your environment/setup scripts.*
+
 ## 2. JSON Debugger Tab
 
 - The *JSON Debugger* tab in the UI allows you to inspect structured data that flows through the application.

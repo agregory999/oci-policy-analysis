@@ -1,13 +1,16 @@
 # Setup
 
-This section will help you set up and run OCI Policy Analysis regardless of platform.
+**Tip:** The full Setup Guide can be quickly accessed from within the application UI — just click the “Setup Guide” link in the Settings tab, to the right of the “Compartment Level for Additional Domains” dropdown. All core setup details, tips, and troubleshooting are always just a click away.
+
+This section will help you set up and run OCI Policy Analysis regardless of platform. Both a web UI and CLI invocation are supported.
 
 ## Prerequisites
 
-- **Python 3.12+** if running from source. (Not needed for platform executables.)
-  - Get Python from [python.org](https://www.python.org/downloads/), or use your OS package manager.
+- **Python 3.12+** is required if running from source (not needed for platform executables).
+  - Install from [python.org](https://www.python.org/downloads/), or use your OS package manager.
+  - **Check with:** `python3 -V`
 
-- **OCI Configuration** (`~/.oci/config` or `%USERPROFILE%\.oci\config`)
+- **OCI Configuration** (`~/.oci/config` for Linux/macOS, `%USERPROFILE%\.oci\config` for Windows)
   - Example:
     ```ini
     [DEFAULT]
@@ -18,33 +21,38 @@ This section will help you set up and run OCI Policy Analysis regardless of plat
     region=<your-region>
     ```
   - See [OCI Configuration Docs](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm)
+  - If your config is not found, the app’s Settings tab will highlight the missing/wrong file.
 
 - **OCI IAM Policy Permissions**
-  - Minimal permissions:
-    ```
-    allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-    allow group <your_group> to use generative-ai-family in tenancy
-    ```
-  - See [Permissions Section](./overview.md) for instance principal option and dynamic group setup.
+  - Minimal required policies for functionality (see below).
+  - Grant to your non-admin user/group or a dynamic group for instance principal use.
 
-- **Install Dependencies if running from source**
-```bash
-pip install oci==2.164.0 deepdiff==8.5.0 fastmcp==2.12.5
-```
+- **Dependency Installation (if running from source)**
+  ```bash
+  python3 -m pip install --upgrade pip
+  pip install oci==2.164.0 deepdiff==8.5.0 fastmcp==2.12.5
+  ```
+  - **Best practice:** Always use a Python virtual environment:
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate   # On Windows: .venv\Scripts\activate
+    pip install -e .
+    ```
 
-NOTE -- if not using PIP via Python Virtual Environment, it is still possible, but you may need to add these packages to your system directly.
+  - If not using a venv, you may need to add these packages system-wide using administrative rights.
 
 ## Installation Details
 
-Here are the options for running the code.   This will work from your desktop or from an OCI instance running Windows or Linux (Desktop).   If on OCI, you will be able to use the "Instance Principal" mechanism to authenticate.
+You have two options to run the code — either from an official platform-specific executable or from source.
 
-**Option A: Run as a platform executable**
-  - Download the appropriate binary (.exe for Windows, .app for macOS, Linux build) from the [releases page](https://github.com/agregory999/oci-policy-analysis/releases).
-  - Double-click/run as any other application.
+**Option A: Platform Executable (no Python required)**
+  - Download the latest installer for your OS from the [releases page](https://github.com/agregory999/oci-policy-analysis/releases).
+  - Windows: `.exe` installer; macOS: `.app` bundle; Linux: appropriate build.
+  - Double click/run as any application.
 
-**Option B: Run from source (recommended for advanced users/developers)**
+**Option B: Run from Source (recommended for advanced users/developers)**
   ```bash
-  python3 -V              # Should be 3.12.x
+  python3 -V              # Should report Python 3.12.x
   python3 -m venv .venv
   source .venv/bin/activate    # On Windows: .venv\Scripts\activate
   pip install -e .
@@ -54,33 +62,46 @@ Here are the options for running the code.   This will work from your desktop or
 ## Authentication and Session Token Setup
 
 You can authenticate using:
-- Named OCI Profile
-- Instance Principal on OCI Compute
-- Session Token (`oci session authenticate`, see Settings tab for input)
 
-See [OCI Authentication](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm) for more.
+- **Named OCI Profile** (from your OCI CLI config)
+- **Instance Principal** (if running on an OCI Compute instance)
+- **Session Token** (use `oci session authenticate` to create a temporary token — paste this into the *Session Token* field in the Settings tab, or provide the file path).
+
+Authentication options are all selectable in the *Settings* tab of the UI. The “Session Token” field accepts copy-and-paste text or a file.
+
+See [OCI Authentication](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/sdkconfig.htm) for more OCI API details.
 
 ## Permissions (REQUIRED)
 
-In order for the OCI Policy Analysis app to pull the data it needs from the OCI tenancy, it must have a minimal set of permissions.  If using your OCI Admin (not recommended) user, the permissions will already be there.  It is recommended to use a non-privileged account or create a new user if you aren't sure.
-
-The minimal policy statement looks like this:
+The OCI Policy Analysis app requires a minimal set of permissions. For basic analysis, grant these to your user-group (less privileged is recommended):
 
 ```
-allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
 allow group <your_group> to use generative-ai-family in tenancy
 ```
 
-If you plan to use instance principals on an OCI instance with a dynamic group, the permissions look like this:
+For dynamic group (instance principal) usage on OCI Compute:
 
 ```
-allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT} in tenancy
+allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
 allow dynamic-group 'Default'/'PolicyAnalysisDynamicGroup' to use generative-ai-family in tenancy
 ```
 
 ### Group or Dynamic Group
 
-If you have an existing group or dynamic group for your instance or compartment, you may already have all of the permissions needed.  If you need to create a new user and group, the set of permissions above dictate what policy should exist for that user.
+If your user, group, or dynamic group already has these permissions, nothing further is needed. Otherwise, an administrator can create a group and add an appropriate policy.
 
-**See also**:
-- [Overview](overview.md) for a feature/architecture summary.
+**See also**: [Overview](overview.md) for feature summary.
+
+## Troubleshooting & Tips
+
+- **Missing dependencies?** Activate your venv (`source .venv/bin/activate`) and re-install packages (`pip install -e .`). The UI will warn about missing libraries as needed.
+- **Python version errors?** Must be 3.12+. Confirm with `python3 -V`.
+- **Browser links don’t open?** The app will always display the needed URL if automatic opening fails. Copy/paste it into your browser as needed.
+- **OCI config not found or missing values?** The Settings tab guides you step by step and highlights config errors.
+- **Firewall or network issues?** If the app fails to connect to OCI or open documentation, confirm your network/firewall/proxy settings and try again.
+- **Platform support:** The UI works on Windows, macOS, and Linux (desktop). Some Linux builds may require additional GUI libraries.
+- **Logs and debugging:** Check the terminal/console output for errors or run with increased verbosity for debugging.
+- **Having issues setting up your tenancy or permissions?** Review the [Permissions](#permissions-required) section and OCI docs, and double-check group assignments in the OCI Console.
+
+If you’re still stuck, open an issue at [GitHub issues](https://github.com/agregory999/oci-policy-analysis/issues) — include your setup steps and environment details.

@@ -14,7 +14,6 @@ Contents
    architecture
    simulation
    recommendations
-   consolidation
    usage
    mcp
    logging_and_troubleshooting
@@ -26,6 +25,12 @@ Contents
    api/oci_policy_analysis
    api/oci_policy_analysis.ui
    api/oci_policy_analysis.logic
-   api/oci_policy_analysis.recommendations_and_consolidation
+   api/oci_policy_analysis.recommendations
    api/oci_policy_analysis.common
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Other
+
+   context
+   macos_pyinstaller_notes

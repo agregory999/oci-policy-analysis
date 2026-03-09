@@ -327,7 +327,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         def open_doc_link(event):
             try:
-                self.app.open_link(doc_url)
+                self.open_link(doc_url)
             except Exception:
                 tk.messagebox.showinfo('Documentation', f'Learn more: {doc_url}')
 
