@@ -60,3 +60,46 @@ FastMCP server exposing typed tools/resources (e.g., filter_policy_statements, s
 
 UI Layer
 Tkinter app with tabs, resizable panes, and an AI output area; integrates tightly with analysis and MCP results.
+
+
+---
+
+## AI Context
+
+The **AI Context** system provides a set of standard and project-specific context files that guide how code is developed, documented, and maintained within the OCI Policy Analysis project. These context files are updated as the code changes (or immediately before), ensuring that architectural standards, conventions, and best practices always remain aligned with the source code.
+
+The files below are intended to be referenced both by human contributors and by the AI agent(s). When generating, modifying, or reviewing code, always consult these files. 
+
+- **Generic** files (in `generic/`) define universal patterns and standards for any OCI/Python application.
+- **Project-specific** files (in `project/`) define policies, conventions, and history unique to this repository.
+- **If project and generic guidance conflict, project-specific guidance takes precedence.**
+- Keep both sets up to date; escalate issues/uncertainties to maintainers.
+
+### Index of Context Files
+
+**Generic context:**
+- [GENERIC_README.md](../context/generic/GENERIC_README.md)
+- [GENERIC_UI_GUIDELINES.md](../context/generic/GENERIC_UI_GUIDELINES.md)
+- [GENERIC_CODING_STANDARDS.md](../context/generic/GENERIC_CODING_STANDARDS.md)
+
+**Project-specific context:**
+- [CONTEXT_cli.md](../context/project/CONTEXT_cli.md)
+- [CONTEXT_config.md](../context/project/CONTEXT_config.md)
+- [CONTEXT_cross_tenancy.md](../context/project/CONTEXT_cross_tenancy.md)
+- [CONTEXT_data_repo.md](../context/project/CONTEXT_data_repo.md)
+- [CONTEXT_docs.md](../context/project/CONTEXT_docs.md)
+- [CONTEXT_historical_analysis.md](../context/project/CONTEXT_historical_analysis.md)
+- [CONTEXT_intelligence_strategies.md](../context/project/CONTEXT_intelligence_strategies.md)
+- [CONTEXT_logging.md](../context/project/CONTEXT_logging.md)
+- [CONTEXT_logic.md](../context/project/CONTEXT_logic.md)
+- [CONTEXT_mcp_server_and_tab.md](../context/project/CONTEXT_mcp_server_and_tab.md)
+- [CONTEXT_policies_tab.md](../context/project/CONTEXT_policies_tab.md)
+- [CONTEXT_policy_browser_tab.md](../context/project/CONTEXT_policy_browser_tab.md)
+- [CONTEXT_policy_changeset.md](../context/project/CONTEXT_policy_changeset.md)
+- [CONTEXT_policy_intelligence_and_recommendations.md](../context/project/CONTEXT_policy_intelligence_and_recommendations.md)
+- [CONTEXT_settings_tab.md](../context/project/CONTEXT_settings_tab.md)
+- [CONTEXT_simulation_engine.md](../context/project/CONTEXT_simulation_engine.md)
+- [CONTEXT_tests.md](../context/project/CONTEXT_tests.md)
+- [CONTEXT_ui.md](../context/project/CONTEXT_ui.md)
+
+For detailed structure and instructions, see [CONTEXT_INDEX.md](../context/CONTEXT_INDEX.md)

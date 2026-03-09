@@ -28,8 +28,23 @@ Together, they enable deep, actionable insight into Oracle Cloud policies, with 
 - The **PolicyRecommendationsTab** fetches overlay data directly from the engine to populate:
   - **Summary Table** (top): Main recommendations (with priority, action)
   - **Sub-tabs**:
+
     - **Risk**: Scored statements, detailed notes, and suggested actions. Two reduction controls apply when computing scores: **WHERE clause risk reduction** (statements with conditions get a configurable % reduction) and **Service Principal risk reduction** (statements with subject type *service* and verb *use* or *manage* get a configurable % reduction, since service principals are inherently lower risk than group or dynamic-group for those verbs).
-    - Overlap: Conflicts, superseding statements, and resources/compartments involved
+    
+    - **Limits (Policy Statement Count Limits)**:
+      - Shows a table of all compartments by **Hierarchy Path**, using data from the compartments in the PolicyAnalysisRepository (including `statement_count_direct` and `statement_count_cumulative`).
+      - At the top of the tab, shows a stubbed value for the tenancy-wide policy statement limit (to be fetched from an API in the future).
+      - Includes a "Show:" dropdown with options:
+        - "All compartments"
+        - "Nearing/Over Limit"
+        - "Over Limit"
+      - Provides a clickable link to the official documentation (using open_link):  
+        https://docs.oracle.com/en-us/iaas/Content/Identity/policymgmt/policy-limits-compartment-hierarchy.htm  
+      - In the table, color/status flags for “Nearing Limit” and “Over Limit” based on direct/cumulative counts. Status logic and thresholds are consistent with Oracle’s published limits (default limit: 500 statements per compartment, with "nearing" at e.g. 85% of the limit).
+      - If a compartment is near or over the limit, the UI provides a brief recommendation to clean up, consolidate, or reorganize policies to avoid hitting the limit.
+      - In the **Summary Table** at the top of recommendations tab, only a single (aggregated) recommendation for statement count limits is shown if any compartment is at risk—users are directed to the Limits tab for granular detail (to avoid duplicate/overwhelming recommendations).
+    
+    - **Overlap**: Conflicts, superseding statements, and resources/compartments involved
     - Consolidation: Opportunities to combine policies/statements
     - Cleanup / Fix: Actionable fixes by type (invalid, unused, overly broad, etc.). **Ignore Selected** hides chosen items from the list (persisted per tenancy in consolidation state as `ignored_cleanup_keys`). **Show Previously Ignored** opens a dialog to re-show ignored items. **Take Action** sends selected items to the Recommendation Workbench. **Settings > Recommendation / Consolidation**: checkboxes let you enable/disable which **intelligence strategies** run (risk, overlap, each cleanup check, consolidation suggestions, recommendations); persisted as `enabled_intelligence_checks`. The engine’s `run_all(enabled_strategy_ids=...)` runs only the selected strategies.
     - **Recommendation Workbench**: Accumulated one-off actions (CLI/UI instructions, rollback, history, audit placeholder)
