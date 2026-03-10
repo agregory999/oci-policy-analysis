@@ -1,134 +1,131 @@
-# Recommendations
+# Recommendations Tab: Guided Policy Analytics & Remediation
 
-The OCI Policy Analysis tool leverages a dedicated engine for generating actionable **recommendations** and **remediations** to guide users in securing and optimizing their OCI environment. This document outlines the strategies, logic, and display methodology for recommendations, and briefly introduces the concept of Policy Intelligence as it applies within the tool.
-
-**NOTE:** This is a WORK-IN-PROGRESS.  More features and documentation will be available as they are created.
+The **Recommendations** tab is the central UI for reviewing, understanding, and acting on security, cleanup, and optimization findings within your OCI tenancy. This tab synthesizes actionable insights from a pluggable, analytics-driven engine and presents them in an interactive, user-friendly dashboard.
 
 ---
 
-## Table of Contents
+## How Does It Work?
 
-1. [Introduction](#introduction)
-2. [How Recommendations Are Created](#how-recommendations-are-created)
-   - Data Inputs
-   - Analysis Strategies
-   - Rule and Pattern-Based Generation
-   - Use of Policy Intelligence
-3. [Principles for Effective Recommendations](#principles-for-effective-recommendations)
-4. [Displaying Recommendations to Users](#displaying-recommendations-to-users)
-   - In the UI
-   - Integration with MCP Tools and AI Features
-5. [Policy Intelligence: Overview](#policy-intelligence-overview)
-6. [Further Reading](#further-reading)
+Recommendations and related findings are **dynamically generated** by the Policy Intelligence engine, which evaluates your loaded policies, users, groups, and compartments against a suite of pluggable analytic strategies. These strategies identify risky, invalid, redundant, or overlapping policy statements and aggregate results into a unified model.
+
+**Key highlights:**
+- Every section of this tab draws from live analytics and data overlays—there is no static "rules table."
+- Intelligence strategies can be extended and updated without changing the UI or needing a redeploy.
+- You don't need to interpret raw OCI policy text; instead, you get guided, actionable recommendations and insight into why they're being surfaced.
+
+If you're interested in all the fine details—how the engine works, how plug-ins (strategies) are added, and what happens under the hood—see **Further Reading: AI Context** at the end of this guide.
 
 ---
 
-## Introduction
+## Navigating the Recommendations Tab
 
-Modern OCI environments grow increasingly complex, making it challenging for administrators to maintain secure, auditable, and efficient policy configurations. The **Recommendations** feature in OCI Policy Analysis surfaces best-practice guidance, security alerts, cleanup opportunities, and actionable insights based on the current state of policies, users, groups, and compartments.
+The Recommendations tab is organized into several subtabs and panels, each focused on a major area of IAM analytic findings:
 
-These recommendations allow administrators to:
-- Detect misconfigurations and risky policies
-- Identify unused or redundant identities and statements
-- Clarify and explain policy effects, especially in complex environments
-- Receive targeted advice to improve security posture and manage risk
+### 1. **Summary Table**
+- **Purpose**: The first thing you see—a high-level list of the most important, prioritized recommendations (critical risks, urgent cleanups, consolidation opportunities, and policy statement limit alerts).
+- **Tips**: Each row summarizes an actionable item. Clicking "Reload All" at the top will refresh these based on current data.
 
 ---
 
-## How Recommendations Are Created
+### 2. **Risk Overview**
+#### a. *Policy Risk*
+- **Purpose**: Shows aggregate risk scores for each policy, giving you a sense of where your riskiest or most permissive policies live.
+- **Features**:
+  - Filter by WHERE clause/service-principal reduction (adjusts scoring).
+  - Sort and drill down into risk summaries.
+  - See example high-risk statement for each policy.
+  - Right-click for "Show All Statements" in the main Policy Analysis tab.
 
-Generating a meaningful recommendation involves several steps, drawing on the full capabilities of the underlying data model and analysis layers. The core strategy combines rule-based logic, cross-resource context, and Policy Intelligence (see below).
-
-### Data Inputs
-
-- **Policy Statements** (parsed, normalized, and enriched)
-- **IAM Data** (users, groups, dynamic groups, their relationships)
-- **Compartment Hierarchy**
-- **Permissions/Resource Mappings** (reference data)
-- **Policy Evaluation Results** (e.g., overlaps, effective paths, invalid/ambiguous statements)
-- **Simulation Outcomes** (where applicable)
-
-### Analysis Strategies
-
-- **Rule-Based Detection:**  
-  Pre-defined rules flag known best practice violations, such as overly-broad policies, dangling resources, or weak conditions. Rules are tuned to align with Oracle's security and compliance guidelines.
-
-- **Pattern Recognition:**  
-  Examines policy text and IAM relationships for risky or anomalous patterns—for example, duplicate grants or conflicting denies.
-
-- **Historical Comparison (not implemented):**  
-  By comparing present and past states (see "Policy Comparison" features), recommendations can highlight recent changes, the introduction of new risks, or the effect of policy modifications.
-
-- **AI-Driven Insights (not implemented):**  
-  If enabled, GenAI models can supplement recommendations with natural language explanations and custom suggestions based on policy semantics.
-
-### Rule and Pattern-Based Generation
-
-Typical categories of recommendations include:
-- **Remediation:** Identify and propose fixes for risky, invalid, or deprecated policy statements.
-- **Cleanup:** Suggest removal of unused users, groups, or policies to reduce surface area.
-- **Optimization:** Recommend consolidating or clarifying overlapping/conflicting policies.
-- **Security Alert (not implemented):** Highlight dangerous permissions granted to broad or unintended subjects.
-- **Compliance (not implemented):** Detect gaps against standard frameworks (e.g., CIS, Oracle Security Best Practices).
-
-Recommendations may be **automatically refreshed** when IAM or policy data changes, ensuring they always reflect the current OCI configuration.
-
-### Use of Policy Intelligence
-
-Policy Intelligence adds context and reasoning, going beyond static rules to address scenarios where the interplay of multiple data points determines risk or opportunity. For instance, a recommendation may use Policy Intelligence to explain why a particular group’s access is risky based on its actual effective permissions and observed usage.
+#### b. *Statement Risk*
+- **Purpose**: Fine-grained view—every statement scored, contextualized, and explained.
+- **Features**:
+  - Use dropdowns to adjust risk scoring factors.
+  - Click a row for detailed risk/explanation.
+  - Right-click for "Analyze Statement" in raw data tab.
 
 ---
 
-## Principles for Effective Recommendations
-
-Good recommendations are:
-- **Contextual:** Tailored to the user's actual environment and policies
-- **Actionable:** Provide clear, prescriptive advice, not just problem statements
-- **Explainable:** Include sufficient context and rationale to inform decision-making
-- **Prioritized:** Highlight high-risk or high-impact findings before lower priority hints
-- **Non-intrusive:** Designed for easy review and dismissal if not desired
-
-The tool ensures that for each recommendation, a concise message, the affected resource/policy, and the suggested action are clearly presented.
+### 3. **Overlap Analysis**
+- **Purpose**: Identify policies/statements that overlap, conflict, or supersede each other (potential misconfiguration).
+- **Features**:
+  - Filter by compartment or resource using dropdowns.
+  - See details on why and where overlap occurs by selecting a row.
+  - Use right-click actions to drill deeper.
 
 ---
 
-## Displaying Recommendations to Users
-
-### In the User Interface
-
-- **Recommendations Panel:**  
-  A dedicated tab or panel summarizes all current recommendations, grouped by severity or type (e.g., Security, Cleanup, Optimization).
-- **Contextual Badges/Markers:**  
-  Inline indicators may appear next to policy statements or users in table views, alerting users to relevant recommendations while browsing.
-- **Remediation Actions:**  
-  Where available, quick actions or links are provided (e.g., "View Policy", "Simulate Impact", "Go to OCI Console") for immediate follow-up.
-
-### Integration with MCP Tools and AI
-
-- **MCP Resources:**  
-  Recommendations are exposed via MCP, enabling other clients (like Claude or VSCode) to query and incorporate recommendations via structured tools.
-- **AI Features:**  
-  With GenAI enabled, explanations for complex recommendations and natural language "why/how" clarifications are made available.
+### 4. **Policy Consolidation**
+- **Purpose**: Flags policies or statements that could be combined/reorganized for clarity and management simplicity.
+- **Features**: 
+  - Checkbox selection to review candidates.
+  - (Actions require manual follow-up in current version.)
 
 ---
 
-## Policy Intelligence: Overview
-
-**Policy Intelligence** in OCI Policy Analysis refers to the holistic, context-aware evaluation of OCI IAM policy environments, combining structured rule logic and advanced analysis across all identity, compartment, and permission data. It powers not just recommendations, but also simulations, effective permission calculations, and security reporting.
-
-Policy Intelligence enables the following:
-- Dynamic explanation of how and why a user or group receives certain permissions
-- Detection of unintended overlaps, privilege escalation, or policy gaps
-- Generation of tailored suggestions and insights aimed at risk mitigation and operational efficiency
-
-By leveraging Policy Intelligence, recommendations become smarter and more relevant, guiding administrators toward concrete improvements and deeper understanding of complex policy effects.
+### 5. **Cleanup / Fix**
+- **Purpose**: Lists invalid, risky, or redundant statements and unused IAM objects ready for cleanup (e.g., unused groups, overly broad statements).
+- **Features**:
+  - Select one or more issues using checkboxes.
+  - **Take Action:**  
+    - Sends selected items to the Recommendation Workbench.
+    - Provides CLI/UI instructions, rollback, and tracks status/history.
+  - **Ignore Selected**: Hides items from the list (persisted).
+  - **Show Previously Ignored**: View/reset hidden items.
+  - Right-click for direct navigation to the corresponding detailed object/tab.
 
 ---
 
-## Further Reading
+### 6. **Limits**
+- **Purpose**: Displays compartment hierarchy and policy statement counts, with alerts for nearing/exceeding Oracle’s hard per-compartment statement limit (500).
+- **Features**:
+  - Filter compartments by status (all, nearing/over limit, only over limit).
+  - See live statement counts and cleanliness recommendations.
+  - Direct link to Oracle’s official limits documentation.
 
-- [Overview](./overview.md)
-- [Architecture](./architecture.md)
-- [Simulation](./simulation.md)
-- [MCP Server and Tools](./mcp.md)
-- [Usage and UI Guide](./usage.md)
+---
+
+### 7. **Recommendation Workbench**
+- **Purpose**: Collects "one-off" actions you’ve taken from Cleanup/Fix (or in future: Overlap/Consolidation), allowing you to track, script, and review all remediations in one session.
+- **Features**:
+  - Table of all generated actions, with source/type/history.
+  - Click to see CLI script, rollback instructions, UI workflow.
+  - "Clear" removes all workbench items for a fresh state.
+  - When you "Reload All" or update policy data, resolved issues disappear; history per action is retained.
+
+---
+
+## Usage Tips & Workflow Suggestions
+
+- **After loading data**, always review the Summary Table for high-priority risks and limits issues first.
+- **Use filters and sorts** in every tab to focus on what's most important for your tenancy or project.
+- **Take Action on actionable issues** directly from Cleanup/Fix—a fast route to trackable and auditable remediation steps.
+- **Interpret why an issue is flagged** by expanding details in each table—most analytics include clear rationale and recommended next steps.
+- **Reload regularly:** If you make changes in OCI Console or via CLI, clicking "Reload All" refreshes analytics and cleans up completed workbench items.
+- **Curious about technical details?** See below.
+
+---
+
+## Further Reading: AI Context & Detailed Architecture
+
+Curious about the deep technical contract behind this tab?  
+All analytic findings, dashboard subtabs, workbench logic, and extensibility are governed by a formal, pluggable overlay model and a set of modular strategy "plug-ins." If you're an advanced user, developer, or just want a full description of how analytics are constructed (with diagrams, wiring, and extensibility guides), see:
+
+**Policy Intelligence Engine & Recommendations UI — AI Context**
+
+[context/project/CONTEXT_policy_intelligence_and_recommendations.md](context/project/CONTEXT_policy_intelligence_and_recommendations.md)
+
+This "AI Context" is the source of truth for the analytic and UI contract. It covers:
+- Overlay data model and all canonical output structures
+- Pluggable strategies and how to extend/reason about them
+- Control/data flow diagrams for engine, plug-ins, overlay, and UI
+- Extensibility/workbench details and all implementation references
+
+---
+
+**Other Reading:**  
+- [Overview](overview.md)
+- [Architecture](architecture.md)
+- [Simulation](simulation.md)
+- [MCP Server and Tools](mcp.md)
+- [Usage and UI Guide](usage.md)
+- [Managing IAM Policies in Compartment Hierarchy (A-Team Blog)](https://www.ateam-oracle.com/managing-iam-policies-in-compartment-hierarchy)

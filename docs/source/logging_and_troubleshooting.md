@@ -71,3 +71,13 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
   - Check backend logs for exceptions.
 
 *If you need more detailed guidance, refer to the main documentation or contact the maintainers.*
+
+---
+
+## Further Reading
+
+For deep technical details—covering logging architecture, log-level wiring, log persistence, per-component overrides, and programmatic/debug workflows—consult:
+
+- [Logging Context/Deep Dive](context/project/CONTEXT_logging.md)
+
+_(Additional 3rd-party or advanced troubleshooting links may be added here in future updates. For a reference of architecture, simulation, and usage topics, see also: [Recommendations](recommendations.md) and the context section of the docs.)_
