@@ -1,3 +1,10 @@
+# [4.4.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.1...v4.4.0-dev.2) (2026-03-11)
+
+
+### Bug Fixes
+
+* Data Table performance and timing ([a6af325](https://github.com/agregory999/oci-policy-analysis/commit/a6af3256e1b2ddb54b54c65d1e18e3d335bba57b))
+
 # [4.4.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.3.0...v4.4.0-dev.1) (2026-03-11)
 
 
