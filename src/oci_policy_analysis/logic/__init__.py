@@ -1,6 +1,8 @@
 """Top level package for OCI Policy Analysis logic components."""
 
 from .ai_repo import AI
+
+# from .consolidation_engine import ConsolidationEngine  # Removed to prevent circular import
 from .data_repo import PolicyAnalysisRepository
 from .policy_intelligence import PolicyIntelligenceEngine
 from .policy_statement_normalizer import PolicyStatementNormalizer
@@ -14,4 +16,5 @@ __all__ = [
     'PolicyIntelligenceEngine',
     'PolicyStatementNormalizer',
     'PolicySimulationEngine',
+    # 'ConsolidationEngine',  # Removed to prevent circular import
 ]

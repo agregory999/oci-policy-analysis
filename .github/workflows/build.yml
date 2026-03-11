@@ -2,7 +2,7 @@ name: Build and Release OCI Policy Analysis
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feature/* ]
   workflow_dispatch:
 
 permissions:

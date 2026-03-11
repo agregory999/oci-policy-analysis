@@ -82,6 +82,20 @@ class PolicyBrowserTab(BaseUITab):
         sep = ttk.Separator(self.button_row, orient='vertical')
         sep.pack(side='left', fill='y', padx=(8, 8), pady=3)
 
+        # --- Show Policy Statement Limits Checkbox ---
+        self.show_limits_var = tk.BooleanVar(value=True)
+        show_limits_chk = ttk.Checkbutton(
+            self.button_row,
+            text='Show Policy Statement Limits',
+            variable=self.show_limits_var,
+            command=self.refresh_tree,
+        )
+        show_limits_chk.pack(side='left', padx=(0, 8), pady=2)
+        self.add_context_help(
+            show_limits_chk,
+            'Toggle display of policy statement count summary and coloring per compartment. If unchecked, hides statement count info.',
+        )
+
         # Label for text search, then live search box, then clear button
         search_label = ttk.Label(self.button_row, text='Search:')
         search_label.pack(side='left', padx=(0, 2), pady=2)
@@ -131,6 +145,10 @@ class PolicyBrowserTab(BaseUITab):
         self.tree = ttk.Treeview(label_frm_tree, show='tree')
         self.tree.pack(fill='both', expand=True, side='top', padx=2, pady=2)
         self.tree.configure(style='Treeview')
+        # Configure tags for background coloring
+        self.tree.tag_configure('bg_green', background='#d7ffd7')  # light green
+        self.tree.tag_configure('bg_yellow', background='#fffcc7')  # light yellow
+        self.tree.tag_configure('bg_red', background='#ffd7d7')  # light red
         logger.info(
             f'Treeview created: is mapped: {self.tree.winfo_ismapped()}, size: {self.tree.winfo_width()}x{self.tree.winfo_height()}'
         )
@@ -265,10 +283,23 @@ class PolicyBrowserTab(BaseUITab):
 
         def tree_from_nodes(nodes, parent_id):
             for c in nodes:
-                comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
-                # Insert counts node
-                counts_display = f'Statement count - direct: {c.get("statement_count_direct", 0)}, cumulative: {c.get("statement_count_cumulative", 0)}'
-                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
+                # Compute color tag
+                cum_count = c.get('statement_count_cumulative', 0)
+                if cum_count > 500:
+                    bg_tag = 'bg_red'
+                elif cum_count >= 450:
+                    bg_tag = 'bg_yellow'
+                else:
+                    bg_tag = 'bg_green'
+                comp_node = self.tree.insert(
+                    parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True, tags=(bg_tag,)
+                )
+                # Insert counts row only if limits option is set
+                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
+                    counts_display = (
+                        f'Statement count - direct: {c.get("statement_count_direct", 0)}, cumulative: {cum_count}'
+                    )
+                    self.tree.insert(comp_node, 'end', text=counts_display, open=False)
                 self.tree.insert(comp_node, 'end', text=f'Description: {c["comp_desc"]}', open=False)
                 policies = c.get('policies', [])
                 if policies:
@@ -360,12 +391,22 @@ class PolicyBrowserTab(BaseUITab):
                 direct_count = c.get('statement_count_direct', 0)
                 cumulative_count = c.get('statement_count_cumulative', 0)
                 comp_display = f'Compartment: {comp_name}'
-                comp_node = self.tree.insert(parent_id, 'end', text=comp_display, open=True)
+
+                # --- Compartment row coloring logic ---
+                if cumulative_count > 500:
+                    bg_tag = 'bg_red'
+                elif cumulative_count >= 450:
+                    bg_tag = 'bg_yellow'
+                else:
+                    bg_tag = 'bg_green'
+
+                comp_node = self.tree.insert(parent_id, 'end', text=comp_display, open=True, tags=(bg_tag,))
                 logger.debug(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
 
-                # Add separate policy count node
-                counts_display = f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}'
-                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
+                # Show or hide counts row based on user option
+                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
+                    counts_display = f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}'
+                    self.tree.insert(comp_node, 'end', text=counts_display, open=False)
 
                 # Add compartment description node
                 comp_desc = c.get('description') or '(No description)'

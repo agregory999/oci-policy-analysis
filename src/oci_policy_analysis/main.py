@@ -46,6 +46,7 @@ from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
+from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
 
 # REMOVED: ConsolidationWorkbenchTab import (consolidation feature disabled)
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
@@ -196,6 +197,7 @@ class App(tk.Tk):
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
         # REMOVED: ConsolidationWorkbenchTab instantiation (consolidation feature disabled)
+        self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
@@ -283,7 +285,7 @@ class App(tk.Tk):
         self.notebook.forget(self.condition_tester_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)
-        # REMOVED: Forgetting consolidation_tab (consolidation feature disabled)
+        # self.notebook.forget(self.consolidation_tab)  # Do not 'forget' if never added; handled by advanced toggle
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -383,7 +385,7 @@ class App(tk.Tk):
             self.debugger_tab,
             self.console_tab,
             self.maintenance_tab,
-            # REMOVED: consolidation_tab (consolidation feature disabled)
+            self.consolidation_tab,
         ]
         context_help = self.settings.get('context_help', True)
         font_size = self.settings.get('font_size', 'Medium')
@@ -532,7 +534,7 @@ class App(tk.Tk):
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
         step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
-        # REMOVED: step for consolidation_tab.populate_data (consolidation feature disabled)
+        step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
         logger.info(
             'UI post-load timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
