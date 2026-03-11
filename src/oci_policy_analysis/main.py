@@ -110,7 +110,7 @@ class App(tk.Tk):
         super().__init__()
 
         self.title(f'OCI Policy Analysis {__version__}')
-        self.geometry('1400x900')
+        self.geometry('1500x900')
 
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
