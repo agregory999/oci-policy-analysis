@@ -1,3 +1,10 @@
+# [4.4.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.3.0...v4.4.0-dev.1) (2026-03-11)
+
+
+### Features
+
+* Consolidation code ([d6689eb](https://github.com/agregory999/oci-policy-analysis/commit/d6689eb65b19bef78e39359b0ce99a69d18a9acd))
+
 # [4.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.2.0...v4.3.0) (2026-03-09)
 
 
