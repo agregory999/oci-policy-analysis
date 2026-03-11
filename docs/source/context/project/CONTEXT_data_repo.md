@@ -68,5 +68,25 @@ This context file explains the core architecture for data management in OCI Poli
 
 ---
 
-**Summary:**  
-This architecture delivers clean separation and strong typing for every major object or data flow in policy analysis. UI layers and tools can request, consume, and display data with full confidence in structure and meaning, independent of raw SDK formats or backend changes.
+## 5. Reload Status, `policy_data_reloaded`, Status Bar, and UI Reload Logic
+
+**Reload/Reload Timestamp Field—Lifecycle, UI, and Display:**
+
+- `policy_data_reloaded` (also known as "reloaded_as_of") is the canonical field tracking when a "Reload Compartment/Policy Data" action (from live tenancy) last occurred. It supports accurate user feedback and end-to-end reproducibility when working with cached/archival data.
+- **Lifecycle Rules**:
+  - **Any data load (tenancy, cache, compliance, JSON):** The field is reset/cleared first (`None` or empty).
+  - **On reload from live tenancy (button press):** Set `policy_data_reloaded` to the UTC timestamp. This value is also propagated into updated caches (if saved).
+  - **On load from cache:** If the cache includes a `policy_data_reloaded` value (from a prior reload while live), it is restored and displayed; otherwise, it remains `None`.
+  - **On load from compliance/CSV or from a JSON import:** Always erase this field (set to `None` or empty), regardless of any value stored in an old cache.
+- **Status Bar and Settings Tab Display**:
+  - If the field is present (non-None), it is always displayed in the status bar and in settings—regardless of whether data is currently live or loaded from cache.
+  - If not present (or explicitly cleared), it is not shown—such as after compliance or JSON load.
+  - Tooltip and label texts should clearly distinguish "data loaded at" (the main data_as_of/loaded_at timestamp) from "[Reloaded at ...]" which is always visually separate and only present if the canonical field is non-empty.
+- **UI 'Reload' Button Enablement**:
+  - The reload button in Policies, Policy Browser, and any other tab is only enabled if data was last loaded from live tenancy, not from compliance/CSV or JSON load.
+  - It is also permitted for caches that originated from a live tenancy, as these carry forward the reload metadata and permissions.
+
+**Developer Note**
+- This logic ensures traceability (can trust "reload" date in any archival session), avoids spurious/cross-dataset display, and keeps UI behavior and user messaging rigorous and predictable.
+
+---

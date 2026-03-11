@@ -741,15 +741,14 @@ class PolicyAnalysisRepository:
         """
         Loads both compartments and all policies using OCI Clients. (Convenience function)
         """
+        # Always reset reload timestamp unless restored/preserved by special path (e.g., cache); complies with cache/offline/compliance logic elsewhere too.
+        self.policy_data_reloaded = None
         # Ensure compliance flag is reset on live tenancy load
         self.loaded_from_compliance_output = False
         ok1 = self.load_compartments_only()
         if not ok1:
             return False
         ok2 = self.load_policies_only()
-        # Remove policy_data_reloaded since a full load makes the reload timestamp irrelevant
-        if hasattr(self, 'policy_data_reloaded'):
-            self.policy_data_reloaded = ''
         return ok2
 
     def reload_compartment_policy_data(self) -> bool:
@@ -1917,6 +1916,8 @@ class PolicyAnalysisRepository:
         """
         Load all compartments, domains, groups, users, dynamic groups, and policies from compliance tool output files.
 
+        Always resets the reload time (`policy_data_reloaded`) so that reload is not shown for compliance/CSV data.
+
         Starts with domains, then dynamic groups, then users/groups/membership, then compartments, then policies.
         This function is for offline/compliance output analysis: no attempt to initialize any OCI client.
 
@@ -1927,6 +1928,9 @@ class PolicyAnalysisRepository:
         Returns:
             bool: True if all files parsed and data loaded successfully, False otherwise.
         """
+
+        # Explicit: always clear reload time before compliance/CSV load.
+        self.policy_data_reloaded = None
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
         # We need to only use the CSV files and stop using the JSON file altogether

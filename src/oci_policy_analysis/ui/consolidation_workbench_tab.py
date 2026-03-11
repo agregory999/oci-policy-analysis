@@ -120,16 +120,27 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
-        import time
 
         timings = []
         start = time.perf_counter()
+        show_all_timings = False
+        # Defensive: check if the app has a settings dict with our flag
+        if hasattr(self, 'app') and hasattr(self.app, 'settings'):
+            show_all_timings = bool(self.app.settings.get('always_log_timings', False))
+
+        def _log_ui_timing(step_name, elapsed):
+            if show_all_timings:
+                self.logger.critical(
+                    f'[UI Timing] ConsolidationWorkbenchTab.reload_and_validate_protection_set.{step_name}: {elapsed:.2f}s'
+                )
 
         def step(label, fn):
             t0 = time.perf_counter()
             fn()
             t1 = time.perf_counter()
-            timings.append((label, t1 - t0))
+            elapsed = t1 - t0
+            timings.append((label, elapsed))
+            _log_ui_timing(label, elapsed)
 
         self.logger.info('Validating protected set after policy data reload.')
         repo = getattr(self.app, 'policy_compartment_analysis', None)
@@ -143,7 +154,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
         before_count = len(self.protected_statement_ids)
         missing_ids = {iid for iid in self.protected_statement_ids if iid not in current_ids}
         t1 = time.perf_counter()
-        timings.append(('Build valid current_ids + find missing', t1 - t0))
+        build_ids_elapsed = t1 - t0
+        timings.append(('Build valid current_ids + find missing', build_ids_elapsed))
+        if 'show_all_timings' in locals() and show_all_timings:
+            self.logger.critical(
+                f'[UI Timing] ConsolidationWorkbenchTab.reload_and_validate_protection_set.Build valid current_ids + find missing: {build_ids_elapsed:.2f}s'
+            )
 
         for iid in sorted(missing_ids):
             self.logger.warning(
@@ -318,8 +334,6 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.add_context_help(
             self.selected_statements_table, 'Current set of protected statements (always visible, display-only).'
         )
-
-        # Do NOT load data here; this is deferred to populate_data()
 
     # === Subtab 2: Candidate Selection & Strategy ===
 
@@ -1511,7 +1525,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
-        self.logger.debug('Loading candidate statement data (excluding protected and invalid).')
+        self.logger.info('Loading candidate statement data (excluding protected and invalid).')
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         if not repo or not hasattr(repo, 'regular_statements'):
             self.invalid_statement_ids = set()
@@ -1533,8 +1547,19 @@ class ConsolidationWorkbenchTab(BaseUITab):
             for st in repo.regular_statements
             if st.get('internal_id') and (st.get('policy_name') or '').strip() == LOCKED_POLICY_NAME
         }
+        # Log the invalid and system statement IDs for debugging
+        self.logger.info(
+            'Identified %d invalid statements and %d system statements to exclude from candidates.',
+            len(self.invalid_statement_ids),
+            len(self.system_statement_ids),
+        )
+        self.logger.debug('Invalid statement internal_ids: %s', self.invalid_statement_ids)
+        self.logger.debug('System statement internal_ids: %s', self.system_statement_ids)
         cfilter = self.candidate_search_var.get().strip().lower()
-        self.logger.debug("Candidate search filter applied: '%s'", cfilter)
+        self.logger.info("Candidate search filter applied: '%s'", cfilter)
+
+        # STEP 1: build filtered data
+        t0 = time.perf_counter()
         data = []
         for st in repo.regular_statements:
             internal_id = st.get('internal_id', '')
@@ -1558,9 +1583,21 @@ class ConsolidationWorkbenchTab(BaseUITab):
                     'Internal ID': internal_id,
                 }
                 data.append(entry)
+        t1 = time.perf_counter()
+        self.logger.info('Candidate statements loaded: %d after filtering. [Build loop took %.4fs]', len(data), t1 - t0)
+
+        # STEP 2: checked assignment for UI
+        t2 = time.perf_counter()
         for row in data:
             row['checked'] = row.get('Internal ID', '') in self.candidate_table_selected_ids
+        t3 = time.perf_counter()
+        self.logger.info('Checked flag assignment for %d rows took %.4fs', len(data), t3 - t2)
+
+        # STEP 3: UI update
+        t4 = time.perf_counter()
         self.candidate_table.update_data(data)
+        t5 = time.perf_counter()
+        self.logger.info('candidate_table.update_data() took %.4fs for %d rows', t5 - t4, len(data))
         self.logger.info(
             'Candidate table loaded: %d candidates (excluding %d protected, %d invalid, %d system).',
             len(data),

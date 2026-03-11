@@ -520,6 +520,13 @@ class App(tk.Tk):
         step('users_tab.update_users_dropdown_options', self.users_tab.update_users_dropdown_options)
         step('policies_tab.update_policy_output', self.policies_tab.update_policy_output)
         step('policies_tab.enable_widgets_after_load', self.policies_tab.enable_widgets_after_load)
+        if hasattr(self, 'policy_browser_tab') and hasattr(
+            self.policy_browser_tab, '_update_reload_policy_button_state'
+        ):
+            step(
+                'policy_browser_tab._update_reload_policy_button_state',
+                self.policy_browser_tab._update_reload_policy_button_state,
+            )
         step('policy_browser_tab.refresh_tree', self.policy_browser_tab.refresh_tree)
         step('dynamic_groups_tab.enable_controls', self.dynamic_groups_tab.enable_controls)
         step('cross_tenancy_tab.update_cross_tenancy_output', self.cross_tenancy_tab.update_cross_tenancy_output)
@@ -547,36 +554,44 @@ class App(tk.Tk):
         Reload just policies, compartments, statements (not IAM) from tenancy,
         update the 'policy_data_reloaded' timestamp, persist sections in cache,
         and update all UI components as if a tenancy load had completed.
+        Shows busy cursor during reload for improved user feedback.
         """
         logger.info(
             'Initiating reload of policies and compartments (main driver, includes cache update and UI refresh)'
         )
-        repo = self.policy_compartment_analysis
-        if not hasattr(repo, 'reload_compartment_policy_data'):
-            logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
-            return False
-        reload_ok = repo.reload_compartment_policy_data()
-        if not reload_ok:
-            logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
-            return False
-
-        # Now update the cache for just these sections
+        # Set busy cursor
         try:
-            from oci_policy_analysis.common.caching import CacheManager
+            self.config(cursor='watch')
+            self.update()
+            repo = self.policy_compartment_analysis
+            if not hasattr(repo, 'reload_compartment_policy_data'):
+                logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
+                return False
+            reload_ok = repo.reload_compartment_policy_data()
+            if not reload_ok:
+                logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
+                return False
 
-            CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
-        except Exception as e:
-            logger.error(f'Policy/compartment cache update failed after reload: {e}')
+            # Now update the cache for just these sections
+            try:
+                from oci_policy_analysis.common.caching import CacheManager
 
-        # Re-run policy intelligence (effective compartments, invalid statements, cleanup, recommendations)
-        self._post_load_create_intelligence()
+                CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+            except Exception as e:
+                logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
-        # Update the UI (replicates post-load signal)
-        self._post_load_update_ui()
-        # Update status bar to indicate reload
-        self.after(0, self.update_status_bar)
-        logger.info('Reload policies/compartments complete; cache and UI updated')
-        return True
+            # Re-run policy intelligence (effective compartments, invalid statements, cleanup, recommendations)
+            self._post_load_create_intelligence()
+
+            # Update the UI (replicates post-load signal)
+            self._post_load_update_ui()
+            # Update status bar to indicate reload
+            self.after(0, self.update_status_bar)
+            logger.info('Reload policies/compartments complete; cache and UI updated')
+            return True
+        finally:
+            self.config(cursor='')
+            self.update()
 
     def load_tenancy_async(  # noqa: C901
         self,
