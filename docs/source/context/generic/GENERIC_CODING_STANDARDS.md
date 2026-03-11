@@ -129,4 +129,19 @@ class Example:
 
 ---
 
-See also: [GENERIC_README.md](GENERIC_README.md) and local project overrides in [../project/CONTEXT_config.md](../project/CONTEXT_config.md).
+See also: [GENERIC_README.md](GENERIC_README.md).
+
+---
+
+## Project-Specific Enforcement and Process Notes
+
+- **Config Files**:
+    - `ruff.toml` — project lint and style rules, updated with each major refactor
+    - `.pre-commit-config.yaml` — mandatory pre-commit hooks for all contributors (Ruff lint/format, whitespace cleanup, commit check)
+    - `CHANGELOG.md` — maintained for every merge using [semantic-release](https://semantic-release.gitbook.io/semantic-release/), bumps version based on commit messages
+    - `pyproject.toml` — build, packaging, and tool integrations
+- **Required Workflow**:
+    - All contributors must run `pre-commit install` after cloning and pass all hooks locally before PR/merge
+    - New code is not accepted unless it passes Ruff and all pre-commit checks
+    - For major workflow/process changes, these rules should be updated in this file directly
+- Any new or additional config files should be documented in this section if project-specific standards are extended

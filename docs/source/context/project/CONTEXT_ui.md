@@ -1,114 +1,145 @@
-# Project-Specific Context: User Interface (UI) Layer
+# Context: User Interface (UI) Architecture & Tab System
 
-This document details design decisions, history, and guidance for UI (tab/screen) implementation in this repository. It helps ensure all new user-visible features align with established project conventions and quality standards.
+This document describes the architecture, organization, patterns, and best practices for implementing the user interface of the OCI Policy Analysis tool. It is intended to be the canonical reference for developers working on UI features, designing new tabs, and extending the application.
 
 ---
 
-## 5. Page Help / Contextual Help Pattern
+## 1. Tab Structure and Organization
 
-**Overview:**  
-The Page Help ("Context Help") pattern provides instructional text at the top of any tab or UI page, which dynamically updates to reflect the user's current focus/hover area.
+All UI (graphical interface) code is located under `src/oci_policy_analysis/ui/`. Each major tab or functional panel appears as its own module, named `<feature>_tab.py`. Example: `policies_tab.py`, `users_tab.py`, `cross_tenancy_tab.py`.
 
-**Current Implementation (2026-01):**
+Tabs are registered and arranged in `main.py` (see the `App` class). Each tab is instantiated as a class (typically a subclass of `BaseUITab`) and added to the main application's `ttk.Notebook`, which manages the tabbed interface.
 
-- **Unified settings propagation:** All user-facing tab features (context help, font size, theme, future interactive UI settings) are coordinated from main.py, using one central method (`refresh_all_tabs_settings`). This is invoked whenever a relevant setting or state changes, so the App orchestrates global consistency across all tabs.
-- *All tabs* that support context help either inherit from `BaseUITab` (see `src/oci_policy_analysis/ui/base_tab.py`), or implement the same interface.
-- Every tab must provide an `apply_settings(context_help: bool, font_size: str)` method, which is called centrally by main.py. This ensures tabs are always in sync with global settings.
-- BaseUITab provides:
-  - Automatic creation and management of the help area as a `LabelFrame` at the top.
-  - The `add_context_help(widget, message)` API for one-liner help wiring for any widget (Label, Entry, Checkbutton, Combobox...)
-  - Synchronization with the universal Context Help toggle: when context help is disabled (via Settings), the page help box disappears from all tabs live.
-  - Styling, font size, and theme background are updated consistently on tab creation and when global settings change.
-  - When the Context Help setting is **turned on** at runtime, the default help text *always* appears instantly without requiring mouse movement.
-  - When the font size is changed globally, the help area's text and appearance updates immediately, with no user interaction required.
-  - Tab writers *do not* need to manually bind `<Enter>/<Leave>` for every widget—one helper method call suffices.
-- Specialized non-BaseUITab tabs must ensure their apply_settings always triggers the default help text when context help is enabled and the help label is empty, otherwise the help label may be blank after toggling.
-- Help text must always fit within two lines for clarity.
+**Key notes:**
+- Project tabs are created and referenced in a specific order for a consistent UX.
+- New tabs must be imported and instantiated in the `App` class (`src/oci_policy_analysis/main.py`).
+- Centralized settings and data models (repositories, engines) are passed to each tab on initialization.
 
-**Pattern Example (as of BaseUITab):**
+---
+
+## 2. The BaseUITab: Shared Functionality
+
+Most tabs inherit from `BaseUITab` (`src/oci_policy_analysis/ui/base_tab.py`), which provides:
+- **Unified Context Help**: Automatic insertion of a context help "help area" at the top of each tab, managed through `add_context_help(widget, message)` and propagated from global settings.
+- **UI State and Settings Propagation**: All tabs receive changes to context help toggling, font size, style, and (if extended) theme from the main app via a central `apply_settings` interface.
+- **Boilerplate Reduction**: Subclasses need only define which widgets need help; tab writers do not have to write per-widget Enter/Leave handlers or manual label setup.
+- **Timing/Logging Hooks**: Tabs can leverage project-wide timing and logging infrastructure for load/refresh profiling (see `_post_load_update_ui` and tab refresh/load methods in `main.py`).
+
+To ensure consistency, every tab that supports UI help should inherit from `BaseUITab` or implement an identical `apply_settings(context_help: bool, font_size: str)` method.
+
+---
+
+## 3. Tab Registration, Data Model/Engine Wiring, and Load Lifecycle
+
+### How Tabs Are Created and Wired Up
+
+- All main tabs are instantiated in the `App` class (`src/oci_policy_analysis/main.py`). Each receives proper references to shared data models, settings, caches, engines, and the parent notebook.
+- Data models such as `PolicyAnalysisRepository`, `PolicySimulationEngine`, and others are also constructed centrally and passed to tabs as needed.
+- This wiring allows for dependency injection, proper testing, and centralized state management.
+
+**Example (simplified):**
 ```python
-class MyTab(BaseUITab):
-    def __init__(self, parent, ...):
-        super().__init__(parent, default_help_text="Default help for tab area.")
-        ...
-        my_button = ttk.Button(...)
-        self.add_context_help(my_button, "Button does XYZ. (Limit: 2 lines)")
-        combo = ttk.Combobox(...)
-        self.add_context_help(combo, "Choose a value for xyz.\nImpacts policy display below.")
+self.policies_tab = PoliciesTab(self.notebook, self, self.settings)
+self.users_tab = UsersTab(self.notebook, self)
+self.permissions_report_tab = PermissionsReportTab(self.notebook, self)
+self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 ```
-*No need for manual page_help_frame setup or event handler boilerplate.*
+- All tabs are added to the main notebook using `self.notebook.add(<tab_instance>, text=<tab label>)`.
 
-**Best practices for extending tabs:**
-- Each tab should define an `apply_settings(context_help: bool, font_size: str)` method, which is always called by main.py/App every time relevant settings change. All visual/interactive UI updates must be driven from this interface for consistency.
-- Use BaseUITab as a base for all tabs that want context help. Tabs with custom needs (or that cannot inherit BaseUITab) must still fully implement the same apply_settings interface.
-- Use the `default_help_text` parameter in the base class to set initial help for the tab. This default help is guaranteed to show immediately after toggling context help ON, even if no mouse movement has yet occurred.
-- For each high-level area, use one call to `add_context_help`. Avoid recursive child widget bindings.
-- All widget-specific help should fit within two lines for scanability.
-- On any global context help toggle or font size change, tabs' apply_settings method (from BaseUITab or equivalent) must show, style, and populate the help label immediately. Users should never need to interact for the help area to appear or update.
-- When the global context help setting is toggled (or other propagated setting changes), tabs use their `apply_settings` interface to update themselves, under the full control of main.py/App as orchestrator.
-**Historical Note:**
-Previous versions used per-tab copies of help-area setup, individual event handlers, and manual show/hide logic. As of 2026, all new and refactored tabs use BaseUITab and the unified context help system.
+### Data/State Flow and Loading
 
-**Project Guidance:**  
-- Do not reimplement page_help_frame, set_page_help_text, or similar per-tab unless making a specialized composite panel.
-- Contribute new help best practices and working code to BaseUITab so all tabs benefit.
+- Data loading, data refresh, and status updates are handled centrally.
+    - The application uses repositories (e.g., `PolicyAnalysisRepository`) and engines (`PolicyIntelligenceEngine`, `PolicySimulationEngine`). These are initialized at the application level and exposed to tabs on creation.
+    - Upon data (or cache) load via various methods (tenancy, compliance output, JSON), special post-load update flows run: see `_post_load_update_ui` for UART-registered function calls.
+    - Each tab exposes a set of update, refresh, or enable functions (e.g., `update_user_analysis_output`, `refresh_tree`, `enable_widgets_after_load`) which the application can call to propagate new data/UI states.
+    - Central settings changes (context help, font size) are propagated live to all tabs via `App.refresh_all_tabs_settings()`, which in turn calls each tab's `apply_settings(...)`.
 
-**See code:**
-- `src/oci_policy_analysis/ui/base_tab.py` (BaseUITab)
-- Example usage: `settings_tab.py`, `policies_tab.py`, etc.
-
-**Further Reading:**  
-See project’s `settings_tab.py`, `main.py`, `policies_tab.py` for full working examples and code comments. For advanced event handling/focus tracking, see GUI community patterns for context-aware hints and generic event handlers.
+**Timing and Logging:**
+- Timing for each post-load UI refresh or data push is logged for performance diagnostics.
+- All tabs support rapid enable/disable and refresh cycles coordinated from the main App.
 
 ---
 
-## 1. Area Overview
+## 4. Tab Commonality, Data Models, and Engines
 
-The UI layer consists of tabbed views found in `src/oci_policy_analysis/ui/`. Each tab (e.g., resource principals, policies, dynamic groups, etc.) is a discrete module following the repository’s overall UI patterns.
+- **General Similarities:**
+   - All tabs provide a consistent pattern for data updates, UI refresh, and state synchronization.
+   - Tabs define or inherit an `apply_settings` method and one or more data refresh/update functions.
 
----
+- **How Tabs Use Data Models and Engines:**
+   - Key data engines/repositories are initialized in `App.__init__` (see `main.py`). For example:
+       - `self.policy_compartment_analysis = PolicyAnalysisRepository()`
+       - `self.simulation_engine = PolicySimulationEngine(...)`
+       - `self.reference_data_repo = ReferenceDataRepo()`
+       - `self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)`
+     These are passed into relevant tabs on instantiation or accessed via the parent reference.
 
-## 1a. UI Area Context Files
+   - Tabs receive model/engine references as constructor arguments and use them for:
+       - Data visualization/loading (`load_xxx_data`)
+       - Engine-driven analytics (simulation, recommendations, report building)
+       - Data caching and status display
 
-This document provides the overall UI strategy. Each major functional area/tab is documented in a dedicated context file. If comprehensive context for a tab does not yet exist, the filename is listed as a placeholder (to be created).
+   - On reload, the main App coordinates model/engine lifecycles, re-creates intelligence models as needed, and triggers each tab's update/refresh method.
 
-- [Policies Tab](CONTEXT_policies_tab.md) (to be created: describes table display, sorting, and filtering)
-- [Cross Tenancy Tab](CONTEXT_cross_tenancy.md)
-- [Simulation Tab](CONTEXT_simulation_engine.md)
-- Resource Principals Tab: _see_ CONTEXT_resource_principals_tab.md _(TBD)_
-- Dynamic Group Tab: _see_ CONTEXT_dynamic_group_tab.md _(TBD)_
-- Policy Recommendations Tab: _see_ CONTEXT_policy_recommendations_tab.md _(TBD)_
-- Permissions Report Tab: _see_ CONTEXT_permissions_report_tab.md _(TBD)_
-- Historical Tab: _see_ CONTEXT_historical_tab.md _(TBD)_
-- Users Tab: _see_ CONTEXT_users_tab.md _(TBD)_
-
-Add or update individual tab context files as features evolve.
-
-## 2. Evolution Timeline and Major Changes
-
-| Date      | Commit Hash | Change Summary                        | UI Modules Impacted                  |
-|-----------|-------------|---------------------------------------|--------------------------------------|
-| 2026-01-08 | a2ae328d    | Major update: Merge Policy Intelligence, redesign tabs | resource_principals_tab.py, policy_overlap_tab.py, ... |
-| ...       | ...         | ...                                   | ...                                  |
-
-_(Populate this table over time with notable UI/UX history for reference.)_
+- **Instantiation/Population:**
+   - Tabs can be loaded/refreshed in bulk (see `App._post_load_update_ui`) or individually.
+   - `apply_settings` is always called after load or settings update.
+   - UI population is separated from data/model construction, ensuring consistent rerendering and minimizing state bugs.
 
 ---
 
-## 3. Project-Specific UI Rules
+## 5. Creating a New Tab: Best Practices
 
-- New tabs/modules must use `X_tab.py` suffix and be placed under `ui/`
-- Tabs should be registered in the main UI controller for discoverability
-- Follow naming and structural conventions as outlined in project’s UI codebase (see current open tabs for examples)
-- UI docstrings must explain feature intent, entry points, and input/output specs
+1. **Create the Module**
+    - Name as `<feature>_tab.py` and place under `src/oci_policy_analysis/ui/`.
+    - Inherit from `BaseUITab` if you want plug-and-play context help and unified settings propagation.
+2. **Implement Required Interfaces**
+    - Always implement `apply_settings(context_help: bool, font_size: str)`.
+    - Define at least one update or refresh method (called by App after load/update).
+    - Use `add_context_help(widget, message)` to wire up help for all user-interactive widgets.
+3. **Register with the App**
+    - Import your tab in `src/oci_policy_analysis/main.py`.
+    - Instantiate in the App's `__init__`, passing required engines/data/settings.
+    - Add it to the `self.notebook` with a descriptive label.
+4. **Data/Model Usage**
+    - Accept needed model/engine references in the constructor.
+    - Use them for any backend queries, visualizations, or analytics.
+    - Avoid loading or caching data in the tab directly; rely on the app-level repositories and engines.
+5. **Context Help/Settings**
+    - Always wire up your help and font logic to the tab's `apply_settings` for live updating.
+    - Use the `default_help_text` option of `BaseUITab`.
+    - Keep help tooltips short (2 lines max).
+6. **Boilerplate/Update Patterns**
+    - Place any necessary initialization, enable/disable, and data update calls as methods to be triggered by App.
+    - See other tabs for standard patterns (e.g., `update_user_analysis_output`, `refresh_tree`).
 
 ---
 
-## 4. Exceptions and Customization
+## 6. Internal Lifecycles & Patterns
 
-- When project UI patterns conflict with the [GENERIC_UI_GUIDELINES.md](../generic/GENERIC_UI_GUIDELINES.md), this file takes precedence for this repository.
-- Design system elements (colors, icons, layout) adhere to project’s baseline—update this section if a refactor occurs.
+### Load and Refresh Events
+
+- Central application lifecycle (load/refresh events, cache loads, data reloads) propagate through dedicated App methods, calling each tab's appropriate update method.
+- Central settings (context help, font size, etc.) propagate via App, calling `apply_settings` on every tab for visual/layout consistency.
+- To minimize race conditions and UI bugs, keep all data and settings flows coordinated by the main application and avoid direct cross-tab communication.
+
+### Logging and Timing
+
+- Tabs support application-wide logging for performance and debugging, with centralized log level control via settings.
 
 ---
 
-For foundational UI theory and workflow, start with [../generic/GENERIC_UI_GUIDELINES.md](../generic/GENERIC_UI_GUIDELINES.md).
+## 7. Reference: Relevant Files
+
+- `src/oci_policy_analysis/main.py`: App wiring, lifecycle, model/engine initialization, centralized tab management.
+- `src/oci_policy_analysis/ui/base_tab.py`: Shared base tab implementation.
+- `src/oci_policy_analysis/ui/`: All tab modules.
+- Other `context/project/CONTEXT_*.md` files for individual tab details.
+
+---
+
+## 8. Summary
+
+The UI layer of OCI Policy Analysis follows established architectural patterns for maintainability, consistency, and extensibility. Centralized tab management, unified settings propagation, and model/engine separation come together to provide a robust, predictable developer experience for UI extension and maintenance.
+
+For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/ui/` tab source files directly.
