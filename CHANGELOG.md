@@ -1,3 +1,10 @@
+# [4.4.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.2...v4.4.0-dev.3) (2026-03-11)
+
+
+### Bug Fixes
+
+* Main window size and build release ([4127889](https://github.com/agregory999/oci-policy-analysis/commit/41278894a5ef702d6475d1edb40054efcc35abdb))
+
 # [4.4.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.1...v4.4.0-dev.2) (2026-03-11)
 
 
