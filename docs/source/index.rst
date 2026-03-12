@@ -16,6 +16,7 @@ Contents
    recommendations
    usage
    mcp
+   cli
    logging_and_troubleshooting
 
 .. toctree::

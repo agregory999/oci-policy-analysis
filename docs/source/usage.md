@@ -1,4 +1,4 @@
-# Usage
+# UI Application - Usage
 
 ## Getting Started
 
@@ -87,6 +87,12 @@ Here you can review changes in IAM and policy data over time using snapshot cach
 <!-- Anchor link; do not change or remove this line! -->
 
 This tab allows you to launch, monitor, and manage the embedded Model Context Protocol (MCP) server. Enable this for automation or integration scenarios where external systems need programmatic access to live policy and permission data. Controls are provided to start/stop the server, check status, and review connection logs. The MCP server can be leveraged in combination with local analysis in other tabs, for example to validate live recommendations or simulate API access.
+
+By using this tab you will be exposing your loaded policy statement set via MCP.  Use local clients such as VSCode, Claude, or others to query this information.  
+
+For more information, see [MCP Server](./mcp.md) - Note that if you use the embedded MCP server inside OCI Policy Analysis, you want to look for the sections in the MCP Server related to HTTP.  
+
+This is different from starting the standalone MCP Server described.  That prevents loading the UI application altogether. In this tab, you have both an MCP server and teh UI application, while the UI is running.  When you close the UI Application, the MCP server stops.  An example of how you might run MCP more permanently on an OCI server is [here](/mcp.html#secure-deployment-on-oci-outline-steps).
 
 ### Condition Tester Tab
 <!-- Anchor link; do not change or remove this line! -->

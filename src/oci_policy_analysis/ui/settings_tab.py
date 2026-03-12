@@ -28,8 +28,14 @@ from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
-AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
-AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
+AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Capabilities', 'Lifecycle State', 'Creation Date']
+AI_MODEL_COLUMN_WIDTHS = {
+    'Model Name': 250,
+    'Model OCID': 450,
+    'Capabilities': 200,
+    'Lifecycle State': 125,
+    'Creation Date': 250,
+}
 
 # Context help messages for the SettingsTab
 CONTEXT_HELP = {

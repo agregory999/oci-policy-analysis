@@ -27,6 +27,7 @@ from oci_policy_analysis.mcp_server import (
     mcp_server_status,
     start_mcp_server_in_thread,
 )
+from oci_policy_analysis.ui.base_tab import BaseUITab
 
 
 # Filter
@@ -62,7 +63,7 @@ class MCPTextHandler(logging.Handler):
 logger = get_logger('mcp_tab')
 
 
-class McpTab(ttk.Frame):
+class McpTab(BaseUITab):
     """
     MCP Tab for OCI Policy Analysis UI.
     Allows starting/stopping the MCP server and viewing its logs.
@@ -72,7 +73,14 @@ class McpTab(ttk.Frame):
     """
 
     def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Start, stop, and view logs for the embedded MCP server (Model Context Protocol). '
+                'The embedded MCP server exposes policy analysis capabilities via tools and APIs for integration and automation.'
+            ),
+            page_help_link='/usage.html#embedded-mcp-tab',
+        )
         self.app = app
         self.settings = settings
         self.policy_repo = policy_repo

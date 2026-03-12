@@ -133,10 +133,12 @@ class AI:
         chat_request = GenericChatRequest()
         chat_request.api_format = BaseChatRequest.API_FORMAT_GENERIC
         chat_request.messages = [Message(role='USER', content=[content])]
-        chat_request.max_tokens = 1500
+        # chat_request.max_tokens = 1500
         chat_request.temperature = 0
         chat_request.top_p = 0.25
-        chat_request.top_k = 0
+        # chat_request.top_k = 0
+
+        # TODO: Change the parameters above based on chosen model.  Need to test with multiple models to determine best defaults and if any parameters should be locked to specific values for certain models.
 
         chat_detail.chat_request = chat_request
         chat_detail.compartment_id = self.compartment_ocid
@@ -165,6 +167,7 @@ class AI:
                 {
                     'Model Name': model.display_name or 'Unknown',
                     'Model OCID': model.id,
+                    'Capabilities': ', '.join(model.capabilities) if model.capabilities else 'N/A',
                     'Lifecycle State': model.lifecycle_state or 'N/A',
                     'Creation Date': model.time_created.isoformat() if model.time_created else 'N/A',
                 }
