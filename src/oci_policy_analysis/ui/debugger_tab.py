@@ -15,15 +15,24 @@ import json
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
+from oci_policy_analysis.ui.base_tab import BaseUITab
 
-class DebuggerTab(ttk.Frame):
+
+class DebuggerTab(BaseUITab):
     """
     Debugger Tab for viewing internal JSON/data from Policy Repo, Reference Data, or Simulation Engine.
     User selects Source and (Text or Tree) view.
     """
 
     def __init__(self, parent, app=None):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Debug and inspect internal data structures from various subsystems. '
+                'Select a source and a display mode. Troubleshooting help available in documentation.'
+            ),
+            page_help_link='/logging_and_troubleshooting.html',
+        )
         self.app = app  # expects: app has .policy_compartment_analysis and (optionally) .simulation_engine
 
         # Row for source and display mode

@@ -85,6 +85,7 @@ class CrossTenancyTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='View and analyze cross-tenancy OCI policies, including defined OCID aliases, Admit, and Endorse statement details.',
+            page_help_link='/usage.html#cross-tenancy-tab',
         )
         self.main_app = main_app
         self.policy_compartment_analysis = main_app.policy_compartment_analysis

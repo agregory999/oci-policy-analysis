@@ -52,10 +52,17 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 ## 2. JSON Debugger Tab
 
-- The *JSON Debugger* tab in the UI allows you to inspect structured data that flows through the application.
+- The *JSON Debugger* tab in the UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
+- This tab displays internal JSON objects and data structures used by the app for policy analysis, simulation history, reference data, and policy intelligence overlays.
+- These objects are shown in their raw or near-raw form for maximum diagnostic value, making it possible to review exact internal representations, nested relationships, and unprocessed values that may not appear in regular user-facing UI components.
+
 - Use it to:
   - Review raw input/output for policy analysis steps
   - Trace errors back to their source with contextual JSON data
+  - Explore application internals for debugging advanced problems or reporting detailed bug information
+
+- The JSON Debugger is an evolving part of the toolset: available sources, schemas, and presentation may change with future updates as more internal objects and debug scenarios are supported. The objects displayed here are subject to change and may reveal data that is intended primarily for troubleshooting, rather than polished consumption.
+
 - More internal objects will be added as needed.  
 
 ## 3. Troubleshooting Topics

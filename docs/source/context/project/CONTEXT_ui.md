@@ -1,4 +1,4 @@
-# Context: User Interface (UI) Architecture & Tab System
+# Project-Specific Context: User Interface (UI) Architecture & Tab System
 
 This document describes the architecture, organization, patterns, and best practices for implementing the user interface of the OCI Policy Analysis tool. It is intended to be the canonical reference for developers working on UI features, designing new tabs, and extending the application.
 

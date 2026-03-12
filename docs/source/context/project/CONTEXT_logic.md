@@ -1,4 +1,4 @@
-# Project-Specific Context: Logic/Business Layer
+# Project-Specific Project-Specific Context: Logic/Business Layer
 
 This document provides an overview, history, and customized development standards for the logic (business rules, data processing, analysis engines) specific to the current project.
 

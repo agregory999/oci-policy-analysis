@@ -46,6 +46,7 @@ The first heading of each file will appear as its title in the documentation nav
 
    context/generic/GENERIC_README.md
    context/generic/GENERIC_CODING_STANDARDS.md
+   context/generic/GENERIC_DOCUMENTATION.md
 
 .. toctree::
    :maxdepth: 1
@@ -54,7 +55,6 @@ The first heading of each file will appear as its title in the documentation nav
    context/project/CONTEXT_cli.md
    context/project/CONTEXT_cross_tenancy.md
    context/project/CONTEXT_data_repo.md
-   context/project/CONTEXT_docs.md
    context/project/CONTEXT_historical_analysis.md
    context/project/CONTEXT_intelligence_strategies.md
    context/project/CONTEXT_logging.md

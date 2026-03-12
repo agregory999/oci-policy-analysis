@@ -101,7 +101,7 @@ class UsersTab(BaseUITab):
             'Use filters to narrow the results below. '
             'Mouse over each section for tips.'
         )
-        super().__init__(parent, default_help_text=default_help_text)
+        super().__init__(parent, default_help_text=default_help_text, page_help_link='/usage.html#groups-users-tab')
 
         # Reference to main app and data repository
         self.app = app

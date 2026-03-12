@@ -1,4 +1,4 @@
-# Context: Policy Intelligence Engine and Recommendations UI Integration
+# Project-Specific Context: Policy Intelligence Engine and Recommendations UI Integration
 
 This document describes the contract and architecture that underpins how the policy analytics/engine layer and the unified UI recommendations tab work in the OCI Policy Analysis project. It is the canonical reference for how backend analytics, the overlay model, and UI subtabs are wired together—and for extending intelligence with new strategies.
 

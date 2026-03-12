@@ -1,4 +1,4 @@
-# Context: Policy Browser Tab
+# Project-Specific Context: Policy Browser Tab
 
 This file documents the architecture, user workflow, UI/UX decisions, and technical implementation for the "Policy Browser" tab in the OCI Policy Analysis tool. It is intended for maintainers and new contributors who wish to understand how all OCI compartments, policies, and their policy statements can be browsed in a hierarchical, interactive way as of 2026-02-02.
 

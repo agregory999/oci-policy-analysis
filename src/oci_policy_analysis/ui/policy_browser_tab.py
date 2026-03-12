@@ -37,6 +37,7 @@ class PolicyBrowserTab(BaseUITab):
                 'Tree expands to reveal policies in each compartment and all their statement text. '
                 'Right-click a policy or statement for navigation or actions.'
             ),
+            page_help_link='/usage.html#policy-browser-tab',
         )
         self.app = app
         self.settings = settings

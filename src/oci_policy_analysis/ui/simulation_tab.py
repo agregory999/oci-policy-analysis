@@ -59,6 +59,7 @@ class SimulationTab(BaseUITab):
                 '3. Choose an API operation and enter variable values, then run the simulation. '
                 '4. View the evaluated allow/deny decision, permissions, and full simulation trace.'
             ),
+            page_help_link='/simulation.html',
         )
         self.app = app
         self.settings = settings

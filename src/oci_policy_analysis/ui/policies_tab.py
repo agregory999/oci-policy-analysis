@@ -104,6 +104,7 @@ class PoliciesTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='Filter and analyze policy statements. Use | for OR logic in fields. Right-click rows for options.',
+            page_help_link='/usage.html#policy-tab',
         )
         self.app = app
         self.settings = settings

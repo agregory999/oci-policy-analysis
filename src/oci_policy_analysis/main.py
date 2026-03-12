@@ -59,7 +59,6 @@ from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.ui.policy_browser_tab import PolicyBrowserTab
 from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.simulation_tab import SimulationTab
@@ -110,7 +109,7 @@ class App(tk.Tk):
         super().__init__()
 
         self.title(f'OCI Policy Analysis {__version__}')
-        self.geometry('1500x900')
+        self.geometry('1440x900')
 
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
@@ -186,7 +185,6 @@ class App(tk.Tk):
         self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
-        self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)

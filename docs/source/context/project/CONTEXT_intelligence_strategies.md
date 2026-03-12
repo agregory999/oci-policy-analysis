@@ -1,4 +1,4 @@
-# Context: Pluggable Intelligence Strategies
+# Project-Specific Context: Pluggable Intelligence Strategies
 
 This file describes the pluggable intelligence strategy pattern used by the Policy Intelligence Engine and how to add a new check or strategy.
 

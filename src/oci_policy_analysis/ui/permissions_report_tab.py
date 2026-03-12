@@ -39,6 +39,7 @@ class PermissionsReportTab(BaseUITab):
                 'Use controls above to expand/collapse the tree or export the report data. '
                 'Tables on the right show explicit and inherited permissions.'
             ),
+            page_help_link='/usage.html#permissions-report-tab',
         )
         self.app = app
         self.policy_repo = app.policy_compartment_analysis

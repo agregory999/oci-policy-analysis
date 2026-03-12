@@ -46,12 +46,38 @@ class BaseUITab(ttk.Frame):
 
             tkinter.messagebox.showinfo('Open Link', f'Open this link in your browser:\n{url}')
 
-    def __init__(self, parent, default_help_text='', *args, **kwargs):
+    def __init__(self, parent, default_help_text='', page_help_link=None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.default_help_text = default_help_text
+        self.page_help_link = page_help_link
+
         self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
-        self.page_help_label = tk.Label(self.page_help_frame, anchor='w', justify='left', wraplength=1200, height=2)
-        self.page_help_label.pack(fill='both', expand=True, padx=5, pady=(5, 0), ipady=2)
+
+        # Frame inside the page help for left/right (90/10) split
+        self.page_help_inner_frame = tk.Frame(self.page_help_frame)
+        self.page_help_inner_frame.pack(fill='both', expand=True, padx=5, pady=(5, 0), ipady=2)
+
+        # Left: help text (90%), Right: optional permalink (10%)
+        self.page_help_label = tk.Label(
+            self.page_help_inner_frame, anchor='w', justify='left', wraplength=1100, height=2
+        )
+        self.page_help_label.pack(side='left', fill='both', expand=True)
+
+        self.page_help_link_label = tk.Label(
+            self.page_help_inner_frame,
+            anchor='e',
+            justify='right',
+            fg='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 11, 'underline'),
+            wraplength=150,
+            height=2,
+            text='',
+        )
+        self.page_help_link_label.pack(side='right', fill='y')
+        self.page_help_link_label.bind('<Button-1>', self._on_permalink_clicked)
+        self._update_permalink_label()
+
         self.page_help_frame.pack(fill='x', padx=0, pady=0)
         self.set_page_help_text(self.default_help_text)
         self.show_help = True  # default, overridden by apply_settings
@@ -89,6 +115,7 @@ class BaseUITab(ttk.Frame):
         if len(lines) < 2:
             joined += '\n'
         self.page_help_label.configure(text=joined)
+        # Do not update right label (permalink) here! That is set by self.page_help_link.
         self._apply_page_help_style()
 
     def add_context_help(self, widget, message: str, restore_message: str | None = None):
@@ -105,6 +132,38 @@ class BaseUITab(ttk.Frame):
 
         widget.bind('<Enter>', _show)
         widget.bind('<Leave>', _restore)
+
+    def set_page_help_permalink(self, permalink):
+        """Set or change the persistent permalink in the Page Help area (right 10%)."""
+        self.page_help_link = permalink
+        self._update_permalink_label()
+
+    def _update_permalink_label(self):
+        """Internal: Update right label for permalink, shown always if page_help_link present."""
+        if self.page_help_link and isinstance(self.page_help_link, str) and self.page_help_link.strip():
+            disp = 'Tab Documentation'
+            # If relative, prepend DOCROOT if starts with /
+            link_url = self.page_help_link
+            if link_url.startswith('/'):
+                full_url = self.DOCROOT + link_url
+            elif link_url.startswith('http:') or link_url.startswith('https:'):
+                full_url = link_url
+            else:
+                # Fallback: treat as absolute
+                full_url = link_url
+            self.page_help_link_label.configure(
+                text=disp, fg='#0645AD', cursor='hand2', font=('TkDefaultFont', 11, 'underline')
+            )
+            self.page_help_link_label.url = full_url
+        else:
+            self.page_help_link_label.configure(text='', fg='#0645AD', cursor='', font=('TkDefaultFont', 11))
+            self.page_help_link_label.url = None
+
+    def _on_permalink_clicked(self, event=None):
+        """Open the link if present."""
+        url = getattr(self.page_help_link_label, 'url', None)
+        if url:
+            self.open_link(url)
 
     def update_page_help_visibility(self):
         """
@@ -158,6 +217,11 @@ class BaseUITab(ttk.Frame):
         font_size = getattr(self, '_current_font_size', 11)
         self.page_help_frame.configure(style='Custom.TLabelframe')
         self.page_help_label.configure(bg=bg, font=('TkDefaultFont', font_size))
+        self.page_help_inner_frame.configure(bg=bg)
+        self.page_help_link_label.configure(
+            bg=bg,
+            font=('TkDefaultFont', font_size, 'underline' if self.page_help_link_label.cget('text') else 'normal'),
+        )
 
     def timed_step(self, label, fn, *args, **kwargs):
         """

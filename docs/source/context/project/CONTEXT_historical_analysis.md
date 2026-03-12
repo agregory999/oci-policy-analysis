@@ -1,4 +1,4 @@
-# Context: Historical Analysis / Comparison Tab
+# Project-Specific Context: Historical Analysis / Comparison Tab
 
 This file documents the architecture, workflow, technical conventions, and UI/UX decisions for the Historical Analysis (Comparison) Tab of the OCI Policy Analysis tool as of 2026-02-02. It is updated to reflect the new architecture (per-section diffing, improved display, live dropdown tenancy info) and is meant to bring new contributors up to speed on all comparison and diff logic, grouping strategies, and user-facing behaviors.
 

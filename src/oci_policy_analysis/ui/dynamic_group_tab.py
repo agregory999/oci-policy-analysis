@@ -110,6 +110,7 @@ class DynamicGroupsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='Browse, filter, and analyze dynamic groups and related policies.\nSelect dynamic groups to see matching policy statements below.',
+            page_help_link='/docs/build/html/usage.html#dynamic-groups-tab',
         )
         self.app = app
         self.policy_compartment_analysis = app.policy_compartment_analysis

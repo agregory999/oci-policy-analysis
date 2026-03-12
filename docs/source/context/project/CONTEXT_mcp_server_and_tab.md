@@ -1,4 +1,4 @@
-# Context: MCP Server and Embedded MCP Tab Integration
+# Project-Specific Context: MCP Server and Embedded MCP Tab Integration
 
 This context file documents how the MCP server (`mcp_server.py`) and the Embedded MCP Tab (`mcp_tab.py`) enable external Model Context Protocol (MCP) clients to directly query OCI Identity and Policies, expose post-analysis intelligence, and run policy simulations.
 

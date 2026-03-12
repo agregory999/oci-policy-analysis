@@ -1,4 +1,4 @@
-# Context: Policies Tab
+# Project-Specific Context: Policies Tab
 
 The Policies tab presents all Oracle Cloud Infrastructure (OCI) policy statements relevant to the analyzed tenancy. This tab is designed to facilitate exploration, sorting, and filtering of policies for governance, audit, and troubleshooting purposes.
 
