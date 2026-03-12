@@ -1,3 +1,10 @@
+# [4.4.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.4...v4.4.0-dev.5) (2026-03-12)
+
+
+### Bug Fixes
+
+* Build file, Page help links ([c0063e0](https://github.com/agregory999/oci-policy-analysis/commit/c0063e0296b70ab88bb49b56bd901dca01c3fa6c))
+
 # [4.4.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.3...v4.4.0-dev.4) (2026-03-12)
 
 
