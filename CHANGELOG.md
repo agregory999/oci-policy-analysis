@@ -1,3 +1,10 @@
+# [4.4.0-dev.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.5...v4.4.0-dev.6) (2026-03-17)
+
+
+### Bug Fixes
+
+* Refined parsing, Experimental Mode, OCID-based right clicks ([798051f](https://github.com/agregory999/oci-policy-analysis/commit/798051f107b77cf6ad0f95f19eed61fc17cb595b))
+
 # [4.4.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.4...v4.4.0-dev.5) (2026-03-12)
 
 
