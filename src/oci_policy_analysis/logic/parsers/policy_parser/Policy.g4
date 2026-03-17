@@ -20,6 +20,9 @@ grammar Policy;
  defineExpression
      : DEFINE definedSubject AS defined (COMMENT)? NEWLINE?
      ;
+
+compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
+
  admitExpression
      : (ADMIT | DENY ADMIT)
         subject (OF endorseScope)?
@@ -44,7 +47,7 @@ grammar Policy;
  groupID             : ID OCID ;
  dynamicGroupSubject : DYNAMICGROUP (groupName| groupID) (','(groupName|groupID))* ;
  tenancySubject      : TENANCY (WORD | HCL_VAR);
- definedSubject      : (groupSubject | dynamicGroupSubject | serviceSubject | tenancySubject);
+ definedSubject      : (groupSubject | dynamicGroupSubject | serviceSubject | tenancySubject | compartmentSubject);
  defined             : (WORD | HCL_VAR | OCID);
  resource            : (WORD | HCL_VAR);
  condition           : (comparisonList | comparison | HCL_VAR) ; // Added HCL_VAR to allow conditions to be HCL variables
@@ -73,7 +76,7 @@ grammar Policy;
  BETWEEN             : B E T W E E N;
  NEWLINE             : ('\r'? '\n' | '\r')+ -> skip;
  COMMENT             : '//' ~[\r\n]* ;
- QUOTED_STRING       : '\'' (LETTER | DIGIT | ' ' | '-' | '.' | ':' | '@' | '_' | '/')+ '\'' ;
+ QUOTED_STRING       : '\'' (LETTER | DIGIT | ' ' | '-' | '.' | ':' | '@' | '_' | '/' | '$')+ '\'' ;
  WS                  : ' '+  -> skip;
  ANYUSER             : A N Y '-' U S E R  ;
  ANYTENANCY          : A N Y '-' T E N A N C Y ;
@@ -114,7 +117,7 @@ grammar Policy;
 
 OCID                : 'ocid1.' (LETTER | DIGIT | '_' | '-' | '.')+ ;
  // Word is last to prevent ambiguity with other tokens
- WORD                : (LETTER | DIGIT | '_' | '-' | '.' | ':'| '@')+ ;
+ WORD                : (LETTER | DIGIT | '_' | '-' | '.' | ':'| '@' | '$')+ ;
 
  fragment LETTER     : [a-zA-Z] ;
  fragment DIGIT      : [0-9] ;

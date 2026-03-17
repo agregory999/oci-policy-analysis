@@ -54,6 +54,8 @@ class DebuggerTab(BaseUITab):
         self.source_options = [
             'Policy Repo Compartments',
             'Policy Repo Policies',
+            'Policy Repo: Defined Aliases',
+            'Policy Repo Cross-Tenancy Statements',
             'Reference Data',
             'Simulation History',
             # 'Consolidation (In-Flight Session)',  # NEW
@@ -82,6 +84,20 @@ class DebuggerTab(BaseUITab):
         self.view_mode_combo.pack(side='left', padx=(0, 4))
 
         ttk.Button(control_row, text='Refresh', command=self._refresh_display).pack(side='left', padx=(12, 0))
+
+        # Search box
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add('write', lambda *args: self._refresh_display())
+        ttk.Label(control_row, text='Search:').pack(side='left', padx=(8, 2))
+        self.search_entry = ttk.Entry(control_row, textvariable=self.search_var, width=26)
+        self.search_entry.pack(side='left', padx=(0, 2))
+
+        # Search context help
+        help_msg = 'All data items are lists of JSON.  Search will narrow down to items containing the search string in the JSON.'
+        self.search_help_label = ttk.Label(
+            self, text=help_msg, style='Small.TLabel', foreground='#666666', wraplength=680, anchor='w', justify='left'
+        )
+        self.search_help_label.pack(fill='x', padx=14, pady=(0, 6), anchor='w')
 
         # Output widgets (start hidden, show active only)
         self.text_area = scrolledtext.ScrolledText(self, height=26, wrap='none', font=('Courier', 10))
@@ -112,6 +128,10 @@ class DebuggerTab(BaseUITab):
 
             elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements
+            elif source == 'Policy Repo: Defined Aliases':
+                return self.app.policy_compartment_analysis.defined_aliases
+            elif source == 'Policy Repo Cross-Tenancy Statements':
+                return self.app.policy_compartment_analysis.cross_tenancy_statements
             elif source == 'Policy Repo Compartments':
                 return self.app.policy_compartment_analysis.compartments
 
@@ -149,6 +169,11 @@ class DebuggerTab(BaseUITab):
 
     def _refresh_display(self):
         data = self._get_source_data()
+        search_text = self.search_var.get().strip()
+        if search_text:
+            filtered = self._filter_data(data, search_text)
+        else:
+            filtered = data
         view_mode = self.view_mode_var.get()
         # Remove/hide both output widgets
         self.text_area.pack_forget()
@@ -156,7 +181,7 @@ class DebuggerTab(BaseUITab):
         if view_mode == 'Text':
             # Pretty-print JSON
             try:
-                pretty = json.dumps(data, indent=2, ensure_ascii=False)
+                pretty = json.dumps(filtered, indent=2, ensure_ascii=False)
             except Exception as ex:
                 pretty = f'(error serializing: {ex})'
             self.text_area.delete(1.0, tk.END)
@@ -166,7 +191,7 @@ class DebuggerTab(BaseUITab):
             # Clear and build tree
             self.tree_area.delete(*self.tree_area.get_children())
             self._tree_node_to_path.clear()
-            self._insert_into_tree('', data, path=())
+            self._insert_into_tree('', filtered, path=())
             self.tree_area.pack(fill='both', expand=True, padx=12, pady=4)
 
     def _insert_into_tree(self, parent, value, key='', path=()):
@@ -179,7 +204,7 @@ class DebuggerTab(BaseUITab):
                 next_path = path + (k,)
                 node_id = self.tree_area.insert(parent, 'end', text=str(k), values=(self._short_repr(v),))
                 self._tree_node_to_path[node_id] = next_path
-                if isinstance(v, dict | list):
+                if isinstance(v, dict | list) and v:
                     # Add a single dummy child so the node is expandable; real children on expand
                     dummy_id = self.tree_area.insert(node_id, 'end', text='...', values=('...',))
                     self._tree_node_to_path[dummy_id] = next_path + ('...',)
@@ -188,7 +213,7 @@ class DebuggerTab(BaseUITab):
                 next_path = path + (idx,)
                 node_id = self.tree_area.insert(parent, 'end', text=f'[{idx}]', values=(self._short_repr(v),))
                 self._tree_node_to_path[node_id] = next_path
-                if isinstance(v, dict | list):
+                if isinstance(v, dict | list) and v:
                     dummy_id = self.tree_area.insert(node_id, 'end', text='...', values=('...',))
                     self._tree_node_to_path[dummy_id] = next_path + ('...',)
         else:
@@ -233,6 +258,47 @@ class DebuggerTab(BaseUITab):
             return v[:77] + '...'
         else:
             return str(v)
+
+    def _filter_data(self, data, text):  # noqa: C901
+        """Recursively filter structure, keeping only branches (dict/list) that contain a match.
+        For scalars, keep if str contains `text`."""
+        # Case-insensitive search
+        txt = text.lower()
+
+        def match(val):
+            try:
+                return txt in str(val).lower()
+            except Exception:
+                return False
+
+        if isinstance(data, dict):
+            out = {}
+            for k, v in data.items():
+                # match key or any child value
+                if match(k) or match(v):
+                    out[k] = v
+                    continue
+                filtered = self._filter_data(v, text)
+                # Keep branch if filtered is not empty, or if scalar match was recursive
+                if (isinstance(filtered, dict | list) and filtered) or (
+                    not isinstance(filtered, dict | list) and match(filtered)
+                ):
+                    out[k] = filtered
+            return out
+        elif isinstance(data, list):
+            out = []
+            for item in data:
+                if match(item):
+                    out.append(item)
+                    continue
+                filtered = self._filter_data(item, text)
+                if (isinstance(filtered, dict | list) and filtered) or (
+                    not isinstance(filtered, dict | list) and match(filtered)
+                ):
+                    out.append(filtered)
+            return out
+        else:
+            return data if match(data) else None
 
     def _init_reference_data_subsets(self):
         # Probe for available subsets if Reference Data available

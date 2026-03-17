@@ -116,53 +116,115 @@ def test_policy_statement_compartment_id_location(parser, statement, expected_lo
 
 
 @pytest.mark.parametrize(
+    'statement,expected_subject_type,expected_subject,expected_location_type,expected_location',
+    [
+        ('allow group Admins to manage instances in tenancy', 'group', [('default', 'Admins')], 'tenancy', 'tenancy'),
+        (
+            'allow group Admins1, Admins2 to manage instances in tenancy',
+            'group',
+            [('default', 'Admins1'), ('default', 'Admins2')],
+            'tenancy',
+            'tenancy',
+        ),
+        (
+            "allow group 'Default'/'Admins' to manage instances in tenancy",
+            'group',
+            [('Default', 'Admins')],
+            'tenancy',
+            'tenancy',
+        ),
+        (
+            "allow group 'D2'/'Admins', Admins2 to manage instances in tenancy",
+            'group',
+            [('D2', 'Admins'), ('default', 'Admins2')],
+            'tenancy',
+            'tenancy',
+        ),
+        (
+            'deny group Blocked to read all-resources in compartment MyComp',
+            'group',
+            [('default', 'Blocked')],
+            'compartment',
+            'MyComp',
+        ),
+        (
+            "deny dynamic-group MyDG to use object-family in compartment Foo where request.user.id = 'xyz'",
+            'dynamic-group',
+            [('default', 'MyDG')],
+            'compartment',
+            'Foo',
+        ),
+        ('allow any-group to read buckets in tenancy', 'any-group', ['any-group'], 'tenancy', 'tenancy'),
+        # Add more as needed for real-world coverage
+    ],
+)
+def test_policy_subject_and_location_fields(
+    parser, statement, expected_subject_type, expected_subject, expected_location_type, expected_location
+):
+    results, errors = parser.parse(statement)
+    assert not errors, f'Errors: {errors} for {statement}'
+    assert isinstance(results, list) and len(results) > 0
+    result = results[0]
+    assert (
+        result.get('subject_type') == expected_subject_type
+    ), f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}' for: {statement}"
+    assert (
+        result.get('subject') == expected_subject
+    ), f"Expected subject {expected_subject}, got {result.get('subject')} for: {statement}"
+    lt = result.get('location_type')
+    loc = result.get('location')
+    assert (
+        lt == expected_location_type
+    ), f"Expected location_type '{expected_location_type}', got '{lt}' for: {statement}"
+    assert loc == expected_location, f"Expected location '{expected_location}', got '{loc}' for: {statement}"
+
+
+@pytest.mark.parametrize(
     'statement,expected_subject_type,expected_subject',
     [
-        # OCID group (single)
+        # Single group id
         (
-            'allow group id ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq to inspect instances in tenancy',
-            'group',
-            ['ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq'],
+            'allow group id ocid1.group.oc1..aaaaaaaamv7bmi3t6zg5wf4labjg4izs4pdf5il3q3d7hecdauuypizqpd4a to inspect instances in tenancy',
+            'group-id',
+            [(None, 'ocid1.group.oc1..aaaaaaaamv7bmi3t6zg5wf4labjg4izs4pdf5il3q3d7hecdauuypizqpd4a')],
         ),
-        # OCID group (multiple)
-        (
-            'allow group id ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq, id ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q to inspect instances in tenancy',
-            'group',
-            [
-                'ocid1.group.oc1..aaaaaaaaho65bkmxddua3semo4vkccpqd77hd4itrecoi6z67qmhuz5pggyq',
-                'ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q',
-            ],
-        ),
-        # OCID dynamic-group (single)
+        # Single dynamic-group id
         (
             'allow dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq to inspect instances in tenancy',
-            'dynamic-group',
-            ['ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq'],
+            'dynamic-group-id',
+            [(None, 'ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq')],
         ),
-        # any-group
-        ('allow any-group to read buckets in tenancy', 'any-group', ['any-group']),
-        # Mixed OCID/named (should return as text fallback)
+        # Multiple dynamic-group ids in a comma-separated list
         (
-            'allow group id ocid1.bad.ocid, id ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q to inspect instances in tenancy',
-            'group',
-            ['ocid1.bad.ocid', 'ocid1.group.oc1..aaaaaaaaibpusflrktrlqmoojx5qrgyh3vtpwwzssakzijrbvpspkuynyv7q'],
+            'allow dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq, id ocid1.dynamicgroup.oc1..aaaaaaaakogqqbmqbjn3fqal5szls3kinmr3lvrcecucqyrptvvmp3gbhs4a to inspect instances in tenancy',
+            'dynamic-group-id',
+            [
+                (None, 'ocid1.dynamicgroup.oc1..aaaaaaaaql2cpeiqddwfd4a5uinrqawuxuubzftrekicjzdahebl5rtfpcvq'),
+                (None, 'ocid1.dynamicgroup.oc1..aaaaaaaakogqqbmqbjn3fqal5szls3kinmr3lvrcecucqyrptvvmp3gbhs4a'),
+            ],
+        ),
+        # Multiple group ids in a comma-separated list
+        (
+            'allow group id ocid1.group.oc1..aaaaa11111111111111111111111111111, id ocid1.group.oc1..bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb to manage buckets in tenancy',
+            'group-id',
+            [
+                (None, 'ocid1.group.oc1..aaaaa11111111111111111111111111111'),
+                (None, 'ocid1.group.oc1..bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+            ],
         ),
     ],
 )
-def test_any_group_and_ocid_subjects(parser, statement, expected_subject_type, expected_subject):
+def test_policy_subject_id_variants(parser, statement, expected_subject_type, expected_subject):
+    """
+    Test that policies with subject using group/dynamic-group by id (single and list) provide correct subject_type and a list of (None, OCID) tuples.
+    """
     results, errors = parser.parse(statement)
-    assert not errors, f'Unexpected parse errors: {errors!r}'
+    assert not errors, f'Errors: {errors} for {statement}'
     assert isinstance(results, list) and len(results) > 0
     result = results[0]
-    assert result.get('subject_type') == expected_subject_type
-    subjects = result.get('subject')
-    # If full id-based group/dynamic-group, expect list of ocid strings; if any-group, expect ['any-group'].
-    # If mixed, may get as fallback names/text depending on parsing.
-    if expected_subject_type in ('group', 'dynamic-group') and all(x.startswith('ocid1.') for x in expected_subject):
-        assert subjects == expected_subject
-    elif expected_subject_type == 'any-group':
-        assert subjects == ['any-group']
-    else:
-        # For mixed cases, check that all expected parts are present in subject
-        for s in expected_subject:
-            assert s in subjects
+    assert (
+        result.get('subject_type') == expected_subject_type
+    ), f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}'"
+    subj = result.get('subject')
+    assert isinstance(subj, list), f'Subject is not a list: {subj!r}'
+    assert subj == expected_subject, f'Expected subject {expected_subject}, got {subj}'

@@ -67,7 +67,8 @@ from oci_policy_analysis.ui.users_tab import UsersTab
 # ----------- POST-IMPORT SETUP ------------
 # Version extraction
 try:
-    __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
+    raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
+    __version__ = raw_version.lstrip('\ufeff').strip()
 except Exception:
     __version__ = 'dev'
 
@@ -105,8 +106,11 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self, force_debug: bool = False):
+    def __init__(self, force_debug: bool = False, experimental_features: bool = False):
         super().__init__()
+
+        # Hidden/undocumented experimental features toggle (e.g., Consolidation tab)
+        self.experimental_features = experimental_features
 
         self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1440x900')
@@ -194,8 +198,10 @@ class App(tk.Tk):
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
-        # REMOVED: ConsolidationWorkbenchTab instantiation (consolidation feature disabled)
-        self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
+        # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
+        self.consolidation_tab = None
+        if self.experimental_features:
+            self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
@@ -357,10 +363,14 @@ class App(tk.Tk):
                     reloaded_str = f' [Reloaded at {reload_time}]'
             else:
                 reloaded_str = ''
-            self.status_var.set(f'Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
+
+            # Prefix status text with Experimental Mode marker if enabled
+            prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
+            self.status_var.set(f'{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
         else:
             # Not loaded
-            self.status_var.set('Policy Data: (Not Loaded)')
+            prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
+            self.status_var.set(f'{prefix}Policy Data: (Not Loaded)')
 
     def refresh_all_tabs_settings(self):
         """
@@ -514,8 +524,10 @@ class App(tk.Tk):
             else:
                 logger.info(msg)
 
-        step('users_tab.update_user_analysis_output', self.users_tab.update_user_analysis_output)
-        step('users_tab.update_users_dropdown_options', self.users_tab.update_users_dropdown_options)
+        # Users tab: single populate_data entry point keeps other public
+        # methods available for direct use (e.g. callbacks) while providing a
+        # clear orchestration hook for initial load.
+        step('users_tab.populate_data', self.users_tab.populate_data)
         step('policies_tab.update_policy_output', self.policies_tab.update_policy_output)
         step('policies_tab.enable_widgets_after_load', self.policies_tab.enable_widgets_after_load)
         if hasattr(self, 'policy_browser_tab') and hasattr(
@@ -526,7 +538,7 @@ class App(tk.Tk):
                 self.policy_browser_tab._update_reload_policy_button_state,
             )
         step('policy_browser_tab.refresh_tree', self.policy_browser_tab.refresh_tree)
-        step('dynamic_groups_tab.enable_controls', self.dynamic_groups_tab.enable_controls)
+        step('dynamic_groups_tab.populate_data', self.dynamic_groups_tab.populate_data)
         step('cross_tenancy_tab.update_cross_tenancy_output', self.cross_tenancy_tab.update_cross_tenancy_output)
         step('resource_principals_tab.update_principals_sheets', self.resource_principals_tab.update_principals_sheets)
         step(
@@ -535,7 +547,6 @@ class App(tk.Tk):
                 tenancy_name=self.policy_compartment_analysis.tenancy_name
             ),
         )
-        step('dynamic_groups_tab.enable_controls (again)', self.dynamic_groups_tab.enable_controls)
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
         step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
@@ -1081,6 +1092,11 @@ if __name__ == '__main__':
     """Main entry point for OCI Policy Analysis application."""
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument(
+        '--experimental-features',
+        action='store_true',
+        help=argparse.SUPPRESS,  # Hidden/undocumented flag to enable preview features
+    )
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
     args = parser.parse_args()
@@ -1100,5 +1116,5 @@ if __name__ == '__main__':
         logger.debug('Verbose logging enabled via --verbose (all loggers set to DEBUG)')
     # ----------------------------------------------------------------------
 
-    app = App(force_debug=args.verbose)
+    app = App(force_debug=args.verbose, experimental_features=args.experimental_features)
     app.mainloop()

@@ -254,7 +254,8 @@ class BaseUITab(ttk.Frame):
         if hasattr(self, 'app') and hasattr(self.app, 'settings'):
             always_log_timings = bool(self.app.settings.get('always_log_timings', False))
 
-        msg = f'[UI Timing] {self.__class__.__name__}.{label}: {elapsed:.2f}s'
+        # Use only the label in the message; module/class are conveyed by the logger name
+        msg = f'[UI Timing] {label}: {elapsed:.2f}s'
         if always_log_timings:
             logger.critical(msg)
         else:

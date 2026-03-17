@@ -106,6 +106,8 @@ class PoliciesTab(BaseUITab):
             default_help_text='Filter and analyze policy statements. Use | for OR logic in fields. Right-click rows for options.',
             page_help_link='/usage.html#policy-tab',
         )
+        # Ensure BaseUITab.timed_step uses the policies_tab logger instead of falling back to base_tab
+        self.logger = logger
         self.app = app
         self.settings = settings
         self.policy_repo = app.policy_compartment_analysis
@@ -638,7 +640,7 @@ class PoliciesTab(BaseUITab):
                 self.populate_data()
                 self.populate_data()
 
-        def policy_table_right_click(row_index: int) -> tk.Menu:
+        def policy_table_right_click(row_index: int) -> tk.Menu:  # noqa: C901
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
             policy_ocid_text = self.policy_table.data[row_index].get('Policy OCID')
             logger.debug(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
@@ -647,8 +649,130 @@ class PoliciesTab(BaseUITab):
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
                 command=lambda: perform_effective_path_search(effective_path_text or ''),
             )
+
+            # --- Add Show Groups for subject_type group-id ---
+            row = self.policy_table.data[row_index]
+            subject_type = row.get('Subject Type', '')
+            if subject_type == 'group-id':
+
+                def show_groups_callback() -> None:  # noqa: C901
+                    """Show related groups on the Groups/Users tab for group-id subjects."""
+
+                    # Step 1: Switch to Groups/Users tab
+                    self.app.notebook.select(self.app.users_tab)
+
+                    # Step 2: Enable "Show all Data" via shared helper
+                    users_tab = self.app.users_tab
+                    users_tab.set_show_all_data(True)
+
+                    # Step 3: Select groups by OCIDs
+                    ocid_list: list[str] = []
+                    subject_value = row.get('Subject', [])
+                    # Subject is a list of tuples with (None, OCID) for group-id type, so extract OCIDs accordingly
+                    if isinstance(subject_value, list):
+                        ocid_list = [ocid for _, ocid in subject_value if ocid]
+                    elif isinstance(subject_value, str):
+                        # If separated by | or comma, split accordingly
+                        if '|' in subject_value:
+                            ocid_list = [v.strip() for v in subject_value.split('|')]
+                        elif ',' in subject_value:
+                            ocid_list = [v.strip() for v in subject_value.split(',')]
+                        elif subject_value.strip():
+                            ocid_list = [subject_value.strip()]
+                    if not ocid_list:
+                        # Fallback: nothing to select, return early
+                        return
+
+                    # Step 4: lookup group dicts {'domain_name':..., 'group_name':...} for each OCID.
+                    # Let _update_user_analysis_policy_output fill selected_groups_for_table for display.
+                    group_dicts: list[dict] = []
+                    groups = getattr(users_tab.policy_compartment_analysis, 'groups', [])
+                    for ocid in ocid_list:
+                        match = next((g for g in groups if g.get('group_ocid', '') == ocid), None)
+                        if match:
+                            group_dicts.append(
+                                {
+                                    'domain_name': match.get('domain_name') or 'Default',
+                                    'group_name': match.get('group_name', ''),
+                                }
+                            )
+                    if not group_dicts:
+                        return
+
+                    # Step 5: Call _update_user_analysis_policy_output to update selected_groups_for_table and table.
+                    users_tab._update_user_analysis_policy_output(groups_for_filter=group_dicts, users_for_filter=None)
+
+                    # Step 6: Visually select the corresponding rows in users_groups_table if possible
+                    try:
+                        table = users_tab.users_groups_table
+                        data = getattr(table, 'data', [])
+                        ocid_set = set(ocid_list)
+                        # Find rows whose 'Group OCID' is in our list
+                        matching_indices = [i for i, r in enumerate(data) if r.get('Group OCID', '') in ocid_set]
+                        # Map from row index to item_id via table.data_map
+                        item_ids = [
+                            item for item, idx in getattr(table, 'data_map', {}).items() if idx in matching_indices
+                        ]
+                        # Visually select the matching items, replacing any current selection
+                        if item_ids:
+                            table.tree.selection_set(item_ids)
+                            # Optionally, trigger the associated selection callback
+                            if table.selection_callback:
+                                selected_rows = [data[idx] for idx in matching_indices]
+                                table.selection_callback(selected_rows)
+                    except Exception as e:  # pragma: no cover - defensive UI aid
+                        # Non-critical, log but don't interrupt main logic
+                        logger.debug(f'Unable to set users_groups_table selection programmatically: {e}')
+
+                menu.add_command(
+                    label='Show Groups on Groups/Users Tab',
+                    command=show_groups_callback,
+                )
+
+            # --- Add Show Dynamic Groups for subject_type dynamic-group-id ---
+            if subject_type == 'dynamic-group-id':
+
+                def show_dynamic_groups_callback() -> None:
+                    """Show related dynamic groups on the Dynamic Groups tab for dynamic-group-id subjects."""
+
+                    # Step 1: Switch to Dynamic Groups tab
+                    self.app.notebook.select(self.app.dynamic_groups_tab)
+
+                    # Step 2: Build OCID list from Subject field
+                    ocid_list: list[str] = []
+                    subject_value = row.get('Subject', [])
+                    # Subject is typically a list of tuples like (None, OCID) for dynamic-group-id
+                    if isinstance(subject_value, list):
+                        try:
+                            ocid_list = [ocid for _, ocid in subject_value if ocid]
+                        except Exception:
+                            # Fallback: try to interpret as flat list of OCIDs
+                            ocid_list = [v for v in subject_value if isinstance(v, str) and v]
+                    elif isinstance(subject_value, str):
+                        if '|' in subject_value:
+                            ocid_list = [v.strip() for v in subject_value.split('|') if v.strip()]
+                        elif ',' in subject_value:
+                            ocid_list = [v.strip() for v in subject_value.split(',') if v.strip()]
+                        elif subject_value.strip():
+                            ocid_list = [subject_value.strip()]
+
+                    if not ocid_list:
+                        return
+
+                    # Step 3: Ensure all DG columns visible, then apply OCID filter
+                    dg_tab = self.app.dynamic_groups_tab
+                    if hasattr(dg_tab, 'set_show_all_data'):
+                        dg_tab.set_show_all_data(True)
+                    if hasattr(dg_tab, 'set_ocid_filter_and_search'):
+                        dg_tab.set_ocid_filter_and_search(ocid_list)
+
+                menu.add_command(
+                    label='Show Dynamic Groups on Dynamic Groups Tab',
+                    command=show_dynamic_groups_callback,
+                )
+
             # If the policy statement contains a condition (not null), add a way to send that to the Condition Tester tab
-            condition_text = self.policy_table.data[row_index].get('Conditions')
+            condition_text = row.get('Conditions')
             # Only show if condition tester tab is currently visible and advanced_tabs_visible is True
             is_condition_tester_visible = hasattr(self.app, 'condition_tester_tab') and self.app.advanced_tabs_visible
             if condition_text and condition_text != 'None' and is_condition_tester_visible:
@@ -786,14 +910,14 @@ class PoliciesTab(BaseUITab):
             show_resource = self.chk_show_resource.get()
             show_regular = self.chk_show_regular.get()
             show_invalid = self.chk_show_invalid.get()
-            regular_types = {'group', 'any-user', 'any-group'}
+            regular_types = {'group', 'group-id', 'any-user', 'any-group'}
 
             result = []
             for st in filtered_statements:
                 stype = st.get('Subject Type')
                 if (
                     (show_service and stype == 'service')
-                    or (show_dynamic and stype == 'dynamic-group')
+                    or (show_dynamic and stype in ('dynamic-group', 'dynamic-group-id'))
                     or (show_resource and stype == 'resource')
                     or (show_regular and stype in regular_types)
                     or (show_invalid and (not st.get('Valid') or not st.get('Parsed')))

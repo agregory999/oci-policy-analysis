@@ -45,6 +45,7 @@ from oci_policy_analysis.common.models import (
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyLexer import PolicyLexer
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyParser import PolicyParser
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyVisitor import PolicyVisitor
+from oci_policy_analysis.logic.policy_subject_parser import parse_policy_subjects
 
 logger = get_logger(component='policy_parser')
 
@@ -177,89 +178,13 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 break
         return ' '.join(tokens) if tokens else ''
 
-    def _get_subject(self, subject_ctx):  # Robust idocid1 handling, always fixes single-token cases  # noqa: C901
-        def id_ocid_fix(tokens):
-            # Fix all "idocid1..." tokens in the list (multi/comma separated or single)
-            fixed = []
-            for t in tokens:
-                if t.lower().startswith('idocid1.'):
-                    fixed.extend(['id', t[2:]])
-                else:
-                    fixed.append(t)
-            return fixed
-
-        if subject_ctx.groupSubject():
-            subctx = subject_ctx.groupSubject()
-            tokens = [
-                subctx.getChild(i).getText()
-                for i in range(1, subctx.getChildCount())
-                if subctx.getChild(i).getText() != ','
-            ]
-            tokens = id_ocid_fix(tokens)
-            if all(t == 'id' or t.lower().startswith('ocid1.') for t in tokens):
-                ocids = []
-                i = 0
-                while i < len(tokens):
-                    if tokens[i] == 'id' and i + 1 < len(tokens) and tokens[i + 1].lower().startswith('ocid1.'):
-                        ocids.append(tokens[i + 1])
-                        i += 2
-                    else:
-                        return [subctx.getText()]
-                return ocids
-            group_names = [t for t in tokens if t != 'id']
-            return group_names
-        elif subject_ctx.dynamicGroupSubject():
-            subctx = subject_ctx.dynamicGroupSubject()
-            tokens = [
-                subctx.getChild(i).getText()
-                for i in range(1, subctx.getChildCount())
-                if subctx.getChild(i).getText() != ','
-            ]
-            tokens = id_ocid_fix(tokens)
-            if all(t == 'id' or t.lower().startswith('ocid1.') for t in tokens):
-                ocids = []
-                i = 0
-                while i < len(tokens):
-                    if tokens[i] == 'id' and i + 1 < len(tokens) and tokens[i + 1].lower().startswith('ocid1.'):
-                        ocids.append(tokens[i + 1])
-                        i += 2
-                    else:
-                        return [subctx.getText()]
-                return ocids
-            names = [t for t in tokens if t != 'id']
-            return names
-        elif subject_ctx.resourceSubject():
-            subctx = subject_ctx.resourceSubject()
-            res_ids = []
-            res_ids.append(subctx.getChild(1).getText())
-            for i in range(2, subctx.getChildCount()):
-                text = subctx.getChild(i).getText()
-                if text != ',':
-                    res_ids.append(text)
-            return res_ids
-        elif subject_ctx.serviceSubject():
-            subctx = subject_ctx.serviceSubject()
-            svc = []
-            svc.append(subctx.getChild(1).getText())
-            for i in range(2, subctx.getChildCount()):
-                text = subctx.getChild(i).getText()
-                if text != ',':
-                    svc.append(text)
-            return svc
-        elif hasattr(subject_ctx, 'ANYGROUP') and subject_ctx.ANYGROUP():
-            # Support for "any-group"
-            return ['any-group']
-        elif subject_ctx.ANYUSER():
-            return ['any-user']
-        else:
-            return [subject_ctx.getText()]
-
     def visitAllowExpression(self, ctx):  # noqa: C901
         fields = {}
         action = self._get_action_prefix(ctx)
         fields['type'] = 'allow' if action == 'allow' else action
         fields['action'] = action
 
+        # Extract subject_type and raw_subject for use in the central parser
         subject_type = None
         try:
             _first_token = ctx.getChild(0).getText().lower()
@@ -282,8 +207,79 @@ class _FieldCollectingVisitor(PolicyVisitor):
         except Exception:
             subject_type = ''
         fields['subject_type'] = subject_type or ''
+        # Extract only the subject names without the type prefix for group/dynamic-group
+        logger.debug(
+            f"[WARNING] Extracting raw subject for type '{fields['subject_type']}' from context: {ctx.subject()}"
+        )
+        ctx_subject = ctx.subject()
+        if fields['subject_type'] in ('group', 'dynamic-group') and ctx_subject:
+            # Standard extraction
+            children = list(ctx_subject.getChildren()) if hasattr(ctx_subject, 'getChildren') else []
+            child_texts = [str(c.getText()) for c in children] if children else []
+            logger.info(
+                f"[DEBUG] group/dynamic-group subject extraction: ctx_subject={ctx_subject}, "
+                f"subject_type={fields['subject_type']}, "
+                f"len(children)={len(child_texts)}, child_texts={child_texts}"
+            )
+            if children and len(children) == 1:
+                text = str(children[0].getText())
+            else:
+                # Use ctx_subject's getText output as fallback
+                text = ctx_subject.getText() if hasattr(ctx_subject, 'getText') else ''
+            prefix = fields['subject_type']
+            candidate_raw = text
+            if text.lower().startswith(prefix):
+                candidate_raw = text[len(prefix) :].lstrip()
+                logger.info(
+                    f"[DEBUG] group/dynamic-group: Stripped prefix '{prefix}' from '{text}' => '{candidate_raw}'"
+                )
+            else:
+                logger.info(f"[DEBUG] group/dynamic-group: No type prefix to strip in subject: '{text}'")
+            raw_subject = candidate_raw
+            logger.info(f"[DEBUG] Final raw_subject for group/dynamic-group: '{raw_subject}'")
 
-        fields['subject'] = self._get_subject(ctx.subject())
+            # --- NEW LOGIC FOR group-id/dynamic-group-id ---
+            subject_items = [item.strip() for item in re.split(r',\s*', raw_subject) if item.strip()]
+            all_ocid_id = all(re.match(r'^(id\s*)?ocid1\.', item, re.IGNORECASE) for item in subject_items)
+            logger.info(f'[INFO] subject_items: {subject_items}')
+            logger.info(f"[INFO] Detected all_ocid_id={all_ocid_id} for subject_type={fields['subject_type']}")
+            if all_ocid_id:
+                subtype = 'group-id' if fields['subject_type'] == 'group' else 'dynamic-group-id'
+                cleaned_items = [re.sub(r'^(id\s*)', '', item, flags=re.IGNORECASE) for item in subject_items]
+                canonical_subject = ', '.join(cleaned_items)
+                logger.info(
+                    f"[INFO] All subjects recognized as OCIDs, canonical_subject after stripping 'id': {canonical_subject}"
+                )
+                fields['subject_type'] = subtype
+                # Final log before parse
+                logger.info(
+                    f'[INFO] Passing to parse_policy_subjects: subject_type={subtype}, canonical_subject={canonical_subject!r}'
+                )
+                result = parse_policy_subjects(subtype, canonical_subject)
+                logger.info(
+                    f'[INFO] Result from parse_policy_subjects: subject_type={subtype}, canonical_subject={canonical_subject!r}, result={result!r}'
+                )
+                fields['subject'] = result
+            else:
+                # Normal path, possibly named groups only
+                logger.info(
+                    f"[INFO] Falling back to normal parse_policy_subjects for subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
+                )
+                result = parse_policy_subjects(fields['subject_type'], raw_subject)
+                logger.info(
+                    f"[INFO] Result from parse_policy_subjects: subject_type={fields['subject_type']}, raw_subject={raw_subject!r}, result={result!r}"
+                )
+                fields['subject'] = result
+        else:
+            raw_subject = ctx_subject.getText() if ctx_subject else ''
+            logger.info(
+                f"[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
+            )
+            result = parse_policy_subjects(fields['subject_type'], raw_subject)
+            logger.info(
+                f"[INFO] Result from parse_policy_subjects: subject_type={fields['subject_type']}, raw_subject={raw_subject!r}, result={result!r}"
+            )
+            fields['subject'] = result
         verb_ctx = ctx.verb()
         resource_ctx = ctx.resource()
         plist_ctx = ctx.permissionList()
@@ -349,6 +345,7 @@ class _FieldCollectingVisitor(PolicyVisitor):
         action = self._get_action_prefix(ctx)
         fields['type'] = 'admit' if action == 'admit' else action
         fields['action'] = action
+
         subject_type = None
         try:
             subj_ctx = ctx.subject()
@@ -366,7 +363,8 @@ class _FieldCollectingVisitor(PolicyVisitor):
         except Exception:
             subject_type = ''
         fields['subject_type'] = subject_type or ''
-        fields['subject'] = self._get_subject(ctx.subject())
+        raw_subject = ctx.subject().getText() if ctx.subject() else ''
+        fields['subject'] = parse_policy_subjects(fields['subject_type'], raw_subject)
         endorse_scopes = ctx.endorseScope()
         if endorse_scopes:
             if len(endorse_scopes) == 1:
@@ -414,6 +412,7 @@ class _FieldCollectingVisitor(PolicyVisitor):
         action = self._get_action_prefix(ctx)
         fields['type'] = 'endorse' if action == 'endorse' else action
         fields['action'] = action
+
         subject_type = None
         try:
             subj_ctx = ctx.subject()
@@ -431,7 +430,8 @@ class _FieldCollectingVisitor(PolicyVisitor):
         except Exception:
             subject_type = ''
         fields['subject_type'] = subject_type or ''
-        fields['subject'] = self._get_subject(ctx.subject())
+        raw_subject = ctx.subject().getText() if ctx.subject() else ''
+        fields['subject'] = parse_policy_subjects(fields['subject_type'], raw_subject)
         if ctx.endorseVerb():
             fields['endorseVerb'] = self._get_text(ctx.endorseVerb())
         res_ctxs = ctx.resource()
@@ -470,11 +470,31 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 fields['comments'] = child.getText()
         return fields
 
-    def visitDefineExpression(self, ctx):
+    def visitDefineExpression(self, ctx):  # noqa: C901
         fields = {}
         fields['type'] = 'define'
         fields['action'] = 'define'
-        fields['definedSubject'] = self._get_text(ctx.definedSubject())
+        subj_ctx = ctx.definedSubject()
+        name_cls = type(subj_ctx).__name__
+        # Group/dynamic-group/compartment/tenancy type mapping
+        if name_cls == 'GroupSubjectContext':
+            fields['defined_type'] = 'group'
+            names = parse_policy_subjects('group', subj_ctx.getText())
+            fields['defined_name'] = names[0][1] if names else ''
+        elif name_cls == 'DynamicGroupSubjectContext':
+            fields['defined_type'] = 'dynamic-group'
+            names = parse_policy_subjects('dynamic-group', subj_ctx.getText())
+            fields['defined_name'] = names[0][1] if names else ''
+        elif name_cls == 'CompartmentSubjectContext':
+            fields['defined_type'] = 'compartment'
+            fields['defined_name'] = subj_ctx.getChild(1).getText() if subj_ctx.getChildCount() >= 2 else ''
+        elif name_cls == 'TenancySubjectContext':
+            fields['defined_type'] = 'tenancy'
+            fields['defined_name'] = subj_ctx.getChild(1).getText() if subj_ctx.getChildCount() >= 2 else ''
+        else:
+            fields['defined_type'] = ''
+            fields['defined_name'] = self._get_text(subj_ctx)
+        fields['definedSubject'] = self._get_text(subj_ctx)
         fields['defined'] = self._get_text(ctx.defined())
         fields['comments'] = ''
         try:
@@ -571,10 +591,10 @@ class PolicyStatementNormalizer:
         parsed_statements, parse_errors = self.antlr_parser.parse(statement_text)
         # If *any* parse_errors were present, treat this as not parsed, even if something is returned in parsed_statements.
         if parse_errors and len(parse_errors) > 0:
-            logger.debug(f'Parsing failed for: {statement_text}')
+            logger.info(f'Parsing failed for: {statement_text} with errors: {parse_errors}')
             return {'parsed': False, 'invalid_reasons': parse_errors}
         if not parsed_statements or not isinstance(parsed_statements, list):
-            logger.debug(f'Parsing failed for: {statement_text}')
+            logger.info(f'Parsing failed for: {statement_text} with errors: {parse_errors}')
             return {'parsed': False, 'invalid_reasons': [f'Failed to parse: {statement_text}']}
 
         fields = parsed_statements[0]
@@ -592,17 +612,12 @@ class PolicyStatementNormalizer:
             return {'parsed': False, 'invalid_reasons': [f'Unknown statement type: {statement_type}']}
 
     def _normalize_define(self, statement_text, fields, base):
-        defined_subject = fields.get('definedSubject', '')
-        defined_type = ''
-        defined_name = ''
-        if defined_subject:
-            m = re.match(r'^(tenancy|compartment|group|dynamic-group|user)(.+)$', defined_subject, re.IGNORECASE)
-            if m:
-                defined_type = m.group(1).lower()
-                defined_name = m.group(2)
-            else:
-                defined_type = ''
-                defined_name = defined_subject
+        # The visitor now provides explicit defined_type and defined_name
+        defined_type = fields.get('defined_type', '')
+        defined_name = fields.get('defined_name', '')
+        logger.info(f'Normalizing define statement: {statement_text}')
+        logger.info(f"Extracted fields for define: defined_type='{defined_type}', defined_name='{defined_name}'")
+        logger.info(f'All fields extracted by visitor: {fields}')
         obj = {
             **base,
             'defined_type': defined_type,
@@ -698,25 +713,18 @@ class PolicyStatementNormalizer:
         return EndorseStatement(**obj)
 
     def _normalize_regular(self, statement_text, fields, base):
-        logger.debug(f'Normalizing regular policy statement: {statement_text}')
+        logger.info(f'Normalizing regular policy statement: {statement_text}')
         subject_type = fields.get('subject_type', '') or ''
         subjects_out = []
         subj_raw = fields.get('subject', '')
 
-        # If it's any-user or any-group, treat just like the original code (None, x)
-        if subject_type in ['any-user', 'any-group', 'service']:
-            subjects_out = [(None, subj_raw if isinstance(subj_raw, str) else subj_raw[0] if subj_raw else '')]
-        # If it's a list of all OCIDs (all items are ocid1...), pass them as str to be resolved by the data repo
-        elif isinstance(subj_raw, list) and all(
-            isinstance(s, str) and s.lower().startswith('ocid1.') for s in subj_raw
-        ):
-            subjects_out = subj_raw
-        elif isinstance(subj_raw, list):
-            # If list but not OCIDs, treat as name-based
-            subjects_out = self._parse_subjects(subj_raw)
-        else:
-            # fallback for edge cases (name as string)
-            subjects_out = self._parse_subjects(subj_raw)
+        # Need to log both the subject_type and the raw subject value for debugging, especially for edge cases
+        logger.info(f"Subject type: '{subject_type}', raw subject value: '{subj_raw}'")
+        # Log all fields for diagnosis
+        logger.info(f'All extracted fields for regular statement: {fields}')
+
+        # All normalization is now handled by parse_policy_subjects; no further postprocessing needed.
+        subjects_out = subj_raw
         perms = []
         perms_original = []
         if 'permissionList' in fields and fields['permissionList']:
@@ -743,28 +751,9 @@ class PolicyStatementNormalizer:
             'statement_text': statement_text,
             'parsed': True,
         }
-        logger.debug(f'Normalized regular policy statement object: {obj}')
+        logger.info(f'Normalized regular policy statement object: {obj}\n')
 
         return RegularPolicyStatement(**obj)
 
-    def _parse_subjects(self, subject_list):
-        """Utility for splitting subject strings for regular policies."""
-        results = []
-        if not isinstance(subject_list, list):
-            subject_list = [subject_list]
-        for subj in subject_list:
-            if not subj:
-                continue
-            # If already an OCID string, don't treat as name-based
-            if isinstance(subj, str) and subj.lower().startswith('ocid1.'):
-                results.append(subj)
-                continue
-            s = str(subj).strip().strip('\'"')
-            if '/' in s:
-                domain, subject = s.split('/', 1)
-                domain = domain.strip('\'"')
-                subject = subject.strip('\'"')
-                results.append((domain, subject))
-            else:
-                results.append(('default', s.strip('\'"')))
-        return results
+
+# [REMOVED LEGACY] def _parse_subjects(self, subject_list): Legacy utility—replaced by parse_policy_subjects and canonical output logic.
