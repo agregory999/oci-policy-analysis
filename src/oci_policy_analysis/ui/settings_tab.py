@@ -979,6 +979,7 @@ class SettingsTab(BaseUITab):
             self.app.condition_tester_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
+            self.app.mcp_tab,
         ]
 
         # Only treat consolidation tab as advanced if experimental features are enabled
@@ -992,6 +993,7 @@ class SettingsTab(BaseUITab):
             self.app.advanced_tabs_visible = False
             logger.info('Advanced tabs hidden')
         else:
+            notebook.add(self.app.mcp_tab, text='Embedded MCP\n(Advanced)')
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')

@@ -14,110 +14,17 @@
 ##########################################################################
 from typing import Annotated, Literal, NotRequired, TypedDict  # noqa: UP035
 
-# ================================
-# Simulation Models
-# ================================
-
-# SimulationPrincipalType describes all valid principal types in simulation requests and results.
-SimulationPrincipalType = Literal['group', 'user', 'dynamic-group', 'any-user', 'any-group', 'service']
-
-
-class SimulationPrepareRequest(TypedDict):
-    """
-    Model describing the canonical input for simulation preparation.
-    Used to obtain principal and where-clause context, never for actual simulation execution.
-    """
-
-    compartment_path: Annotated[str, 'Effective compartment path, e.g. "ROOT/Finance"']
-    principal_type: Annotated[SimulationPrincipalType, 'Principal type for simulation']
-    principal: Annotated[
-        str | list[str | None],
-        'String for "any-user"/"any-group"/"service"; [domain, name] for user/group/dynamic-group',
-    ]
-
-
-class SimulationPrepareResponse(TypedDict):
-    """
-    Model describing the output of simulation preparation.
-    Provides required where fields and a standardized principal key.
-    """
-
-    required_where_fields: Annotated[list[str], 'All unique where clause variable names required for input']
-    principal_key: Annotated[str, 'Principal key as calculated by engine (e.g., "user:Default/anita")']
-
-
-class SimulationScenario(TypedDict):
-    """
-    Canonical input for SINGLE simulation (batch-mode simulations use a list of these in SimulationBatchRequest).
-    All inputs must exactly match those from the context + UI builder/MCP client.
-
-    Fields:
-    - compartment_path: Effective compartment path scoped for this simulation (str)
-    - principal_key: str. Output from SimulationPrepareResponse
-    - api_operation: str. Required API operation (e.g., "oci:ListBuckets")
-    - where_context: Dict[str, str]. Mapping from variable names to values for this run.
-    - checked_statements: Optional[List[str]]. Internal statement IDs to restrict simulation (UI only; omit for MCP).
-    """
-
-    compartment_path: Annotated[str, 'Effective compartment path']
-    principal_key: Annotated[str, 'Principal key, must be from preparation stage']
-    api_operation: Annotated[str, 'API operation to simulate, e.g., "oci:ListBuckets"']
-    where_context: Annotated[dict[str, str], 'Variable input mapping for required where fields']
-    checked_statements: NotRequired[Annotated[list[str], 'Statement IDs (UI only, omit for MCP/server)']]
-
-
-class SimulationBatchRequest(TypedDict):
-    """
-    Batch simulation request (multiplex multiple scenarios).
-    - simulations: List of SimulationScenario dicts, each fully specified
-    - trace: Optional bool, if true include detailed trace in result for each scenario
-
-    Example:
-    {
-      "simulations": [
-        { ... see SimulationScenario ... }
-      ],
-      "trace": true
-    }
-    """
-
-    simulations: Annotated[list[SimulationScenario], 'List of simulation scenarios to run']
-    trace: NotRequired[Annotated[bool, 'If true, include trace output in SimulationResult']]
-
-
-class SimulationResult(TypedDict):
-    """
-    Canonical result for a single simulation scenario.
-    All fields strictly correspond to engine outputs and are fully JSON-serializable.
-
-    Fields:
-    - result: "YES" if permitted, "NO" if denied (Literal)
-    - api_call_allowed: Boolean (redundant with result but retained for clarity)
-    - final_permission_set: List of permissions granted by policy for this op/context (trace=True only)
-    - required_permissions_for_api_operation: List of permissions required for op (trace=True only)
-    - missing_permissions: List of missing permissions needed for full allow
-    - failure_reason: Reason for failure or denial, empty if successful
-    - trace_statements: Optional[List[dict]], statement-by-statement trace (only present if trace enabled)
-    """
-
-    result: Annotated[Literal['YES', 'NO'], "'YES' if API operation permitted, 'NO' if denied"]
-    api_call_allowed: Annotated[bool, 'True if API op permitted']
-    final_permission_set: Annotated[list[str], 'Permissions granted after simulation']
-    required_permissions_for_api_operation: Annotated[list[str], 'Permissions required for op']
-    missing_permissions: Annotated[list[str], 'Any permissions missing for full allow']
-    failure_reason: Annotated[str, 'Reason for denial or error, empty if successful']
-    trace_statements: NotRequired[Annotated[list[dict], 'Statement-by-statement trace, if trace=True']]
-
-
-class SimulationBatchResponse(TypedDict):
-    """
-    Batch simulation output: result list, matches input scenario order.
-
-    Fields:
-    - results: List[SimulationResult]. One per SimulationScenario submitted.
-    """
-
-    results: Annotated[list[SimulationResult], 'Simulation result(s) for each scenario, in order']
+# Re-export simulation-specific models from dedicated module so existing
+# imports (including UI and MCP server) continue to work without change.
+from .models_simulation import (  # noqa: F401
+    SimulationBatchRequest,
+    SimulationBatchResponse,
+    SimulationPrepareRequest,
+    SimulationPrepareResponse,
+    SimulationPrincipalType,
+    SimulationResult,
+    SimulationScenario,
+)
 
 
 # ================================

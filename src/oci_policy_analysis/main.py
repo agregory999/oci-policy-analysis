@@ -172,6 +172,15 @@ class App(tk.Tk):
             policy_repo=self.policy_compartment_analysis,
             ref_data_repo=self.reference_data_repo,
         )
+        # Initialize prospective statements from settings (per-tenancy, if known)
+        try:
+            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
+            if tenancy_key and tenancy_key in sim_settings:
+                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
+        except Exception:
+            # Non-fatal; prospective list will simply start empty
+            pass
         self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
         # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
 
@@ -189,7 +198,6 @@ class App(tk.Tk):
         self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
-        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
@@ -215,7 +223,8 @@ class App(tk.Tk):
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
+        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
+        self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
         self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Preview)')
@@ -284,6 +293,7 @@ class App(tk.Tk):
         self.maintenance_visible = False
         self.notebook.forget(self.console_tab)
         self.notebook.forget(self.debugger_tab)
+        self.notebook.forget(self.mcp_tab)
         self.notebook.forget(self.maintenance_tab)
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.condition_tester_tab)
@@ -494,7 +504,15 @@ class App(tk.Tk):
         logger.info('Building permissions report for advanced report tab')
         self.policy_intelligence.build_permissions_report()
 
-        self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
+        self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
+        # Re-apply any saved prospective statements for the active tenancy
+        try:
+            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
+            if tenancy_key and tenancy_key in sim_settings:
+                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
+        except Exception:
+            pass
         # self.simulation_engine.build_index()
         logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
         end_post_process_time = time.perf_counter()
@@ -548,9 +566,11 @@ class App(tk.Tk):
             ),
         )
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
-        step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
+        step('simulation_tab.populate_data', self.simulation_tab.populate_data)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
-        step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
+        # Only do this if experimental features are enabled and the consolidation tab is present (it won't be if experimental_features is False)
+        if self.experimental_features and self.consolidation_tab:
+            step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
         logger.info(
             'UI post-load timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])

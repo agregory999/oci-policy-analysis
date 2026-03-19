@@ -76,6 +76,54 @@ class SimulationTab(BaseUITab):
         # Populate dropdowns if the engine/data is present
         self.refresh_dropdowns()
 
+    # ------------------------------------------------------------------
+    # Data population / tenancy-scoped initialization
+    # ------------------------------------------------------------------
+
+    def populate_data(self):
+        """Populate Simulation tab data once a tenancy is loaded.
+
+        This is invoked from App._post_load_update_ui, after
+        policy_compartment_analysis has a concrete tenancy_ocid. At
+        this point we can safely hydrate the simulation engine's
+        prospective (what-if) statements from settings for the active
+        tenancy.
+        """
+
+        engine = getattr(self, 'simulation_engine', None)
+        tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
+        if engine and tenancy_key:
+            try:
+                all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+                initial_list = all_sim_settings.get(str(tenancy_key)) or []
+                if initial_list:
+                    engine.set_prospective_statements(initial_list)
+                    logger.info(
+                        'SimulationTab.populate_data: hydrated %d prospective statements from settings for tenancy %s',
+                        len(initial_list),
+                        tenancy_key,
+                    )
+            except Exception as ex:  # defensive; do not break UI if settings malformed
+                logger.warning(
+                    'SimulationTab.populate_data: failed to hydrate prospective statements: %s', ex, exc_info=True
+                )
+
+        # Refresh dropdowns after any prospective/tenancy changes
+        self.refresh_dropdowns()
+
+        # Rebuild the inline prospective editor contents using the
+        # latest compartments list and hydrated prospective statements.
+        # The outer LabelFrame (self.prospective_container) is created
+        # once in _build_layout; here we only clear and repopulate its
+        # children.
+        try:
+            for child in self.prospective_container.winfo_children():
+                child.destroy()
+        except Exception:
+            logger.debug('SimulationTab.populate_data: unable to clear prospective_container children', exc_info=True)
+
+        self._build_inline_prospective_editor(self.prospective_container)
+
     def refresh_dropdowns(self):  # noqa: C901
         """Refreshes the dropdowns for compartment and principals.
 
@@ -155,6 +203,9 @@ class SimulationTab(BaseUITab):
         if hasattr(self.app, 'sim_debugger_tab') and getattr(self.app, 'sim_debugger_tab', None):
             debug_index = {k: [f'{d}/{n}' if d else n for (d, n) in v] for k, v in self._sim_index_principals.items()}
             self.app.sim_debugger_tab.show_index(self._sim_index_compartments, debug_index)
+
+        # Environment summary should reflect the latest dropdown values
+        self._on_environment_changed(reason='refresh_dropdowns')
 
     def on_load_all_users_setting_changed(self, enabled: bool):
         """Called if settings change for Load All Users to refresh simulation principal types and UI."""
@@ -236,18 +287,51 @@ class SimulationTab(BaseUITab):
                 self.selected_principal.set('')
 
     def _init_state(self):
+        # Shared state across subtabs
         self.selected_compartment = tk.StringVar()
         self.selected_principal_type = tk.StringVar()
         self.selected_principal = tk.StringVar()
         self.selected_api_operation = tk.StringVar()
-        self.simulation_inputs = {}
+        self.show_trace_details_var = tk.BooleanVar(value=False)
+        self.simulation_inputs: dict[str, tk.StringVar] = {}
         self.loaded_statements = []
-        self.required_where_fields = set()
+        self.required_where_fields: set[str] = set()
+        # Cache of the last simulation or history trace result dict so we can
+        # re-render the results panel when the "Show trace details" checkbox
+        # is toggled without having to recompute anything.
         self.simulation_results = None
+        # Internal bookkeeping for subtab interactions
+        self._statements_need_reload = True
+        self.statement_checkbox_table = None
+        self.checked_statements = {}
 
     def _build_layout(self):
-        # Top: Section 1 — Compartment/Principal selection
-        select_frame = ttk.LabelFrame(self, text='1. Principal and Compartment Selection')
+        """Build the 3-subtab layout for Simulation.
+
+        Subtabs:
+          1) Simulation Environment
+          2) Statements and Context
+          3) Simulation History
+        """
+
+        # Notebook containing the three logical subtabs
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill='both', expand=True)
+
+        self.env_frame = ttk.Frame(self.notebook)
+        self.statements_frame = ttk.Frame(self.notebook)
+        self.history_frame = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.env_frame, text='Simulation Environment')
+        self.notebook.add(self.statements_frame, text='Statements and Context')
+        self.notebook.add(self.history_frame, text='Simulation History')
+
+        # Track tab changes so we can lazily load statements when the
+        # user first navigates to the Statements and Context subtab.
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+
+        # --- Subtab 1: Simulation Environment ---
+        select_frame = ttk.LabelFrame(self.env_frame, text='Principal and Effective Path Selection')
         select_frame.pack(fill='x', padx=8, pady=8)
         self.add_context_help(
             select_frame,
@@ -257,29 +341,91 @@ class SimulationTab(BaseUITab):
                 "Then click 'Load Simulation' to preview relevant policies."
             ),
         )
-        ttk.Label(select_frame, text='Compartment:').grid(row=0, column=0, sticky='w')
-        self.compartment_combobox = ttk.Combobox(select_frame, textvariable=self.selected_compartment, width=50)
-        self.compartment_combobox.grid(row=0, column=1, padx=2)
-        self.add_context_help(self.compartment_combobox, 'Choose the compartment for the simulation context.')
-        ttk.Label(select_frame, text='Principal Type:').grid(row=0, column=2, sticky='w')
+        # Row 0: Principal Type + Principal (give them more vertical space)
+        ttk.Label(select_frame, text='Principal Type:').grid(row=0, column=0, sticky='w', pady=(2, 2))
         self.principal_type_combobox = ttk.Combobox(
             select_frame, textvariable=self.selected_principal_type, width=20, state='normal'
         )
-        self.principal_type_combobox.grid(row=0, column=3, padx=2)
-        self.principal_type_combobox.bind('<<ComboboxSelected>>', self._update_principal_list)
+        self.principal_type_combobox.grid(row=0, column=1, padx=2, pady=(2, 2), sticky='w')
+        self.principal_type_combobox.bind('<<ComboboxSelected>>', self._on_principal_type_changed)
         self.add_context_help(self.principal_type_combobox, 'Select the type of principal (user, group, service, etc).')
-        ttk.Label(select_frame, text='Principal:').grid(row=0, column=4, sticky='w')
+        ttk.Label(select_frame, text='Principal:').grid(row=0, column=2, sticky='w', pady=(2, 2))
         self.principal_combobox = ttk.Combobox(
-            select_frame, textvariable=self.selected_principal, width=30, state='normal'
+            select_frame, textvariable=self.selected_principal, width=40, state='normal'
         )
-        self.principal_combobox.grid(row=0, column=5, padx=2)
+        self.principal_combobox.grid(row=0, column=3, padx=2, pady=(2, 2), sticky='w')
         self.add_context_help(self.principal_combobox, 'Select the identity (user/group name) for simulation.')
-        self.load_button = ttk.Button(select_frame, text='Load Simulation', command=self.load_statements)
-        self.load_button.grid(row=0, column=6, padx=8)
-        self.add_context_help(self.load_button, 'Load all policy statements relevant to your context.')
+        # Any principal change should refresh the environment summary and
+        # mark statements as needing reload.
+        self.principal_combobox.bind('<<ComboboxSelected>>', lambda *_: self._on_environment_changed('principal'))
 
-        # Middle: Section 2 — Policy statement and where-clause preview
-        self.preview_frame = ttk.LabelFrame(self, text='2. Applicable Policies')
+        # Row 1: Effective Path on its own line, with a note about sub-compartments
+        ttk.Label(select_frame, text='Effective Path:').grid(row=1, column=0, sticky='w', pady=(2, 2))
+        self.compartment_combobox = ttk.Combobox(select_frame, textvariable=self.selected_compartment, width=50)
+        self.compartment_combobox.grid(row=1, column=1, padx=2, pady=(2, 2), sticky='w')
+        self.add_context_help(
+            self.compartment_combobox,
+            'Choose the effective path (compartment scope) for the simulation context. '
+            'Effective paths reflect how OCI actually applies the statement after resolving location.',
+        )
+        # Effective path changes also reset environment/summary.
+        self.compartment_combobox.bind('<<ComboboxSelected>>', lambda *_: self._on_environment_changed('compartment'))
+        ttk.Label(
+            select_frame,
+            text='Note: statements in sub-compartments of this path may also be in scope.',
+            foreground='#555',
+        ).grid(row=1, column=2, columnspan=2, sticky='w', padx=(4, 0), pady=(2, 2))
+        # NOTE: we no longer have an explicit "Load Simulation" button.
+        # Any change to the environment will mark statements/history as
+        # needing reload via _on_environment_changed.
+
+        # Inline Prospective Statements editor lives on the Environment subtab.
+        # We create the outer LabelFrame once here, and then (re)build the
+        # inner table contents as-needed. This avoids recreating the
+        # containing frame from multiple call sites.
+        self.prospective_container = ttk.LabelFrame(
+            self.env_frame,
+            text='Prospective (What-If) Policy Statements',
+        )
+        # Do NOT expand vertically; let it size to its contents similar to
+        # the where-clause panel.
+        self.prospective_container.pack(fill='x', padx=8, pady=(4, 8))
+        # Build initial contents; populate_data will rebuild rows once
+        # tenancy-specific data / compartments are loaded.
+        self._build_inline_prospective_editor(self.prospective_container)
+
+        # Environment Summary + explicit navigation to Statements & Context
+        summary_frame = ttk.LabelFrame(self.env_frame, text='Environment Summary')
+        summary_frame.pack(fill='x', padx=8, pady=(0, 8))
+        self.environment_summary_label = ttk.Label(
+            summary_frame,
+            text='No environment selected yet.',
+            foreground='#555',
+            wraplength=700,
+        )
+        self.environment_summary_label.pack(side='left', padx=(4, 4), pady=(4, 4))
+
+        def _go_to_statements_and_load():
+            # Ensure statements are loaded for the current environment
+            self.load_statements()
+            self._statements_need_reload = False
+            # Switch to Statements & Context tab
+            try:
+                self.notebook.select(self.statements_frame)
+            except Exception:
+                logger.debug(
+                    'SimulationTab: unable to switch to Statements tab from Environment Summary', exc_info=True
+                )
+
+        goto_btn = ttk.Button(
+            summary_frame,
+            text='Confirm and Select Statements for Simulation',
+            command=_go_to_statements_and_load,
+        )
+        goto_btn.pack(side='right', padx=(4, 4), pady=(4, 4))
+
+        # --- Subtab 2: Statements and Context ---
+        self.preview_frame = ttk.LabelFrame(self.statements_frame, text='Applicable Policy Statements')
         self.preview_frame.pack(fill='both', padx=8, pady=8, expand=True)
         self.add_context_help(
             self.preview_frame,
@@ -292,9 +438,11 @@ class SimulationTab(BaseUITab):
         # self.preview_frame.columnconfigure(0, weight=1)
         # self.preview_frame.rowconfigure(0, weight=1)
 
-        self.statement_checkbox_table = None  # Will be created in load_statements
-        # Section 3 — API Operation and where inputs, simulate button
-        simulate_frame = ttk.LabelFrame(self, text='3. API Operation and Simulation Inputs')
+        # Will be created lazily when statements are loaded for the current environment
+        self.statement_checkbox_table = None
+
+        # API Operation and where inputs, simulate button
+        simulate_frame = ttk.LabelFrame(self.statements_frame, text='API Operation and Simulation Inputs')
         simulate_frame.pack(fill='x', padx=8, pady=8)
         self.add_context_help(
             simulate_frame,
@@ -324,12 +472,7 @@ class SimulationTab(BaseUITab):
         self.simulate_button.config(state='disabled')  # Disabled at startup
         self.add_context_help(self.simulate_button, 'Run simulation using selected context, operation, and variables.')
 
-        self.simulate_trace_button = ttk.Button(
-            simulate_frame, text='Run Simulation (Trace)', command=self.run_simulation_trace
-        )
-        self.simulate_trace_button.grid(row=2, column=3, padx=(4, 0))
-        self.simulate_trace_button.config(state='disabled')  # Disabled at startup
-        self.add_context_help(self.simulate_trace_button, 'Run simulation with full evaluation trace history.')
+        # (Show trace toggle has been moved to the Results section.)
 
         # Callback for strict activation of simulate buttons based on an actual valid selection
         def _maybe_enable_sim_buttons(event=None):
@@ -338,10 +481,8 @@ class SimulationTab(BaseUITab):
             valid_ops = set(self._all_api_ops) if hasattr(self, '_all_api_ops') else set()
             if op in valid_ops:
                 self.simulate_button.config(state='normal')
-                self.simulate_trace_button.config(state='normal')
             else:
                 self.simulate_button.config(state='disabled')
-                self.simulate_trace_button.config(state='disabled')
 
         # Bind both typing and select events
         self.api_operation_combobox.bind(
@@ -365,8 +506,8 @@ class SimulationTab(BaseUITab):
         self.api_op_note_label.grid(row=3, column=0, columnspan=4, sticky='w', padx=(4, 2), pady=(2, 0))
         self.api_op_note_label.grid_remove()  # Hide initially
 
-        # Section 4 — Results and trace
-        results_frame = ttk.LabelFrame(self, text='4. Simulation Results')
+        # --- Subtab 3: Results and trace / Simulation History ---
+        results_frame = ttk.LabelFrame(self.history_frame, text='Simulation Results')
         results_frame.pack(fill='both', expand=True, padx=8, pady=8)
         self.add_context_help(
             results_frame,
@@ -409,15 +550,363 @@ class SimulationTab(BaseUITab):
         export_btn = ttk.Button(trace_row, text='Export All Simulations to JSON', command=_export_simulation_history)
         export_btn.pack(side='left', padx=(0, 0), pady=(0, 0))
         self.add_context_help(export_btn, 'Export all prior simulation results to a JSON file.')
+
+        # Move "Show trace details" checkbox into the Results section so it
+        # clearly controls how much detail is rendered in the results area,
+        # independent of how simulations are triggered.
+        trace_toggle_row = ttk.Frame(results_frame)
+        trace_toggle_row.pack(fill='x', padx=2, pady=(3, 0))
+        self.show_trace_checkbox = ttk.Checkbutton(
+            trace_toggle_row,
+            text='Show trace details (JSON and per-statement trace)',
+            variable=self.show_trace_details_var,
+            command=self._refresh_results_display_if_needed,
+        )
+        self.show_trace_checkbox.pack(side='left', padx=(0, 0))
+        self.add_context_help(
+            self.show_trace_checkbox,
+            'When checked, include full JSON and per-statement trace details in the Simulation Results.',
+        )
         self.results_text = tk.Text(results_frame, height=10, wrap='word')
         self.results_text.pack(fill='both', expand=True)
         self.add_context_help(
             self.results_text, 'Simulation summary and full policy trace details. See allow/deny and permissions here.'
         )
 
+    def _refresh_results_display_if_needed(self):
+        """Re-render the results panel when the Show Trace toggle changes.
+
+        If we have a cached simulation result (either from the most recent
+        run or from history), re-apply the same rendering logic used in
+        _run_simulation_with_trace/on_trace_history_selected so the user can
+        toggle trace details on/off without rerunning the simulation.
+        """
+        result = getattr(self, 'simulation_results', None)
+        if not result:
+            return
+
+        # Detect whether this cached result came from a history entry (it
+        # will have api_call_allowed at the top level) or directly from
+        # simulate_and_record. In both cases we standardize on the same
+        # rendering format used elsewhere.
+        api_allowed = bool(result.get('api_call_allowed'))
+        lines: list[str] = []
+        lines.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+        failure_reason = result.get('failure_reason') or ''
+        if failure_reason:
+            lines.append(f'Reason: {failure_reason}')
+
+        required = result.get('required_permissions_for_api_operation') or []
+        missing = result.get('missing_permissions') or []
+        lines.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+        if missing:
+            lines.append(f"Missing permissions: {', '.join(missing)}")
+
+        sim_trace = result.get('simulation_trace') or {}
+        final_permissions = sim_trace.get('final_permission_set') or []
+        if self.show_trace_details_var.get():
+            lines.append(f"Final permission set: {', '.join(final_permissions) or '[none granted]'}")
+            lines.append('Simulation JSON detail below:\n')
+            pretty_json = json.dumps(result, indent=2, ensure_ascii=False)
+            lines.append(pretty_json)
+
+        self.results_text.delete(1.0, tk.END)
+        self.results_text.insert(tk.END, '\n'.join(lines))
+
     def apply_settings(self, context_help: bool, font_size: str):
         """Apply main settings for context help and font size."""
         super().apply_settings(context_help, font_size)
+
+    # ------------------------------------------------------------------
+    # Environment / subtab helpers
+    # ------------------------------------------------------------------
+
+    def _on_tab_changed(self, event=None):
+        """Handle notebook tab changes.
+
+        When the user navigates to the Statements and Context subtab and
+        the environment has been marked as changed, automatically load the
+        applicable statements for the current environment.
+        """
+
+        try:
+            current = self.notebook.select()
+        except Exception:
+            return
+
+        if current == str(self.statements_frame) and self._statements_need_reload:
+            logger.info('SimulationTab: tab changed to Statements; reloading applicable statements.')
+            self.load_statements()
+            self._statements_need_reload = False
+
+    def _on_environment_changed(self, reason: str = '') -> None:
+        """Called when effective path/principal/prospective list changes.
+
+        Resets dependent UI state so that the Statements and Context tab
+        will be reloaded on next visit. We intentionally do not wipe the
+        underlying engine history, only the UI selection state.
+        """
+
+        logger.info('SimulationTab: environment changed (%s); resetting statements/context state', reason)
+
+        # Clear statements table
+        if self.statement_checkbox_table is not None:
+            try:
+                self.statement_checkbox_table.destroy()
+            except Exception:
+                logger.debug('SimulationTab: failed to destroy old statement_checkbox_table', exc_info=True)
+            self.statement_checkbox_table = None
+
+        # Clear selections and where-context inputs
+        self.checked_statements = {}
+        self._clear_where_inputs()
+        self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
+
+        # Clear API op selection (but keep list of ops intact)
+        self.selected_api_operation.set('')
+        try:
+            self.api_operation_combobox.set('')
+        except Exception:
+            pass
+
+        # Clear current history dropdown selection (do not erase history list)
+        if hasattr(self, 'trace_history_var'):
+            self.trace_history_var.set('')
+        if hasattr(self, 'trace_history_dropdown'):
+            try:
+                self.trace_history_dropdown.set('')
+            except Exception:
+                pass
+
+        self._statements_need_reload = True
+
+        # Update Environment Summary label with a lightweight description
+        # of the current selections. We do *not* query the engine here to
+        # avoid extra work; details will be recomputed on load_statements.
+        if hasattr(self, 'environment_summary_label'):
+            cpath = self.selected_compartment.get() or 'ROOT'
+            ptype = self.selected_principal_type.get() or '[principal type]'
+            pname = self.selected_principal.get() or '[principal]'
+            self.environment_summary_label.configure(
+                text=(
+                    f'Current environment: path={cpath}, principal_type={ptype}, '
+                    f'principal={pname}. Statements will be loaded on confirmation.'
+                )
+            )
+
+    def _on_principal_type_changed(self, *_):
+        """Handle changes to principal type from the Environment subtab."""
+
+        self._update_principal_list()
+        self._on_environment_changed(reason='principal_type')
+
+    def _build_inline_prospective_editor(self, parent: tk.Widget) -> None:  # noqa: C901
+        """Inline prospective statement editor on the Environment subtab.
+
+        This reuses the core behavior of open_prospective_editor but keeps
+        the controls anchored in the main Simulation Environment tab so
+        users can see and edit prospective statements without a popup.
+        """
+
+        engine = getattr(self, 'simulation_engine', None)
+        if not engine or not hasattr(engine, 'get_prospective_statements'):
+            logger.info('SimulationTab: prospective support not available; inline editor disabled.')
+            return
+
+        # Build contents directly inside the provided parent (which is
+        # the outer LabelFrame created in _build_layout). This avoids
+        # nesting a LabelFrame inside another LabelFrame.
+        intro = (
+            'Define prospective (what-if) policy statements anywhere in the tenancy. '
+            'Only statements applicable to the selected compartment and principal will be used during simulation.'
+        )
+        ttk.Label(parent, text=intro, wraplength=700, justify='left').grid(
+            row=0, column=0, columnspan=6, sticky='w', padx=4, pady=(4, 4)
+        )
+
+        # Header row: use a simple grid so column labels line up with
+        # the input widgets below. We bias column weights so they
+        # approximate the following layout when expanded:
+        #   Location  ~19%
+        #   Description ~18%
+        #   Statement Text ~40%
+        #   Status ~15%
+        #   Actions ~10%
+        header = ttk.Frame(parent)
+        header.grid(row=1, column=0, sticky='ew', padx=4)
+
+        ttk.Label(header, text='Location (Compartment)').grid(row=0, column=0, sticky='w', padx=2)
+        ttk.Label(header, text='Description').grid(row=0, column=1, sticky='w', padx=2)
+        ttk.Label(header, text='Statement Text').grid(row=0, column=2, sticky='w', padx=2)
+        ttk.Label(header, text='Status').grid(row=0, column=3, sticky='w', padx=2)
+        ttk.Label(header, text='Actions').grid(row=0, column=4, sticky='w', padx=2)
+
+        # Use relative weights that roughly match the desired
+        # percentages while still behaving nicely with Tk's geometry.
+        #  Location: 19  Description: 18  Text: 40  Status: 10  Actions: 10
+        for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 10)):
+            header.columnconfigure(col, weight=weight)
+
+        # Body rows share the same column layout as the header so that
+        # all fields are visually aligned.
+        body = ttk.Frame(parent)
+        body.grid(row=2, column=0, sticky='nsew', padx=4, pady=(0, 4))
+        parent.rowconfigure(2, weight=1)
+        parent.columnconfigure(0, weight=1)
+
+        row_models: list[dict[str, object]] = []
+        compartments = list(self._sim_index_compartments or ['ROOT'])
+
+        def add_row(initial: dict | None = None):
+            idx = len(row_models)
+            row: dict[str, object] = {}
+
+            loc_var = tk.StringVar(
+                value=(initial or {}).get('compartment_path') or (self.selected_compartment.get() or 'ROOT')
+            )
+            desc_var = tk.StringVar(value=(initial or {}).get('description') or '')
+            text_var = tk.StringVar(value=(initial or {}).get('statement_text') or '')
+            status_var = tk.StringVar(value='Not parsed')
+            frame = ttk.Frame(body)
+            # One row per prospective statement, using the same column
+            # layout as the header so everything lines up.
+            frame.grid(row=idx, column=0, sticky='ew', pady=1)
+
+            # Match header's column weighting so longer compartment paths
+            # or statement text can expand when the window is resized.
+            # We mirror the header weights (19/18/40/15) and keep the
+            # two action buttons in a compact actions column.
+            for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 5), (5, 5)):
+                frame.columnconfigure(col, weight=weight)
+
+            loc_cb = ttk.Combobox(frame, textvariable=loc_var, values=compartments, state='readonly', width=25)
+            loc_cb.grid(row=0, column=0, padx=2, sticky='ew')
+
+            desc_entry = ttk.Entry(frame, textvariable=desc_var, width=20)
+            desc_entry.grid(row=0, column=1, padx=2, sticky='ew')
+
+            text_entry = ttk.Entry(frame, textvariable=text_var, width=75)
+            text_entry.grid(row=0, column=2, padx=2, sticky='ew')
+
+            status_lbl = ttk.Label(frame, textvariable=status_var, width=10, foreground='#555')
+            status_lbl.grid(row=0, column=3, padx=2, sticky='w')
+
+            def on_parse():
+                stmt_text = text_var.get().strip()
+                if not stmt_text:
+                    status_var.set('Enter statement text')
+                    return
+                try:
+                    result = self.simulation_engine.validate_prospective_statement(stmt_text)
+                    logger.debug('Prospective parse debug result (inline): %r', result)
+                    if result.get('parsed') and result.get('valid'):
+                        status_var.set('Parsed')
+                    else:
+                        reasons = result.get('invalid_reasons') or []
+                        status_var.set('Invalid')
+                        logger.warning(
+                            'Inline prospective statement parse failed or invalid. reasons=%s, text=%r',
+                            reasons,
+                            stmt_text,
+                        )
+                except Exception as ex:  # defensive
+                    status_var.set('Error')
+                    logger.warning('Exception during inline prospective parse: %s', ex, exc_info=True)
+
+            def on_delete():
+                frame.destroy()
+                if row in row_models:
+                    row_models.remove(row)
+
+            # Keep actions visually compact and aligned with the header.
+            parse_btn = ttk.Button(frame, text='Parse', command=on_parse, width=7)
+            parse_btn.grid(row=0, column=4, padx=(2, 0), sticky='w')
+            del_btn = ttk.Button(frame, text='Delete', command=on_delete, width=7)
+            del_btn.grid(row=0, column=5, padx=(2, 2), sticky='w')
+
+            row.update(
+                {
+                    'frame': frame,
+                    'loc_var': loc_var,
+                    'desc_var': desc_var,
+                    'text_var': text_var,
+                    'status_var': status_var,
+                }
+            )
+            row_models.append(row)
+
+        try:
+            existing = engine.get_prospective_statements() or []
+        except Exception as ex:  # defensive
+            logger.warning('Unable to load prospective statements for inline editor: %s', ex)
+            existing = []
+
+        if existing:
+            for stmt in existing:
+                add_row(stmt)
+        else:
+            add_row({})
+
+        # Subtle horizontal separator below the rows to visually
+        # separate the table from the action buttons.
+        sep = ttk.Separator(parent, orient='horizontal')
+        sep.grid(row=3, column=0, sticky='ew', padx=4, pady=(4, 2))
+
+        btns = ttk.Frame(parent)
+        btns.grid(row=4, column=0, sticky='ew', padx=4, pady=(2, 6))
+
+        def on_add():
+            add_row({})
+
+        def on_save():  # noqa: C901
+            new_list: list[dict[str, object]] = []
+            for rm in row_models:
+                loc = rm['loc_var'].get().strip()  # type: ignore[union-attr]
+                desc = rm['desc_var'].get().strip()  # type: ignore[union-attr]
+                text = rm['text_var'].get().strip()  # type: ignore[union-attr]
+                if not text:
+                    # Skip completely empty rows
+                    continue
+                if not loc:
+                    loc = 'ROOT'
+                new_list.append(
+                    {
+                        'compartment_path': loc,
+                        'description': desc,
+                        'statement_text': text,
+                    }
+                )
+
+            try:
+                engine.set_prospective_statements(new_list)
+                logger.info('Saved %d prospective statements via inline editor', len(new_list))
+                # Persist to settings per-tenancy so prospective list is restored on restart
+                tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
+                if tenancy_key:
+                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+                    all_sim_settings[str(tenancy_key)] = new_list
+                    self.settings['simulation_prospective_statements_by_tenancy'] = all_sim_settings
+                    try:
+                        from oci_policy_analysis.common import config as _cfg
+
+                        _cfg.save_settings(self.settings)
+                    except Exception:
+                        # Non-fatal; UI/engine already have in-memory copy
+                        logger.warning('Unable to persist prospective statements to settings.json', exc_info=True)
+            except Exception as ex:  # defensive UI guard
+                import tkinter.messagebox as mb
+
+                mb.showerror('Error Saving Prospective Statements', str(ex))
+                return
+
+            # Environment has changed; clear dependent state so statements
+            # and context will be recomputed.
+            self._on_environment_changed(reason='prospective_changed')
+
+        # Keep core actions together on the left so they are easy to
+        # discover and consistent with other tabs.
+        ttk.Button(btns, text='Add Statement', command=on_add).pack(side='left')
+        ttk.Button(btns, text='Save Prospective Statements', command=on_save).pack(side='left', padx=(6, 0))
 
     def load_statements(self):  # noqa: C901
         """Loads and displays policy statements for the currently selected compartment and principal.
@@ -427,30 +916,19 @@ class SimulationTab(BaseUITab):
         Returns:
             None
         """
-        # Called on "Load Simulation"
 
-        # --- CLEAN STATE: Reset simulation fields, result area, and selections ---
-        # 1. Clear API operation selection and combo
+        # CLEAN STATE for statements/context (results/history are left intact;
+        # environment changes should call _on_environment_changed explicitly).
         self.selected_api_operation.set('')
-        self.api_operation_combobox.set('')
+        try:
+            self.api_operation_combobox.set('')
+        except Exception:
+            pass
 
-        # 2. Clear results text area
-        self.results_text.delete(1.0, tk.END)
-
-        # 3. Clear where inputs and where-fields label
         self._clear_where_inputs()
         self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
-
-        # 4. Clear variable input widgets
         self.simulation_inputs = {}
-
-        # 5. Clear checked_statements (will be re-populated)
         self.checked_statements = {}
-
-        # 6. Reset trace history UI (do not delete history itself, just reset dropdown selection)
-        self._update_trace_history_dropdown()
-        self.trace_history_var.set('')
-        self.trace_history_dropdown.set('')
 
         cpath = self.selected_compartment.get()
         ptype = self.selected_principal_type.get()
@@ -485,25 +963,39 @@ class SimulationTab(BaseUITab):
             self.statement_checkbox_table = None
         data = []
         for st in all_stmts:
+            comp_path = st.get('compartment_path', 'Unknown Path')
+            desc = st.get('description')
+            base_name = desc or st.get('policy_name', 'Unnamed Policy')
+            label = f'{base_name} ({comp_path})'
+            if st.get('is_prospective'):
+                label = f'[Prospective] {label}'
             data.append(
                 {
-                    'Policy Path/Name': f"{st.get('compartment_path','Unknown Path')} / {st.get('policy_name','Unnamed Policy')}",
+                    'Policy Path/Name': label,
                     'Policy Statement': st.get('statement_text', ''),
                     'Conditional': 'Yes' if st.get('conditions') else 'No',
                     'obj': st,
                 }
             )
 
-        def on_action(checked_rows):
-            checked_ids = [row['obj'].get('internal_id') for row in checked_rows if 'obj' in row]
-            logger.info(f'Simulate Selected called for checked statement IDs: {checked_ids}')
-            # Legacy: set checked_statements for the rest of code
+        def on_action(checked_rows):  # called whenever checkbox selection changes
+            checked_ids = [row.get('obj', {}).get('internal_id') for row in checked_rows if row.get('obj')]
+            logger.info('Checkbox selection changed; %d statements checked: %s', len(checked_ids), checked_ids)
+
+            # Rebuild checked_statements mapping, preserving existing where-input values
             self.checked_statements = {}
             for row in data:
                 obj = row.get('obj')
-                idval = obj.get('internal_id') if obj else None
-                if obj and idval is not None:
-                    self.checked_statements[idval] = (tk.BooleanVar(value=row in checked_rows), obj)
+                if not obj:
+                    continue
+                internal_id = obj.get('internal_id')
+                if internal_id is None:
+                    continue
+                is_checked = any(cr.get('obj') is obj for cr in checked_rows)
+                self.checked_statements[internal_id] = (tk.BooleanVar(value=is_checked), obj)
+
+            # Auto-update where-clause inputs based on currently checked rows
+            self._rebuild_where_inputs_from_checked_rows(checked_rows)
 
         cols = ['Policy Path/Name', 'Policy Statement', 'Conditional']
         # Set table max height to about 30% typical default window (e.g. 260px), user can tune
@@ -516,7 +1008,9 @@ class SimulationTab(BaseUITab):
             self.preview_frame,
             columns=cols,
             data=data,
-            action_buttons=[('Load Where Clause Fields', self.load_where_fields)],
+            action_buttons=[
+                ('Load Where Clause Fields', self.load_where_fields),
+            ],
             enable_select_all=True,
             checked_by_default=True,
             max_height=260,  # px, approx 30% of default main window
@@ -556,6 +1050,203 @@ class SimulationTab(BaseUITab):
         for widget in self.where_inputs_frame.winfo_children():
             widget.destroy()
         self.simulation_inputs = {}
+
+    # ------------------------------------------------------------------
+    # Prospective Statement Editor
+    # ------------------------------------------------------------------
+
+    def open_prospective_editor(self, *_):  # noqa: C901
+        """Open a simple CRUD dialog for managing prospective policy statements.
+
+        Users can add/edit/delete "what-if" statements that will be evaluated
+        alongside real tenancy policies during simulation. Only statements
+        applicable to the current compartment/principal will appear in the
+        Applicable Policy Statements table, but this editor allows defining
+        prospective statements anywhere in the tenancy.
+        """
+
+        engine = getattr(self, 'simulation_engine', None)
+        if not engine or not hasattr(engine, 'get_prospective_statements'):
+            logger.warning('Prospective editor opened but simulation_engine has no prospective support.')
+            return
+
+        # Modal toplevel window
+        win = tk.Toplevel(self)
+        win.title('Manage Prospective Policy Statements')
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+
+        # Match the main app/background theme (avoid stark white background)
+        try:
+            bg = ttk.Style().lookup('TFrame', 'background') or self.cget('background')
+        except Exception:
+            bg = '#f0f0f0'
+        win.configure(background=bg)
+
+        # Intro text about scope semantics
+        intro = (
+            'Define prospective (what-if) policy statements anywhere in the tenancy.\n'
+            'During simulation, only statements applicable to the selected compartment '
+            'and principal will appear in the "Applicable Policy Statements" table.'
+        )
+        ttk.Label(win, text=intro, wraplength=700, justify='left').pack(fill='x', padx=8, pady=(8, 4))
+
+        # Container for rows
+        rows_frame = ttk.Frame(win)
+        rows_frame.pack(fill='both', expand=True, padx=8, pady=4)
+
+        # Columns: Location (compartment), Description, Statement Text, Status, Actions
+        header = ttk.Frame(rows_frame)
+        header.pack(fill='x')
+        ttk.Label(header, text='Location (Compartment)', width=35).grid(row=0, column=0, sticky='w', padx=2)
+        ttk.Label(header, text='Description', width=25).grid(row=0, column=1, sticky='w', padx=2)
+        ttk.Label(header, text='Statement Text', width=60).grid(row=0, column=2, sticky='w', padx=2)
+        ttk.Label(header, text='Status', width=20).grid(row=0, column=3, sticky='w', padx=2)
+        ttk.Label(header, text='Actions', width=12).grid(row=0, column=4, sticky='w', padx=2)
+
+        body = ttk.Frame(rows_frame)
+        body.pack(fill='both', expand=True, pady=(4, 0))
+
+        # Keep simple: store row widgets/vars in a list
+        row_models: list[dict[str, object]] = []
+
+        # Available compartments for dropdown
+        compartments = list(self._sim_index_compartments or ['ROOT'])
+
+        def add_row(initial: dict | None = None):
+            idx = len(row_models)
+            row = {}
+
+            loc_var = tk.StringVar(
+                value=(initial or {}).get('compartment_path') or (self.selected_compartment.get() or 'ROOT')
+            )
+            desc_var = tk.StringVar(value=(initial or {}).get('description') or '')
+            text_var = tk.StringVar(value=(initial or {}).get('statement_text') or '')
+            status_var = tk.StringVar(value='Not parsed')
+
+            frame = ttk.Frame(body)
+            frame.grid(row=idx, column=0, sticky='ew', pady=2)
+
+            loc_cb = ttk.Combobox(frame, textvariable=loc_var, values=compartments, width=35)
+            loc_cb.grid(row=0, column=0, padx=2, sticky='w')
+            desc_entry = ttk.Entry(frame, textvariable=desc_var, width=25)
+            desc_entry.grid(row=0, column=1, padx=2, sticky='w')
+            text_entry = ttk.Entry(frame, textvariable=text_var, width=60)
+            text_entry.grid(row=0, column=2, padx=2, sticky='w')
+            status_lbl = ttk.Label(frame, textvariable=status_var, width=20, foreground='#555')
+            status_lbl.grid(row=0, column=3, padx=2, sticky='w')
+
+            def on_parse():
+                stmt_text = text_var.get().strip()
+                if not stmt_text:
+                    status_var.set('Enter statement text')
+                    return
+                try:
+                    result = self.simulation_engine.validate_prospective_statement(stmt_text)
+                    logger.debug('Prospective parse debug result: %r', result)
+                    if result.get('parsed') and result.get('valid'):
+                        status_var.set('Ready')
+                    else:
+                        reasons = result.get('invalid_reasons') or []
+                        status_var.set('Invalid')
+                        logger.warning(
+                            'Prospective statement parse failed or invalid. reasons=%s, text=%r',
+                            reasons,
+                            stmt_text,
+                        )
+                except Exception as ex:
+                    status_var.set('Error')
+                    logger.warning('Exception during prospective parse: %s', ex, exc_info=True)
+
+            def on_delete():
+                frame.destroy()
+                row_models.remove(row)
+
+            parse_btn = ttk.Button(frame, text='Parse', command=on_parse, width=6)
+            parse_btn.grid(row=0, column=4, padx=(2, 0), sticky='w')
+            del_btn = ttk.Button(frame, text='Delete', command=on_delete, width=6)
+            del_btn.grid(row=0, column=5, padx=(2, 0), sticky='w')
+
+            row.update(
+                {
+                    'frame': frame,
+                    'loc_var': loc_var,
+                    'desc_var': desc_var,
+                    'text_var': text_var,
+                    'status_var': status_var,
+                }
+            )
+            row_models.append(row)
+
+        # Seed from engine
+        try:
+            existing = engine.get_prospective_statements() or []
+        except Exception as ex:  # defensive
+            logger.warning(f'Unable to load prospective statements: {ex}')
+            existing = []
+
+        if existing:
+            for stmt in existing:
+                add_row(stmt)
+        else:
+            add_row({})
+
+        # Bottom buttons
+        btns = ttk.Frame(win)
+        btns.pack(fill='x', padx=8, pady=(6, 8))
+
+        def on_add():
+            add_row({})
+
+        def on_save():  # noqa: C901
+            # Collect rows into simple dicts and hand off to engine
+            new_list = []
+            for rm in row_models:
+                loc = rm['loc_var'].get().strip()  # type: ignore[union-attr]
+                desc = rm['desc_var'].get().strip()  # type: ignore[union-attr]
+                text = rm['text_var'].get().strip()  # type: ignore[union-attr]
+                if not text:
+                    # Skip completely empty rows
+                    continue
+                if not loc:
+                    loc = 'ROOT'
+                new_list.append(
+                    {
+                        'compartment_path': loc,
+                        'description': desc,
+                        'statement_text': text,
+                    }
+                )
+
+            try:
+                engine.set_prospective_statements(new_list)
+                logger.info('Saved %d prospective statements via editor', len(new_list))
+                # Persist to settings per-tenancy so prospective list is restored on restart
+                tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
+                if tenancy_key:
+                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+                    all_sim_settings[str(tenancy_key)] = new_list
+                    self.settings['simulation_prospective_statements_by_tenancy'] = all_sim_settings
+                    try:
+                        from oci_policy_analysis.common import config as _cfg
+
+                        _cfg.save_settings(self.settings)
+                    except Exception:
+                        # Non-fatal; UI/engine already have in-memory copy
+                        logger.warning('Unable to persist prospective statements to settings.json', exc_info=True)
+            except Exception as ex:  # defensive UI guard
+                import tkinter.messagebox as mb
+
+                mb.showerror('Error Saving Prospective Statements', str(ex))
+                return
+
+            # Refresh main table so new prospective statements appear
+            self.load_statements()
+            win.destroy()
+
+        ttk.Button(btns, text='Add Statement', command=on_add).pack(side='left')
+        ttk.Button(btns, text='Save', command=on_save).pack(side='right')
+        ttk.Button(btns, text='Cancel', command=win.destroy).pack(side='right', padx=(0, 6))
 
     def load_where_fields(self, checked_rows=None):  # noqa: C901
         """Extracts and displays dynamic where clause input fields based on the selected statements.
@@ -632,6 +1323,74 @@ class SimulationTab(BaseUITab):
         self._maybe_enable_sim_buttons()
         logger.info(f'Where fields loaded from checked statements: {sorted_vars}')
 
+    def _rebuild_where_inputs_from_checked_rows(self, checked_rows):  # noqa: C901
+        """Recompute where-clause input fields based on the currently checked rows.
+
+        This is an auto-updating variant of load_where_fields that:
+          * Regenerates the variable list whenever checkbox selection changes.
+          * Preserves any existing values for variables that remain in scope.
+        """
+
+        logger.info('Rebuilding where inputs from %d checked row(s)', len(checked_rows or []))
+
+        checked_rows = checked_rows or []
+
+        # Collect variable names from all checked statements
+        all_var_names: set[str] = set()
+        for row in checked_rows:
+            st = row.get('obj', row)
+            cond_str = st.get('conditions') if isinstance(st, dict) else None
+            if not cond_str:
+                continue
+            try:
+                all_var_names.update(PolicySimulationEngine.extract_variable_names(cond_str))
+            except Exception as exc:  # defensive
+                logger.info('Extracting variables failed for stmt %r: %s', st, exc)
+
+        sorted_vars = sorted(all_var_names)
+
+        # Preserve old values where possible
+        old_inputs = self.simulation_inputs or {}
+        self._clear_where_inputs()
+
+        if not sorted_vars:
+            self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
+            self._maybe_enable_sim_buttons()
+            return
+
+        EXAMPLES = {
+            'request.utc-timestamp': 'e.g. 2026-01-05T12:34:56Z',
+            'request.utc-timestamp.time-of-day': 'e.g. 13:27:00Z',
+        }
+
+        for idx, var in enumerate(sorted_vars):
+            ttk.Label(self.where_inputs_frame, text=var + ':', font=('TkDefaultFont', 10)).grid(
+                row=idx, column=0, padx=2, pady=1, sticky='e'
+            )
+            # Reuse existing StringVar if present to preserve value
+            strvar = old_inputs.get(var) or tk.StringVar()
+            entry = ttk.Entry(self.where_inputs_frame, textvariable=strvar, width=35)
+            entry.grid(row=idx, column=1, padx=2, pady=1, sticky='w')
+
+            example_hint = ''
+            if var == 'request.utc-timestamp':
+                example_hint = EXAMPLES['request.utc-timestamp']
+            elif var == 'request.utc-timestamp.time-of-day':
+                example_hint = EXAMPLES['request.utc-timestamp.time-of-day']
+            if example_hint:
+                ttk.Label(
+                    self.where_inputs_frame,
+                    text=example_hint,
+                    foreground='#666',
+                    font=('TkDefaultFont', 9, 'italic'),
+                ).grid(row=idx, column=2, padx=(3, 2), sticky='w')
+
+            self.simulation_inputs[var] = strvar
+
+        self.where_fields_label.configure(text=f'Where-Clause Inputs: {sorted_vars}')
+        self._maybe_enable_sim_buttons()
+        logger.info('Auto where fields rebuilt; variables=%s', sorted_vars)
+
     # API Operation search/filter
     def _on_api_op_search(self, event):
         val = self.api_operation_combobox.get()
@@ -699,16 +1458,39 @@ class SimulationTab(BaseUITab):
         if idx is not None:
             trace = self.simulation_engine.get_simulation_trace_by_index(idx)
             if trace:
-                # Pretty print permissions/result (similar to after run_simulation)
-                summary = []
-                summary.append(f"Result: {'ALLOWED' if trace['api_call_allowed'] else 'DENIED'}")
-                if trace['failure_reason']:
-                    summary.append(f"Reason: {trace['failure_reason']}")
-                summary.append(f"Permissions: {', '.join(trace.get('final_permission_set', [])) or '[none granted]'}")
-                summary.append('Simulation JSON detail below:\n')
-                pretty_json = json.dumps(trace, indent=2, ensure_ascii=False)
+                # Cache for dynamic re-render on Show Trace toggle
+                self.simulation_results = trace
+                # Pretty print permissions/result (similar to after run_simulation).
+                api_allowed = bool(trace.get('api_call_allowed'))
+                lines: list[str] = []
+                lines.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+                failure_reason = trace.get('failure_reason') or ''
+                if failure_reason:
+                    lines.append(f'Reason: {failure_reason}')
+
+                sim_trace = trace.get('simulation_trace') or {}
+                final_permissions: list[str] = []
+                if isinstance(sim_trace, dict):
+                    final_permissions = sim_trace.get('final_permission_set') or []
+
+                # Required and missing permissions summary
+                required = trace.get('required_permissions_for_api_operation') or []
+                missing = trace.get('missing_permissions') or []
+                lines.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+                if missing:
+                    lines.append(f"Missing permissions: {', '.join(missing)}")
+
+                # Only show full permission set and JSON when trace toggle is on
+                if self.show_trace_details_var.get():
+                    lines.append(
+                        f"Final permission set: {', '.join(final_permissions) if final_permissions else '[none granted]'}"
+                    )
+                    lines.append('Simulation JSON detail below:\n')
+                    pretty_json = json.dumps(trace, indent=2, ensure_ascii=False)
+                    lines.append(pretty_json)
+
                 self.results_text.delete(1.0, tk.END)
-                self.results_text.insert(tk.END, '\n'.join(summary) + '\n' + pretty_json)
+                self.results_text.insert(tk.END, '\n'.join(lines))
 
     def run_simulation(self):
         """Runs a policy simulation with the current selections (basic mode).
@@ -718,19 +1500,15 @@ class SimulationTab(BaseUITab):
         Returns:
             None
         """
-        # Called on "Run Simulation" (basic, high-level details only)
-        self._run_simulation_with_trace(trace_mode=False)
-
-    def run_simulation_trace(self):
-        """Runs a policy simulation with detailed tracing enabled.
-
-        Shows statement-by-statement evaluation and trace debug output.
-
-        Returns:
-            None
-        """
-        # Called on "Run Simulation (Trace)" — detailed per-statement trace
-        self._run_simulation_with_trace(trace_mode=True)
+        # Called on "Run Simulation". Engine always computes full trace;
+        # UI decides how much to display based on show_trace_details_var.
+        self._run_simulation_with_trace()
+        # After a successful run, switch to the History subtab so the user
+        # immediately sees the result and can browse prior traces.
+        try:
+            self.notebook.select(self.history_frame)
+        except Exception:
+            logger.debug('SimulationTab: unable to switch to history_frame after run', exc_info=True)
 
     @staticmethod
     def _normalize_timestring(value: str) -> str:
@@ -751,9 +1529,8 @@ class SimulationTab(BaseUITab):
             return new_v
         return value
 
-    def _run_simulation_with_trace(self, trace_mode):
-        mode_label = 'TRACE' if trace_mode else 'BASIC'
-        logger.info(f'Starting simulation [{mode_label}] with current selections')
+    def _run_simulation_with_trace(self):
+        logger.info('Starting simulation with current selections')
 
         # Summarize key selections at INFO, only detail (statements) at DEBUG
         logger.info(
@@ -787,9 +1564,7 @@ class SimulationTab(BaseUITab):
         # --- Improved: Include operation and principal for trace history name ---
         sim_trace_name = f'{api_operation} | {ptype}:{pname_display}' if api_operation and pname_display else None
 
-        logger.info(
-            f'Calling simulate_and_record on simulation_engine (trace_mode={trace_mode}) with {len(checked_statement_ids)} statements'
-        )
+        logger.info(f'Calling simulate_and_record on simulation_engine with {len(checked_statement_ids)} statements')
         result = self.simulation_engine.simulate_and_record(
             principal_key,
             cpath,
@@ -797,24 +1572,42 @@ class SimulationTab(BaseUITab):
             where_context,
             checked_statement_ids,
             trace_name=sim_trace_name,
-            trace=trace_mode,
+            trace=True,
         )
 
+        # Cache for dynamic re-render on Show Trace toggle
+        self.simulation_results = result
+
         # Display outcome
-        summary = []
-        summary.append(f"Result: {'ALLOWED' if result['api_call_allowed'] else 'DENIED'}")
-        if result['failure_reason']:
-            summary.append(f"Reason: {result['failure_reason']}")
-        summary.append(f"Permissions: {', '.join(result.get('final_permission_set', [])) or '[none granted]'}")
-        summary.append('Simulation JSON detail below:\n')
-        pretty_json = json.dumps(result, indent=2, ensure_ascii=False)
-        # For trace-mode, also pretty-print trace details if available
-        if trace_mode and 'trace_statements' in result:
-            summary.append('\n=== TRACE DETAILS ===\n')
-            for stmt in result['trace_statements']:
-                summary.append(json.dumps(stmt, indent=2, ensure_ascii=False))
-        self.results_text.insert(tk.END, '\n'.join(summary) + '\n' + pretty_json)
-        logger.info(f"Simulation [{mode_label}] result: {result.get('result')}")
+        summary: list[str] = []
+        api_allowed = bool(result.get('api_call_allowed'))
+        summary.append(f"Result: {'ALLOWED' if api_allowed else 'DENIED'}")
+        failure_reason = result.get('failure_reason') or ''
+        if failure_reason:
+            summary.append(f'Reason: {failure_reason}')
+
+        # Required and missing permissions summary
+        required = result.get('required_permissions_for_api_operation') or []
+        missing = result.get('missing_permissions') or []
+        summary.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
+        if missing:
+            summary.append(f"Missing permissions: {', '.join(missing)}")
+
+        # Pull the final permission set from the nested simulation_trace block,
+        # but only display it when trace details are enabled.
+        sim_trace = result.get('simulation_trace') or {}
+        final_permissions = sim_trace.get('final_permission_set') or []
+        if self.show_trace_details_var.get():
+            summary.append(f"Final permission set: {', '.join(final_permissions) or '[none granted]'}")
+            summary.append('Simulation JSON detail below:\n')
+            pretty_json = json.dumps(result, indent=2, ensure_ascii=False)
+            summary.append(pretty_json)
+
+        self.results_text.insert(tk.END, '\n'.join(summary))
+        logger.info(
+            'Simulation result: %s',
+            'ALLOWED' if api_allowed else 'DENIED',
+        )
         # Update and select latest in trace history dropdown
         self._update_trace_history_dropdown()
         self.trace_history_dropdown.update_idletasks()

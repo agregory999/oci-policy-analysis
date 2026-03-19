@@ -13,8 +13,10 @@
 # coding: utf-8
 ##########################################################################
 
+import json
 import logging
 import tkinter as tk
+from importlib import resources
 from logging import Filter
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
@@ -89,28 +91,142 @@ class McpTab(BaseUITab):
         self._build_ui()
         self._attach_mcp_log_handler()
         self._start_status_poll()
+        # Load static MCP tools metadata from packaged JSON (if available)
+        self._load_static_tools_from_resource()
 
     def _build_ui(self):
-        ttk.Label(self, text='MCP Server Control').pack(pady=10)
-        ctrl_frame = ttk.Frame(self)
-        ctrl_frame.pack(pady=10)
+        """Construct the MCP tab layout.
+
+        Layout:
+            - Top row: control panel on the left (start button, status, debug toggle),
+              and a tools table on the right listing available MCP tools.
+            - Bottom: existing MCP server log in a scrolled text area.
+        """
+
+        # --- Top section: controls + tools table in a horizontal split ---
+        top_frame = ttk.Frame(self)
+        top_frame.pack(fill=tk.BOTH, expand=False, padx=10, pady=(10, 0))
+
+        # Control panel on the left
+        ctrl_frame = ttk.LabelFrame(top_frame, text='Embedded MCP Control')
+        ctrl_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 8))
 
         self.start_btn = ttk.Button(ctrl_frame, text='Start MCP Server', command=self._start_mcp)
-        self.start_btn.pack(side=tk.LEFT, padx=5)
+        self.start_btn.grid(row=0, column=0, padx=5, pady=5, sticky='w')
 
-        ttk.Label(ctrl_frame, text='Status:').pack(side=tk.LEFT, padx=(15, 0))
+        ttk.Label(ctrl_frame, text='Status:').grid(row=1, column=0, padx=5, pady=(2, 2), sticky='w')
         self.status_lbl = ttk.Label(ctrl_frame, text='Stopped', foreground='red')
-        self.status_lbl.pack(side=tk.LEFT)
+        self.status_lbl.grid(row=1, column=1, padx=(0, 5), pady=(2, 2), sticky='w')
 
         self.debug_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            self, text='Enable MCP Debug Logging', variable=self.debug_var, command=self._toggle_debug
-        ).pack(pady=4)
+            ctrl_frame,
+            text='Enable MCP Debug Logging',
+            variable=self.debug_var,
+            command=self._toggle_debug,
+        ).grid(row=2, column=0, columnspan=2, padx=5, pady=(4, 4), sticky='w')
 
+        # Tools table on the right
+        tools_frame = ttk.LabelFrame(top_frame, text='Available MCP Tools')
+        tools_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        columns = ('name', 'description', 'inputs', 'outputs')
+        self.tools_table = ttk.Treeview(tools_frame, columns=columns, show='headings', height=10)
+        self.tools_table.heading('name', text='Tool Name')
+        self.tools_table.heading('description', text='Description')
+        self.tools_table.heading('inputs', text='Inputs')
+        self.tools_table.heading('outputs', text='Outputs')
+
+        self.tools_table.column('name', width=180, anchor='w')
+        self.tools_table.column('description', width=260, anchor='w')
+        self.tools_table.column('inputs', width=200, anchor='w')
+        self.tools_table.column('outputs', width=200, anchor='w')
+
+        tools_scroll_y = ttk.Scrollbar(tools_frame, orient='vertical', command=self.tools_table.yview)
+        tools_scroll_x = ttk.Scrollbar(tools_frame, orient='horizontal', command=self.tools_table.xview)
+        self.tools_table.configure(yscrollcommand=tools_scroll_y.set, xscrollcommand=tools_scroll_x.set)
+
+        self.tools_table.grid(row=0, column=0, sticky='nsew')
+        tools_scroll_y.grid(row=0, column=1, sticky='ns')
+        tools_scroll_x.grid(row=1, column=0, sticky='ew')
+
+        tools_frame.rowconfigure(0, weight=1)
+        tools_frame.columnconfigure(0, weight=1)
+
+        # Initially empty; tools will be populated from static metadata and/or after MCP server starts.
+        self._populate_tools_table([])
+
+        # Right-click context menu to open MCP docs for a selected tool
+        self._tool_menu = tk.Menu(self, tearoff=0)
+        self._tool_menu.add_command(label='Open Tool Docs…', command=self._open_selected_tool_docs)
+
+        def _on_tools_right_click(event):
+            row_id = self.tools_table.identify_row(event.y)
+            if not row_id:
+                return
+            # Select the row under cursor so the handler knows which tool is active
+            self.tools_table.selection_set(row_id)
+            try:
+                self._tool_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self._tool_menu.grab_release()
+
+        self.tools_table.bind('<Button-3>', _on_tools_right_click)
+
+        # --- Bottom: MCP server log ---
         ttk.Label(self, text='MCP Server Log:').pack(anchor=tk.W, padx=10, pady=(10, 0))
         self.mcp_log = ScrolledText(self, height=14, width=100, wrap='word', font=('Consolas', 10))
         self.mcp_log.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         self.mcp_log.insert(tk.END, 'MCP log output will appear here...\n')
+
+    def _populate_tools_table(self, tools: list[dict] | None) -> None:
+        """Populate the tools table from a provided list of tool metadata.
+
+        Each entry in ``tools`` is expected to be a dict with keys:
+        name, description, inputs, outputs.
+        """
+
+        # Clear any existing rows
+        for item in self.tools_table.get_children():
+            self.tools_table.delete(item)
+
+        tools = tools or []
+        for tool in tools:
+            name = str(tool.get('name', ''))
+            desc = str(tool.get('description', ''))
+            inputs = str(tool.get('inputs', ''))
+            outputs = str(tool.get('outputs', ''))
+            self.tools_table.insert('', tk.END, values=(name, desc, inputs, outputs))
+
+    def _open_selected_tool_docs(self) -> None:
+        """Open the MCP documentation section for the selected tool.
+
+        Currently this links to the general MCP docs page; if per-tool
+        anchors are added later, we can append a fragment using the tool name.
+        """
+
+        selection = self.tools_table.selection()
+        if not selection:
+            return
+        item_id = selection[0]
+        values = self.tools_table.item(item_id, 'values') or ()
+        tool_name = (values[0] if values else '') or ''
+
+        # Base MCP docs URL (served by Sphinx for this app)
+        base_url = self.DOCROOT + '/mcp.html'
+
+        # Tools are documented in docs/source/mcp.md. Sphinx typically
+        # normalizes heading IDs by lowercasing and replacing non-alphanumeric
+        # characters with hyphens, so underscores in tool names become
+        # hyphens. Mirror that here so anchors resolve correctly.
+        normalized = tool_name.strip().lower()
+        anchor_name = normalized.replace(' ', '-').replace('_', '-')
+        url = f'{base_url}#{anchor_name}' if anchor_name else base_url
+
+        try:
+            self.open_link(url)
+        except Exception:
+            logger.error('Failed to open MCP documentation link: %s', url)
 
     def _attach_mcp_log_handler(self):
         """Attach one UI handler to multiple logger families."""
@@ -157,6 +273,8 @@ class McpTab(BaseUITab):
 
     def _start_status_poll(self):
         is_running = mcp_server_status()
+        _previous = self.server_running
+        self.server_running = is_running
         # logger.debug(f"MCP server is {'running' if is_running else 'stopped'}")
         self._set_status(is_running)
         self.after(5000, self._start_status_poll)
@@ -173,3 +291,57 @@ class McpTab(BaseUITab):
         # logging.getLogger('uvicorn').setLevel(getattr(logging, level))
 
         logger.info(f'Set MCP-related loggers to {level}')
+
+    # -------------------------
+    # Tools list from static resource
+    # -------------------------
+
+    def _load_static_tools_from_resource(self) -> None:
+        """Load MCP tools metadata from a packaged JSON resource, if present.
+
+        This uses the `mcp_tools.json` file included with the application as
+        a static description of available MCP tools (name, description,
+        inputSchema, outputSchema). It does not require the MCP server to be
+        running and serves as the primary source for the tools table.
+        """
+
+        try:
+            # Try to read mcp_tools.json from the installed package resources
+            with resources.files('oci_policy_analysis.logic.mcp_tools_list').joinpath('mcp_tools.json').open(
+                'r', encoding='utf-8'
+            ) as fp:  # type: ignore[attr-defined]
+                raw = fp.read()
+            data = json.loads(raw)
+            result = data.get('result') or {}
+            tools_raw = result.get('tools') or []
+            tools: list[dict] = []
+            for t in tools_raw:
+                if not isinstance(t, dict):
+                    continue
+                name = t.get('name', '')
+                desc = t.get('description', '')
+                input_schema = t.get('inputSchema') or t.get('input_schema') or {}
+                output_schema = t.get('outputSchema') or t.get('output_schema') or {}
+                try:
+                    inputs = ', '.join((input_schema.get('properties') or {}).keys())
+                except Exception:
+                    inputs = ''
+                try:
+                    outputs = ', '.join((output_schema.get('properties') or {}).keys())
+                except Exception:
+                    outputs = ''
+                tools.append(
+                    {
+                        'name': name,
+                        'description': desc,
+                        'inputs': inputs,
+                        'outputs': outputs,
+                    }
+                )
+            logger.info('Loaded %d static MCP tools from packaged mcp_tools.json', len(tools))
+            if tools:
+                self._populate_tools_table(tools)
+        except FileNotFoundError:
+            logger.info('No packaged mcp_tools.json resource found; MCP tools table will rely on live data only.')
+        except Exception as exc:
+            logger.error('Failed to load static MCP tools from resource: %s', exc, exc_info=True)

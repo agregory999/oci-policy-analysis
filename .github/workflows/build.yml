@@ -191,6 +191,7 @@ jobs:
               --copy-metadata fastmcp \
               --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
               --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+              --add-data "src/oci_policy_analysis/logic/mcp_tools_list:oci_policy_analysis/logic/mcp_tools_list" \
               --add-binary="$PY_LIB:Frameworks/Python" \
               src/oci_policy_analysis/main.py
           else
@@ -206,6 +207,7 @@ jobs:
               --icon=icons/oci-policy-dg-viewer.png \
               --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
               --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+              --add-data "src/oci_policy_analysis/logic/mcp_tools_list:oci_policy_analysis/logic/mcp_tools_list" \
               --collect-all=sys \
               --copy-metadata fastmcp \
               --add-binary="$PY_SO:." \
@@ -231,6 +233,7 @@ jobs:
             --copy-metadata fastmcp `
             --add-data "src\oci_policy_analysis\version.txt:oci_policy_analysis" `
             --add-data "src\oci_policy_analysis\logic\permissions:oci_policy_analysis\logic\permissions" `
+            --add-data "src\oci_policy_analysis\logic\mcp_tools_list:oci_policy_analysis\logic\mcp_tools_list" `
             --add-binary "$pyDll;." `
             src\oci_policy_analysis\main.py
 

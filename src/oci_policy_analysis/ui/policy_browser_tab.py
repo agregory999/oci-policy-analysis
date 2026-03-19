@@ -110,11 +110,11 @@ class PolicyBrowserTab(BaseUITab):
 
         self.add_context_help(
             search_entry,
-            'Type to search compartments, policies, or statements (case-insensitive). Filtering occurs as you type.',
+            'Type to search compartments, policies, statements, or tags (case-insensitive). Filtering occurs as you type.',
         )
         self.add_context_help(
             search_label,
-            'Live text search for nodes. All containing/hierarchical nodes will be shown, results highlighted.',
+            'Live text search for compartments, policies, statements, and tags. All containing/hierarchical nodes will be shown, results highlighted.',
         )
         self.add_context_help(
             clear_btn,
@@ -298,20 +298,34 @@ class PolicyBrowserTab(BaseUITab):
             after = text[idx + len(query) :]
             return before + '***' + match + '***' + after
 
+        def matching_tags(tags):
+            """Return matching tag display strings for the current query."""
+            if not isinstance(tags, dict):
+                return []
+            matches = []
+            for key, value in sorted(tags.items()):
+                key_str = str(key)
+                value_str = str(value)
+                if query in key_str.lower() or query in value_str.lower():
+                    matches.append(f'{highlight(key_str)}: {highlight(value_str)}')
+            return matches
+
         def recurse_compartments(parent_ocid):
             nodes = []
             for c in children_by_parent.get(parent_ocid, []):
                 comp_id_val = c.get('id')
                 comp_name = c.get('name', '(Unnamed Compartment)')
                 comp_desc = c.get('description') or '(No description)'
-                match_this = (query in comp_name.lower()) or (query in comp_desc.lower())
+                comp_tag_matches = matching_tags(c.get('tags') or {})
+                match_this = (query in comp_name.lower()) or (query in comp_desc.lower()) or bool(comp_tag_matches)
                 # Policies for this compartment
                 nodes_policies = []
                 policies_here = policies_by_compartment.get(comp_id_val, [])
                 for p in policies_here:
                     pol_name = p.get('policy_name', '(Unnamed Policy)')
+                    policy_tag_matches = matching_tags(p.get('tags') or {})
                     # Match policy name against search
-                    match_policy = query in pol_name.lower()
+                    match_policy = query in pol_name.lower() or bool(policy_tag_matches)
                     highlight_policy_name = highlight(pol_name) if match_policy else pol_name
 
                     # Filter statements with the correct compartment/policy pair
@@ -328,6 +342,7 @@ class PolicyBrowserTab(BaseUITab):
                         nodes_policies.append(
                             (
                                 highlight_policy_name,  # Policy (possibly highlighted)
+                                policy_tag_matches,  # Matching policy tags only
                                 highlight_stmts,  # Only matching stmts
                             )
                         )
@@ -339,7 +354,8 @@ class PolicyBrowserTab(BaseUITab):
                         'statement_count_direct': c.get('statement_count_direct', 0),
                         'statement_count_cumulative': c.get('statement_count_cumulative', 0),
                         'comp_desc': highlight(comp_desc) if query in comp_desc.lower() else comp_desc,
-                        'policies': nodes_policies,  # [(policy_name, [stmts])]
+                        'tag_matches': comp_tag_matches,
+                        'policies': nodes_policies,  # [(policy_name, [tag_matches], [stmts])]
                         'descendants': descendant_nodes,
                         'should_expand': True,  # All matching paths expanded
                     }
@@ -363,7 +379,7 @@ class PolicyBrowserTab(BaseUITab):
         for i in self.tree.get_children():
             self.tree.delete(i)
 
-        def tree_from_nodes(nodes, parent_id):
+        def tree_from_nodes(nodes, parent_id):  # noqa: C901
             for c in nodes:
                 # Compartment node is always default background
                 comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
@@ -383,11 +399,20 @@ class PolicyBrowserTab(BaseUITab):
                     counts_display = f'Statement count - direct: {direct_count}, cumulative: {cum_count}{status_msg}'
                     self.tree.insert(comp_node, 'end', text=counts_display, open=False, tags=(count_tag,))
                 self.tree.insert(comp_node, 'end', text=f'Description: {c["comp_desc"]}', open=False)
+                comp_tag_matches = c.get('tag_matches', [])
+                if comp_tag_matches:
+                    tags_node = self.tree.insert(comp_node, 'end', text='Tags:', open=True)
+                    for tag_text in comp_tag_matches:
+                        self.tree.insert(tags_node, 'end', text=tag_text, open=False)
                 policies = c.get('policies', [])
                 if policies:
                     policies_parent = self.tree.insert(comp_node, 'end', text='Policies', open=True)
-                    for pol_name, stmts in policies:
+                    for pol_name, tag_matches, stmts in policies:
                         pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=True)
+                        if tag_matches:
+                            tags_node = self.tree.insert(pol_node, 'end', text='Tags:', open=True)
+                            for tag_text in tag_matches:
+                                self.tree.insert(tags_node, 'end', text=tag_text, open=False)
                         for stmt_txt, _ in stmts:
                             self.tree.insert(pol_node, 'end', text=stmt_txt, open=False)
                 tree_from_nodes(c.get('descendants', []), comp_node)

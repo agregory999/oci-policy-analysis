@@ -494,7 +494,9 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 
 ---
 
-### OCI Policy Simulation: Structure and Process
+### prepare_simulation
+
+OCI Policy Simulation: Structure and Process
 
 The core policy simulation flow—used by both the UI and MCP tools—follows these canonical steps (as implemented in the simulation engine):
 
@@ -504,11 +506,10 @@ The core policy simulation flow—used by both the UI and MCP tools—follows th
 4. **Run Simulation:** The engine evaluates simulation scenarios, applying any required where-values and the chosen API operation.
 
 **Important:**  
-- The MCP simulation tools *always* use all applicable policy statements for a context. Manual "statement selection" (allowed in UI for debugging) is **never** exposed in the MCP API to ensure correctness and reproducibility.
+- The MCP simulation tools *always* use all applicable policy statements (including any valid prospective what-if statements) for a context. Manual "statement selection" (allowed in the UI for debugging) is **never** exposed in the MCP API to ensure correctness and reproducibility.
 
 ---
 
-### 0. `prepare_simulation`  
 Prepare an OCI policy simulation context.
 
 **Purpose:**  
@@ -541,7 +542,7 @@ or for an "any-user" simulation:
 
 ---
 
-### 0.1. `run_simulation_batch`  
+### run_simulation_batch
 Run one or more policy simulation scenarios using canonical logic (all valid statements, all required where clause params).
 
 **Purpose:**  
@@ -608,8 +609,133 @@ For each scenario, specifies compartment, principal, API operation, and where-va
 }
 ```
 
-- Each scenario uses all valid applicable policy statements for its input context.
+- Each scenario uses all valid applicable policy statements (including any in-memory prospective statements) for its input context.
 - No manual statement selection is possible or required in MCP simulation—this is by design for accuracy.
+
+---
+
+### Prospective (What-If) Policy Statements via MCP
+
+In addition to loading policies from OCI (or cache), the simulation engine supports **prospective** statements – in-memory what-if policies that participate in simulation just like real tenancy-defined policies. The UI Simulation tab exposes an inline editor for these; MCP exposes equivalent capabilities via four tools:
+
+#### list_prospective_statements
+
+List all currently active prospective statements.
+
+**Input:**
+
+```json
+{}
+```
+
+**Response (array of summaries):**
+
+```json
+[
+  {
+    "internal_id": "prospective-1",
+    "policy_name": "What-if Finance read",
+    "compartment_path": "ROOT/Finance",
+    "parsed": true,
+    "valid": true,
+    "invalid_reasons": [],
+    "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
+  }
+]
+```
+
+#### set_prospective_statements
+
+Replace the **entire** set of prospective (what-if) statements used during simulation.
+
+**Input:**
+
+```json
+[
+  {
+    "compartment_path": "ROOT/Finance",
+    "description": "What-if: open Finance bucket read",
+    "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
+  },
+  {
+    "compartment_path": "ROOT/HR",
+    "description": "What-if: restrict HR instance start",
+    "statement_text": "Deny group HR-Contractors to manage instance-family in compartment HR"
+  }
+]
+```
+
+Each object is a `ProspectiveStatementInput` (see `oci_policy_analysis.common.models_simulation`).
+
+**Response:**
+
+- Same shape as `list_prospective_statements` – the full, normalized prospective list **after** replacement.
+
+#### add_prospective_statement
+
+Validate and add a **single** prospective statement.
+
+**Input:**
+
+```json
+{
+  "compartment_path": "ROOT/Finance",
+  "description": "What-if: allow Finance auditors to inspect buckets",
+  "statement_text": "Allow group Finance-Auditors to inspect buckets in compartment Finance"
+}
+```
+
+**Response (`ProspectiveStatementResult`):**
+
+```json
+{
+  "parsed": true,
+  "valid": true,
+  "invalid_reasons": [],
+  "internal_id": "prospective-3",
+  "normalized": {
+    "parsed": true,
+    "valid": true,
+    "verb": "inspect",
+    "resource": "buckets",
+    "permission": ["INSPECT_BUCKETS"],
+    "effective_path": "ROOT/Finance",
+    "conditions": "",
+    "action": "allow"
+    // ... additional normalized fields
+  },
+  "message": "Prospective statement parsed, validated, and added successfully."
+}
+```
+
+- If parse or validation fails, the tool returns `parsed=false` or `valid=false`, includes `invalid_reasons`, and **does not** modify the engine’s state.
+- On success, the statement is appended to the current prospective list and will participate in subsequent simulations.
+
+#### clear_prospective_statements
+
+Remove all prospective statements.
+
+**Input:**
+
+```json
+{}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "All prospective statements have been cleared."
+}
+```
+
+**Typical what-if workflow:**
+
+1. Use `set_prospective_statements` or `add_prospective_statement` to define one or more what-if policies.
+2. Confirm them with `list_prospective_statements` (optional).
+3. Run `prepare_simulation` and `run_simulation_batch` as usual – prospective statements are automatically included whenever they match the simulation principal and effective path.
+4. Use `clear_prospective_statements` to reset the engine to tenancy-only policies.
 
 ---
 
@@ -638,7 +764,7 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
 
-### 9. `compare_reference_data_caches`
+### compare_reference_data_caches
 Compare the previous reference data cache for this tenancy to the current in-memory state.
 
 **Features:**
@@ -669,7 +795,7 @@ Compare the previous reference data cache for this tenancy to the current in-mem
 
 ---
 
-### 10. `reload_mcp_data`
+### reload_mcp_data
 Reload all policy and identity data from OCI into the in-memory MCP server repository.
 
 **Features:**
@@ -695,7 +821,7 @@ Reload all policy and identity data from OCI into the in-memory MCP server repos
 }
 ```
 
-### 1. `filter_policy_statements`
+### filter_policy_statements
 **Primary tool for policy analysis** - Filter OCI IAM policy statements with flexible criteria.
 
 **Features:**
@@ -735,7 +861,7 @@ Reload all policy and identity data from OCI into the in-memory MCP server repos
 
 ---
 
-### 2. `search_users`
+### search_users
 Search and retrieve OCI IAM users with optional filtering.
 
 **Filter Options:**
@@ -761,7 +887,7 @@ Search and retrieve OCI IAM users with optional filtering.
 
 ---
 
-### 3. `search_groups`
+### search_groups
 Search and retrieve OCI IAM groups.
 
 **Filter Options:**
@@ -790,7 +916,7 @@ Search and retrieve OCI IAM groups.
 
 ---
 
-### 4. `search_dynamic_groups`
+### search_dynamic_groups
 Search and retrieve OCI dynamic groups.
 
 **Filter Options:**
@@ -816,7 +942,7 @@ Search and retrieve OCI dynamic groups.
 
 ---
 
-### 5. `get_groups_for_user`
+### get_groups_for_user
 Get all groups that a specific user belongs to (exact match only).
 
 **Input:**
@@ -831,7 +957,7 @@ Get all groups that a specific user belongs to (exact match only).
 
 ---
 
-### 6. `get_users_for_group`
+### get_users_for_group
 Get all users in a specific group (exact match only).
 
 **Input:**
@@ -846,7 +972,7 @@ Get all users in a specific group (exact match only).
 
 ---
 
-### 7. `cross-tenancy-alias-list`
+### cross_tenancy_alias_list
 List all cross-tenancy aliases defined in OCI policies.
 
 **Input:** None
@@ -855,7 +981,7 @@ List all cross-tenancy aliases defined in OCI policies.
 
 ---
 
-### 8. `cross-tenancy-policies-by-alias`
+### cross_tenancy_policies_by_alias
 Filter cross-tenancy policy statements that reference a specific alias.
 
 **Input:**

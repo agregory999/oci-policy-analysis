@@ -30,6 +30,8 @@ from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLex
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
 from oci_policy_analysis.logic.parsers.condition_parser.WhereClauseEvaluator import evaluate_where_clause
+from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
+from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
 logger = get_logger(component='policy_simulation_engine')
 
@@ -206,11 +208,214 @@ class PolicySimulationEngine:
             f'self.policy_statements initialized: type={type(self.policy_statements)}, len={len(self.policy_statements)}'
         )
         self.ref_data_repo = ref_data_repo
+        # Prospective (what-if) policy statements, managed via UI/settings and treated
+        # identically to regular statements during simulation. Stored as a list of
+        # normalized statement dicts with at least: internal_id, compartment_path,
+        # policy_name/description, statement_text, conditions, is_prospective=True.
+        self._prospective_statements: list[dict[str, Any]] = []
         # Create a JSON to hold internal state for debug and tracing
         self.internal_state: dict[str, Any] = {}
         self.internal_state['total_statements'] = len(self.policy_statements)
         # Simulation log/history: list of dicts, one per simulation run
         self.simulation_history: list[dict[str, Any]] = []
+        # Normalizer for validating prospective statements (reuses core parser)
+        self._statement_normalizer = PolicyStatementNormalizer()
+
+    # ------------------------------------------------------------------
+    # Prospective Statement Management
+    # ------------------------------------------------------------------
+
+    def get_prospective_statements(self) -> list[dict[str, Any]]:
+        """Return a shallow copy of all current prospective statements.
+
+        These statements are *in addition to* the regular policy statements
+        loaded from the tenancy/cache and are used for "what-if" simulation
+        scenarios. They are not written back to OCI.
+        """
+
+        # Shallow copy is enough for UI consumption; engine maintains the
+        # authoritative list.
+        return list(self._prospective_statements)
+
+    def _ensure_prospective_internal_ids(self) -> None:
+        """Ensure each prospective statement has a unique internal_id.
+
+        Uses a distinct id space with the prefix ``prospective-`` to avoid
+        colliding with tenancy-loaded statement ids (typically numeric/UUID).
+        """
+
+        # Build a set of existing ids from regular statements for safety.
+        existing_ids = {str(s.get('internal_id')) for s in self.policy_statements if s.get('internal_id') is not None}
+        counter = 1
+        for stmt in self._prospective_statements:
+            cur = stmt.get('internal_id')
+            if cur is None or str(cur) in existing_ids:
+                # Assign new id in the prospective-* namespace
+                new_id = f'prospective-{counter}'
+                while new_id in existing_ids:
+                    counter += 1
+                    new_id = f'prospective-{counter}'
+                stmt['internal_id'] = new_id
+                existing_ids.add(new_id)
+                counter += 1
+
+    def set_prospective_statements(self, statements: list[dict[str, Any]]) -> None:  # noqa: C901
+        """Replace the current set of prospective statements.
+
+        The caller (UI/MCP) provides lightweight dicts with at least
+        ``compartment_path``, ``statement_text``, and optional ``description``.
+        This method will:
+
+        * mark each as ``is_prospective = True``
+        * ensure each has a unique ``internal_id``
+
+        Persistence to disk/settings is orchestrated by the application; the
+        engine simply owns the in-memory representation used for simulation.
+        """
+
+        norm: list[dict[str, Any]] = []
+        # Lazily create a lightweight PolicyIntelligenceEngine for effective_path calculation
+        intelligence_engine: PolicyIntelligenceEngine | None = None
+        if self.policy_repo is not None:
+            try:
+                intelligence_engine = PolicyIntelligenceEngine(self.policy_repo)
+            except Exception as ex:  # defensive: do not break prospective handling if analytics init fails
+                logger.warning(
+                    'Unable to initialize PolicyIntelligenceEngine for prospective statements: %s', ex, exc_info=True
+                )
+                intelligence_engine = None
+        for raw in statements or []:
+            if not isinstance(raw, dict):  # defensive
+                continue
+            st = dict(raw)
+            st['is_prospective'] = True
+            # Normalize keys we rely on downstream
+            st.setdefault('compartment_path', raw.get('compartment_path', 'ROOT'))
+            st.setdefault('statement_text', raw.get('statement_text', ''))
+            # Human-friendly display name; UI can override
+            desc = st.get('description') or raw.get('description')
+            if not st.get('policy_name'):
+                if desc:
+                    st['policy_name'] = str(desc)
+                else:
+                    st['policy_name'] = f"Prospective @{st['compartment_path']}"
+
+            # Run validation so we can track valid/invalid in the prospective set
+            try:
+                v = self.validate_prospective_statement(st['statement_text']) if st['statement_text'] else None
+            except Exception as ex:  # extremely defensive
+                logger.warning('Exception while validating prospective statement during set: %s', ex, exc_info=True)
+                v = None
+
+            if v is not None:
+                st['parsed'] = bool(v.get('parsed'))
+                st['valid'] = bool(v.get('valid'))
+                st['invalid_reasons'] = v.get('invalid_reasons') or []
+                # If the statement parsed and is valid, capture the full normalized
+                # RegularPolicyStatement-like payload so downstream simulation and
+                # debugging can rely on verb/resource/permission/effective_path.
+                normalized = v.get('normalized') or {}
+                if st['parsed'] and st['valid'] and isinstance(normalized, dict):
+                    st['normalized'] = normalized
+                    # For convenience, also project key RegularPolicyStatement
+                    # fields to top-level keys if they are present. This keeps
+                    # prospective statements structurally similar to regular
+                    # tenancy statements consumed by the engine.
+                    for key in (
+                        'verb',
+                        'resource',
+                        'permission',
+                        'effective_path',
+                        'conditions',
+                        'action',
+                    ):
+                        if key in normalized and key not in st:
+                            st[key] = normalized.get(key)
+
+                    # Ensure effective_path is calculated for simulation/permissions alignment.
+                    # The normalizer may not always populate effective_path, so fall back to
+                    # the same calculation used for regular tenancy statements via
+                    # PolicyIntelligenceEngine.calculate_effective_compartment_for_statement.
+                    if intelligence_engine is not None and not st.get('effective_path'):
+                        try:
+                            intelligence_engine.calculate_effective_compartment_for_statement(st)
+                        except Exception as ex:  # defensive: keep prospective statement but log issue
+                            logger.warning(
+                                'Failed to calculate effective_path for prospective statement %r: %s',
+                                st.get('statement_text'),
+                                ex,
+                                exc_info=True,
+                            )
+            else:
+                # Unknown state; treat as not parsed/invalid so it is hidden from simulation
+                st['parsed'] = False
+                st['valid'] = False
+                st['invalid_reasons'] = ['Validation error']
+
+            norm.append(st)
+
+        self._prospective_statements = norm
+        # Assign safe ids after replacing list
+        self._ensure_prospective_internal_ids()
+        # Log the fully-parsed/normalized prospective statements for debug
+        # visibility. This is intentionally at INFO so the Simulation tab
+        # debugger can see the exact verb/resource/permissions/effective_path
+        # that will participate in simulation.
+        logger.info(
+            'set_prospective_statements: loaded %d prospective statements (normalized views below):',
+            len(self._prospective_statements),
+        )
+        for idx, pst in enumerate(self._prospective_statements):
+            logger.info(
+                '  prospective[%d]: policy_name=%r compartment_path=%r valid=%s parsed=%s verb=%r resource=%r '
+                'permissions=%r effective_path=%r conditions=%r internal_id=%r',
+                idx,
+                pst.get('policy_name'),
+                pst.get('compartment_path'),
+                pst.get('valid'),
+                pst.get('parsed'),
+                pst.get('verb'),
+                pst.get('resource'),
+                pst.get('permission'),
+                pst.get('effective_path'),
+                pst.get('conditions'),
+                pst.get('internal_id'),
+            )
+
+    # ------------------------------------------------------------------
+    # Prospective validation helper (used by UI Parse button)
+    # ------------------------------------------------------------------
+
+    def validate_prospective_statement(self, statement_text: str) -> dict[str, Any]:
+        """Validate and normalize a single prospective statement.
+
+        Returns a dict with keys:
+          - parsed: bool
+          - valid: bool
+          - invalid_reasons: list[str]
+          - normalized: dict (if valid)
+        """
+
+        base_fields: dict[str, Any] = {}
+        stmt_type = 'regular'  # prospective statements are standard allow/deny
+        logger.info(f'Validating prospective statement: {statement_text!r}')
+        norm = self._statement_normalizer.normalize(statement_text, stmt_type, base_fields)
+        parsed = bool(norm.get('parsed', False))
+        valid = bool(norm.get('valid', parsed))
+        reasons = norm.get('invalid_reasons') or []
+        logger.debug(f'Prospective normalize result: {norm!r}')
+        if parsed and valid:
+            logger.info('Prospective statement parsed successfully.')
+        elif parsed and not valid:
+            logger.warning('Prospective statement parsed but marked invalid: %s', reasons)
+        else:
+            logger.warning('Prospective statement failed to parse: %s', reasons)
+        return {
+            'parsed': parsed,
+            'valid': valid,
+            'invalid_reasons': reasons,
+            'normalized': norm if parsed and valid else {},
+        }
 
     def simulate_and_record(  # noqa: C901
         self,
@@ -236,8 +441,28 @@ class PolicySimulationEngine:
             trace (bool, optional): If True, includes detailed step-by-step trace; else, summary only.
 
         Returns:
-            dict[str, Any]: Full simulation result with yes/no, permissions, missing/revoked, per-statement decision trace,
-                and trace object suitable for history review.
+            dict[str, Any]: Full simulation result. The engine *always* computes a full simulation trace
+                (permissions, context, per-statement evaluation). The return payload is shaped as follows:
+
+                Top-level keys (always present):
+                  - api_call_allowed (bool): Final YES/NO decision for the API operation.
+                  - missing_permissions (list[str]): Permissions required by the operation but not granted.
+                  - required_permissions_for_api_operation (list[str]): All permissions the operation needs.
+                  - failure_reason (str): Empty if allowed, else human-readable explanation.
+
+                Trace block (always present, but caller may choose whether to display it):
+                  - simulation_trace (dict):
+                        {
+                          'final_permission_set': [...],
+                          'simulation_context': {...},
+                          'permissions_denied': [...],
+                          'trace_statements': [...]   # present only when trace=True
+                        }
+
+                Notes:
+                  * The UI uses the trace flag to control how much of simulation_trace is displayed.
+                  * simulation_history always records the *full* simulation_trace (with trace_statements),
+                    independent of the trace flag used for the immediate UI response.
 
         Example:
             result = engine.simulate_and_record('group:default/Admins', 'ROOT', 'oci:ListBuckets', {}, checked_ids, trace=True)
@@ -245,15 +470,20 @@ class PolicySimulationEngine:
         """
         # Wrap this entire function with try and catch, print stack trace, then re-raise
         try:
-            # If checked_statement_ids not provided, use all statements applicable to this context
+            # If checked_statement_ids not provided, use all statements applicable to this context.
+            # We keep the derived list in a local variable for optional debug logging.
+            stmts: list[dict[str, Any]] | None = None
             if checked_statement_ids is None:
                 stmts = self.get_applicable_statements(principal_key, effective_path)
                 checked_statement_ids = [str(s.get('internal_id')) for s in stmts if s.get('internal_id') is not None]
 
+            # NOTE: trace flag is retained for backward compatibility but no
+            # longer affects payload shape; the engine always computes and
+            # returns full trace details. Callers control how much to display.
             logger.info(
-                f"Simulating permissions for principal={principal_key}, compartment={effective_path}, operation={api_operation}. Statements: {len(checked_statement_ids) if checked_statement_ids else 0} selected. Trace={'ON' if trace else 'OFF'}"
+                f'Simulating permissions for principal={principal_key}, compartment={effective_path}, operation={api_operation}. Statements: {len(checked_statement_ids) if checked_statement_ids else 0} selected. Trace flag (ignored in engine)={trace}'
             )
-            trace_obj = {}
+            trace_obj: dict[str, Any] = {}
             perm_set = set()
             statement_trace = []
             permissions_denied = []
@@ -265,8 +495,8 @@ class PolicySimulationEngine:
             )
             for i, s in enumerate(self.policy_statements[:7]):
                 logger.info(f"  self.policy_statements[{i}]: internal_id={s.get('internal_id')}")
-            # Only print stmts diagnostics if checked_statement_ids was just generated from stmts
-            if checked_statement_ids is not None and 'stmts' in locals():
+            # Only print stmts diagnostics if we actually derived them above
+            if checked_statement_ids is not None and stmts is not None:
                 logger.info(
                     f'(IN simulate_and_record: pre-mapping) stmts (from get_applicable_statements) type: {type(stmts)} len: {len(stmts)}'
                 )
@@ -274,9 +504,41 @@ class PolicySimulationEngine:
                     logger.info(
                         f"  stmts[{i}]: internal_id={s.get('internal_id')} statement_text={s.get('statement_text')}"
                     )
-            all_stmt_map = {str(s.get('internal_id')): s for s in self.policy_statements}
+            # Build the statement map from the **current** policy repository plus
+            # any prospective (what-if) statements, rather than relying solely on
+            # the constructor-time snapshot in self.policy_statements. This
+            # ensures that the IDs shown in the Simulation tab (which come from
+            # get_applicable_statements, i.e. filter_policy_statements +
+            # _prospective_statements) can always be resolved here.
+            base_statements: list[dict[str, Any]] = []
+            if self.policy_repo and hasattr(self.policy_repo, 'regular_statements'):
+                try:
+                    base_statements = list(self.policy_repo.regular_statements or [])
+                except Exception:
+                    # Extremely defensive; fall back to whatever snapshot we
+                    # had at construction time.
+                    logger.warning(
+                        'simulate_and_record: unable to read policy_repo.regular_statements; '
+                        'falling back to self.policy_statements',
+                        exc_info=True,
+                    )
+                    base_statements = list(self.policy_statements or [])
+            else:
+                base_statements = list(self.policy_statements or [])
+
+            prospective_statements: list[dict[str, Any]] = list(self._prospective_statements or [])
+            src_statements: list[dict[str, Any]] = base_statements + prospective_statements
+
+            all_stmt_map = {str(s.get('internal_id')): s for s in src_statements if s.get('internal_id') is not None}
+            logger.info(
+                'simulate_and_record: built all_stmt_map with %d total entries '
+                '(from %d base + %d prospective statements); sample keys=%s',
+                len(all_stmt_map),
+                len(base_statements),
+                len(prospective_statements),
+                list(all_stmt_map.keys())[:10],
+            )
             logger.info(f'Checked statement IDs: {checked_statement_ids}')
-            logger.info(f'all_stmt_map keys: {list(all_stmt_map.keys())}')
             for internal_id in checked_statement_ids or []:
                 if internal_id not in all_stmt_map:
                     logger.warning(
@@ -286,6 +548,12 @@ class PolicySimulationEngine:
                 if not stmt:
                     logger.warning(f'Statement ID {internal_id} not found in repo. Skipped.')
                     continue
+                # Print some details about the statement for debugging
+                logger.info(
+                    f"Processing statement ID {internal_id}: action={stmt.get('action')}, "
+                    f"resource={stmt.get('resource')}, verb={stmt.get('verb')}, "
+                    f"statement_text={stmt.get('statement_text')}"
+                )
                 if stmt.get('action', 'allow').lower() == 'deny':
                     deny_statements.append((internal_id, stmt))
                 else:
@@ -316,14 +584,19 @@ class PolicySimulationEngine:
                         statement_trace.append(stmt_entry)
                         continue
                 direct_perms = stmt.get('permission', [])
+                # Log the permissions we are about to add from this statement before we do it
+                logger.info(f'Direct permissions for ALLOW stmt: {direct_perms}')
+
                 resource_perms = (
                     self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='allow')
                     if self.ref_data_repo
                     else []
                 )
+                # Log the permissions we got from the reference data repo for this statement before we add them
+                logger.info(f'Resource permissions for ALLOW stmt: {resource_perms}')
                 all_perms = list(direct_perms or []) + list(resource_perms or [])
                 if all_perms:
-                    logger.debug(
+                    logger.info(
                         f"Adding permissions from ALLOW: {all_perms} for statement: {stmt.get('statement_text', '')}"
                     )
                 for p in all_perms:
@@ -354,13 +627,33 @@ class PolicySimulationEngine:
                         stmt_entry['fail_reason'] = fail_reason or 'Condition(s) did not pass'
                         statement_trace.append(stmt_entry)
                         continue
+
                 direct_perms = stmt.get('permission', [])
                 resource_perms = (
                     self.ref_data_repo.get_permissions(stmt.get('resource'), stmt.get('verb'), action='deny')
                     if self.ref_data_repo
                     else []
                 )
-                deny_this = set(direct_perms or []) | set(resource_perms or [])
+
+                # Special-case: a global deny for "inspect all-resources" should
+                # revoke *everything* that has been granted so far in this
+                # simulation context. This matches the intuitive expectation
+                # that such a policy removes all effective permissions,
+                # regardless of which verbs were used to grant them.
+                if (
+                    str(stmt.get('action', '')).lower() == 'deny'
+                    and str(stmt.get('resource', '')).lower() == 'all-resources'
+                    and str(stmt.get('verb', '')).lower() == 'inspect'
+                ):
+                    deny_this = set(perm_set)
+                    logger.info(
+                        'Global deny detected (deny inspect all-resources); revoking all currently granted permissions: %d entries',
+                        len(deny_this),
+                    )
+                else:
+                    deny_this = set(direct_perms or []) | set(resource_perms or [])
+
+                logger.info(f'Resource permissions for DENY stmt: {resource_perms}')
                 actually_revoked = []
                 for p in deny_this:
                     if p in perm_set:
@@ -385,12 +678,10 @@ class PolicySimulationEngine:
                 'where_context': where_context,
                 'api_operation': api_operation,
             }
-            if trace:
-                trace_obj['trace_statements'] = statement_trace
-            else:
-                # Omit per-statement trace in summary mode; just include statement count or basic ref
-                trace_obj['trace_statements'] = []
-
+            # Always record the full trace details for history/export, but let the
+            # caller control whether detailed per-statement entries are surfaced
+            # in the immediate result via the `trace` flag.
+            trace_obj['trace_statements'] = list(statement_trace)
             trace_obj['final_permission_set'] = sorted(perm_set)
             trace_obj['permissions_denied'] = permissions_denied
 
@@ -411,22 +702,35 @@ class PolicySimulationEngine:
 
             trace_obj['required_permissions_for_api_operation'] = sorted([p.upper() for p in required])
 
-            sim_result = {
-                'result': 'YES' if has_permission else 'NO',
+            # Base result: summary fields always at the top level.
+            sim_result: dict[str, Any] = {
                 'api_call_allowed': has_permission,
-                'final_permission_set': sorted(perm_set),
-                'required_permissions_for_api_operation': sorted([p.upper() for p in required]),
                 'missing_permissions': sorted(missing),
+                'required_permissions_for_api_operation': trace_obj['required_permissions_for_api_operation'],
                 'failure_reason': '' if has_permission else f'Missing required permissions: {sorted(missing)}',
-                # The detail returned depends on trace: basic=trace_statements is [], trace=full per-statement trace
-                'trace_statements': statement_trace if trace else [],
-                'trace': trace_obj,  # always include for legacy UI code
+                # New summary counters: how many ALLOW vs DENY statements were
+                # actually considered for this simulation (after filtering by
+                # principal/path/checked_statement_ids). These are useful for
+                # quickly debugging inclusion issues without needing the full
+                # trace.
+                'allow_statements_considered': len(allow_statements),
+                'deny_statements_considered': len(deny_statements),
             }
-            # Record to history with name and timestamp
+
+            # Always expose full simulation_trace (including
+            # trace_statements). UI/CLI callers decide what to display.
+            sim_result['simulation_trace'] = dict(trace_obj)
+
+            # Record full trace (including statement-level details) to
+            # simulation_history so later review and export have the complete
+            # picture regardless of the UI mode used at call time.
+            history_entry_payload = dict(sim_result)
+            history_entry_payload['simulation_trace'] = trace_obj
+
             entry = {
                 'name': trace_name or f"Simulation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 'timestamp': datetime.now().isoformat(timespec='seconds'),
-                'trace': sim_result,
+                'trace': history_entry_payload,
             }
             self.simulation_history.append(entry)
             return sim_result
@@ -561,7 +865,7 @@ class PolicySimulationEngine:
         logger.info(f'Generated policy search filter: {return_filter}')
         return return_filter
 
-    def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:
+    def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:  # noqa: C901
         """
         Get all applicable policy statements for a principal and compartment by building a proper
         PolicySearch filter using the principal_key and effective_path.
@@ -577,15 +881,127 @@ class PolicySimulationEngine:
             - Used by all canonical orchestration flows (UI/MCP)
             - See usage examples in docs/source/simulation_engine_usage_examples.py
         """
+        logger.info(
+            'get_applicable_statements: start for principal_key=%s, effective_path=%s',
+            principal_key,
+            effective_path,
+        )
+        # --- Base tenancy statements via repo filter ---
         if not self.policy_repo or not hasattr(self.policy_repo, 'filter_policy_statements'):
             logger.warning('get_applicable_statements: filter_policy_statements not available in repo.')
-            return []
-        filters = self._principal_key_to_policy_search_filter(principal_key)
-        filters['effective_path'] = [effective_path]
-        logger.info(f'get_applicable_statements: Using filters {filters}')
-        stmts = self.policy_repo.filter_policy_statements(filters)
-        logger.info(f'get_applicable_statements: Found {len(stmts)} statements.')
-        return stmts
+            base_stmts: list[dict] = []
+        else:
+            filters = self._principal_key_to_policy_search_filter(principal_key)
+            filters['effective_path'] = [effective_path]
+            logger.info(f'get_applicable_statements: Using filters {filters}')
+            base_stmts = self.policy_repo.filter_policy_statements(filters)
+            logger.info(f'get_applicable_statements: Found {len(base_stmts)} base (tenancy) statements.')
+
+        # --- Prospective (what-if) statements ---
+        # Merge in any prospective statements applicable to this context. We
+        # enforce **both** effective_path scoping and principal/subject
+        # matching so that prospective behavior mirrors tenancy-loaded
+        # statements as closely as possible.
+        comp_path = (effective_path or '').strip()
+        merged: list[dict] = list(base_stmts)
+        if comp_path and self._prospective_statements:
+            # Reuse the same principal filter semantics used for repo
+            # filtering, but apply them in-memory against the normalized
+            # prospective statement subjects.
+            subj_filter = self._principal_key_to_policy_search_filter(principal_key)
+            any_subjects = {str(s).lower() for s in subj_filter.get('subject', []) if s}
+            logger.info(
+                'get_applicable_statements: evaluating %d prospective statements for principal_key=%s; any_subjects=%s',
+                len(self._prospective_statements),
+                principal_key,
+                sorted(any_subjects),
+            )
+
+            def _prospective_matches_principal(pst: dict) -> bool:  # noqa: C901
+                # Prefer top-level subject data; fall back to normalized
+                # payload if subject/subject_type were only populated there
+                ptype = (pst.get('subject_type') or pst.get('normalized', {}).get('subject_type') or '').lower()
+                subjects = pst.get('subject')
+                if not subjects:
+                    subjects = pst.get('normalized', {}).get('subject') or []
+
+                logger.info(
+                    '_prospective_matches_principal: checking pst internal_id=%r policy_name=%r subject_type=%r subjects=%r against filter=%r (any_subjects=%r) for principal_key=%s',
+                    pst.get('internal_id'),
+                    pst.get('policy_name'),
+                    ptype,
+                    subjects,
+                    subj_filter,
+                    sorted(any_subjects),
+                    principal_key,
+                )
+                # Ensure we keep using the resolved subjects (which may
+                # have come from normalized) for all subsequent checks.
+                # any-user / any-group / service (string subject match)
+                if any_subjects:
+                    # subjects may be list[tuple] or list[str]; compare string forms
+                    for s in subjects:
+                        if isinstance(s, str) and s.strip().lower() in any_subjects:
+                            return True
+                # Exact users/groups/dynamic-groups
+                if ptype == 'user' and 'exact_users' in subj_filter:
+                    targets = subj_filter['exact_users']
+                elif ptype == 'group' and 'exact_groups' in subj_filter:
+                    targets = subj_filter['exact_groups']
+                elif ptype == 'dynamic-group' and 'exact_dynamic_groups' in subj_filter:
+                    targets = subj_filter['exact_dynamic_groups']
+                else:
+                    targets = []
+
+                if targets:
+                    # Normalize prospective subjects to (domain, name) tuples
+                    norm_subj: set[tuple[str | None, str]] = set()
+                    for s in subjects:
+                        if isinstance(s, (tuple | list)) and len(s) == 2:
+                            domain, name = s
+                            dom_norm = str(domain).lower() if domain else 'default'
+                            norm_subj.add((dom_norm, str(name).lower()))
+                    for t in targets:
+                        dom = str(t.get('domain_name') or 'default').lower()
+                        name = str(
+                            t.get('user_name') or t.get('group_name') or t.get('dynamic_group_name') or ''
+                        ).lower()
+                        if (dom, name) in norm_subj:
+                            return True
+                return False
+
+            for pst in self._prospective_statements:
+                if pst.get('parsed') is False or pst.get('valid') is False:
+                    continue
+                pst_comp = str(pst.get('compartment_path', '')).strip()
+                # Simple prefix/equals check: ROOT/Finance applies to ROOT/Finance/Payables
+                if not pst_comp or not (comp_path == pst_comp or comp_path.startswith(pst_comp + '/')):
+                    continue
+                # Now enforce principal/subject match
+                if _prospective_matches_principal(pst):
+                    logger.info(
+                        'get_applicable_statements: including prospective statement internal_id=%r policy_name=%r for principal_key=%s at path=%s',
+                        pst.get('internal_id'),
+                        pst.get('policy_name'),
+                        principal_key,
+                        effective_path,
+                    )
+                    merged.append(pst)
+                else:
+                    logger.info(
+                        'get_applicable_statements: prospective statement internal_id=%r policy_name=%r did NOT match principal_key=%s (skipped)',
+                        pst.get('internal_id'),
+                        pst.get('policy_name'),
+                        principal_key,
+                    )
+
+        logger.info(
+            'get_applicable_statements: returning %d statements (%d base, %d prospective)',
+            len(merged),
+            len(base_stmts),
+            max(0, len(merged) - len(base_stmts)),
+        )
+        return merged
 
     def get_required_where_fields(self, statements: list[dict]) -> set[str]:
         """
@@ -710,6 +1126,8 @@ class PolicySimulationEngine:
         logger.info(f'Parsed condition string for evaluation: {condition_str}')
         try:
             result_bool, log = evaluate_where_clause(condition_str, where_context)
+            # Defensive: ensure result_bool is a proper bool for type-checkers and callers
+            result_bool = bool(result_bool)
             logger.info(f'Where clause evaluated to: {result_bool}')
         except Exception as ex:
             logger.error(f'Exception during where clause evaluation: {ex}')

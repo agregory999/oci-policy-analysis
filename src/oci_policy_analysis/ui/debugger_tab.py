@@ -58,6 +58,7 @@ class DebuggerTab(BaseUITab):
             'Policy Repo Cross-Tenancy Statements',
             'Reference Data',
             'Simulation History',
+            'Simulation: Prospective Statements',
             # 'Consolidation (In-Flight Session)',  # NEW
         ] + overlay_sources
 
@@ -125,6 +126,13 @@ class DebuggerTab(BaseUITab):
 
             elif source == 'Simulation History':
                 return self.app.simulation_engine.simulation_history
+
+            elif source == 'Simulation: Prospective Statements':
+                engine = getattr(self.app, 'simulation_engine', None)
+                if not engine or not hasattr(engine, 'get_prospective_statements'):
+                    return {'error': 'Simulation engine does not expose prospective statements.'}
+                # Shallow copy of current prospective list for debug viewing
+                return engine.get_prospective_statements()
 
             elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements

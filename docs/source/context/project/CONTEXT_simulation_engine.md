@@ -47,67 +47,70 @@ Model fields are strictly enforced. Example:
 
 ## 3. Simulation Stages & Canonical Flow
 
-Whether simulation is initiated from the UI or via MCP, the process is broken into stages:
+Whether simulation is initiated from the UI or via MCP, the process is broken into stages. The **engine flow** is the same; the **UI flow** is now structured into three logical subtabs.
+
+### 3.1 Canonical Engine Stages (UI + MCP)
 
 1. **Select Context:**  
    - Compartment path  
    - Principal type & value (domain/name, or string for "any-user"/"service")
 
-2. **Load Policy Statements & Required Where-Fields:**  
+2. **Load Policy Statements:**  
    - Call:  
      - UI: via simulation engine API  
      - MCP: via `prepare_simulation` tool  
    - Output:  
-     - Principal Key (calculated example "principal_key": "user:Default/anita")
-     - List of applicable policy statements  
-     - List of required where-clause input variables
+     - Principal Key (calculated example `"principal_key": "user:Default/anita"`)
+     - List of applicable policy statements (real + prospective, where applicable)
    - Engine API:  
-     - The canonical call is `get_applicable_statements(principal_key, effective_path)`. The engine internally maps the `principal_key` (which encodes both the principal type and identity) to the proper PolicySearch filter (`exact_users`, `exact_groups`, `exact_dynamic_groups`, or `subject`), ensuring correct filtering for all principal types.
+     - Canonical call is `get_applicable_statements(principal_key, effective_path)` (or equivalent wrapper).  
+       The engine internally maps the `principal_key` (which encodes both the principal type and identity) to the proper `PolicySearch` filter (`exact_users`, `exact_groups`, `exact_dynamic_groups`, or `subject`), ensuring correct filtering for all principal types.
 
 3. **Gather Where-Input Values:**  
-   - UI: Auto-generates dynamic input fields for variables  
-   - MCP: Client must provide a mapping of variable inputs as JSON
+   - Engine exposes a *derived* view of required where‑variables based on the selected statements’ condition strings.  
+   - UI: Auto‑generates dynamic input fields for variables every time the set of *included* (checked) statements changes. The where‑context panel is **always present**, even if the user chooses not to fill any values (in which case the `where_context` is `{}`).
+   - MCP: Client must provide a mapping of variable inputs as JSON (the engine does not require a separate “load fields” call; it simply consumes the mapping).
 
 4. **Select/Specify API Operation:**  
-   - Operation name, e.g. `oci:ListBuckets`
-   - UI: Geared toward a single simulation with visual results
-   - MCP: ability to run a batch with several simulations, for example:
-     - LaunchInstance(Compute) and LaunchInstance(VCN) may require different compartments and different API Operations, same principal.
-     - Some Object Storage Operations will be split into a Group Principal API operation call and a Service Principal call
+   - Operation name, e.g. `oci:ListBuckets`.
+   - UI: Single operation per run (though the engine supports batch scenarios).  
+   - MCP: May run batches where each scenario has its own API operation.
 
 5. **Simulate & Retrieve Result:**  
-   - Call simulation engine with all context/inputs
+   - Call simulation engine with all context/inputs:
      - Effective Path (compartment)
      - Principal key (format above)
-     - Where clause values (as JSON dict)
+     - Where clause values (as JSON dict; may be empty `{}`)
      - Optional list of statements to consider.
-       - For UI, the internal IDs of the statements will be collected and passed
-       - For MCP, this will not be included.  Implies using all statements from the effective path and principal key
-     - Whether to provide trace output (if True, include a per-statement trace and final permission set)
+       - For UI, the internal IDs of the *currently included* statements are collected and passed.
+       - For MCP, this is typically omitted, which implies “use all applicable statements from the effective path and principal key”.
+     - Whether to provide trace output (if `True`, include a per‑statement trace and final permission set).
    - Output:
      - Allow/Deny result
      - Set of granted permissions
      - Optional: decision trace (per-statement allow/deny, conditions)
 
 6. **Review/Present Results:**  
-   - UI: Results & trace are displayed/printable in the results panel or exported as JSON  
-   - MCP: Results returned as structured JSON per canonical model
-     - For MCP, there is a limit on returned JSON, so we should be brief with the response but provide enough detail for the AI consumer to provide a detailed analysis.
+   - UI: Results & trace are displayed in a dedicated **Simulation History** view and can be exported as JSON. Each run is named (e.g., `"oci:ListBuckets | user:Default/anita"`) and added to a history list.  
+   - MCP: Results returned as structured JSON per canonical model.
+     - For MCP, there is a limit on returned JSON, so responses are brief but contain enough detail for the AI consumer to build a rich explanation.
 
 **All simulation stages are orchestrated outside the engine.** The engine itself is stateless and enforces all logic and normalization.  
 
 ---
 
-## 4. Implementation: UI Tab vs. MCP Tool
+## 4. Implementation: Three-Subtab UI vs. MCP Tool
 
-| Stage                      | UI Tab (simulation_tab.py)                           | MCP Server (mcp_server.py)                          | Simulation Engine           |
+The UI’s Simulation experience is now organized into **three subtabs** that together orchestrate the same canonical engine stages described above.
+
+| Stage                      | UI Tab (simulation_tab.py) – Subtab                 | MCP Server (mcp_server.py)                          | Simulation Engine           |
 |----------------------------|------------------------------------------------------|-----------------------------------------------------|-----------------------------|
-| 1. Select context          | User selects via dropdowns                           | Receives context in SimulationPrepareRequest         | Receives canonical input    |
-| 2. Load statements/fields  | Invokes engine API, displays preview                 | prepare_simulation tool returns required fields      | Same single entrypoint      |
-| 3. Gather where-inputs     | Dynamic Tkinter fields, user-entered                 | Provided as part of API payload                     | Receives as mapping         |
-| 4. Select API operation    | Dropdown, validated                                 | API parameter in SimulationScenario                  | Uniform                      |
-| 5. Simulate                | Calls engine’s simulate_and_record                  | SimulationScenario or SimulationBatchRequest tool    | Only business logic layer   |
-| 6. Present results         | Displays & exports UI results, prettifies trace     | Returns JSON output in SimulationResult form         | Dict output, always schema  |
+| 1. Select context          | **Simulation Environment**: dropdowns for effective path and principal type/name; inline table for Prospective (what‑if) statements | Receives context in `SimulationPrepareRequest`      | Receives canonical input    |
+| 2. Load statements         | **Statements and Context**: auto-loads applicable statements whenever environment changes; merges real + prospective statements | `prepare_simulation` tool filters policies and returns metadata | Same single entrypoint (`get_applicable_statements`/equivalent) |
+| 3. Gather where-inputs     | **Statements and Context**: dynamic where‑inputs panel automatically rebuilt whenever included (checked) statements change; values preserved when possible | Provided as part of simulation payload              | Receives as mapping         |
+| 4. Select API operation    | **Statements and Context**: API operation combobox + validation + optional notes | API parameter in `SimulationScenario`               | Uniform behaviour           |
+| 5. Simulate                | **Statements and Context → Simulation History**: Run button calls `simulate_and_record`, then switches to History subtab | `SimulationScenario` or `SimulationBatchRequest` tool | Only business logic layer   |
+| 6. Present results         | **Simulation History**: trace history dropdown, “Show trace details” toggle, JSON export | Returns JSON output in `SimulationResult` form       | Dict output, schema-driven  |
 
 - **NO business logic is duplicated or implemented in the UI or MCP server.**  
 - UI and MCP are strictly callers, responsible for driving stages and displaying/returning output.
@@ -163,15 +166,18 @@ All model definitions in `common/models.py` must be strictly followed by both UI
 
 ```mermaid
 flowchart LR
-    A(Select context) --> B(Load statements & fields)
-    B --> C(Provide where-inputs)
-    B --> G(Select statements for consideration UI Only)
+    A(Select context – Environment subtab) --> B(Load applicable statements – Statements & Context)
+    B --> G(Select statements for consideration – check/uncheck)
+    G --> C(Auto-build where-inputs panel)
     C --> D(Select API operation)
     D --> E(Run simulation)
-    E --> F(Review results)
+    E --> F(Review results – Simulation History)
 ```
-- *UI path*: A-B-G-C-D-E via direct user input and dynamic widgets.
-- *MCP path*: A-B-C-D-E driven by JSON tool calls.
+- *UI path* (three subtabs):  
+  - **Simulation Environment**: A  
+  - **Statements and Context**: B → G → C → D → E  
+  - **Simulation History**: F
+- *MCP path*: A-B-C-D-E driven entirely by JSON tool calls.
 
 ---
 
@@ -198,6 +204,67 @@ All future contributions must comply with this policy.
   - Unified scenario harness for end-to-end and regression tests across both drive paths
   - Improved visual/JSON diff for large sets of simulation traces
   - OpenAPI spec generation for MCP endpoints
+
+---
+
+## 10. Prospective (What-If) Policy Statements
+
+The simulation engine also supports **prospective** policy statements: hypothetical or planned policies that do not exist in the live tenancy but should be evaluated as if they did. This enables “what-if” analysis for future changes.
+
+- **Storage & Scope**
+  - Stored per tenancy in settings under `simulation_prospective_statements_by_tenancy`.
+  - Keyed by tenancy OCID, value is a list of lightweight statement dicts with at least:
+    - `compartment_path` (hierarchy path where the statement would live)
+    - `description` (user-friendly label, used by UI)
+    - `statement_text` (full OCI IAM policy statement text)
+  - The Simulation Tab’s “Manage Prospective Statements” dialog lets users create/edit/delete these rows for *any* compartment in the tenancy.
+
+- **Engine Representation**
+  - Internally, the engine normalizes these into full statement dicts and keeps them in:
+    - `PolicySimulationEngine._prospective_statements: list[dict]`
+  - Normalized fields include:
+    - `internal_id` (unique, in a `prospective-*` namespace)
+    - `compartment_path`
+    - `policy_name` (derived from `description` when not provided)
+    - `statement_text`
+    - Optional `conditions`, `subject_type`, etc. once parsed.
+    - `is_prospective = True` marker for UI/analysis.
+
+- **Engine APIs**
+  - `get_prospective_statements() -> list[dict]`
+    - Returns the current in-memory list of normalized prospective statements.
+  - `set_prospective_statements(statements: list[dict]) -> None`
+    - Replaces the engine’s prospective statement set.
+    - Caller passes lightweight dicts with `compartment_path`, `statement_text`, optional `description`.
+    - Engine normalizes, sets `is_prospective=True`, and assigns unique `internal_id` values.
+
+- **Applicability & Merging**
+  - Prospective statements are merged into the normal flow via `get_applicable_statements`:
+    ```python
+    def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:
+        # 1) Use policy_repo.filter_policy_statements for base (tenancy) statements.
+        # 2) For each prospective statement, if its compartment_path is equal to
+        #    or a parent of effective_path, include it.
+        # 3) Return a merged list.
+    ```
+  - The same principal filtering semantics apply: callers pass a `principal_key` and `effective_path`, and any prospective statements that would be in scope for that path are included alongside real tenancy statements.
+
+- **Simulation Semantics**
+  - After merging, prospective statements are indistinguishable from real statements for:
+    - where-clause extraction (`get_required_where_fields`)
+    - selection-by-internal-id from the UI
+    - evaluation in `simulate_and_record` (allow/deny logic, permissions, and trace output).
+  - The Simulation Tab displays them with a `[Prospective]` prefix in the “Policy Path/Name” column but otherwise treats them identically.
+
+- **UI Integration Notes**
+  - The Simulation Tab includes a **“Manage Prospective Statements”** button in the Applicable Policy Statements table.
+  - The dialog explains scope: users may define statements anywhere in the tenancy, but only those applicable to the currently selected compartment/principal will appear in the main table.
+  - On save, the UI:
+    - Calls `set_prospective_statements` with the new list.
+    - Updates the per-tenancy settings entry `simulation_prospective_statements_by_tenancy[tenancy_ocid]` and persists via `config.save_settings`.
+    - Reloads the Applicable Policy Statements table so new prospective entries appear.
+
+As with all other simulation behavior, the **engine remains the single source of truth** for how prospective statements are normalized, merged, and evaluated. The UI is responsible only for collection and presentation of these inputs.
 
 ---
 

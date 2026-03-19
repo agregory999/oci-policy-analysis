@@ -181,7 +181,7 @@ class ConsoleTab(BaseUITab):
         self.logger_components_by_pkg = {
             'Common': ['cli', 'caching', 'config', 'main', 'mcp_server'],
             'Logic': [
-                'simulation_engine',
+                'policy_simulation_engine',
                 'ai_repo',
                 'reference_data_repo',
                 'policy_parser',
