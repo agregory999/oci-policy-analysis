@@ -1,3 +1,10 @@
+# [4.4.0-dev.9](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.8...v4.4.0-dev.9) (2026-03-19)
+
+
+### Bug Fixes
+
+* Condition Tester Detail ([a77406d](https://github.com/agregory999/oci-policy-analysis/commit/a77406d4bdf99cf7b66a3c5beddcd9a6ecc100a4))
+
 # [4.4.0-dev.8](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.7...v4.4.0-dev.8) (2026-03-19)
 
 
