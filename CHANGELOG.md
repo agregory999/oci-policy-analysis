@@ -1,3 +1,10 @@
+# [4.4.0-dev.8](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.7...v4.4.0-dev.8) (2026-03-19)
+
+
+### Bug Fixes
+
+* Simualtion and file service update ([cb4f220](https://github.com/agregory999/oci-policy-analysis/commit/cb4f220d049e0a2162c4ddddbbea499df95acb07))
+
 # [4.4.0-dev.7](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.6...v4.4.0-dev.7) (2026-03-19)
 
 
