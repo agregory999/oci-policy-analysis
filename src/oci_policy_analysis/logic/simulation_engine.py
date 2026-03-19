@@ -1087,7 +1087,13 @@ class PolicySimulationEngine:
                 norm[k] = v
         return norm
 
-    def _evaluate_conditions(self, cond, where_context: dict) -> tuple[bool, str]:  # noqa: C901
+    def _evaluate_conditions(  # noqa: C901
+        self,
+        cond,
+        where_context: dict,
+        *,
+        return_structured: bool = False,
+    ) -> tuple[bool, str] | tuple[bool, dict]:  # noqa: C901
         """
         Evaluate 'where' clause (condition) string or dict against a context of variables (where_context).
         Uses reusable WhereClauseEvaluator visitor, with extended logging.
@@ -1146,7 +1152,21 @@ class PolicySimulationEngine:
                 ],
             )
 
-        # Compose reason string from log or result
+        # When requested, return a structured payload suitable for UI
+        # components (e.g., ConditionTesterTab). This is backwards-
+        # compatible: existing callers that rely on the textual reason
+        # string can omit the flag and keep the original behavior.
+        if return_structured:
+            status = 'GRANTED' if result_bool else 'DENIED'
+            structured = {
+                'Condition String': condition_str,
+                'Policy Result': status,
+                'Log': log if isinstance(log, list) else [{'type': 'Summary', 'info': str(log), 'result': result_bool}],
+            }
+            logger.info('Returning structured evaluation result for UI consumer: %s', status)
+            return result_bool, structured
+
+        # Compose reason string from log or result (legacy behavior)
         reason_lines = []
         if log:
             if isinstance(log, str):
