@@ -53,11 +53,8 @@ class SimulationTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'Simulate OCI policy enforcement: '
-                '1. Select a compartment and principal identity. '
-                '2. Preview all applicable policy statements. '
-                '3. Choose an API operation and enter variable values, then run the simulation. '
-                '4. View the evaluated allow/deny decision, permissions, and full simulation trace.'
+                'Simulate OCI policy enforcement in three stages: define the simulation environment, '
+                'select applicable policy statements and where-clause variables, then run operations and review results.'
             ),
             page_help_link='/simulation.html',
         )
@@ -397,13 +394,17 @@ class SimulationTab(BaseUITab):
         # Environment Summary + explicit navigation to Statements & Context
         summary_frame = ttk.LabelFrame(self.env_frame, text='Environment Summary')
         summary_frame.pack(fill='x', padx=8, pady=(0, 8))
+        # Use a multi-line summary so we can show principal, path, and a
+        # quick preview of which prospective statements are currently in
+        # scope for the selected environment.
         self.environment_summary_label = ttk.Label(
             summary_frame,
             text='No environment selected yet.',
             foreground='#555',
+            justify='left',
             wraplength=700,
         )
-        self.environment_summary_label.pack(side='left', padx=(4, 4), pady=(4, 4))
+        self.environment_summary_label.pack(side='left', fill='x', expand=True, padx=(4, 4), pady=(4, 4))
 
         def _go_to_statements_and_load():
             # Ensure statements are loaded for the current environment
@@ -568,7 +569,11 @@ class SimulationTab(BaseUITab):
             'When checked, include full JSON and per-statement trace details in the Simulation Results.',
         )
         self.results_text = tk.Text(results_frame, height=10, wrap='word')
-        self.results_text.pack(fill='both', expand=True)
+        # Use standard y-scrollbar so long simulation traces can be scrolled.
+        results_scroll = ttk.Scrollbar(results_frame, orient='vertical', command=self.results_text.yview)
+        self.results_text.configure(yscrollcommand=results_scroll.set)
+        self.results_text.pack(side='left', fill='both', expand=True)
+        results_scroll.pack(side='right', fill='y')
         self.add_context_help(
             self.results_text, 'Simulation summary and full policy trace details. See allow/deny and permissions here.'
         )
@@ -601,6 +606,23 @@ class SimulationTab(BaseUITab):
         lines.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
         if missing:
             lines.append(f"Missing permissions: {', '.join(missing)}")
+
+        # Always show how many allow/deny statements were considered so
+        # users can see inclusion at a glance, even without full trace.
+        allow_ct = result.get('allow_statements_considered')
+        deny_ct = result.get('deny_statements_considered')
+        if allow_ct is not None or deny_ct is not None:
+            lines.append(
+                f'Statements considered: ALLOW={allow_ct if allow_ct is not None else 0}, '
+                f'DENY={deny_ct if deny_ct is not None else 0}'
+            )
+
+        # Brief where-context echo for quick sanity checks.
+        where_ctx = result.get('simulation_trace', {}).get('simulation_context', {}).get('where_context') or {}
+        if where_ctx:
+            pretty_where = json.dumps(where_ctx, indent=2, ensure_ascii=False)
+            lines.append('Where context:')
+            lines.append(pretty_where)
 
         sim_trace = result.get('simulation_trace') or {}
         final_permissions = sim_trace.get('final_permission_set') or []
@@ -680,19 +702,144 @@ class SimulationTab(BaseUITab):
 
         self._statements_need_reload = True
 
-        # Update Environment Summary label with a lightweight description
-        # of the current selections. We do *not* query the engine here to
-        # avoid extra work; details will be recomputed on load_statements.
+        # Update Environment Summary label with a richer, multi-line
+        # description of the current selections, including a preview of
+        # any prospective (what-if) statements that would apply to this
+        # environment. This keeps the Environment subtab self-contained
+        # without requiring a full statements reload.
         if hasattr(self, 'environment_summary_label'):
-            cpath = self.selected_compartment.get() or 'ROOT'
-            ptype = self.selected_principal_type.get() or '[principal type]'
-            pname = self.selected_principal.get() or '[principal]'
-            self.environment_summary_label.configure(
-                text=(
-                    f'Current environment: path={cpath}, principal_type={ptype}, '
-                    f'principal={pname}. Statements will be loaded on confirmation.'
-                )
-            )
+            self._refresh_environment_summary()
+
+    def _refresh_environment_summary(self) -> None:  # noqa: C901
+        """Render a multi-line environment summary in the Environment subtab.
+
+        The summary shows:
+
+          * Selected effective path
+          * Principal type and name
+          * A brief note about when statements are loaded
+          * A list of any *prospective* policy statements that are in-scope
+            for the current environment (same matching semantics as
+            get_applicable_statements).
+
+        We intentionally keep this lightweight by only scanning the
+        simulation engine's in-memory prospective set and not querying
+        the full tenancy repository here.
+        """
+
+        lbl = getattr(self, 'environment_summary_label', None)
+        if lbl is None:
+            return
+
+        cpath = self.selected_compartment.get() or 'ROOT'
+        ptype = self.selected_principal_type.get() or '[principal type]'
+        pname = self.selected_principal.get() or '[principal]'
+
+        # Base summary lines
+        lines: list[str] = []
+        lines.append(f'Effective path: {cpath}')
+        lines.append(f'Principal: {ptype} → {pname}')
+        lines.append('Statements will be (re)loaded when you confirm and move to the "Statements and Context" tab.')
+
+        # Append a short prospective statement preview, if available.
+        engine = getattr(self, 'simulation_engine', None)
+        prospective_lines: list[str] = []
+        try:
+            if engine and hasattr(engine, 'get_prospective_statements'):
+                all_prospective = engine.get_prospective_statements() or []
+                # Normalize principal in the same way load_statements does
+                pname_display = self.selected_principal.get() or ''
+                effective_principal: object = ''
+                if ptype != 'any-user':
+                    effective_principal = pname_display
+                if '/' in str(effective_principal or ''):
+                    domain, name = str(effective_principal).split('/', 1)
+                    effective_principal = (domain if domain != '' else None, name)
+                elif effective_principal:
+                    effective_principal = (None, str(effective_principal))
+                elif ptype == 'any-user':
+                    effective_principal = 'any-user'
+
+                # Reuse engine helpers to keep matching semantics identical
+                principal_key = engine._normalize_principal_key(ptype, effective_principal)  # type: ignore[attr-defined]
+                subj_filter = engine._principal_key_to_policy_search_filter(principal_key)  # type: ignore[attr-defined]
+                any_subjects = {str(s).lower() for s in subj_filter.get('subject', []) if s}
+
+                def _prospective_matches_env(pst: dict) -> bool:  # noqa: C901
+                    # Scope by compartment path
+                    pst_comp = str(pst.get('compartment_path', '')).strip()
+                    if not pst_comp:
+                        return False
+                    if not (cpath == pst_comp or cpath.startswith(pst_comp + '/')):
+                        return False
+
+                    # Match by subject/principal using the same logic as
+                    # simulation_engine.get_applicable_statements
+                    ptype_local = (
+                        pst.get('subject_type') or pst.get('normalized', {}).get('subject_type') or ''
+                    ).lower()
+                    subjects = pst.get('subject') or pst.get('normalized', {}).get('subject') or []
+                    # String subjects (any-user/any-group/service)
+                    if any_subjects:
+                        for s in subjects:
+                            if isinstance(s, str) and s.strip().lower() in any_subjects:
+                                return True
+                    # Exact object subjects (user/group/dynamic-group)
+                    if ptype_local == 'user' and 'exact_users' in subj_filter:
+                        targets = subj_filter['exact_users']
+                    elif ptype_local == 'group' and 'exact_groups' in subj_filter:
+                        targets = subj_filter['exact_groups']
+                    elif ptype_local == 'dynamic-group' and 'exact_dynamic_groups' in subj_filter:
+                        targets = subj_filter['exact_dynamic_groups']
+                    else:
+                        targets = []
+
+                    if not targets:
+                        return False
+
+                    norm_subj: set[tuple[str | None, str]] = set()
+                    for s in subjects:
+                        if isinstance(s, (tuple | list)) and len(s) == 2:
+                            domain, name = s
+                            dom_norm = str(domain).lower() if domain else 'default'
+                            norm_subj.add((dom_norm, str(name).lower()))
+
+                    for t in targets:
+                        dom = str(t.get('domain_name') or 'default').lower()
+                        name = str(
+                            t.get('user_name') or t.get('group_name') or t.get('dynamic_group_name') or ''
+                        ).lower()
+                        if (dom, name) in norm_subj:
+                            return True
+                    return False
+
+                matching = [
+                    pst
+                    for pst in all_prospective
+                    if pst.get('parsed') and pst.get('valid') and _prospective_matches_env(pst)
+                ]
+
+                if matching:
+                    prospective_lines.append('Prospective statements in scope for this environment:')
+                    # Keep this compact; show up to 5 entries with policy name and path
+                    for pst in matching[:5]:
+                        name = pst.get('policy_name') or pst.get('description') or pst.get('statement_text')
+                        comp = pst.get('compartment_path', 'ROOT')
+                        prefix = '[Prospective]'
+                        prospective_lines.append(f'  • {prefix} {name} @ {comp}')
+                    if len(matching) > 5:
+                        prospective_lines.append(f'  … (+{len(matching) - 5} more prospective statements)')
+                else:
+                    prospective_lines.append('No prospective (what-if) statements currently match this environment.')
+        except Exception:
+            # Defensive: never break the UI if summary rendering fails.
+            prospective_lines = []
+
+        if prospective_lines:
+            lines.append('')  # blank separator line
+            lines.extend(prospective_lines)
+
+        lbl.configure(text='\n'.join(lines))
 
     def _on_principal_type_changed(self, *_):
         """Handle changes to principal type from the Environment subtab."""
@@ -1009,7 +1156,7 @@ class SimulationTab(BaseUITab):
             columns=cols,
             data=data,
             action_buttons=[
-                ('Load Where Clause Fields', self.load_where_fields),
+                ('Load Available Where Clause Fields (Required)', self.load_where_fields),
             ],
             enable_select_all=True,
             checked_by_default=True,
@@ -1592,6 +1739,24 @@ class SimulationTab(BaseUITab):
         summary.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
         if missing:
             summary.append(f"Missing permissions: {', '.join(missing)}")
+
+        # Always surface a compact count of ALLOW/DENY statements
+        # considered for this simulation run so users can quickly see
+        # whether the expected policies participated.
+        allow_ct = result.get('allow_statements_considered')
+        deny_ct = result.get('deny_statements_considered')
+        if allow_ct is not None or deny_ct is not None:
+            summary.append(
+                f'Statements considered: ALLOW={allow_ct if allow_ct is not None else 0}, '
+                f'DENY={deny_ct if deny_ct is not None else 0}'
+            )
+
+        # Brief where-context echo for quick sanity checks.
+        where_ctx = result.get('simulation_trace', {}).get('simulation_context', {}).get('where_context') or {}
+        if where_ctx:
+            pretty_where = json.dumps(where_ctx, indent=2, ensure_ascii=False)
+            summary.append('Where context:')
+            summary.append(pretty_where)
 
         # Pull the final permission set from the nested simulation_trace block,
         # but only display it when trace details are enabled.

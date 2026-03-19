@@ -177,11 +177,16 @@ class ReferenceDataRepo:
         # Normalize inputs
         entity_ci = (entity or '').lower()
         verb_ci = (verb or '').lower()
+        # Special entity: all-resources should follow the same cumulative
+        # allow/deny semantics as individual resources and families.
+        # We therefore aggregate the cumulative permissions from every
+        # known resource instead of looking only at the single verb.
         if entity_ci == 'all-resources':
             all_perms = set()
-            for resdata in self.data['resources'].values():
-                perms = resdata.get('verbs', {}).get(verb_ci, [])
-                all_perms.update(p.upper() for p in perms)
+            for res_name in self.data['resources'].keys():
+                perms = self._get_cumulative_permissions(res_name, verb_ci, action)
+                if perms:
+                    all_perms.update(perms)
             return list(all_perms)
         # Handle families/resources with case-insensitive lookups
         if entity_ci in self.family_name_map:

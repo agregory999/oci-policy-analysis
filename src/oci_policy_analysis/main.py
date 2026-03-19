@@ -227,7 +227,7 @@ class App(tk.Tk):
         self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
-        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Preview)')
+        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')

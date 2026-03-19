@@ -169,10 +169,9 @@
         "CreateExport": {
             "permissions": [
                 "EXPORT_SET_UPDATE",
-                "FILE_SYSTEM_NFS",
-                "3_EXPORT"
+                "FILE_SYSTEM_NFSv3_EXPORT"
             ],
-            "notes": "+ FILE_SYSTEM_NFSv3_EXPORT"
+            "notes": ""
         },
         "GetExport": {
             "permissions": [
@@ -185,22 +184,21 @@
                 "EXPORT_SET_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveExportLock": {
             "permissions": [
                 "EXPORT_SET_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "DeleteExport": {
             "permissions": [
                 "EXPORT_SET_UPDATE",
-                "FILE_SYSTEM_NFS",
-                "3_UNEXPORT"
+                "FILE_SYSTEM_NFSv3_UNEXPORT"
             ],
-            "notes": "+ FILE_SYSTEM_NFSv3_UNEXPORT"
+            "notes": ""
         },
         "ListExportSets": {
             "permissions": [
@@ -240,12 +238,9 @@
         },
         "CreateFileSystem": {
             "permissions": [
-                "FILE_SYSTEM_CREATEC",
-                "FILE_SYSTEM_CLONEA",
-                "FILE_SYSTEM_UPDATE_FILESYSTEM",
-                "_SNAPSHOT_POLICY"
+                "FILE_SYSTEM_CREATE"
             ],
-            "notes": "FILE_SYSTEM_CREATECloning a file system also requires FILE_SYSTEM_CLONEAssociating the file system with a snapshot policy also requires \u200b"
+            "notes": "Cloning a file system also requires FILE_SYSTEM_CLONE. Associating the file system with a snapshot policy also requires FILE_SYSTEM_UPDATE_FILESYSTEM​_SNAPSHOT_POLICY"
         },
         "GetFileSystem": {
             "permissions": [
@@ -255,25 +250,23 @@
         },
         "UpdateFileSystem": {
             "permissions": [
-                "FILE_SYSTEM_UPDATEA",
-                "FILE_SYSTEM_UPDATE_FILESYSTEM",
-                "_SNAPSHOT_POLICY"
+                "FILE_SYSTEM_UPDATE"
             ],
-            "notes": "FILE_SYSTEM_UPDATEAssociating the file system with a snapshot policy also requires \u200b"
+            "notes": "Associating the file system with a snapshot policy also requires FILE_SYSTEM_UPDATE_FILESYSTEM​_SNAPSHOT_POLICY"
         },
         "AddFileSystemLock": {
             "permissions": [
                 "FILE_SYSTEM_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveFileSystemLock": {
             "permissions": [
                 "FILE_SYSTEM_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "DeleteFileSystem": {
             "permissions": [
@@ -316,14 +309,14 @@
                 "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveFilesystemSnapshotPolicyLock": {
             "permissions": [
                 "FILESYSTEM_SNAPSHOT_POLICY_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "DeleteFilesystemSnapshotPolicy": {
             "permissions": [
@@ -343,20 +336,28 @@
             ],
             "notes": ""
         },
-        "CreateMountTarget": {
+        "CreateMountTarget(Actual MT)": {
             "permissions": [
-                "MOUNT_TARGET_CREATE",
+                "MOUNT_TARGET_CREATE"
+            ],
+            "notes": "Requires MOUNT_TARGET_CREATE in Mount compartment and VNIC_CREATE, VNIC_ATTACH in vnicCompartment and SUBNET_ATTACH, PRIVATE_IP_CREATE, PRIVATE_IP_ASSIGN, VNIC_ASSIGN in subnetCompartment"
+        },
+        "CreateMountTarget(VNIC Compartment)": {
+            "permissions": [
                 "VNIC_CREATE",
-                "C",
+                "VNIC_ATTACH"
+            ],
+            "notes": "Requires MOUNT_TARGET_CREATE in Mount compartment and VNIC_CREATE, VNIC_ATTACH in vnicCompartment and SUBNET_ATTACH, PRIVATE_IP_CREATE, PRIVATE_IP_ASSIGN, VNIC_ASSIGN in subnetCompartment"
+        },        
+        "CreateMountTarget(Subnet Compartment)": {
+            "permissions": [
                 "SUBNET_ATTACH",
-                "VNIC_ATTACH",
-                "PRIVATE",
-                "_IP_CREATE",
+                "PRIVATE_IP_CREATE",
                 "PRIVATE_IP_ASSIGN",
                 "VNIC_ASSIGN"
             ],
-            "notes": "+ (vnicCompartment) + (subnetCompartment) + (vnicCompartment) + (subnetCompartment) + (subnetCompartment) + (subnetCompartment)"
-        },
+            "notes": "Requires MOUNT_TARGET_CREATE in Mount compartment and VNIC_CREATE, VNIC_ATTACH in vnicCompartment and SUBNET_ATTACH, PRIVATE_IP_CREATE, PRIVATE_IP_ASSIGN, VNIC_ASSIGN in subnetCompartment"
+        },        
         "GetMountTarget": {
             "permissions": [
                 "MOUNT_TARGET_READ"
@@ -392,27 +393,36 @@
                 "MOUNT_TARGET_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveMountTargetLock": {
             "permissions": [
                 "MOUNT_TARGET_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
-        "DeleteMountTarget": {
+        "DeleteMountTarget (Actual MT)": {
             "permissions": [
-                "MOUNT_TARGET_DELETE",
+                "MOUNT_TARGET_DELETE"
+            ],
+            "notes": "Similar to CreateMountTarget, requires permissions in multiple compartments. Requires MOUNT_TARGET_DELETE in Mount compartment and VNIC_DELETE, VNIC_DETACH in vnicCompartment and SUBNET_DETACH, PRIVATE_IP_DELETE, PRIVATE_IP_UNASSIGN, VNIC_UNASSIGN in subnetCompartment"
+        },
+        "DeleteMountTarget (VNIC Compartment)": {
+            "permissions": [
                 "VNIC_DELETE",
-                "C",
+                "VNIC_DETACH"
+            ],
+            "notes": "Similar to CreateMountTarget, requires permissions in multiple compartments. Requires MOUNT_TARGET_DELETE in Mount compartment and VNIC_DELETE, VNIC_DETACH in vnicCompartment and SUBNET_DETACH, PRIVATE_IP_DELETE, PRIVATE_IP_UNASSIGN, VNIC_UNASSIGN in subnetCompartment"
+        },
+        "DeleteMountTarget (Subnet Compartment)": {
+            "permissions": [
                 "SUBNET_DETACH",
-                "VNIC_DETACH",
                 "PRIVATE_IP_DELETE",
                 "PRIVATE_IP_UNASSIGN",
                 "VNIC_UNASSIGN"
             ],
-            "notes": "+ (vnicCompartment) + (subnetCompartment) + (vnicCompartment) + (subnetCompartment) + (subnetCompartment) + (vnicCompartment)"
+            "notes": "Similar to CreateMountTarget, requires permissions in multiple compartments. Requires MOUNT_TARGET_DELETE in Mount compartment and VNIC_DELETE, VNIC_DETACH in vnicCompartment and SUBNET_DETACH, PRIVATE_IP_DELETE, PRIVATE_IP_UNASSIGN, VNIC_UNASSIGN in subnetCompartment"
         },
         "ChangeMountTargetCompartment": {
             "permissions": [
@@ -449,14 +459,14 @@
                 "OUTBOUND_CONNECTOR_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveOutboundConnectorLock": {
             "permissions": [
                 "OUTBOUND_CONNECTOR_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "DeleteOutboundConnector": {
             "permissions": [
@@ -542,13 +552,19 @@
             ],
             "notes": ""
         },
-        "CreateReplication": {
+        "CreateReplication (Source File System)": {
             "permissions": [
                 "REPLICATION_CREATE",
-                "FILE_SYSTEM_REPLICATION_SOURCE",
+                "FILE_SYSTEM_REPLICATION_SOURCE"
+            ],
+            "notes": "Requires REPLICATION_CREATE either + FILE_SYSTEM_REPLICATION_SOURCE or FILE_SYSTEM_REPLICATION_TARGET depending on whether the replication is being created from the source or target side"
+        },
+        "CreateReplication (Target File System)": {
+            "permissions": [
+                "REPLICATION_CREATE",
                 "FILE_SYSTEM_REPLICATION_TARGET"
             ],
-            "notes": "+ (source file system) + (target file system)"
+            "notes": "Requires REPLICATION_CREATE either + FILE_SYSTEM_REPLICATION_SOURCE or FILE_SYSTEM_REPLICATION_TARGET depending on whether the replication is being created from the source or target side"
         },
         "UpdateReplication": {
             "permissions": [
@@ -561,14 +577,14 @@
                 "REPLICATION_UPDATE",
                 "RESOURCE_LOCK_ADD"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "RemoveReplicationLock": {
             "permissions": [
                 "REPLICATION_UPDATE",
                 "RESOURCE_LOCK_REMOVE"
             ],
-            "notes": "+"
+            "notes": ""
         },
         "ChangeReplicationCompartment": {
             "permissions": [

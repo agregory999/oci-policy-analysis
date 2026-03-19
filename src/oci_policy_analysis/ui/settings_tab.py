@@ -997,7 +997,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
-            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
+            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
             # Only add consolidation tab if experimental features are enabled
             if getattr(self.app, 'consolidation_tab', None) is not None:
                 notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
