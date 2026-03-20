@@ -1,0 +1,2091 @@
+{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+        "tools": [
+            {
+                "name": "prepare_simulation",
+                "description": "Prepare a simulation for a specific compartment and principal. This tool returns all where-clause fields required for simulation for the specified context. Pass in the compartment_path (effective path), principal_type (e.g. \"user\", \"any-user\"), and principal (string for any-user/service, or (domain, name) tuple for user/group/dyn-group). See SimulationPrepareRequest for details.",
+                "inputSchema": {
+                    "$defs": {
+                        "SimulationPrepareRequest": {
+                            "description": "Canonical input for simulation preparation.\n\nUsed to obtain principal and where-clause context, never for actual simulation execution.",
+                            "properties": {
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "principal_type": {
+                                    "enum": [
+                                        "group",
+                                        "user",
+                                        "dynamic-group",
+                                        "any-user",
+                                        "any-group",
+                                        "service"
+                                    ],
+                                    "type": "string"
+                                },
+                                "principal": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "items": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ]
+                                            },
+                                            "type": "array"
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "compartment_path",
+                                "principal_type",
+                                "principal"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "request": {
+                            "$ref": "#/$defs/SimulationPrepareRequest"
+                        }
+                    },
+                    "required": [
+                        "request"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "description": "Output of simulation preparation.\n\nProvides required where fields and a standardized principal key.",
+                    "properties": {
+                        "required_where_fields": {
+                            "items": {
+                                "type": "string"
+                            },
+                            "type": "array"
+                        },
+                        "principal_key": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "required_where_fields",
+                        "principal_key"
+                    ],
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "run_simulation_batch",
+                "description": "Run a batch of permission simulations for OCI principals and API operations. Input is a SimulationBatchRequest containing a list of SimulationScenario items. Each scenario must specify: compartment_path, principal_key (from prepare_simulation), api_operation, and where_context. checked_statement_ids should NOT be included. Result: SimulationBatchResponse with one result per input scenario. MCP never requests the trace ('trace' in SimulationBatchRequest should be omitted or false).",
+                "inputSchema": {
+                    "$defs": {
+                        "SimulationBatchRequest": {
+                            "description": "Batch simulation request (multiplex multiple scenarios).\n\nExample::\n\n    {\n      \"simulations\": [\n        { ... see SimulationScenario ... }\n      ],\n      \"trace\": true\n    }",
+                            "properties": {
+                                "simulations": {
+                                    "items": {
+                                        "$ref": "#/$defs/SimulationScenario"
+                                    },
+                                    "type": "array"
+                                },
+                                "trace": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "simulations"
+                            ],
+                            "type": "object"
+                        },
+                        "SimulationScenario": {
+                            "description": "Canonical input for a single simulation scenario.\n\nBatch-mode simulations use a list of these in SimulationBatchRequest.",
+                            "properties": {
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "principal_key": {
+                                    "type": "string"
+                                },
+                                "api_operation": {
+                                    "type": "string"
+                                },
+                                "where_context": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object"
+                                },
+                                "checked_statements": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "compartment_path",
+                                "principal_key",
+                                "api_operation",
+                                "where_context"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "request": {
+                            "$ref": "#/$defs/SimulationBatchRequest"
+                        }
+                    },
+                    "required": [
+                        "request"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "SimulationResult": {
+                            "description": "Canonical result for a single simulation scenario.\n\nAll fields strictly correspond to engine outputs and are fully JSON-serializable.",
+                            "properties": {
+                                "result": {
+                                    "enum": [
+                                        "YES",
+                                        "NO"
+                                    ],
+                                    "type": "string"
+                                },
+                                "api_call_allowed": {
+                                    "type": "boolean"
+                                },
+                                "final_permission_set": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "required_permissions_for_api_operation": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "missing_permissions": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "failure_reason": {
+                                    "type": "string"
+                                },
+                                "trace_statements": {
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "result",
+                                "api_call_allowed",
+                                "final_permission_set",
+                                "required_permissions_for_api_operation",
+                                "missing_permissions",
+                                "failure_reason"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "description": "Batch simulation output: result list, matches input scenario order.",
+                    "properties": {
+                        "results": {
+                            "items": {
+                                "$ref": "#/$defs/SimulationResult"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "results"
+                    ],
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "list_prospective_statements",
+                "description": "List all current prospective (what-if) policy statements loaded into the simulation engine. Each entry includes internal_id, policy_name, compartment_path, parsed/valid flags and invalid_reasons.",
+                "inputSchema": {
+                    "properties": {},
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "ProspectiveStatementSummary": {
+                            "description": "Summarized view of a prospective statement for MCP/UI listing.",
+                            "properties": {
+                                "internal_id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "policy_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "compartment_path": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "parsed": {
+                                    "anyOf": [
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "valid": {
+                                    "anyOf": [
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "invalid_reasons": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "statement_text": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/ProspectiveStatementSummary"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "set_prospective_statements",
+                "description": "Replace the entire set of prospective (what-if) policy statements used by the simulation engine. Input is a list of ProspectiveStatementInput objects; any existing prospective statements are discarded.",
+                "inputSchema": {
+                    "$defs": {
+                        "ProspectiveStatementInput": {
+                            "description": "Lightweight input model for defining a prospective (what-if) statement.\n\nThese fields mirror the data used by the UI's prospective editor and\nare consumed by PolicySimulationEngine.set_prospective_statements.",
+                            "properties": {
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "statement_text": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "statements": {
+                            "items": {
+                                "$ref": "#/$defs/ProspectiveStatementInput"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "statements"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "ProspectiveStatementSummary": {
+                            "description": "Summarized view of a prospective statement for MCP/UI listing.",
+                            "properties": {
+                                "internal_id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "policy_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "compartment_path": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "parsed": {
+                                    "anyOf": [
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "valid": {
+                                    "anyOf": [
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "invalid_reasons": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "statement_text": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/ProspectiveStatementSummary"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "add_prospective_statement",
+                "description": "Validate and add a single prospective (what-if) policy statement to the simulation engine. Returns parse/valid flags, any invalid reasons, normalized payload, and the assigned internal_id if added.",
+                "inputSchema": {
+                    "$defs": {
+                        "ProspectiveStatementInput": {
+                            "description": "Lightweight input model for defining a prospective (what-if) statement.\n\nThese fields mirror the data used by the UI's prospective editor and\nare consumed by PolicySimulationEngine.set_prospective_statements.",
+                            "properties": {
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "statement_text": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "input_model": {
+                            "$ref": "#/$defs/ProspectiveStatementInput"
+                        }
+                    },
+                    "required": [
+                        "input_model"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "description": "Result of adding or validating a single prospective statement via MCP.",
+                    "properties": {
+                        "parsed": {
+                            "type": "boolean"
+                        },
+                        "valid": {
+                            "type": "boolean"
+                        },
+                        "invalid_reasons": {
+                            "items": {
+                                "type": "string"
+                            },
+                            "type": "array"
+                        },
+                        "internal_id": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "normalized": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "clear_prospective_statements",
+                "description": "Remove all prospective (what-if) statements from the simulation engine, restoring it to tenancy-only data.",
+                "inputSchema": {
+                    "properties": {},
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "filter_policy_statements",
+                "description": "Favor this tool for all policy statement filtering needs.Filter OCI IAM policy statements using a JSON filter object. Each field is optional; OR within each field, AND across fields. Filtering allows Exact User, Group, Dynamic-Group matches. Fuzzy matching is also supported for user, group, and dynamic group criteria. Special cases: - verb must be one of inspect/read/use/manage - policy_compartment supports ROOTONLY to bring back policy statements only in the root compartment - policy_text matches anywhere in the statement text.Response: Returns either full policy statements or a summary based on result size. Large result sets (>100 statements) return a PolicySummary with counts and breakdowns. Smaller result sets return the complete PolicyStatement list.Filter Examples: - filter by verb and effective path: {\"subject_type\": [\"group\"], \"subject\": [{\"domain_name\": \"Default\", \"group_name\": \"Admins\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by exact user and verbs: {\"exact_groups\":[{\"group_name\":\"PolicyAuditorGroup\", \"domain_name\":\"Default\"}], \"verb\": [\"manage\",\"use\"]} - filter by exact group, resource and verb: {\"exact_groups\":[{\"group_name\":\"PolicyAuditorGroup\", \"domain_name\":\"Default\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by exact dynamic group and location: {\"exact_dynamic_groups\":[{\"dynamic_group_name\":\"DG1\"}], \"location\": [\"compartment1\"]} - filter by users (fuzzy) and resource: {\"search_users\":{\"search\":[\"andrew\",\"bob\"], \"user_ocid\":[\"4qa\",\"p57q\"]}, \"policy_compartment\": [\"ROOTONLY\"]} - filter by groups (fuzzy) and resource: {\"search_groups\":{\"search\":[\"admins\",\"developers\"], \"group_ocid\":[\"4qa\",\"p57q\"], \"domain_name\": [\"Default\",\"domain1\"]}, \"resource\": [\"instance-family\",\"database\"]} - filter by dynamic groups (fuzzy) and resource: {\"search_dynamic_groups\":{\"dynamic_group_name\":[\"app\",\"web\"], \"matching_rule\":[\"instance.compartment.id\",\"instance.id\"], \"domain_name\": [\"Default\",\"domain1\"]} ",
+                "inputSchema": {
+                    "$defs": {
+                        "DynamicGroup": {
+                            "description": "Model representing an OCI IAM dynamic group.\nDynamic groups are collections of principals defined by rules; unique by domain and name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "domain_ocid": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_name": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_ocid": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_id": {
+                                    "type": "string"
+                                },
+                                "matching_rule": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "in_use": {
+                                    "type": "boolean"
+                                },
+                                "creation_time": {
+                                    "type": "string"
+                                },
+                                "created_by_ocid": {
+                                    "type": "string"
+                                },
+                                "created_by_name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "dynamic_group_name"
+                            ],
+                            "type": "object"
+                        },
+                        "DynamicGroupSearch": {
+                            "description": "Search model for OCI IAM dynamic groups.\nUsed to query dynamic groups based on domain, name, or matching rule criteria via MCP tools.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "dynamic_group_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "matching_rule": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "dynamic_group_ocid": {
+                                    "type": "string"
+                                },
+                                "in_use": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "type": "object"
+                        },
+                        "Group": {
+                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "group_name": {
+                                    "type": "string"
+                                },
+                                "group_id": {
+                                    "type": "string"
+                                },
+                                "group_ocid": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "group_name"
+                            ],
+                            "type": "object"
+                        },
+                        "GroupSearch": {
+                            "description": "Search model for OCI IAM groups.\nUsed to filter and query cached group metadata by different attributes.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "group_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "group_ocid": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "type": "object"
+                        },
+                        "PolicySearch": {
+                            "description": "Search/filter model for querying OCI IAM policy statements.\nAccepts many fields; lists use OR logic, multiple fields use AND.\nUsed as input to policy filter tools provided by MCP.",
+                            "properties": {
+                                "action": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "exact_groups": {
+                                    "items": {
+                                        "$ref": "#/$defs/Group"
+                                    },
+                                    "type": "array"
+                                },
+                                "exact_users": {
+                                    "items": {
+                                        "$ref": "#/$defs/User"
+                                    },
+                                    "type": "array"
+                                },
+                                "exact_dynamic_groups": {
+                                    "items": {
+                                        "$ref": "#/$defs/DynamicGroup"
+                                    },
+                                    "type": "array"
+                                },
+                                "search_groups": {
+                                    "$ref": "#/$defs/GroupSearch"
+                                },
+                                "search_users": {
+                                    "$ref": "#/$defs/UserSearch"
+                                },
+                                "search_dynamic_groups": {
+                                    "$ref": "#/$defs/DynamicGroupSearch"
+                                },
+                                "verb": {
+                                    "items": {
+                                        "enum": [
+                                            "inspect",
+                                            "read",
+                                            "use",
+                                            "manage"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "statement_text": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "policy_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "compartment_path": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "resource": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "location": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "effective_path": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "subject_type": {
+                                    "items": {
+                                        "enum": [
+                                            "group",
+                                            "dynamic-group",
+                                            "any-user",
+                                            "any-group",
+                                            "service"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "subject": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "permission": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "comments": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "conditions": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "valid": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "type": "object"
+                        },
+                        "User": {
+                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "user_name": {
+                                    "type": "string"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "user_id": {
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "user_name"
+                            ],
+                            "type": "object"
+                        },
+                        "UserSearch": {
+                            "description": "Search model for OCI IAM users.\nUsed to filter and query cached user metadata by domain, username, or partial/display names.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "search": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "filters": {
+                            "$ref": "#/$defs/PolicySearch"
+                        }
+                    },
+                    "required": [
+                        "filters"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "PolicyStatementFull": {
+                            "description": "Model for detailed/full reporting of policy statement queries.\nOnly used when result set is small enough to return every statement.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "full",
+                                    "type": "string"
+                                },
+                                "statements": {
+                                    "items": {
+                                        "$ref": "#/$defs/RegularPolicyStatement"
+                                    },
+                                    "type": "array"
+                                },
+                                "total_count": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "statements",
+                                "total_count"
+                            ],
+                            "type": "object"
+                        },
+                        "PolicySummary": {
+                            "description": "Model for lightweight summary reporting for policy statement queries.\nUsed by APIs or UI when result set is too large to send full details.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "summary",
+                                    "type": "string"
+                                },
+                                "total_statements": {
+                                    "type": "integer"
+                                },
+                                "truncated": {
+                                    "type": "boolean"
+                                },
+                                "truncation_point": {
+                                    "type": "integer"
+                                },
+                                "policy_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "action_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "compartment_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "subject_type_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "verb_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "sample_statements": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "total_statements",
+                                "truncated",
+                                "truncation_point",
+                                "policy_breakdown",
+                                "action_breakdown",
+                                "compartment_breakdown",
+                                "subject_type_breakdown",
+                                "verb_breakdown",
+                                "sample_statements",
+                                "message"
+                            ],
+                            "type": "object"
+                        },
+                        "RegularPolicyStatement": {
+                            "description": "Represents a parsed OCI IAM policy statement.\n\nEach field corresponds to a normalized component extracted from a raw OCI policy text line.\nThese structures are produced during policy parsing and returned by filter tools.",
+                            "properties": {
+                                "policy_name": {
+                                    "type": "string"
+                                },
+                                "policy_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "statement_text": {
+                                    "type": "string"
+                                },
+                                "creation_time": {
+                                    "type": "string"
+                                },
+                                "internal_id": {
+                                    "type": "string"
+                                },
+                                "parsed": {
+                                    "type": "boolean"
+                                },
+                                "action": {
+                                    "enum": [
+                                        "allow",
+                                        "deny"
+                                    ],
+                                    "type": "string"
+                                },
+                                "valid": {
+                                    "type": "boolean"
+                                },
+                                "invalid_reasons": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "subject_type": {
+                                    "type": "string"
+                                },
+                                "subject": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "maxItems": 2,
+                                                "minItems": 2,
+                                                "prefixItems": [
+                                                    {
+                                                        "anyOf": [
+                                                            {
+                                                                "type": "string"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    {
+                                                        "type": "string"
+                                                    }
+                                                ],
+                                                "type": "array"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "verb": {
+                                    "type": "string"
+                                },
+                                "resource": {
+                                    "type": "string"
+                                },
+                                "permission": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "location_type": {
+                                    "type": "string"
+                                },
+                                "location": {
+                                    "type": "string"
+                                },
+                                "effective_compartment_ocid": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "effective_path": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "conditions": {
+                                    "type": "string"
+                                },
+                                "comments": {
+                                    "type": "string"
+                                },
+                                "parsing_notes": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "policy_name",
+                                "policy_ocid",
+                                "compartment_ocid",
+                                "compartment_path",
+                                "statement_text",
+                                "creation_time",
+                                "internal_id",
+                                "parsed"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/PolicySummary"
+                                },
+                                {
+                                    "$ref": "#/$defs/PolicyStatementFull"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "get_groups_for_user",
+                "description": "Return all groups that a specified OCI IAM user belongs to. Input must include user_name but could also include domain_name. Returns a list of group dictionaries with keys 'group_name' and 'domain_name'. Only use this tool for getting groups for an exact User (no fuzzy matching). For policy filtering, use the main filter_policy_statements tool instead.",
+                "inputSchema": {
+                    "$defs": {
+                        "User": {
+                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "user_name": {
+                                    "type": "string"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "user_id": {
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "user_name"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "user": {
+                            "$ref": "#/$defs/User"
+                        }
+                    },
+                    "required": [
+                        "user"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "Group": {
+                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "group_name": {
+                                    "type": "string"
+                                },
+                                "group_id": {
+                                    "type": "string"
+                                },
+                                "group_ocid": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "group_name"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/Group"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "get_users_for_group",
+                "description": "Return all users that belong to a specified OCI IAM group. Input must include the group's domain (string or null for Default) and name (string). Returns a list of user dictionaries with keys 'user_name', 'user_id', and 'domain_name'. Only use this tool for getting users for an exact Group (no fuzzy matching). For policy filtering, use the main filter_policy_statements tool instead.",
+                "inputSchema": {
+                    "$defs": {
+                        "Group": {
+                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "group_name": {
+                                    "type": "string"
+                                },
+                                "group_id": {
+                                    "type": "string"
+                                },
+                                "group_ocid": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "group_name"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "group": {
+                            "$ref": "#/$defs/Group"
+                        }
+                    },
+                    "required": [
+                        "group"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "User": {
+                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "user_name": {
+                                    "type": "string"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "user_id": {
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "user_name"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/User"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "search_users",
+                "description": "Return all users that match the specified criteria. Input may include the user's email (string) and name (string). Returns either a summary or full user list based on result size. Pass in no filter criteria to return all users. Any provided criteria will be combined with AND logic. For policy filtering, use the main filter_policy_statements tool instead.",
+                "inputSchema": {
+                    "$defs": {
+                        "UserSearch": {
+                            "description": "Search model for OCI IAM users.\nUsed to filter and query cached user metadata by domain, username, or partial/display names.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "search": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "filters": {
+                            "$ref": "#/$defs/UserSearch"
+                        }
+                    },
+                    "required": [
+                        "filters"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "User": {
+                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "user_name": {
+                                    "type": "string"
+                                },
+                                "user_ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "user_id": {
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "user_name"
+                            ],
+                            "type": "object"
+                        },
+                        "UserSearchFull": {
+                            "description": "Model representing a full user search result set (all users).\nUsed if the user list is small enough to return fully.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "full",
+                                    "type": "string"
+                                },
+                                "users": {
+                                    "items": {
+                                        "$ref": "#/$defs/User"
+                                    },
+                                    "type": "array"
+                                },
+                                "total_count": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "users",
+                                "total_count"
+                            ],
+                            "type": "object"
+                        },
+                        "UserSummary": {
+                            "description": "Lightweight summary of user search results when full details are not shown.\nUsed to communicate match counts and domain breakdowns for user searches.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "summary",
+                                    "type": "string"
+                                },
+                                "total_users": {
+                                    "type": "integer"
+                                },
+                                "truncated": {
+                                    "type": "boolean"
+                                },
+                                "truncation_point": {
+                                    "type": "integer"
+                                },
+                                "domain_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "sample_users": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "total_users",
+                                "truncated",
+                                "truncation_point",
+                                "domain_breakdown",
+                                "sample_users",
+                                "message"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/UserSummary"
+                                },
+                                {
+                                    "$ref": "#/$defs/UserSearchFull"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "search_groups",
+                "description": "Return all groups that match the specified criteria. Input may include the group's domain (string or null for Default) and name (string). Returns either a summary or full group list based on result size. Pass in no filter criteria to return all groups. Any provided criteria will be combined with AND logic. For policy filtering, use the main filter_policy_statements tool instead.",
+                "inputSchema": {
+                    "$defs": {
+                        "GroupSearch": {
+                            "description": "Search model for OCI IAM groups.\nUsed to filter and query cached group metadata by different attributes.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "group_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "group_ocid": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "filters": {
+                            "$ref": "#/$defs/GroupSearch"
+                        }
+                    },
+                    "required": [
+                        "filters"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "Group": {
+                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "group_name": {
+                                    "type": "string"
+                                },
+                                "group_id": {
+                                    "type": "string"
+                                },
+                                "group_ocid": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "group_name"
+                            ],
+                            "type": "object"
+                        },
+                        "GroupSearchFull": {
+                            "description": "Model representing a full group search result set (all groups).\nUsed if the group list is small enough to return fully.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "full",
+                                    "type": "string"
+                                },
+                                "groups": {
+                                    "items": {
+                                        "$ref": "#/$defs/Group"
+                                    },
+                                    "type": "array"
+                                },
+                                "total_count": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "groups",
+                                "total_count"
+                            ],
+                            "type": "object"
+                        },
+                        "GroupSummary": {
+                            "description": "Lightweight summary of group search results.\nUsed to summarize group matches, domain breakdowns, and sampling.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "summary",
+                                    "type": "string"
+                                },
+                                "total_groups": {
+                                    "type": "integer"
+                                },
+                                "truncated": {
+                                    "type": "boolean"
+                                },
+                                "truncation_point": {
+                                    "type": "integer"
+                                },
+                                "domain_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "sample_groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "total_groups",
+                                "truncated",
+                                "truncation_point",
+                                "domain_breakdown",
+                                "sample_groups",
+                                "message"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/GroupSummary"
+                                },
+                                {
+                                    "$ref": "#/$defs/GroupSearchFull"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "search_dynamic_groups",
+                "description": "Return all dynamic groups that match the specified criteria. Input may include the dynamic group's domain (string or null for Default) and name (string). Returns either a summary or full dynamic group list based on result size. Pass in no filter criteria to return all dynamic groups. Any provided criteria will be combined with AND logic. For policy filtering, use the main filter_policy_statements tool instead.",
+                "inputSchema": {
+                    "$defs": {
+                        "DynamicGroupSearch": {
+                            "description": "Search model for OCI IAM dynamic groups.\nUsed to query dynamic groups based on domain, name, or matching rule criteria via MCP tools.\nLists inside a field use OR; multiple fields use AND.",
+                            "properties": {
+                                "domain_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "dynamic_group_name": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "matching_rule": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "dynamic_group_ocid": {
+                                    "type": "string"
+                                },
+                                "in_use": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "filters": {
+                            "$ref": "#/$defs/DynamicGroupSearch"
+                        }
+                    },
+                    "required": [
+                        "filters"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "DynamicGroup": {
+                            "description": "Model representing an OCI IAM dynamic group.\nDynamic groups are collections of principals defined by rules; unique by domain and name.",
+                            "properties": {
+                                "domain_name": {
+                                    "type": "string"
+                                },
+                                "domain_ocid": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_name": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_ocid": {
+                                    "type": "string"
+                                },
+                                "dynamic_group_id": {
+                                    "type": "string"
+                                },
+                                "matching_rule": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "in_use": {
+                                    "type": "boolean"
+                                },
+                                "creation_time": {
+                                    "type": "string"
+                                },
+                                "created_by_ocid": {
+                                    "type": "string"
+                                },
+                                "created_by_name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "dynamic_group_name"
+                            ],
+                            "type": "object"
+                        },
+                        "DynamicGroupSearchFull": {
+                            "description": "Model representing a full dynamic group search result set.\nUsed if the dynamic group list is small enough to return fully.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "full",
+                                    "type": "string"
+                                },
+                                "dynamic_groups": {
+                                    "items": {
+                                        "$ref": "#/$defs/DynamicGroup"
+                                    },
+                                    "type": "array"
+                                },
+                                "total_count": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "dynamic_groups",
+                                "total_count"
+                            ],
+                            "type": "object"
+                        },
+                        "DynamicGroupSummary": {
+                            "description": "Lightweight summary of dynamic group search results.\nUsed to summarize matches, domain/in-use breakdowns, and sample listing.",
+                            "properties": {
+                                "response_type": {
+                                    "const": "summary",
+                                    "type": "string"
+                                },
+                                "total_dynamic_groups": {
+                                    "type": "integer"
+                                },
+                                "truncated": {
+                                    "type": "boolean"
+                                },
+                                "truncation_point": {
+                                    "type": "integer"
+                                },
+                                "domain_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "in_use_breakdown": {
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    },
+                                    "type": "object"
+                                },
+                                "sample_dynamic_groups": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "response_type",
+                                "total_dynamic_groups",
+                                "truncated",
+                                "truncation_point",
+                                "domain_breakdown",
+                                "in_use_breakdown",
+                                "sample_dynamic_groups",
+                                "message"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/DynamicGroupSummary"
+                                },
+                                {
+                                    "$ref": "#/$defs/DynamicGroupSearchFull"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "cross-tenancy-alias-list",
+                "description": "List all defined aliases stored in the DataRepository.",
+                "inputSchema": {
+                    "properties": {},
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "DefineStatement": {
+                            "description": "Parsed OCI IAM 'define' policy statement with optional metadata.",
+                            "properties": {
+                                "policy_name": {
+                                    "type": "string"
+                                },
+                                "policy_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "statement_text": {
+                                    "type": "string"
+                                },
+                                "creation_time": {
+                                    "type": "string"
+                                },
+                                "internal_id": {
+                                    "type": "string"
+                                },
+                                "parsed": {
+                                    "type": "boolean"
+                                },
+                                "valid": {
+                                    "type": "boolean"
+                                },
+                                "defined_type": {
+                                    "type": "string"
+                                },
+                                "defined_name": {
+                                    "type": "string"
+                                },
+                                "ocid_alias": {
+                                    "type": "string"
+                                },
+                                "comment": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "policy_name",
+                                "policy_ocid",
+                                "compartment_ocid",
+                                "compartment_path",
+                                "statement_text",
+                                "creation_time",
+                                "internal_id",
+                                "parsed"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/DefineStatement"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "cross-tenancy-policies-by-alias",
+                "description": "Filter cross-tenancy policy statements for a given alias.",
+                "inputSchema": {
+                    "properties": {
+                        "alias": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "alias"
+                    ],
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "BasePolicyStatement": {
+                            "description": "Base model for all OCI policy statement types, containing shared fields.\nAll statement models inherit from this and add statement-type-specific data.",
+                            "properties": {
+                                "policy_name": {
+                                    "type": "string"
+                                },
+                                "policy_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_ocid": {
+                                    "type": "string"
+                                },
+                                "compartment_path": {
+                                    "type": "string"
+                                },
+                                "statement_text": {
+                                    "type": "string"
+                                },
+                                "creation_time": {
+                                    "type": "string"
+                                },
+                                "internal_id": {
+                                    "type": "string"
+                                },
+                                "parsed": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "policy_name",
+                                "policy_ocid",
+                                "compartment_ocid",
+                                "compartment_path",
+                                "statement_text",
+                                "creation_time",
+                                "internal_id",
+                                "parsed"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/BasePolicyStatement"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "type": "object",
+                    "x-fastmcp-wrap-result": true
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "compare_reference_data_caches",
+                "description": "Compares the previous reference data cache for this tenancy to the current in-memory state using DeepDiff and returns a summarized result of the changes.",
+                "inputSchema": {
+                    "properties": {},
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "description": "Result model describing the outcome of comparing two cached reference data sets.\nUsed by tools diagnosing drift or state changes in cached OCI data.",
+                    "properties": {
+                        "response_type": {
+                            "const": "reference_data_diff",
+                            "type": "string"
+                        },
+                        "cache_a": {
+                            "type": "string"
+                        },
+                        "cache_b": {
+                            "type": "string"
+                        },
+                        "diff_summary": {
+                            "type": "string"
+                        },
+                        "diff_details": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "response_type",
+                        "cache_a",
+                        "cache_b",
+                        "diff_summary",
+                        "diff_details",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            },
+            {
+                "name": "reload_mcp_data",
+                "description": "Reload all policy and identity data from OCI into the MCP server repository. This allows refreshing data without restarting the server. Use with caution as it may take time depending on tenancy size.",
+                "inputSchema": {
+                    "properties": {},
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "_meta": {
+                    "_fastmcp": {
+                        "tags": []
+                    }
+                }
+            }
+        ]
+    }
+}

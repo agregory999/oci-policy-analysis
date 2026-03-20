@@ -1,4 +1,4 @@
-# Context: Settings Tab
+# Project-Specific Context: Settings Tab
 
 The Settings tab centralizes all project configuration for OCI Policy Analysis, including environment details, cache controls, GenAI features, and import/export of tenancy data.
 

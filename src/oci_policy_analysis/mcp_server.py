@@ -38,6 +38,7 @@ import argparse  # noqa: E402
 import json  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
+from typing import Any  # noqa: E402
 
 from deepdiff import DeepDiff  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
@@ -64,15 +65,21 @@ from oci_policy_analysis.common.models import (  # noqa: E402
     PolicyStatementFull,
     PolicySummary,
     ReferenceDataDiffResult,
-    SimulationBatchRequest,
-    SimulationBatchResponse,
-    SimulationPrepareRequest,
-    SimulationPrepareResponse,
     User,
     UserSearch,
     UserSearchFull,
     UserSearchResponse,
     UserSummary,
+)
+from oci_policy_analysis.common.models_simulation import (  # noqa: E402
+    ProspectiveStatementInput,
+    ProspectiveStatementResult,
+    ProspectiveStatementSummary,
+    SimulationBatchRequest,
+    SimulationBatchResponse,
+    SimulationPrepareRequest,
+    SimulationPrepareResponse,
+    SimulationResult,
 )
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
@@ -93,6 +100,124 @@ POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
 
 # Decision logic: return summary if result set is too large
 IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
+
+
+# ===========================================================
+# TOOL REGISTRY FOR UI (Embedded MCP Tab)
+# ===========================================================
+
+_REGISTERED_TOOLS: list[dict[str, Any]] = []
+
+
+def _summarize_schema(schema: dict[str, Any] | None) -> str:
+    """Return a short description of a JSON schema for display in the MCP tab tools table.
+
+    Preference is to list top-level property names; fall back to schema "type" if present.
+    """
+
+    if not schema or not isinstance(schema, dict):
+        return ''
+    props = schema.get('properties')
+    if isinstance(props, dict) and props:
+        return ', '.join(str(k) for k in props.keys())
+    schema_type = schema.get('type')
+    return str(schema_type) if schema_type else ''
+
+
+def _refresh_registered_tools_from_mcp() -> None:
+    """Rebuild the in-process registry from FastMCP's tool definitions.
+
+    This inspects the FastMCP instance to derive tool metadata so the UI
+    does not need to duplicate tool definitions.
+    """
+
+    global _REGISTERED_TOOLS
+    tools: list[dict[str, Any]] = []
+
+    # FastMCP exposes its tools via its tool manager; use the public get_tools() API.
+    logger.info(
+        '[_refresh_registered_tools_from_mcp] FastMCP instance type=%s, candidate tool-related attributes=%s',
+        type(mcp),
+        [name for name in dir(mcp) if 'tool' in name.lower()],
+    )
+
+    try:
+        # FastMCP exposes a get_tools() helper that returns a mapping of tool name -> tool object
+        get_tools_fn = getattr(mcp, 'get_tools', None)
+        tools_map = get_tools_fn() if callable(get_tools_fn) else None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error('[_refresh_registered_tools_from_mcp] mcp.get_tools() failed: %s', exc, exc_info=True)
+        tools_map = None
+
+    if isinstance(tools_map, dict):
+        tool_iter = list(tools_map.values())
+    elif tools_map is None:
+        tool_iter = []
+    else:
+        tool_iter = list(tools_map) if hasattr(tools_map, '__iter__') else []
+
+    if not tool_iter:
+        logger.warning(
+            '[_refresh_registered_tools_from_mcp] No tools discovered via mcp.get_tools(); UI registry will be empty. '
+            'tools_map=%r',
+            tools_map,
+        )
+        _REGISTERED_TOOLS = []
+        return
+
+    logger.info(
+        '[_refresh_registered_tools_from_mcp] tool_iter length=%d, sample=%r',
+        len(tool_iter),
+        tool_iter[:2],
+    )
+
+    for tool in tool_iter:
+        try:
+            name = getattr(tool, 'name', '')
+            desc = getattr(tool, 'description', '')
+            logger.info(
+                '[_refresh_registered_tools_from_mcp] inspecting tool name=%r, type=%s, dir_contains_input_schema=%s, dir_contains_output_schema=%s',
+                name,
+                type(tool),
+                'input_schema' in dir(tool),
+                'output_schema' in dir(tool),
+            )
+            # FastMCP exposes JSON-schema-like input/output definitions on the tool;
+            # use them if present, otherwise leave blank and let UI show empty strings.
+            input_schema = getattr(tool, 'input_schema', None)
+            output_schema = getattr(tool, 'output_schema', None)
+            tools.append(
+                {
+                    'name': str(name),
+                    'description': str(desc),
+                    'inputs': _summarize_schema(input_schema) if input_schema is not None else '',
+                    'outputs': _summarize_schema(output_schema) if output_schema is not None else '',
+                }
+            )
+        except Exception as exc:  # defensive; do not break registry build for a single tool
+            logger.error('Failed to register MCP tool metadata for UI: %s', exc, exc_info=True)
+
+    _REGISTERED_TOOLS = tools
+    logger.info('MCP tool registry built with %d tools for UI display', len(_REGISTERED_TOOLS))
+
+
+def get_registered_tools() -> list[dict[str, Any]]:
+    """Return the list of MCP tools as seen by the FastMCP instance.
+
+    The result is used exclusively by the Embedded MCP tab to display
+    name/description/inputs/outputs in a table. It does not require the
+    server to be running; it reflects the tools registered on the FastMCP
+    instance at import time (or after any explicit refresh).
+    """
+
+    # Lazy initialization: always try to refresh once when called from the UI.
+    # This ensures that even if FastMCP attaches tools later in import order,
+    # the registry is rebuilt the first time the Embedded MCP tab is shown.
+    try:
+        _refresh_registered_tools_from_mcp()
+    except Exception as exc:  # defensive: never break callers due to registry issues
+        logger.error('get_registered_tools: failed to refresh registry: %s', exc, exc_info=True)
+    return list(_REGISTERED_TOOLS)
 
 
 # --- Resources and Tools (unchanged) ---
@@ -172,7 +297,8 @@ def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResp
     if not sim_engine:
         raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
     simulations = request.get('simulations', [])
-    results = []
+    trace_requested = bool(request.get('trace', False))
+    results: list[SimulationResult] = []
     for scenario in simulations:
         try:
             compartment_path = scenario.get('compartment_path')
@@ -180,27 +306,246 @@ def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResp
             api_operation = scenario.get('api_operation')
             where_context = scenario.get('where_context', {})
             # checked_statement_ids is absent (canonical MCP flow)
-            # trace always False for MCP batch
-            sim_result = sim_engine.simulate_and_record(
-                principal_key, compartment_path, api_operation, where_context, trace=False
+            # Engine always computes full trace; we adapt to SimulationResult shape.
+            engine_result = sim_engine.simulate_and_record(
+                principal_key,
+                compartment_path,
+                api_operation,
+                where_context,
+                trace=trace_requested,
             )
-            # Remove redundant or legacy fields if present (keep strictly to SimulationResult shape)
-            if 'trace' in sim_result:
-                sim_result.pop('trace')
+
+            sim_trace = engine_result.get('simulation_trace') or {}
+            final_permissions = sim_trace.get('final_permission_set') or []
+            required_perms = engine_result.get('required_permissions_for_api_operation') or sim_trace.get(
+                'required_permissions_for_api_operation',
+                [],
+            )
+            missing = engine_result.get('missing_permissions') or []
+            failure_reason = engine_result.get('failure_reason') or ''
+
+            sim_result: SimulationResult = {
+                'result': 'YES' if engine_result.get('api_call_allowed') else 'NO',
+                'api_call_allowed': bool(engine_result.get('api_call_allowed')),
+                'final_permission_set': list(final_permissions),
+                'required_permissions_for_api_operation': list(required_perms),
+                'missing_permissions': list(missing),
+                'failure_reason': str(failure_reason),
+            }
+
+            if trace_requested:
+                # When trace is requested, include per-statement trace; default to empty list.
+                trace_statements = sim_trace.get('trace_statements') or []
+                sim_result['trace_statements'] = list(trace_statements)
+
             results.append(sim_result)
         except Exception as ex:
             logger.warning(f'Failed to simulate batch scenario: {scenario}, error: {ex}')
-            results.append(
-                {
-                    'result': 'NO',
-                    'api_call_allowed': False,
-                    'final_permission_set': [],
-                    'required_permissions_for_api_operation': [],
-                    'missing_permissions': [],
-                    'failure_reason': f'Simulation error: {ex}',
-                }
-            )
+            error_result: SimulationResult = {
+                'result': 'NO',
+                'api_call_allowed': False,
+                'final_permission_set': [],
+                'required_permissions_for_api_operation': [],
+                'missing_permissions': [],
+                'failure_reason': f'Simulation error: {ex}',
+            }
+            results.append(error_result)
     return {'results': results}
+
+
+# ===========================================================
+# PROSPECTIVE (WHAT-IF) STATEMENT MANAGEMENT TOOLS
+# ===========================================================
+
+
+@mcp.tool(
+    name='list_prospective_statements',
+    description=(
+        'List all current prospective (what-if) policy statements loaded into the simulation engine. '
+        'Each entry includes internal_id, policy_name, compartment_path, parsed/valid flags and invalid_reasons.'
+    ),
+)
+def list_prospective_statements() -> list[ProspectiveStatementSummary]:
+    """Return a summarized view of all currently configured prospective statements."""
+
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+
+    try:
+        raw_list = sim_engine.get_prospective_statements() or []
+    except Exception as exc:  # defensive
+        logger.error('Failed to retrieve prospective statements from engine: %s', exc)
+        raise ToolError(f'Failed to retrieve prospective statements from engine: {exc}') from exc
+
+    summaries: list[ProspectiveStatementSummary] = []
+    for pst in raw_list:
+        summaries.append(
+            ProspectiveStatementSummary(
+                internal_id=pst.get('internal_id'),
+                policy_name=pst.get('policy_name'),
+                compartment_path=pst.get('compartment_path'),
+                parsed=pst.get('parsed'),
+                valid=pst.get('valid'),
+                invalid_reasons=pst.get('invalid_reasons') or [],
+                statement_text=pst.get('statement_text'),
+            )
+        )
+    logger.info('list_prospective_statements: returning %d entries', len(summaries))
+    return summaries
+
+
+@mcp.tool(
+    name='set_prospective_statements',
+    description=(
+        'Replace the entire set of prospective (what-if) policy statements used by the simulation engine. '
+        'Input is a list of ProspectiveStatementInput objects; any existing prospective statements are discarded.'
+    ),
+)
+def set_prospective_statements_tool(statements: list[ProspectiveStatementInput]) -> list[ProspectiveStatementSummary]:
+    """Replace the engine's prospective statement list with the provided inputs and return summaries."""
+
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+
+    # Convert TypedDict input directly; engine expects simple dicts with the same keys.
+    cleaned: list[dict] = []
+    for st in statements or []:
+        if not st.get('statement_text'):
+            continue
+        cleaned.append(
+            {
+                'compartment_path': st.get('compartment_path') or 'ROOT',
+                'description': st.get('description') or '',
+                'statement_text': st.get('statement_text') or '',
+            }
+        )
+
+    try:
+        sim_engine.set_prospective_statements(cleaned)
+    except Exception as exc:
+        logger.error('set_prospective_statements_tool: engine error: %s', exc, exc_info=True)
+        raise ToolError(f'Failed to set prospective statements: {exc}') from exc
+
+    # Reuse list_prospective_statements for the summarized response
+    return list_prospective_statements()
+
+
+@mcp.tool(
+    name='add_prospective_statement',
+    description=(
+        'Validate and add a single prospective (what-if) policy statement to the simulation engine. '
+        'Returns parse/valid flags, any invalid reasons, normalized payload, and the assigned internal_id if added.'
+    ),
+)
+def add_prospective_statement(input_model: ProspectiveStatementInput) -> ProspectiveStatementResult:
+    """Validate and append a single prospective statement to the engine's what-if set."""
+
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+
+    stmt_text = (input_model.get('statement_text') or '').strip()
+    compartment_path = (input_model.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    description = (input_model.get('description') or '').strip()
+
+    if not stmt_text:
+        return ProspectiveStatementResult(
+            parsed=False,
+            valid=False,
+            invalid_reasons=['statement_text is required'],
+            internal_id=None,
+            normalized={},
+            message='Prospective statement not added: statement_text is required.',
+        )
+
+    try:
+        validation = sim_engine.validate_prospective_statement(stmt_text)
+    except Exception as exc:
+        logger.error('add_prospective_statement: validation error: %s', exc, exc_info=True)
+        return ProspectiveStatementResult(
+            parsed=False,
+            valid=False,
+            invalid_reasons=[str(exc)],
+            internal_id=None,
+            normalized={},
+            message=f'Prospective statement validation raised an exception: {exc}',
+        )
+
+    parsed = bool(validation.get('parsed'))
+    valid = bool(validation.get('valid'))
+    invalid_reasons = validation.get('invalid_reasons') or []
+    normalized = validation.get('normalized') or {}
+
+    if not parsed or not valid:
+        msg = 'Prospective statement parsed but is invalid.' if parsed else 'Prospective statement failed to parse.'
+        return ProspectiveStatementResult(
+            parsed=parsed,
+            valid=valid,
+            invalid_reasons=invalid_reasons,
+            internal_id=None,
+            normalized=normalized if parsed and valid else {},
+            message=msg,
+        )
+
+    # Append to existing list and let the engine assign an internal_id.
+    try:
+        current = sim_engine.get_prospective_statements() or []
+        before_ids = {pst.get('internal_id') for pst in current}
+        current.append(
+            {
+                'compartment_path': compartment_path,
+                'description': description,
+                'statement_text': stmt_text,
+            }
+        )
+        sim_engine.set_prospective_statements(current)
+        updated = sim_engine.get_prospective_statements() or []
+    except Exception as exc:
+        logger.error('add_prospective_statement: engine error while appending: %s', exc, exc_info=True)
+        return ProspectiveStatementResult(
+            parsed=parsed,
+            valid=valid,
+            invalid_reasons=invalid_reasons,
+            internal_id=None,
+            normalized=normalized,
+            message=f'Prospective statement validated but could not be added: {exc}',
+        )
+
+    # Find the newly-added statement's internal_id by diffing ids.
+    after_ids = {pst.get('internal_id') for pst in updated}
+    new_ids = [i for i in after_ids if i not in before_ids]
+    assigned_id = new_ids[0] if new_ids else None
+
+    return ProspectiveStatementResult(
+        parsed=parsed,
+        valid=valid,
+        invalid_reasons=invalid_reasons,
+        internal_id=str(assigned_id) if assigned_id is not None else None,
+        normalized=normalized,
+        message='Prospective statement parsed, validated, and added successfully.'
+        if assigned_id is not None
+        else 'Prospective statement parsed and validated, but internal_id could not be determined.',
+    )
+
+
+@mcp.tool(
+    name='clear_prospective_statements',
+    description=(
+        'Remove all prospective (what-if) statements from the simulation engine, restoring it to tenancy-only data.'
+    ),
+)
+def clear_prospective_statements() -> dict:
+    """Clear all currently configured prospective statements from the engine."""
+
+    if not sim_engine:
+        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+
+    try:
+        sim_engine.set_prospective_statements([])
+        logger.info('clear_prospective_statements: all prospective statements removed.')
+        return {'status': 'success', 'message': 'All prospective statements have been cleared.'}
+    except Exception as exc:
+        logger.error('clear_prospective_statements: engine error: %s', exc, exc_info=True)
+        raise ToolError(f'Failed to clear prospective statements: {exc}') from exc
 
 
 # Main Policy filter tool
@@ -764,7 +1109,7 @@ def start_mcp_server_in_thread(settings: dict):
         logger.info('MCP server is already running.')
         return
 
-    logger.debug(f'Starting MCP server thread with config: {settings}')
+    # Set the boolean for running status before starting the thread to prevent race conditions in status checks
     server_running = False  # reset
 
     def _run():

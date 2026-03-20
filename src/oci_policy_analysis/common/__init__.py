@@ -41,6 +41,7 @@ from .models import (
     # Summary/Result/Utility Models
     UserSummary,
 )
+from .models_consolidation import ProtectedStatementReference, ProtectedStatementSet
 
 __all__ = [
     # Entity Models
@@ -81,4 +82,7 @@ __all__ = [
     'PolicyIntelligence',
     # Explicit cache manager
     'CacheManager',
+    # Consolidation state models
+    'ProtectedStatementReference',
+    'ProtectedStatementSet',
 ]

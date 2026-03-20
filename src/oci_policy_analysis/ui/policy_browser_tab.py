@@ -37,6 +37,7 @@ class PolicyBrowserTab(BaseUITab):
                 'Tree expands to reveal policies in each compartment and all their statement text. '
                 'Right-click a policy or statement for navigation or actions.'
             ),
+            page_help_link='/usage.html#policy-browser-tab',
         )
         self.app = app
         self.settings = settings
@@ -82,6 +83,20 @@ class PolicyBrowserTab(BaseUITab):
         sep = ttk.Separator(self.button_row, orient='vertical')
         sep.pack(side='left', fill='y', padx=(8, 8), pady=3)
 
+        # --- Show Policy Statement Limits Checkbox ---
+        self.show_limits_var = tk.BooleanVar(value=False)
+        show_limits_chk = ttk.Checkbutton(
+            self.button_row,
+            text='Show Policy Statement Limits',
+            variable=self.show_limits_var,
+            command=self.refresh_tree,
+        )
+        show_limits_chk.pack(side='left', padx=(0, 8), pady=2)
+        self.add_context_help(
+            show_limits_chk,
+            'Toggle display of policy statement count summary and coloring per compartment. If unchecked, hides statement count info.',
+        )
+
         # Label for text search, then live search box, then clear button
         search_label = ttk.Label(self.button_row, text='Search:')
         search_label.pack(side='left', padx=(0, 2), pady=2)
@@ -95,11 +110,11 @@ class PolicyBrowserTab(BaseUITab):
 
         self.add_context_help(
             search_entry,
-            'Type to search compartments, policies, or statements (case-insensitive). Filtering occurs as you type.',
+            'Type to search compartments, policies, statements, or tags (case-insensitive). Filtering occurs as you type.',
         )
         self.add_context_help(
             search_label,
-            'Live text search for nodes. All containing/hierarchical nodes will be shown, results highlighted.',
+            'Live text search for compartments, policies, statements, and tags. All containing/hierarchical nodes will be shown, results highlighted.',
         )
         self.add_context_help(
             clear_btn,
@@ -112,9 +127,26 @@ class PolicyBrowserTab(BaseUITab):
             self.ai_assist_btn,
             'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
         )
-        # Pack the button as disabled initially; enable when AI is ready
         self.ai_assist_btn.pack(side='left', padx=(14, 2), pady=2)
         self.ai_assist_btn.config(state=tk.DISABLED)
+
+        # --- Reload Compartment / Policy Data Button ---
+        self.btn_reload_policies = ttk.Button(
+            self.button_row,
+            text='Reload Compartment / Policy Data',
+            command=self._handle_reload_policies,
+        )
+        # Add help and pack far right (side='right')
+        self.add_context_help(
+            self.btn_reload_policies,
+            (
+                'Reload policies and compartment data directly from tenancy (using original authentication and recursion settings).\n'
+                'Enabled only if current data was loaded from tenancy, not cache/compliance. IAM group, Dynamic Group, and User data are NOT reloaded.'
+            ),
+        )
+        self.btn_reload_policies.pack(side='right', padx=(16, 0), pady=2)
+        # Set initial enabled state
+        self._update_reload_policy_button_state()
 
         # Live search via Var trace
         self.search_var.trace_add('write', lambda *args: self.on_search())
@@ -131,6 +163,10 @@ class PolicyBrowserTab(BaseUITab):
         self.tree = ttk.Treeview(label_frm_tree, show='tree')
         self.tree.pack(fill='both', expand=True, side='top', padx=2, pady=2)
         self.tree.configure(style='Treeview')
+        # Configure tags for background coloring
+        self.tree.tag_configure('bg_green', background='#d7ffd7')  # light green
+        self.tree.tag_configure('bg_yellow', background='#fffcc7')  # light yellow
+        self.tree.tag_configure('bg_red', background='#ffd7d7')  # light red
         logger.info(
             f'Treeview created: is mapped: {self.tree.winfo_ismapped()}, size: {self.tree.winfo_width()}x{self.tree.winfo_height()}'
         )
@@ -148,6 +184,70 @@ class PolicyBrowserTab(BaseUITab):
         self.tree.bind('<Control-Button-1>', self._on_right_click)  # Ctrl+Click (Mac legacy)
         # Bind item selection in tree to propagate selected statement for AI
         self.tree.bind('<<TreeviewSelect>>', self._on_tree_select)
+
+    def _update_reload_policy_button_state(self):
+        """Enable or disable the reload button depending on whether reload is allowed."""
+        allowed = False
+        repo = getattr(self, 'policy_repo', None)
+        if (
+            repo
+            and getattr(repo, 'policies_loaded_from_tenancy', False)
+            and not getattr(repo, 'loaded_from_compliance_output', False)
+        ):
+            allowed = True
+        if hasattr(self, 'btn_reload_policies'):
+            if allowed:
+                self.btn_reload_policies['state'] = tk.NORMAL
+            else:
+                self.btn_reload_policies['state'] = tk.DISABLED
+
+    def _handle_reload_policies(self):
+        """Handler for Reload Compartment / Policy Data button. Delegates actual reload+cache+UI to App."""
+        repo = getattr(self, 'policy_repo', None)
+        if not (hasattr(repo, 'policies_loaded_from_tenancy') and repo.policies_loaded_from_tenancy) or getattr(
+            repo, 'loaded_from_compliance_output', False
+        ):
+            try:
+                import tkinter.messagebox as tkmessagebox
+
+                tkmessagebox.showwarning(
+                    'Not allowed',
+                    'Policy data can only be reloaded from tenancy (not cache/compliance). Please load from tenancy first.',
+                )
+            except Exception:
+                pass
+            self._update_reload_policy_button_state()
+            return
+        try:
+            self.configure(cursor='watch')
+            self.update_idletasks()
+            ok = False
+            if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
+                ok = self.app.reload_policies_and_compartments_and_update_cache()
+            self.configure(cursor='')
+            if ok:
+                try:
+                    import tkinter.messagebox as tkmessagebox
+
+                    tkmessagebox.showinfo(
+                        'Policy Data Reloaded', 'Policies and compartments have been reloaded from tenancy.'
+                    )
+                except Exception:
+                    pass
+            else:
+                self._update_reload_policy_button_state()
+                import tkinter.messagebox as tkmessagebox
+
+                tkmessagebox.showerror(
+                    'Reload Failed',
+                    'Policy data reload from tenancy failed. See application logs for details.',
+                )
+        except Exception as e:
+            self.configure(cursor='')
+            self._update_reload_policy_button_state()
+            import tkinter.messagebox as tkmessagebox
+
+            tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
 
     def _ai_btn_is_packed(self):
         # Helper: return True if the AI Assist button is packed in the button row
@@ -198,20 +298,34 @@ class PolicyBrowserTab(BaseUITab):
             after = text[idx + len(query) :]
             return before + '***' + match + '***' + after
 
+        def matching_tags(tags):
+            """Return matching tag display strings for the current query."""
+            if not isinstance(tags, dict):
+                return []
+            matches = []
+            for key, value in sorted(tags.items()):
+                key_str = str(key)
+                value_str = str(value)
+                if query in key_str.lower() or query in value_str.lower():
+                    matches.append(f'{highlight(key_str)}: {highlight(value_str)}')
+            return matches
+
         def recurse_compartments(parent_ocid):
             nodes = []
             for c in children_by_parent.get(parent_ocid, []):
                 comp_id_val = c.get('id')
                 comp_name = c.get('name', '(Unnamed Compartment)')
                 comp_desc = c.get('description') or '(No description)'
-                match_this = (query in comp_name.lower()) or (query in comp_desc.lower())
+                comp_tag_matches = matching_tags(c.get('tags') or {})
+                match_this = (query in comp_name.lower()) or (query in comp_desc.lower()) or bool(comp_tag_matches)
                 # Policies for this compartment
                 nodes_policies = []
                 policies_here = policies_by_compartment.get(comp_id_val, [])
                 for p in policies_here:
                     pol_name = p.get('policy_name', '(Unnamed Policy)')
+                    policy_tag_matches = matching_tags(p.get('tags') or {})
                     # Match policy name against search
-                    match_policy = query in pol_name.lower()
+                    match_policy = query in pol_name.lower() or bool(policy_tag_matches)
                     highlight_policy_name = highlight(pol_name) if match_policy else pol_name
 
                     # Filter statements with the correct compartment/policy pair
@@ -228,6 +342,7 @@ class PolicyBrowserTab(BaseUITab):
                         nodes_policies.append(
                             (
                                 highlight_policy_name,  # Policy (possibly highlighted)
+                                policy_tag_matches,  # Matching policy tags only
                                 highlight_stmts,  # Only matching stmts
                             )
                         )
@@ -239,7 +354,8 @@ class PolicyBrowserTab(BaseUITab):
                         'statement_count_direct': c.get('statement_count_direct', 0),
                         'statement_count_cumulative': c.get('statement_count_cumulative', 0),
                         'comp_desc': highlight(comp_desc) if query in comp_desc.lower() else comp_desc,
-                        'policies': nodes_policies,  # [(policy_name, [stmts])]
+                        'tag_matches': comp_tag_matches,
+                        'policies': nodes_policies,  # [(policy_name, [tag_matches], [stmts])]
                         'descendants': descendant_nodes,
                         'should_expand': True,  # All matching paths expanded
                     }
@@ -263,18 +379,40 @@ class PolicyBrowserTab(BaseUITab):
         for i in self.tree.get_children():
             self.tree.delete(i)
 
-        def tree_from_nodes(nodes, parent_id):
+        def tree_from_nodes(nodes, parent_id):  # noqa: C901
             for c in nodes:
+                # Compartment node is always default background
                 comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
-                # Insert counts node
-                counts_display = f'Statement count - direct: {c.get("statement_count_direct", 0)}, cumulative: {c.get("statement_count_cumulative", 0)}'
-                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
+                # Insert counts row only if limits option is set, with color/message logic
+                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
+                    cum_count = c.get('statement_count_cumulative', 0)
+                    direct_count = c.get('statement_count_direct', 0)
+                    if cum_count > 500:
+                        count_tag = 'bg_red'
+                        status_msg = ' (Over limit! Reduce statements.)'
+                    elif cum_count >= 450:
+                        count_tag = 'bg_yellow'
+                        status_msg = ' (Warning: 90%+ of maximum allowed)'
+                    else:
+                        count_tag = 'bg_green'
+                        status_msg = ''
+                    counts_display = f'Statement count - direct: {direct_count}, cumulative: {cum_count}{status_msg}'
+                    self.tree.insert(comp_node, 'end', text=counts_display, open=False, tags=(count_tag,))
                 self.tree.insert(comp_node, 'end', text=f'Description: {c["comp_desc"]}', open=False)
+                comp_tag_matches = c.get('tag_matches', [])
+                if comp_tag_matches:
+                    tags_node = self.tree.insert(comp_node, 'end', text='Tags:', open=True)
+                    for tag_text in comp_tag_matches:
+                        self.tree.insert(tags_node, 'end', text=tag_text, open=False)
                 policies = c.get('policies', [])
                 if policies:
                     policies_parent = self.tree.insert(comp_node, 'end', text='Policies', open=True)
-                    for pol_name, stmts in policies:
+                    for pol_name, tag_matches, stmts in policies:
                         pol_node = self.tree.insert(policies_parent, 'end', text=f'Policy: {pol_name}', open=True)
+                        if tag_matches:
+                            tags_node = self.tree.insert(pol_node, 'end', text='Tags:', open=True)
+                            for tag_text in tag_matches:
+                                self.tree.insert(tags_node, 'end', text=tag_text, open=False)
                         for stmt_txt, _ in stmts:
                             self.tree.insert(pol_node, 'end', text=stmt_txt, open=False)
                 tree_from_nodes(c.get('descendants', []), comp_node)
@@ -360,12 +498,26 @@ class PolicyBrowserTab(BaseUITab):
                 direct_count = c.get('statement_count_direct', 0)
                 cumulative_count = c.get('statement_count_cumulative', 0)
                 comp_display = f'Compartment: {comp_name}'
+
+                # Compartment row - always default (no color)
                 comp_node = self.tree.insert(parent_id, 'end', text=comp_display, open=True)
                 logger.debug(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
 
-                # Add separate policy count node
-                counts_display = f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}'
-                self.tree.insert(comp_node, 'end', text=counts_display, open=False)
+                # Show or hide counts row based on user option, and only color this row if visible
+                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
+                    if cumulative_count > 500:
+                        count_tag = 'bg_red'
+                        status_msg = ' (Over limit! Reduce statements.)'
+                    elif cumulative_count >= 450:
+                        count_tag = 'bg_yellow'
+                        status_msg = ' (Warning: 90%+ of maximum allowed)'
+                    else:
+                        count_tag = 'bg_green'
+                        status_msg = ''
+                    counts_display = (
+                        f'Statement count - direct: {direct_count}, cumulative: {cumulative_count}{status_msg}'
+                    )
+                    self.tree.insert(comp_node, 'end', text=counts_display, open=False, tags=(count_tag,))
 
                 # Add compartment description node
                 comp_desc = c.get('description') or '(No description)'

@@ -21,6 +21,7 @@ from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level
+from oci_policy_analysis.ui.base_tab import BaseUITab
 
 # Logger for this module
 logger = get_logger('internal.console_tab')
@@ -73,14 +74,22 @@ class ConsoleTextHandler(logging.Handler):
             self.text_widget.after(200, self._flush)  # Reschedule
 
 
-class ConsoleTab(ttk.Frame):
+class ConsoleTab(BaseUITab):
     """
     Console Tab: Show all logs (unfiltered) with control of log level.
     Debug logs go to shell only. For this reason, the level selector excludes DEBUG.
     """
 
     def __init__(self, parent, app):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            default_help_text=(
+                'View and interact with raw logs. '
+                'Use controls below to filter log output, clear, or adjust logging levels. '
+                'For troubleshooting help, see the docs link.'
+            ),
+            page_help_link='/logging_and_troubleshooting.html',
+        )
         self.app = app  # Reference to main App for shared vars (e.g., log_level_var)
 
         self._build_ui()
@@ -172,7 +181,7 @@ class ConsoleTab(ttk.Frame):
         self.logger_components_by_pkg = {
             'Common': ['cli', 'caching', 'config', 'main', 'mcp_server'],
             'Logic': [
-                'simulation_engine',
+                'policy_simulation_engine',
                 'ai_repo',
                 'reference_data_repo',
                 'policy_parser',

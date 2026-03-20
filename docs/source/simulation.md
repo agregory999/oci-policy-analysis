@@ -35,8 +35,12 @@ A simulation consists of the following components:
 - **Effective Compartment/Context:** The compartment where the action occurs, following OCI's compartment hierarchy rules.  Recall that permissions cascade to lower compartments, so this is taken into account.
 - **Principal Type:** Who is requesting access? This could be a User, Group, Dynamic Group, or Service.  Resource Principals can be simulated via `any-user` principal.
 - **Principal:** A specific principal (user,group, dynamic group, service) of the selected type. All applicable policy statements for that principal are required to load for the simulation to be complete.
-- **Policy Statements Under Test:** All relevant policy statements, including any that may apply via inheritance or overlapping compartments. These can be unselected, for example, to test removal of a policy statement and the effect on an operation.
-- **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the policy set that will affect the simulated permissions added to the final permission set.
+- **Policy Statements Under Test (Real + Prospective):** All relevant policy statements, including any that may apply via inheritance or overlapping compartments. These include:
+  - **Real tenancy policy statements** loaded from OCI.
+  - **Prospective (what‑if) policy statements** that you create locally in the app to model future or hypothetical policies. Prospective statements are stored per tenancy, appear in the Applicable Policy Statements table with a `[Prospective]` label, and are evaluated by the engine exactly like real statements once loaded.
+  
+  Any statement (real or prospective) can be unselected to test the impact of removing it from the simulation.
+- **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the merged policy set (real + prospective) that will affect the simulated permissions added to the final permission set.
 - **Variable Values:** Values required by where-clauses (OCIDs, strings, lists, booleans), which are set or simulated as part of the scenario.
 - **API Operation:** The specific operation to be tested.  All OCI API Operations require a set of permissions, and will fail if any required permission is missing.  
 - **History:** If multiple simulations are run, the history of what has been performed, with the ability to export to JSON.
@@ -48,7 +52,7 @@ A simulation consists of the following components:
 Some policy statements include *where-clauses* or conditions, which require additional context or variables for evaluation.
 
 **How Variable Loading Works:**
-- The simulation engine parses the selected policy statement(s) and identifies required variables.
+- The simulation engine parses the selected policy statement(s) **from both real and prospective sources** and identifies required variables.
 - The UI (Simulation or Condition Tester tab) presents these variables as input fields, showing:
   - Variable name (e.g., `request.networkSource.name`)
   - Examples, if any are needed, such as for timestamps
@@ -93,20 +97,26 @@ More on [Deny Statements](https://docs.oracle.com/en-us/iaas/Content/Identity/po
    Choose the type - then the specific user, group, dynamic group, or principal you wish to simulate as.
 
 3. **Load and Select Statements**  
-   Select the policy statements from the search to include.  The default list is all policy statements applicable to the principal for the effective compartment.  This includes statements at a higher compartment level that grant permissions to the principal.  
+   Select the policy statements from the search to include.  The default list is all policy statements applicable to the principal for the effective compartment.  This includes:
+   - Statements at a higher compartment level that grant permissions to the principal.
+   - Any **prospective (what‑if) statements** defined for this tenancy whose compartment path is in scope for the selected effective path.
+
+   Prospective statements appear in the Applicable Policy Statements table with a clear marker (for example, a `[Prospective]` prefix in the policy path/name column). You can:
+   - Include or exclude them like any other statement (checkbox).
+   - Open the **Manage Prospective Statements** dialog to add, edit, or remove hypothetical policies that should participate in simulation.
 
 4. **Configure Where-Clause Variables**  
-   The UI will prompt for all potential variables parsed from any policy where-clause that applies.  Any where clause for a statement will cause the simulation to add or not add the permissions in that statement based on whether the where clause evaluates as True or False.
+   The UI will prompt for all potential variables parsed from any policy where-clause that applies, across **all currently included statements (real + prospective)**.  Any where clause for a statement will cause the simulation to add or not add the permissions in that statement based on whether the where clause evaluates as True or False with the supplied variable values.
 
 5. **Choose API Operation**
    API Operations are documented as part of the OCI Policy Reference.  Not all API Operations or Permissions are available in the simulation, but many of the major ones are.
 
 6. **Run Simulation**  
    Click 'Run Simulation' or use the trace — the engine will:
-   - Evaluate applicable policy statements for the principal/resource/context.
-   - Parse and substitute variables in where-clauses.
-   - Resolve deny/allow ordering, overlapping/inherited policies, etc.
-   - Test the final permission set for the entire context again what the API requires
+   - Evaluate applicable policy statements for the principal/resource/context, including any **prospective** statements currently in scope.
+   - Parse and substitute variables in where-clauses using the provided where-context.
+   - Resolve deny/allow ordering, overlapping/inherited policies, and the effect of adding or removing prospective statements.
+   - Test the final permission set for the entire context against what the API requires.
    - Keep a history of simulations run.
 
 6. **View Results**  
@@ -149,6 +159,7 @@ Simulation runs are automatically stored for later review.
   - Where-clause variables/values
   - Date/time
   - Outcome (allow/deny, matched statement)
+  - Which **prospective statements (if any)** were included in the run
 - History is accessible from the Simulation tab (History panel/button) or exported as JSON/CSV.
 - Useful for audits, regression testing, and sharing simulation sessions with other users.
 

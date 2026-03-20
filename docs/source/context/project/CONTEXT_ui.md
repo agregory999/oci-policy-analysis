@@ -1,4 +1,4 @@
-# Context: User Interface (UI) Architecture & Tab System
+# Project-Specific Context: User Interface (UI) Architecture & Tab System
 
 This document describes the architecture, organization, patterns, and best practices for implementing the user interface of the OCI Policy Analysis tool. It is intended to be the canonical reference for developers working on UI features, designing new tabs, and extending the application.
 
@@ -143,3 +143,125 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 The UI layer of OCI Policy Analysis follows established architectural patterns for maintainability, consistency, and extensibility. Centralized tab management, unified settings propagation, and model/engine separation come together to provide a robust, predictable developer experience for UI extension and maintenance.
 
 For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/ui/` tab source files directly.
+
+---
+
+## 9. Experimental Mode and Preview Tabs
+
+Some UI features (such as the **Consolidation Workbench**) are considered experimental or preview-only. These are intentionally hidden behind an **undocumented CLI flag** so they can be iterated on without being part of the default, supported surface area.
+
+### 9.1. How Experimental Mode is Enabled
+
+Experimental features are toggled at process startup via a hidden command-line flag defined in `src/oci_policy_analysis/main.py`:
+
+```bash
+python -m oci_policy_analysis.main --experimental-features
+```
+
+Key points:
+
+- `--experimental-features` is parsed by `argparse` but **suppressed from `--help` output** (using `help=argparse.SUPPRESS`).
+- The parsed boolean is threaded into the main UI application:
+
+  ```python
+  app = App(force_debug=args.verbose, experimental_features=args.experimental_features)
+  ```
+
+- Within `App.__init__`, the flag is stored on the instance and used to gate construction of experimental UI components:
+
+  ```python
+  class App(tk.Tk):
+      def __init__(self, force_debug: bool = False, experimental_features: bool = False):
+          super().__init__()
+          self.experimental_features = experimental_features
+          ...
+  ```
+
+Developers should treat this flag as **internal-only**, intended for maintaining and validating experimental UI workbenches.
+
+### 9.2. Consolidation Workbench Tab (Preview)
+
+The Consolidation Workbench UI is wired into the project but is only instantiated when experimental mode is enabled.
+
+- In `main.py`, the tab reference is created conditionally:
+
+  ```python
+  from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
+  ...
+  self.consolidation_tab = None
+  if self.experimental_features:
+      self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
+  ```
+
+- When `experimental_features` is **False** (default):
+  - `self.consolidation_tab` remains `None`.
+  - No Consolidation tab is constructed, added to the notebook, or used in post-load update flows.
+
+- When `experimental_features` is **True**:
+  - `self.consolidation_tab` is instantiated.
+  - The tab is surfaced as part of the **Advanced Tabs** control in the Settings tab.
+
+The Settings tab’s “Show Advanced Tabs” toggle (`_toggle_advanced_tabs` in `settings_tab.py`) only operates on the Consolidation tab if it exists:
+
+```python
+advanced_tabs = [
+    self.app.permissions_report_tab,
+    self.app.condition_tester_tab,
+    self.app.simulation_tab,
+    self.app.policy_recommendations_tab,
+]
+
+# Only treat consolidation tab as advanced if experimental features are enabled
+if getattr(self.app, 'consolidation_tab', None) is not None:
+    advanced_tabs.append(self.app.consolidation_tab)
+
+...
+
+notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
+notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
+notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
+notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
+if getattr(self.app, 'consolidation_tab', None) is not None:
+    notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
+```
+
+This ensures the Consolidation Workbench follows the same advanced/preview pattern as other power-user tabs, but is only reachable when the experimental flag is enabled.
+
+### 9.3. Status Bar Indicator for Experimental Mode
+
+To make it clear when the UI is running with experimental behavior enabled, the fixed status bar at the bottom of the window is prefixed with an **Experimental Mode** marker when `experimental_features` is `True`.
+
+In `App.update_status_bar` (in `main.py`):
+
+```python
+prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
+
+if loaded:
+    self.status_var.set(
+        f"{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}"
+    )
+else:
+    self.status_var.set(f'{prefix}Policy Data: (Not Loaded)')
+```
+
+This prefix is **non-intrusive** (text only) but visually obvious for anyone debugging or testing experimental features.
+
+### 9.4. Design Guidelines for New Experimental UI
+
+When adding additional experimental tabs or UI features:
+
+1. **Gate Construction**
+   - Use the existing `experimental_features` flag on `App` to decide whether to construct the new UI component.
+   - Do not reference experimental widgets in `apply_settings` or post-load flows unless they are present; use `getattr(..., None)` or explicit `is not None` checks.
+
+2. **Surface via Advanced Controls**
+   - Prefer surfacing experimental tabs through existing “Advanced” mechanisms (e.g., the Advanced Tabs toggle in `SettingsTab`) rather than always-on tabs.
+
+3. **Avoid Public Documentation**
+   - Do not add the experimental flag or features to end-user documentation or CLI help.
+   - Internal context docs (such as this `CONTEXT_ui.md`) are the appropriate place to describe how experimental mode works for developers.
+
+4. **Keep Behavior Reversible**
+   - Experimental code paths should be easy to disable entirely by removing the gating logic and any references to the feature, without impacting the rest of the UI.
+
+Following this pattern keeps the production UI stable while still allowing rapid iteration on new ideas behind an explicit, opt-in experimental switch.

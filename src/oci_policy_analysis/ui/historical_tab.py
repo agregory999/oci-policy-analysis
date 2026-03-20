@@ -60,7 +60,11 @@ class HistoricalTab(BaseUITab):
             "Select the left and right cache snapshots then click 'Compare'. "
             'Policy and identity changes will be organized for review below.'
         )
-        super().__init__(parent, default_help_text=default_help)
+        super().__init__(
+            parent,
+            default_help_text=default_help,
+            page_help_link='/usage.html#historical-comparison-tab',
+        )
         self.caching = caching
         self.left_cache_var = tk.StringVar()
         self.right_cache_var = tk.StringVar()

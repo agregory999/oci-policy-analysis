@@ -269,7 +269,37 @@ class ConditionTesterTab(BaseUITab):
             if not engine:
                 raise Exception('Could not instantiate simulation engine for condition evaluation.')
             # Pass the textual clause and simulated variable dict.
-            result = engine._evaluate_conditions(clause, sim_vars)
+            # Request structured output so we can render detailed comparison
+            # logs in the Condition Tester UI without affecting other
+            # callers that rely on the legacy (bool, reason_str) tuple.
+            passed, structured = engine._evaluate_conditions(clause, sim_vars, return_structured=True)
+            # Normalize into the dict shape expected by _show_result.
+            # structured should already contain 'Condition String',
+            # 'Policy Result', and 'Log', but we defensively fill
+            # Policy Result from the boolean if missing.
+            if isinstance(structured, dict):
+                result = dict(structured)
+                result.setdefault('Condition String', clause)
+                if 'Policy Result' not in result:
+                    result['Policy Result'] = 'GRANTED' if passed else 'DENIED'
+            else:
+                # Fallback: wrap non-dict payload into a minimal dict so
+                # _show_result can still render something meaningful.
+                result = {
+                    'Condition String': clause,
+                    'Policy Result': 'GRANTED' if passed else 'DENIED',
+                    'Log': [
+                        {
+                            'type': 'Summary',
+                            'result': passed,
+                            'variable': '?',
+                            'operator': '?',
+                            'sim_value': '?',
+                            'expected': '?',
+                            'info': str(structured),
+                        }
+                    ],
+                }
         except Exception as ex:
             logger.error(f'Evaluation error: {ex}')
             result = {

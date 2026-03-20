@@ -52,22 +52,29 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 ## 2. JSON Debugger Tab
 
-- The *JSON Debugger* tab in the UI allows you to inspect structured data that flows through the application.
+- The *JSON Debugger* tab in the UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
+- This tab displays internal JSON objects and data structures used by the app for policy analysis, simulation history, reference data, and policy intelligence overlays.
+- These objects are shown in their raw or near-raw form for maximum diagnostic value, making it possible to review exact internal representations, nested relationships, and unprocessed values that may not appear in regular user-facing UI components.
+
 - Use it to:
   - Review raw input/output for policy analysis steps
   - Trace errors back to their source with contextual JSON data
+  - Explore application internals for debugging advanced problems or reporting detailed bug information
+
+- The JSON Debugger is an evolving part of the toolset: available sources, schemas, and presentation may change with future updates as more internal objects and debug scenarios are supported. The objects displayed here are subject to change and may reveal data that is intended primarily for troubleshooting, rather than polished consumption.
+
 - More internal objects will be added as needed.  
 
 ## 3. Troubleshooting Topics
 
 - **Common Errors:** Review logs for full error traces or use the Console and JSON Debugger for more details.
 - **No Output or Silent Failure:**  
-  - Ensure logging is not set to ERROR-only for all components.
+  - Ensure logging is not set to ERROR or CRITICAL for all components.
   - Check that the appropriate components are enabled.
 - **Unexpected Behavior:**  
-  - Use DEBUG level for the affected component(s), repeat the action, and consult logs/Console output.
+  - Use INFO level for the affected component(s), repeat the action, and consult logs/Console output.
+  - DEBUG logging is available with the shell only, and should be used with caution as it is very verbose.
 - **UI Not Responding:**  
-  - Open developer tools (F12), check for browser console errors.
   - Check backend logs for exceptions.
 
 *If you need more detailed guidance, refer to the main documentation or contact the maintainers.*

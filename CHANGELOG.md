@@ -1,3 +1,80 @@
+# [4.4.0-dev.11](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.10...v4.4.0-dev.11) (2026-03-20)
+
+
+### Bug Fixes
+
+* Main and MCP log tweak ([6436171](https://github.com/agregory999/oci-policy-analysis/commit/6436171725c65088413e31be7c448fa491f87da4))
+
+# [4.4.0-dev.10](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.9...v4.4.0-dev.10) (2026-03-20)
+
+
+### Bug Fixes
+
+* Doc and small tweaks ([d7bc29e](https://github.com/agregory999/oci-policy-analysis/commit/d7bc29e9fdc8f9dc5e66ab55560b30fdcb35f5be))
+
+# [4.4.0-dev.9](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.8...v4.4.0-dev.9) (2026-03-19)
+
+
+### Bug Fixes
+
+* Condition Tester Detail ([a77406d](https://github.com/agregory999/oci-policy-analysis/commit/a77406d4bdf99cf7b66a3c5beddcd9a6ecc100a4))
+
+# [4.4.0-dev.8](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.7...v4.4.0-dev.8) (2026-03-19)
+
+
+### Bug Fixes
+
+* Simualtion and file service update ([cb4f220](https://github.com/agregory999/oci-policy-analysis/commit/cb4f220d049e0a2162c4ddddbbea499df95acb07))
+
+# [4.4.0-dev.7](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.6...v4.4.0-dev.7) (2026-03-19)
+
+
+### Bug Fixes
+
+* Simualtion, MCP enhancements ([19c36ad](https://github.com/agregory999/oci-policy-analysis/commit/19c36adf52c15d8a13d289d166d0b98e220ad8f2))
+
+# [4.4.0-dev.6](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.5...v4.4.0-dev.6) (2026-03-17)
+
+
+### Bug Fixes
+
+* Refined parsing, Experimental Mode, OCID-based right clicks ([798051f](https://github.com/agregory999/oci-policy-analysis/commit/798051f107b77cf6ad0f95f19eed61fc17cb595b))
+
+# [4.4.0-dev.5](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.4...v4.4.0-dev.5) (2026-03-12)
+
+
+### Bug Fixes
+
+* Build file, Page help links ([c0063e0](https://github.com/agregory999/oci-policy-analysis/commit/c0063e0296b70ab88bb49b56bd901dca01c3fa6c))
+
+# [4.4.0-dev.4](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.3...v4.4.0-dev.4) (2026-03-12)
+
+
+### Bug Fixes
+
+* doc links within tabs ([5fd70c9](https://github.com/agregory999/oci-policy-analysis/commit/5fd70c91c7d886c2b11eb77534be079eb43aeea8))
+
+# [4.4.0-dev.3](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.2...v4.4.0-dev.3) (2026-03-11)
+
+
+### Bug Fixes
+
+* Main window size and build release ([4127889](https://github.com/agregory999/oci-policy-analysis/commit/41278894a5ef702d6475d1edb40054efcc35abdb))
+
+# [4.4.0-dev.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.1...v4.4.0-dev.2) (2026-03-11)
+
+
+### Bug Fixes
+
+* Data Table performance and timing ([a6af325](https://github.com/agregory999/oci-policy-analysis/commit/a6af3256e1b2ddb54b54c65d1e18e3d335bba57b))
+
+# [4.4.0-dev.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.3.0...v4.4.0-dev.1) (2026-03-11)
+
+
+### Features
+
+* Consolidation code ([d6689eb](https://github.com/agregory999/oci-policy-analysis/commit/d6689eb65b19bef78e39359b0ce99a69d18a9acd))
+
 # [4.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.2.0...v4.3.0) (2026-03-09)
 
 

@@ -1,6 +1,6 @@
-# Project-Specific Context: Cross-Tenancy Display & Filtering
+# Project-Specific Context: Cross-Tenancy Display & Advanced Actions
 
-This document defines the architecture, data flow, and conventions for displaying and filtering cross-tenancy (Admit/Endorse/Define) policy statements in the OCI Policy Analysis tool. It aligns with project standards and clarifies how the cross-tenancy tab integrates data modeling, business logic, and user interface, with references to major implementation files.
+This document defines the architecture, data flow, and conventions for displaying and filtering cross-tenancy (Admit/Endorse/Define) policy statements in the OCI Policy Analysis tool, and documents advanced features for composing and consolidating cross-tenancy policies.  
 
 ---
 
@@ -11,63 +11,105 @@ Cross-tenancy policy analysis provides the ability to discover, display, and fil
 - Explore all associated `admit` and `endorse` policy statements relevant to cross-tenancy.
 - Filter admits/endorses by selecting one or more defined tenancy aliases, showing only those statements that reference the selected alias by exact (case-insensitive) match.
 - Review detailed, normalized metadata for each policy statement as derived from canonical models.
+- **[New]** Compose "opposing" cross-tenancy policy statements for review or authoring.
+- **[New]** Consolidate all define/admit/endorse policy statements (scoped to the root policy) for the selected tenancies, via the consolidation engine.
 
-This flow allows users to reason about trust boundaries, cross-tenant permissions, and access paths in a fine-grained manner.
+This flow allows users not only to reason about trust boundaries and cross-tenant permissions, but also to act upon, simulate, and optimize cross-tenancy relationships in a fine-grained and programmatic manner.
 
 ---
 
 ## 2. Evolution Timeline and Major Changes
 
-| Date       | Commit Hash | Change Summary                                           | Modules Impacted                                             |
-|------------|-------------|---------------------------------------------------------|--------------------------------------------------------------|
-| 2026-01-24 | (pending)   | Refactor: robust exact-match filtering, add context doc | cross_tenancy_tab.py, data_repo.py, CONTEXT_cross_tenancy.md |
-| ...        | ...         | ...                                                     | ...                                                          |
-
-_(Expand this table as new behaviors, filtering logic, or UI features are added.)_
+| Date       | Commit Hash | Change Summary                                                              | Modules Impacted                                             |
+|------------|-------------|----------------------------------------------------------------------------|--------------------------------------------------------------|
+| 2026-01-24 | (pending)   | Refactor: robust exact-match filtering, add context doc                    | cross_tenancy_tab.py, data_repo.py, CONTEXT_cross_tenancy.md |
+| 2026-03-16 | (pending)   | Add "Opposing Tenancy" and "Consolidate Cross-Tenancy" workflows, UI mods  | cross_tenancy_tab.py, common/models.py, consolidation_engine.py, CONTEXT_cross_tenancy.md |
+| ...        | ...         | ...                                                                        | ...                                                          |
 
 ---
 
 ## 3. Cross-Tenancy Rules and Conventions
 
-- **UI Display**: All cross-tenancy statements are available in a dedicated tab (`CrossTenancyTab`, Tkinter/ttk), split into defined alias, admit policy, and endorse policy tables.
-- **Filtering Behavior**:
+- **UI Display:**  
+  - All cross-tenancy statements are available in a dedicated tab (`CrossTenancyTab`, Tkinter/ttk), split into defined alias, admit, and endorse tables.
+  - **Tables for Admits and Endorses are now displayed with shortened heights (fewer visible rows) for improved page layout; scrollbars are provided for full access.**
+
+- **Filtering Behavior:**
     - Selecting one or more rows in the "Defined Aliases" table restricts the admit and endorse tables to only those referencing the corresponding defined tenancy/alias.
     - Filtering is an **exact, case-insensitive, trimmed string match** (not a substring or regex) on `admitted_tenancy` and `endorse_tenancy`, compared to the selected `defined_name` from parsed `DefineStatement`.
-    - Future enhancements may also allow filtering by OCID alias, if policy statements or the UI support referencing aliases.
-- **Models and Data Flow**:
-    - All cross-tenancy policy statements conform to the normalized models in `common/models.py` (see `DefineStatement`, `AdmitStatement`, `EndorseStatement`).
-    - The business/data layer (`data_repo.py`) is responsible for loading, normalizing, and storing cross-tenancy statements from source OCI policies.
-    - The UI logic (`cross_tenancy_tab.py`) implements selection callbacks and updates tables based on view/filter actions, consuming only normalized model data.
-- **Refactoring/Testing**:
-    - All changes must keep UI callbacks free of substring/loose matching for tenancies.
-    - Filtering bugs related to loose/partial matching should be prevented by strict normalization.
+    - Filtering may later be expanded to include matching via OCID alias, if referenced in policies.
+
+- **Models and Data Flow:**
+    - All cross-tenancy statements conform to normalized schema in `common/models.py`:
+        - `DefineStatement`, `AdmitStatement`, `EndorseStatement`.
+    - The business/data layer (`data_repo.py`) loads and normalizes policy data from on-disk or server sources.
+    - The UI (`cross_tenancy_tab.py`) manages filtering, selection callbacks, table updates, and advanced workflows.
 
 ---
 
-## 4. Exceptions & Project-Specific Overrides
+## 4. Advanced Features and Workflows
 
-- The cross-tenancy tab diverges from generic table-filtering patterns by enforcing model-driven, not freeform, filtering logic.
-- Exact matching policy is project-mandated to avoid cross-tenant confusion and security risks.
-- Any changes to data extraction/parsing for cross-tenancy statements must be reflected in the matcher for both admit and endorse cases.
+### 4.1 Generate Opposing Tenancy Statements
+
+- **Purpose:**  
+  Allow the user to automatically generate the "opposite" of selected cross-tenancy relationships (for example, producing an admit policy in the opposing tenancy based on currently selected defines/admit/endorse).
+- **UI Integration:**  
+  - A "Generate Opposing Tenancy Statements" button is displayed above or near the "Defined Aliases" section.
+  - Enabled only when one or more defines are selected.
+  - Prompts the user to define the name for the opposing tenancy.
+- **Logic:**  
+  - For each selected define (and optionally associated admit/endorse), a proposed ("opposing") policy statement is composed.
+  - The "opposite" inverts the direction of permission, swapping principal-tenancy fields (e.g., "our" tenancy becomes the reference in the admit).
+  - All relevant fields (principal type, name, permissions, resource, where clause, etc.) are preserved or adapted for accurate inversion.
+- **Display:**  
+  - All proposed policy statements are presented in a popup or messagebox for review/copying.
+- **Security/Correctness:**  
+  - Only fields meaningful to both source/target tenancies are included in the logic; advanced "associate" patterns are supported if referenced.
+
+### 4.2 Consolidate Cross-Tenancy (Root Policy Scope)
+
+- **Purpose:**  
+  Enable bulk consolidation of all define/admit/endorse statements (for selected tenancies) residing in the **root policy**.
+- **UI Integration:**  
+  - "Consolidate Cross-Tenancy" button in the define area.
+  - Enabled when any define is selected.
+- **Logic:**  
+  - Upon activation, collects all admit/endorse for selected define(s), using robust matching and restricting to root policy (compartment_path == ROOT).
+  - Invokes the consolidation engine, using the "pack" strategy or a custom one as required.
+  - Produces a consolidation "plan" which is displayed to the user (UI popup or side-panel).
+- **Testing/Robustness:**  
+  - Edge cases (e.g., multi-tenancy overlap, invalid or incomplete definitions) are handled via error messaging or in plan instructions.
 
 ---
 
-## 5. Cross-References
+## 5. UI Implementation Notes
+
+- **Admit/Endorse Table Height:**  
+  - The tables for admit and endorse statements have their visible height reduced for a more compact layout. The row count can be adjusted in the DataTable widget construction or after instantiation using `.grid()` or parent frame configuration.
+- **Button Actions:**  
+  - UI elements for "Generate Opposing Tenancy" and "Consolidate Cross-Tenancy" are context-aware and disabled unless selection conditions are met.
+  - Callbacks for these buttons leverage existing selection/filter infrastructure to produce, display, or pass data to advanced business logic.
+
+---
+
+## 6. Cross-References
 
 | Purpose                   | File/Module                                                                                                                  |
 |---------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | Model Definitions         | [`common/models.py`](../../../src/oci_policy_analysis/common/models.py)                                                     |
 | Data Loading/Filtering    | [`logic/data_repo.py`](../../../src/oci_policy_analysis/logic/data_repo.py)                                                 |
 | UI (Tab & Filter Logic)   | [`ui/cross_tenancy_tab.py`](../../../src/oci_policy_analysis/ui/cross_tenancy_tab.py)                                       |
+| Consolidation Engine      | [`logic/consolidation_engine.py`](../../../src/oci_policy_analysis/logic/consolidation_engine.py)                           |
 
 Further context: for UI style, see [CONTEXT_ui.md](CONTEXT_ui.md); for general logic conventions, see [CONTEXT_logic.md](CONTEXT_logic.md).
 
 ---
 
-## 6. Known Limitations and Roadmap
+## 7. Known Limitations and Roadmap
 
-- The current filtering logic is robust for most real-world cases but may need enhancement if OCI starts allowing alias-based or advanced tenancy references in policies.
-- Future UI/UX improvements could include advanced search, wildcard/regex filtering, and easier cross-navigation between policies and resource views.
-- Ensure all test suites cover filtering edge cases to prevent regressions.
+- Filtering, opposition logic, and root-policy scope are robust but may require expansion if OCI supports advanced aliasing or referencing patterns.
+- "Opposing Tenancy" and consolidation workflows currently require selection of defined tenancies and acknowledge only statements that meet normalization/validation criteria.
+- Additional UX improvements may be considered if large-scale multi-tenancy navigation or authoring becomes a common use-case.
+- All test suites should exercise edge cases for matching logic, opposition correctness, and plan generation.
 
 ---

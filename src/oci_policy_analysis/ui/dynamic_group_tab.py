@@ -110,6 +110,7 @@ class DynamicGroupsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='Browse, filter, and analyze dynamic groups and related policies.\nSelect dynamic groups to see matching policy statements below.',
+            page_help_link='/docs/build/html/usage.html#dynamic-groups-tab',
         )
         self.app = app
         self.policy_compartment_analysis = app.policy_compartment_analysis
@@ -125,16 +126,19 @@ class DynamicGroupsTab(BaseUITab):
         )
 
         def clear_dg_filters():
-            for entry in [self.domain_filter_var, self.dg_name_var, self.dg_rule_var]:
+            for entry in [self.domain_filter_var, self.dg_name_var, self.dg_rule_var, self.dg_ocid_var]:
                 entry.set('')
             self._update_dg_output()
 
         self.chk_show_instance_principals = tk.BooleanVar()
         self.chk_show_not_in_use = tk.BooleanVar()
-        self.chk_show_dg_ocid = tk.BooleanVar()
+        # Show all Data toggle parallels UsersTab behavior
+        self.show_all_data_var = tk.BooleanVar()
         self.domain_filter_var = tk.StringVar()
         self.dg_name_var = tk.StringVar()
         self.dg_rule_var = tk.StringVar()
+        # Dynamic Group OCID filter supports multi-value via | separator
+        self.dg_ocid_var = tk.StringVar()
 
         frm_dg_filter = ttk.Frame(label_frm_filters)
         frm_dg_filter.grid(row=0, column=0, sticky='w', padx=5, pady=5)
@@ -156,6 +160,16 @@ class DynamicGroupsTab(BaseUITab):
 
         self.dg_btn_clear = ttk.Button(frm_dg_filter, text='Clear Filters', state=tk.DISABLED, command=clear_dg_filters)
         self.dg_btn_clear.grid(row=2, column=3, padx=5, pady=2, sticky='ew')
+
+        # Dynamic Group OCID filter (supports | for OR semantics)
+        ttk.Label(frm_dg_filter, text='DG OCID').grid(row=3, column=0, padx=5, pady=2, sticky='w')
+        self.dg_entry_ocid = ttk.Entry(
+            frm_dg_filter,
+            textvariable=self.dg_ocid_var,
+            state=tk.DISABLED,
+            width=40,
+        )
+        self.dg_entry_ocid.grid(row=3, column=1, columnspan=3, padx=5, pady=2, sticky='ew')
 
         # Output Filter Area (LabelFrame)
         label_frm_output = ttk.LabelFrame(self, text='Dynamic Group Output Filters')
@@ -179,12 +193,18 @@ class DynamicGroupsTab(BaseUITab):
             variable=self.chk_show_not_in_use,
             command=self._update_dg_output,
         ).grid(row=0, column=3, padx=5, pady=2)
-        ttk.Checkbutton(
+        self.dg_show_all_data_chkbtn = ttk.Checkbutton(
             label_frm_output,
-            text='Show OCID and Creation Time',
-            variable=self.chk_show_dg_ocid,
-            command=self._update_dg_output,
-        ).grid(row=0, column=4, padx=5, pady=2)
+            text='Show all Data',
+            variable=self.show_all_data_var,
+            command=self.set_show_all_data,
+        )
+        self.dg_show_all_data_chkbtn.grid(row=0, column=4, padx=5, pady=2)
+        self.add_context_help(
+            self.dg_show_all_data_chkbtn,
+            'Toggle to show additional ID/OCID and metadata columns for Dynamic Groups.\n'
+            'When unchecked, only the most important summary fields are shown for a more compact view.',
+        )
 
         # --- AI Assist Button (parallels policies_tab.py) ---
         self.ai_assist_btn = ttk.Button(
@@ -207,6 +227,7 @@ class DynamicGroupsTab(BaseUITab):
         self.domain_filter_var.trace_add('write', lambda *args: self._update_dg_output())
         self.dg_name_var.trace_add('write', lambda *args: self._update_dg_output())
         self.dg_rule_var.trace_add('write', lambda *args: self._update_dg_output())
+        self.dg_ocid_var.trace_add('write', lambda *args: self._update_dg_output())
 
         # Dynamic Groups Table Area (LabelFrame)
         label_frm_dynamicgroups = ttk.LabelFrame(self, text='Dynamic Groups Table')
@@ -339,6 +360,7 @@ class DynamicGroupsTab(BaseUITab):
             else self.dg_rule_var.get().split('|')
             if self.dg_rule_var.get()
             else None,  # type: ignore
+            dynamic_group_ocid=self.dg_ocid_var.get().split('|') if self.dg_ocid_var.get() else None,  # type: ignore[arg-type]
         )
 
         logger.info(f'Filtering DG with {dg_filter}')
@@ -359,18 +381,54 @@ class DynamicGroupsTab(BaseUITab):
                 output_filtered.append(dg)
         self.custom_data_dynamic_group.update_data(output_filtered)
 
-        # If expanded, show all columns, else show a subset
-        if self.chk_show_dg_ocid.get():
-            self.custom_data_dynamic_group.set_display_columns(ALL_DG_COLUMNS)
-            logger.debug('Setting dynamic group table to expanded view with all columns')
-        else:
-            self.custom_data_dynamic_group.set_display_columns(BASIC_DG_COLUMNS)
-            logger.debug('Setting dynamic group table to basic view with key columns')
+        # Sync display columns with Show all Data toggle
+        self.set_show_all_data()
 
         # Update label with counts
         self.dg_label_statement_count.config(
             text=f'Dynamic Groups (Total): {len(self.policy_compartment_analysis.dynamic_groups)}\nDynamic Groups (Filtered): {len(output_filtered)}'
         )
+
+    def set_show_all_data(self, checked: bool | None = None) -> None:
+        """Sync table display columns with the *Show all Data* checkbox.
+
+        If *checked* is provided, force the checkbox to that state. If
+        *checked* is ``None``, rely on the current :class:`BooleanVar` value
+        (used when invoked by the Checkbutton command, since Tkinter has
+        already toggled it).
+        """
+        if checked is not None:
+            self.show_all_data_var.set(checked)
+
+        if hasattr(self, 'custom_data_dynamic_group') and self.custom_data_dynamic_group is not None:
+            if self.show_all_data_var.get():
+                self.custom_data_dynamic_group.set_display_columns(ALL_DG_COLUMNS)
+                logger.debug('Setting dynamic group table to expanded view with all columns')
+            else:
+                self.custom_data_dynamic_group.set_display_columns(BASIC_DG_COLUMNS)
+                logger.debug('Setting dynamic group table to basic view with key columns')
+
+    def set_ocid_filter_and_search(self, ocids: list[str] | None) -> None:
+        """Set the DG OCID filter from a list of OCIDs and refresh the table.
+
+        Intended for cross-tab integrations (e.g., Policies tab right-click
+        actions) to programmatically focus on one or more dynamic groups by
+        OCID. OCIDs are joined with ``|`` to leverage existing OR semantics.
+        """
+
+        ocid_list = ocids or []
+        self.dg_ocid_var.set('|'.join(ocid_list))
+        self._update_dg_output()
+
+    def populate_data(self) -> None:
+        """Populate / refresh Dynamic Groups tab data after a load.
+
+        This is the single entry point used by the main application after
+        repository data is (re)loaded. It enables filter controls and refreshes
+        the dynamic groups table using the current filter state.
+        """
+
+        self.enable_controls()
 
     def apply_settings(self, context_help: bool, font_size: str):
         """
@@ -383,7 +441,7 @@ class DynamicGroupsTab(BaseUITab):
         """
         Called from main app when data is loaded to enable the controls
         """
-        for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type]:
+        for entry in [self.dg_entry_domain, self.dg_entry_name, self.dg_entry_type, self.dg_entry_ocid]:
             entry.config(state=tk.NORMAL)
         for btn in [self.dg_btn_clear]:
             btn.config(state=tk.NORMAL)

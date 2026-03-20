@@ -101,7 +101,7 @@ class UsersTab(BaseUITab):
             'Use filters to narrow the results below. '
             'Mouse over each section for tips.'
         )
-        super().__init__(parent, default_help_text=default_help_text)
+        super().__init__(parent, default_help_text=default_help_text, page_help_link='/usage.html#groups-users-tab')
 
         # Reference to main app and data repository
         self.app = app
@@ -160,6 +160,56 @@ class UsersTab(BaseUITab):
 
     # All context help methods now inherited from BaseUITab.
 
+    # ------------------------------------------------------------------
+    # Public lifecycle / data refresh API
+    # ------------------------------------------------------------------
+
+    def populate_data(self):
+        """Populate / refresh Users tab data after a tenancy or cache load.
+
+        This is the single entry point used by the main application after
+        repository data is (re)loaded. It ensures that:
+
+        * The GROUPS/USERS dropdown reflects the current repository state
+          (including load_all_users and whether users were actually loaded).
+        * The top tables (groups/users) and counts are refreshed using the
+          current search text and selection.
+
+        Behavior-wise this is equivalent to the previous sequence of calls
+        from main:
+
+        - update_user_analysis_output()
+        - update_users_dropdown_options()
+        """
+
+        logger.info('Populating UsersTab data...')
+        # NOTE: update_users_dropdown_options() will call
+        # update_user_analysis_output() as its last step, so a single call
+        # here fully refreshes the tab for the current state.
+        self.update_users_dropdown_options()
+        logger.info('Finished UsersTab.populate_data')
+
+    def set_show_all_data(self, checked=None):
+        """Sync table display columns with the *Show all Data* checkbox.
+
+        If *checked* is provided, force the checkbox to that state. If
+        *checked* is ``None``, rely on the current :class:`BooleanVar` value
+        (used when invoked by the Checkbutton command, since Tkinter has
+        already toggled it).
+        """
+        if checked is not None:
+            self.show_all_data_var.set(checked)
+
+        # At this point, show_all_data_var reflects the desired state
+        if self.users_groups_table is not None:
+            self.users_groups_table.set_display_columns(
+                GROUPS_ALL_COLUMNS if self.show_all_data_var.get() else GROUPS_DEFAULT_COLUMNS
+            )
+        if self.users_users_table is not None:
+            self.users_users_table.set_display_columns(
+                USERS_ALL_COLUMNS if self.show_all_data_var.get() else USERS_DEFAULT_COLUMNS
+            )
+
     def sync_load_all_users_checkbox(self):
         """
         Ensures the checkbox/UI for load_all_users matches the repository state.
@@ -177,10 +227,13 @@ class UsersTab(BaseUITab):
         return getattr(repo, 'load_all_users', True) and len(getattr(repo, 'users', [])) > 0
 
     def update_users_dropdown_options(self):
-        """
-        Update the GROUPS/USERS dropdown menu to reflect actual repo state.
-        Should be called after any tenancy/repo load; safe to call any time.
-        Also forces the table below to reload for the current selection.
+        """Refresh the GROUPS/USERS dropdown based on current repo state.
+
+        This should be called after any tenancy/repository load and is safe to
+        invoke at other times. The method also **forces** a refresh of the
+        table below by calling :meth:`update_user_analysis_output` at the end
+        so that the current selection (GROUPS vs USERS) and search term are
+        immediately reflected in the UI.
         """
         menu = self.groups_users_dropdown['menu']
         menu.delete(0, 'end')
@@ -225,20 +278,15 @@ class UsersTab(BaseUITab):
         # Show All Data Checkbutton (right of dropdown, col 3)
         self.show_all_data_var = tk.BooleanVar(value=False)
 
-        def toggle_show_all_data():
-            if self.users_groups_table is not None:
-                self.users_groups_table.set_display_columns(
-                    GROUPS_ALL_COLUMNS if self.show_all_data_var.get() else GROUPS_DEFAULT_COLUMNS
-                )
-            if self.users_users_table is not None:
-                self.users_users_table.set_display_columns(
-                    USERS_ALL_COLUMNS if self.show_all_data_var.get() else USERS_DEFAULT_COLUMNS
-                )
-
         self.show_all_data_chkbtn = ttk.Checkbutton(
-            frm_user_selection, text='Show all Data', variable=self.show_all_data_var, command=toggle_show_all_data
+            frm_user_selection, text='Show all Data', variable=self.show_all_data_var, command=self.set_show_all_data
         )
         self.show_all_data_chkbtn.grid(row=0, column=2, padx=6, pady=5, sticky='ew')
+        self.add_context_help(
+            self.show_all_data_chkbtn,
+            'Toggle to show additional ID/OCID columns for Groups/Users.\n'
+            'When unchecked, only the most important summary fields are shown for a more compact view.',
+        )
 
         # Label: Search, Entry: user_group_search
         ttk.Label(frm_user_selection, text='Search').grid(row=1, column=0, padx=5, pady=2, sticky='w')
@@ -439,9 +487,21 @@ class UsersTab(BaseUITab):
             logger.info('Users Tab: AI Assist button clicked, toggled bottom pane.')
 
     def update_user_analysis_output(self):
-        """
-        Update the user/group table based on selection and search.
-        Called initially after load from main class and when search or selection changes.
+        """Update the top user/group listing and associated counters.
+
+        This method is responsible for:
+
+        * Updating the *Total Groups* / *Total Users* labels from the
+          underlying repository.
+        * Displaying either the groups table or the users table, depending on
+          the current value of ``self.groups_option_var`` (``'GROUPS'`` or
+          ``'USERS'``).
+        * Applying the search filter from ``self.user_group_search`` using
+          ``GroupSearch`` / ``UserSearch``.
+
+        It does **not** compute policy statements; those are handled by
+        :meth:`_update_user_analysis_policy_output` and
+        :meth:`update_user_policy_output`.
         """
         logger.info(f'Displaying: {self.groups_option_var.get()} with search of {self.user_group_search.get()}')
 
@@ -519,13 +579,22 @@ class UsersTab(BaseUITab):
             logger.warning('Should not get here')
 
     def update_user_policy_output(self):
-        """
-        Update the display elements for the user analysis policy statements.
-        Called when the selection of groups/users changes, or when the checkboxes change.
+        """Refresh the policy statements table and related labels.
 
-        Args:
-            groups_for_filter (list[Group], optional): List of groups to filter policies for. Defaults to None.
-            users_for_filter (list[User], optional): List of users to filter policies for. Defaults to None.
+        This uses the pre-computed ``self.filtered_policies`` and
+        ``self.selected_groups_for_table`` that are maintained by
+        :meth:`_update_user_analysis_policy_output` when the selection in the
+        groups/users tables changes.
+
+        Responsibilities:
+
+        * Toggle between basic vs expanded policy columns based on the
+          *Parsed Output* checkbox (``self.chk_show_expanded``).
+        * Optionally include "any-user" / "any-group" statements when the
+          corresponding checkbox is enabled.
+        * Push the final policy list into ``self.users_policy_table`` and
+          update the *Selected Groups* helper table and the
+          *Policy Statements (Filtered)* count label.
         """
         # Defensive: Exit if the tables/labels are not built yet
         if self.users_policy_table is None or self.selected_groups_table is None or self.user_label_count is None:
@@ -569,7 +638,20 @@ class UsersTab(BaseUITab):
         self.user_label_count.configure(text=f'Policy Statements (Filtered): {len(all_policies)}')
 
     def _update_user_analysis_policy_output(self, groups_for_filter, users_for_filter):  # noqa: C901
-        """Update the policy statements based on the selected groups and/or users"""
+        """Recompute policy statements for the current group/user selection.
+
+        This is the main worker that responds to selection changes in the
+        groups/users tables. It:
+
+        * Builds an appropriate :class:`PolicySearch` with exact groups and/or
+          users.
+        * Populates ``self.filtered_policies`` with the matching policy
+          statements from the repository.
+        * Builds ``self.selected_groups_for_table`` (used by the small
+          *Selected Groups* table on the left).
+        * Finally delegates to :meth:`update_user_policy_output` to refresh
+          what is rendered on screen.
+        """
         logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
         exact_groups_filter: list[Group] = groups_for_filter
         exact_users_filter: list[User] = users_for_filter

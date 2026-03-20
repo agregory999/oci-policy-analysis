@@ -12,6 +12,7 @@
 #
 # coding: utf-8
 ##########################################################################
+import time
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
@@ -164,7 +165,8 @@ class DataTable(ttk.Frame):
 
     def _populate_data(self) -> None:
         """Populate the table with data, applying alternating row colors and optional highlight rules."""
-        logger.debug('Populating table with %d rows', len(self.data))
+        t0 = time.perf_counter()
+        logger.info('DataTable._populate_data START, %d rows', len(self.data))
 
         # Clear existing
         for item in self.tree.get_children():
@@ -193,6 +195,8 @@ class DataTable(ttk.Frame):
             values = [row.get(col, '') for col in self.tree['columns']]
             item_id = self.tree.insert('', 'end', values=values, tags=tags)
             self.data_map[item_id] = i
+        elapsed = time.perf_counter() - t0
+        logger.info('DataTable._populate_data END, %d rows, elapsed: %.3fs', len(self.data), elapsed)
 
     def _apply_sort(self) -> None:
         """Apply current sort (last_sorted_column / last_sort_descending) to self.data and refresh display."""
@@ -374,12 +378,15 @@ class DataTable(ttk.Frame):
 
     def update_data(self, new_data: list[dict]) -> None:
         """Update table data and refresh display. Re-applies current sort if one was set."""
-        logger.debug('Updating data with %d rows', len(new_data))
+        t0 = time.perf_counter()
+        logger.info('DataTable.update_data START, %d rows', len(new_data))
         self.data = new_data
         if self.last_sorted_column and self.last_sorted_column in self.all_columns:
             self._apply_sort()
         else:
             self._populate_data()
+        elapsed = time.perf_counter() - t0
+        logger.info('DataTable.update_data END, %d rows, elapsed: %.3fs', len(new_data), elapsed)
 
     def apply_theme(self, theme: str) -> None:
         """
@@ -480,16 +487,32 @@ class CheckboxTable(ttk.Frame):
         self._build_ui()
 
     def _prepare_data(self, data):
-        # Store checked state per row (use row["checked"] if present, else checked_by_default)
+        t0 = time.perf_counter()
+        logger.info('CheckboxTable._prepare_data START, %d rows', len(data))
+        # Optimization: Cache BooleanVars for unchanged rows by ID or index
+        # (For best results, rows should have a unique 'Internal ID' or similar)
+        if not hasattr(self, '_var_cache') or not isinstance(self._var_cache, dict):
+            self._var_cache = {}
+        new_var_cache = {}
         self.data = []
         self.check_vars = []
-        for row in data or []:
+        for idx, row in enumerate(data or []):
+            # Use 'Internal ID' if present as row key, otherwise fallback to index
+            row_id = row.get('Internal ID', idx)
             checked_state = row.get('checked', self.checked_by_default)
-            var = tk.BooleanVar(value=checked_state)
+            if row_id in self._var_cache:
+                var = self._var_cache[row_id]
+                var.set(checked_state)  # update state in case data changed
+            else:
+                var = tk.BooleanVar(master=self, value=checked_state)
+            new_var_cache[row_id] = var
             r = dict(row)
             r['☑'] = var
             self.data.append(r)
             self.check_vars.append(var)
+        self._var_cache = new_var_cache  # update cache, old vars for missing rows will be GC'd
+        elapsed = time.perf_counter() - t0
+        logger.info('CheckboxTable._prepare_data END, %d rows, elapsed: %.3fs', len(data), elapsed)
 
     def _render_table_data(self):
         # Convert per-row BooleanVar to unicode for display
@@ -501,9 +524,13 @@ class CheckboxTable(ttk.Frame):
         return rendered
 
     def _rebuild_table(self):
+        t0 = time.perf_counter()
+        logger.info('CheckboxTable._rebuild_table START, %d rows', len(self.data))
         # Redraw DataTable with current check states
         rendered_data = self._render_table_data()
         self.data_table.update_data(rendered_data)
+        elapsed = time.perf_counter() - t0
+        logger.info('CheckboxTable._rebuild_table END, %d rows, elapsed: %.3fs', len(self.data), elapsed)
 
     def _toggle_check_row(self, event):
         # Toggle checked state on checkbox column click
@@ -565,9 +592,13 @@ class CheckboxTable(ttk.Frame):
         return checked
 
     def update_data(self, data):
+        t0 = time.perf_counter()
+        logger.info('CheckboxTable.update_data START, %d rows', len(data))
         self._prepare_data(data)
         self._rebuild_table()
         self._update_select_all_label()
+        elapsed = time.perf_counter() - t0
+        logger.info('CheckboxTable.update_data END, %d rows, elapsed: %.3fs', len(data), elapsed)
 
     def _build_ui(self):
         # DataTable instantiation

@@ -1,4 +1,4 @@
-# Generated from ./Policy.g4 by ANTLR 4.13.2
+# Generated from Policy.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .PolicyParser import PolicyParser
@@ -26,6 +26,11 @@ class PolicyVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PolicyParser#defineExpression.
     def visitDefineExpression(self, ctx:PolicyParser.DefineExpressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PolicyParser#compartmentSubject.
+    def visitCompartmentSubject(self, ctx:PolicyParser.CompartmentSubjectContext):
         return self.visitChildren(ctx)
 
 

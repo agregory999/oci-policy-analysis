@@ -13,13 +13,13 @@ Organization
 
 There are two types of context documentation included here:
 
-Generic Context
+* Generic Context
+* Project-specific Context
 
-General coding standards, UI guidelines, and overall policy for any project:
+The "Generic Context" files are meant to be reusable across projects and contain general best practices, while the "Project-specific Context" files contain detailed information about the design and architecture of specific features and components of OCI Policy Analysis.
 
-Project-specific Context
 
-Architecture, wiring, contracts, and component-level context for all features and UI tabs. These files are the canonical documentation for how subsystems are designed and connected.
+COntext files are generally written by AI and corrected by humnas, but they may contain details that don't exist yet in the codebase, but are planned for the future. They are living documents that will evolve as the project evolves, and should be updated as needed to reflect changes in the codebase and architecture.
 
 Naming Convention for Context File Titles
 -----------------------------------------
@@ -46,6 +46,7 @@ The first heading of each file will appear as its title in the documentation nav
 
    context/generic/GENERIC_README.md
    context/generic/GENERIC_CODING_STANDARDS.md
+   context/generic/GENERIC_DOCUMENTATION.md
 
 .. toctree::
    :maxdepth: 1
@@ -54,9 +55,9 @@ The first heading of each file will appear as its title in the documentation nav
    context/project/CONTEXT_cli.md
    context/project/CONTEXT_cross_tenancy.md
    context/project/CONTEXT_data_repo.md
-   context/project/CONTEXT_docs.md
    context/project/CONTEXT_historical_analysis.md
    context/project/CONTEXT_intelligence_strategies.md
+   context/project/CONTEXT_genai_policy_analysis.md
    context/project/CONTEXT_logging.md
    context/project/CONTEXT_logic.md
    context/project/CONTEXT_mcp_server_and_tab.md

@@ -1,72 +1,338 @@
-# Context: Data Model and Data Repository Architecture
+# Project-Specific Context: The Data Repository and Canonical Data Models
 
-This context file explains the core architecture for data management in OCI Policy Analysis—how canonical data models (`models.py`) and the central data repository (`data_repo.py`) work together to supply consistent, strongly-typed data to every UI component.
-
----
-
-## 1. Canonical Data Models (`common/models.py`)
-
-- **Definition and Purpose**: All tenancy data—policy statements, users, groups, dynamic groups, compartments, simulation requests/results—is defined using `TypedDict` classes with detailed docstrings.
-- **Coverage**:
-  - **IAM Entities**: Precise models for Users, Groups, Dynamic Groups
-  - **Policies**: BasePolicy, RegularPolicyStatement, plus parsed statement types (allow/deny, define, admit, endorse)
-  - **Simulation Flows**: Structured request/response formats for simulation, including traces.
-  - **Filtering/Search**: Typed constructs for filter criteria—policy/user/group/dynamic group searches with well-documented semantics for AND/OR logic, summary/full result types, etc.
-  - **Analysis/Overlay**: Policy overlap, intelligence, and diff result models for advanced analysis.
-- **Value Prop to UI**: Uniform response shapes let any UI consumer (tab, filter panel, simulation view) access fields reliably, validate user input, and display specialized content without needing to decipher loose dicts or undocumented structures.
+This resource provides an expert-level reference for the **central component** of OCI Policy Analysis: its data repository layer and underlying canonical data models. It narrates how this layer integrates every feature (CLI, UI, MCP server, analytics, caching, simulation), why its API shape ensures model validity and consistency everywhere, and illustrates the models, access patterns, key behaviors and error handling across real-world workflows.
 
 ---
 
-## 2. Central Data Repository (`logic/data_repo.py`)
+## 1. **Centrality by Design: The Data Repository as the System’s Heart**
 
-- **Purpose**: `PolicyAnalysisRepository` encapsulates all data loading, parsing, filtering, and search logic for tenancy, identity, and policy analysis.
+The `PolicyAnalysisRepository` (see logic/data_repo.py) is the *single source of truth* for all policy/domain/entity data:
 
-### **Compartment Domain Discovery Depth (v2026+)**
+- All **consumers—CLI, UI tabs, MCP API, automation, analytics**—operate *via the repository*'s unified, type-safe API (never via shortcuts, bespoke loaders, or external scripts).
+- *No* other layer in the system accesses raw data; repo-layer guarantees all data is:
+    - Consistently validated and normalized (following canonical models)
+    - Atomically refreshed, cached, or partially updated across all app modes
+    - Tracked with precise provenance (live/SDK, cached, compliance snapshot)
+- Repo provides *stateful, but opt-in stateless* interface—full reload, partial reload, live API sync, and cache/CSV/JSON import supported identically.
 
-- Starting in 2026, the logic for locating Identity Domains in compartments is wholly *depth-based*, rather than relying on user-supplied lists of additional compartment OCIDs.
-- When loading a tenancy, the Settings UI passes a field called "Compartment Level for Additional Domains" (range 1–6; 1 = root only).
-- The data repository enumerates compartments from root using a BFS up to this depth. For each compartment discovered, it queries for Identity Domains and loads them.
-- This means:  
-    - **No more per-tenancy list of compartment OCIDs is consulted or persisted.**
-    - Users always get domains found anywhere up to the configured depth; level 1 = just root, 2 = root + 1 level down, etc.
-    - This approach is robust to compartment hierarchy changes and avoids stale or missing OCID configuration.
+```mermaid
+flowchart TD
+  A["OCI Tenancy API/SDK"]
+  B["Cache (JSON/CSV)"]
+  C["CIS Compliance Output (CSV)"]
+  R["Data Repository"]
+  F[UI]
+  G[CLI]
+  H["MCP Server"]
+  I["Analytics/Automation"]
+  subgraph Sources
+    A
+    B
+    C
+  end
+  subgraph Consumers
+    F
+    G
+    H
+    I
+  end
+  A --> R
+  B --> R
+  C --> R
+  R --> F
+  R --> G
+  R --> H
+  R --> I
+```
 
-- **Initialization / Data Load**:
-  - Loads all compartments, policies, users, groups, dynamic groups from OCI or offline sources.
-  - Enumerates compartments with a fixed depth (see above) for Identity Domain search.
-  - Recursively parses the entire policy document tree, assigning fields/metadata per models.py.
-  - Caches and indexes canonical objects in in-memory lists: policies, statements, users, groups, etc.
+_Connections:_
+- A → R: Load & Normalize
+- B → R: Import & Validate
+- C → R: Parse & Map
+- R → (F, G, H, I): Typed, filtered API
 
-- **Filtering/Search**:
-  - Provides public filter methods (`filter_policy_statements`, `filter_groups`, `filter_users`, etc.) that accept filter/search criteria modeled in models.py.
-  - Resolves fuzzy-to-exact searches (auto-expands group/user/dg queries), always returning lists of model-conformant results.
-  - Handles compound search logic: OR within fields, AND across fields; summary/full discriminated unions, etc.
-
-- **Parsing and Normalization**:
-  - All parsing, normalization, and validation of statements ("allow/deny/define/admit/endorse") happens centrally, with outputs strictly conforming to the canonical models.
-  - Statement normalization, subject resolution, and policy overlap/risk analysis are run post-load and attached to the relevant output objects.
-
-- **Caching, Import/Export**:
-  - Loads/saves cached tenancy analysis using JSON/CSV; ensures all persisted data matches the defined models.
-  - Supports comparison/diff, offline analysis from compliance output, and easy reload for UI experimentation or backup.
+**Narrative**:  
+Every action—query, simulation, diff, analysis, visualization—*starts* with a call to the repo API. Consistency is ensured across all modalities. No consumer can “skip the repo” and thus all data passing into business logic and UIs/threaded tasks is rigorously validated.
 
 ---
 
-## 3. How the Data Model and Repository Serve UI and Tools
+## 2. **Canon of Record: Data Models and Inheritance (see `common/models.py`)**
 
-- **Separation of Concern**: UI components/tab modules never work directly with OCI raw REST/SDK structures. Instead, they exclusively interact with the repo’s well-typed objects/lists—displaying, sorting, and filtering using field names and types guaranteed by models.py.
-- **Stable, Documented API**: All returned objects are self-documenting (with types and field meanings), enabling fast UI dev, strong autocomplete, and robust static/type checks even as the codebase grows.
-- **Predictable Output**: Filtering and analysis requests always return predictable content—if a UI requests user search or policy statement list, it gets exactly the matching TypedDict(s), never "fuzzy" or inconsistent structures.
-- **Advanced Flows**: Simulation, policy overlap detection, import/export, and bulk analytics all use and return objects that trace directly to models.py, enabling advanced visualizations and workflows with minimal glue code.
+All data passes through a collection of **canonical TypedDict models** (see common/models.py), which embody type safety, extendability, and clarity required for both machine processing and human diagnostics.
+
+- **IAM Entities** — Models for:
+    - `User` (username, domain, display, email, OCID, group membership tracking, etc.)
+    - `Group` (domain, name, OCID, description)
+    - `DynamicGroup` (domain, name, OCID, matching rule, in-use state, description, etc.)
+    - `Compartment` (id, name, path, parent, status, and *optional analysis fields*: statement counts direct/cumulative)
+- **Policy Model Hierarchies** — Supports all statement types: allow/deny, cross-tenancy (admit, endorse), define, and overlays/analysis.
+
+**Policy & Statement Model Inheritance**
+
+```mermaid
+classDiagram
+    class BasePolicyStatement {
+      string policy_name
+      string policy_ocid
+      string compartment_ocid
+      string compartment_path
+      string statement_text
+      string creation_time
+      string internal_id
+      bool parsed
+    }
+    class RegularPolicyStatement {
+      'allow'|'deny' action
+      bool valid
+      list[str] invalid_reasons
+      subject_type
+      subject
+      verb
+      resource
+      ...
+    }
+    class DefineStatement
+    class EndorseStatement
+    class AdmitStatement
+    class PolicyOverlap
+    BasePolicyStatement <|-- RegularPolicyStatement
+    BasePolicyStatement <|-- DefineStatement
+    BasePolicyStatement <|-- EndorseStatement
+    BasePolicyStatement <|-- AdmitStatement
+    PolicyOverlap <|-- RegularPolicyStatement
+```
+
+- **Simulation Models** — For principal query/scenario construction and traceable, explainable result types.
+- **Filtering/Search Models** — Fine-grained, AND/OR-capable filters for all entity types (full-text + type-aware queries).
+- **Analysis/Overlay Models** — e.g. overlap/conflict, risk scores, and summary/diagnostic scaffolding.
+
+**Design Rationale:**  
+The TypedDict structures empower strict validation on load, human-centric error reporting, and make all repo output predictable and easy to document/test. When extending, always inherit from the right base.
 
 ---
 
-## 4. Implementation References
+## 3. **Data Ingestion: Full Coverage and Detailed Control**
 
-- Data Models: [`src/oci_policy_analysis/common/models.py`](../../../src/oci_policy_analysis/common/models.py)
-- Repository/Loader: [`src/oci_policy_analysis/logic/data_repo.py`](../../../src/oci_policy_analysis/logic/data_repo.py)
+**A. Live OCI API/SDK Loading**  
+- Recursively scans all compartments (robust to hierarchies, future compatibility with API expansion), fetches all policies, users, dynamic groups, groups.
+- Enforces type normalization, provenance tagging, deduplication, and assignment of *analysis-only fields* (e.g. cumulative statement counts).
+- **Compartment Depth** — Tree-walk up to arbitrary depth; loading is robust to tenancy expansions.
+
+**B. Import from Cache (JSON) and CSV**
+- Either entire previous session or specific entity subsets loadable.
+- Every loaded object is type-checked against canonical models, then indexed.
+- **Atomicity** — If any object is invalid or out-of-schema, *entire load is aborted* and diagnostics are returned.
+- Mix of JSON and CSV is possible for advanced scenarios (restricted per section on “caveats”).
+
+**C. CIS Compliance Output**
+- Accepts OCI-generated [CIS Benchmark CSVs](https://docs.oracle.com/en-us/iaas/Content/Security/Reference/cis-benchmark.htm).
+- **Mapping** — CSV fields mapped (best-effort, lossless if possible) to policy/users/groups/compartments; *unmapped columns are logged as warnings*.
+- **Mode Behavior** — Puts repo in “compliance mode”: disables reload-from-cloud in UI, disables modifications for safety, marks data as read-only for all downstream analysis.
+
+**D. Partial Reloads/Incremental Updates**
+- Reload only selected entity types (e.g. just policies, just users, a compartment subtree) without resetting all state.
+- Internal logic tracks which objects were reloaded, preserved, or dropped; propagates changes to all indices and subscribers.
+- Ideal for very large tenancies or fast iteration cycles.
+
+**Error Handling Example**:  
+If a loaded CSV contains out-of-schema identities, the load fails, logs all issues (with line-level detail), and *exposes these* for UI/CLI/MCP audit. No partial/truncated state is made visible.
 
 ---
 
-**Summary:**  
-This architecture delivers clean separation and strong typing for every major object or data flow in policy analysis. UI layers and tools can request, consume, and display data with full confidence in structure and meaning, independent of raw SDK formats or backend changes.
+## 4. **API Access Patterns, Logging, and Threading**
+
+- **API Boundaries**  
+  Only typed, well-documented filter/search/list/add/update methods are exposed. All mutation and query paths traverse these.
+- **Logging (see common/logger.py)**  
+  - All core events—API/load, errors, filter invocations, cache writes—are logged at appropriated levels (info, error, critical).
+  - Filtering emits info logs; every error is logged at error and persists to both file and console.
+- **Threading**  
+  - All bulk loads and extended searches can dispatch via thread pool executors; mutexes/locks guard shared state on reload, cache writes.
+  - MCP and UI both employ background/incremental thread-safe loads—*no race conditions or partial-stale state is possible*.
+- **Diagnostics Forwarding**  
+  - Failed loads/syncs, filter errors and even incomplete/corrupted CSVs always bubble diagnostics (never dropped), which get surfaced either to API or user as appropriate.
+
+*Design rationale*:  
+High concurrency and consistent logging make error triage and profiling straightforward. Threading is never left unchecked; all reload/state transitions are atomic.
+
+---
+
+## 5. **Filtering and Search API: Consistency and Advanced Logic**
+
+- For **every entity domain**, there is a `filter_*` (e.g. `filter_policy_statements`, `filter_groups`, etc.) method which takes explicit filter objects (`AND` across fields, `OR` within field lists).
+- **Consistency Guarantee**:  
+  No matter *who* calls the filter (UI, CLI, MCP, automation), the same logic is used—spanning group/user/dg search, text/field/verb filtering, golden queries (“show me all risky statements”), or even advanced nested queries.
+- **Result Types**:  
+  - Full objects or summaries (optional truncation if for UI or very large result).
+- **Composability**:  
+  Filters are composable/chainable—e.g. user fuzzy search expands to groups, then exact group search.
+- **Advanced Features**:  
+  - Fuzzy matching, wildcard/group expansion, partial OCID/domain support.
+  - Supports filtering for “valid”/“invalid” statements (for triage) or “effective_path”-prefix lookup for compartmentalized policy search.
+
+**Pseudo-Example:**  
+```python
+# Get all managed policies in 'Finance' compartment(s)
+repo.filter_policy_statements({
+    'verb': ['manage'],
+    'compartment_path': ['ROOT/Finance']
+})
+```
+See full docstrings in data_repo.py for pattern details.
+
+---
+
+## 6. **Caching and Persistence**
+
+- **All session state** (entities, policies, indices, provenance) kept in-memory for maximal performance.
+- **Cache Writes**:  
+  At explicit user request (via CLI/UI) or on auto-save, *full snapshot* is serialized (as JSON/CSV). Each load from cache is re-validated against the latest model, discarding or logging out-of-schema rows.
+- **Reload Consistency**:  
+  On reload, *the same validation path* is traversed again—no assumptions of trust. Invalid/mismatched data is reported, not silently dropped.
+- **Mix-Mode Loads**:  
+  (e.g. partial reload after compliance snapshot) are discouraged. Attempting to do so triggers a state warning or a controlled error, logged for user clarity.
+
+---
+
+## 7. **Partial and Incremental Reload: Speed and Scalability**
+
+- For very large tenants or dev/test workflows, support exists for:
+    - Compartment-only or policy-only reloads.
+    - Tree/tranche-based loading.
+    - Change-propagation (tracks which entities updated, which unchanged, and updates caches/subscribers accordingly).
+- **Error propagation** ensures that if a partial reload fails (e.g. due to new entity missing required fields), the existing state is preserved and a comprehensive diagnostic is logged.
+
+---
+
+## 8. **Support Across CLI, UI, MCP (Uniformity)**
+
+- **CLI**:  
+  - Always accesses the repo for search/filter/list/export.  
+  - Exposes output following canonical models—no bespoke formats, always typed (`for_display_policy`/model export).
+  - When used, repo is first instantiated and loaded, then invoked via typed filter/query/export APIs.
+- **UI**:  
+  - Every tab component (e.g., policy browser, simulation, report, MCP, etc.) subscribes to repository events/state changes; reload, partial update, and filter/query events propagate to relevant tabs.
+  - UI never accesses or mutates state directly; always via repo API.
+- **MCP**:  
+  - All server/microservice requests (fetch, analyze, simulate) are translated to repo filter/analysis calls, guaranteeing accuracy/state symmetry.  
+  - API endpoints pass through strict model serialization/deserialization.
+
+**Unification Example:**
+
+```mermaid
+flowchart TD
+  subgraph Modalities
+    CLI
+    UI
+    MCP
+  end
+  CLI-->|Filter/Reload|Repo
+  UI-->|Listen/Query|Repo
+  MCP-->|API Request|Repo
+  Repo-->|Consistent, Typed Response|CLI
+  Repo-->|Consistent, Typed Response|UI
+  Repo-->|Consistent, Typed Response|MCP
+```
+
+---
+
+## 9. **Compliance Output Mode: Loading CIS Benchmark Results**
+
+- Expects OCI-generated CIS compliance CSVs; loads users, groups, policies, comps, dgs.
+- **Best Effort Mapping**:  
+  Columns are mapped to model fields; unmapped/missing info is logged (never dropped silently or hidden).
+- **Special “Compliance Mode”**:  
+  Disables reload-from-cloud, disables modification, sets all analysis to read-only (auditability above completeness).
+- **Limitations**:  
+  OCI/CIS output occasionally lacks certain fields—these are surfaced as warnings/audit log entries.
+- **Analysis Features In-Mode**:  
+  All core features (overlap detection, unused group analysis, risk scoring, simulation) still function as read-only overlays.
+- **Review & Best Practices**:  
+  Always inspect compliance-mode logs for completeness issues or mapping losses.
+
+---
+
+## 10. **Detailed Narrative: Instantiating and Using the Data Repository**
+
+**Dev/Contributor Steps:**
+
+1. **Import and Instantiate**
+    ```python
+    from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+
+    repo = PolicyAnalysisRepository()
+    ```
+
+2. **Load Data**
+    - *Live Tenancy*:  
+      ```python
+      repo.initialize_client(
+        use_instance_principal=False,  # or True if in OCI cloud
+        profile="DEFAULT",             # OCI config profile
+        recursive=True                 # deep policy comp scan
+      )
+      repo.load_complete_identity_domains()
+      repo.load_policies_and_compartments()
+      ```
+    - *Cache Import*:  
+      ```python
+      # Use cache manager to hydrate repo from a JSON/CSV snapshot
+      from oci_policy_analysis.common.caching import CacheManager
+      CacheManager().load_combined_cache("your-cache-name", repo)
+      ```
+    - *Compliance Output*:  
+      ```python
+      repo.load_from_compliance_output_dir("/path/to/compliance_csvs/")
+      ```
+
+3. **Filter/Query Data**
+    ```python
+    filtered = repo.filter_policy_statements({
+        "verb": ["manage"],
+        "compartment_path": ["ROOT/Finance"]
+    })
+    ```
+
+4. **Diagnostics/Error Handling**
+    - All methods return strict types or raise/log critical errors.
+    - Invalid/malformed data triggers Exception or returns empty results + diagnostic logs.
+    - Logs (file/console) will always include context—API calls/params for triage.
+
+5. **Partial Reloads**
+    - For only refreshing certain entities (see method signatures in `data_repo.py`), e.g.
+    ```python
+    repo.reload_compartment_policy_data()
+    ```
+
+6. **Export/Cache (Optional)**
+    - Use `CacheManager().save_combined_cache(repo)` to persist session.
+
+**Full CLI Example (from cli.py):**
+- Run:
+    ```
+    python -m oci_policy_analysis.cli --profile DEFAULT --print-all
+    ```
+- The CLI will internally instantiate the repo, attempt either live or cached load, perform post-load intelligence (analytics/diagnostics), and provide output structured as model dicts.
+
+---
+
+## 11. **Developer Guidance & Best Practices**
+
+- *Always* extend base TypedDicts for any new entity/type (never append random fields).
+- *Never* bypass repository for raw data; contribute new logic as typed, tested API methods.
+- Follow threading/locking discipline for any heavy background loading/filtering that touches shared state.
+- For every extension: update models, loaders, indexers, relevant filters, and add/adjust documentation with diagrams where relationships or flows change.
+
+---
+
+## 12. **References**
+
+- Data Models: src/oci_policy_analysis/common/models.py
+- Data Repository: src/oci_policy_analysis/logic/data_repo.py
+- CLI Demo: src/oci_policy_analysis/cli.py
+- Logger: src/oci_policy_analysis/common/logger.py
+- Filter API Example: filter_policy_statements in src/oci_policy_analysis/logic/data_repo.py
+
+---
+
+_See general standards and style: [../generic/GENERIC_DOCUMENTATION.md](../generic/GENERIC_DOCUMENTATION.md) and [../generic/GENERIC_CODING_STANDARDS.md](../generic/GENERIC_CODING_STANDARDS.md)_

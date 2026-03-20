@@ -1,6 +1,19 @@
-# Context: Policy Browser Tab
+# Project-Specific Context: Policy Browser Tab
 
 This file documents the architecture, user workflow, UI/UX decisions, and technical implementation for the "Policy Browser" tab in the OCI Policy Analysis tool. It is intended for maintainers and new contributors who wish to understand how all OCI compartments, policies, and their policy statements can be browsed in a hierarchical, interactive way as of 2026-02-02.
+
+---
+
+## Policy Statement Limits Display & Coloring
+
+- The **Show Policy Statement Limits** checkbox (in the "Display Options" row, to the right of "Expand Compartments Only") toggles visibility of the statement count summary under each compartment in the tree.
+- When this box is checked, each compartment will:
+    - Show a row summarizing statement counts ("Statement count - direct: ..., cumulative: ...").
+    - Display its background color-coded by cumulative statement count to quickly spot scaling or limit risks:
+        - **Green:** Cumulative count under 450 (safe: below 90% of limit).
+        - **Yellow:** Cumulative count 450–500 (warning: 90% or more of limit).
+        - **Red:** Cumulative count above 500 (over the policy statement limit - action required).
+- Unchecking the box hides the count summary row and removes the color coding for cleaner tree viewing.
 
 ---
 
@@ -31,6 +44,12 @@ The **Policy Browser** tab provides a focused, read-only, hierarchical view of a
 
 - **Base Class:** Inherits from `BaseUITab` for context help and standard appearance.
 - **Tree Control:** Uses `ttk.Treeview` for compartments/policies/statements, with `open=False` for collapsed nodes by default.
+- **Show Policy Statement Limits:** The "Show Policy Statement Limits" checkbox (next to "Expand Compartments Only") controls visibility of per-compartment policy statement counts and applies background color highlighting for limit awareness.
+    - When checked, a per-compartment row shows "direct" and "cumulative" statement counts and compartment rows are color-coded:
+        - _Green_: safely under limit.
+        - _Yellow_: at/above 90% (450), up to 500.
+        - _Red_: exceeded limit (over 500).
+    - When unchecked, the count/limit row and highlighting are hidden for a cleaner navigation experience.
 - **No Filtering/Distinction:** All statement types are shown together; the statement text is looked up by policy name across the flat statements list.
 - **Actions:** Right-click (`<Button-3>`) on any tree element shows a context menu (actions may be stubs or extended for downstream features).
 - **Help:** Contextual help is built into the tab via mouse-over and top help box.
@@ -60,6 +79,7 @@ The **Policy Browser** tab provides a focused, read-only, hierarchical view of a
 
 | Date       | Change Summary                                                   | Area/Module(s) Impacted                      |
 |------------|------------------------------------------------------------------|----------------------------------------------|
+| 2026-03-11 | Added "Show Policy Statement Limits" checkbox and per-compartment row color coding for statement count limits; documentation updated                 | policy_browser_tab.py, CONTEXT_policy_browser_tab.md |
 | 2026-02-02 | Initial implementation and context documentation for new tab     | policy_browser_tab.py, main.py, CONTEXT_policy_browser_tab.md |
 
 ---

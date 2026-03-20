@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import json
 import logging
+import platform
 import queue
 import threading
 import time
@@ -31,6 +32,7 @@ import warnings
 import webbrowser
 from importlib.resources import files
 
+import oci
 from dateutil import parser as dtparser
 
 # Application imports
@@ -46,6 +48,7 @@ from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
+from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
 
 # REMOVED: ConsolidationWorkbenchTab import (consolidation feature disabled)
 from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
@@ -58,7 +61,6 @@ from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.ui.policy_browser_tab import PolicyBrowserTab
 from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.ui.report_tab import ReportTab  # noqa: E402
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.simulation_tab import SimulationTab
@@ -67,7 +69,8 @@ from oci_policy_analysis.ui.users_tab import UsersTab
 # ----------- POST-IMPORT SETUP ------------
 # Version extraction
 try:
-    __version__ = files('oci_policy_analysis').joinpath('version.txt').read_text().strip()
+    raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
+    __version__ = raw_version.lstrip('\ufeff').strip()
 except Exception:
     __version__ = 'dev'
 
@@ -75,7 +78,12 @@ except Exception:
 warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
+# Filter out specific RuntimeWarning about module re-imports that can occur in certain environments (e.g., PyInstaller) and are non-fatal
+warnings.filterwarnings(
+    'ignore',
+    category=RuntimeWarning,
+    message=r".*'oci_policy_analysis.main' found in sys.modules after import of package 'oci_policy_analysis'.*",
+)
 
 # ----------- MAIN APPLICATION CLASS ------------
 """
@@ -105,11 +113,14 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self, force_debug: bool = False):
+    def __init__(self, force_debug: bool = False, experimental_features: bool = False):
         super().__init__()
 
+        # Hidden/undocumented experimental features toggle (e.g., Consolidation tab)
+        self.experimental_features = experimental_features
+
         self.title(f'OCI Policy Analysis {__version__}')
-        self.geometry('1400x900')
+        self.geometry('1440x900')
 
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
@@ -168,6 +179,15 @@ class App(tk.Tk):
             policy_repo=self.policy_compartment_analysis,
             ref_data_repo=self.reference_data_repo,
         )
+        # Initialize prospective statements from settings (per-tenancy, if known)
+        try:
+            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
+            if tenancy_key and tenancy_key in sim_settings:
+                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
+        except Exception:
+            # Non-fatal; prospective list will simply start empty
+            pass
         self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
         # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
 
@@ -185,8 +205,6 @@ class App(tk.Tk):
         self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
-        self.report_tab = ReportTab(self.notebook, self, self.policy_compartment_analysis)
-        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
@@ -195,7 +213,11 @@ class App(tk.Tk):
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
-        # REMOVED: ConsolidationWorkbenchTab instantiation (consolidation feature disabled)
+        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis)
+        # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
+        self.consolidation_tab = None
+        if self.experimental_features:
+            self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
@@ -209,10 +231,10 @@ class App(tk.Tk):
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.notebook.add(self.mcp_tab, text='Embedded MCP\nServer')
+        self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
-        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Preview)')
+        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
@@ -278,12 +300,13 @@ class App(tk.Tk):
         self.maintenance_visible = False
         self.notebook.forget(self.console_tab)
         self.notebook.forget(self.debugger_tab)
+        self.notebook.forget(self.mcp_tab)
         self.notebook.forget(self.maintenance_tab)
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.condition_tester_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)
-        # REMOVED: Forgetting consolidation_tab (consolidation feature disabled)
+        # self.notebook.forget(self.consolidation_tab)  # Do not 'forget' if never added; handled by advanced toggle
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -357,10 +380,14 @@ class App(tk.Tk):
                     reloaded_str = f' [Reloaded at {reload_time}]'
             else:
                 reloaded_str = ''
-            self.status_var.set(f'Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
+
+            # Prefix status text with Experimental Mode marker if enabled
+            prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
+            self.status_var.set(f'{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
         else:
             # Not loaded
-            self.status_var.set('Policy Data: (Not Loaded)')
+            prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
+            self.status_var.set(f'{prefix}Policy Data: (Not Loaded)')
 
     def refresh_all_tabs_settings(self):
         """
@@ -383,7 +410,7 @@ class App(tk.Tk):
             self.debugger_tab,
             self.console_tab,
             self.maintenance_tab,
-            # REMOVED: consolidation_tab (consolidation feature disabled)
+            self.consolidation_tab,
         ]
         context_help = self.settings.get('context_help', True)
         font_size = self.settings.get('font_size', 'Medium')
@@ -484,7 +511,15 @@ class App(tk.Tk):
         logger.info('Building permissions report for advanced report tab')
         self.policy_intelligence.build_permissions_report()
 
-        self.simulation_engine.policy_statements = self.policy_compartment_analysis.regular_statements
+        self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
+        # Re-apply any saved prospective statements for the active tenancy
+        try:
+            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
+            if tenancy_key and tenancy_key in sim_settings:
+                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
+        except Exception:
+            pass
         # self.simulation_engine.build_index()
         logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
         end_post_process_time = time.perf_counter()
@@ -514,12 +549,21 @@ class App(tk.Tk):
             else:
                 logger.info(msg)
 
-        step('users_tab.update_user_analysis_output', self.users_tab.update_user_analysis_output)
-        step('users_tab.update_users_dropdown_options', self.users_tab.update_users_dropdown_options)
+        # Users tab: single populate_data entry point keeps other public
+        # methods available for direct use (e.g. callbacks) while providing a
+        # clear orchestration hook for initial load.
+        step('users_tab.populate_data', self.users_tab.populate_data)
         step('policies_tab.update_policy_output', self.policies_tab.update_policy_output)
         step('policies_tab.enable_widgets_after_load', self.policies_tab.enable_widgets_after_load)
+        if hasattr(self, 'policy_browser_tab') and hasattr(
+            self.policy_browser_tab, '_update_reload_policy_button_state'
+        ):
+            step(
+                'policy_browser_tab._update_reload_policy_button_state',
+                self.policy_browser_tab._update_reload_policy_button_state,
+            )
         step('policy_browser_tab.refresh_tree', self.policy_browser_tab.refresh_tree)
-        step('dynamic_groups_tab.enable_controls', self.dynamic_groups_tab.enable_controls)
+        step('dynamic_groups_tab.populate_data', self.dynamic_groups_tab.populate_data)
         step('cross_tenancy_tab.update_cross_tenancy_output', self.cross_tenancy_tab.update_cross_tenancy_output)
         step('resource_principals_tab.update_principals_sheets', self.resource_principals_tab.update_principals_sheets)
         step(
@@ -528,11 +572,12 @@ class App(tk.Tk):
                 tenancy_name=self.policy_compartment_analysis.tenancy_name
             ),
         )
-        step('dynamic_groups_tab.enable_controls (again)', self.dynamic_groups_tab.enable_controls)
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
-        step('simulation_tab.refresh_dropdowns', self.simulation_tab.refresh_dropdowns)
+        step('simulation_tab.populate_data', self.simulation_tab.populate_data)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
-        # REMOVED: step for consolidation_tab.populate_data (consolidation feature disabled)
+        # Only do this if experimental features are enabled and the consolidation tab is present (it won't be if experimental_features is False)
+        if self.experimental_features and self.consolidation_tab:
+            step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
         logger.info(
             'UI post-load timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])
@@ -545,36 +590,44 @@ class App(tk.Tk):
         Reload just policies, compartments, statements (not IAM) from tenancy,
         update the 'policy_data_reloaded' timestamp, persist sections in cache,
         and update all UI components as if a tenancy load had completed.
+        Shows busy cursor during reload for improved user feedback.
         """
         logger.info(
             'Initiating reload of policies and compartments (main driver, includes cache update and UI refresh)'
         )
-        repo = self.policy_compartment_analysis
-        if not hasattr(repo, 'reload_compartment_policy_data'):
-            logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
-            return False
-        reload_ok = repo.reload_compartment_policy_data()
-        if not reload_ok:
-            logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
-            return False
-
-        # Now update the cache for just these sections
+        # Set busy cursor
         try:
-            from oci_policy_analysis.common.caching import CacheManager
+            self.config(cursor='watch')
+            self.update()
+            repo = self.policy_compartment_analysis
+            if not hasattr(repo, 'reload_compartment_policy_data'):
+                logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
+                return False
+            reload_ok = repo.reload_compartment_policy_data()
+            if not reload_ok:
+                logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
+                return False
 
-            CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
-        except Exception as e:
-            logger.error(f'Policy/compartment cache update failed after reload: {e}')
+            # Now update the cache for just these sections
+            try:
+                from oci_policy_analysis.common.caching import CacheManager
 
-        # Re-run policy intelligence (effective compartments, invalid statements, cleanup, recommendations)
-        self._post_load_create_intelligence()
+                CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+            except Exception as e:
+                logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
-        # Update the UI (replicates post-load signal)
-        self._post_load_update_ui()
-        # Update status bar to indicate reload
-        self.after(0, self.update_status_bar)
-        logger.info('Reload policies/compartments complete; cache and UI updated')
-        return True
+            # Re-run policy intelligence (effective compartments, invalid statements, cleanup, recommendations)
+            self._post_load_create_intelligence()
+
+            # Update the UI (replicates post-load signal)
+            self._post_load_update_ui()
+            # Update status bar to indicate reload
+            self.after(0, self.update_status_bar)
+            logger.info('Reload policies/compartments complete; cache and UI updated')
+            return True
+        finally:
+            self.config(cursor='')
+            self.update()
 
     def load_tenancy_async(  # noqa: C901
         self,
@@ -1066,11 +1119,22 @@ if __name__ == '__main__':
     """Main entry point for OCI Policy Analysis application."""
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument(
+        '--experimental-features',
+        action='store_true',
+        help=argparse.SUPPRESS,  # Hidden/undocumented flag to enable preview features
+    )
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
     args = parser.parse_args()
 
     logger = get_logger(component='main')
+
+    # Print a welcome message with version info at startup
+    logger.info('--- Starting OCI Policy Analysis Application ---')
+    logger.info(f'Application version: {__version__}')
+    logger.info(f'Python version: {platform.python_version()}')
+    logger.info(f'OCI SDK version: {oci.__version__}')
 
     # --- OVERRIDE: Force ALL loggers to DEBUG level if --verbose is set ---
     if args.verbose:
@@ -1085,5 +1149,5 @@ if __name__ == '__main__':
         logger.debug('Verbose logging enabled via --verbose (all loggers set to DEBUG)')
     # ----------------------------------------------------------------------
 
-    app = App(force_debug=args.verbose)
+    app = App(force_debug=args.verbose, experimental_features=args.experimental_features)
     app.mainloop()

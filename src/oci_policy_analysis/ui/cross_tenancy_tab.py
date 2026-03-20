@@ -15,7 +15,7 @@
 
 import json
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from oci_policy_analysis.common.helpers import for_display_admit, for_display_define, for_display_endorse
 from oci_policy_analysis.common.logger import get_logger
@@ -85,6 +85,7 @@ class CrossTenancyTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='View and analyze cross-tenancy OCI policies, including defined OCID aliases, Admit, and Endorse statement details.',
+            page_help_link='/usage.html#cross-tenancy-tab',
         )
         self.main_app = main_app
         self.policy_compartment_analysis = main_app.policy_compartment_analysis
@@ -102,11 +103,31 @@ class CrossTenancyTab(BaseUITab):
         defined_labelframe.grid_columnconfigure(0, weight=1)
         defined_labelframe.grid_rowconfigure(0, weight=1)
 
+        # --- Action Buttons (stubbed) ---
+        button_frame = ttk.Frame(defined_labelframe)
+        button_frame.grid(row=0, column=0, sticky='w', padx=2, pady=(2, 2))
+
+        self.btn_generate_opposing = ttk.Button(
+            button_frame,
+            text='Generate Opposing Tenancy Statements',
+            command=self._on_generate_opposing_clicked,
+            state='disabled',
+        )
+        self.btn_generate_opposing.pack(side='left', padx=(0, 6))
+
+        self.btn_consolidate_xt = ttk.Button(
+            button_frame,
+            text='Consolidate Cross-Tenancy',
+            command=self._on_consolidate_xt_clicked,
+            state='disabled',
+        )
+        self.btn_consolidate_xt.pack(side='left')
+
         ttk.Label(
             defined_labelframe,
             text='Select alias rows to filter cross-tenancy policies below. Sort via column headers.',
             font=('TkFixedFont', 10),
-        ).grid(row=0, column=0, sticky='w', padx=5, pady=(4, 3))
+        ).grid(row=1, column=0, sticky='w', padx=5, pady=(4, 3))
 
         def cross_tenancy_define_selection_callback(selected_rows: list[dict]) -> None:
             # Selection callback for Defined Aliases (adapt or remove as appropriate in the split-table UI)
@@ -120,6 +141,15 @@ class CrossTenancyTab(BaseUITab):
                 for n in [row.get('Defined Name', '') for row in selected_rows if row.get('Defined Name')]
             }
             logger.info(f'Selected Defined Names: {selected_defined_names}')
+
+            # Enable/disable action buttons based on selection
+            if hasattr(self, 'btn_generate_opposing'):
+                if selected_defined_names:
+                    self.btn_generate_opposing.config(state='normal')
+                    self.btn_consolidate_xt.config(state='normal')
+                else:
+                    self.btn_generate_opposing.config(state='disabled')
+                    self.btn_consolidate_xt.config(state='disabled')
 
             def admit_filter(st):
                 admitted_tenancy = (st.get('admitted_tenancy') or '').strip().lower()
@@ -191,7 +221,7 @@ class CrossTenancyTab(BaseUITab):
             row_context_menu_callback=defined_aliases_row_details,
             multi_select=True,
         )
-        self.defined_aliases_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(2, 6))
+        self.defined_aliases_table.grid(row=2, column=0, sticky='nsew', padx=3, pady=(2, 6))
 
         # ---- Admit Policies Section ----
         admit_labelframe = ttk.LabelFrame(self, text='Admit Policies')
@@ -219,6 +249,7 @@ class CrossTenancyTab(BaseUITab):
             column_widths=ADMIT_POLICY_COLUMN_WIDTHS,
             selection_callback=None,  # add as needed
             multi_select=False,
+            height=6,  # Show fewer lines by default for compact display
         )
         self.admit_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(1, 6))
 
@@ -252,8 +283,17 @@ class CrossTenancyTab(BaseUITab):
             column_widths=ENDORSE_POLICY_COLUMN_WIDTHS,
             selection_callback=None,  # add as needed
             multi_select=False,
+            height=6,  # Show fewer lines by default for compact display
         )
         self.endorse_table.grid(row=1, column=0, sticky='nsew', padx=3, pady=(1, 10))
+
+    def _on_generate_opposing_clicked(self):
+        logger.info('Generate Opposing Tenancy Statements clicked')
+        messagebox.showinfo('Info', 'Opposing tenancy statement generation not yet implemented.')
+
+    def _on_consolidate_xt_clicked(self):
+        logger.info('Consolidate Cross-Tenancy clicked')
+        messagebox.showinfo('Info', 'Cross-tenancy consolidation not yet implemented.')
 
     def toggle_admit_columns(self):
         if self.show_all_admit.get():

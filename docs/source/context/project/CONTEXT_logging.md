@@ -1,4 +1,4 @@
-# Logging Configuration Context
+# Project-Specific Context: Logging Configuration
 
 ## Overview
 

@@ -27,7 +27,7 @@ from pathlib import Path
 # Third-party imports
 from oci import config, pagination
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
-from oci.exceptions import ConfigFileNotFound
+from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
 from oci.identity_domains import IdentityDomainsClient
 from oci.identity_domains.models import DynamicResourceGroup
@@ -86,7 +86,8 @@ class PolicyAnalysisRepository:
 
     def _api_call_with_logging(self, label, fn, *args, **kwargs):
         """Wrap OCI API call for logging+timing at INFO or CRITICAL based on settings."""
-        import time
+
+        # TODO: https://docs.oracle.com/en-us/iaas/tools/python/latest/exceptions.html
 
         log_critical = False
         try:
@@ -100,11 +101,24 @@ class PolicyAnalysisRepository:
         try:
             result = fn(*args, **kwargs)
             elapsed = time.perf_counter() - t0
-            level_func(f'[API] {label} completed in {elapsed:.2f}s')
+            # Print more details about the API call on success
+            level_func(
+                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) succeeded in {elapsed:.2f}s — args={args} kwargs={kwargs}'
+            )
             return result
+        except ServiceError as se:
+            elapsed = time.perf_counter() - t0
+            # Print detailed ServiceError info
+            logger.error(
+                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) ServiceError after {elapsed:.2f}s: code={se.code} status={se.status} message={se.message} args={args}, kwargs={kwargs}'
+            )
+            raise
         except Exception as e:
             elapsed = time.perf_counter() - t0
-            logger.error(f'[API] {label} failed after {elapsed:.2f}s: {e}')
+            # Print more details on generic exception
+            logger.error(
+                f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) failed after {elapsed:.2f}s: {e} args={args}, kwargs={kwargs}'
+            )
             raise
 
     def __init__(self):
@@ -591,6 +605,8 @@ class PolicyAnalysisRepository:
         self.regular_statements = []
         self.cross_tenancy_statements = []
         self.defined_aliases = []
+        # Ensure compliance flag is reset on live tenancy load
+        self.loaded_from_compliance_output = False
         start_time = time.perf_counter()
         try:
             logger.info('Bulk fetching all policies for all compartments...')
@@ -725,13 +741,14 @@ class PolicyAnalysisRepository:
         """
         Loads both compartments and all policies using OCI Clients. (Convenience function)
         """
+        # Always reset reload timestamp unless restored/preserved by special path (e.g., cache); complies with cache/offline/compliance logic elsewhere too.
+        self.policy_data_reloaded = None
+        # Ensure compliance flag is reset on live tenancy load
+        self.loaded_from_compliance_output = False
         ok1 = self.load_compartments_only()
         if not ok1:
             return False
         ok2 = self.load_policies_only()
-        # Remove policy_data_reloaded since a full load makes the reload timestamp irrelevant
-        if hasattr(self, 'policy_data_reloaded'):
-            self.policy_data_reloaded = ''
         return ok2
 
     def reload_compartment_policy_data(self) -> bool:
@@ -1899,6 +1916,8 @@ class PolicyAnalysisRepository:
         """
         Load all compartments, domains, groups, users, dynamic groups, and policies from compliance tool output files.
 
+        Always resets the reload time (`policy_data_reloaded`) so that reload is not shown for compliance/CSV data.
+
         Starts with domains, then dynamic groups, then users/groups/membership, then compartments, then policies.
         This function is for offline/compliance output analysis: no attempt to initialize any OCI client.
 
@@ -1909,6 +1928,9 @@ class PolicyAnalysisRepository:
         Returns:
             bool: True if all files parsed and data loaded successfully, False otherwise.
         """
+
+        # Explicit: always clear reload time before compliance/CSV load.
+        self.policy_data_reloaded = None
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
         # We need to only use the CSV files and stop using the JSON file altogether

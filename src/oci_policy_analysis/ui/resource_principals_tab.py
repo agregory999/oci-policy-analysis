@@ -117,6 +117,7 @@ class ResourcePrincipalsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='Analyze and view OCI Resource Principals, including Dynamic Groups and matching policy statements below.',
+            page_help_link='/usage.html#resource-principals-tab',
         )
         self.app = app
         self.policy_repo: PolicyAnalysisRepository = app.policy_compartment_analysis

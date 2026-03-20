@@ -28,8 +28,14 @@ from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 # Constants for data table
-AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Lifecycle State', 'Creation Date']
-AI_MODEL_COLUMN_WIDTHS = {'Model Name': 250, 'Model OCID': 450, 'Lifecycle State': 125, 'Creation Date': 250}
+AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Capabilities', 'Lifecycle State', 'Creation Date']
+AI_MODEL_COLUMN_WIDTHS = {
+    'Model Name': 250,
+    'Model OCID': 450,
+    'Capabilities': 200,
+    'Lifecycle State': 125,
+    'Creation Date': 250,
+}
 
 # Context help messages for the SettingsTab
 CONTEXT_HELP = {
@@ -40,7 +46,9 @@ CONTEXT_HELP = {
         'Load data either directly from OCI or from a cached JSON, manage policy data, and import/export backups. '
         'Use these controls to initialize or refresh the core analysis dataset.'
     ),
-    'INSTANCE_PRINCIPAL': 'Use when running from OCI Compute with permissions. No config needed.',
+    'INSTANCE_PRINCIPAL': (
+        'Use only on OCI instances configured in a dynamic group with permissions; profile selection is disabled and not used when enabled. Use of Instance Principal supersedes Profile selection, but recursion and compartment depth are supported.'
+    ),
     'LOAD_ALL_USERS': 'If checked, loads all users for analysis. Uncheck for groups-only mode.',
     'RECURSIVE_LOAD': 'If checked, load policies from all compartments.\nUncheck for root compartment only.',
     'CACHE_LABEL': "A (P) before a cache means it is 'preserved' and will not be automatically overwritten or deleted. To update or manage the cache list, use the Maintenance Tab.",
@@ -77,6 +85,7 @@ class SettingsTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text='Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, GenAI options, and general UI preferences.',
+            page_help_link='/usage.html#settings-tab-start-here',
         )
         self.app = app
         self.settings = settings
@@ -235,6 +244,19 @@ class SettingsTab(BaseUITab):
         chk_instance_principal.grid(row=0, column=0, padx=4, pady=(2, 2), sticky='w')
         self.add_context_help(chk_instance_principal, CONTEXT_HELP['INSTANCE_PRINCIPAL'])
 
+        def _on_instance_principal_changed(*_):
+            """
+            When Instance Principal is checked, disable (grey out) the profile selector.
+            When unchecked, enable profile selection.
+            """
+            if self.ip_var.get():
+                self.input_profile.config(state='disabled')
+            else:
+                self.input_profile.config(state='normal' if len(self.profile_list) > 0 else 'disabled')
+
+        # Trace the variable to update OptionMenu state whenever Instance Principal toggled
+        self.ip_var.trace_add('write', _on_instance_principal_changed)
+
         # Load All Users checkbox
         self.load_all_users_check = ttk.Checkbutton(
             frm_chkboxes,
@@ -271,21 +293,9 @@ class SettingsTab(BaseUITab):
             'Selecting the maximum level may cause much longer load times and many extra API calls in large environments.',
         )
         COMPARTMENT_DEPTH_CHOICES = [('1 (Root Only)', 1), ('2', 2), ('3', 3), ('4', 4), ('5', 5), ('6', 6)]
-        self.compartment_depth_var = tk.IntVar(value=1)
-
-        def update_depth_from_settings():
-            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
-            tenancy = (self.tenancy_var.get() or '').strip()
-            depth = by_tenancy.get(tenancy, 1)
-            self.compartment_depth_var.set(depth)
-            self.compartment_depth_dropdown.set(self.depth_string_map.get(depth, '1 (Root Only)'))
-
-        def depth_on_tenancy_change(*_):
-            update_depth_from_settings()
-
-        # Bind update logic on tenancy switch
-        self.tenancy_var.trace_add('write', depth_on_tenancy_change)
-        # Dropdown UI
+        # Load the global compartment depth from settings
+        global_depth = self.settings.get('domain_compartment_depth', 1)
+        self.compartment_depth_var = tk.IntVar(value=global_depth)
         depth_val_strings = [label for label, val in COMPARTMENT_DEPTH_CHOICES]
         self.depth_value_map = dict(COMPARTMENT_DEPTH_CHOICES)
         self.depth_string_map = {val: label for label, val in COMPARTMENT_DEPTH_CHOICES}
@@ -310,36 +320,32 @@ class SettingsTab(BaseUITab):
             'Open the full OCI Policy Analysis setup instructions (docs/source/setup.md) in your web browser.',
         )
 
-        # Add Settings link next to compartment depth selector
-        settings_link = ttk.Label(
-            label_frm_tenancy_config,
-            text='Settings Page Guide',
-            foreground='#0645AD',
-            cursor='hand2',
-            font=('TkDefaultFont', 10, 'underline'),
-        )
-        settings_link.grid(row=3, column=5, padx=3, pady=(10, 2), sticky='w')
-        settings_doc_url = self.DOCROOT + '/usage.html#settings-tab-start-here'
-        settings_link.bind('<Button-1>', lambda e: self.open_link(settings_doc_url))
-        self.add_context_help(
-            settings_link, 'Open the Settings Tab as part of Usage documentation in your web browser.'
-        )
+        # # Add Settings link next to compartment depth selector
+        # settings_link = ttk.Label(
+        #     label_frm_tenancy_config,
+        #     text='Settings Page Guide',
+        #     foreground='#0645AD',
+        #     cursor='hand2',
+        #     font=('TkDefaultFont', 10, 'underline'),
+        # )
+        # settings_link.grid(row=3, column=5, padx=3, pady=(10, 2), sticky='w')
+        # settings_doc_url = self.DOCROOT + '/usage.html#settings-tab-start-here'
+        # settings_link.bind('<Button-1>', lambda e: self.open_link(settings_doc_url))
+        # self.add_context_help(
+        #     settings_link, 'Open the Settings Tab as part of Usage documentation in your web browser.'
+        # )
 
         def on_depth_select(event):
             selected_label = self.compartment_depth_dropdown.get()
             selected_val = self.depth_value_map.get(selected_label, 1)
-            # Save for this tenancy
-            tenancy = (self.tenancy_var.get() or '').strip()
-            if tenancy:
-                by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
-                by_tenancy[tenancy] = selected_val
-                self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
-                config.save_settings(self.settings)
+            # Save globally in settings (not per-tenancy)
+            self.settings['domain_compartment_depth'] = selected_val
+            config.save_settings(self.settings)
             self.compartment_depth_var.set(selected_val)
 
         # Bind update logic on dropdown selection
         self.compartment_depth_dropdown.bind('<<ComboboxSelected>>', on_depth_select)
-        # Set initial value
+        # Set initial value from global config
         self.compartment_depth_dropdown.set(
             self.depth_string_map.get(self.compartment_depth_var.get(), '1 (Root Only)')
         )
@@ -361,8 +367,12 @@ class SettingsTab(BaseUITab):
                 self.tenancy_var.set('')
 
         self.profile_var.trace_add('write', _on_profile_changed)
+        # Compartment depth now global-only; any trace/dependency on tenancy_var for depth is removed.
         self.input_profile.config(width=20, state='normal' if len(self.profile_list) > 0 else 'disabled')
         self.input_profile.grid(row=0, column=2, padx=5, pady=3)
+        # Call once to set initial state
+        if self.ip_var.get():
+            self.input_profile.config(state='disabled')
 
         # Get available cached copies
         self.label_cache = ttk.Label(label_frm_tenancy_config, text='Cache:')
@@ -721,13 +731,9 @@ class SettingsTab(BaseUITab):
         self.settings['load_all_users'] = self.load_all_users_var.get()
         # Remove persistence, save, and variable harvesting for Additional Identity Domain Compartment OCIDs.
         # (Entire block deleted.)
-        # Save compartment depth for tenancy being loaded (guarantee up-to-date)
-        tenancy = (self.tenancy_var.get() or '').strip()
-        if tenancy:
-            by_tenancy = self.settings.get('domain_compartment_depth_by_tenancy', {})
-            by_tenancy[tenancy] = self.compartment_depth_var.get()
-            self.settings['domain_compartment_depth_by_tenancy'] = by_tenancy
-            config.save_settings(self.settings)
+        # Save compartment depth globally
+        self.settings['domain_compartment_depth'] = self.compartment_depth_var.get()
+        config.save_settings(self.settings)
         self.app.load_tenancy_async(
             tenancy_id=tenancy_ocid,
             recursive=self.recursive_var.get(),
@@ -973,7 +979,12 @@ class SettingsTab(BaseUITab):
             self.app.condition_tester_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
+            self.app.mcp_tab,
         ]
+
+        # Only treat consolidation tab as advanced if experimental features are enabled
+        if getattr(self.app, 'consolidation_tab', None) is not None:
+            advanced_tabs.append(self.app.consolidation_tab)
 
         if self.app.advanced_tabs_visible:
             for tab in advanced_tabs:
@@ -982,11 +993,14 @@ class SettingsTab(BaseUITab):
             self.app.advanced_tabs_visible = False
             logger.info('Advanced tabs hidden')
         else:
+            notebook.add(self.app.mcp_tab, text='Embedded MCP\n(Advanced)')
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
-            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Preview)')
-            # REMOVED: consolidation_tab from advanced tabs (consolidation feature disabled)
+            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
+            # Only add consolidation tab if experimental features are enabled
+            if getattr(self.app, 'consolidation_tab', None) is not None:
+                notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')

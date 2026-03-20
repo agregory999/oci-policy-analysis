@@ -1,4 +1,4 @@
-# Generated from ./Policy.g4 by ANTLR 4.13.2
+# Generated from Policy.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .PolicyParser import PolicyParser
@@ -41,6 +41,15 @@ class PolicyListener(ParseTreeListener):
 
     # Exit a parse tree produced by PolicyParser#defineExpression.
     def exitDefineExpression(self, ctx:PolicyParser.DefineExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by PolicyParser#compartmentSubject.
+    def enterCompartmentSubject(self, ctx:PolicyParser.CompartmentSubjectContext):
+        pass
+
+    # Exit a parse tree produced by PolicyParser#compartmentSubject.
+    def exitCompartmentSubject(self, ctx:PolicyParser.CompartmentSubjectContext):
         pass
 
 

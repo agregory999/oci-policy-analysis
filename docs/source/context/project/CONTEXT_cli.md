@@ -1,4 +1,4 @@
-# Context: CLI Policy Intelligence Analysis and Usage
+# Project-Specific Context: CLI Policy Intelligence Analysis and Usage
 
 This context file describes the design, options, and intent of the OCI Policy Analysis **CLI (`cli.py`)**. The CLI provides a streamlined, non-interactive interface for loading, filtering, and displaying OCI IAM policies, groups, users, and dynamic groups—using the same core data engine and overlays as the main UI, but geared for scripting, automation, and quick diagnostics.
 
@@ -100,9 +100,9 @@ _Most session, filter, and export options are mutually compatible—e.g., you ca
 
 ## 7. Key References
 
-- CLI logic & overlays: [`src/oci_policy_analysis/cli.py`](../../../src/oci_policy_analysis/cli.py)
-- Policy overlays code: [`src/oci_policy_analysis/logic/policy_intelligence.py`](../../../src/oci_policy_analysis/logic/policy_intelligence.py)
-- UI context (desktop): [`src/oci_policy_analysis/main.py`](../../../src/oci_policy_analysis/main.py)
+- CLI logic & overlays: `src/oci_policy_analysis/cli.py`
+- Policy overlays code: `src/oci_policy_analysis/logic/policy_intelligence.py`
+- UI context (desktop): `src/oci_policy_analysis/main.py`
 - MCP/Server context: [`CONTEXT_mcp_server_and_tab.md`](CONTEXT_mcp_server_and_tab.md)
 
 ---

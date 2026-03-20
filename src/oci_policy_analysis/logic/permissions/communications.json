@@ -222,6 +222,110 @@
                 "EVENTRULE_MODIFY"
             ],
             "notes": ""
+        },
+        "ListTopics": {
+            "permissions": [
+                "ONS_TOPIC_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetTopic": {
+            "permissions": [
+                "ONS_TOPIC_READ"
+            ],
+            "notes": ""
+        },
+        "CreateTopic": {
+            "permissions": [
+                "ONS_TOPIC_CREATE"
+            ],
+            "notes": ""
+        },
+        "ChangeTopicCompartment": {
+            "permissions": [
+                "ONS_TOPIC_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateTopic": {
+            "permissions": [
+                "ONS_TOPIC_UPDATE"
+            ],
+            "notes": ""
+        },
+        "AddTopicLock": {
+            "permissions": [
+                "RESOURCE_LOCK_ADD"
+            ],
+            "notes": ""
+        },
+        "RemoveTopicLock": {
+            "permissions": [
+                "RESOURCE_LOCK_REMOVE"
+            ],
+            "notes": ""
+        },
+        "DeleteTopic": {
+            "permissions": [
+                "ONS_TOPIC_DELETE"
+            ],
+            "notes": ""
+        },
+        "ListSubscriptions": {
+            "permissions": [
+                "ONS_SUBSCRIPTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateSubscription": {
+            "permissions": [
+                "ONS_TOPIC_SUBSCRIBE"
+            ],
+            "notes": ""
+        },
+        "ChangeSubscriptionCompartment": {
+            "permissions": [
+                "ONS_SUBSCRIPTION_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateSubscription": {
+            "permissions": [
+                "ONS_TOPIC_SUBSCRIBE"
+            ],
+            "notes": ""
+        },
+        "DeleteSubscription": {
+            "permissions": [
+                "ONS_TOPIC_SUBSCRIBE"
+            ],
+            "notes": ""
+        },
+        "GetSubscription": {
+            "permissions": [
+                "ONS_TOPIC_SUBSCRIBE"
+            ],
+            "notes": ""
+        },
+        "GetConfirmSubscription": {
+            "permissions": [],
+            "notes": "No permissions required per Notifications policy reference."
+        },
+        "ResendSubscriptionConfirmation": {
+            "permissions": [
+                "ONS_TOPIC_SUBSCRIBE"
+            ],
+            "notes": ""
+        },
+        "GetUnsubscription": {
+            "permissions": [],
+            "notes": "No permissions required per Notifications policy reference."
+        },
+        "PublishMessage": {
+            "permissions": [
+                "ONS_TOPIC_PUBLISH"
+            ],
+            "notes": ""
         }
     }
 }

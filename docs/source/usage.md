@@ -1,4 +1,4 @@
-# Usage
+# UI Application - Usage
 
 ## Getting Started
 
@@ -39,60 +39,382 @@ Each tab in the UI provides a specific area of functionality. To understand the 
 **Tabs include:**
 
 ### Settings Tab (Start Here)
+<!-- Anchor link; do not change or remove this line! -->
 
-Set up tenancy/config, import/export tenancy data, enable GenAI, adjust display, and tweak all advanced configurations.
+The **Settings Tab** is where you establish the foundation for all analysis in the application. This is typically your first stop after launching the UI or whenever you switch tenancies/environments.
+
+**Purpose**  
+- Configure tenancy, identity, and environment options.  
+- Import/export cached tenancy data (policies, users, groups, dynamic groups, etc.) for reuse across sessions or machines.  
+- Enable and configure Generative AI (GenAI) capabilities used by other tabs (e.g., explanations, recommendations).  
+- Adjust global display and performance preferences that impact how other tabs behave.
+
+**General Flow**  
+1. Select or enter tenancy-specific details and any required authentication/region parameters.  
+2. Load or import policy data for that tenancy (from OCI or from a previously exported cache file).  
+3. Optionally configure GenAI settings (e.g., enable/disable, model configuration) if you plan to use AI-powered analysis.  
+4. Tune UI preferences such as table density, caching options, and logging levels.  
+5. Save your configuration so it is reused on subsequent launches.
+
+**Key Widgets and Actions**  
+- **Tenancy / Profile selectors:** Choose which tenancy or profile you are currently analyzing.  
+- **Import/Export Data buttons:** Load existing cached data or save the currently loaded tenancy data to a file for reuse or sharing.  
+- **GenAI Configuration panel:** Turn AI features on/off and configure provider-specific options. Tabs like Policy, Recommendations, and Groups/Users rely on this when generating explanations or suggestions.  
+- **Advanced Settings / Caching options:** Control snapshot retention, cache refresh behavior, and logging verbosity.  
+
+Changes made here are **application-wide**: once you import a different policy dataset or adjust global options, all other tabs (Policy Browser, Policy, Simulation, Recommendations, etc.) will immediately reflect the new environment.
 
 ### Policy Browser Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Explore all compartments, policies, and statements in a hierarchical tree. Use right-click to jump to focused views.
+The **Policy Browser Tab** provides a hierarchical, tree-style view of your entire tenancy. It is designed for **navigation and context**, helping you see how compartments, policies, and statements are organized.
+
+**Purpose**  
+- Visualize the compartment hierarchy and attached policies at each level.  
+- Quickly locate policies and statements that apply to a given compartment or path.  
+- Act as a launching point for deeper analysis in more specialized tabs.
+
+**General Flow**  
+1. Expand the root compartment and drill down through child compartments to the area of interest.  
+2. Inspect attached policies and their individual statements for the selected compartment.  
+3. Use context/right-click actions to pivot into more detailed views (Policy Tab, Permissions Report, Cross Tenancy, etc.).  
+4. Optionally export subsets of policies or paths for offline review.
+
+**Key Widgets and Right-Click Actions**  
+- **Compartment/Policy Tree:** Expandable nodes representing compartments and policies. Selecting a node shows details (statements, metadata) in the side panel.  
+- **Statement Detail Pane:** Shows parsed statement text, subject, verbs, resource families, and where-clauses.  
+- **Right-click on a Compartment:**
+  - "Open in Policy Tab" – filters the Policy Tab to that compartment scope.  
+  - "Open in Permissions Report" – jump to an effective-permissions view rooted at that path.  
+  - "Export Policies under this Compartment" – generate a focused export.  
+- **Right-click on a Policy or Statement:**
+  - "Show in Policy Tab" – focus on this specific policy/statement for more advanced filtering and analysis.  
+  - "Copy Path / OCID" – copy identifiers for documentation or scripting.  
+
+Use this tab when you want a **top-down**, visually oriented understanding of your tenancy’s policies before diving into advanced analysis.
 
 ### Policy Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Search, filter, and sort policy statements in the tenancy. Provides tools for drilling down into policy structure and getting AI explanations.
+The **Policy Tab** is the primary workspace for **searching, filtering, and deeply inspecting** policy statements across the tenancy.
+
+**Purpose**  
+- Perform detailed audits of policy statements across compartments.  
+- Search by text, subject, resource family, compartment, or access level.  
+- Understand how individual statements are structured and which subjects they affect.
+
+**General Flow**  
+1. Select initial filters (compartment path, subject type, resource family, etc.) to narrow down the policy set.  
+2. Use the main policy table to sort and refine (e.g., by path, access level, risk flags).  
+3. Select a statement to see a structured breakdown (subject, verb, resource, where-clause).  
+4. Optionally invoke AI explanations or recommendations for complex statements (if GenAI is enabled in Settings).  
+5. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
+
+**Key Widgets and Right-Click Actions**  
+- **Filter Bar / Search Panel:** Filter by compartment path, policy name, subject type, resource family, or free-text search within statements.  
+- **Policy Statement Table:** Shows normalized statements with columns for path, subject, verb, resource, risk markers, and where-clauses.  
+- **Statement Details / Inspector:** A side panel that breaks a statement into its parsed components and may show derived metadata (e.g., permissions, risk categorizations).  
+- **Right-click on a Statement:**
+  - "Open in Policy Browser" – highlight the statement in its original hierarchical context.  
+  - "Show Affected Users/Groups" – pivot into the relevant principals tab.  
+  - "Explain with AI" – request a human-readable explanation (if enabled).  
+
+Use this tab for **compliance checks, policy clean-up, and forensic investigations** into particular statements.
 
 ### Groups / Users Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Find policy statements for a particular user or group. Shows group memberships, user policies, and enables GenAI analysis.
+The **Groups / Users Tab** centers the UI around **human principals** and their effective access.
+
+**Purpose**  
+- Find a specific user or group and see which policies and statements affect them.  
+- Understand group memberships, inheritance, and the combined effect of multiple policies.  
+- Summarize a principal’s access for documentation or review.
+
+**General Flow**  
+1. Search for a user or group by name or identifier.  
+2. Select the principal to load their group memberships and relevant policies.  
+3. Review associated policy statements and derived permissions.  
+4. Optionally generate AI-based summaries or explanations of the principal’s effective access.  
+5. Pivot to the Policy, Policy Browser, or Permissions Report tabs to see the same information from a policy- or compartment-centric perspective.
+
+**Key Widgets and Right-Click Actions**  
+- **Principal Search / Selector:** Autocomplete or filter lists for users and groups.  
+- **Membership View:** Table or tree showing which groups a user belongs to (and possibly nested memberships).  
+- **Related Policies / Statements Panel:** Lists policies that reference the selected principal or its groups.  
+- **Right-click on a Principal or Policy Entry:**
+  - "Open in Policy Tab" – inspect the underlying statement set.  
+  - "Open in Permissions Report" – view all effective permissions for this principal.  
+  - "Explain Effective Access" – trigger a summarized view using GenAI (if enabled).  
+
+Use this tab when the starting point of your question is **“What can this user or group do?”**
 
 ### Dynamic Groups Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-See all dynamic groups, filter or check which are unused, and inspect associated policies.
+The **Dynamic Groups Tab** focuses on **non-human identities** represented as dynamic groups.
+
+**Purpose**  
+- List and inspect all dynamic groups in the tenancy.  
+- Understand which policies target each dynamic group and what resources they control.  
+- Identify unused or overly permissive dynamic groups.
+
+**General Flow**  
+1. Use search or filters to locate dynamic groups by name, usage status, or attributes.  
+2. Select a dynamic group to see its definition, matching rules, and linked policies.  
+3. Review associated policy statements and, if necessary, pivot to Policy or Permissions Report tabs for deeper analysis.  
+4. Use this information to refine dynamic group definitions or tighten access controls in OCI.
+
+**Key Widgets and Right-Click Actions**  
+- **Dynamic Group List / Filter Controls:** Search and filter by group name, tenancy, or usage indicators.  
+- **Group Definition Panel:** Shows the rule expression that defines which resources are members of the dynamic group.  
+- **Linked Policies / Statements Table:** Lists policy statements referencing the dynamic group.  
+- **Right-click on a Dynamic Group or Policy:**
+  - "Open in Policy Tab" – detailed statement inspection.  
+  - "Open in Resource Principals" – see related resource principal views where applicable.  
+  - "Open in Permissions Report" – inspect effective permissions for the dynamic group.  
+
+Use this tab when you’re investigating **resource-based identities and their access footprint**.
 
 ### Resource Principals Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-View statements that allow actions for resource principals (non-human access), including dynamic-group or "any-user" syntaxes.
+The **Resource Principals Tab** surfaces policies and permissions related to **workload identities** (such as compute instances, functions, and other OCI services acting as principals).
+
+**Purpose**  
+- Identify where non-human identities have been granted access via dynamic groups or `any-user` statements.  
+- Understand which workloads are allowed to call which services and APIs.  
+- Support security reviews focused on workload-to-service access.
+
+**General Flow**  
+1. Browse or filter for dynamic groups and statements that correspond to resource principals.  
+2. Review which services, compartments, and operations those principals can access.  
+3. Pivot to Dynamic Groups or Policy tabs to refine or correct identified risks.  
+4. Use Permissions Report to generate a full list of effective permissions for a given resource principal identity.
+
+**Key Widgets and Right-Click Actions**  
+- **Resource Principal Summary Table:** Shows which dynamic groups and policies are tied to resource-based identities.  
+- **Statement Breakdown View:** Parses statements that mention dynamic groups or `any-user` in the context of resource principals.  
+- **Right-click on a Row / Statement:**
+  - "Open in Dynamic Groups" – see the underlying dynamic group configuration.  
+  - "Open in Policy Tab" – detailed view of the source statement.  
+  - "Open in Permissions Report" – generate or navigate to an effective-access view.
+
+Use this tab when your question is **“What can this compute instance or function actually do?”**
 
 ### Cross Tenancy Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-View and filter cross-tenancy statements: "define", "endorse", "admit". See which permissions are granted between tenancies.
+The **Cross Tenancy Tab** highlights **trust relationships between tenancies**.
+
+**Purpose**  
+- Discover statements that define, endorse, or admit cross-tenancy access.  
+- Understand which external tenancies can act in your tenancy, and where you have granted trust outward.  
+- Support security and compliance reviews around external access.
+
+**General Flow**  
+1. Load the cross-tenancy view to see all detected cross-tenancy statements.  
+2. Filter by direction (incoming vs outgoing trust), remote tenancy, or statement type (define/endorse/admit).  
+3. Select an entry to see its full statement text and normalized breakdown.  
+4. Use links to pivot to Policy, Policy Browser, or Permissions Report tabs to inspect the broader impact.
+
+**Key Widgets and Right-Click Actions**  
+- **Cross-Tenancy Summary Table:** Lists each cross-tenancy relationship with columns for local/remote tenancy identifiers, principal, resource, and type (define/endorse/admit).  
+- **Detail Pane:** Shows parsed statement components and any detected risk or configuration notes.  
+- **Right-click on a Row:**
+  - "Open in Policy Tab" – focus on the originating policy and related statements.  
+  - "Open in Permissions Report" – drill down into effective permissions associated with that cross-tenancy relationship.
+
+Use this tab when you’re asking **“Where do we trust or get trusted by other tenancies?”**
 
 ### Permissions Report Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Report of granted permissions by compartment and principal. Useful for audits of effective access.
+The **Permissions Report Tab** is the application’s **effective-access auditor**.
+
+**Purpose**  
+- Generate comprehensive reports of effective permissions for principals across compartments.  
+- Trace back which statements and policies grant a specific permission.  
+- Produce artifacts for audits, reviews, and compliance evidence.
+
+**General Flow**  
+1. Choose a scope (compartment path, principal type, principal name) for your report.  
+2. Run the report to compute effective permissions, resolving group memberships, dynamic groups, and any deny statements.  
+3. Use filters to focus on specific services, permissions, or principals.  
+4. Drill into a row to see source statements and relevant context.  
+5. Export the report (e.g., CSV/JSON) for offline analysis or documentation.
+
+**Key Widgets and Right-Click Actions**  
+- **Report Criteria / Filter Panel:** Select compartments, principal types, specific principals, and optional filters like service family or permission name.  
+- **Effective Permissions Table:** Lists each permission with its principal, compartment, resource type, and source statements.  
+- **Right-click on a Permission Row:**
+  - "Open Source Policy" – jump to the Policy Tab with filters pre-applied.  
+  - "Open Principal" – open the related Groups/Users, Dynamic Groups, or Resource Principals tab.  
+  - "Copy as Evidence" – copy a structured summary for ticketing or audit notes.  
+
+Use this tab when you want a **clear, report-style view** of what access actually exists.
 
 ### Historical Comparison Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Compare IAM and policy data over time (across snapshot caches) to see what changed.
+The **Historical Comparison Tab** lets you compare **snapshots of policy and IAM data over time**.
+
+**Purpose**  
+- Detect what changed between two points in time (policies, statements, memberships, etc.).  
+- Support audit, incident response, and change-management reviews.  
+- Correlate access changes with operational events.
+
+**General Flow**  
+1. Select two (or more) cached snapshots taken at different times.  
+2. Run a comparison to identify added, removed, or modified policies, statements, and memberships.  
+3. Review grouped results by compartment, principal, or policy.  
+4. Drill into individual diffs and pivot to live views (Policy, Groups/Users, Permissions Report) to understand current state.  
+5. Export or document differences as needed for audits or change records.
+
+**Key Widgets and Right-Click Actions**  
+- **Snapshot Selector:** Choose which historical snapshots to compare.  
+- **Change Summary View:** High-level summary of added/removed/changed items.  
+- **Detailed Diff Tables:** Show per-item changes, including before/after details where available.  
+- **Right-click on a Change Row:**
+  - "Open in Policy Tab" – inspect the current (or historical) version of a policy.  
+  - "Open Principal" – jump to the corresponding principal tab where applicable.  
+
+Use this tab whenever you’re asking **“What changed between then and now?”**
 
 ### Embedded MCP Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Start and monitor the embedded Model Context Protocol server for integration and automation.
+The **Embedded MCP Tab** lets you start and manage the **embedded Model Context Protocol (MCP) server** from within the UI.
+
+**Purpose**  
+- Expose your currently loaded policy and permissions data to MCP-compatible clients (such as VS Code, Claude, or other tools).  
+- Support local automation, scripted analysis, and AI-assisted workflows using the same data the UI is showing.  
+- Monitor basic MCP server status and activity while continuing to use the UI.
+
+**General Flow**  
+1. Configure any necessary MCP endpoint or port settings as exposed in the tab.  
+2. Click **Start** to launch the embedded MCP server while the UI is running.  
+3. Connect an MCP client (e.g., VS Code extension, Claude desktop) to the server using the URL/port indicated in the tab.  
+4. Use MCP tools (e.g., policy queries, simulations, recommendations) from the client while watching logs or status in the Embedded MCP tab.  
+5. Click **Stop** before closing the UI, or simply close the UI to stop the embedded server.
+
+**Key Widgets and Actions**  
+- **Server Control Buttons:** Start/Stop the embedded MCP server instance.  
+- **Configuration Panel:** Shows or allows configuration of host, port, protocol (HTTP), and any authentication options used by the embedded server.  
+- **Status Indicator:** Displays whether the MCP server is running and any recent errors.  
+- **Log/Activity View:** Shows basic request/response or connection activity, useful for troubleshooting client connections.
+
+When using this tab, you are exposing your **loaded policy statement set** over MCP. For detailed information about available tools, payloads, and security considerations, see the dedicated [MCP Server](./mcp.md) documentation (pay particular attention to the sections describing the HTTP server mode used by the embedded server).  
+
+This is **different** from starting the standalone MCP server from the command line, which runs without the UI. In the Embedded MCP Tab, the MCP server and the UI share the same process lifecycle: when the UI closes, the embedded MCP server stops. For information about running MCP in a more permanent or remote configuration (for example on an OCI compute instance), see the "Secure deployment on OCI" outline in the [MCP Server](./mcp.md#secure-deployment-on-oci-outline-steps) docs.
 
 ### Condition Tester Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Test any "WHERE" clause from a policy to see if specific input combinations result in a match.
+The **Condition Tester Tab** is a focused utility for **parsing and evaluating IAM policy `where` clauses** in isolation.
+
+**Purpose**  
+- Experiment with and validate complex `where` clauses before committing them to live policies.  
+- See exactly how a condition parses and which variables it expects.  
+- Test sample variable values to understand match vs no-match behavior.
+
+**General Flow**  
+1. Paste or type a `where` clause (or a full policy statement with a `where` clause) into the input area.  
+2. Let the tool parse the condition and list the discovered variables.  
+3. Enter one or more sets of variable values to simulate different scenarios.  
+4. Run the condition evaluation to see which scenarios match and why others fail.  
+5. Use these results to refine your policy conditions, then copy updated conditions back into your policy authoring process.
+
+**Key Widgets and Right-Click Actions**  
+- **Condition Input Editor:** Text area for entering or editing `where` clauses or full statements.  
+- **Parsed Variables Panel:** Lists variable names detected in the condition (e.g., `request.principal.name`, `user.department`).  
+- **Variable Value Grid:** Lets you enter sample values for one or more test cases.  
+- **Evaluation Results Table:** Shows per-test-case match/no-match status and any parse or evaluation errors.  
+- **Integration Shortcuts:** From other tabs (e.g., Policy), you may be able to right-click a statement and send its condition to the Condition Tester for quick experimentation.
+
+This tab complements the **API Simulation Tab** by focusing on **conditions only**. For full policy + permission evaluation against API operations, see the Simulation tab (and the dedicated [Simulation](./simulation.md) documentation).
 
 ### API Simulation Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Script and run access simulations to see how different API calls would be allowed/denied given the loaded policies.
+The **API Simulation Tab** provides a full **what-if simulation environment** for OCI API calls.
+
+**Purpose**  
+- Test whether a specific OCI API operation would be allowed or denied under the currently loaded policies.  
+- Understand which statements (including **prospective** what-if statements) contribute to a decision.  
+- Perform pre-deployment validation of new or changed policies.
+
+**General Flow**  
+1. Select the **simulation environment**: effective compartment path and principal (user, group, dynamic group, resource principal via `any-user`, etc.).  
+2. Load applicable statements (real + prospective) and select which ones to include in the scenario.  
+3. Configure any required `where`-clause variables for the included statements.  
+4. Choose an OCI API operation to test (e.g., `oci:ListBuckets`).  
+5. Run the simulation, then review the allow/deny result, final permission set, and per-statement trace.  
+6. Iterate by toggling statements, adjusting variables, or modifying prospective statements to explore different what-if outcomes.
+
+**Key Widgets and Right-Click Actions**  
+- **Simulation Environment Subtab:** Controls for effective path, principal type, and principal identity.  
+- **Statements and Context Subtab:**
+  - Table of applicable statements (real + `[Prospective]`), with checkboxes to include/exclude each one.  
+  - **Manage Prospective Statements** button to add/edit/remove hypothetical statements stored per tenancy.  
+  - Dynamic where-variable input panel that rebuilds when the set of included statements changes.  
+- **API Operation Selector:** Drop-down or input for selecting the target OCI API operation.  
+- **Simulation History Subtab:** Shows previous runs, their inputs (principal, operation, variables, included prospective statements), and trace details; supports JSON export.
+
+For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page and the project context document [Simulation Engine](./context/project/CONTEXT_simulation_engine.md).
 
 ### Recommendations Tab
+<!-- Anchor link; do not change or remove this line! -->
 
-Review security/compliance recommendations, risk, overlap, statement cleanup, and consolidation suggestions.
+The **Recommendations Tab** centralizes **security and hygiene guidance** derived from your loaded policies and identities.
+
+**Purpose**  
+- Surface risky patterns (e.g., overly broad `any-user` access, unused groups, cross-tenancy risks).  
+- Suggest policy clean-up and consolidation opportunities.  
+- Provide a prioritized queue of issues to review and fix.
+
+**General Flow**  
+1. Load or refresh recommendations based on the current policy dataset.  
+2. Review grouped categories (risk, overlap, clean-up, consolidation, etc.).  
+3. Drill into individual findings to see why they were raised and which statements or principals are involved.  
+4. Use quick links to open affected statements in the Policy or Policy Browser tabs.  
+5. Optionally re-run or validate fixes using API Simulation, Condition Tester, or Permissions Report tabs.
+
+**Key Widgets and Right-Click Actions**  
+- **Recommendation List / Categories:** Grouping by type (e.g., high-risk, informational, clean-up).  
+- **Finding Detail Panel:** Shows the evidence and reasoning behind each recommendation, including referenced statements and principals.  
+- **Right-click on a Recommendation:**
+  - "Open in Policy Tab" – inspect and edit the implicated statements.  
+  - "Open in Policy Browser" – see the recommendation in hierarchical context.  
+  - "Open in Permissions Report" – confirm the effective access behind a risk.  
+
+For more context on how recommendations are generated and categorized, see the dedicated [Recommendations](./recommendations.md) documentation.
 
 ### Console & Maintenance Tabs
+<!-- Anchor link; do not change or remove this line! -->
 
-Inspect logs, debug, and manage maintenance tasks like cache rotation and permission reference lookups.
+The **Console** and **Maintenance** tabs support **operational monitoring and housekeeping**.
+
+**Console Tab – Purpose & Flow**  
+- View real-time application logs and debug information.  
+- Diagnose issues with data loading, MCP integration, or tab behavior.
+
+**Console – Key Widgets**  
+- **Log Output Window:** Streams log messages as you interact with the app.  
+- **Filter / Search Controls:** Filter by log level or search for specific text.  
+- **Log Level Controls (if available):** Adjust verbosity for troubleshooting.
+
+Use the Console tab when you need to **see what the app is doing under the hood**.
+
+**Maintenance Tab – Purpose & Flow**  
+- Run admin and clean-up tasks that keep local data and caches healthy.
+
+**Maintenance – Key Widgets and Actions**  
+- **Cache Management Buttons:** Clear or rotate policy caches; refresh reference data.  
+- **Repair / Diagnostic Tools:** Run routines that check for inconsistent data or stale snapshots.  
+- **Status Messages:** Indicate when maintenance tasks complete and whether any issues were found.
+
+Because maintenance actions can affect data used by other tabs, re-open or refresh impacted tabs (Policy, Simulation, Recommendations, etc.) after performing operations here.
 
 ---
 
