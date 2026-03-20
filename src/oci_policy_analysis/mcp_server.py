@@ -84,6 +84,7 @@ from oci_policy_analysis.common.models_simulation import (  # noqa: E402
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine  # noqa: E402
+from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo  # noqa: E402
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine  # noqa: E402
 
 # Global logger for this module
@@ -1191,9 +1192,22 @@ def main():
     )
 
     # --- Embedded Initialization ---
-    global pca, sim_engine
+    global pca, sim_engine, reference_data_repo
     pca = PolicyAnalysisRepository()
-    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=getattr(pca, 'reference_data_repo', None))
+    reference_data_repo = ReferenceDataRepo()
+
+    # Load reference data so the simulation engine has permission and operation maps
+    try:
+        reference_data_repo.load_data()
+        logger.info(
+            'Reference data loaded for MCP server: services=%d, operations=%d',
+            len(getattr(reference_data_repo, 'data', {}).get('services', {})),
+            len(getattr(reference_data_repo, 'data', {}).get('operations', {})),
+        )
+    except Exception as exc:  # defensive: simulation can still run with direct permissions only
+        logger.warning('Failed to load reference data for MCP server: %s', exc, exc_info=True)
+
+    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=reference_data_repo)
     logger.info('Initialized Policy Analysis Repository and Simulation Engine.')
 
     # Create Cache Manager
@@ -1253,7 +1267,7 @@ def main():
     )
 
     # Now start Simulation Engine
-    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=getattr(pca, 'reference_data_repo', None))
+    sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=reference_data_repo)
     logger.info('Initialized Policy Analysis Repository and Simulation Engine.')
 
     # --- Start MCP Server ---

@@ -129,7 +129,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 'Switch tabs below for different analysis views. '
                 'Use the summary table to quickly see top issues and recommendations.'
             ),
-            page_help_link='/docs/build/html/recommendations.html#navigating-the-recommendations-tab',
+            page_help_link='/recommendations.html',
         )
         self.app = app
         self.policy_repo = app.policy_compartment_analysis
