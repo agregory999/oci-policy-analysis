@@ -320,7 +320,7 @@ class PoliciesTab(BaseUITab):
         effective_path_text = ttk.Entry(self.frm_policy_filter, width=40, textvariable=self.effective_path_var)
         effective_path_text.grid(row=5, column=1, columnspan=3, padx=5, pady=2, sticky='w')
 
-        # Action dropdown
+        # Action dropdown (labels/controls on main row)
         ttk.Label(self.frm_policy_filter, text='Action (allow|deny)').grid(row=5, column=4, padx=5, pady=2, sticky='w')
         action_combo = ttk.Combobox(
             self.frm_policy_filter,
@@ -335,11 +335,36 @@ class PoliciesTab(BaseUITab):
         )
         action_combo.bind('<<ComboboxSelected>>', self.update_policy_output)
 
+        # Doc link row below the labels/controls (use standardized doc-link style)
+        self.create_doc_link_label(
+            self.frm_policy_filter,
+            text='What is Effective Path?',
+            url=self.DOCROOT + '/architecture.html#policy-parsing',
+            row=6,
+            column=0,
+            columnspan=4,
+            padx=5,
+            pady=(0, 4),
+            sticky='w',
+        )
+
+        self.create_doc_link_label(
+            self.frm_policy_filter,
+            text='OCI Deny Policies Documentation',
+            url='https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm',
+            row=6,
+            column=4,
+            columnspan=2,
+            padx=5,
+            pady=(0, 4),
+            sticky='w',
+        )
+
         # Clear Filters button
         self.btn_clear = ttk.Button(
             self.frm_policy_filter, text='Clear Filters', state=tk.DISABLED, command=self.clear_policy_filters
         )
-        self.btn_clear.grid(row=5, column=6, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.btn_clear.grid(row=6, column=6, columnspan=2, padx=5, pady=5, sticky='ew')
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button. Toggles the AI (bottom) pane."""

@@ -29,6 +29,184 @@ To ensure consistency, every tab that supports UI help should inherit from `Base
 
 ---
 
+## 2.1. Built-in Documentation Links
+
+In addition to the page-level help area, `BaseUITab` provides a small helper for creating in-tab documentation links with a consistent look and behavior.
+
+### The `create_doc_link_label` helper
+
+Defined in `src/oci_policy_analysis/ui/base_tab.py`:
+
+```python
+class BaseUITab(ttk.Frame):
+    DOCROOT = 'https://agregory999.github.io/oci-policy-analysis'
+
+    def create_doc_link_label(self, parent, text: str, url: str, **grid_kwargs) -> ttk.Label:
+        """Create a standardized documentation link label.
+
+        - Uses Tenancy Setup Guide styling (blue, underlined, hand cursor).
+        - Binds left-click to open the given URL via BaseUITab.open_link.
+        """
+
+        link_label = ttk.Label(
+            parent,
+            text=text,
+            foreground='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 10, 'underline'),
+        )
+
+        link_label.bind('<Button-1>', lambda _e: self.open_link(url))
+
+        if grid_kwargs:
+            link_label.grid(**grid_kwargs)
+
+        return link_label
+```
+
+Key points:
+
+- **Consistent styling**: All doc links created via this helper use the same visual style as the _"Tenancy Setup Guide"_ link on the Settings tab:
+  - Blue color `#0645AD`.
+  - Underlined `TkDefaultFont` at size 10.
+  - Hand cursor (`cursor='hand2'`).
+- **Consistent behavior**: Clicking the label calls `BaseUITab.open_link(url)`, which centralizes link opening and fallback behavior (showing a message box with the URL if the browser call fails).
+- **Grid integration**: Optional `**grid_kwargs` are passed directly to `.grid(**grid_kwargs)` if present, so you can both create and place the label in a single call.
+
+### Linking to in-repo docs vs. public docs
+
+Links can point to:
+
+- **Internal documentation pages** built from this repository, typically under the `DOCROOT` base URL (e.g., `/setup.html`, `/usage.html#settings-tab-start-here`, `/architecture.html#policy-parsing`).
+- **Public external documentation**, such as Oracle Cloud Infrastructure docs.
+
+For internal docs, prefer building URLs using `DOCROOT` so they stay consistent if the documentation hosting root ever changes:
+
+```python
+setup_doc_url = self.DOCROOT + '/setup.html'
+setup_guide_link = self.create_doc_link_label(
+    label_frm_tenancy_config,
+    text='Tenancy Setup Guide',
+    url=setup_doc_url,
+    row=3,
+    column=3,
+    padx=3,
+    pady=(10, 2),
+    sticky='w',
+)
+```
+
+For external docs, pass the absolute URL directly:
+
+```python
+session_doc_url = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
+session_auth_link_label = self.create_doc_link_label(
+    label_frm_tenancy_config,
+    text='Session Token (oci session authenticate)',
+    url=session_doc_url,
+    row=2,
+    column=0,
+    columnspan=2,
+    padx=5,
+    pady=3,
+    sticky='w',
+)
+```
+
+### Examples of usage in existing tabs
+
+**Settings Tab (`settings_tab.py`)**
+
+- _Tenancy Setup Guide_ link next to the compartment depth selector:
+
+```python
+setup_doc_url = self.DOCROOT + '/setup.html'
+setup_guide_link = self.create_doc_link_label(
+    label_frm_tenancy_config,
+    text='Tenancy Setup Guide',
+    url=setup_doc_url,
+    row=3,
+    column=3,
+    padx=3,
+    pady=(10, 2),
+    sticky='w',
+)
+self.add_context_help(
+    setup_guide_link,
+    'Open the full OCI Policy Analysis setup instructions (docs/source/setup.md) in your web browser.',
+)
+```
+
+- _Session Token (oci session authenticate)_ link:
+
+```python
+session_doc_url = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
+session_auth_link_label = self.create_doc_link_label(
+    label_frm_tenancy_config,
+    text='Session Token (oci session authenticate)',
+    url=session_doc_url,
+    row=2,
+    column=0,
+    columnspan=2,
+    padx=5,
+    pady=3,
+    sticky='w',
+)
+self.add_context_help(
+    session_auth_link_label,
+    CONTEXT_HELP['SESSION_TOKEN'],
+)
+```
+
+**Policies Tab (`policies_tab.py`)**
+
+Under the policy filter fields, the Policies tab surfaces two documentation links that also use the helper:
+
+```python
+effective_path_help = self.create_doc_link_label(
+    self.frm_policy_filter,
+    text='What is Effective Path?',
+    url=self.DOCROOT + '/architecture.html#policy-parsing',
+    row=6,
+    column=0,
+    columnspan=4,
+    padx=5,
+    pady=(0, 4),
+    sticky='w',
+)
+
+deny_policies_help = self.create_doc_link_label(
+    self.frm_policy_filter,
+    text='OCI Deny Policies Documentation',
+    url='https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm',
+    row=6,
+    column=4,
+    columnspan=2,
+    padx=5,
+    pady=(0, 4),
+    sticky='w',
+)
+```
+
+These links:
+
+- Explain how the **Effective Path** is derived.
+- Jump directly to Oracle’s official deny policy syntax documentation.
+- Match the same look-and-feel as Settings tab links because they all use `create_doc_link_label`.
+
+### Guidelines for adding new documentation links
+
+When adding a new doc link on any tab:
+
+1. **Always use** `self.create_doc_link_label(...)` in subclasses of `BaseUITab` rather than creating ad-hoc `ttk.Label` instances for links.
+2. Use `self.DOCROOT + '/path.html#anchor'` for internal docs that are part of this repository’s Sphinx-built site.
+3. Use a full `https://...` URL for public docs (e.g., Oracle Cloud Infrastructure documentation).
+4. Optionally attach context help via `self.add_context_help(link_label, message)` if a short tooltip adds value.
+
+This keeps both the visual style and click behavior of doc links consistent across the entire UI.
+
+---
+
 ## 3. Tab Registration, Data Model/Engine Wiring, and Load Lifecycle
 
 ### How Tabs Are Created and Wired Up

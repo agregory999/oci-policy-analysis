@@ -16,7 +16,6 @@
 import os
 import time
 import tkinter as tk
-import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -305,35 +304,38 @@ class SettingsTab(BaseUITab):
         self.compartment_depth_dropdown.grid(row=3, column=2, padx=5, pady=(10, 2), sticky='w')
 
         # Add Setup Guide link next to compartment depth selector
-        setup_guide_link = ttk.Label(
+        setup_doc_url = self.DOCROOT + '/setup.html'
+        setup_guide_link = self.create_doc_link_label(
             label_frm_tenancy_config,
             text='Tenancy Setup Guide',
-            foreground='#0645AD',
-            cursor='hand2',
-            font=('TkDefaultFont', 10, 'underline'),
+            url=setup_doc_url,
+            row=3,
+            column=3,
+            padx=3,
+            pady=3,
+            sticky='w',
         )
-        setup_guide_link.grid(row=3, column=3, padx=3, pady=(10, 2), sticky='w')
-        setup_doc_url = self.DOCROOT + '/setup.html'
-        setup_guide_link.bind('<Button-1>', lambda e: self.open_link(setup_doc_url))
         self.add_context_help(
             setup_guide_link,
             'Open the full OCI Policy Analysis setup instructions (docs/source/setup.md) in your web browser.',
         )
 
-        # # Add Settings link next to compartment depth selector
-        # settings_link = ttk.Label(
-        #     label_frm_tenancy_config,
-        #     text='Settings Page Guide',
-        #     foreground='#0645AD',
-        #     cursor='hand2',
-        #     font=('TkDefaultFont', 10, 'underline'),
-        # )
-        # settings_link.grid(row=3, column=5, padx=3, pady=(10, 2), sticky='w')
-        # settings_doc_url = self.DOCROOT + '/usage.html#settings-tab-start-here'
-        # settings_link.bind('<Button-1>', lambda e: self.open_link(settings_doc_url))
-        # self.add_context_help(
-        #     settings_link, 'Open the Settings Tab as part of Usage documentation in your web browser.'
-        # )
+        # CIS Compliance Guide link - https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md#cis-compliance-script
+        cis_doc_url = 'https://github.com/oci-landing-zones/oci-cis-landingzone-quickstart/blob/main/README.md#cis-compliance-script'
+        cis_guide_link = self.create_doc_link_label(
+            label_frm_tenancy_config,
+            text='CIS Compliance Output Setup',
+            url=cis_doc_url,
+            row=3,
+            column=5,
+            padx=3,
+            pady=3,
+            sticky='w',
+        )
+        self.add_context_help(
+            cis_guide_link,
+            'How to get CIS Compliance Output data for use with the "Load from Compliance Output Data" button on this page. Instructions are in the linked documentation. Point to the output directory after running script with --raw option.',
+        )
 
         def on_depth_select(event):
             selected_label = self.compartment_depth_dropdown.get()
@@ -410,24 +412,23 @@ class SettingsTab(BaseUITab):
             command=lambda: self._on_load_clicked(use_cache=True),
         ).grid(row=1, column=3, padx=5, pady=5, sticky='w')
 
-        def open_link(event):
-            link = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
-            logger.info(f'Opening link in browser: {link}')
-            webbrowser.open_new(link)
-
         # Session Token (with link)
-        session_auth_link_label = ttk.Label(
+        session_doc_url = 'https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/clitoken.htm'
+        session_auth_link_label = self.create_doc_link_label(
             label_frm_tenancy_config,
             text='Session Token (oci session authenticate)',
-            cursor='hand2',
-            foreground='#0000EE',  # Make it a link
+            url=session_doc_url,
+            row=2,
+            column=0,
+            columnspan=2,
+            padx=5,
+            pady=3,
+            sticky='w',
         )
         self.add_context_help(
             session_auth_link_label,
             CONTEXT_HELP['SESSION_TOKEN'],
         )
-        session_auth_link_label.bind('<Button-1>', open_link)
-        session_auth_link_label.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
         self.session_token_var = tk.StringVar()
         self.session_token_entry = ttk.Entry(label_frm_tenancy_config, textvariable=self.session_token_var, width=25)
         self.session_token_entry.grid(row=2, column=2, padx=5, pady=3)

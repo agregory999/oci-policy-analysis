@@ -31,6 +31,40 @@ class BaseUITab(ttk.Frame):
 
     DOCROOT = 'https://agregory999.github.io/oci-policy-analysis'
 
+    def create_doc_link_label(self, parent, text: str, url: str, **grid_kwargs) -> ttk.Label:
+        """Create a standardized documentation link label.
+
+        - Uses Tenancy Setup Guide styling (blue, underlined, hand cursor).
+        - Binds left-click to open the given URL via BaseUITab.open_link.
+
+        Args:
+            parent: Parent widget (frame/label frame) to attach the label to.
+            text:   Text to display for the link.
+            url:    Absolute or relative URL. If relative and starting with '/',
+                    callers should usually build it with self.DOCROOT first.
+            **grid_kwargs: Optional grid() keyword arguments. If provided, this
+                    helper will call .grid(**grid_kwargs) on the label.
+
+        Returns:
+            The created ttk.Label instance (already bound to open the link).
+        """
+
+        link_label = ttk.Label(
+            parent,
+            text=text,
+            foreground='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 10, 'underline'),
+        )
+
+        # Bind click to open the URL using the shared open_link helper
+        link_label.bind('<Button-1>', lambda _e: self.open_link(url))
+
+        if grid_kwargs:
+            link_label.grid(**grid_kwargs)
+
+        return link_label
+
     def open_link(self, url: str):
         """
         Open a link in the user's web browser. If browser opening fails, display the URL in a messagebox.
