@@ -12,7 +12,7 @@ source .venv/bin/activate
 pip install -e .
 python -m oci_policy_analysis.main
 ```
-Or run a packaged release right feom your desktop:
+Or run a packaged release right from your desktop:
 ```bash
 oci-policy-analysis.exe   # Windows
 oci-policy-analysis.app   # macOS
