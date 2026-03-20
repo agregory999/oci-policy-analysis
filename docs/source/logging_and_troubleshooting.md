@@ -69,12 +69,12 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 - **Common Errors:** Review logs for full error traces or use the Console and JSON Debugger for more details.
 - **No Output or Silent Failure:**  
-  - Ensure logging is not set to ERROR-only for all components.
+  - Ensure logging is not set to ERROR or CRITICAL for all components.
   - Check that the appropriate components are enabled.
 - **Unexpected Behavior:**  
-  - Use DEBUG level for the affected component(s), repeat the action, and consult logs/Console output.
+  - Use INFO level for the affected component(s), repeat the action, and consult logs/Console output.
+  - DEBUG logging is available with the shell only, and should be used with caution as it is very verbose.
 - **UI Not Responding:**  
-  - Open developer tools (F12), check for browser console errors.
   - Check backend logs for exceptions.
 
 *If you need more detailed guidance, refer to the main documentation or contact the maintainers.*

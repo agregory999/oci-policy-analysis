@@ -17,7 +17,7 @@ In the case of the standalone MCP Server, command line options are available, wh
 
 ## MCP Architectures
 
-Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Others expect you to have an MCP Server running and they will conenct.  Both architectures are shown here:
+Many popular MCP tools allow a sub-process to run, using the STDIO mechanism.  Others expect you to have an MCP Server running and they will connect.  Both architectures are shown here:
 
 ### MCP via STDIO:
 
@@ -320,7 +320,7 @@ VSCode logs and output should show communication with MCP.
 
 #### Flavor 2 - Load via OCI SDK (Live Data)
 
-Without the cache, it will conenct to the tenancy and load the data.
+Without the cache, it will connect to the tenancy and load the data.
 
 ```json
 		"mcp-local-stdio-live": {

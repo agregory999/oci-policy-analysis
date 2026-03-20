@@ -33,4 +33,4 @@ class ConsolidationSuggestionStrategy:
         engine = params.get('engine')
         if not engine:
             return
-        engine.build_policy_consolidation(skip_demo=True)
+        engine.build_policy_consolidation()

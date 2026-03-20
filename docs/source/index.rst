@@ -11,10 +11,10 @@ Contents
 
    overview
    setup
+   usage
    architecture
    simulation
    recommendations
-   usage
    mcp
    cli
    logging_and_troubleshooting

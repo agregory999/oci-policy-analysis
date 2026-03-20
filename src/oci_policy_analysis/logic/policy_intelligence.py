@@ -907,7 +907,7 @@ class PolicyIntelligenceEngine:
         consolidations = self.overlay.get('consolidations') or []
         recommendations = []
 
-        # Consolidation: direct user to Consolidation Workbench and suggest strategies
+        # Consolidation: direct user to consolidation documentation/resources and suggest strategies
         if consolidations:
             strategy_hint = ''
             if consolidation_strategy_names:
@@ -917,9 +917,16 @@ class PolicyIntelligenceEngine:
                     'Recommendation': 'Consider consolidating policies',
                     'Priority': 'Medium',
                     'Category': 'Consolidation',
-                    'Notes': f'{len(consolidations)} consolidation opportunity(ies) detected. Use the Consolidation Workbench to generate a plan.',
-                    'Action': 'Use Consolidation Workbench',
-                    'ActionDetail': f'Open the Consolidation Workbench tab, select candidate statements, and generate a consolidation plan.{strategy_hint}',
+                    'Notes': (
+                        f'{len(consolidations)} consolidation opportunity(ies) detected. '
+                        'Refer to OCI documentation, Oracle Cloud security blogs, and your local security/identity experts to develop a consolidation plan.'
+                    ),
+                    'Action': 'Plan: Review consolidation opportunities with documentation and local experts',
+                    'ActionDetail': (
+                        'Review the listed consolidation candidates, then consult OCI policy documentation, Oracle Security/Cloud blogs, '
+                        'and your local cloud security/identity experts to design and implement a safe consolidation approach.'
+                        f'{strategy_hint}'
+                    ),
                 }
             )
 
@@ -1086,7 +1093,7 @@ class PolicyIntelligenceEngine:
             f'Built overall recommendations: {len(recommendations)} total, {critical_count} critical, {high_count} high.'
         )
 
-    def build_policy_consolidation(self, skip_demo: bool = False):
+    def build_policy_consolidation(self):
         """
         Analyze policies/statements for possible consolidation opportunities and
         populate overlay["consolidations"] with a list of dicts::
@@ -1169,20 +1176,6 @@ class PolicyIntelligenceEngine:
                     }
                 )
 
-        if not skip_demo:
-            # Demo stub row (legacy display testing); skip when run via strategy.
-            consolidation_findings.append(
-                {
-                    'Statement': '[Sample] Consolidation not yet implemented: demo stub row',
-                    'Policy Name(s)': '[demo]',
-                    'Compartment': '[sample]',
-                    'Principal': '[sample]',
-                    'Service/Resource': '[sample]',
-                    'Consolidation Reason': 'Demo: Consolidation engine stubbed/not implemented yet.',
-                    'Action': 'Not yet implemented',
-                    'ActionDetail': 'Policy consolidation is not implemented in this version. This is a stub/demo entry for UI and engine plumbing.',
-                }
-            )
         self.overlay['consolidations'] = consolidation_findings
 
 

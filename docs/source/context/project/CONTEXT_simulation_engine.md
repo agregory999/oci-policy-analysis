@@ -55,19 +55,21 @@ Whether simulation is initiated from the UI or via MCP, the process is broken in
    - Compartment path  
    - Principal type & value (domain/name, or string for "any-user"/"service")
 
-2. **Load Policy Statements:**  
+2. **Load Policy Statements (Real + Prospective):**  
    - Call:  
      - UI: via simulation engine API  
      - MCP: via `prepare_simulation` tool  
    - Output:  
      - Principal Key (calculated example `"principal_key": "user:Default/anita"`)
-     - List of applicable policy statements (real + prospective, where applicable)
+     - **Merged list of applicable policy statements** for the given `principal_key` and `effective_path`, including:
+       - Real tenancy statements from the policy repository.
+       - Any **prospective (what‑if) statements** whose `compartment_path` is equal to or a parent of `effective_path`.
    - Engine API:  
      - Canonical call is `get_applicable_statements(principal_key, effective_path)` (or equivalent wrapper).  
-       The engine internally maps the `principal_key` (which encodes both the principal type and identity) to the proper `PolicySearch` filter (`exact_users`, `exact_groups`, `exact_dynamic_groups`, or `subject`), ensuring correct filtering for all principal types.
+       The engine internally maps the `principal_key` (which encodes both the principal type and identity) to the proper `PolicySearch` filter (`exact_users`, `exact_groups`, `exact_dynamic_groups`, or `subject`), ensuring correct filtering for all principal types and then **merges in prospective statements** (see section 10) before returning to UI/MCP.
 
 3. **Gather Where-Input Values:**  
-   - Engine exposes a *derived* view of required where‑variables based on the selected statements’ condition strings.  
+   - Engine exposes a *derived* view of required where‑variables based on the selected statements’ condition strings (**after real + prospective statements have been merged and filtered**).  
    - UI: Auto‑generates dynamic input fields for variables every time the set of *included* (checked) statements changes. The where‑context panel is **always present**, even if the user chooses not to fill any values (in which case the `where_context` is `{}`).
    - MCP: Client must provide a mapping of variable inputs as JSON (the engine does not require a separate “load fields” call; it simply consumes the mapping).
 
@@ -82,13 +84,13 @@ Whether simulation is initiated from the UI or via MCP, the process is broken in
      - Principal key (format above)
      - Where clause values (as JSON dict; may be empty `{}`)
      - Optional list of statements to consider.
-       - For UI, the internal IDs of the *currently included* statements are collected and passed.
-       - For MCP, this is typically omitted, which implies “use all applicable statements from the effective path and principal key”.
+       - For UI, the internal IDs of the *currently included* statements are collected and passed (these IDs may reference real **or prospective** statements; the engine treats them uniformly).
+       - For MCP, this is typically omitted, which implies “use all applicable statements from the filter (real + prospective)”.
      - Whether to provide trace output (if `True`, include a per‑statement trace and final permission set).
    - Output:
      - Allow/Deny result
-     - Set of granted permissions
-     - Optional: decision trace (per-statement allow/deny, conditions)
+     - Set of granted permissions (reflecting the combined effect of real and prospective statements)
+     - Optional: decision trace (per-statement allow/deny, conditions, including which statements were prospective).
 
 6. **Review/Present Results:**  
    - UI: Results & trace are displayed in a dedicated **Simulation History** view and can be exported as JSON. Each run is named (e.g., `"oci:ListBuckets | user:Default/anita"`) and added to a history list.  
@@ -167,10 +169,11 @@ All model definitions in `common/models.py` must be strictly followed by both UI
 ```mermaid
 flowchart LR
     A(Select context – Environment subtab) --> B(Load applicable statements – Statements & Context)
-    B --> G(Select statements for consideration – check/uncheck)
-    G --> C(Auto-build where-inputs panel)
+    B --> B2(Merge real + prospective statements in engine)
+    B2 --> G(Select statements for consideration – check/uncheck)
+    G --> C(Auto-build where-inputs panel from merged set)
     C --> D(Select API operation)
-    D --> E(Run simulation)
+    D --> E(Run simulation on merged statement set)
     E --> F(Review results – Simulation History)
 ```
 - *UI path* (three subtabs):  
@@ -238,8 +241,8 @@ The simulation engine also supports **prospective** policy statements: hypotheti
     - Caller passes lightweight dicts with `compartment_path`, `statement_text`, optional `description`.
     - Engine normalizes, sets `is_prospective=True`, and assigns unique `internal_id` values.
 
-- **Applicability & Merging**
-  - Prospective statements are merged into the normal flow via `get_applicable_statements`:
+- **Applicability & Merging (Stage 2)**
+  - Prospective statements are merged into the normal flow as part of **Stage 2 – Load Policy Statements** via `get_applicable_statements`:
     ```python
     def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:
         # 1) Use policy_repo.filter_policy_statements for base (tenancy) statements.
@@ -248,6 +251,7 @@ The simulation engine also supports **prospective** policy statements: hypotheti
         # 3) Return a merged list.
     ```
   - The same principal filtering semantics apply: callers pass a `principal_key` and `effective_path`, and any prospective statements that would be in scope for that path are included alongside real tenancy statements.
+  - Downstream stages (where-field extraction, simulation, history) always operate on this **merged set**; they do not distinguish between real and prospective statements for business logic.
 
 - **Simulation Semantics**
   - After merging, prospective statements are indistinguishable from real statements for:

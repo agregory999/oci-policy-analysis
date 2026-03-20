@@ -18,7 +18,7 @@
 - **Condition Tester**: Evaluates a hypothetical where clause based on user inputs for known variables.
 - **Permissions Report**: Show all granted or denied underlying OCI permissions by compartment and principal
 - **MCP Server**: Expose your tenancy as an MCP server and answer policy questions from tools like Claude or VSCode using your real data.
-- **API Simulation**: Attempt to determine *if* an OCI API call can be made, based on the principal and where clause values.
+- **API Simulation**: Attempt to determine *if* an OCI API call can be made, based on the principal and where clause values.  Allows prospective statements to be added per tenancy, which are evaluated as if they were real.
 - **Recommendations**: Generate and catalog potential issues, changes, overlaps, limit issues, and other suggestions with a workbench-style approach that supports offline activity.
 
 The application supports Instance Principal authentication (OCI compute instances), OCI CLI/config file-based authentication (using named profiles), and Session Token Authentication.
