@@ -1,3 +1,25 @@
+# [4.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.3.0...v4.4.0) (2026-03-20)
+
+
+### Bug Fixes
+
+* Build file, Page help links ([c0063e0](https://github.com/agregory999/oci-policy-analysis/commit/c0063e0296b70ab88bb49b56bd901dca01c3fa6c))
+* Condition Tester Detail ([a77406d](https://github.com/agregory999/oci-policy-analysis/commit/a77406d4bdf99cf7b66a3c5beddcd9a6ecc100a4))
+* Data Table performance and timing ([a6af325](https://github.com/agregory999/oci-policy-analysis/commit/a6af3256e1b2ddb54b54c65d1e18e3d335bba57b))
+* Doc and small tweaks ([d7bc29e](https://github.com/agregory999/oci-policy-analysis/commit/d7bc29e9fdc8f9dc5e66ab55560b30fdcb35f5be))
+* doc links within tabs ([5fd70c9](https://github.com/agregory999/oci-policy-analysis/commit/5fd70c91c7d886c2b11eb77534be079eb43aeea8))
+* Main and MCP log tweak ([6436171](https://github.com/agregory999/oci-policy-analysis/commit/6436171725c65088413e31be7c448fa491f87da4))
+* Main window size and build release ([4127889](https://github.com/agregory999/oci-policy-analysis/commit/41278894a5ef702d6475d1edb40054efcc35abdb))
+* Refined parsing, Experimental Mode, OCID-based right clicks ([798051f](https://github.com/agregory999/oci-policy-analysis/commit/798051f107b77cf6ad0f95f19eed61fc17cb595b))
+* Simualtion and file service update ([cb4f220](https://github.com/agregory999/oci-policy-analysis/commit/cb4f220d049e0a2162c4ddddbbea499df95acb07))
+* Simualtion, MCP enhancements ([19c36ad](https://github.com/agregory999/oci-policy-analysis/commit/19c36adf52c15d8a13d289d166d0b98e220ad8f2))
+
+
+### Features
+
+* Consolidation code ([d6689eb](https://github.com/agregory999/oci-policy-analysis/commit/d6689eb65b19bef78e39359b0ce99a69d18a9acd))
+* Merge pull request [#38](https://github.com/agregory999/oci-policy-analysis/issues/38) from agregory999/develop ([0dbbc60](https://github.com/agregory999/oci-policy-analysis/commit/0dbbc60e1e88e6432718347eacbda9b55c3fa054))
+
 # [4.4.0-dev.11](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.10...v4.4.0-dev.11) (2026-03-20)
 
 
