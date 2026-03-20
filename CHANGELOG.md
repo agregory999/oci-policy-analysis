@@ -1,3 +1,10 @@
+## [4.4.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0...v4.4.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* MCP Simulation ([39689b2](https://github.com/agregory999/oci-policy-analysis/commit/39689b2baadff7476d5c37d53c432b70a10613ef))
+
 # [4.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.3.0...v4.4.0) (2026-03-20)
 
 
