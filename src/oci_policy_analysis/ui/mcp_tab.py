@@ -74,7 +74,7 @@ class McpTab(BaseUITab):
         _start_mcp: (Internal) Starts the MCP server in a separate thread.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository, settings):
+    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):
         super().__init__(
             parent,
             default_help_text=(
@@ -84,7 +84,7 @@ class McpTab(BaseUITab):
             page_help_link='/usage.html#embedded-mcp-tab',
         )
         self.app = app
-        self.settings = settings
+        self.settings = app.settings
         self.policy_repo = policy_repo
         self.server_running = False
 
@@ -118,13 +118,23 @@ class McpTab(BaseUITab):
         self.status_lbl = ttk.Label(ctrl_frame, text='Stopped', foreground='red')
         self.status_lbl.grid(row=1, column=1, padx=(0, 5), pady=(2, 2), sticky='w')
 
+        # Application-level MCP logging toggle
         self.debug_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             ctrl_frame,
-            text='Enable MCP Debug Logging',
+            text='Enable MCP App Debug Logging',
             variable=self.debug_var,
             command=self._toggle_debug,
-        ).grid(row=2, column=0, columnspan=2, padx=5, pady=(4, 4), sticky='w')
+        ).grid(row=2, column=0, columnspan=2, padx=5, pady=(4, 2), sticky='w')
+
+        # FastMCP / uvicorn (framework) logging toggle
+        self.fastmcp_debug_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            ctrl_frame,
+            text='Enable FastMCP / Uvicorn Debug',
+            variable=self.fastmcp_debug_var,
+            command=self._toggle_fastmcp_debug,
+        ).grid(row=3, column=0, columnspan=2, padx=5, pady=(0, 4), sticky='w')
 
         # Tools table on the right
         tools_frame = ttk.LabelFrame(top_frame, text='Available MCP Tools')
@@ -280,17 +290,37 @@ class McpTab(BaseUITab):
         self.after(5000, self._start_status_poll)
 
     def _toggle_debug(self):
+        """Toggle debug level for our MCP app components.
+
+        This controls loggers under the oci-policy-analysis namespace that
+        are directly responsible for MCP behaviour (server + tab UI).
+        """
+
         level = 'DEBUG' if self.debug_var.get() else 'INFO'
 
         # Our component loggers
         set_component_level('mcp_server', level)
         set_component_level('mcp_tab', level)
 
-        # Third-party families (not under our hierarchy) — set directly
-        # logging.getLogger('fastmcp').setLevel(getattr(logging, level))
-        # logging.getLogger('uvicorn').setLevel(getattr(logging, level))
+        logger.info(f'Set MCP app component loggers to {level}')
 
-        logger.info(f'Set MCP-related loggers to {level}')
+    def _toggle_fastmcp_debug(self):
+        """Toggle debug level for FastMCP / uvicorn framework loggers.
+
+        This is intentionally separate from application-level logging to
+        avoid overwhelming the UI with framework-internal noise unless
+        explicitly requested.
+        """
+
+        level_name = 'DEBUG' if self.fastmcp_debug_var.get() else 'INFO'
+        level_value = getattr(logging, level_name)
+
+        # Third-party families (not under our hierarchy) — set directly
+        for name in ('fastmcp', 'uvicorn'):
+            lg = logging.getLogger(name)
+            lg.setLevel(level_value)
+
+        logger.info(f'Set FastMCP/uvicorn loggers to {level_name}')
 
     # -------------------------
     # Tools list from static resource

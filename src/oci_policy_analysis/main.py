@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import json
 import logging
+import platform
 import queue
 import threading
 import time
@@ -31,6 +32,7 @@ import warnings
 import webbrowser
 from importlib.resources import files
 
+import oci
 from dateutil import parser as dtparser
 
 # Application imports
@@ -76,7 +78,12 @@ except Exception:
 warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
+# Filter out specific RuntimeWarning about module re-imports that can occur in certain environments (e.g., PyInstaller) and are non-fatal
+warnings.filterwarnings(
+    'ignore',
+    category=RuntimeWarning,
+    message=r".*'oci_policy_analysis.main' found in sys.modules after import of package 'oci_policy_analysis'.*",
+)
 
 # ----------- MAIN APPLICATION CLASS ------------
 """
@@ -206,6 +213,7 @@ class App(tk.Tk):
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.debugger_tab = DebuggerTab(self.notebook, self)
+        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis)
         # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
         self.consolidation_tab = None
         if self.experimental_features:
@@ -223,7 +231,6 @@ class App(tk.Tk):
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis, self.settings)
         self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
@@ -1122,6 +1129,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logger = get_logger(component='main')
+
+    # Print a welcome message with version info at startup
+    logger.info('--- Starting OCI Policy Analysis Application ---')
+    logger.info(f'Application version: {__version__}')
+    logger.info(f'Python version: {platform.python_version()}')
+    logger.info(f'OCI SDK version: {oci.__version__}')
 
     # --- OVERRIDE: Force ALL loggers to DEBUG level if --verbose is set ---
     if args.verbose:

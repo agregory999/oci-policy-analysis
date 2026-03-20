@@ -1109,7 +1109,7 @@ def start_mcp_server_in_thread(settings: dict):
         logger.info('MCP server is already running.')
         return
 
-    logger.debug(f'Starting MCP server thread with config: {settings}')
+    # Set the boolean for running status before starting the thread to prevent race conditions in status checks
     server_running = False  # reset
 
     def _run():
