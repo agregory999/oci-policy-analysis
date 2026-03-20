@@ -1,3 +1,10 @@
+# [4.4.0-dev.11](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.10...v4.4.0-dev.11) (2026-03-20)
+
+
+### Bug Fixes
+
+* Main and MCP log tweak ([6436171](https://github.com/agregory999/oci-policy-analysis/commit/6436171725c65088413e31be7c448fa491f87da4))
+
 # [4.4.0-dev.10](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0-dev.9...v4.4.0-dev.10) (2026-03-20)
 
 
