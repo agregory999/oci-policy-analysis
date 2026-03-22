@@ -1,3 +1,10 @@
+## [4.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.0...v4.5.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* Usage Tracking Simulation Runs ([18ff834](https://github.com/agregory999/oci-policy-analysis/commit/18ff834154fedbb46b87c299661e991fe70d9454))
+
 # [4.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.1...v4.5.0) (2026-03-22)
 
 
