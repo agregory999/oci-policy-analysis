@@ -332,6 +332,7 @@ class App(tk.Tk):
         self.after(0, self.apply_theme)
 
         # === STATUS BAR (Fixed 1-line) at window bottom ===
+        # Left side: dynamic policy/usage tracking text
         self.status_var = tk.StringVar(value='Policy Data: (Not Loaded)')
         # Use a dedicated font for the status bar, will sync with theme/font size in apply_theme()
         self.status_font = (
@@ -341,10 +342,42 @@ class App(tk.Tk):
                 name='StatusFont', family=self.default_font.actual('family'), size=self.default_font.actual('size')
             )
         )
+        # Wrap status bar in a frame so we can add a right-aligned clickable "Issues/Comments" link
+        self.status_frame = ttk.Frame(self)
+        self.status_frame.pack(side='bottom', fill='x')
+
         self.status_bar = ttk.Label(
-            self, textvariable=self.status_var, relief=tk.SUNKEN, anchor='w', padding=4, font=self.status_font
+            self.status_frame,
+            textvariable=self.status_var,
+            relief=tk.SUNKEN,
+            anchor='w',
+            padding=4,
+            font=self.status_font,
         )
-        self.status_bar.pack(side='bottom', fill='x')
+        self.status_bar.pack(side='left', fill='x', expand=True)
+
+        # Right side: GitHub Issues/Comments "link" (opens default browser)
+        self.issues_link = ttk.Label(
+            self.status_frame,
+            text='Issues/Comments',
+            foreground='blue',
+            cursor='hand2',
+            padding=(8, 4),
+            font=self.status_font,
+        )
+        self.issues_link.pack(side='right')
+        # Underline the text to make it look like a hyperlink
+        try:
+            issues_font = tkfont.Font(font=self.status_font)
+            issues_font.configure(underline=1)
+            self.issues_link.configure(font=issues_font)
+        except Exception:
+            pass
+        # Bind click to open GitHub issues page
+        self.issues_link.bind(
+            '<Button-1>',
+            lambda _event: self.open_link('https://github.com/agregory999/oci-policy-analysis/issues'),
+        )
         # [CROSS-PLATFORM PATCH] Improve status bar visibility on Windows by setting background/foreground.
         try:
             self.status_bar.configure(background='#FFF9CC', foreground='black', borderwidth=1)
