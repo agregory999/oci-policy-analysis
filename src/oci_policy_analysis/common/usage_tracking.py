@@ -90,11 +90,31 @@ class UsageEvent:
 
 
 @dataclass
+class UsageOperation:
+    """Single high-level operation captured during a run.
+
+    Operations represent *meaningful actions* the user performs, such as
+    simulation runs. They are tracked separately from lightweight UI events
+    (tab changes, loads, etc.) so that analytics can focus on feature usage
+    without overloading the event stream.
+
+    IMPORTANT: As with UsageEvent, this payload must never contain policy
+    text, usernames, full tenancy OCIDs, or other sensitive content. Only
+    non-personal aggregates and identifiers (like internal ids) are allowed.
+    """
+
+    op_type: str
+    ts: str
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class UsageRunDocument:
     """Document persisted per app run.
 
     Written as a single JSON object to Object Storage using the configured
-    write-only PAR. Contains high-level metadata plus the list of events.
+    write-only PAR. Contains high-level metadata plus the list of events and
+    operations.
     """
 
     run_id: str
@@ -104,6 +124,7 @@ class UsageRunDocument:
     os: str
     python: str
     events: list[UsageEvent] = field(default_factory=list)
+    operations: list[UsageOperation] = field(default_factory=list)
 
 
 class UsageTracker:
@@ -121,6 +142,7 @@ class UsageTracker:
         self.ended_at: str | None = None
         self.tenancy_suffix: str | None = None
         self._events: list[UsageEvent] = []
+        self._operations: list[UsageOperation] = []
         self._lock = threading.Lock()
         self._flushed = False
 
@@ -198,6 +220,24 @@ class UsageTracker:
             # Silent failure is acceptable; log at DEBUG only.
             logger.debug('UsageTracker.track failed', exc_info=True)
 
+    def track_operation(self, op_type: str, **payload: Any) -> None:
+        """Record a high-level operation if tracking is enabled.
+
+        This is a sibling to :meth:`track` but is intended for substantive
+        user actions (e.g., simulation runs) rather than general UI events.
+
+        The payload should contain only non-personal, aggregate metrics.
+        """
+
+        if not self.enabled:
+            return
+        try:
+            op = UsageOperation(op_type=op_type, ts=_utc_now_iso(), payload=payload or {})
+            with self._lock:
+                self._operations.append(op)
+        except Exception:
+            logger.debug('UsageTracker.track_operation failed', exc_info=True)
+
     def flush(self) -> None:
         """Serialize and upload the run document via PAR.
 
@@ -214,6 +254,7 @@ class UsageTracker:
             self._flushed = True
             self.ended_at = self.ended_at or _utc_now_iso()
             events_copy = list(self._events)
+            operations_copy = list(self._operations)
 
         base_url = _get_par_base_url()
         if not base_url:
@@ -237,6 +278,7 @@ class UsageTracker:
             os=platform.platform(),
             python=platform.python_version(),
             events=events_copy,
+            operations=operations_copy,
         )
 
         try:

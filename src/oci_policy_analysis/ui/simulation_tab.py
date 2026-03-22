@@ -23,6 +23,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable
@@ -1676,7 +1677,7 @@ class SimulationTab(BaseUITab):
             return new_v
         return value
 
-    def _run_simulation_with_trace(self):
+    def _run_simulation_with_trace(self):  # noqa: C901
         logger.info('Starting simulation with current selections')
 
         # Summarize key selections at INFO, only detail (statements) at DEBUG
@@ -1721,6 +1722,60 @@ class SimulationTab(BaseUITab):
             trace_name=sim_trace_name,
             trace=True,
         )
+
+        # Track this simulation as a high-level operation (batched per run).
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                sim_trace = result.get('simulation_trace') or {}
+                final_perms = set(sim_trace.get('final_permission_set') or [])
+                required = set(result.get('required_permissions_for_api_operation') or [])
+                missing = set(result.get('missing_permissions') or [])
+
+                # Compute basic allow/deny counts from statement trace without
+                # recording any raw statement text.
+                allow_count = 0
+                deny_count = 0
+                prospective_count = 0
+                stmt_items = sim_trace.get('trace_statements') or []
+                for st in stmt_items:
+                    action = str(st.get('action', '')).lower()
+                    if action == 'allow':
+                        allow_count += 1
+                    elif action == 'deny':
+                        deny_count += 1
+
+                # Count total vs prospective statements considered based on
+                # internal ids present in checked_statements mapping.
+                total_checked = 0
+                for _var, st in self.checked_statements.values():
+                    if not isinstance(st, dict):
+                        continue
+                    total_checked += 1
+                    if st.get('is_prospective'):
+                        prospective_count += 1
+
+                tracker.track_operation(
+                    'simulation_run',
+                    api_operation=api_operation,
+                    principal_type=ptype,
+                    # redacted principal value; we only log whether one was selected
+                    principal_selected=bool(pname_display),
+                    effective_path=cpath,
+                    total_statements=total_checked,
+                    prospective_statements=prospective_count,
+                    allow_statements_considered=int(result.get('allow_statements_considered') or 0),
+                    deny_statements_considered=int(result.get('deny_statements_considered') or 0),
+                    final_permission_count=len(final_perms),
+                    required_permission_count=len(required),
+                    missing_permission_count=len(missing),
+                    # We track whether the operation would be allowed, but
+                    # not the specific missing permissions.
+                    api_call_allowed=bool(result.get('api_call_allowed')),
+                )
+        except Exception:
+            # Never let usage tracking failures impact simulation UX.
+            logger.debug('Failed to record simulation_run operation for usage tracking', exc_info=True)
 
         # Cache for dynamic re-render on Show Trace toggle
         self.simulation_results = result

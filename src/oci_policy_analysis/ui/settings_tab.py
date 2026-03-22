@@ -160,7 +160,7 @@ class SettingsTab(BaseUITab):
             banner.pack(fill='x', padx=10, pady=(10, 0))
 
         # Left: explanatory text
-        text = (
+        intro_banner_text = (
             'This is an UNOFFICIAL desktop helper tool that uses the official OCI Python SDK '
             'to analyze and explore IAM policies. Anonymous Usage Tracking is enabled '
             'by default and is controlled from the "Anonymous Usage Tracking" '
@@ -169,7 +169,7 @@ class SettingsTab(BaseUITab):
             'email addresses, or resource OCIDs are ever sent.'
         )
 
-        label = ttk.Label(banner, text=text, wraplength=1100, justify='left')
+        label = ttk.Label(banner, text=intro_banner_text, wraplength=1300, justify='left')
         label.pack(side='left', fill='x', expand=True, padx=(4, 8), pady=4)
 
         # Right: Dismiss button that hides the banner and persists the flag
