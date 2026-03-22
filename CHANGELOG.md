@@ -1,3 +1,10 @@
+# [4.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.1...v4.5.0) (2026-03-22)
+
+
+### Features
+
+* Usage Tracking ([961b664](https://github.com/agregory999/oci-policy-analysis/commit/961b66427b7e9fc9ab9876d685ef8804c8b14695))
+
 ## [4.4.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.4.0...v4.4.1) (2026-03-20)
 
 
