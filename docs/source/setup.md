@@ -30,7 +30,6 @@ Use this option if you just want to run the tool and do **not** plan to modify t
 2. Download the latest build for your platform:
    - **Windows:** `.exe` installer
    - **macOS:** `.app` bundle (may be wrapped in a `.dmg` or `.zip`)
-   - **Linux:** platform-appropriate binary or AppImage (as provided)
 3. Run the installer or application as you would any other program on your OS.
 
 When using a platform executable:

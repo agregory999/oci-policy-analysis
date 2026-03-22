@@ -162,7 +162,7 @@ class SettingsTab(BaseUITab):
         # Left: explanatory text
         text = (
             'This is an UNOFFICIAL desktop helper tool that uses the official OCI Python SDK '
-            'to analyze and explore IAM policies. Anonymous Usage Tracking is enabled'
+            'to analyze and explore IAM policies. Anonymous Usage Tracking is enabled '
             'by default and is controlled from the "Anonymous Usage Tracking" '
             'checkbox below. It only sends anonymous, non-personal usage data (for example: which '
             'tabs are opened and high-level counts of loaded data). No policy text, usernames, '
