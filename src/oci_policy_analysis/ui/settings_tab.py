@@ -38,7 +38,7 @@ AI_MODEL_COLUMN_WIDTHS = {
 
 # Context help messages for the SettingsTab
 CONTEXT_HELP = {
-    'DISPLAY_OPTIONS': 'Adjust display, font size, and power-user tab features. Affects the entire UI experience.',
+    'DISPLAY_OPTIONS': 'Adjust general UI settings such as font size, context help, console/maintenance/advanced tabs, and optional anonymous usage tracking.',
     'MCP_CONFIG': 'Configure the built-in MCP server for advanced automation and API analysis integration.',
     'TENANCY_CONFIG': (
         'Set your OCI tenancy and authentication method. Choose between instance principal, named profile, or session token. '
@@ -128,16 +128,80 @@ class SettingsTab(BaseUITab):
         # Build the UI
         self._build_ui()
 
+        # One-time inline banner at the very top of the Settings tab, above the
+        # normal Context Help area, instead of a separate messagebox. This
+        # avoids z-order/focus issues on macOS while still being prominent.
+        if not bool(self.settings.get('intro_unofficial_tracking_shown', False)):
+            self._create_intro_banner()
+
     # ----- Page Help (Context Help) helpers -----
     # (Now inherited from BaseUITab. Any customizations can override as needed.)
 
+    def _create_intro_banner(self) -> None:
+        """Create a dismissible intro banner above the Context Help area.
+
+        This avoids OS focus issues with message boxes while still clearly
+        communicating that the tool is unofficial and that anonymous usage
+        tracking is enabled by default and controllable from this tab.
+        """
+
+        # Outer frame pinned at the very top of this tab, before any other
+        # content (including the normal Context Help area from BaseUITab).
+        banner = ttk.Frame(self, style='IntroBanner.TFrame')
+        # Insert before existing children (Context Help frame is already packed)
+        try:
+            first_child = self.winfo_children()[0] if self.winfo_children() else None
+        except Exception:
+            first_child = None
+
+        if first_child is not None:
+            banner.pack(fill='x', padx=10, pady=(10, 0), before=first_child)
+        else:
+            banner.pack(fill='x', padx=10, pady=(10, 0))
+
+        # Left: explanatory text
+        text = (
+            'This is an UNOFFICIAL desktop helper tool that uses the official OCI Python SDK '
+            'to analyze and explore IAM policies. Anonymous Usage Tracking is enabled'
+            'by default and is controlled from the "Anonymous Usage Tracking" '
+            'checkbox below. It only sends anonymous, non-personal usage data (for example: which '
+            'tabs are opened and high-level counts of loaded data). No policy text, usernames, '
+            'email addresses, or resource OCIDs are ever sent.'
+        )
+
+        label = ttk.Label(banner, text=text, wraplength=1100, justify='left')
+        label.pack(side='left', fill='x', expand=True, padx=(4, 8), pady=4)
+
+        # Right: Dismiss button that hides the banner and persists the flag
+        def _dismiss() -> None:
+            try:
+                self.settings['intro_unofficial_tracking_shown'] = True
+                config.save_settings(self.settings)
+            except Exception:
+                logger.debug('Failed to persist intro_unofficial_tracking_shown flag', exc_info=True)
+            try:
+                banner.destroy()
+            except Exception:
+                pass
+
+        btn = ttk.Button(banner, text='Dismiss', command=_dismiss)
+        btn.pack(side='right', padx=(0, 8), pady=4)
+
+        # Optionally tweak style to make it visually distinct but not jarring
+        try:
+            style = ttk.Style()
+            style.configure('IntroBanner.TFrame', background='#FFF4CC')
+            label.configure(background='#FFF4CC')
+        except Exception:
+            pass
+
     def _build_ui(self):  # noqa: C901
-        # ---- Top Row: Display + MCP ----
+        # ---- Top Row: Settings + MCP ----
         top_row = ttk.Frame(self)
         top_row.pack(fill='x', padx=10, pady=10)
 
-        # Display options (LabelFrame, LEFT)
-        disp = ttk.LabelFrame(top_row, text='Display Options')
+        # General settings (LabelFrame, LEFT)
+        disp = ttk.LabelFrame(top_row, text='Settings')
         disp.pack(side='left', fill='both', expand=True, padx=(0, 8), pady=0)
 
         # --- Page Help context for Display Options ---
@@ -165,6 +229,20 @@ class SettingsTab(BaseUITab):
         # Instead of direct apply_theme,
         # call App.apply_theme, which itself triggers refresh_all_tabs_settings.
         font_combo.bind('<<ComboboxSelected>>', self.app.apply_theme)
+
+        # --- Anonymous Usage Tracking Checkbox ---
+        self.usage_tracking_var = tk.BooleanVar(value=self.settings.get('usage_tracking_enabled', False))
+        usage_checkbox = ttk.Checkbutton(
+            disp,
+            text='Anonymous Usage Tracking',
+            variable=self.usage_tracking_var,
+            command=self._on_usage_tracking_changed,
+        )
+        usage_checkbox.pack(side='left', padx=10, pady=6)
+        self.add_context_help(
+            usage_checkbox,
+            'When enabled, the tool sends anonymous, non-personal usage data (for example: which tabs are opened and high-level counts of loaded data) to a write-only OCI Object Storage bucket controlled by the tool author. No policy text, usernames, email addresses, or resource OCIDs are ever sent. You can turn this on or off at any time.',
+        )
 
         # --- Context Help Checkbox ---
         self.context_help_check = ttk.Checkbutton(
@@ -663,6 +741,18 @@ class SettingsTab(BaseUITab):
         logger.info(f'Context Help setting changed to: {self.context_help_var.get()}')
         if hasattr(self.app, 'refresh_all_tabs_settings'):
             self.app.refresh_all_tabs_settings()
+
+    def _on_usage_tracking_changed(self):
+        """Callback when Anonymous Usage Tracking checkbox is toggled."""
+        self.settings['usage_tracking_enabled'] = self.usage_tracking_var.get()
+        config.save_settings(self.settings)
+        logger.info('Anonymous usage tracking setting changed to: %s', self.usage_tracking_var.get())
+        # Update status bar indicator immediately if available
+        if hasattr(self.app, 'update_status_bar'):
+            try:
+                self.app.update_status_bar()
+            except Exception:
+                logger.debug('Failed to refresh status bar after usage tracking toggle', exc_info=True)
 
     def refresh_context_help(self):
         """Refresh style/visibility of Page Help label. (SettingsTab extension point)"""

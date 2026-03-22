@@ -48,6 +48,7 @@ The **Settings Tab** is where you establish the foundation for all analysis in t
 - Import/export cached tenancy data (policies, users, groups, dynamic groups, etc.) for reuse across sessions or machines.  
 - Enable and configure Generative AI (GenAI) capabilities used by other tabs (e.g., explanations, recommendations).  
 - Adjust global display and performance preferences that impact how other tabs behave.
+ - Control **anonymous usage tracking** (whether the app sends non-personal feature usage metrics to a write-only Object Storage endpoint).
 
 **General Flow**  
 1. Select or enter tenancy-specific details and any required authentication/region parameters.  
@@ -61,6 +62,7 @@ The **Settings Tab** is where you establish the foundation for all analysis in t
 - **Import/Export Data buttons:** Load existing cached data or save the currently loaded tenancy data to a file for reuse or sharing.  
 - **GenAI Configuration panel:** Turn AI features on/off and configure provider-specific options. Tabs like Policy, Recommendations, and Groups/Users rely on this when generating explanations or suggestions.  
 - **Advanced Settings / Caching options:** Control snapshot retention, cache refresh behavior, and logging verbosity.  
+ - **(Planned) Usage Tracking toggle:** A simple on/off control for anonymous usage tracking. Today this flag is stored as `"usage_tracking_enabled"` in the local settings file (`~/.oci-policy-analysis/settings.json`) and defaults to **On** on first run. You can see whether tracking is currently enabled in the status bar text ("Tool Usage Tracking: On/Off").
 
 Changes made here are **application-wide**: once you import a different policy dataset or adjust global options, all other tabs (Policy Browser, Policy, Simulation, Recommendations, etc.) will immediately reflect the new environment.
 

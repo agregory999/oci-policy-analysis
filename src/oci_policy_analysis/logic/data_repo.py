@@ -134,7 +134,11 @@ class PolicyAnalysisRepository:
         self.domain_clients = {}
         self.data_as_of = ''
         self.tenancy_ocid = None
+        # OCI service clients (may be None when working offline/cache-only)
         self.identity_client = None
+        self.logging_search_client = None
+        self.resource_search_client = None
+        self.limits_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
         self.version = 2
@@ -168,7 +172,14 @@ class PolicyAnalysisRepository:
         self.domain_clients = {}
         self.data_as_of = ''
         self.tenancy_ocid = None
+        # Reset all OCI service clients so that any previous tenancy context
+        # does not leak across cache/JSON/CIS loads.  Callers that need a
+        # client must either re-run initialize_client or gracefully handle
+        # the None case.
         self.identity_client = None
+        self.logging_search_client = None
+        self.resource_search_client = None
+        self.limits_client = None
         self.identity_loaded_from_tenancy = False
         self.policies_loaded_from_tenancy = False
         self.version = 1
@@ -1933,6 +1944,34 @@ class PolicyAnalysisRepository:
         self.policy_data_reloaded = None
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
+
+        # Optional pre-step: special case for compliance domains CSV.
+        # In the raw_data_identity_domains.csv export, the tenancy OCID is represented
+        # as the compartment_id of the row whose display_name is "Default Domain".
+        # When present, we use that compartment_id to seed self.tenancy_ocid so that
+        # downstream usage/limits logic (including usage tracking) has a correct
+        # tenancy OCID even if the compartments CSV is incomplete.
+        domains_csv_path = os.path.join(dir_path, 'raw_data_identity_domains.csv')
+        if os.path.exists(domains_csv_path):
+            try:
+                with open(domains_csv_path, encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        display_name = (row.get('display_name') or '').strip()
+                        if display_name.lower() == 'default domain':
+                            default_domain_compartment_id = (row.get('compartment_id') or '').strip()
+                            if default_domain_compartment_id:
+                                # SPECIAL CASE: in compliance output, the tenancy OCID is the
+                                # compartment_id of the Default Domain row.
+                                self.tenancy_ocid = default_domain_compartment_id
+                                logger.info(
+                                    'Set tenancy_ocid from raw_data_identity_domains.csv Default Domain compartment_id: %s',
+                                    self.tenancy_ocid,
+                                )
+                            break
+            except Exception as e:
+                logger.error(f'Failed to read tenancy_ocid from raw_data_identity_domains.csv: {e}')
+
         # We need to only use the CSV files and stop using the JSON file altogether
         try:
             # Step 1: Set the tenancy OCID and Name from the data
@@ -1940,9 +1979,16 @@ class PolicyAnalysisRepository:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if row.get('id', '').startswith('ocid1.tenancy.'):
-                        self.tenancy_ocid = row.get('id', '')
+                        # If tenancy_ocid was already set from domains CSV, keep it;
+                        # otherwise, use the value from compartments.
+                        if not self.tenancy_ocid:
+                            self.tenancy_ocid = row.get('id', '')
                         self.tenancy_name = row.get('name', '')
-                        logger.info(f'Set tenancy OCID to {self.tenancy_ocid} and name to {self.tenancy_name}')
+                        logger.info(
+                            'Set tenancy OCID to %s and name to %s (compartments CSV)',
+                            self.tenancy_ocid,
+                            self.tenancy_name,
+                        )
                         break
             if not self.tenancy_ocid or not self.tenancy_name:
                 logger.error('Could not find tenancy OCID and name in compartments CSV')

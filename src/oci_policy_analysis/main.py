@@ -39,6 +39,10 @@ from dateutil import parser as dtparser
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
+from oci_policy_analysis.common.usage_tracking import (  # noqa: E402
+    get_usage_tracker,
+    init_usage_tracker,
+)
 from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 
 # REMOVED: ConsolidationEngine import (consolidation feature disabled)
@@ -113,21 +117,37 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self, force_debug: bool = False, experimental_features: bool = False):
+    def __init__(self, force_debug: bool = False, experimental_features: bool = False):  # noqa: C901
         super().__init__()
 
         # Hidden/undocumented experimental features toggle (e.g., Consolidation tab)
         self.experimental_features = experimental_features
 
-        self.title(f'OCI Policy Analysis {__version__}')
-        self.geometry('1440x900')
-
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
 
+        # If settings didn't define tracking at all, default to enabled on first run
+        if 'usage_tracking_enabled' not in self.settings:
+            self.settings['usage_tracking_enabled'] = True
+            try:
+                config.save_settings(self.settings)
+            except Exception:
+                pass
+
+        # Configure basic window geometry
+        self.title(f'OCI Policy Analysis {__version__}')
+        self.geometry('1440x900')
+
+        # Initialize usage tracker (may be None if disabled in settings)
+        self.usage_tracker = init_usage_tracker(self.settings, __version__)
+
         # === CENTRALIZED LOGGER CONFIGURATION (run before any tab is constructed) ===
         log_levels = self.settings.get('log_levels', {})
-        global_log_level = log_levels.get('global_log_level', self.settings.get('global_log_level', 'INFO'))
+        # Default to WARNING if no explicit global log level is set in settings
+        global_log_level = log_levels.get(
+            'global_log_level',
+            self.settings.get('global_log_level', 'WARNING'),
+        )
         from oci_policy_analysis.common.logger import set_component_level
 
         # If --verbose is set, override global/component levels (shell and file only; ConsoleTab still shows INFO+)
@@ -332,14 +352,25 @@ class App(tk.Tk):
             pass  # configure fails on some ttk themes, but safe to ignore
         self.update_status_bar()
 
+        # Track app start (non-fatal if tracker is None)
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                tracker.track('app_start')
+        except Exception:
+            pass
+
     def update_status_bar(self):
-        """
-        Update the status bar to reflect current policy data load status.
-        Shows source, timestamp, and reload mark if applicable.
-        """
+        """Update status bar with policy data load status and tracking flag."""
         repo = getattr(self, 'policy_compartment_analysis', None)
         if not repo:
-            self.status_var.set('Policy Data: (Not Loaded)')
+            core_text = 'Policy Data: (Not Loaded)'
+            tracking_suffix = (
+                ' | Tool Usage Tracking: On'
+                if self.settings.get('usage_tracking_enabled')
+                else ' | Tool Usage Tracking: Off'
+            )
+            self.status_var.set(core_text + tracking_suffix)
             return
         # Determine source
         loaded = False
@@ -383,11 +414,23 @@ class App(tk.Tk):
 
             # Prefix status text with Experimental Mode marker if enabled
             prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
-            self.status_var.set(f'{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}')
+            core_text = f'{prefix}Policy Data: {load_source} loaded at {ts_str}{reloaded_str}'
+            tracking_suffix = (
+                ' | Tool Usage Tracking: On'
+                if self.settings.get('usage_tracking_enabled')
+                else ' | Tool Usage Tracking: Off'
+            )
+            self.status_var.set(core_text + tracking_suffix)
         else:
             # Not loaded
             prefix = '**Experimental Mode**  -  ' if self.experimental_features else ''
-            self.status_var.set(f'{prefix}Policy Data: (Not Loaded)')
+            core_text = f'{prefix}Policy Data: (Not Loaded)'
+            tracking_suffix = (
+                ' | Tool Usage Tracking: On'
+                if self.settings.get('usage_tracking_enabled')
+                else ' | Tool Usage Tracking: Off'
+            )
+            self.status_var.set(core_text + tracking_suffix)
 
     def refresh_all_tabs_settings(self):
         """
@@ -693,6 +736,15 @@ class App(tk.Tk):
                         else:
                             repo.tenancy_name = 'Loaded from Cache'
 
+                    # Update usage tracking tenancy suffix for cache-based loads
+                    try:
+                        tracker = get_usage_tracker()
+                        if tracker is not None:
+                            tenancy_ocid = getattr(repo, 'tenancy_ocid', '') or ''
+                            tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                    except Exception:
+                        pass
+
                 elif named_profile or instance_principal or named_session:
                     if instance_principal:
                         logger.info(f'Using Instance Principal: {instance_principal}')
@@ -766,6 +818,15 @@ class App(tk.Tk):
                     if not success:
                         raise RuntimeError('Failed to load policies after compartment/domain load')
 
+                    # Update usage tracking tenancy suffix for live-tenancy loads
+                    try:
+                        tracker = get_usage_tracker()
+                        if tracker is not None:
+                            tenancy_ocid = getattr(self.policy_compartment_analysis, 'tenancy_ocid', '') or ''
+                            tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                    except Exception:
+                        pass
+
                     # Ensure status bar shows loaded data
                     self.after(0, self.update_status_bar)
 
@@ -820,7 +881,7 @@ class App(tk.Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def load_compliance_output_async(self, dir_path: str, callback: dict | None = None, load_all_users: bool = True):
+    def load_compliance_output_async(self, dir_path: str, callback: dict | None = None, load_all_users: bool = True):  # noqa: C901
         """
         Asynchronously loads policy, compartment, group, user, dynamic group, and domain data from compliance output .csv files.
         Args:
@@ -840,6 +901,14 @@ class App(tk.Tk):
                 success = self.policy_compartment_analysis.load_from_compliance_output_dir(
                     dir_path, load_all_users=load_all_users
                 )
+                # Update usage tracking tenancy suffix for compliance-output loads
+                try:
+                    tracker = get_usage_tracker()
+                    if tracker is not None:
+                        tenancy_ocid = getattr(self.policy_compartment_analysis, 'tenancy_ocid', '') or ''
+                        tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                except Exception:
+                    pass
                 msg = f'Loaded compliance data from {dir_path}'
                 logger.info(msg)
                 # Post-processing after load
@@ -1105,6 +1174,16 @@ class App(tk.Tk):
         ):
             self.settings_tab._refresh_domain_compartment_ocids_from_settings()
 
+        # Anonymous usage tracking: record tab changes (if enabled)
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None and selected_widget is not None:
+                # Use the tab's class name as a stable key
+                tab_name = type(selected_widget).__name__
+                tracker.track('tab_change', tab_name=tab_name)
+        except Exception:
+            pass
+
         # If the new tab is NOT in supported, and AI (bottom_frame) is shown, hide it.
         if selected_widget is not None and str(selected_widget) not in supported_tabs:
             if self.bottom_frame.winfo_ismapped():
@@ -1151,3 +1230,15 @@ if __name__ == '__main__':
 
     app = App(force_debug=args.verbose, experimental_features=args.experimental_features)
     app.mainloop()
+
+    # On clean exit, attempt to flush anonymous usage tracking so a single
+    # run document is written to Object Storage (best-effort only).
+    try:
+        from oci_policy_analysis.common.usage_tracking import get_usage_tracker
+
+        tracker = get_usage_tracker()
+        if tracker is not None:
+            logger.warning('Flushing anonymous usage tracking on app exit')
+            tracker.flush()
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning('Failed to flush usage tracking on exit: %s', e)

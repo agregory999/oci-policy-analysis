@@ -85,7 +85,7 @@ class BaseUITab(ttk.Frame):
         self.default_help_text = default_help_text
         self.page_help_link = page_help_link
 
-        self.page_help_frame = ttk.LabelFrame(self, text='Page Help')
+        self.page_help_frame = ttk.LabelFrame(self, text='Context Help')
 
         # Frame inside the page help for left/right (90/10) split
         self.page_help_inner_frame = tk.Frame(self.page_help_frame)
