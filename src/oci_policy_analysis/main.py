@@ -89,6 +89,10 @@ warnings.filterwarnings(
     message=r".*'oci_policy_analysis.main' found in sys.modules after import of package 'oci_policy_analysis'.*",
 )
 
+GITHUB_REPO_BASE_URL = 'https://github.com/agregory999/oci-policy-analysis'
+GITHUB_REPO_ISSUES_URL = f'{GITHUB_REPO_BASE_URL}/issues'
+GITHUB_REPO_RELEASES_URL = f'{GITHUB_REPO_BASE_URL}/releases'
+
 # ----------- MAIN APPLICATION CLASS ------------
 """
 Main Tkinter UI application for OCI Policy Analysis.
@@ -339,10 +343,12 @@ class App(tk.Tk):
             tkfont.Font(name='StatusFont', exists=True)
             if 'StatusFont' in tkfont.names()
             else tkfont.Font(
-                name='StatusFont', family=self.default_font.actual('family'), size=self.default_font.actual('size')
+                name='StatusFont',
+                family=self.default_font.actual('family'),
+                size=self.default_font.actual('size'),
             )
         )
-        # Wrap status bar in a frame so we can add a right-aligned clickable "Issues/Comments" link
+        # Wrap status bar in a frame so we can add right-aligned clickable links
         self.status_frame = ttk.Frame(self)
         self.status_frame.pack(side='bottom', fill='x')
 
@@ -356,28 +362,32 @@ class App(tk.Tk):
         )
         self.status_bar.pack(side='left', fill='x', expand=True)
 
-        # Right side: GitHub Issues/Comments "link" (opens default browser)
-        self.issues_link = ttk.Label(
-            self.status_frame,
-            text='Issues/Comments',
-            foreground='blue',
-            cursor='hand2',
-            padding=(8, 4),
-            font=self.status_font,
-        )
-        self.issues_link.pack(side='right')
-        # Underline the text to make it look like a hyperlink
+        # Right side: GitHub links (Issues/Comments and Latest Releases)
+        links_font: tkfont.Font | None = None
         try:
-            issues_font = tkfont.Font(font=self.status_font)
-            issues_font.configure(underline=1)
-            self.issues_link.configure(font=issues_font)
+            links_font = tkfont.Font(font=self.status_font)
+            links_font.configure(underline=1)
         except Exception:
-            pass
-        # Bind click to open GitHub issues page
-        self.issues_link.bind(
-            '<Button-1>',
-            lambda _event: self.open_link('https://github.com/agregory999/oci-policy-analysis/issues'),
-        )
+            links_font = None
+
+        def _make_link(parent, text: str, url: str) -> ttk.Label:
+            label = ttk.Label(
+                parent,
+                text=text,
+                foreground='blue',
+                cursor='hand2',
+                padding=(8, 4),
+                font=links_font or self.status_font,
+            )
+            label.bind('<Button-1>', lambda _event, u=url: self.open_link(u))
+            return label
+
+        # Pack order: Releases (rightmost), then Issues/Comments to its left
+        self.releases_link = _make_link(self.status_frame, 'Latest Releases', GITHUB_REPO_RELEASES_URL)
+        self.releases_link.pack(side='right')
+
+        self.issues_link = _make_link(self.status_frame, 'Issues/Comments', GITHUB_REPO_ISSUES_URL)
+        self.issues_link.pack(side='right')
         # [CROSS-PLATFORM PATCH] Improve status bar visibility on Windows by setting background/foreground.
         try:
             self.status_bar.configure(background='#FFF9CC', foreground='black', borderwidth=1)
