@@ -23,6 +23,7 @@ from tkinter.scrolledtext import ScrolledText
 
 import oci_policy_analysis.mcp_server as mcp_server
 from oci_policy_analysis.common.logger import get_logger, set_component_level
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.mcp_server import (
@@ -270,6 +271,14 @@ class McpTab(BaseUITab):
         logger.info(f'Policy Analysis Repository and Simulation Engine initialized with {policy_count} policies.')
         # Show count of policies in the simulation engine
         logger.info('Starting MCP server...')
+        # Anonymous usage tracking: record MCP server start (no request/response content).
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                tracker.track_operation('mcp_server', action='start')
+        except Exception:
+            # Tracking must never impact MCP behavior.
+            logger.debug('Usage tracking for MCP start failed', exc_info=True)
         start_mcp_server_in_thread(self.settings)
         self._set_status(True)
 
@@ -287,6 +296,14 @@ class McpTab(BaseUITab):
         self.server_running = is_running
         # logger.debug(f"MCP server is {'running' if is_running else 'stopped'}")
         self._set_status(is_running)
+        # Anonymous usage tracking: record MCP server stop when transition detected.
+        if _previous and not is_running:
+            try:
+                tracker = get_usage_tracker()
+                if tracker is not None:
+                    tracker.track_operation('mcp_server', action='stop')
+            except Exception:
+                logger.debug('Usage tracking for MCP stop failed', exc_info=True)
         self.after(5000, self._start_status_poll)
 
     def _toggle_debug(self):

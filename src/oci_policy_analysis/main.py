@@ -306,9 +306,12 @@ class App(tk.Tk):
             row=0, column=3, padx=5, pady=5, sticky='w'
         )
 
-        # Output area
+        # Output area with vertical scrollbar
+        output_container = ttk.Frame(self.bottom_frame)
+        output_container.pack(fill='both', expand=True, padx=8, pady=8)
+
         self.output_text = tk.Text(
-            self.bottom_frame,
+            output_container,
             wrap=tk.WORD,
             height=15,
             bg='white',
@@ -316,7 +319,15 @@ class App(tk.Tk):
             state='disabled',
             font=('Courier New', 11),
         )
-        self.output_text.pack(fill='both', expand=True, padx=8, pady=8)
+        self.output_text.pack(side='left', fill='both', expand=True)
+
+        self.output_scrollbar = ttk.Scrollbar(
+            output_container,
+            orient='vertical',
+            command=self.output_text.yview,
+        )
+        self.output_scrollbar.pack(side='right', fill='y')
+        self.output_text.configure(yscrollcommand=self.output_scrollbar.set)
 
         # Console / Maintenance / Advanced tab Visibility
         self.console_visible = False
@@ -785,6 +796,8 @@ class App(tk.Tk):
                         if tracker is not None:
                             tenancy_ocid = getattr(repo, 'tenancy_ocid', '') or ''
                             tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                            # Record non-personal load source for analytics (cache).
+                            tracker.track_operation('data_load', source='cache')
                     except Exception:
                         pass
 
@@ -867,6 +880,15 @@ class App(tk.Tk):
                         if tracker is not None:
                             tenancy_ocid = getattr(self.policy_compartment_analysis, 'tenancy_ocid', '') or ''
                             tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                            # Record non-personal load source for analytics (live tenancy).
+                            tracker.track_operation(
+                                'data_load',
+                                source='live',
+                                recursive=bool(recursive),
+                                instance_principal=bool(instance_principal),
+                                named_profile=bool(named_profile),
+                                named_session=bool(named_session),
+                            )
                     except Exception:
                         pass
 
@@ -950,6 +972,8 @@ class App(tk.Tk):
                     if tracker is not None:
                         tenancy_ocid = getattr(self.policy_compartment_analysis, 'tenancy_ocid', '') or ''
                         tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                        # Record non-personal load source for analytics (CIS compliance output).
+                        tracker.track_operation('data_load', source='compliance')
                 except Exception:
                     pass
                 msg = f'Loaded compliance data from {dir_path}'
@@ -1019,6 +1043,15 @@ class App(tk.Tk):
                     logger.info(f'Loaded cache for tenancy: {self.policy_compartment_analysis.tenancy_ocid}')
                     # Ensure status bar accurately reflects finalized repo state after cache load
                     self.after(0, self.update_status_bar)
+                    # Record non-personal load source for analytics (JSON cache file).
+                    try:
+                        tracker = get_usage_tracker()
+                        if tracker is not None:
+                            tenancy_ocid = getattr(self.policy_compartment_analysis, 'tenancy_ocid', '') or ''
+                            tracker.set_tenancy_suffix(tenancy_ocid[-6:] if tenancy_ocid else None)
+                            tracker.track_operation('data_load', source='json_file')
+                    except Exception:
+                        pass
                     # Show intelligence running message (same pattern as tenancy load)
                     if callback:
                         cb = callback.get('progress')
@@ -1088,6 +1121,32 @@ class App(tk.Tk):
                 )
                 ai_text_response = q.get()  # Get the result from the queue
                 logger.debug(f'Received AI result from queue, posting update to UI: {ai_text_response}')
+
+                # Track AI Assist usage once per call, including timing, model, tab, and setup/normal flag.
+                try:
+                    tracker = get_usage_tracker()
+                    if tracker is not None:
+                        current_tab_name: str | None = None
+                        try:
+                            selected_tab_id = self.notebook.select()
+                            selected_widget = self.nametowidget(selected_tab_id) if selected_tab_id else None
+                            if selected_widget is not None:
+                                current_tab_name = type(selected_widget).__name__
+                        except Exception:
+                            current_tab_name = None
+
+                        is_error = isinstance(ai_text_response, str) and ai_text_response.startswith('Error:')
+                        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+                        tracker.track_operation(
+                            'ai_assist',
+                            success=not is_error,
+                            model=getattr(self.ai, 'model_ocid', None) or getattr(self.ai, 'model_id', None),
+                            tab=current_tab_name,
+                            duration_ms=round(elapsed_ms, 2),
+                            is_setup_call=bool(test_call),
+                        )
+                except Exception:
+                    logger.debug('AI usage tracking (ai_assist) failed', exc_info=True)
                 self.after(0, lambda: self.set_bottom_output(content=str(ai_text_response), test_call=test_call))
 
                 if callback is not None:

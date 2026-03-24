@@ -681,21 +681,18 @@ class PolicyBrowserTab(BaseUITab):
             # Example: "Compartment: ROOT" or similar
             compartment_name = node_text.replace('Compartment:', '').strip()
             poltab.location_filter_var.set(compartment_name)
-            status = f'Filtered for Compartment/Location: {compartment_name}'
         elif node_text.startswith('Policy:'):
             # Example: "Policy: MyPolicyName"
             policy_name = node_text.replace('Policy:', '').strip()
             poltab.policy_filter_var.set(policy_name)
-            status = f'Filtered for Policy: {policy_name}'
         elif node_text.startswith('Statement:'):
             # Statement line: just apply an exact match to statement text
             # Could use a more unique key if available
             statement_brief = node_text.replace('Statement:', '').strip()
             poltab.text_filter_var.set(statement_brief)
-            status = f'Filtered for Statement text: {statement_brief}'
         else:
             # fallback: just show filter applied with text info
-            status = f'Focus action requested for: {node_text}'
+            pass
         # Always show all subject types when focusing from browser
         poltab.chk_show_service.set(True)
         poltab.chk_show_dynamic.set(True)
@@ -714,7 +711,3 @@ class PolicyBrowserTab(BaseUITab):
                 # fallback: select by tab ref
                 self.app.notebook.select(self.app.policies_tab)
         poltab.update_policy_output()
-        if hasattr(self.app, 'status_var'):
-            self.app.status_var.set(status)
-        logger.info(f'Policy Browser navigation: {status}')
-        logger.info(status)

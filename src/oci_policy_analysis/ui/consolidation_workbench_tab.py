@@ -24,6 +24,7 @@ from tkinter import ttk
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models_consolidation import ProtectedStatementReference, ProtectedStatementSet
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
@@ -1726,6 +1727,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
         invalid_ids = getattr(self, 'invalid_statement_ids', set())
         system_ids = getattr(self, 'system_statement_ids', set())
         self.candidate_statement_ids = set(self.candidate_table_selected_ids) - invalid_ids - system_ids
+        # Fire anonymous usage tracking event for consolidation proposal generation.
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                tracker.track_operation(
+                    'consolidation_proposal',
+                    selected=len(self.candidate_table_selected_ids),
+                    protected=len(self.protected_statement_ids),
+                )
+        except Exception:
+            self.logger.debug('Usage tracking for consolidation_proposal failed', exc_info=True)
+
         self._on_generate_proposal()
         # Switch to proposal subtab (3rd tab, index 2)
         if hasattr(self, 'notebook'):
@@ -1767,13 +1780,13 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
+        strategy_name = self.candidate_strategy_var.get() if hasattr(self, 'candidate_strategy_var') else ''
         self.logger.info(
             'User triggered: Generate consolidation proposal from %d candidates (strategy=%s, protected=%d)',
             len(self.candidate_statement_ids),
-            self.candidate_strategy_var.get() if hasattr(self, 'candidate_strategy_var') else '<none>',
+            strategy_name or '<none>',
             len(self.protected_statement_ids),
         )
-        strategy_name = self.candidate_strategy_var.get() if hasattr(self, 'candidate_strategy_var') else ''
         if strategy_name not in (self.engine.get_strategy_display_names() or []):
             self.logger.warning("Strategy '%s' is not registered; aborting proposal generation.", strategy_name)
             try:

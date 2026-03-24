@@ -81,6 +81,15 @@ from oci_policy_analysis.common.models_simulation import (  # noqa: E402
     SimulationPrepareResponse,
     SimulationResult,
 )
+
+try:  # usage tracking is optional when running embedded; ignore if unavailable
+    from oci_policy_analysis.common.usage_tracking import get_usage_tracker  # type: ignore[import]
+except Exception:  # pragma: no cover - defensive fallback
+
+    def get_usage_tracker():  # type: ignore[no-redef]
+        return None
+
+
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine  # noqa: E402
@@ -108,6 +117,32 @@ IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
 # ===========================================================
 
 _REGISTERED_TOOLS: list[dict[str, Any]] = []
+
+
+def _track_mcp_tool(tool_name: str, status: str = 'success', **extra: object) -> None:
+    """Best-effort anonymous tracking for MCP tool calls.
+
+    This is only active when the embedded MCP server is running inside the
+    main desktop UI with usage tracking enabled. Standalone MCP runs either
+    do not import ``get_usage_tracker`` or return ``None`` from it.
+
+    ``status`` is a coarse outcome flag (e.g. ``success`` or ``error``).
+    ``extra`` can include non-personal aggregates such as ``count`` for
+    batch sizes. No policy text, OCIDs, or identity data should ever be
+    passed here.
+    """
+
+    try:
+        tracker = get_usage_tracker()
+        if tracker is None:
+            return
+        payload: dict[str, object] = {'tool_name': tool_name, 'status': status}
+        for k, v in extra.items():
+            if v is not None:
+                payload[k] = v
+        tracker.track_operation('mcp_tool', **payload)
+    except Exception:
+        logger.debug('Usage tracking for mcp_tool.%s (%s) failed', tool_name, status, exc_info=True)
 
 
 def _summarize_schema(schema: dict[str, Any] | None) -> str:
@@ -245,28 +280,34 @@ async def health_check(request):
     ),
 )
 def prepare_simulation(request: SimulationPrepareRequest) -> SimulationPrepareResponse:
-    """
-    Return all required where-clause variable names for the given simulation context.
+    """Return all required where-clause variable names for the given simulation context."""
 
-    Args:
-        request: SimulationPrepareRequest
-
-    Returns:
-        SimulationPrepareResponse
-    """
-    if not sim_engine:
-        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
-    compartment_path = request.get('compartment_path')
-    principal_type = request.get('principal_type')
-    principal = request.get('principal')
-    logger.info(
-        f'Preparing simulation for compartment="{compartment_path}", type={principal_type}, principal={principal}'
-    )
-    principal_key, where_fields = sim_engine.get_required_where_fields_for_context(
-        compartment_path, principal_type, principal
-    )
-    logger.info(f'Preparation Result: required_fields={where_fields}, principal_key={principal_key}')
-    return {'required_where_fields': list(where_fields), 'principal_key': principal_key}
+    tool_name = 'prepare_simulation'
+    try:
+        if not sim_engine:
+            raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+        compartment_path = request.get('compartment_path')
+        principal_type = request.get('principal_type')
+        principal = request.get('principal')
+        logger.info(
+            'Preparing simulation for compartment="%s", type=%s, principal=%s',
+            compartment_path,
+            principal_type,
+            principal,
+        )
+        principal_key, where_fields = sim_engine.get_required_where_fields_for_context(
+            compartment_path, principal_type, principal
+        )
+        logger.info('Preparation Result: required_fields=%s, principal_key=%s', where_fields, principal_key)
+        _track_mcp_tool(tool_name, status='success')
+        return {'required_where_fields': list(where_fields), 'principal_key': principal_key}
+    except ToolError:
+        _track_mcp_tool(tool_name, status='error')
+        raise
+    except Exception as exc:  # defensive: normalize to ToolError
+        _track_mcp_tool(tool_name, status='error')
+        logger.error('Unhandled error in prepare_simulation: %s', exc, exc_info=True)
+        raise ToolError(f'Unhandled error in prepare_simulation: {exc}') from exc
 
 
 # --- Simulation Batch Tool (Canonical MCP Flow) ---
@@ -281,77 +322,75 @@ def prepare_simulation(request: SimulationPrepareRequest) -> SimulationPrepareRe
     ),
 )
 def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResponse:
-    """
-    Batch run policy simulations per canonical MCP contract.
+    """Batch run policy simulations per canonical MCP contract."""
 
-    Args:
-        request (SimulationBatchRequest): {
-            "simulations": [SimulationScenario, ...],
-            "trace": bool (optional, but ignored)
-        }
-
-    Returns:
-        SimulationBatchResponse: {
-            "results": [SimulationResult, ...]
-        }
-    """
-    if not sim_engine:
-        raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    tool_name = 'run_simulation_batch'
     simulations = request.get('simulations', [])
     trace_requested = bool(request.get('trace', False))
     results: list[SimulationResult] = []
-    for scenario in simulations:
-        try:
-            compartment_path = scenario.get('compartment_path')
-            principal_key = scenario.get('principal_key')
-            api_operation = scenario.get('api_operation')
-            where_context = scenario.get('where_context', {})
-            # checked_statement_ids is absent (canonical MCP flow)
-            # Engine always computes full trace; we adapt to SimulationResult shape.
-            engine_result = sim_engine.simulate_and_record(
-                principal_key,
-                compartment_path,
-                api_operation,
-                where_context,
-                trace=trace_requested,
-            )
 
-            sim_trace = engine_result.get('simulation_trace') or {}
-            final_permissions = sim_trace.get('final_permission_set') or []
-            required_perms = engine_result.get('required_permissions_for_api_operation') or sim_trace.get(
-                'required_permissions_for_api_operation',
-                [],
-            )
-            missing = engine_result.get('missing_permissions') or []
-            failure_reason = engine_result.get('failure_reason') or ''
+    try:
+        if not sim_engine:
+            raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
 
-            sim_result: SimulationResult = {
-                'result': 'YES' if engine_result.get('api_call_allowed') else 'NO',
-                'api_call_allowed': bool(engine_result.get('api_call_allowed')),
-                'final_permission_set': list(final_permissions),
-                'required_permissions_for_api_operation': list(required_perms),
-                'missing_permissions': list(missing),
-                'failure_reason': str(failure_reason),
-            }
+        for scenario in simulations:
+            try:
+                compartment_path = scenario.get('compartment_path')
+                principal_key = scenario.get('principal_key')
+                api_operation = scenario.get('api_operation')
+                where_context = scenario.get('where_context', {})
+                engine_result = sim_engine.simulate_and_record(
+                    principal_key,
+                    compartment_path,
+                    api_operation,
+                    where_context,
+                    trace=trace_requested,
+                )
 
-            if trace_requested:
-                # When trace is requested, include per-statement trace; default to empty list.
-                trace_statements = sim_trace.get('trace_statements') or []
-                sim_result['trace_statements'] = list(trace_statements)
+                sim_trace = engine_result.get('simulation_trace') or {}
+                final_permissions = sim_trace.get('final_permission_set') or []
+                required_perms = engine_result.get('required_permissions_for_api_operation') or sim_trace.get(
+                    'required_permissions_for_api_operation',
+                    [],
+                )
+                missing = engine_result.get('missing_permissions') or []
+                failure_reason = engine_result.get('failure_reason') or ''
 
-            results.append(sim_result)
-        except Exception as ex:
-            logger.warning(f'Failed to simulate batch scenario: {scenario}, error: {ex}')
-            error_result: SimulationResult = {
-                'result': 'NO',
-                'api_call_allowed': False,
-                'final_permission_set': [],
-                'required_permissions_for_api_operation': [],
-                'missing_permissions': [],
-                'failure_reason': f'Simulation error: {ex}',
-            }
-            results.append(error_result)
-    return {'results': results}
+                sim_result: SimulationResult = {
+                    'result': 'YES' if engine_result.get('api_call_allowed') else 'NO',
+                    'api_call_allowed': bool(engine_result.get('api_call_allowed')),
+                    'final_permission_set': list(final_permissions),
+                    'required_permissions_for_api_operation': list(required_perms),
+                    'missing_permissions': list(missing),
+                    'failure_reason': str(failure_reason),
+                }
+
+                if trace_requested:
+                    trace_statements = sim_trace.get('trace_statements') or []
+                    sim_result['trace_statements'] = list(trace_statements)
+
+                results.append(sim_result)
+            except Exception as ex:
+                logger.warning('Failed to simulate batch scenario %s: %s', scenario, ex)
+                error_result: SimulationResult = {
+                    'result': 'NO',
+                    'api_call_allowed': False,
+                    'final_permission_set': [],
+                    'required_permissions_for_api_operation': [],
+                    'missing_permissions': [],
+                    'failure_reason': f'Simulation error: {ex}',
+                }
+                results.append(error_result)
+
+        _track_mcp_tool(tool_name, status='success', count=len(simulations))
+        return {'results': results}
+    except ToolError:
+        _track_mcp_tool(tool_name, status='error', count=len(simulations))
+        raise
+    except Exception as exc:
+        _track_mcp_tool(tool_name, status='error', count=len(simulations))
+        logger.error('Unhandled error in run_simulation_batch: %s', exc, exc_info=True)
+        raise ToolError(f'Unhandled error in run_simulation_batch: {exc}') from exc
 
 
 # ===========================================================
@@ -392,6 +431,12 @@ def list_prospective_statements() -> list[ProspectiveStatementSummary]:
             )
         )
     logger.info('list_prospective_statements: returning %d entries', len(summaries))
+    try:
+        tracker = get_usage_tracker()
+        if tracker is not None:
+            tracker.track_operation('mcp_tool', tool_name='list_prospective_statements', count=len(summaries))
+    except Exception:
+        logger.debug('Usage tracking for mcp_tool.list_prospective_statements failed', exc_info=True)
     return summaries
 
 
@@ -426,6 +471,13 @@ def set_prospective_statements_tool(statements: list[ProspectiveStatementInput])
     except Exception as exc:
         logger.error('set_prospective_statements_tool: engine error: %s', exc, exc_info=True)
         raise ToolError(f'Failed to set prospective statements: {exc}') from exc
+
+    try:
+        tracker = get_usage_tracker()
+        if tracker is not None:
+            tracker.track_operation('mcp_tool', tool_name='set_prospective_statements', count=len(cleaned))
+    except Exception:
+        logger.debug('Usage tracking for mcp_tool.set_prospective_statements failed', exc_info=True)
 
     # Reuse list_prospective_statements for the summarized response
     return list_prospective_statements()
@@ -516,7 +568,7 @@ def add_prospective_statement(input_model: ProspectiveStatementInput) -> Prospec
     new_ids = [i for i in after_ids if i not in before_ids]
     assigned_id = new_ids[0] if new_ids else None
 
-    return ProspectiveStatementResult(
+    result = ProspectiveStatementResult(
         parsed=parsed,
         valid=valid,
         invalid_reasons=invalid_reasons,
@@ -526,6 +578,13 @@ def add_prospective_statement(input_model: ProspectiveStatementInput) -> Prospec
         if assigned_id is not None
         else 'Prospective statement parsed and validated, but internal_id could not be determined.',
     )
+    try:
+        tracker = get_usage_tracker()
+        if tracker is not None:
+            tracker.track_operation('mcp_tool', tool_name='add_prospective_statement')
+    except Exception:
+        logger.debug('Usage tracking for mcp_tool.add_prospective_statement failed', exc_info=True)
+    return result
 
 
 @mcp.tool(
@@ -543,6 +602,12 @@ def clear_prospective_statements() -> dict:
     try:
         sim_engine.set_prospective_statements([])
         logger.info('clear_prospective_statements: all prospective statements removed.')
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                tracker.track_operation('mcp_tool', tool_name='clear_prospective_statements')
+        except Exception:
+            logger.debug('Usage tracking for mcp_tool.clear_prospective_statements failed', exc_info=True)
         return {'status': 'success', 'message': 'All prospective statements have been cleared.'}
     except Exception as exc:
         logger.error('clear_prospective_statements: engine error: %s', exc, exc_info=True)
@@ -576,69 +641,76 @@ def clear_prospective_statements() -> dict:
     ),
 )
 def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-    logger.info(f'Tool Policy Filter with JSON filters: {filters}')
-    raw_results = pca.filter_policy_statements(filters)
+    tool_name = 'filter_policy_statements'
+    try:
+        if not pca:
+            raise ToolError('Repository not initialized. Run with a profile or instance principal.')
 
-    if len(raw_results) > POLICY_RESULT_THRESHOLD:
-        # Generate summary response
-        logger.info(f'Large result set ({len(raw_results)} statements), returning summary')
+        logger.info('Tool Policy Filter with JSON filters: %s', filters)
+        raw_results = pca.filter_policy_statements(filters)
 
-        # Calculate breakdowns
-        policy_breakdown = {}
-        action_breakdown = {}
-        compartment_breakdown = {}
-        subject_type_breakdown = {}
-        verb_breakdown = {}
+        if len(raw_results) > POLICY_RESULT_THRESHOLD:
+            # Generate summary response
+            logger.info('Large result set (%d statements), returning summary', len(raw_results))
 
-        for statement in raw_results:
-            # Policy breakdown
-            policy_name = statement.get('policy_name', 'Unknown')
-            policy_breakdown[policy_name] = policy_breakdown.get(policy_name, 0) + 1
+            # Calculate breakdowns
+            policy_breakdown = {}
+            action_breakdown = {}
+            compartment_breakdown = {}
+            subject_type_breakdown = {}
+            verb_breakdown = {}
 
-            # Action breakdown (allow/deny)
-            action = statement.get('action', 'allow').lower()
-            action_breakdown[action] = action_breakdown.get(action, 0) + 1
+            for statement in raw_results:
+                # Policy breakdown
+                policy_name = statement.get('policy_name', 'Unknown')
+                policy_breakdown[policy_name] = policy_breakdown.get(policy_name, 0) + 1
 
-            # Compartment breakdown
-            compartment = statement.get('policy_compartment', 'Unknown')
-            compartment_breakdown[compartment] = compartment_breakdown.get(compartment, 0) + 1
+                # Action breakdown (allow/deny)
+                action = statement.get('action', 'allow').lower()
+                action_breakdown[action] = action_breakdown.get(action, 0) + 1
 
-            # Subject type breakdown
-            subject_type = statement.get('subject_type', 'Unknown')
-            subject_type_breakdown[subject_type] = subject_type_breakdown.get(subject_type, 0) + 1
+                # Compartment breakdown
+                compartment = statement.get('policy_compartment', 'Unknown')
+                compartment_breakdown[compartment] = compartment_breakdown.get(compartment, 0) + 1
 
-            # Verb breakdown
-            verb = statement.get('verb', 'Unknown')
-            verb_breakdown[verb] = verb_breakdown.get(verb, 0) + 1
+                # Subject type breakdown
+                subject_type = statement.get('subject_type', 'Unknown')
+                subject_type_breakdown[subject_type] = subject_type_breakdown.get(subject_type, 0) + 1
 
-        # Get sample statements (first 15)
-        sample_statements = [statement.get('statement_text', '') for statement in raw_results[:15]]
+                # Verb breakdown
+                verb = statement.get('verb', 'Unknown')
+                verb_breakdown[verb] = verb_breakdown.get(verb, 0) + 1
 
-        summary_response: PolicySummary = {
-            'response_type': 'summary',
-            'total_statements': len(raw_results),
-            'truncated': True,
-            'truncation_point': POLICY_RESULT_THRESHOLD,
-            'policy_breakdown': policy_breakdown,
-            'action_breakdown': action_breakdown,
-            'compartment_breakdown': compartment_breakdown,
-            'subject_type_breakdown': subject_type_breakdown,
-            'verb_breakdown': verb_breakdown,
-            'sample_statements': sample_statements,
-            'message': f'Result set too large ({len(raw_results)} statements). Returning summary with breakdowns. Use more specific filters to get full details.',
-        }
+            # Get sample statements (first 15)
+            sample_statements = [statement.get('statement_text', '') for statement in raw_results[:15]]
 
-        logger.info(f'Returning summary for {len(raw_results)} policy statements')
-        return summary_response
+            summary_response: PolicySummary = {
+                'response_type': 'summary',
+                'total_statements': len(raw_results),
+                'truncated': True,
+                'truncation_point': POLICY_RESULT_THRESHOLD,
+                'policy_breakdown': policy_breakdown,
+                'action_breakdown': action_breakdown,
+                'compartment_breakdown': compartment_breakdown,
+                'subject_type_breakdown': subject_type_breakdown,
+                'verb_breakdown': verb_breakdown,
+                'sample_statements': sample_statements,
+                'message': (
+                    'Result set too large '
+                    f'({len(raw_results)} statements). Returning summary with breakdowns. '
+                    'Use more specific filters to get full details.'
+                ),
+            }
 
-    else:
+            logger.info('Returning summary for %d policy statements', len(raw_results))
+            _track_mcp_tool(tool_name, status='success', total_statements=len(raw_results))
+            return summary_response
+
         # Return full results for smaller sets
-        logger.info(f'Manageable result set ({len(raw_results)} statements), returning full data')
+        logger.info('Manageable result set (%d statements), returning full data', len(raw_results))
 
         for st in raw_results:
-            logger.debug(f'Raw Result: {st} \n\n')
+            logger.debug('Raw Result: %s\n\n', st)
 
         full_response: PolicyStatementFull = {
             'response_type': 'full',
@@ -646,8 +718,16 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
             'total_count': len(raw_results),
         }
 
-        logger.info(f'Filter returning {len(raw_results)} full policy statements to client')
+        logger.info('Filter returning %d full policy statements to client', len(raw_results))
+        _track_mcp_tool(tool_name, status='success', total_statements=len(raw_results))
         return full_response
+    except ToolError:
+        _track_mcp_tool(tool_name, status='error')
+        raise
+    except Exception as exc:
+        _track_mcp_tool(tool_name, status='error')
+        logger.error('Unhandled error in filter_policy_statements: %s', exc, exc_info=True)
+        raise ToolError(f'Unhandled error in filter_policy_statements: {exc}') from exc
 
 
 # User and Group tools

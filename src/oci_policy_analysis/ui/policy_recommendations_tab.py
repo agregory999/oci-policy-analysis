@@ -20,6 +20,7 @@ from tkinter import ttk
 
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
@@ -175,6 +176,27 @@ class PolicyRecommendationsTab(BaseUITab):
         self.add_context_help(
             self.notebook, 'Switch between risk, overlap, consolidation, and fix tabs for deep-dive analytics.'
         )
+
+        # Anonymous usage tracking: record subtab changes for analytics. We
+        # treat each recommendations subtab as a named "sub_view" so that
+        # usage analytics can see which views are most used.
+        def _on_subtab_changed(event):
+            try:
+                tracker = get_usage_tracker()
+                if tracker is None:
+                    return
+                selected_id = self.notebook.select()
+                widget = self.notebook.nametowidget(selected_id) if selected_id else None
+                tab_text = self.notebook.tab(selected_id, 'text') if selected_id else ''
+                tracker.track(
+                    'tab_change',
+                    tab_name=type(self).__name__,
+                    sub_view=str(tab_text or getattr(widget, '_title', '') or ''),
+                )
+            except Exception:
+                logger.debug('Usage tracking for recommendations subtab change failed', exc_info=True)
+
+        self.notebook.bind('<<NotebookTabChanged>>', _on_subtab_changed)
 
         # === Risk Overview - Policy Tab ===
         policy_risk_frame = ttk.Frame(self.notebook)

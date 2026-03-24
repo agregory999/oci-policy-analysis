@@ -20,6 +20,7 @@ from tkinter.scrolledtext import ScrolledText
 from antlr4 import CommonTokenStream, InputStream
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
 from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
@@ -252,6 +253,16 @@ class ConditionTesterTab(BaseUITab):
         sim_vars = {k: v.get() for k, v in self.input_widgets.items()}
         logger.info(f'Evaluate condition: {clause}')
         logger.info(f'Using simulated variables: {sim_vars}')
+        # Anonymous usage tracking: record condition test metadata (no clause text).
+        try:
+            tracker = get_usage_tracker()
+            if tracker is not None:
+                tracker.track_operation(
+                    'condition_test',
+                    var_count=len(sim_vars),
+                )
+        except Exception:
+            logger.debug('Usage tracking for condition_test failed', exc_info=True)
         try:
             # Use only the simulation engine for condition evaluation.
             # Try to obtain a shared/reusable engine instance on self or fallback to direct import/class.
