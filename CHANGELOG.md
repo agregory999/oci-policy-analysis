@@ -1,3 +1,11 @@
+## [4.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.1...v4.5.2) (2026-03-24)
+
+
+### Bug Fixes
+
+* Usage Tracking more granular and AI Scrollbars ([a17d10b](https://github.com/agregory999/oci-policy-analysis/commit/a17d10b5ee9b5e73e6c5033005ed1c6cf659d8eb))
+* Usage Tracking more granular and AI Scrollbars ([05d1f53](https://github.com/agregory999/oci-policy-analysis/commit/05d1f531e9e3d7b7d67ae9e3ff871e63e2c51ce6))
+
 ## [4.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.0...v4.5.1) (2026-03-22)
 
 
