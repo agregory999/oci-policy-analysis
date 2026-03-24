@@ -1163,9 +1163,7 @@ class App(tk.Tk):
 
                 self.after(
                     0,
-                    lambda: self.ai_progress_var.set(
-                        f'[OK] Finished AI Call in ({time.perf_counter()-start_time:.2f}ms)'
-                    ),
+                    lambda: self.ai_progress_var.set(f'[OK] Finished AI Call ({time.perf_counter()-start_time:.2f}ms)'),
                 )
             except Exception as e:
                 logger.error(f'GenAI request failed: {e}')
