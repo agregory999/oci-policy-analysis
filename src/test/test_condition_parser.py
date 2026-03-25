@@ -93,3 +93,89 @@ def test_condition_parser_print_results(statement):
         var = entry.get('variable')
         print(f'    [{res}] {sim} {op} {exp} (variable: {var})')
     assert result['result'] in ('GRANTED', 'DENIED', 'SYNTAX ERROR')
+
+
+@pytest.mark.parametrize(
+    'statement, simvars, expected',
+    [
+        # --- Pattern list with slashes ---
+        # Value matches first pattern /*sample/ (e.g., contains "sample")
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'mysamplevalue'},
+            False,
+        ),
+        # Value matches second pattern /sample1*/
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'sample123'},
+            True,
+        ),
+        # Value matches neither pattern
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'other'},
+            False,
+        ),
+        # NOT IN with patterns: invert logic
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag not in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'mysamplevalue'},
+            True,
+        ),
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag not in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'other'},
+            True,
+        ),
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag not in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'mysample'},
+            False,
+        ),
+        (
+            'request.principal.group.tag.MyTagNamespace.MyTag not in (/*sample/, /sample1*/)',
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'sample123'},
+            False,
+        ),
+        # --- Simple strings / '*' wildcard (no slashes) ---
+        # Interpret '*' as wildcard: sample* should match sample123
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'sample123'},
+            True,
+        ),
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'sample'},
+            True,
+        ),  # No match for sample* or other
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'foo'},
+            False,
+        ),
+        # NOT IN with '*' wildcard
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag not in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'sample123'},
+            False,
+        ),
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag not in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'other'},
+            False,
+        ),
+        (
+            "request.principal.group.tag.MyTagNamespace.MyTag not in ('sample*', 'other')",
+            {'request.principal.group.tag.MyTagNamespace.MyTag': 'foo'},
+            True,
+        ),
+    ],
+)
+def test_tag_based_in_not_in_with_patterns_and_wildcards(statement, simvars, expected):
+    parser = ConditionParser(simvars)
+    result = parser.parse(statement)
+    # parse() returns 'GRANTED' / 'DENIED' / 'SYNTAX ERROR'
+    is_true = result['result'] == 'GRANTED'
+    assert is_true == expected

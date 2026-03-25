@@ -143,6 +143,7 @@ class PoliciesTab(BaseUITab):
         self.chk_show_invalid = tk.BooleanVar()
         self.chk_show_regular = tk.BooleanVar(value=True)
         self.chk_show_expanded = tk.BooleanVar()
+        self.tag_based_filter = tk.BooleanVar()
 
         # Policy Filters LabelFrame (left)
         self.label_frm_filters = ttk.LabelFrame(top_frm, text='Policy Filters - use | in fields for logical OR')
@@ -302,8 +303,18 @@ class PoliciesTab(BaseUITab):
 
         # Condition
         ttk.Label(self.frm_policy_filter, text='Condition').grid(row=3, column=4, padx=5, pady=2, sticky='w')
-        entry_condition = ttk.Entry(self.frm_policy_filter, width=30, textvariable=self.condition_filter_var)
-        entry_condition.grid(row=3, column=5, columnspan=3, padx=5, pady=2, sticky='w')
+        entry_condition = ttk.Entry(self.frm_policy_filter, width=20, textvariable=self.condition_filter_var)
+        # Use columnspan=2 so we can place the Tag-based checkbox in column 7
+        entry_condition.grid(row=3, column=5, columnspan=2, padx=5, pady=2, sticky='w')
+
+        # Tag-based condition helper checkbox (mirrors Location "in tenancy?" placement)
+        btn_tag_based = ttk.Checkbutton(
+            self.frm_policy_filter,
+            text='Tag-based',
+            variable=self.tag_based_filter,
+        )
+        btn_tag_based.grid(row=3, column=7, padx=2, sticky='w')
+        btn_tag_based.config(command=self._toggle_tag_based_filter)
 
         # Text
         ttk.Label(self.frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
@@ -515,12 +526,47 @@ class PoliciesTab(BaseUITab):
         self.location_filter_tenancy.set(bool(filters.get('location') == ['tenancy']))
         # "Action" field already handled above
         self.chk_show_invalid.set(bool(filters.get('valid') is False))
+
+        # Sync Tag-based checkbox with restored conditions filter
+        cond_raw = self.condition_filter_var.get()
+        if cond_raw:
+            cond_parts = [c.strip() for c in cond_raw.split('|') if c.strip()]
+            self.tag_based_filter.set('.tag.' in cond_parts)
+        else:
+            self.tag_based_filter.set(False)
+
         self.populate_data()
         self.populate_data()
         self.populate_data()
 
         # --- Remove old label_frm_actions and its .place() ---
         # Create the policy filter frame and all fields/buttons (restoring the original layout)
+
+    def _toggle_tag_based_filter(self) -> None:
+        """Toggle helper for Tag-based checkbox.
+
+        Ensures the Condition filter includes or excludes the `.tag.` token as one of the
+        `|`-separated values, then refreshes the policy output.
+        """
+        current = self.condition_filter_var.get().strip()
+        parts: list[str] = []
+        if current:
+            parts = [p.strip() for p in current.split('|') if p.strip()]
+
+        if self.tag_based_filter.get():
+            # Add `.tag.` if not already present
+            if '.tag.' not in parts:
+                parts.append('.tag.')
+        else:
+            # Remove all exact `.tag.` tokens but keep any other conditions
+            parts = [p for p in parts if p != '.tag.']
+
+        new_value = '|'.join(parts)
+        if new_value != current:
+            self.condition_filter_var.set(new_value)
+
+        # Re-run filters (populate_data via update_policy_output)
+        self.update_policy_output()
 
     def clear_policy_filters(self):
         # Clear all filters

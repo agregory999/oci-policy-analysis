@@ -68,6 +68,7 @@ from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendati
 from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.ui.simulation_tab import SimulationTab
+from oci_policy_analysis.ui.tag_based_access_tab import TagBasedAccessTab
 from oci_policy_analysis.ui.users_tab import UsersTab
 
 # ----------- POST-IMPORT SETUP ------------
@@ -236,6 +237,7 @@ class App(tk.Tk):
         self.maintenance_tab = MaintenanceTab(self.notebook, self)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
+        self.tag_based_access_tab = TagBasedAccessTab(self.notebook, self)
         self.debugger_tab = DebuggerTab(self.notebook, self)
         self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis)
         # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
@@ -258,6 +260,7 @@ class App(tk.Tk):
         self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
+        self.notebook.add(self.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
         self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
@@ -339,6 +342,7 @@ class App(tk.Tk):
         self.notebook.forget(self.maintenance_tab)
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.condition_tester_tab)
+        self.notebook.forget(self.tag_based_access_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)
         # self.notebook.forget(self.consolidation_tab)  # Do not 'forget' if never added; handled by advanced toggle
@@ -671,6 +675,7 @@ class App(tk.Tk):
         )
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
         step('simulation_tab.populate_data', self.simulation_tab.populate_data)
+        step('tag_based_access_tab.populate_data', self.tag_based_access_tab.populate_data)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
         # Only do this if experimental features are enabled and the consolidation tab is present (it won't be if experimental_features is False)
         if self.experimental_features and self.consolidation_tab:

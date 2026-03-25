@@ -18,8 +18,8 @@ condition_list
     ;
 
 single_condition
-    // Handles IN with list, standard operators with single value, AND BETWEEN with two values
-    : variable_name OPERATOR (condition_value | literal_list) (AND condition_value)?
+    // Handles IN/NOT IN with list, standard operators with single value, AND BETWEEN with two values
+    : variable_name (NOT_IN | OPERATOR) (condition_value | literal_list) (AND condition_value)?
     ;
 
 variable_name
@@ -55,6 +55,7 @@ AND             : [Aa][Nn][Dd] ; // Added AND keyword for BETWEEN
 
 // Operators
 OPERATOR        : EQ | NEQ | GT | LT | GTE | LTE | IN_OP | BEFORE | AFTER | BETWEEN ;
+NOT_IN          : [Nn][Oo][Tt] WHITESPACE+ [Ii][Nn] ;
 EQ              : '=' ;
 NEQ             : '!=' ;
 GT              : '>' ;

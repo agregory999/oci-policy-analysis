@@ -1068,6 +1068,7 @@ class SettingsTab(BaseUITab):
         advanced_tabs = [
             self.app.permissions_report_tab,
             self.app.condition_tester_tab,
+            self.app.tag_based_access_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
             self.app.mcp_tab,
@@ -1087,6 +1088,7 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.mcp_tab, text='Embedded MCP\n(Advanced)')
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
+            notebook.add(self.app.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
             # Only add consolidation tab if experimental features are enabled

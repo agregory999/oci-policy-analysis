@@ -24,6 +24,8 @@ package*.json
 
 # Parser Jar
 src/oci_policy_analysis/logic/parsers/antlr-4.13.2-complete.jar
+*.interp
+*.tokens
 
 # --- OS & Editor files ---
 .DS_Store
