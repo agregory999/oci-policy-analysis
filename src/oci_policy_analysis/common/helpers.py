@@ -62,6 +62,32 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
     }
 
 
+def for_display_tag_based_policy_row(statement: RegularPolicyStatement) -> dict:
+    """Return a compact, tag-focused display dict for a regular statement.
+
+    This helper is tailored for the Tag-based Access tab. It keeps the
+    subset of fields that are most relevant in that context and uses the
+    same display-friendly keys as other tabs where possible.
+
+    Args:
+        statement: Parsed regular policy statement dict.
+
+    Returns:
+        dict: Display dictionary with keys used by the Tag-based Access tab.
+    """
+
+    return {
+        'Policy Name': statement.get('policy_name', ''),
+        'Effective Path': statement.get('effective_path') or statement.get('compartment_path', ''),
+        'Statement Text': statement.get('statement_text', ''),
+        'Subject Type': statement.get('subject_type', ''),
+        'Subject': statement.get('subject', ''),
+        'Verb': statement.get('verb', ''),
+        'Resource': statement.get('resource', ''),
+        'Conditions': statement.get('conditions', ''),
+    }
+
+
 # Return a display-friendly dict for a user statement
 def for_display_user(u: User) -> dict:
     """

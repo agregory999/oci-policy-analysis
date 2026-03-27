@@ -889,20 +889,18 @@ class SimulationTab(BaseUITab):
         ttk.Label(header, text='Status').grid(row=0, column=3, sticky='w', padx=2)
         ttk.Label(header, text='Actions').grid(row=0, column=4, sticky='w', padx=2)
 
-        # Use relative weights that roughly match the desired
-        # percentages while still behaving nicely with Tk's geometry.
-        #  Location: 19  Description: 18  Text: 40  Status: 10  Actions: 10
         for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 10)):
             header.columnconfigure(col, weight=weight)
 
-        # Body rows share the same column layout as the header so that
-        # all fields are visually aligned.
         body = ttk.Frame(parent)
         body.grid(row=2, column=0, sticky='nsew', padx=4, pady=(0, 4))
         parent.rowconfigure(2, weight=1)
         parent.columnconfigure(0, weight=1)
 
         row_models: list[dict[str, object]] = []
+        self._prospective_rows = row_models
+        self._prospective_body_frame = body
+
         compartments = list(self._sim_index_compartments or ['ROOT'])
 
         def add_row(initial: dict | None = None):
@@ -915,31 +913,23 @@ class SimulationTab(BaseUITab):
             desc_var = tk.StringVar(value=(initial or {}).get('description') or '')
             text_var = tk.StringVar(value=(initial or {}).get('statement_text') or '')
             status_var = tk.StringVar(value='Not parsed')
+
             frame = ttk.Frame(body)
-            # One row per prospective statement, using the same column
-            # layout as the header so everything lines up.
             frame.grid(row=idx, column=0, sticky='ew', pady=1)
 
-            # Match header's column weighting so longer compartment paths
-            # or statement text can expand when the window is resized.
-            # We mirror the header weights (19/18/40/15) and keep the
-            # two action buttons in a compact actions column.
             for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 5), (5, 5)):
                 frame.columnconfigure(col, weight=weight)
 
-            loc_cb = ttk.Combobox(frame, textvariable=loc_var, values=compartments, state='readonly', width=25)
-            loc_cb.grid(row=0, column=0, padx=2, sticky='ew')
-
-            desc_entry = ttk.Entry(frame, textvariable=desc_var, width=20)
-            desc_entry.grid(row=0, column=1, padx=2, sticky='ew')
-
-            text_entry = ttk.Entry(frame, textvariable=text_var, width=75)
-            text_entry.grid(row=0, column=2, padx=2, sticky='ew')
+            ttk.Combobox(frame, textvariable=loc_var, values=compartments, state='readonly', width=25).grid(
+                row=0, column=0, padx=2, sticky='ew'
+            )
+            ttk.Entry(frame, textvariable=desc_var, width=20).grid(row=0, column=1, padx=2, sticky='ew')
+            ttk.Entry(frame, textvariable=text_var, width=75).grid(row=0, column=2, padx=2, sticky='ew')
 
             status_lbl = ttk.Label(frame, textvariable=status_var, width=10, foreground='#555')
             status_lbl.grid(row=0, column=3, padx=2, sticky='w')
 
-            def on_parse():
+            def on_parse() -> None:
                 stmt_text = text_var.get().strip()
                 if not stmt_text:
                     status_var.set('Enter statement text')
@@ -961,16 +951,13 @@ class SimulationTab(BaseUITab):
                     status_var.set('Error')
                     logger.warning('Exception during inline prospective parse: %s', ex, exc_info=True)
 
-            def on_delete():
+            def on_delete() -> None:
                 frame.destroy()
                 if row in row_models:
                     row_models.remove(row)
 
-            # Keep actions visually compact and aligned with the header.
-            parse_btn = ttk.Button(frame, text='Parse', command=on_parse, width=7)
-            parse_btn.grid(row=0, column=4, padx=(2, 0), sticky='w')
-            del_btn = ttk.Button(frame, text='Delete', command=on_delete, width=7)
-            del_btn.grid(row=0, column=5, padx=(2, 2), sticky='w')
+            ttk.Button(frame, text='Parse', command=on_parse, width=7).grid(row=0, column=4, padx=(2, 0), sticky='w')
+            ttk.Button(frame, text='Delete', command=on_delete, width=7).grid(row=0, column=5, padx=(2, 2), sticky='w')
 
             row.update(
                 {
@@ -979,9 +966,14 @@ class SimulationTab(BaseUITab):
                     'desc_var': desc_var,
                     'text_var': text_var,
                     'status_var': status_var,
+                    'on_parse': on_parse,
                 }
             )
             row_models.append(row)
+            return row
+
+        # expose on instance so other methods (Tag builder integration) can call it
+        self._add_prospective_row = add_row
 
         try:
             existing = engine.get_prospective_statements() or []
@@ -1202,6 +1194,61 @@ class SimulationTab(BaseUITab):
     # ------------------------------------------------------------------
     # Prospective Statement Editor
     # ------------------------------------------------------------------
+
+    def add_prospective_statement_from_builder(  # noqa: C901
+        self,
+        statement_text: str,
+        compartment_path: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Append a new inline prospective row, set text, and run Parse.
+
+        Intended to be called by TagBasedAccessTab when the user clicks
+        "Add to Simulation Prospects".
+        """
+
+        statement_text = (statement_text or '').strip()
+        if not statement_text:
+            return
+
+        # Ensure the inline editor has been constructed
+        if not getattr(self, '_prospective_body_frame', None):
+            parent = getattr(self, 'prospective_container', None)
+            if parent is None:
+                return
+            self._build_inline_prospective_editor(parent)
+
+        add_row = getattr(self, '_add_prospective_row', None)
+        if not callable(add_row):
+            return
+
+        if not compartment_path:
+            compartment_path = self.selected_compartment.get() or 'ROOT'
+        if description is None:
+            description = 'Tag-based builder statement'
+
+        initial = {
+            'compartment_path': compartment_path,
+            'description': description,
+            'statement_text': statement_text,
+        }
+
+        try:
+            row = add_row(initial)
+        except Exception:
+            logger.warning('SimulationTab: failed to add prospective row from builder', exc_info=True)
+            return
+
+        if isinstance(row, dict):
+            on_parse = row.get('on_parse')
+            if callable(on_parse):
+                try:
+                    on_parse()
+                except Exception:
+                    logger.warning('SimulationTab: error while parsing prospective row from builder', exc_info=True)
+
+        # Mark environment changed so Statements & Context will be recomputed
+        self._on_environment_changed(reason='prospective_added_from_builder')
 
     def open_prospective_editor(self, *_):  # noqa: C901
         """Open a simple CRUD dialog for managing prospective policy statements.
@@ -1698,14 +1745,25 @@ class SimulationTab(BaseUITab):
         ptype = self.selected_principal_type.get()
         pname_display = self.selected_principal.get()
         api_operation = self.selected_api_operation.get()
-        # Compose principal_key for engine
-        if ptype == 'any-user':
-            principal_key = 'any-user:None/any-user'
+        # Compose principal_key for engine using the same normalization
+        # rules as PolicyIntelligenceEngine.calculate_principal_key and
+        # PolicySimulationEngine._normalize_principal_key. Keep this
+        # logic local to avoid importing engine classes into the UI
+        # layer while still producing identical keys.
+        if ptype in ('any-user', 'any-group', 'service'):
+            # any-user:any-group/service always carry domain "None" in the key.
+            pname = pname_display or ptype
+            principal_key = f'{ptype}:None/{pname}'
         elif '/' in pname_display:
             domain, name = pname_display.split('/', 1)
-            principal_key = f'{ptype}:{domain}/{name}'
+            dom_norm = domain or 'Default'
+            if dom_norm.lower() == 'default':
+                dom_norm = 'Default'
+            principal_key = f'{ptype}:{dom_norm}/{name}'
         else:
-            principal_key = f'{ptype}:None/{pname_display}'
+            # No explicit domain given; default identity domain is
+            # represented explicitly as "Default".
+            principal_key = f'{ptype}:Default/{pname_display}'
         # Normalize where-clause timestring entries
         where_context = {k: self._normalize_timestring(v.get()) for k, v in self.simulation_inputs.items()}
 

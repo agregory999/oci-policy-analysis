@@ -263,21 +263,13 @@ class ConditionTesterTab(BaseUITab):
                 )
         except Exception:
             logger.debug('Usage tracking for condition_test failed', exc_info=True)
+        # We should get this from the main in __init__ and not try to initialize it here
         try:
             # Use only the simulation engine for condition evaluation.
             # Try to obtain a shared/reusable engine instance on self or fallback to direct import/class.
-            engine = getattr(self, 'engine', None)
+            engine = getattr(self.app, 'simulation_engine', None)
             if engine is None:
-                # Try via app, or create a default engine object (with no repo context)
-                engine = getattr(self.app, 'policy_sim_engine', None)
-            if engine is None:
-                try:
-                    from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
-                except ImportError:
-                    PolicySimulationEngine = None
-                engine = PolicySimulationEngine() if PolicySimulationEngine else None
-                self.engine = engine  # cache
-            if not engine:
+                # TODO: Make a result saying that the engine couldn't be found
                 raise Exception('Could not instantiate simulation engine for condition evaluation.')
             # Pass the textual clause and simulated variable dict.
             # Request structured output so we can render detailed comparison

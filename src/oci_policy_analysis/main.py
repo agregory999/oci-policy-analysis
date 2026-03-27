@@ -38,7 +38,7 @@ from dateutil import parser as dtparser
 # Application imports
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
-from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
+from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level  # noqa: E402
 from oci_policy_analysis.common.usage_tracking import (  # noqa: E402
     get_usage_tracker,
     init_usage_tracker,
@@ -153,7 +153,6 @@ class App(tk.Tk):
             'global_log_level',
             self.settings.get('global_log_level', 'WARNING'),
         )
-        from oci_policy_analysis.common.logger import set_component_level
 
         # If --verbose is set, override global/component levels (shell and file only; ConsoleTab still shows INFO+)
         if force_debug:
@@ -506,6 +505,7 @@ class App(tk.Tk):
             self.mcp_tab,
             self.permissions_report_tab,
             self.condition_tester_tab,
+            self.tag_based_access_tab,
             self.policy_recommendations_tab,
             self.simulation_tab,
             self.debugger_tab,

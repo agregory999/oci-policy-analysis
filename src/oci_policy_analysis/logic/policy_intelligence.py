@@ -96,6 +96,56 @@ class PolicyIntelligenceEngine:
             list(self._strategies.keys()) if self._strategies else 'none (legacy mode)',
         )
 
+    # ------------------------------------------------------------------
+    # Principal key helpers (shared across simulation/intelligence/UI)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:
+        """Return the canonical *principal key* string for a subject triple.
+
+        Canonical format is::
+
+            "{subject_type}:{domain}/{name}"
+
+        with the following normalization rules:
+
+        * ``subject_type`` is used as provided (callers typically lowercase).
+        * For **user/group/dynamic-group** subjects, if ``domain`` is falsy or
+          equal to ``"default"`` (any casing), the domain component is
+          normalized to the literal string ``"Default"``. This makes the
+          implicit tenancy-default domain explicit in the key.
+        * For **any-user/any-group/service** subjects, the domain component is
+          always ``"None"`` in the key. The ``name`` piece should carry the
+          semantic value (for example ``"any-user"``, ``"any-group"`` or the
+          concrete service name such as ``"objectstorage"``).
+        * For **id-based subjects** such as ``group-id`` or
+          ``dynamic-group-id``, callers are expected to use the more compact
+          forms (for example ``"group-id:ocid1.group.oc1..xyz"``) and may
+          bypass this helper entirely. This helper is focused on the
+          ``{type}:{domain}/{name}`` family.
+        """
+
+        # TODO: Might want to return service:xxx or simply any-user or any-group but undecided now
+
+        stype = (subject_type or '').strip()
+        name_str = str(name).strip()
+        domain_str: str | None
+
+        if stype in {'any-user', 'any-group', 'service'}:
+            domain_str = 'None'
+        elif stype in {'user', 'group', 'dynamic-group'}:
+            if domain is None:
+                domain_str = 'Default'
+            else:
+                d = str(domain).strip()
+                domain_str = 'Default' if d.lower() == 'default' or not d else d
+        else:
+            # Fallback: preserve domain as-is, but ensure it is a string.
+            domain_str = str(domain) if domain is not None else 'None'
+
+        return f'{stype}:{domain_str}/{name_str}'
+
     def _get_default_strategies(self) -> list['IntelligenceStrategy']:
         """Lazy import to avoid circular import at module load."""
         from oci_policy_analysis.logic.intelligence_strategies import get_default_intelligence_strategies
@@ -218,8 +268,9 @@ class PolicyIntelligenceEngine:
                 if subjects is None:
                     subjects = [('Default', 'UNKNOWN')]
                 for subject_domain, subject_name in subjects:
-                    domain_str = str(subject_domain) if subject_domain else 'Default'
-                    subject_key = f'{subject_type}:{domain_str}/{subject_name}'
+                    # Use shared helper to ensure principal_key / subject_key
+                    # format is consistent with simulation and UI surfaces.
+                    subject_key = self.calculate_principal_key(subject_type, subject_domain, subject_name)
                     if effective_path not in report:
                         report[effective_path] = {}
                     if subject_key not in report[effective_path]:

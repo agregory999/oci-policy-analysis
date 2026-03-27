@@ -8,6 +8,9 @@ import logging
 
 import pytest
 from oci_policy_analysis.logic.parsers.condition_parser.condition_parser import ConditionParser
+from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import (
+    collect_tag_conditions,
+)
 
 # --- Ensure logs are output to console during tests
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -179,3 +182,46 @@ def test_tag_based_in_not_in_with_patterns_and_wildcards(statement, simvars, exp
     # parse() returns 'GRANTED' / 'DENIED' / 'SYNTAX ERROR'
     is_true = result['result'] == 'GRANTED'
     assert is_true == expected
+
+
+# === Tests for TagConditionCollector structure + tag-only extraction ===
+
+
+@pytest.mark.parametrize(
+    'condition_str, expected_structure, expected_tag_ids',
+    [
+        # Simple LHS tag comparison should yield a single tc1 and structure "tc1"
+        (
+            "target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation = 'true'",
+            'tc1',
+            ['tc1'],
+        ),
+        # Tag-based clause inside ALL/ANY – structure should show tcN for the tag leaf
+        (
+            "all { target.resource.compartment.tag.Oracle-Tags.AllowCompartmentCreation = 'true',\n"
+            "      any { request.permission = 'BUCKET_DELETE',\n"
+            "            request.permission = 'PAR_MANAGE',\n"
+            "            request.permission = 'RETENTION_RULE_LOCK',\n"
+            "            request.permission = 'RETENTION_RULE_MANAGE' } }",
+            'ALL { tc1, ANY { c2, c3, c4, c5 } }',
+            ['tc1'],
+        ),
+    ],
+)
+def test_collect_tag_conditions_structure_and_ids(condition_str, expected_structure, expected_tag_ids):
+    """Verify TagConditionCollector structure strings and tag IDs.
+
+    - The structure string should use tcN identifiers for tag-based
+      leaves and cN for non-tag conditions.
+    - The returned TagCondition list should only contain tcN IDs.
+    """
+
+    structure, conditions = collect_tag_conditions(condition_str)
+
+    # Normalize whitespace to make tests resilient to minor spacing
+    norm_actual = ' '.join(structure.split())
+    norm_expected = ' '.join(expected_structure.split())
+    assert norm_actual == norm_expected
+
+    ids = [c.condition_id for c in conditions]
+    assert ids == expected_tag_ids

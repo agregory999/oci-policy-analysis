@@ -58,6 +58,72 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
         logger.info(f'Results from condition_list: {results}')
         return results
 
+    def _evaluate_in_list_match(self, cand_str: str, values, variable: str):
+        """Return match metadata for IN-style list semantics."""
+        if not isinstance(values, list):
+            return False, None, None
+
+        cand_lower = cand_str.lower()
+        for v in values:
+            raw_v = v if isinstance(v, str) else str(v or '')
+            norm_v = raw_v.strip().strip('"').strip("'")
+            logger.debug("[matches_any] Comparing candidate %r to list item %r", cand_str, norm_v)
+
+            if norm_v.startswith('/') and norm_v.endswith('/') and len(norm_v) > 2:
+                pattern_body = norm_v[1:-1].strip('"').strip("'")
+
+                if pattern_body == '*':
+                    logger.info("[matches_any] /*/ wildcard match for %s", variable)
+                    if cand_str != '':
+                        return True, norm_v, "Wildcard any-value 'in' (/*/)"
+                elif pattern_body.startswith('*') and len(pattern_body) > 1:
+                    suffix = pattern_body[1:]
+                    logger.info("[matches_any] endswith check: suffix=%r target=%r", suffix, cand_str)
+                    if cand_lower.endswith(suffix.lower()):
+                        return True, norm_v, "Endswith pattern 'in' (/*x/)"
+                elif pattern_body.endswith('*') and len(pattern_body) > 1:
+                    prefix = pattern_body[:-1]
+                    logger.info("[matches_any] startswith check: prefix=%r target=%r", prefix, cand_str)
+                    if cand_lower.startswith(prefix.lower()):
+                        return True, norm_v, "Startswith pattern 'in' (/x*/ )"
+                else:
+                    logger.info(
+                        '[matches_any] regex fallback: original=%r pattern=%r target=%r',
+                        norm_v,
+                        pattern_body,
+                        cand_str,
+                    )
+                    try:
+                        if re.fullmatch(pattern_body, cand_str):
+                            return True, norm_v, "List pattern 'in' (regex fallback)"
+                    except Exception as rgx_ex:
+                        logger.warning('[matches_any] regex error: %s pattern=%r', rgx_ex, pattern_body)
+                        continue
+            else:
+                if norm_v == '*':
+                    logger.info("[matches_any] '*' wildcard match for %s", variable)
+                    if cand_str != '':
+                        return True, norm_v, "Wildcard any-value 'in' ('*')"
+                elif '*' in norm_v and '.*' not in norm_v:
+                    cleaned_pattern = norm_v.replace('*', '.*')
+                    logger.info(
+                        '[matches_any] glob prefix: original=%r pattern=%r target=%r',
+                        norm_v,
+                        cleaned_pattern,
+                        cand_str,
+                    )
+                    try:
+                        if re.fullmatch(cleaned_pattern, cand_str):
+                            return True, norm_v, "List wildcard 'in' (glob)"
+                    except Exception as rgx_ex:
+                        logger.warning('[matches_any] glob regex error: %s pattern=%r', rgx_ex, cleaned_pattern)
+                        continue
+                elif cand_lower == norm_v.lower():
+                    logger.info("[matches_any] equality match: %r == %r", cand_str, norm_v)
+                    return True, norm_v, "List case-insensitive 'in'"
+
+        return False, None, None
+
     def _matches_any_in_list(self, cand_str: str, values, variable: str) -> bool:
         """Helper to evaluate IN-style semantics for a list of values.
 
@@ -68,73 +134,7 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
 
         It is used both for 'in' and 'not in' so behavior stays aligned.
         """
-
-        if not isinstance(values, list):
-            return False
-
-        match_found = False
-        for v in values:
-            raw_v = v if isinstance(v, str) else str(v or '')
-            norm_v = raw_v.strip().strip('"').strip("'")
-            logger.debug("[matches_any] Comparing candidate %r to list item %r", cand_str, norm_v)
-
-            # Pattern-style entry: /.../ with optional * wildcards, OCI semantics
-            if norm_v.startswith('/') and norm_v.endswith('/') and len(norm_v) > 2:
-                pattern_body = norm_v[1:-1].strip('"').strip("'")
-
-                if pattern_body == '*':
-                    logger.info("[matches_any] /*/ wildcard match for %s", variable)
-                    return cand_str != ''
-                elif pattern_body.startswith('*') and len(pattern_body) > 1:
-                    suffix = pattern_body[1:]
-                    logger.info("[matches_any] endswith check: suffix=%r target=%r", suffix, cand_str)
-                    if cand_str.lower().endswith(suffix.lower()):
-                        return True
-                elif pattern_body.endswith('*') and len(pattern_body) > 1:
-                    prefix = pattern_body[:-1]
-                    logger.info("[matches_any] startswith check: prefix=%r target=%r", prefix, cand_str)
-                    if cand_str.lower().startswith(prefix.lower()):
-                        return True
-                else:
-                    cleaned_pattern = pattern_body
-                    logger.info(
-                        '[matches_any] regex fallback: original=%r pattern=%r target=%r',
-                        norm_v,
-                        cleaned_pattern,
-                        cand_str,
-                    )
-                    try:
-                        if re.fullmatch(cleaned_pattern, cand_str):
-                            return True
-                    except Exception as rgx_ex:
-                        logger.warning('[matches_any] regex error: %s pattern=%r', rgx_ex, cleaned_pattern)
-                        continue
-
-            else:
-                pattern_body = norm_v
-                if pattern_body == '*':
-                    logger.info("[matches_any] '*' wildcard match for %s", variable)
-                    return cand_str != ''
-                if '*' in pattern_body and '.*' not in pattern_body and pattern_body != '*':
-                    cleaned_pattern = pattern_body.replace('*', '.*')
-                    logger.info(
-                        '[matches_any] glob prefix: original=%r pattern=%r target=%r',
-                        pattern_body,
-                        cleaned_pattern,
-                        cand_str,
-                    )
-                    try:
-                        if re.fullmatch(cleaned_pattern, cand_str):
-                            return True
-                    except Exception as rgx_ex:
-                        logger.warning('[matches_any] glob regex error: %s pattern=%r', rgx_ex, cleaned_pattern)
-                        continue
-                else:
-                    if cand_str.lower() == norm_v.lower():
-                        logger.info("[matches_any] equality match: %r == %r", cand_str, norm_v)
-                        return True
-
-        return match_found
+        return self._evaluate_in_list_match(cand_str, values, variable)[0]
 
     def visitSingle_condition(self, ctx):
         variable = ctx.variable_name().getText()
@@ -320,170 +320,19 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
                     f"'in' operator debug: variable={variable!r}, sim_value={sim_value!r}, value_list={value!r}"
                 )
                 logger.debug(f"'in' list string-equality check: {sim_value} in {value}")
-                # Now support case-insensitive string equality - always log all fields for PASS/FAIL
                 if isinstance(value, list):
                     candidate = sim_value or ''
                     cand_str = str(candidate).strip()
-                    match_found = False
-                    for v in value:
-                        raw_v = v if isinstance(v, str) else str(v or '')
-                        norm_v = raw_v.strip().strip('"').strip("'")
-                        logger.debug(f"Comparing candidate '{cand_str}' to list item '{norm_v}'")
-
-                        # Pattern-style entry: /.../ with optional * wildcards, OCI semantics:
-                        #   - /*sample/  => ends with 'sample' (case-insensitive)
-                        #   - /sample*/  => starts with 'sample' (case-insensitive)
-                        #   - /*/ or '*' => any value for that tag key
-                        if norm_v.startswith('/') and norm_v.endswith('/') and len(norm_v) > 2:
-                            pattern_body = norm_v[1:-1].strip('"').strip("'")
-
-                            # Special-case: /*/ => any value (wildcard)
-                            if pattern_body == '*':
-                                logger.info("IN match via /*/ wildcard: any value accepted for %s", variable)
-                                comparison_result = cand_str != ''
-                                log_entry['sim_value'] = cand_str
-                                log_entry['expected'] = norm_v
-                                log_entry['operator'] = operator
-                                log_entry['type'] = "Wildcard any-value 'in' (/*/)"
-                                log_entry['result'] = comparison_result
-                                self.comparison_log.append(log_entry.copy())
-                                match_found = comparison_result
-                                if match_found:
-                                    break
-
-                            # /*suffix/ => ends with 'suffix'
-                            elif pattern_body.startswith('*') and len(pattern_body) > 1:
-                                suffix = pattern_body[1:]
-                                logger.info(
-                                    "IN endswith match: suffix=%r, target=%r (from list item %r)",
-                                    suffix,
-                                    cand_str,
-                                    norm_v,
-                                )
-                                if cand_str.lower().endswith(suffix.lower()):
-                                    comparison_result = True
-                                    log_entry['sim_value'] = cand_str
-                                    log_entry['expected'] = norm_v
-                                    log_entry['operator'] = operator
-                                    log_entry['type'] = "Endswith pattern 'in' (/*x/)"
-                                    log_entry['result'] = True
-                                    self.comparison_log.append(log_entry.copy())
-                                    match_found = True
-                                    break
-
-                            # /prefix*/ => starts with 'prefix'
-                            elif pattern_body.endswith('*') and len(pattern_body) > 1:
-                                prefix = pattern_body[:-1]
-                                logger.info(
-                                    "IN startswith match: prefix=%r, target=%r (from list item %r)",
-                                    prefix,
-                                    cand_str,
-                                    norm_v,
-                                )
-                                if cand_str.lower().startswith(prefix.lower()):
-                                    comparison_result = True
-                                    log_entry['sim_value'] = cand_str
-                                    log_entry['expected'] = norm_v
-                                    log_entry['operator'] = operator
-                                    log_entry['type'] = "Startswith pattern 'in' (/x*/ )"
-                                    log_entry['result'] = True
-                                    self.comparison_log.append(log_entry.copy())
-                                    match_found = True
-                                    break
-
-                            else:
-                                # Fallback: treat body as a raw regex, using fullmatch
-                                cleaned_pattern = pattern_body
-                                compare_target = cand_str
-                                logger.info(
-                                    'IN regex match (fallback): original=%r, pattern=%r, target=%r',
-                                    norm_v,
-                                    cleaned_pattern,
-                                    compare_target,
-                                )
-                                try:
-                                    match_result = re.fullmatch(cleaned_pattern, compare_target)
-                                    logger.info('IN regex match result: %s', bool(match_result))
-                                    if match_result:
-                                        comparison_result = True
-                                        log_entry['sim_value'] = cand_str
-                                        log_entry['expected'] = norm_v
-                                        log_entry['operator'] = operator
-                                        log_entry['type'] = "List pattern 'in' (regex fallback)"
-                                        log_entry['result'] = True
-                                        self.comparison_log.append(log_entry.copy())
-                                        match_found = True
-                                        break
-                                except Exception as rgx_ex:
-                                    logger.warning('Regex error in IN list: %s pattern=%r', rgx_ex, cleaned_pattern)
-                                    continue
-                        else:
-                            # Simple string or wildcard-without-slashes: treat '*' as glob
-                            pattern_body = norm_v
-
-                            # Special-case: '*' by itself => any value for that tag key
-                            if pattern_body == '*':
-                                logger.info("IN match via '*' wildcard: any value accepted for %s", variable)
-                                comparison_result = cand_str != ''
-                                log_entry['sim_value'] = cand_str
-                                log_entry['expected'] = pattern_body
-                                log_entry['operator'] = operator
-                                log_entry['type'] = "Wildcard any-value 'in' ('*')"
-                                log_entry['result'] = comparison_result
-                                self.comparison_log.append(log_entry.copy())
-                                match_found = comparison_result
-                                if match_found:
-                                    break
-
-                            # If the value contains a '*' and not an explicit regex token, treat it as a prefix glob
-                            if '*' in pattern_body and '.*' not in pattern_body and pattern_body != '*':
-                                # OCI example: 'sample*' => begins with 'sample'. We convert to a regex
-                                # by appending '.*' and using fullmatch, and we log both the original and
-                                # modified patterns so behavior is transparent.
-                                cleaned_pattern = pattern_body.replace('*', '.*')
-                                compare_target = cand_str
-                                logger.info(
-                                    'IN glob-style match: original=%r, pattern=%r, target=%r',
-                                    pattern_body,
-                                    cleaned_pattern,
-                                    compare_target,
-                                )
-                                try:
-                                    match_result = re.fullmatch(cleaned_pattern, compare_target)
-                                    logger.info('IN glob-style match result: %s', bool(match_result))
-                                    if match_result:
-                                        comparison_result = True
-                                        log_entry['sim_value'] = cand_str
-                                        log_entry['expected'] = pattern_body
-                                        log_entry['operator'] = operator
-                                        log_entry['type'] = "List wildcard 'in' (glob)"
-                                        log_entry['result'] = True
-                                        self.comparison_log.append(log_entry.copy())
-                                        match_found = True
-                                        break
-                                except Exception as rgx_ex:
-                                    logger.warning('Glob-style regex error in IN list: %s pattern=%r', rgx_ex, cleaned_pattern)
-                                    continue
-                            else:
-                                # Case-insensitive equality
-                                if cand_str.lower() == norm_v.lower():
-                                    logger.info(
-                                        "IN MATCH: candidate '%s' (case-insensitive) matched list item '%s'",
-                                        cand_str,
-                                        norm_v,
-                                    )
-                                    comparison_result = True
-                                    log_entry['sim_value'] = cand_str
-                                    log_entry['expected'] = str(value)
-                                    log_entry['operator'] = operator
-                                    log_entry['type'] = "List case-insensitive 'in'"
-                                    log_entry['result'] = True
-                                    self.comparison_log.append(log_entry.copy())
-                                    match_found = True
-                                    break
-
-                    if not match_found:
-                        logger.warning(
+                    comparison_result, matched_value, match_type = self._evaluate_in_list_match(cand_str, value, variable)
+                    if comparison_result:
+                        log_entry['sim_value'] = cand_str
+                        log_entry['expected'] = str(value) if match_type == "List case-insensitive 'in'" else matched_value
+                        log_entry['operator'] = operator
+                        log_entry['type'] = match_type
+                        log_entry['result'] = True
+                        self.comparison_log.append(log_entry.copy())
+                    else:
+                        logger.info(
                             "IN NO MATCH: candidate '%s' did not match any entry in %r",
                             cand_str,
                             value,
@@ -514,7 +363,7 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
                         log_entry['result'] = True
                         self.comparison_log.append(log_entry.copy())
                     else:
-                        logger.warning(f"IN NO MATCH: candidate '{cand_str}' != '{norm_v}' (scalar, case-insensitive)")
+                        logger.info(f"IN NO MATCH: candidate '{cand_str}' != '{norm_v}' (scalar, case-insensitive)")
                         log_entry['sim_value'] = cand_str
                         log_entry['expected'] = str(norm_v)
                         log_entry['operator'] = operator
