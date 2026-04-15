@@ -6,28 +6,51 @@ The Policies tab presents all Oracle Cloud Infrastructure (OCI) policy statement
 
 ## 1. Display
 
-- Policies are shown in a tabular format, with each row representing an individual policy statement.
-- Columns typically include: Policy Name, Compartment, Description, Statements/Rules, Created/Modified dates, and Status.
-- Statements are often highlighted or expandable to reveal underlying rules or parsed details.
+- Policies are shown in a tabular format, with each row representing an individual **policy statement**.
+- Columns are aligned with the internal `RegularPolicyStatement` display model, and typically include:
+  - **Policy Name**
+  - **Policy Compartment**
+  - **Effective Path**
+  - **Statement Text**
+  - **Valid / Invalid Reasons**
+  - **Subject Type / Subject**
+  - **Verb / Resource / Permission**
+  - **Location / Conditions**
+  - **Parsed** and other analysis notes
+- When the **Parsed Output** display option is enabled, additional columns are shown for deeper inspection.
 
 ---
 
 ## 2. Sorting
 
-- Users can sort policies by any visible column (e.g., Policy Name, Compartment, Date).
+- Users can sort by any visible column (e.g., Policy Name, Policy Compartment, Effective Path).
 - Clicking a column header toggles ascending/descending order.
-- Default sort is commonly by Policy Name or Compartment (configurable as needed).
+- When **Prospective** rows are shown (see below), they participate in sorting like any other row. At initial load, real tenancy rows appear first and prospective rows are appended at the end; column sorting can then reorder them as needed.
 
 ---
 
 ## 3. Filtering
 
-- The tab supports quick filtering via:
-  - Search keyword (matches policy names, statements, descriptions)
-  - Compartment selector (limits results to a specific compartment/subtree)
-  - Status filter (Enabled/Disabled if available)
-- Advanced filters may include policy creation/modification date ranges or text pattern filters for statement content.
-- Multiple filters can be combined for precise results.
+Filtering in the Policies tab is backed directly by the repository’s
+`filter_policy_statements` helper (see `CONTEXT_data_repo.md`). The UI projects its
+controls into a JSON filter that is then applied consistently across CLI, UI, and MCP.
+
+Key filter inputs include:
+
+- **Subject / Verb / Resource / Location** text fields (supporting `|` for OR within a field)
+- **Hierarchy / Effective Path** filters (including special `ROOTONLY` semantics)
+- **Text** (statement text search)
+- **Policy Name**
+- **Conditions** (raw where-clause text)
+- **Action** dropdown (Both / Allow / Deny)
+- **Invalid Only** toggle (filters to statements marked invalid)
+
+Multiple filters are combined via **AND** across fields and **OR** within multi-valued fields.
+
+> **Note on subjects / groups / dynamic groups**
+> Some subject-based filters depend on identity-domain context (groups, users,
+> dynamic groups). These are resolved through the repository’s user/group/DG
+> search helpers; see `CONTEXT_data_repo.md` for details.
 
 ---
 
@@ -36,6 +59,48 @@ The Policies tab presents all Oracle Cloud Infrastructure (OCI) policy statement
 - Sticky headers support scrolling through long lists.
 - Statement formatting highlights risky or unusual patterns when identified.
 - Export or copy actions may be included for selected sets.
+
+### 4.1 Prospective (What-If) Statements in the Policies Tab
+
+The Policies tab can optionally display **prospective (what-if)** policy
+statements alongside real tenancy policies:
+
+- A **Show Prospective** checkbox is available in the *Display Options* header.
+  - When unchecked (default), only real tenancy policy statements are shown.
+  - When checked, the tab:
+    - Retrieves the tenancy-scoped prospective statements from the shared
+      `ProspectiveStatementsService` (or simulation engine fallback).
+    - Normalizes them into the same shape used for real statements.
+    - Applies the **same JSON filter** used for real statements (subject,
+      verb, resource, conditions, etc.) to this alternate set.
+    - Appends the filtered prospective rows **after** the real rows.
+- Prospective rows are clearly marked:
+  - The **Policy Name** column is prefixed with `"[Prospective]"`.
+  - The **Display Options** summary label adds a
+    `Prospective Statements (Shown): N` line when they are visible.
+- Some subject-based filters (e.g., those that expand fuzzy users into exact
+  groups) may only partially apply to prospective statements, because there is
+  no separate prospective user/group/dynamic group catalog. This is acceptable
+  by design; existing identities are still honored where they match.
+
+There is also a **Prospective Editor…** button next to the `Show Prospective`
+checkbox. This opens the dedicated `ProspectiveEditorWindow`, where users can
+perform CRUD operations on tenancy-scoped what-if statements. Changes are
+persisted per-tenancy via `ProspectiveStatementsService` and are reflected in
+both the Simulation tab and the Policies tab when Show Prospective is enabled.
+
+Under the hood, the flow is:
+
+- `ProspectiveStatementsService` (see
+  `CONTEXT_prospective_statement_editor.md`) owns the tenancy-scoped list of
+  prospective statements and pushes them into `PolicySimulationEngine` via
+  `set_prospective_statements`.
+- The Policies tab asks the repository/engine for this current list and
+  reshapes each entry into a `RegularPolicyStatement`-like dict before calling
+  `filter_policy_statements(filters=..., statements=prospective_like_list)`.
+- This ensures that **the same JSON filter semantics** apply to both real and
+  prospective statements, and that changes made in the Prospective Editor are
+  immediately visible whenever `Show Prospective` is enabled.
 
 ---
 

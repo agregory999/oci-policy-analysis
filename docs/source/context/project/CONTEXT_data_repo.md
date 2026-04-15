@@ -178,7 +178,50 @@ repo.filter_policy_statements({
     'compartment_path': ['ROOT/Finance']
 })
 ```
-See full docstrings in data_repo.py for pattern details.
+
+### 5.1 Alternate Statement Sets (Prospective / What-If)
+
+The `filter_policy_statements` helper also supports filtering an
+**alternate list of policy-like statements** via the `statements=`
+keyword parameter:
+
+```python
+def filter_policy_statements(
+    self,
+    filters: PolicySearch,
+    *,
+    statements: list[RegularPolicyStatement] | None = None,
+) -> list[RegularPolicyStatement]:
+    ...
+```
+
+- When `statements` is **not** provided, the filter operates on the repo’s
+  canonical `regular_statements` list (real tenancy policies).
+- When `statements` **is** provided, that list is filtered instead, using the
+  **exact same JSON filter semantics** (subject, verb, resource, conditions,
+  effective_path, etc.).
+- This is used in the UI to apply the same filtering rules to
+  **prospective (what-if) statements** that are not part of
+  `regular_statements` but are normalized into the same shape.
+
+Typical usage in the Policies tab:
+
+1. Build a list of prospective records from `ProspectiveStatementsService` or
+   the simulation engine and shape them like `RegularPolicyStatement`.
+2. Call:
+
+   ```python
+   # Apply the same filters used for real policies
+   prospective_filtered = repo.filter_policy_statements(
+       filters=filters,
+       statements=prospective_like_list,
+   )
+   ```
+3. Normalize these for display and append them **after** the
+   real tenancy rows to form a combined view.
+
+This keeps the filtering logic **centralized and uniform** across both real and
+what-if policy sets, and avoids duplicating filter behavior in UI layers.
 
 ---
 

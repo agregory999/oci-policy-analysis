@@ -684,11 +684,76 @@ class PoliciesTab(BaseUITab):
             label_frm_output, text='Parsed Output', variable=self.chk_show_expanded, command=self.update_policy_output
         ).grid(row=0, column=10, padx=5, pady=3)
 
+        # Optional prospective statements toggle and editor button. These
+        # are enabled only when the application exposes a
+        # ProspectiveStatementsService for the active tenancy.
+        self.show_prospective_var = tk.BooleanVar(value=False)
+
+        def _on_toggle_prospective() -> None:
+            """Callback when the Show Prospective checkbox is toggled.
+
+            We simply re-populate the data table so that the latest
+            prospective statements from the shared service are merged in
+            (or removed) using the current filters.
+            """
+
+            logger.info('PoliciesTab: Show prospective toggle set to %s', self.show_prospective_var.get())
+            # populate_data already pulls fresh data from the
+            # ProspectiveStatementsService each time, so calling it here
+            # ensures any newly-saved/parsed statements from the editor
+            # window are immediately visible in the Policies tab.
+            self.populate_data()
+
+        show_prospective_chk = ttk.Checkbutton(
+            label_frm_output,
+            text='Show Prospective',
+            variable=self.show_prospective_var,
+            command=_on_toggle_prospective,
+        )
+        show_prospective_chk.grid(row=0, column=11, padx=(10, 2), pady=3)
+        self.add_context_help(
+            show_prospective_chk,
+            'Toggle to include prospective (what-if) policy statements in the table, '
+            'in addition to real tenancy policies. Prospective rows are prefixed with '
+            '[Prospective] and may not participate fully in subject-based filters '
+            '(they are not backed by separate prospective users/groups/dynamic groups).',
+        )
+
+        def _open_prospective_editor_from_policies() -> None:
+            """Open the tenancy-scoped Prospective Editor window.
+
+            We delegate to the main application, which owns the
+            ProspectiveStatementsService and simulation engine. If the
+            service is not available, a warning dialog is shown from the
+            editor window itself.
+            """
+
+            from oci_policy_analysis.ui.prospective_editor_window import ProspectiveEditorWindow
+
+            try:
+                ProspectiveEditorWindow(self, self.app)
+            except Exception as exc:  # pragma: no cover - defensive UI guard
+                logger.warning('PoliciesTab: unable to open ProspectiveEditorWindow: %s', exc, exc_info=True)
+
+        self.btn_open_prospective = ttk.Button(
+            label_frm_output,
+            text='Prospective Editor…',
+            command=_open_prospective_editor_from_policies,
+            state=tk.NORMAL,
+        )
+        self.btn_open_prospective.grid(row=0, column=12, sticky='e', padx=(12, 4), pady=4)
+        self.add_context_help(
+            self.btn_open_prospective,
+            'Open the tenancy-scoped Prospective (what-if) Policy Editor. '
+            'Prospective statements defined there will be evaluated alongside '
+            'real tenancy policies during simulation.',
+        )
+
         # AI Assist button inside Output Filters, anchored east/right
         self.ai_assist_btn = ttk.Button(
             label_frm_output, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
         )
-        self.ai_assist_btn.grid(row=0, column=11, sticky='e', padx=(20, 8), pady=4)
+        self.ai_assist_btn.grid(row=0, column=13, sticky='e', padx=(20, 8), pady=4)
         self.add_context_help(
             self.ai_assist_btn,
             'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab.',
@@ -946,7 +1011,131 @@ class PoliciesTab(BaseUITab):
             logger.info(f'Applying policy filters: {filters}')
 
         def _filter_policy_statements(filters):
+            """Filter real tenancy policy statements using the repository helper."""
+
             return self.policy_repo.filter_policy_statements(filters=filters)
+
+        def _build_prospective_statement_like_list() -> list[dict]:  # noqa: C901
+            """Build a RegularPolicyStatement-like list from prospective records.
+
+            This uses the shared ProspectiveStatementsService (if available) or,
+            as a fallback, the simulation engine's get_prospective_statements().
+            Each entry is shaped so that filter_policy_statements and
+            for_display_policy can treat it like a regular statement.
+            """
+
+            prospective_like: list[dict] = []
+
+            # Quick exit if the toggle is off
+            if not getattr(self, 'show_prospective_var', None) or not self.show_prospective_var.get():
+                return prospective_like
+
+            service = getattr(self.app, 'prospective_service', None)
+            engine = getattr(self.app, 'simulation_engine', None)
+
+            raw_records: list[dict] = []
+            try:
+                if service is not None:
+                    # ProspectiveStatementsService.list_all() returns
+                    # ProspectiveStatementRecord objects; project them to
+                    # simple dicts we can reshape.
+                    for rec in service.list_all():
+                        base = {
+                            'compartment_path': getattr(rec, 'compartment_path', 'ROOT') or 'ROOT',
+                            'description': getattr(rec, 'description', '') or '',
+                            'statement_text': getattr(rec, 'statement_text', '') or '',
+                            'parsed': getattr(rec, 'parsed', False),
+                            'valid': getattr(rec, 'valid', False),
+                            'invalid_reasons': list(getattr(rec, 'invalid_reasons', []) or []),
+                        }
+                        normalized = getattr(rec, 'normalized', None) or {}
+                        if isinstance(normalized, dict):
+                            base['normalized'] = normalized
+                        raw_records.append(base)
+                elif engine is not None and hasattr(engine, 'get_prospective_statements'):
+                    raw_records = list(engine.get_prospective_statements() or [])
+            except Exception:  # pragma: no cover - defensive guard
+                logger.info('PoliciesTab: unable to build prospective list for Policies tab view', exc_info=True)
+                raw_records = []
+
+            if not raw_records:
+                logger.info('PoliciesTab: no prospective records returned from service/engine')
+                return prospective_like
+
+            import hashlib
+
+            tenancy_ocid = getattr(self.policy_repo, 'tenancy_ocid', None)
+
+            logger.info(
+                'PoliciesTab: building %d prospective records for Policies view (tenancy_ocid=%s)',
+                len(raw_records),
+                tenancy_ocid,
+            )
+
+            for pst in raw_records:
+                stmt_text = (pst.get('statement_text') or '').strip()
+                if not stmt_text:
+                    continue
+
+                comp_path = pst.get('compartment_path') or 'ROOT'
+                desc = pst.get('description') or ''
+                normalized = pst.get('normalized') or {}
+
+                # Build a synthetic internal_id so that sorting and any
+                # downstream debug logs have something stable to use.
+                internal_id = hashlib.md5(
+                    (stmt_text + '::prospective::' + comp_path).encode('utf-8'),
+                ).hexdigest()
+
+                # Seed a minimal RegularPolicyStatement-shaped dict. Any
+                # normalized values present are overlaid below.
+                rec: dict = {
+                    'policy_name': desc or '[Prospective]',
+                    'policy_ocid': '(prospective)',
+                    'compartment_ocid': tenancy_ocid,
+                    'compartment_path': comp_path,
+                    'statement_text': stmt_text,
+                    'creation_time': '',
+                    'internal_id': internal_id,
+                    'parsed': bool(pst.get('parsed')),
+                    'valid': bool(pst.get('valid')),
+                    'invalid_reasons': list(pst.get('invalid_reasons') or []),
+                }
+
+                if isinstance(normalized, dict):
+                    # Only copy keys that are meaningful for filtering or
+                    # display, leaving others untouched.
+                    for key in (
+                        'subject_type',
+                        'subject',
+                        'verb',
+                        'resource',
+                        'permission',
+                        'conditions',
+                        'effective_path',
+                        'action',
+                        'location_type',
+                        'location',
+                    ):
+                        if key in normalized:
+                            rec[key] = normalized[key]
+
+                # Ensure an action is always present so the default
+                # action filter (['allow', 'deny', 'unknown']) in
+                # filter_policy_statements does not drop all
+                # prospective statements when no explicit action was
+                # parsed yet.
+                if 'action' not in rec:
+                    rec['action'] = 'allow'
+
+                prospective_like.append(rec)
+
+            logger.info(
+                'PoliciesTab: built %d prospective RegularPolicyStatement-like records',
+                len(prospective_like),
+            )
+
+            return prospective_like
 
         def _log_count_after_filter(filtered_statements):
             logger.info(f'Filtered statements via JSON filter: {len(filtered_statements)}')
@@ -983,23 +1172,59 @@ class PoliciesTab(BaseUITab):
             show_invalid = self.chk_show_invalid.get()
             regular_types = {'group', 'group-id', 'any-user', 'any-group'}
 
+            # If no type filters are enabled, hide all real statements but
+            # still allow prospective rows (which have no Subject Type set)
+            # to flow through. This supports the "Show Prospective only"
+            # use case where Service/DG/Resource/Regular are all unchecked.
+            if not any((show_service, show_dynamic, show_resource, show_regular, show_invalid)):
+                result = [st for st in filtered_statements if not st.get('Subject Type')]
+                logger.info(
+                    'PoliciesTab: apply_row_toggles with all real-type toggles off; %d -> %d (prospective-only view)',
+                    len(filtered_statements),
+                    len(result),
+                )
+                return result
+
             result = []
             for st in filtered_statements:
                 stype = st.get('Subject Type')
+
                 if (
                     (show_service and stype == 'service')
                     or (show_dynamic and stype in ('dynamic-group', 'dynamic-group-id'))
                     or (show_resource and stype == 'resource')
-                    or (show_regular and stype in regular_types)
+                    or (show_regular and (stype in regular_types or not stype))
                     or (show_invalid and (not st.get('Valid') or not st.get('Parsed')))
                 ):
                     result.append(st)
+            logger.info(
+                'PoliciesTab: apply_row_toggles reduced %d -> %d rows (service=%s, dynamic=%s, resource=%s, regular=%s, invalid=%s)',
+                len(filtered_statements),
+                len(result),
+                show_service,
+                show_dynamic,
+                show_resource,
+                show_regular,
+                show_invalid,
+            )
             return result
 
-        def _update_count_labels(filtered_statements, rows_to_show):
-            self.label_policy_count.config(
-                text=f'Statements (Filtered): {len(filtered_statements)}\nStatements (Shown): {len(rows_to_show)}\nTotal Policies: {len(self.policy_repo.policies)}'
-            )
+        def _update_count_labels(filtered_statements, rows_to_show, prospective_count: int = 0):
+            """Update the summary label with counts.
+
+            When prospective rows are included, show a separate line so users
+            can see how many what-if statements are in the current filtered
+            view.
+            """
+
+            base = [
+                f'Statements (Filtered): {len(filtered_statements)}',
+                f'Statements (Shown): {len(rows_to_show)}',
+                f'Total Policies: {len(self.policy_repo.policies)}',
+            ]
+            if getattr(self, 'show_prospective_var', None) and self.show_prospective_var.get():
+                base.insert(2, f'Prospective Statements (Shown): {prospective_count}')
+            self.label_policy_count.config(text='\n'.join(base))
 
         def _update_policy_table(rows_to_show):
             self.policy_table.update_data(rows_to_show)
@@ -1008,14 +1233,65 @@ class PoliciesTab(BaseUITab):
         self.timed_step('set_tenancy_label', _set_tenancy_label)
         filters = self.timed_step('build_filters', _build_filters)
         self.timed_step('log_filter_info', lambda: _log_filter_info(filters))
-        filtered_statements = self.timed_step('filter_policy_statements', lambda: _filter_policy_statements(filters))
-        self.timed_step('log_count_after_filter', lambda: _log_count_after_filter(filtered_statements))
-        filtered_statements = self.timed_step(
-            'normalize_for_display', lambda: _normalize_for_display(filtered_statements)
+
+        # Real tenancy statements
+        real_filtered = self.timed_step('filter_policy_statements', lambda: _filter_policy_statements(filters))
+        self.timed_step('log_count_after_filter', lambda: _log_count_after_filter(real_filtered))
+
+        # Optional prospective/what-if statements, filtered with the same JSON
+        # criteria when the toggle is enabled.
+        prospective_like = self.timed_step('build_prospective_like', _build_prospective_statement_like_list)
+        prospective_filtered: list[dict] = []
+        if prospective_like:
+            logger.info(
+                'PoliciesTab: filtering %d prospective statements with filters=%s',
+                len(prospective_like),
+                filters,
+            )
+            prospective_filtered = self.timed_step(
+                'filter_prospective_statements',
+                lambda: self.policy_repo.filter_policy_statements(filters=filters, statements=prospective_like),
+            )
+            logger.info(
+                'PoliciesTab: %d prospective statements matched after filter',
+                len(prospective_filtered),
+            )
+
+        # Normalize both sets for display and prefix prospective policy names
+        real_display = self.timed_step('normalize_real', lambda: _normalize_for_display(real_filtered))
+        prospective_display = self.timed_step(
+            'normalize_prospective', lambda: _normalize_for_display(prospective_filtered)
         )
+
+        for row in prospective_display:
+            base_name = row.get('Policy Name') or '(unnamed prospective)'
+            if not str(base_name).startswith('[Prospective]'):
+                row['Policy Name'] = f'[Prospective] {base_name}'
+
+        # Real rows first, then prospective rows so they appear at the end
+        combined_display = real_display + prospective_display
+        logger.info(
+            'PoliciesTab: combined_display has %d rows (%d real, %d prospective). Sample prospective rows: %s',
+            len(combined_display),
+            len(real_display),
+            len(prospective_display),
+            [
+                {
+                    'Policy Name': r.get('Policy Name'),
+                    'Subject Type': r.get('Subject Type'),
+                    'Valid': r.get('Valid'),
+                    'Parsed': r.get('Parsed'),
+                }
+                for r in prospective_display[:3]
+            ],
+        )
+
         self.timed_step('output_column_view_config', _configure_view_columns)
-        rows_to_show = self.timed_step('apply_row_toggles', lambda: _apply_row_toggles(filtered_statements))
-        self.timed_step('update_count_labels', lambda: _update_count_labels(filtered_statements, rows_to_show))
+        rows_to_show = self.timed_step('apply_row_toggles', lambda: _apply_row_toggles(combined_display))
+        self.timed_step(
+            'update_count_labels',
+            lambda: _update_count_labels(combined_display, rows_to_show, len(prospective_display)),
+        )
         self.timed_step('update_policy_table', lambda: _update_policy_table(rows_to_show))
         self.timed_step(
             'log_final_info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements')

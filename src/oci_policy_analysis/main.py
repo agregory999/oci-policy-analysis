@@ -48,6 +48,7 @@ from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 # REMOVED: ConsolidationEngine import (consolidation feature disabled)
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
+from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
@@ -613,14 +614,38 @@ class App(tk.Tk):
         self.policy_intelligence.build_permissions_report()
 
         self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
-        # Re-apply any saved prospective statements for the active tenancy
-        try:
-            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
-            if tenancy_key and tenancy_key in sim_settings:
-                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
-        except Exception:
-            pass
+        # (Re)create the tenancy-scoped ProspectiveStatementsService so
+        # that prospective (what-if) policy statements are managed as
+        # part of the tenancy data model instead of being owned by a
+        # single UI tab. The service is responsible for hydrating the
+        # simulation engine with any saved prospective statements.
+        tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
+        if tenancy_key:
+            try:
+                self.prospective_service = ProspectiveStatementsService(
+                    settings=self.settings,
+                    simulation_engine=self.simulation_engine,
+                    tenancy_ocid=str(tenancy_key),
+                )
+                logger.info(
+                    'Post-load: ProspectiveStatementsService initialized for tenancy %s with %d records',
+                    tenancy_key,
+                    len(self.prospective_service.list_all()),
+                )
+                # Ensure the simulation engine has the latest
+                # prospective statements for this tenancy.
+                self.prospective_service.persist_and_push_to_engine()
+            except Exception:
+                logger.warning(
+                    'Post-load: unable to initialize ProspectiveStatementsService; '
+                    'prospective statements will fall back to legacy settings-based handling.',
+                    exc_info=True,
+                )
+        else:
+            logger.info(
+                'Post-load: tenancy_ocid not set on PolicyAnalysisRepository; '
+                'ProspectiveStatementsService will not be initialized yet.'
+            )
         # self.simulation_engine.build_index()
         logger.info('Rebuilt Simulation Engine index after post-load intelligence.')
         end_post_process_time = time.perf_counter()
@@ -965,6 +990,9 @@ class App(tk.Tk):
 
         def worker():
             try:
+                # Upon re-load, start a new repository to clear prior data
+                self.policy_compartment_analysis.reset_state()
+
                 progress_cb = callback.get('progress') if callback else None
                 if progress_cb is not None and callable(progress_cb):
                     self.after(0, lambda m='Loading compliance output data': progress_cb(m))

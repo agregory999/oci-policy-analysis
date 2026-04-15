@@ -1259,12 +1259,22 @@ class PolicyAnalysisRepository:
     # If no policy statements exist, return empty list
     # Fuzzy and Exact search are mutually exclusive - if both are provided, fuzzy search is used
     # If Identity Domains are not loaded and either fuzzy or exact search is requested, raise an error
-    def filter_policy_statements(self, filters: PolicySearch) -> list[RegularPolicyStatement]:  # noqa: C901
+    def filter_policy_statements(  # noqa: C901
+        self,
+        filters: PolicySearch,
+        *,
+        statements: list[RegularPolicyStatement] | None = None,
+    ) -> list[RegularPolicyStatement]:  # noqa: C901
         """
         Filter policy statements by one or more criteria.
 
         Args:
             filters (PolicySearch): Dictionary of filter keys and their values (e.g. verb, resource, permission, group, etc).
+            statements: Optional alternate list of policy-like statements to filter.
+                When provided, this list is filtered instead of the repository's
+                ``regular_statements``. This is useful for applying the same
+                JSON filter semantics to **prospective** or simulated statement
+                sets that are not part of the loaded tenancy data.
 
         Returns:
             list[PolicyStatement]: List of statements matching the filter.
@@ -1282,10 +1292,17 @@ class PolicyAnalysisRepository:
 
         # At this point we have exact groups or exact dynamic groups to deal with
         logger.debug(f'Post-fuzzy/exact search filters: {filters}')
+
+        # Choose the candidate list to filter. If an explicit list of
+        # statements is passed (e.g., prospective/what-if statements
+        # normalized to the same shape), filter that instead of the
+        # repository's canonical regular_statements.
+        candidate_statements = statements if statements is not None else self.regular_statements
+
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
 
-        for stmt in self.regular_statements:
+        for stmt in candidate_statements:
             match = True
 
             for key, values in filters.items():
@@ -1422,7 +1439,11 @@ class PolicyAnalysisRepository:
             if match:
                 results.append(stmt)
 
-        logger.info(f'Filter applied. {len(results)} matched out of {len(self.regular_statements)} Regular statements.')
+        logger.info(
+            'Filter applied. %d matched out of %d Regular statements.',
+            len(results),
+            len(candidate_statements),
+        )
         return results
 
     def filter_cross_tenancy_policy_statements(self, alias_filter: list[str]) -> list[RegularPolicyStatement]:

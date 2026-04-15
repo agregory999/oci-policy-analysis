@@ -78,6 +78,186 @@ class PolicyIntelligence(TypedDict, total=False):
 - See [`common/models.py`](../../../src/oci_policy_analysis/common/models.py) for detailed data model definitions (e.g., `RegularPolicyStatement`, `PolicyOverlap`).  
 - Each strategy writes its results into a corresponding overlay key or subkey (conventionally documented inline in the TypedDict or strategy comments).
 
+In addition to overlay structure, the intelligence layer now relies on a **canonical principal key format** shared with the simulation engine and certain UI tabs. See the next section.
+
+---
+
+## 4. Principal Key Semantics (Shared Between Intelligence, Simulation, and UI)
+
+Several parts of the system need a stable way to refer to a *principal* (subject) that appears in policy statements. Rather than duplicating ad-hoc formats, the project defines a single, canonical **principal key** representation and a helper to compute it.
+
+### 4.1 Canonical Format
+
+The canonical principal key string has the form:
+
+```text
+{subject_type}:{domain}/{name}
+``
+
+Where:
+
+- `subject_type` is the parsed `subject_type` from a `RegularPolicyStatement` (usually lower-case):
+  - `user`, `group`, `dynamic-group`, `service`, `any-user`, `any-group`, etc.
+- `domain` and `name` are normalized according to type-specific rules (see below).
+
+The normalization rules implemented by
+`PolicyIntelligenceEngine.calculate_principal_key(subject_type, domain, name)` are:
+
+1. **User / Group / Dynamic Group**
+
+   ```python
+   subject_type in {"user", "group", "dynamic-group"}
+   ```
+
+   - If `domain` is falsy or equal to `"default"` (any casing), it is
+     normalized to the literal string `"Default"` in the key.
+   - Otherwise the trimmed domain string is used as-is.
+
+   Examples:
+
+   - `subject_type="group"`, `domain=None`, `name="Admins"` →
+     `"group:Default/Admins"`
+   - `subject_type="user"`, `domain="default"`, `name="anita"` →
+     `"user:Default/anita"`
+   - `subject_type="dynamic-group"`, `domain="MyIdcs"`, `name="DG1"` →
+     `"dynamic-group:MyIdcs/DG1"`.
+
+2. **Any-user / Any-group / Service**
+
+   ```python
+   subject_type in {"any-user", "any-group", "service"}
+   ```
+
+   - The domain component is always the literal string `"None"` in the
+     principal key.
+   - The `name` piece carries the semantic value, such as:
+     - `"any-user"` for the any-user subject
+     - `"any-group"` for the any-group subject
+     - the concrete service name (e.g. `"objectstorage"`, `"compute"`) for
+       a service principal.
+
+   Examples:
+
+   - Any-user: `"any-user:None/any-user"`
+   - Any-group: `"any-group:None/any-group"`
+   - Service principal: `"service:None/objectstorage"`.
+
+3. **Other / Fallback Types**
+
+   For unrecognized `subject_type` values (or future extensions that still
+   follow the `{type}:{domain}/{name}` pattern), the helper preserves `domain`
+   as provided (stringified) and uses `"None"` if it is missing.
+
+4. **ID-based Subjects**
+
+   For now, **ID-based principals** such as `group-id` and `dynamic-group-id`
+   are deliberately kept in a compact form outside the
+   `{type}:{domain}/{name}` family, for example:
+
+   ```text
+   group-id:ocid1.group.oc1..xyz
+   dynamic-group-id:ocid1.dynamicgroup.oc1..xyz
+   ```
+
+   These ID-style keys are typically produced directly by UI surfaces (e.g.,
+   Tag-based Access builder) and are not currently processed via
+   `calculate_principal_key`.
+
+### 4.2 Producers of Principal Keys
+
+Principal keys are primarily produced in three places:
+
+1. **PolicyIntelligenceEngine** (`logic/policy_intelligence.py`)
+
+   - The helper:
+
+     ```python
+     PolicyIntelligenceEngine.calculate_principal_key(subject_type, domain, name)
+     ```
+
+     computes the canonical key.
+
+   - `build_permissions_report()` uses this helper when it converts
+     `(subject_type, subject_domain, subject_name)` into the permissions
+     report's `subject_key`. This ensures that permissions-report subjects
+     use the exact same key shape as the simulation engine and UI.
+
+2. **PolicySimulationEngine** (`logic/simulation_engine.py`)
+
+   - `_normalize_principal_key(principal_type, principal)` implements the
+     same rules as `calculate_principal_key`, but in engine-local form. It is
+     used to normalize UI/MCP inputs into a `principal_key` string.
+   - `get_statements_for_context()` and
+     `get_required_where_fields_for_context()` both call
+     `_normalize_principal_key` and then pass the `principal_key` into
+     `get_applicable_statements()`.
+   - `_principal_key_to_policy_search_filter(principal_key)` parses the
+     `{type}:{domain}/{name}` format and converts it to the repository
+     filter structure (`exact_users`, `exact_groups`, `subject`, etc.).
+
+3. **SimulationTab & TagBasedAccessTab** (`ui/simulation_tab.py`, `ui/tag_based_access_tab.py`)
+
+   - **SimulationTab** constructs `principal_key` strings using the same
+     normalization rules as `_normalize_principal_key` so that the value
+     handed to `simulate_and_record` exactly matches what
+     `get_statements_for_context` would produce.
+   - **TagBasedAccessTab** derives builder principals from parsed
+     statements. For structured subjects (`user`, `group`, `dynamic-group`,
+     `service`), it calls
+
+     ```python
+     PolicyIntelligenceEngine.calculate_principal_key(ptype, domain, name)
+     ```
+
+     and stores the resulting principal key directly in the builder's
+     `Principal` dropdown.
+   - For ID-based subjects (`group-id`, `dynamic-group-id`), the tab uses
+     compact forms like `"group-id:ocid1.group..."` directly, without
+     introducing a synthetic domain.
+
+### 4.3 Consumers of Principal Keys
+
+Principal keys are consumed for:
+
+- **Policy search & simulation**
+  - `PolicySimulationEngine.get_applicable_statements(principal_key, effective_path)`
+    parses the key with `_principal_key_to_policy_search_filter`, then calls
+    `policy_repo.filter_policy_statements(...)`.
+  - `simulate_and_record(principal_key, effective_path, ...)` records the
+    `principal_key` inside the `simulation_trace["simulation_context"]` so
+    history and exports can identify the simulated subject.
+
+- **Permissions report and intelligence overlays**
+  - `build_permissions_report()` uses the same key as the `subject_key` in
+    its nested `report` structure.
+  - Consolidation and overlap helpers that display principal information may
+    still use the more human-readable `_principal_str(st)` helper; they do
+    not currently rely on the canonical key for grouping.
+
+- **UI surfaces**
+  - Simulation history and debugger tabs can safely log or inspect
+    `principal_key` values knowing that `Default` and `None` carry defined
+    semantics for domain.
+  - Tag-based Access builder presents the **raw principal key string** in the
+    Principal dropdown, so expert users can see the exact canonical key that
+    would be used if they later send the constructed statement into the
+    Simulation tab.
+
+### 4.4 Default Domain Semantics
+
+The explicit domain markers `"Default"` and `"None"` are important:
+
+- `"Default"` signals "tenancy default identity domain" (or equivalent),
+  and is used for user/group/dynamic-group principals when no domain is
+  specified in the parsed subject.
+- `"None"` signals "no identity domain concept is applicable" and is
+  used for any-user/any-group/service subjects.
+
+This explicitness avoids ambiguity when round-tripping between parsed
+statements, internal models, and UI displays, and it ensures that future
+features (e.g., subject lists that are already lists of principal keys)
+have a well-defined key space.
+
 ---
 
 ## 4. UI Subtab Mapping and Data Sources

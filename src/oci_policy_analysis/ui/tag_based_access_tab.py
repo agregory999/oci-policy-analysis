@@ -49,10 +49,6 @@ from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector im
     TagCondition,
     collect_tag_conditions,
 )
-from oci_policy_analysis.logic.policy_intelligence import (
-    PolicyIntelligenceEngine,
-)
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -199,22 +195,6 @@ class TagBasedAccessTab(BaseUITab):
         # statement is selected and filters are applied.
         self._all_condition_rows: list[dict[str, str]] = []
 
-        # Distinct values discovered from statements/conditions for
-        # seeding the builder comboboxes.
-        self._builder_principals: list[str] = []
-        self._builder_principal_details: dict[str, tuple[str, str | None, str]] = {}
-        self._builder_resources: list[str] = []
-        self._builder_all_resources: list[str] = []
-        self._builder_locations: list[str] = []
-        self._builder_effective_paths: list[str] = []
-
-        # Reference data repository from main app for "All Possible" resources/families.
-        self._reference_repo: ReferenceDataRepo = app.reference_data_repo
-        logger.info(
-            'TagBasedAccessTab: ReferenceDataRepo loaded for All Possible resources (resources=%d, families=%d)',
-            len(self._reference_repo.data.get('resources', {})),
-            len(self._reference_repo.data.get('families', {})),
-        )
         # Filter variables for the overview section (statement + detail views)
         self.tag_namespace_var = tk.StringVar()
         self.tag_key_var = tk.StringVar()
@@ -222,31 +202,6 @@ class TagBasedAccessTab(BaseUITab):
         # Controls whether parsed-statement columns are visible in the
         # top-level statement table.
         self.show_parsed_statement_var = tk.BooleanVar(value=False)
-
-        # Builder variables (bottom half – statement builder)
-        # Left (statement specifics)
-        self.builder_principal_var = tk.StringVar()
-        self.builder_resource_var = tk.StringVar()
-        self.builder_verb_var = tk.StringVar(value='use')
-        self.builder_location_var = tk.StringVar()
-        self.builder_effective_path_var = tk.StringVar()
-
-        # Right (tag condition pieces)
-        self.builder_access_type_var = tk.StringVar()
-        self.builder_namespace_var = tk.StringVar()
-        self.builder_key_var = tk.StringVar()
-        self.builder_operator_var = tk.StringVar()
-        self.builder_value_var = tk.StringVar()
-        self.builder_variable_preview_var = tk.StringVar()
-        self.builder_condition_preview_var = tk.StringVar()
-
-        # Full statement preview (combines subject/verb/resource/location + where snippet)
-        self.builder_statement_preview_var = tk.StringVar()
-
-        # When enabled, the Resource dropdown will show **all known**
-        # resources and families from ReferenceDataRepo instead of only
-        # those discovered in the loaded tenancy policies.
-        self.builder_all_possible_resources_var = tk.BooleanVar(value=False)
 
         logger.info('Initializing TagBasedAccessTab UI layout')
         self._build_ui()
@@ -290,12 +245,12 @@ class TagBasedAccessTab(BaseUITab):
         without changing the tab wiring.
         """
 
-        logger.info('TagBasedAccessTab.populate_data: rebuilding tag condition view from repository')
+        logger.info('In populate_data: rebuilding tag condition view from repository')
 
         # Defensive guard: if repository is not yet loaded, just clear tables.
         repo = getattr(self, 'policy_repo', None)
         if not repo or not getattr(repo, 'regular_statements', None):
-            logger.info('TagBasedAccessTab.populate_data: no policy data available; clearing tables')
+            logger.info('In populate_data: no policy data available; clearing tables')
             self._statement_rows = []
             self._condition_rows = []
             self._statement_to_conditions = {}
@@ -304,101 +259,6 @@ class TagBasedAccessTab(BaseUITab):
             return
 
         statement_rows: list[dict[str, str]] = []
-
-        # ------------------------------------------------------------------
-        # First pass: derive distinct values for the builder from **all**
-        # regular statements in the tenancy, not just those with tag
-        # conditions. This keeps the builder broadly useful even when
-        # only a subset of policies use tag-based where-clauses.
-        # ------------------------------------------------------------------
-
-        principals_seen: set[str] = set()
-        principal_details: dict[str, tuple[str, str | None, str]] = {}
-        resources_seen: set[str] = set()
-        effective_paths_seen: set[str] = set()
-
-        for stmt in repo.regular_statements:
-            try:
-                display_row = for_display_tag_based_policy_row(stmt)  # type: ignore[arg-type]
-            except Exception:  # pragma: no cover - defensive
-                logger.info(
-                    'TagBasedAccessTab.populate_data: error normalizing statement for builder distincts',
-                    exc_info=True,
-                )
-                continue
-
-            # Derive canonical principal keys where possible so the
-            # builder can emit realistic subjects (service, group,
-            # dynamic-group, etc.). Fall back to simple strings when the
-            # shape is not recognized.
-            subj_type = (display_row.get('Subject Type') or '').strip() or None
-            raw_subject = display_row.get('Subject')
-
-            def _add_principal(ptype: str, domain: str | None, name: str) -> None:
-                # For id-based subjects, prefer compact keys without a
-                # domain placeholder, e.g. "group-id:ocid1...". These do
-                # not participate in the canonical {type}:{domain}/{name}
-                # pattern today.
-                if ptype in {'group-id', 'dynamic-group-id'}:
-                    key = f'{ptype}:{name}'
-                    principals_seen.add(key)
-                    principal_details[key] = (ptype, None, name)
-                    return
-
-                # For structured subjects (user/group/dynamic-group/service)
-                # build the same principal_key shape used by simulation and
-                # intelligence: {subject_type}:{domain}/{name} with
-                # explicit Default/None rules.
-
-                key = PolicyIntelligenceEngine.calculate_principal_key(ptype, domain, name)
-                principals_seen.add(key)
-                principal_details[key] = (ptype, domain, name)
-
-            if (
-                subj_type in {'user', 'group', 'dynamic-group', 'service', 'group-id', 'dynamic-group-id'}
-                and raw_subject
-            ):
-                subjects = raw_subject if isinstance(raw_subject, list) else [raw_subject]
-                for subj in subjects:
-                    # Tuple/list form: (domain, name)
-                    if isinstance(subj, (tuple | list)) and len(subj) == 2:
-                        domain, name = subj
-                        dom_str = None if (domain in (None, 'default')) else str(domain)
-                        name_str = str(name).strip()
-                        if name_str:
-                            _add_principal(subj_type, dom_str, name_str)
-                    elif isinstance(subj, str):
-                        name_str = subj.strip()
-                        if name_str:
-                            _add_principal(subj_type, None, name_str)
-            else:
-                # Fallback: treat Subject as display-only strings if we
-                # cannot infer a structured principal.
-                if isinstance(raw_subject, list):
-                    subject_pieces = [str(s).strip() for s in raw_subject if str(s).strip()]
-                    for s in subject_pieces:
-                        principals_seen.add(s)
-                else:
-                    subject_display = str(raw_subject or '').strip()
-                    if subject_display:
-                        principals_seen.add(subject_display)
-
-            resource_display = str(display_row.get('Resource') or '').strip()
-            if resource_display:
-                resources_seen.add(resource_display)
-
-            effective_path = str(display_row.get('Effective Path') or '').strip()
-            if effective_path:
-                effective_paths_seen.add(effective_path)
-
-        # Persist sorted distinct values for builder comboboxes.
-        self._builder_principals = sorted(principals_seen)
-        self._builder_principal_details = principal_details
-        self._builder_resources = sorted(resources_seen)
-        # For now, treat Effective Path as the location / compartment
-        # dimension until we have more granular location parsing.
-        self._builder_locations = sorted(effective_paths_seen)
-        self._builder_effective_paths = sorted(effective_paths_seen)
 
         # ------------------------------------------------------------------
         # Second pass: build the tag-focused overview tables using only
@@ -428,7 +288,7 @@ class TagBasedAccessTab(BaseUITab):
                 structure, tag_conds = collect_tag_conditions(cond_text)
             except Exception:  # pragma: no cover - defensive, helper already logs
                 logger.info(
-                    'TagBasedAccessTab.populate_data: TagConditionCollector failed; using raw condition as structure',
+                    'In populate_data: TagConditionCollector failed; using raw condition as structure',
                     exc_info=True,
                 )
                 structure, tag_conds = cond_text, []
@@ -470,7 +330,7 @@ class TagBasedAccessTab(BaseUITab):
                 self._all_condition_rows.append(self._project_condition_row(row, cond))
 
         logger.info(
-            'TagBasedAccessTab.populate_data: discovered %d candidate tag-based statements',
+            'In populate_data: discovered %d candidate tag-based statements',
             len(statement_rows),
         )
         self._statement_rows = statement_rows
@@ -481,10 +341,6 @@ class TagBasedAccessTab(BaseUITab):
 
         self._update_statement_table(self._statement_rows)
         self._update_condition_table(self._condition_rows)
-
-        # Finally, refresh the builder dropdowns from the distinct
-        # values we just derived.
-        self._refresh_builder_values()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -513,21 +369,6 @@ class TagBasedAccessTab(BaseUITab):
         # condition-level details.
         self._build_statement_table(overview_frame)
         self._build_condition_detail_table(overview_frame)
-
-        # --- Bottom Half: Tag-based Condition Builder & Tester (sketch) ---
-        builder_frame = ttk.LabelFrame(self, text='Tag-based Condition Builder & Tester')
-        builder_frame.pack(fill='both', padx=8, pady=(0, 8), expand=True)
-        self.add_context_help(
-            builder_frame,
-            (
-                'Sketch for building tag-based where clauses. Configure access '
-                'type, namespace, key, operator, and value to generate a '
-                'syntactically correct snippet that can be copied or sent to '
-                'the Condition Tester and Simulation tabs. (Bottom-half '
-                'orchestration not fully implemented yet.)'
-            ),
-        )
-        self._build_builder_section(builder_frame)
 
     def _build_overview_filters(self, parent: ttk.LabelFrame) -> None:
         """Create the filter row for the overview table.
@@ -632,7 +473,7 @@ class TagBasedAccessTab(BaseUITab):
             first = selected_rows[0]
             stmt_id = first.get('_Statement ID', '')
             logger.info(
-                'TagBasedAccessTab: selected statement for tag analysis: id=%s, policy=%s, path=%s',
+                'Selected statement for tag analysis: id=%s, policy=%s, path=%s',
                 stmt_id,
                 first.get('Policy Name'),
                 first.get('Effective Path'),
@@ -659,10 +500,7 @@ class TagBasedAccessTab(BaseUITab):
                 )
 
             logger.info(
-                'TagBasedAccessTab: statement id=%s has %d tag conditions: %s',
-                stmt_id,
-                len(tag_conds),
-                [c.condition_id for c in tag_conds],
+                f'Statement id={stmt_id} has {len(tag_conds)} tag conditions: {[c.condition_id for c in tag_conds]}'
             )
 
             self._condition_rows = condition_rows
@@ -742,10 +580,8 @@ class TagBasedAccessTab(BaseUITab):
                 return
             first = selected_rows[0]
             logger.info(
-                'TagBasedAccessTab: selected condition element id=%s, namespace=%s, key=%s',
-                first.get('Condition ID'),
-                first.get('Tag Namespace'),
-                first.get('Tag Key'),
+                f"Selected condition element id={first.get('Condition ID')}, "
+                f"namespace={first.get('Tag Namespace')}, key={first.get('Tag Key')}"
             )
 
         self.condition_table = DataTable(
@@ -781,434 +617,6 @@ class TagBasedAccessTab(BaseUITab):
             return menu
 
         self.condition_table.row_context_menu_callback = _condition_row_menu
-
-    def _build_builder_section(self, parent: ttk.LabelFrame) -> None:  # noqa: C901
-        """Sketch the bottom-half tag condition builder UI.
-
-        This section defines the layout and live preview labels, but does not
-        yet wire clipboard operations or cross-tab navigation. Those
-        behaviors will be added in a follow-on implementation once the
-        TagConditionCollector and builder semantics are finalized.
-
-        Args:
-            parent: The parent label frame for the builder widgets.
-        """
-
-        parent.columnconfigure(0, weight=3)
-        parent.columnconfigure(1, weight=3)
-        parent.columnconfigure(2, weight=2)
-
-        # --- Left: statement specifics ---
-        form_frame = ttk.Frame(parent)
-        form_frame.grid(row=0, column=0, sticky='nsew', padx=(6, 3), pady=6)
-        # Three-column grid: [Label][Primary dropdown][Aux/toggle]
-        form_frame.columnconfigure(0, weight=0)
-        form_frame.columnconfigure(1, weight=1)
-        form_frame.columnconfigure(2, weight=0)
-
-        ttk.Label(form_frame, text='Principal:').grid(row=0, column=0, padx=3, pady=2, sticky='e')
-        self._builder_principal_combo = ttk.Combobox(
-            form_frame,
-            textvariable=self.builder_principal_var,
-            width=36,
-            state='readonly',
-            values=self._builder_principals,
-        )
-        self._builder_principal_combo.grid(row=0, column=1, columnspan=2, padx=3, pady=2, sticky='we')
-        self.add_context_help(
-            self._builder_principal_combo,
-            'Choose the principal (user, group, dynamic group, service, or id-based) that the statement applies to. '
-            'Keys like group-id:ocid... and dynamic-group-id:ocid... represent principals by OCID.',
-        )
-
-        ttk.Label(form_frame, text='Verb:').grid(row=1, column=0, padx=3, pady=2, sticky='e')
-        self._builder_verb_combo = ttk.Combobox(
-            form_frame,
-            textvariable=self.builder_verb_var,
-            width=36,
-            state='readonly',
-            values=['inspect', 'read', 'use', 'manage'],
-        )
-        self._builder_verb_combo.grid(row=1, column=1, columnspan=2, padx=3, pady=2, sticky='we')
-        self.add_context_help(
-            self._builder_verb_combo,
-            'Select the high-level verb (inspect, read, use, manage) for the generated policy statement.',
-        )
-
-        ttk.Label(form_frame, text='Resource:').grid(row=2, column=0, padx=3, pady=2, sticky='e')
-        self._builder_resource_combo = ttk.Combobox(
-            form_frame,
-            textvariable=self.builder_resource_var,
-            width=36,
-            state='readonly',
-            values=self._builder_resources,
-        )
-        self._builder_resource_combo.grid(row=2, column=1, padx=3, pady=2, sticky='we')
-        self.add_context_help(
-            self._builder_resource_combo,
-            "Pick the resource target (e.g., buckets, instances). By default this list is based on resources observed in existing policies; enable 'All Possible' to see every known resource/family from reference data.",
-        )
-
-        # Checkbox to toggle between in-use resources and full reference data domain
-        all_possible_chk = ttk.Checkbutton(
-            form_frame,
-            text='All Possible',
-            variable=self.builder_all_possible_resources_var,
-            command=self._on_toggle_all_possible_resources,
-        )
-        all_possible_chk.grid(row=2, column=2, padx=(6, 0), pady=2, sticky='w')
-        self.add_context_help(
-            all_possible_chk,
-            'When checked, the Resource dropdown is populated from the full domain of known resources and families in the reference data, not just those seen in the loaded tenancy.',
-        )
-
-        ttk.Label(form_frame, text='Location / Compartment:').grid(row=3, column=0, padx=3, pady=2, sticky='e')
-        self._builder_location_combo = ttk.Combobox(
-            form_frame,
-            textvariable=self.builder_location_var,
-            width=36,
-            state='readonly',
-            values=self._builder_locations,
-        )
-        self._builder_location_combo.grid(row=3, column=1, columnspan=2, padx=3, pady=2, sticky='we')
-        self.add_context_help(
-            self._builder_location_combo,
-            'Select where in the compartment hierarchy this policy statement would live. '
-            'This affects how Effective Path is interpreted but is not directly part of the policy text.',
-        )
-
-        ttk.Label(form_frame, text='Effective Path:').grid(row=4, column=0, padx=3, pady=2, sticky='e')
-        self._builder_effective_path_combo = ttk.Combobox(
-            form_frame,
-            textvariable=self.builder_effective_path_var,
-            width=36,
-            state='readonly',
-            values=self._builder_effective_paths,
-        )
-        self._builder_effective_path_combo.grid(row=4, column=1, columnspan=2, padx=3, pady=2, sticky='we')
-        self.add_context_help(
-            self._builder_effective_path_combo,
-            'Choose the effective path (scope) that OCI uses when evaluating the statement. '
-            "The builder subtracts Location from this path to form the 'in compartment ...' clause.",
-        )
-
-        # --- Right: tag condition pieces (as before) ---
-        right_frame = ttk.Frame(parent)
-        right_frame.grid(row=0, column=1, sticky='nsew', padx=3, pady=6)
-
-        ttk.Label(right_frame, text='Access Type:').grid(row=0, column=0, padx=3, pady=2, sticky='e')
-        access_combo = ttk.Combobox(
-            right_frame,
-            textvariable=self.builder_access_type_var,
-            state='readonly',
-            width=40,
-            values=[
-                'request.principal.group',
-                'request.principal.compartment',
-                'target.resource',
-                'target.resource.compartment',
-            ],
-        )
-        access_combo.grid(row=0, column=1, padx=3, pady=2, sticky='w')
-        self.add_context_help(
-            access_combo,
-            'Select the left-hand side access variable for the tag condition, such as request.principal.group or '
-            'target.resource.compartment.',
-        )
-
-        ttk.Label(right_frame, text='Tag Namespace:').grid(row=1, column=0, padx=3, pady=2, sticky='e')
-        ttk.Entry(right_frame, textvariable=self.builder_namespace_var, width=42).grid(
-            row=1, column=1, padx=3, pady=2, sticky='w'
-        )
-        self.add_context_help(
-            right_frame,
-            "Enter the tag namespace and key that the condition will reference. For example, a namespace of 'MyNs' "
-            "and key 'CostCenter' would produce variables like request.principal.group.tag.MyNs.CostCenter.",
-        )
-
-        ttk.Label(right_frame, text='Tag Key:').grid(row=2, column=0, padx=3, pady=2, sticky='e')
-        ttk.Entry(right_frame, textvariable=self.builder_key_var, width=42).grid(
-            row=2, column=1, padx=3, pady=2, sticky='w'
-        )
-
-        ttk.Label(right_frame, text='Operator:').grid(row=3, column=0, padx=3, pady=2, sticky='e')
-        op_combo = ttk.Combobox(
-            right_frame,
-            textvariable=self.builder_operator_var,
-            state='readonly',
-            width=20,
-            values=['=', '!=', 'IN', 'NOT IN'],
-        )
-        op_combo.grid(row=3, column=1, padx=3, pady=2, sticky='w')
-        self.add_context_help(
-            op_combo,
-            'Choose the comparison operator for the tag condition. Use IN / NOT IN when you want to compare against '
-            'a list of allowed or disallowed values.',
-        )
-
-        ttk.Label(right_frame, text='Value(s):').grid(row=4, column=0, padx=3, pady=2, sticky='e')
-        val_entry = ttk.Entry(right_frame, textvariable=self.builder_value_var, width=42)
-        val_entry.grid(row=4, column=1, padx=3, pady=2, sticky='w')
-        self.add_context_help(
-            val_entry,
-            'Enter the tag value or values to compare against. For IN and NOT IN operators, use a comma-separated '
-            'list, for example: foo,bar,baz. To use pattern match, enter /*xx/ or /abc*/',
-        )
-
-        preview_frame = ttk.Frame(right_frame)
-        preview_frame.grid(row=5, column=0, columnspan=2, padx=3, pady=(8, 2), sticky='w')
-
-        ttk.Label(preview_frame, text='Generated variable:').grid(row=0, column=0, sticky='w')
-        ttk.Label(preview_frame, textvariable=self.builder_variable_preview_var, foreground='#006699').grid(
-            row=0, column=1, sticky='w', padx=(4, 0)
-        )
-
-        ttk.Label(preview_frame, text='Condition snippet:').grid(row=1, column=0, sticky='w')
-        ttk.Label(preview_frame, textvariable=self.builder_condition_preview_var, foreground='#006699').grid(
-            row=1, column=1, sticky='w', padx=(4, 0)
-        )
-
-        # --- Generated statement + actions (right-hand side) ---
-        statement_frame = ttk.Frame(parent)
-        statement_frame.grid(row=0, column=2, sticky='nsew', padx=(3, 6), pady=6)
-
-        # Show where this statement would be placed in the hierarchy
-        loc_label = ttk.Label(statement_frame, text='Location (Compartment): <none>')
-        loc_label.pack(anchor='w', pady=(0, 4))
-        self._builder_location_display_label = loc_label
-
-        ttk.Label(statement_frame, text='Generated policy statement:').pack(anchor='w')
-        ttk.Label(
-            statement_frame,
-            textvariable=self.builder_statement_preview_var,
-            foreground='#003366',
-            wraplength=380,
-            justify='left',
-        ).pack(fill='x', pady=(2, 6))
-
-        btn_row = ttk.Frame(statement_frame)
-        btn_row.pack(fill='x', pady=(0, 4))
-
-        ttk.Button(btn_row, text='Copy Statement', command=self._on_copy_statement).pack(side='left', padx=(0, 4))
-        ttk.Button(btn_row, text='Test Condition', command=self._on_test_condition).pack(side='left', padx=(0, 4))
-        ttk.Button(btn_row, text='Add to Simulation Prospects', command=self._on_add_to_simulation).pack(side='left')
-
-        # Hook up previews to builder variable changes
-        def _update_previews(*_args) -> None:  # noqa: C901
-            access = self.builder_access_type_var.get().strip()
-            ns = self.builder_namespace_var.get().strip()
-            key = self.builder_key_var.get().strip()
-            op = self.builder_operator_var.get().strip() or '='
-            val = self.builder_value_var.get().strip()
-
-            # --- Variable + condition snippet ---
-            if access and ns and key:
-                var_name = f'{access}.tag.{ns}.{key}'
-            else:
-                var_name = ''
-            self.builder_variable_preview_var.set(var_name)
-
-            snippet = ''
-            if var_name:
-                # For IN / NOT IN, treat the Value(s) field as a comma-separated
-                # list and emit a parenthesized, quoted list consistent with the
-                # condition grammar, e.g. Value(s)="abc,123" -> ('abc','123').
-                if op.upper() in {'IN', 'NOT IN'}:
-                    values: list[str] = []
-                    if val:
-                        raw_parts = [p.strip() for p in val.split(',') if p.strip()]
-                        values = [p if len(p) >= 2 and p[0] == '/' and p[-1] == '/' else f"'{p}'" for p in raw_parts]
-                    list_part = f"({','.join(values)})" if values else '()'
-                    snippet = f'all {{ {var_name} {op} {list_part} }}'
-                else:
-                    # Default to scalar comparison; quoting rules are owned by the
-                    # condition parser, so we keep this as a simple string.
-                    value_part = f"'{val}'" if val else "''"
-                    snippet = f'all {{ {var_name} {op} {value_part} }}'
-            self.builder_condition_preview_var.set(snippet)
-
-            # --- Principal / subject phrase (SimulationTab-style keys) ---
-            principal_key = self.builder_principal_var.get().strip()
-            subject_phrase = '<principal>'
-            if principal_key:
-                details = self._builder_principal_details.get(principal_key)
-                if details is not None:
-                    ptype, domain, name = details
-                    if ptype == 'service':
-                        subject_phrase = f'service {name}'
-                    elif ptype in {'group', 'dynamic-group', 'user'}:
-                        if domain:
-                            subject_phrase = f"{ptype} '{domain}'/'{name}'"
-                        else:
-                            subject_phrase = f"{ptype} '{name}'"
-                    elif ptype == 'group-id':
-                        subject_phrase = f'group id {name}'
-                    elif ptype == 'dynamic-group-id':
-                        subject_phrase = f'dynamic-group id {name}'
-                    else:
-                        subject_phrase = name or principal_key
-                else:
-                    # Fallback if key not in details map
-                    subject_phrase = principal_key
-
-            # --- Resource + verb phrase ---
-            verb = self.builder_verb_var.get().strip() or 'use'
-            resource = self.builder_resource_var.get().strip() or '<resource>'
-
-            # --- Location / Effective Path -> location clause rules ---
-            location_raw = self.builder_location_var.get().strip() or 'root'
-            eff_raw = self.builder_effective_path_var.get().strip() or location_raw
-
-            def _split_path(path: str) -> list[str]:
-                parts = [p for p in path.split('/') if p]
-                return parts or ['root']
-
-            loc_parts = _split_path(location_raw)
-            eff_parts = _split_path(eff_raw)
-
-            # Validate that the effective path is within the chosen
-            # location. If not, reset Effective Path to Location and
-            # inform the user once.
-            if eff_parts[: len(loc_parts)] != loc_parts:
-                try:
-                    messagebox.showwarning(
-                        'Effective Path outside Location',
-                        'The selected Effective Path is not within the chosen Location. '
-                        'It has been reset to match the Location.',
-                    )
-                except Exception:
-                    logger.info('TagBasedAccessTab: unable to show warning messagebox', exc_info=True)
-                self.builder_effective_path_var.set('/'.join(loc_parts))
-                eff_parts = list(loc_parts)
-
-            location_clause = ''
-            # Special case: both root -> "in tenancy"
-            if loc_parts == ['root'] and eff_parts == ['root']:
-                location_clause = ' in tenancy'
-            else:
-                # If effective path extends the location path, use the trailing
-                # part as the compartment name, e.g. root/x/y vs root/x/y/z -> z.
-                if len(eff_parts) > len(loc_parts) and eff_parts[: len(loc_parts)] == loc_parts:
-                    remaining = eff_parts[len(loc_parts) :]
-                    comp_name = '/'.join(remaining)
-                    location_clause = f' in compartment {comp_name}'
-                elif eff_parts:
-                    # Fallback: use last segment of effective path
-                    location_clause = f' in compartment {eff_parts[-1]}'
-
-            # Update location display label for clarity
-            try:
-                if hasattr(self, '_builder_location_display_label'):
-                    self._builder_location_display_label.config(text=f"Location (Compartment): {'/'.join(loc_parts)}")
-            except Exception:
-                logger.info('TagBasedAccessTab: unable to update location display label', exc_info=True)
-
-            # --- Statement synthesis ---
-            if snippet:
-                statement = f'Allow {subject_phrase} to {verb} {resource}{location_clause} where {snippet}'
-            else:
-                statement = f'Allow {subject_phrase} to {verb} {resource}{location_clause}'
-
-            self.builder_statement_preview_var.set(statement)
-
-        for var in (
-            self.builder_principal_var,
-            self.builder_resource_var,
-            self.builder_location_var,
-            self.builder_effective_path_var,
-            self.builder_access_type_var,
-            self.builder_namespace_var,
-            self.builder_key_var,
-            self.builder_operator_var,
-            self.builder_value_var,
-            # Ensure verb changes immediately refresh the generated
-            # statement preview, not just other builder fields.
-            self.builder_verb_var,
-        ):
-            var.trace_add('write', _update_previews)
-
-        # (Previously reserved for future integration; reclaimed space
-        # so the generated statement and actions remain the primary
-        # focus in the right-hand column.)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    def _refresh_builder_values(self) -> None:
-        """Refresh the builder combobox value lists from cached distincts.
-
-        This is invoked after :meth:`populate_data` runs so that the
-        lower-half builder surfaces commonly-used principals, resources,
-        and effective paths observed in the loaded policies.
-        """
-
-        try:
-            # Principal / subject
-            principal_widget: ttk.Combobox | None = None
-            resource_widget: ttk.Combobox | None = None
-            location_widget: ttk.Combobox | None = None
-            effective_widget: ttk.Combobox | None = None
-
-            # The builder widgets are created in _build_builder_section;
-            # store them as attributes there so we can safely configure
-            # their value lists here.
-            principal_widget = getattr(self, '_builder_principal_combo', None)
-            resource_widget = getattr(self, '_builder_resource_combo', None)
-            location_widget = getattr(self, '_builder_location_combo', None)
-            effective_widget = getattr(self, '_builder_effective_path_combo', None)
-
-            if isinstance(principal_widget, ttk.Combobox):
-                principal_widget['values'] = self._builder_principals or []
-            if isinstance(resource_widget, ttk.Combobox):
-                # Respect the "All Possible" toggle when choosing which
-                # resource domain to expose in the builder dropdown.
-                if self.builder_all_possible_resources_var.get() and self._builder_all_resources:
-                    resource_widget['values'] = self._builder_all_resources
-                else:
-                    resource_widget['values'] = self._builder_resources or []
-            if isinstance(location_widget, ttk.Combobox):
-                location_widget['values'] = self._builder_locations or []
-            if isinstance(effective_widget, ttk.Combobox):
-                effective_widget['values'] = self._builder_effective_paths or []
-        except Exception:
-            # Failure to refresh builder values should never break the
-            # rest of the tab; log and continue.
-            logger.info('TagBasedAccessTab: unable to refresh builder combobox values', exc_info=True)
-
-    def _on_toggle_all_possible_resources(self) -> None:
-        """Handle the All Possible checkbox for the Resource dropdown.
-
-        When enabled, populate the Resource combobox with every known
-        resource and family from ReferenceDataRepo. When disabled,
-        revert to the in-use resources discovered from the loaded
-        tenancy policies.
-        """
-
-        use_all = self.builder_all_possible_resources_var.get()
-
-        if use_all:
-            # Here use self._reference_repo and assume it is loaded
-            # repo = self._ensure_reference_repo()
-            repo = self._reference_repo
-
-            # Build a combined, sorted list of resources + families so
-            # that users can choose from the full known domain.
-            try:
-                resource_names = list(repo.data.get('resources', {}).keys())
-                family_names = list(repo.data.get('families', {}).keys())
-                combined = sorted(set(resource_names + family_names), key=str.lower)
-                self._builder_all_resources = combined
-            except Exception:
-                logger.info(
-                    'TagBasedAccessTab: error while building All Possible resource list; falling back to in-use list',
-                    exc_info=True,
-                )
-                self.builder_all_possible_resources_var.set(False)
-                self._builder_all_resources = []
-
-        # Refresh the combobox value list based on the new toggle state.
-        self._refresh_builder_values()
 
     def _condition_matches_active_filters(self, cond: TagCondition) -> bool:
         """Return True if the TagCondition matches the current filters.
@@ -1258,7 +666,7 @@ class TagBasedAccessTab(BaseUITab):
         repository and applies any active filters.
         """
 
-        logger.info('TagBasedAccessTab: manual refresh requested from UI')
+        logger.info('Manual refresh requested from UI')
         self.populate_data()
 
     def _apply_filters_and_refresh(self) -> None:  # noqa: C901
@@ -1318,7 +726,7 @@ class TagBasedAccessTab(BaseUITab):
                         selected_row_dicts = [row_data]
         except Exception:  # pragma: no cover - defensive
             logger.info(
-                'TagBasedAccessTab: unable to derive selected rows from statement_table during filter refresh',
+                'Unable to derive selected rows from statement_table during filter refresh',
                 exc_info=True,
             )
 
@@ -1382,7 +790,7 @@ class TagBasedAccessTab(BaseUITab):
             # expose a dedicated setter; updating the attribute alone is
             # still safe even if the table does not immediately re-pack
             # columns.
-            logger.info('TagBasedAccessTab: unable to apply parsed-statement column toggle', exc_info=True)
+            logger.info('Unable to apply parsed-statement column toggle', exc_info=True)
 
     def _update_statement_table(self, rows: list[dict[str, str]]) -> None:
         """Update the statement-level :class:`DataTable`.
@@ -1407,88 +815,6 @@ class TagBasedAccessTab(BaseUITab):
         if not hasattr(self, 'condition_table'):
             return
         self.condition_table.update_data(new_data=rows)
-
-    # ------------------------------------------------------------------
-    # Builder button callbacks (initially conservative stubs)
-    # ------------------------------------------------------------------
-
-    def _on_copy_statement(self) -> None:
-        """Copy the generated statement text to the clipboard.
-
-        This keeps behavior local to the tab and avoids cross-tab
-        orchestration for now. If there is no statement text, the
-        method is a no-op.
-        """
-
-        text = self.builder_statement_preview_var.get().strip()
-        if not text:
-            return
-        try:
-            self.clipboard_clear()
-            self.clipboard_append(text)
-        except Exception:
-            logger.info('TagBasedAccessTab: unable to access clipboard to copy statement', exc_info=True)
-
-    def _on_test_condition(self) -> None:
-        """Send the generated condition snippet to the Condition Tester tab.
-
-        If the advanced tabs (and Condition Tester) are not available,
-        this method simply returns without raising.
-        """
-        # Delegate to the generic helper so this behavior can be reused
-        # from right-click context menus and other callers.
-        snippet = self.builder_condition_preview_var.get().strip()
-        self._send_condition_to_tester(snippet, show_empty_message=True)
-
-    def _on_add_to_simulation(self) -> None:
-        """Add the generated statement as a prospective simulation statement.
-
-        This implementation appends a new inline prospective row in the
-        Simulation tab, runs its Parse routine, and then switches focus
-        to the Simulation tab so the user can review/save it.
-        """
-
-        statement = self.builder_statement_preview_var.get().strip()
-        if not statement:
-            return
-
-        app = getattr(self, 'app', None)
-        if not app:
-            return
-
-        sim_tab = getattr(app, 'simulation_tab', None)
-        if sim_tab is None:
-            return
-
-        # Prefer Effective Path, then Location, then ROOT
-        compartment_path = (
-            self.builder_effective_path_var.get().strip() or self.builder_location_var.get().strip() or 'ROOT'
-        )
-
-        # Optional: derive a friendly description from tag namespace/key
-        ns = self.builder_namespace_var.get().strip()
-        key = self.builder_key_var.get().strip()
-        if ns and key:
-            desc = f'Tag builder: {ns}.{key}'
-        else:
-            desc = 'Tag-based builder statement'
-
-        try:
-            if hasattr(sim_tab, 'add_prospective_statement_from_builder'):
-                sim_tab.add_prospective_statement_from_builder(
-                    statement_text=statement,
-                    compartment_path=compartment_path,
-                    description=desc,
-                )
-
-            # Bring the Simulation tab to the foreground
-            if hasattr(app, 'notebook'):
-                app.notebook.select(sim_tab)
-        except Exception:
-            logger.info(
-                'TagBasedAccessTab: error while adding statement to Simulation prospects',
-                exc_info=True,
-            )
 
     # ------------------------------------------------------------------
     # Shared helper + context-menu actions for Condition Tester
@@ -1526,12 +852,12 @@ class TagBasedAccessTab(BaseUITab):
                     )
                 except Exception:
                     logger.info(
-                        'TagBasedAccessTab: unable to show info messagebox for empty condition snippet',
+                        'Unable to show info messagebox for empty condition snippet',
                         exc_info=True,
                     )
             return
 
-        logger.info('TagBasedAccessTab: sending condition to tester: %r', snippet)
+        logger.info('Sending condition to tester: %r', snippet)
 
         app = getattr(self, 'app', None)
         if not app:
@@ -1551,11 +877,11 @@ class TagBasedAccessTab(BaseUITab):
                     app.notebook.select(tester_tab)
                 except Exception:
                     logger.info(
-                        'TagBasedAccessTab: unable to select Condition Tester tab on notebook',
+                        'Unable to select Condition Tester tab on notebook',
                         exc_info=True,
                     )
         except Exception:
-            logger.info('TagBasedAccessTab: error while sending snippet to Condition Tester', exc_info=True)
+            logger.info('Error while sending snippet to Condition Tester', exc_info=True)
 
     def _on_statement_show_in_condition_tester(self, row: dict[str, str]) -> None:
         """Right-click action for the statement table.
