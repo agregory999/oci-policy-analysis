@@ -7,8 +7,12 @@
 ## Purpose and Positioning
 
 The **Tag-based Access** tab is an advanced UI surface focused on
-understanding and designing **tag-based OCI IAM policies**, with a strong
-emphasis on the anatomy of tag conditions and how they affect access.
+understanding and exploring **tag-based OCI IAM policies**, with a strong
+emphasis on the anatomy of tag conditions and how they affect access. As of
+2026-04, the tab is intentionally **read-only**: authoring and editing of
+statements happens elsewhere (e.g. Policies tab, Prospective Editor), while
+this tab remains the place to discover, inspect, and filter tag-based
+conditions.
 
 Its goals are to:
 
@@ -21,8 +25,8 @@ Its goals are to:
     - Access type (e.g. `target.resource`, `request.principal.group`).
     - Tag namespace and key (e.g. `Operations.Project`).
     - Operator (`=`, `!=`, `IN`, `NOT IN`, etc.) and value(s).
-- Provide a **builder** that helps users construct valid, well-formed
-  tag-based `where` clauses.
+- Provide quick access to supporting tooling (Condition Tester, Prospective
+  Editor) so users can pivot from analysis to testing/authoring when needed.
 - Reuse the existing **Condition Tester** and **Simulation Engine** so users
   can test tag-based conditions and what-if policies without duplicating
   business logic.
@@ -257,23 +261,27 @@ condition model (no re-parsing required):
     - `target.resource.compartment`
   - When set to anything other than `Any`, filters TagConditions by
     exact match against `cond.access_type`.
-- **Refresh from Loaded Policies** button:
-  - Re-runs `TagBasedAccessTab.populate_data()`:
-    - Walks `repo.regular_statements` from `app.policy_compartment_analysis`.
-    - For each statement whose `conditions` text is non-empty and contains
-      `.tag.`, calls `collect_tag_conditions` to obtain:
-      - A structure string (used for `Parsed Condition Structure`).
-      - A list of `TagCondition` objects.
-    - Builds `_statement_rows` and `_statement_to_conditions` maps.
-  - Safe to use after reloads or cache imports.
 - **Show parsed statement** checkbox:
   - Toggles additional parsed columns (`Subject Type`, `Subject`, `Verb`,
     `Resource`) in the statement overview table by updating
     `statement_table.display_columns`.
+- **Show Prospective** checkbox:
+  - When enabled, `populate_data` merges in prospective (what-if)
+    statements provided by `ProspectiveStatementsService`/simulation engine
+    so that the overview includes statements authored via the Prospective
+    editor. Prospective rows are prefixed with `[Prospective]` and can be
+    filtered/searched just like real tenancy statements.
+- **Prospective Editor…** button:
+  - Opens the Prospective Editor window, allowing users to create or edit
+    prospective statements. Upon save, the editor refreshes the Tag-based
+    tab, Policies tab, and Simulation tab so changes are immediately visible.
+- **Refresh from Loaded Policies** button:
+  - Re-runs `TagBasedAccessTab.populate_data()` to rebuild the in-memory view
+    from the latest repository snapshot (safe after tenancy reloads or cache
+    imports).
 
-All three filter variables have `trace_add("write", ...)` handlers that
-call `_apply_filters_and_refresh()` to re-filter the in-memory structures
-without re-reading the repository.
+All filter variables react via `trace_add('write', ...)` to refresh the
+in-memory structures without re-reading the repository.
 
 #### Statement-level table (upper)
 

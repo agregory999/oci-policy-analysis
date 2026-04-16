@@ -116,6 +116,7 @@ def test_create_and_validate_and_update_text() -> None:
     assert updated.invalid_reasons == ['Some semantic issue']
     assert isinstance(updated.normalized, dict)
     assert updated.normalized.get('subject_type') == 'group'
+    assert updated.effective_path == 'ROOT/Dev'
 
 
 def test_replace_all_from_simple_list_and_persist() -> None:
@@ -167,3 +168,4 @@ def test_validate_and_update_text_without_engine_marks_unvalidated() -> None:
     assert updated.parsed is False
     assert updated.valid is False
     assert updated.invalid_reasons  # should contain a message about engine not available
+    assert updated.effective_path == 'ROOT'

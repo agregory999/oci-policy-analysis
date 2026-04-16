@@ -39,6 +39,7 @@ visualizes tag-focused data.
 
 from __future__ import annotations
 
+import hashlib
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import messagebox, ttk
@@ -202,6 +203,8 @@ class TagBasedAccessTab(BaseUITab):
         # Controls whether parsed-statement columns are visible in the
         # top-level statement table.
         self.show_parsed_statement_var = tk.BooleanVar(value=False)
+        # Toggle for including prospective statements in the overview tables.
+        self.show_prospective_var = tk.BooleanVar(value=False)
 
         logger.info('Initializing TagBasedAccessTab UI layout')
         self._build_ui()
@@ -260,26 +263,31 @@ class TagBasedAccessTab(BaseUITab):
 
         statement_rows: list[dict[str, str]] = []
 
+        # Optional prospective (what-if) statements. When enabled they are
+        # shaped to look like regular statements so filters work the same way.
+        prospective_statements = self._build_prospective_statement_like_list()
+
         # ------------------------------------------------------------------
-        # Second pass: build the tag-focused overview tables using only
-        # statements whose conditions contain ".tag.".
+        # Build the tag-focused overview tables using only statements whose
+        # conditions contain ".tag.". This includes both real tenancy
+        # statements and (optionally) prospective statements authored in the
+        # Prospective Editor.
         # ------------------------------------------------------------------
 
-        # Clear any prior mapping so we always reflect the latest
-        # repository snapshot.
+        # Clear any prior mapping so we always reflect the latest snapshot.
         self._statement_to_conditions = {}
         self._all_condition_rows = []
 
+        all_statements: list[tuple[str, dict]] = []
         for idx, stmt in enumerate(repo.regular_statements, start=1):
-            cond_text = (stmt.get('conditions') or '').strip()
+            all_statements.append((f's{idx}', stmt))
+        for pidx, pst in enumerate(prospective_statements, start=1):
+            all_statements.append((f'p{pidx}', pst))
+
+        for stmt_id, stmt in all_statements:
+            cond_text = str(stmt.get('conditions') or '').strip()
             if not cond_text or '.tag.' not in cond_text:
                 continue
-
-            # Build a stable identifier for this statement within the
-            # current tab population run. This avoids depending on the
-            # repository's internal IDs while still giving us a key to
-            # map back from UI selection to parsed conditions.
-            stmt_id = f's{idx}'
 
             # Use the dedicated TagConditionCollector helper to parse
             # the where-clause. Any syntax errors are handled inside the
@@ -297,9 +305,15 @@ class TagBasedAccessTab(BaseUITab):
             # column names remain consistent with other tabs.
             display_row = for_display_tag_based_policy_row(stmt)  # type: ignore[arg-type]
 
-            # For now we only populate a single summary row per statement.
+            base_name = display_row.get('Policy Name') or '(Unnamed Policy)'
+            if stmt_id.startswith('p') and not str(base_name).startswith('[Prospective]'):
+                policy_name = f'[Prospective] {base_name}'
+            else:
+                policy_name = base_name
+
+            # Only one summary row per statement, enriched with parsed details.
             row = {
-                'Policy Name': display_row.get('Policy Name') or '(Unnamed Policy)',
+                'Policy Name': policy_name,
                 'Effective Path': display_row.get('Effective Path') or 'ROOT',
                 'Statement Text': display_row.get('Statement Text') or '',
                 'Subject Type': display_row.get('Subject Type') or '',
@@ -307,10 +321,6 @@ class TagBasedAccessTab(BaseUITab):
                 'Verb': display_row.get('Verb') or '',
                 'Resource': display_row.get('Resource') or '',
                 'Raw Condition': cond_text,
-                # Always show the parsed structure if available; if the
-                # collector returned an empty string, fall back to the
-                # original condition text so users still see the shape
-                # of the where-clause instead of a placeholder.
                 'Parsed Condition Structure': structure or cond_text,
                 '_Statement ID': stmt_id,
             }
@@ -444,6 +454,33 @@ class TagBasedAccessTab(BaseUITab):
             command=self._on_toggle_parsed_statement,
         )
         parsed_chk.grid(row=0, column=7, padx=(12, 2), pady=2, sticky='w')
+
+        # Prospective toggle mirrors the PoliciesTab experience so users can
+        # include what-if statements authored in the Prospective editor.
+        show_prospective_chk = ttk.Checkbutton(
+            filter_row,
+            text='Show Prospective',
+            variable=self.show_prospective_var,
+            command=self._on_toggle_prospective,
+        )
+        show_prospective_chk.grid(row=0, column=8, padx=(12, 2), pady=2, sticky='w')
+        self.add_context_help(
+            show_prospective_chk,
+            'Include prospective (what-if) policy statements that contain tag conditions. '
+            'These are defined in the Prospective Editor and evaluated alongside tenancy policies.',
+        )
+
+        open_prospective_btn = ttk.Button(
+            filter_row,
+            text='Prospective Editor…',
+            command=self._open_prospective_editor_from_tag_tab,
+        )
+        open_prospective_btn.grid(row=0, column=9, padx=(6, 0), pady=2, sticky='w')
+        self.add_context_help(
+            open_prospective_btn,
+            'Open the Prospective (what-if) Policy Editor. Statements saved there can appear '
+            'in this tab when “Show Prospective” is enabled.',
+        )
 
     def _build_statement_table(self, parent: ttk.LabelFrame) -> None:
         """Create the statement-level :class:`DataTable` (Table 1).
@@ -617,6 +654,125 @@ class TagBasedAccessTab(BaseUITab):
             return menu
 
         self.condition_table.row_context_menu_callback = _condition_row_menu
+
+    # ------------------------------------------------------------------
+    # Prospective integration helpers
+    # ------------------------------------------------------------------
+
+    def _on_toggle_prospective(self) -> None:
+        """Handle the Show Prospective checkbox toggle."""
+
+        logger.info('TagBasedAccessTab: Show Prospective set to %s', self.show_prospective_var.get())
+        self.populate_data()
+
+    def _open_prospective_editor_from_tag_tab(self) -> None:
+        """Open the Prospective Editor window from the Tag-based tab."""
+
+        try:
+            from oci_policy_analysis.ui.prospective_editor_window import ProspectiveEditorWindow
+
+            ProspectiveEditorWindow(self, self.app)
+        except Exception as exc:  # pragma: no cover - defensive UI guard
+            logger.warning('TagBasedAccessTab: unable to open ProspectiveEditorWindow: %s', exc, exc_info=True)
+
+    def _build_prospective_statement_like_list(self) -> list[dict]:  # noqa: C901
+        """Return prospective statements shaped like regular policy statements."""
+
+        if not getattr(self, 'show_prospective_var', None) or not self.show_prospective_var.get():
+            return []
+
+        service = getattr(self.app, 'prospective_service', None)
+        engine = getattr(self.app, 'simulation_engine', None)
+
+        raw_records: list[dict] = []
+        try:
+            if service is not None:
+                for rec in service.list_all():
+                    base = {
+                        'compartment_path': getattr(rec, 'compartment_path', 'ROOT') or 'ROOT',
+                        'description': getattr(rec, 'description', '') or '',
+                        'statement_text': getattr(rec, 'statement_text', '') or '',
+                        'parsed': getattr(rec, 'parsed', False),
+                        'valid': getattr(rec, 'valid', False),
+                        'invalid_reasons': list(getattr(rec, 'invalid_reasons', []) or []),
+                    }
+                    normalized = getattr(rec, 'normalized', None) or {}
+                    if isinstance(normalized, dict):
+                        base['normalized'] = normalized
+                    raw_records.append(base)
+            elif engine is not None and hasattr(engine, 'get_prospective_statements'):
+                raw_records = list(engine.get_prospective_statements() or [])
+        except Exception:  # pragma: no cover - defensive guard
+            logger.info('TagBasedAccessTab: unable to build prospective list', exc_info=True)
+            raw_records = []
+
+        if not raw_records:
+            logger.info('TagBasedAccessTab: no prospective statements available')
+            return []
+
+        tenancy_ocid = getattr(self.policy_repo, 'tenancy_ocid', None)
+        prospective_like: list[dict] = []
+
+        for pst in raw_records:
+            stmt_text = str(pst.get('statement_text') or '').strip()
+            if not stmt_text:
+                continue
+
+            comp_path = pst.get('compartment_path') or 'ROOT'
+            desc = pst.get('description') or ''
+            normalized = pst.get('normalized') or {}
+
+            internal_id = hashlib.md5(
+                (stmt_text + '::prospective::' + comp_path).encode('utf-8'),
+            ).hexdigest()
+
+            rec: dict = {
+                'policy_name': desc or '[Prospective]',
+                'policy_ocid': '(prospective)',
+                'compartment_ocid': tenancy_ocid,
+                'compartment_path': comp_path,
+                'statement_text': stmt_text,
+                'creation_time': '',
+                'internal_id': internal_id,
+                'parsed': bool(pst.get('parsed')),
+                'valid': bool(pst.get('valid')),
+                'invalid_reasons': list(pst.get('invalid_reasons') or []),
+            }
+
+            if isinstance(normalized, dict):
+                for key in (
+                    'subject_type',
+                    'subject',
+                    'verb',
+                    'resource',
+                    'permission',
+                    'conditions',
+                    'effective_path',
+                    'action',
+                    'location_type',
+                    'location',
+                ):
+                    if key in normalized:
+                        rec[key] = normalized[key]
+
+            # Ensure a conditions string is present so .tag. detection works.
+            conditions_value = rec.get('conditions') or pst.get('conditions') or ''
+            if isinstance(conditions_value, list):
+                conditions_value = ' '.join(str(part) for part in conditions_value if part)
+            rec['conditions'] = str(conditions_value or '').strip()
+
+            # Ensure an action is always present to keep filtering consistent.
+            if 'action' not in rec:
+                rec['action'] = 'allow'
+
+            prospective_like.append(rec)
+
+        logger.info(
+            'TagBasedAccessTab: built %d prospective statements for tag overview',
+            len(prospective_like),
+        )
+
+        return prospective_like
 
     def _condition_matches_active_filters(self, cond: TagCondition) -> bool:
         """Return True if the TagCondition matches the current filters.

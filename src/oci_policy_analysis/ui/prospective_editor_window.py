@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+import webbrowser
 from tkinter import messagebox, ttk
 
 from oci_policy_analysis.common.logger import get_logger
@@ -211,8 +212,35 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
 
             loc_cb = ttk.Combobox(frame, textvariable=loc_var, values=compartments, width=28, state='readonly')
             loc_cb.grid(row=0, column=0, padx=2, sticky='ew')
-            desc_entry = ttk.Entry(frame, textvariable=desc_var, width=22)
-            desc_entry.grid(row=0, column=1, padx=2, sticky='ew')
+
+            desc_container = ttk.Frame(frame)
+            desc_container.grid(row=0, column=1, padx=2, sticky='nsew')
+            frame.columnconfigure(1, weight=2)
+
+            desc_widget = tk.Text(
+                desc_container,
+                height=2,
+                wrap='word',
+                width=30,
+            )
+            desc_widget.pack(side='left', fill='both', expand=True)
+
+            if desc_var.get():
+                desc_widget.insert('1.0', desc_var.get())
+
+            def _sync_desc_var(_event: object | None = None) -> None:
+                try:
+                    current = desc_widget.get('1.0', 'end-1c')
+                except Exception:
+                    current = ''
+                desc_var.set(current)
+
+            desc_widget.bind('<FocusOut>', _sync_desc_var)
+            desc_widget.bind('<KeyRelease>', _sync_desc_var)
+
+            desc_scroll_y = ttk.Scrollbar(desc_container, orient='vertical', command=desc_widget.yview)
+            desc_scroll_y.pack(side='right', fill='y')
+            desc_widget.configure(yscrollcommand=desc_scroll_y.set)
 
             # Use a small multi-line, scrollable text widget for the
             # statement text so longer policies are easier to read
@@ -263,6 +291,62 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
             # We keep a reference to the service record id (if known)
             record_id: str | None = (initial or {}).get('id')  # type: ignore[assignment]
 
+            # Initialize status/notes based on any persisted validation state
+            initial_data = initial or {}
+            status_initialized = False
+
+            def _initialize_status_from_initial_data(data: dict[str, object], show_notes: bool = True) -> None:
+                nonlocal status_initialized
+
+                if not isinstance(data, dict):
+                    return
+
+                reasons_raw = data.get('invalid_reasons')
+                reasons: list[str] = []
+                if isinstance(reasons_raw, str) and reasons_raw.strip():
+                    reasons = [reasons_raw.strip()]
+                elif isinstance(reasons_raw, (list | tuple | set)):
+                    reasons = [str(reason).strip() for reason in reasons_raw if str(reason).strip()]
+
+                parsed_flag = bool(data.get('parsed'))
+                valid_flag = bool(data.get('valid'))
+
+                if show_notes:
+                    notes_lbl.grid()
+                else:
+                    notes_lbl.grid_remove()
+
+                if reasons:
+                    notes_var.set('; '.join(reasons))
+                    status_var.set('Invalid')
+                    status_initialized = True
+                    return
+
+                if parsed_flag and valid_flag:
+                    status_var.set('Parsed')
+                    notes_var.set('')
+                    if show_notes:
+                        notes_lbl.grid_remove()
+                    status_initialized = True
+                    return
+
+                if parsed_flag and not valid_flag:
+                    status_var.set('Invalid')
+                    notes_var.set('')
+                    if show_notes:
+                        notes_lbl.grid_remove()
+                    status_initialized = True
+
+            _initialize_status_from_initial_data(initial_data, show_notes=True)
+
+            if not status_initialized:
+                if text_var.get().strip():
+                    status_var.set('Not parsed')
+                else:
+                    status_var.set('Not parsed')
+                notes_var.set('')
+                notes_lbl.grid_remove()
+
             def on_parse() -> None:  # noqa: C901
                 """Validate this row's statement using the simulation engine/service."""
 
@@ -280,8 +364,16 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                     rid: str = rid_obj
                     try:
                         logger.info(f'Validating statement: {stmt_text}')
+                        logger.info(
+                            'Requesting effective path calculation for record %s via ProspectiveStatementsService', rid
+                        )
                         updated = self.service.validate_and_update_text(rid, stmt_text)
                         logger.info(f'Validation result for {rid} -> parsed={updated.parsed}, valid={updated.valid}')
+                        logger.info(
+                            'Effective path for record %s resolved to %s',
+                            rid,
+                            getattr(updated, 'effective_path', '<none>'),
+                        )
                         if updated.parsed and updated.valid:
                             status_var.set('Parsed')
                             notes_var.set('')
@@ -397,6 +489,9 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                     'notes_var': notes_var,
                     'record_id': record_id,
                     'on_parse': on_parse,
+                    'initialize_status': lambda data, show_notes=True: _initialize_status_from_initial_data(
+                        data, show_notes
+                    ),
                 }
             )
             self._row_models.append(row)
@@ -421,6 +516,9 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                         'compartment_path': rec.compartment_path,
                         'description': rec.description,
                         'statement_text': rec.statement_text,
+                        'parsed': rec.parsed,
+                        'valid': rec.valid,
+                        'invalid_reasons': list(rec.invalid_reasons or []),
                     }
                 )
         else:
@@ -452,7 +550,7 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
         self.builder_resource_var = tk.StringVar()
         self.builder_location_var = tk.StringVar()
         self.builder_effective_path_var = tk.StringVar()
-        self.builder_where_mode_var = tk.StringVar(value='Tag-based Where Clause')
+        self.builder_where_mode_var = tk.StringVar(value='No Where Clause')
         # Shared helper text for the right-hand WHERE-clause area
         self.where_help_text = tk.StringVar(value='')
         self.builder_access_type_var = tk.StringVar()
@@ -690,6 +788,41 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
         other_scroll.grid(row=0, column=1, sticky='ns')
         self.builder_other_where_text.configure(yscrollcommand=other_scroll.set)
 
+        def _open_condition_docs(_event: object | None = None) -> None:
+            url = 'https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/conditions.htm'
+            try:
+                opened = webbrowser.open_new_tab(url)
+                if not opened:
+                    raise RuntimeError('Unable to open link')
+            except Exception:
+                messagebox.showinfo('Open Link', f'Open this link in your browser:\n{url}')
+
+        def _safe_bg(widget: tk.Widget | None, fallback: str | None = None) -> str | None:
+            try:
+                return widget.cget('background')  # type: ignore[call-arg]
+            except Exception:
+                return fallback
+
+        link_bg = (
+            _safe_bg(
+                self.other_where_frame,
+                _safe_bg(builder_frame, _safe_bg(self if isinstance(self, tk.Widget) else None, '#f0f0f0')),
+            )
+            or '#f0f0f0'
+        )
+        condition_link = tk.Label(
+            self.other_where_frame,
+            text='Condition Reference Documentation',
+            fg='#0645AD',
+            cursor='hand2',
+            font=('TkDefaultFont', 10, 'underline'),
+            bg=link_bg,
+            activebackground=link_bg,
+        )
+        condition_link.grid(row=1, column=0, sticky='w', pady=(0, 4))
+        condition_link.bind('<Button-1>', _open_condition_docs)
+        condition_link.bind('<Return>', _open_condition_docs)
+
         # Keep custom WHERE editor in sync with previews as the user types
         def _on_other_where_key(_event: object | None = None) -> None:
             try:
@@ -872,36 +1005,16 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                 # Internal keys for services may use a Default prefix
                 # (e.g. "service:Default/objectstorage"), but for both
                 # the dropdown and the generated statement we always want
-                # the succinct "service <name>" form. We therefore:
-                #   * strip any "Default/" domain from the lookup key,
-                #   * ensure principal_details has a matching entry with
-                #     (ptype, None, name) so build_subject_phrase returns
-                #     "service <name>".
+                # the succinct "service <name>" form. We therefore
+                # normalize the key and ensure the details map entry
+                # uses a domain-less tuple so build_subject_phrase
+                # renders "service <name>".
                 if ptype == 'service':
-                    # Normalize principal_key to the compact service:<name>
-                    # form used in the dropdown and by build_subject_phrase.
-                    # This avoids redundant "service service..." output.
-                    # Examples of principal_key on entry:
-                    #   * "service:Default/cloudguard"
-                    #   * "service:cloudguard"
-                    #   * "service:Default/cloud-guard" (legacy forms)
-                    raw = principal_key
-                    svc_name = name
-
-                    # If the key still contains a "service:Default/..." form,
-                    # rewrite it to just "service:<name>".
-                    if ':' in raw:
-                        _, maybe_rest = raw.split(':', 1)
-                        if '/' in maybe_rest:
-                            dom, svc_name_candidate = maybe_rest.split('/', 1)
-                            if dom.lower() == 'default':
-                                svc_name = svc_name_candidate
-
-                    simple_key = f'service:{svc_name}'
+                    simple_key, svc_name = self._simplify_service_principal(principal_key, name)
                     principal_key = simple_key
-                    # Ensure details map has a domain-less entry so
-                    # build_subject_phrase renders "service <name>".
-                    self._builder_principal_details[simple_key] = ('service', None, svc_name)
+                    self._builder_principal_details[simple_key] = ('service', None, svc_name or (name or ''))
+                    details = ('service', None, svc_name or (name or ''))
+                    ptype, domain, name = details
 
                 # GROUP / DYNAMIC-GROUP PRINCIPALS
                 # ---------------------------------
@@ -1011,6 +1124,8 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
         ):
             var.trace_add('write', _update_builder_previews)
 
+        _update_builder_previews()
+
     # ------------------------------------------------------------------
     # Bottom Save/Close buttons
     # ------------------------------------------------------------------
@@ -1083,11 +1198,20 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
             # --- Refresh dependent tabs so new prospective data is visible
             app = getattr(self, 'app', None)
             try:
+                refreshed_tabs: list[str] = []
+
                 # Policies tab: rebuild combined real+prospective table.
                 policies_tab = getattr(app, 'policies_tab', None)
                 if policies_tab is not None and hasattr(policies_tab, 'populate_data'):
-                    logger.info('Refreshing PoliciesTab and SimulationTab after save')
                     policies_tab.populate_data()
+                    refreshed_tabs.append('PoliciesTab')
+
+                # Tag-based Access tab: ensure prospective rows appear in the
+                # tag-focused overview when the toggle is enabled.
+                tag_tab = getattr(app, 'tag_based_access_tab', None)
+                if tag_tab is not None and hasattr(tag_tab, 'populate_data'):
+                    tag_tab.populate_data()
+                    refreshed_tabs.append('TagBasedAccessTab')
 
                 # Simulation tab: re-hydrate its data/model from the
                 # updated service/engine and refresh any inline
@@ -1095,6 +1219,10 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                 sim_tab = getattr(app, 'simulation_tab', None)
                 if sim_tab is not None and hasattr(sim_tab, 'populate_data'):
                     sim_tab.populate_data()
+                    refreshed_tabs.append('SimulationTab')
+
+                if refreshed_tabs:
+                    logger.info('Refreshed tabs after prospective save: %s', ', '.join(refreshed_tabs))
             except Exception:
                 # Never let a refresh failure block closing the dialog;
                 # individual tabs will log their own issues as needed.
@@ -1107,6 +1235,48 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
     # ------------------------------------------------------------------
     # Builder principal initialization
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_service_name(raw: str) -> str:
+        """Return the service name without prefixes like service:, Default/, etc."""
+
+        if not raw:
+            return ''
+
+        name = raw.strip()
+        if not name:
+            return ''
+
+        # Drop a leading "service:" prefix (case-insensitive)
+        if ':' in name:
+            prefix, rest = name.split(':', 1)
+            if prefix.lower() == 'service':
+                name = rest
+
+        # Remove tenancy-default prefixes such as "Default/"
+        if '/' in name:
+            parts = [p for p in name.split('/') if p]
+            if parts and parts[0].lower() == 'default':
+                parts = parts[1:]
+            name = parts[-1] if parts else name
+
+        # Drop any remaining "service" prefix without delimiters (e.g. "servicecloudguard")
+        if name.lower().startswith('service'):
+            name = name[7:]
+
+        return name.strip(' :/_-\t')
+
+    @staticmethod
+    def _simplify_service_principal(raw_key: str, fallback_name: str | None = None) -> tuple[str, str]:
+        """Return a canonical (key, name) pair for a service principal."""
+
+        name_from_key = ProspectiveEditorWindow._normalize_service_name(raw_key or '')
+        name_from_fallback = ProspectiveEditorWindow._normalize_service_name(fallback_name or '')
+
+        service_name = name_from_key or name_from_fallback or (fallback_name or '').strip()
+        simple_key = f'service:{service_name}' if service_name else 'service'
+
+        return simple_key, service_name
 
     def _initialize_builder_principals_from_repo(self) -> None:  # noqa: C901
         """Populate principal choices/details for the builder from the policy repo."""
@@ -1139,12 +1309,10 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                     # structured details as ("service", None, name) so
                     # build_subject_phrase renders "service <name>".
                     if ptype == 'service':
-                        svc_name = name
-                        # If a domain was provided and is Default, drop it
-                        # from the display key entirely.
-                        key = f'service:{svc_name}'
-                        principals_seen.add(key)
-                        principal_details[key] = ('service', None, svc_name)
+                        raw_key = f'service:{domain}/{name}' if domain else f'service:{name}'
+                        simple_key, svc_name = self._simplify_service_principal(raw_key, name)
+                        principals_seen.add(simple_key)
+                        principal_details[simple_key] = ('service', None, svc_name or name.strip())
                         return
 
                     dom = domain

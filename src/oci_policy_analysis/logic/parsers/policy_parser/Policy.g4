@@ -60,8 +60,14 @@ compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
                      | QUOTED_STRING (WS WORD)+ 
                      | HCL_VAR
                      | '\'' HCL_VAR '\''  // Add support for quoted variables
+                     | patternMatch
                      );
- valueList           : '(' (QUOTED_STRING | HCL_VAR | '\'' HCL_VAR '\'') ( ',' (QUOTED_STRING | HCL_VAR | '\'' HCL_VAR '\'') )*  ')';
+ valueList           : '(' listElement ( ',' listElement )*  ')';
+ listElement         : QUOTED_STRING
+                     | HCL_VAR
+                     | '\'' HCL_VAR '\''
+                     | patternMatch
+                     ;
  timeWindow          : (QUOTED_STRING | HCL_VAR | '\'' HCL_VAR '\'') AND (QUOTED_STRING | HCL_VAR | '\'' HCL_VAR '\'');
 
  comparisonList      : logicalCombine '{' condition  (',' condition)* '}' ;

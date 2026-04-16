@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 
 logger = get_logger(component='prospective_statements_service')
 
@@ -91,6 +92,7 @@ class ProspectiveStatementRecord:
     valid: bool = False
     invalid_reasons: list[str] = field(default_factory=list)
     normalized: dict[str, Any] | None = None
+    effective_path: str | None = None
 
 
 class ProspectiveStatementsService:
@@ -114,6 +116,7 @@ class ProspectiveStatementsService:
         self._tenancy_ocid = str(tenancy_ocid)
         # Internal mapping from record id -> ProspectiveStatementRecord
         self._records: dict[str, ProspectiveStatementRecord] = {}
+        self._intelligence_engine_cache: PolicyIntelligenceEngine | None = None
 
         logger.info('ProspectiveStatementsService: initializing for tenancy %s', self._tenancy_ocid)
         self._load_from_settings()
@@ -239,6 +242,7 @@ class ProspectiveStatementsService:
                 existing.compartment_path = entry.get('compartment_path') or 'ROOT'
                 existing.description = entry.get('description') or ''
                 existing.statement_text = text
+                existing.effective_path = entry.get('effective_path') or existing.effective_path
                 rec = existing
             else:
                 rec = ProspectiveStatementRecord(
@@ -247,6 +251,7 @@ class ProspectiveStatementsService:
                     compartment_path=(entry.get('compartment_path') or 'ROOT'),
                     description=entry.get('description') or '',
                     statement_text=text,
+                    effective_path=entry.get('effective_path'),
                 )
 
             new_records[rec_id] = rec
@@ -283,6 +288,7 @@ class ProspectiveStatementsService:
             rec.valid = False
             rec.invalid_reasons = []
             rec.normalized = None
+            self._ensure_effective_path(rec)
             return rec
 
         engine = self._engine
@@ -297,6 +303,7 @@ class ProspectiveStatementsService:
             rec.valid = False
             rec.invalid_reasons = ['Simulation engine not available; statement has not been validated yet.']
             rec.normalized = None
+            self._ensure_effective_path(rec)
             return rec
 
         try:
@@ -334,6 +341,8 @@ class ProspectiveStatementsService:
         else:
             rec.normalized = None
 
+        self._ensure_effective_path(rec)
+
         logger.debug(
             'ProspectiveStatementsService: validated record %s (parsed=%s, valid=%s)',
             record_id,
@@ -370,6 +379,9 @@ class ProspectiveStatementsService:
                 'description': rec.description or '',
                 'statement_text': text,
             }
+
+            if rec.effective_path:
+                entry['effective_path'] = rec.effective_path
 
             # Persist parsed/valid/normalized details when present so
             # that downstream consumers (such as the Policies tab)
@@ -467,3 +479,107 @@ class ProspectiveStatementsService:
             norm = entry.get('normalized')
             if isinstance(norm, dict):
                 rec.normalized = norm
+            eff_path = entry.get('effective_path')
+            if isinstance(eff_path, str) and eff_path.strip():
+                rec.effective_path = eff_path.strip()
+            else:
+                self._ensure_effective_path(rec)
+
+    # ------------------------------------------------------------------
+    # Effective path helpers
+    # ------------------------------------------------------------------
+
+    def _get_intelligence_engine(self) -> PolicyIntelligenceEngine | None:
+        if self._intelligence_engine_cache is not None:
+            return self._intelligence_engine_cache
+
+        engine = self._engine
+        policy_repo = getattr(engine, 'policy_repo', None)
+        if policy_repo is None:
+            return None
+
+        try:
+            self._intelligence_engine_cache = PolicyIntelligenceEngine(policy_repo)
+        except Exception:  # pragma: no cover - defensive cache creation
+            logger.info(
+                'ProspectiveStatementsService: unable to initialize PolicyIntelligenceEngine for effective path calculation',
+                exc_info=True,
+            )
+            self._intelligence_engine_cache = None
+        return self._intelligence_engine_cache
+
+    def _ensure_effective_path(self, record: ProspectiveStatementRecord) -> None:  # noqa: C901
+        """Populate record.effective_path using normalized data and hierarchy."""
+
+        record.effective_path = None
+        normalized = record.normalized if isinstance(record.normalized, dict) else {}
+
+        existing = normalized.get('effective_path') if normalized else None
+        if isinstance(existing, str) and existing.strip():
+            record.effective_path = self._format_effective_path(existing, record.compartment_path)
+            if isinstance(record.normalized, dict):
+                record.normalized['effective_path'] = record.effective_path
+            return
+
+        intelligence_engine = self._get_intelligence_engine()
+        if intelligence_engine is None:
+            record.effective_path = self._format_effective_path(None, record.compartment_path)
+            if isinstance(record.normalized, dict):
+                record.normalized.setdefault('effective_path', record.effective_path)
+            return
+
+        stmt_for_calc: dict[str, Any] = {}
+        if isinstance(normalized, dict):
+            stmt_for_calc.update(normalized)
+
+        stmt_for_calc.setdefault('compartment_path', record.compartment_path or 'ROOT')
+        if not stmt_for_calc.get('location_type'):
+            # Default to compartment-based location matching the stored path
+            stmt_for_calc['location_type'] = 'compartment'
+        if not stmt_for_calc.get('location'):
+            stmt_for_calc['location'] = record.compartment_path or 'ROOT'
+
+        try:
+            intelligence_engine.calculate_effective_compartment_for_statement(stmt_for_calc)
+        except Exception:  # pragma: no cover - defensive path calculation
+            logger.info(
+                'ProspectiveStatementsService: failed to calculate effective_path for record %s',
+                record.id,
+                exc_info=True,
+            )
+            record.effective_path = self._format_effective_path(None, record.compartment_path)
+            if isinstance(record.normalized, dict):
+                record.normalized.setdefault('effective_path', record.effective_path)
+            return
+
+        eff_path = stmt_for_calc.get('effective_path')
+        if isinstance(eff_path, str) and eff_path.strip():
+            record.effective_path = self._format_effective_path(eff_path, record.compartment_path)
+            if isinstance(record.normalized, dict):
+                record.normalized['effective_path'] = record.effective_path
+        else:
+            record.effective_path = self._format_effective_path(None, record.compartment_path)
+            if isinstance(record.normalized, dict):
+                record.normalized.setdefault('effective_path', record.effective_path)
+
+    def _format_effective_path(self, path: str | None, compartment_path: str | None) -> str:
+        candidate = (path or '').strip()
+        fallback = (compartment_path or 'ROOT').strip()
+
+        if not candidate:
+            candidate = fallback
+
+        candidate = candidate.replace('\\', '/').strip()
+        if candidate.startswith('/'):
+            candidate = candidate[1:]
+
+        segments = [seg for seg in (candidate.split('/') if candidate else []) if seg]
+        if not segments:
+            segments = ['root']
+        if segments[0].lower() != 'root':
+            segments.insert(0, 'root')
+
+        # Preserve original casing except for enforcing a ROOT prefix and removing duplicate slashes.
+        normalized_segments = [segments[0]] + list(segments[1:])
+        normalized_segments[0] = 'ROOT'
+        return '/'.join(normalized_segments)

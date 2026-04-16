@@ -228,3 +228,14 @@ def test_policy_subject_id_variants(parser, statement, expected_subject_type, ex
     subj = result.get('subject')
     assert isinstance(subj, list), f'Subject is not a list: {subj!r}'
     assert subj == expected_subject, f'Expected subject {expected_subject}, got {subj}'
+
+
+def test_policy_statement_with_pattern_list(parser):
+    statement = (
+        "allow group 'PolicyAnalysisUsers' to use bastion in compartment LZ1-Top:application-cmp "
+        "where request.principal.group.tag.aaa.aaa IN ('c','d',/e*/)"
+    )
+    results, errors = parser.parse(statement)
+    assert results is not None, 'Parser returned None for valid input.'
+    assert isinstance(results, list) and len(results) > 0
+    assert not errors, f'Parser returned errors: {errors}'

@@ -278,6 +278,15 @@ class PolicyListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by PolicyParser#listElement.
+    def enterListElement(self, ctx:PolicyParser.ListElementContext):
+        pass
+
+    # Exit a parse tree produced by PolicyParser#listElement.
+    def exitListElement(self, ctx:PolicyParser.ListElementContext):
+        pass
+
+
     # Enter a parse tree produced by PolicyParser#timeWindow.
     def enterTimeWindow(self, ctx:PolicyParser.TimeWindowContext):
         pass
