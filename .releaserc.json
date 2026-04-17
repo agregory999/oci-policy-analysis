@@ -6,7 +6,8 @@
   "repositoryUrl": "https://github.com/agregory999/oci-policy-analysis.git",
   "branches": [
     "main",
-    { "name": "develop", "prerelease": "dev" }
+    { "name": "develop", "prerelease": "dev" },
+    { "name": "feature/*", "prerelease": "beta" }
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
