@@ -295,7 +295,7 @@ jobs:
 
   publish:
     needs: [release, build]
-    if: github.ref_name == 'main' || github.ref_name == 'develop'
+    if: github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'feature/')
     runs-on: ubuntu-latest
     steps:
       - name: Skip publish if docs-only commit
