@@ -448,7 +448,7 @@ class SettingsTab(BaseUITab):
 
         self.profile_var.trace_add('write', _on_profile_changed)
         # Compartment depth now global-only; any trace/dependency on tenancy_var for depth is removed.
-        self.input_profile.config(width=20, state='normal' if len(self.profile_list) > 0 else 'disabled')
+        self.input_profile.config(width=28, state='normal' if len(self.profile_list) > 0 else 'disabled')
         self.input_profile.grid(row=0, column=2, padx=5, pady=3)
         # Call once to set initial state
         if self.ip_var.get():
@@ -472,7 +472,7 @@ class SettingsTab(BaseUITab):
         self.cache_list_dropdown = ttk.OptionMenu(
             label_frm_tenancy_config, self.cache_var, self.cache_var.get(), *self.cache_list_display
         )
-        self.cache_list_dropdown.config(width=20)
+        self.cache_list_dropdown.config(width=28)
         self.cache_list_dropdown.grid(row=1, column=2, padx=5, pady=3)
         self.add_context_help(self.cache_list_dropdown, CONTEXT_HELP['CACHE_DROPDOWN'])
 
@@ -526,7 +526,13 @@ class SettingsTab(BaseUITab):
             label_frm_tenancy_config,
             width=30,
             text='Import JSON (share/backup)',
-            command=lambda: self.app._import_cache_from_json(callback={'complete': self._on_load_finished}),
+            command=lambda: self.app._import_cache_from_json(
+                callback={
+                    'complete': self._on_load_finished,
+                    'error': self._on_load_finished,
+                },
+                show_popup=True,
+            ),
         ).grid(row=0, column=5, padx=5, pady=5, sticky='w')
 
         ttk.Button(
@@ -545,17 +551,15 @@ class SettingsTab(BaseUITab):
             if not folder_selected or not os.path.isdir(folder_selected):
                 messagebox.showinfo('Load Compliance Output', 'No directory was selected or path is invalid.')
                 return
-            # Show quick UI progress
-            self.progress_var.set(f'Loading compliance data from: {folder_selected}')
             # Call the app method (must exist/app-supports), use same callbacks as tenancy load
             self.app.load_compliance_output_async(
                 folder_selected,
                 callback={
-                    'progress': self._on_load_progress,
                     'complete': self._on_load_finished,
                     'error': self._on_load_finished,
                 },
                 load_all_users=self.load_all_users_var.get(),
+                show_popup=True,
             )
 
         self.btn_load_compliance = ttk.Button(
@@ -572,13 +576,6 @@ class SettingsTab(BaseUITab):
 
         self.btn_load_compliance.bind('<Enter>', _show_compliance_help)
         self.btn_load_compliance.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
-
-        ttk.Separator(label_frm_tenancy_config, orient=tk.VERTICAL).grid(row=0, column=6, rowspan=5, pady=5, sticky='w')
-
-        # Progress indicator - move to its own row below buttons, at right
-        self.progress_var = tk.StringVar(value='')
-        self.progress_label = ttk.Label(label_frm_tenancy_config, textvariable=self.progress_var, foreground='blue')
-        self.progress_label.grid(row=1, column=6, padx=5, pady=(1, 5), sticky='w')
 
         # --- Additional Identity Domain Compartment OCIDs UI (REMOVED) ---
         # All widgets and logic for manual compartment OCID entry have been removed.
@@ -775,10 +772,6 @@ class SettingsTab(BaseUITab):
         config.save_settings(self.settings)
         logger.info('MCP configuration saved to settings.')
 
-    # def _refresh_domain_compartment_ocids_from_settings(self):
-    #     """REMOVED: No longer tracking OCID list per tenancy (now using compartment depth)."""
-    #     pass
-
     def _on_load_clicked(self, use_cache: bool):
         """Handle Load Tenancy button click.  Calls main app to load tenancy asynchronously.
         Args:
@@ -836,64 +829,20 @@ class SettingsTab(BaseUITab):
             # Pass depth configuration for downstream domain search logic
             compartment_domain_search_depth=self.compartment_depth_var.get(),
             callback={
-                'progress': self._on_load_progress,
                 'complete': self._on_load_finished,
                 'error': self._on_load_finished,
             },
+            show_popup=True,
         )
 
-    def _on_load_progress(self, message: str, clear: bool = False):
-        """Callback from App to update progress during tenancy loading."""
-        self.progress_var.set(f'{message}')
-        if clear:
-            self.after(1000, lambda: self.progress_var.set(''))
-
     def _on_load_finished(self, success: bool, message: str, clear: bool = False):  # noqa: C901
-        """Callback from App once tenancy loading completes."""
-        if success:
-            # Format "data as of" date to "YYYY-Mon-DD hh:mi:ssZ"; show reload (if present)
-            data_repo = getattr(self.app, 'policy_compartment_analysis', None)
-            date_note = ''
-            if data_repo is not None:
-                data_as_of = getattr(data_repo, 'data_as_of', None)
-                policy_reload = getattr(data_repo, 'policy_data_reloaded', None)
-                import datetime
+        """Callback from App once a load/import operation completes.
 
-                date_str = ''
-                reload_str = ''
-                if data_as_of:
-                    try:
-                        dt = datetime.datetime.fromisoformat(data_as_of.replace('Z', '+00:00'))
-                        date_str = dt.strftime('%Y-%b-%d %H:%M:%SZ')
-                    except Exception:
-                        date_str = str(data_as_of)
-                if policy_reload:
-                    try:
-                        dt2 = datetime.datetime.fromisoformat(policy_reload.replace('Z', '+00:00'))
-                        reload_str = dt2.strftime('%Y-%b-%d %H:%M:%SZ')
-                    except Exception:
-                        reload_str = str(policy_reload)
-                if date_str and reload_str:
-                    date_note = f'Data as of: {date_str}\nPolicy data reloaded: {reload_str}'
-                elif date_str:
-                    date_note = f'Data as of: {date_str}'
-                elif reload_str:
-                    date_note = f'Policy data reloaded: {reload_str}'
-            self.progress_var.set(f'[OK]{message}')
-            self.after(2000, lambda date_note=date_note: self.progress_var.set(date_note))
-            # logger.info('Updating UI after load')
-            # self.app.policies_tab.update_policy_output()
-            # self.app.policies_tab.enable_widgets_after_load()
-            # self.app.users_tab.update_user_analysis_output()
-        else:
-            self.progress_var.set(f'[X]{message}')
-
-        # Schedule it to go away if clear was set
-        if clear:
-            self.after(5000, lambda: self.progress_var.set(''))
-
-        # After loading, update the cache list in case new one was created
-        logger.info('Updating cache list after load')
+        Popup messaging is handled centrally in main.py. This callback now only
+        performs post-load side effects needed by Settings UI.
+        """
+        logger.info('Load callback received: success=%s message=%s', success, message)
+        logger.info('Updating cache list after load/import operation')
         self.refresh_cache_list()
 
     def refresh_cache_list(self):

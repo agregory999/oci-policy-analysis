@@ -1,0 +1,39 @@
+CheckboxTable & DataTable Relationship and Efficiency Analysis
+==============================================================
+
+**Is CheckboxTable using DataTable internally?**
+- Yes. CheckboxTable wraps a DataTable instance as `self.data_table`.
+- `_build_ui` creates the DataTable; all row display/management in CheckboxTable actually delegates to DataTable methods via `self.data_table`.
+
+**Why do both log events appear for a single CheckboxTable call?**
+- Methods like CheckboxTable.update_data:
+    - Call self._prepare_data — prepares row state, adds/checks BooleanVar wrappers (slow part, logged).
+    - Call self._rebuild_table — which calls self.data_table.update_data (also logged).
+    - DataTable logs both entry/exit and lower-level methods like _populate_data, resulting in visible log chains per user-facing CheckboxTable update.
+
+**Where was inefficiency introduced?**
+- Previously, CheckboxTable rebuilt its data model and recreated all BooleanVar instances and per-row dictionaries on every update, even if most rows were unchanged. This is comparatively expensive in Python/Tkinter for large tables, leading to observed slowness.
+- Each update did a full redraw (calling DataTable.update_data with all rendered rows).
+
+**Performance Optimization (2026-03-11):**
+- CheckboxTable now implements BooleanVar caching in `_prepare_data`, minimizing object churn and improving performance for most use cases with stable tables.
+
+**Current Bottleneck (Post-Caching):**
+- Even with caching, updates are triggering **full-table redraws** in DataTable for every CheckboxTable update.
+- DataTable._populate_data deletes all Treeview rows and reinserts them, regardless of what changed. This pattern forces Tkinter to re-create all widgets, which is slow for large N.
+- CheckboxTable._rebuild_table always feeds the *entire* table to DataTable, not just the changed rows—even a single checkbox toggle means 900+ unchanged rows are re-rendered.
+
+**Proposal for Further Optimization:**
+- **Incremental Row Updates:** Instead of deleting/reinserting every row, DataTable (and by extension CheckboxTable) should:
+    1. Detect which rows (by unique row key, e.g., "Internal ID") have changed.
+    2. Only update, insert, or remove rows in Treeview that genuinely differ from what's shown.
+    3. For checkmark toggles, update only that row's check display without a table-wide redraw.
+- This approach would make per-row updates nearly instantaneous, matching native ListView widgets' performance on other platforms.
+
+**Root Cause of Cross-Logging:**
+- CheckboxTable is layered on DataTable and delegates many actions to it; logs from both are expected per CheckboxTable update.
+
+**Conclusion:**
+- With BooleanVar caching, CheckboxTable performance is much improved for stable datasets, but **full-table redraws remain a scalability bottleneck**.
+- Fixing this requires an incremental update mechanism in DataTable (and CheckboxTable) so that only changed rows are redrawn.
+- Until this is implemented, you will see substantial slowness for large tables on any CheckboxTable update, despite DataTable itself being fast in isolation.

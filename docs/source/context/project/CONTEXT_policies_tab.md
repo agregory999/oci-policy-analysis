@@ -37,13 +37,42 @@ controls into a JSON filter that is then applied consistently across CLI, UI, an
 
 Key filter inputs include:
 
-- **Subject / Verb / Resource / Location** text fields (supporting `|` for OR within a field)
+- **Subject / Verb / Resource / Permission / Location** text fields (supporting `|` for OR within a field)
 - **Hierarchy / Effective Path** filters (including special `ROOTONLY` semantics)
 - **Text** (statement text search)
 - **Policy Name**
 - **Conditions** (raw where-clause text)
 - **Action** dropdown (Both / Allow / Deny)
 - **Invalid Only** toggle (filters to statements marked invalid)
+
+Helper insertion buttons are also available for common values:
+
+- **Add any-user / any-group** inserts `any-user|any-group` into Subject.
+- **Add ROOTONLY** inserts `ROOTONLY` into Hierarchy.
+- **Add Hierarchy** enriches Resource with `all-resources` plus family (when available).
+
+### 3.1 Resource Hierarchy Helper
+
+- The Resource filter row includes an **Add Hierarchy** button with help text:
+  - `Loads containing family (if any) and all-resources`
+- On click:
+  - `all-resources` is always added to the Resource filter.
+  - For each resource token, the UI asks `ReferenceDataRepo` for a containing
+    family (case-insensitive).
+  - If found, the family token is inserted before the resource token.
+    - Example: `subnets` → `all-resources|virtual-network-family|subnets`
+  - If no family is found, the resource is still preserved and a warning is
+    displayed.
+    - Example: `unknown-resource` → `all-resources|unknown-resource`
+
+This helper only updates the filter text/value; it does not change statement
+data in the repository.
+
+### 3.2 Filter Layout Consistency
+
+- Left-column entry fields are standardized to a shared width for more uniform
+  alignment.
+- Helper buttons on the left side use a consistent width to align visually.
 
 Multiple filters are combined via **AND** across fields and **OR** within multi-valued fields.
 
@@ -118,6 +147,8 @@ The "Reload Policy Data" button is provided in the Filter Actions panel for adva
 - **When enabled:** Only available if your current data was loaded from tenancy (not cache or compliance). 
 - **IAM Data:** Group, Dynamic Group, and User data are *not* reloaded; those are refreshed only on initial load or a full cache update.
 - **Dual timestamps:** After a reload, the Settings tab will display both the original "Data as of" (the cache/IAM snapshot date) and a new "Policy data reloaded" date. This clarifies exactly which data is from which analysis point in time.
+- **Progress UX:** Reload runs asynchronously and uses the shared modal progress popup with staged updates (reload source, policy intelligence, tab population/status update, final done summary).
+- **Status bar:** The lower status bar remains authoritative for final loaded state/source/timestamp after reload completion.
 - **UI:** Hover over the reload button for a full explanation of what is and isn't reloaded and which timestamps to expect in the Settings tab.
 
 ---

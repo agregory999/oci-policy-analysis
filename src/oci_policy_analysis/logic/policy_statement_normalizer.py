@@ -57,6 +57,7 @@ class LoggingErrorListener(ErrorListener):
         super().__init__()
         self.logger = logger or logging.getLogger('antlr')
         self.errors = []
+        self.warnings = []
         self.context_text = context_text
 
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
@@ -69,19 +70,19 @@ class LoggingErrorListener(ErrorListener):
 
     def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
         msg = f'ANTLR ambiguity from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
     def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
         msg = f'ANTLR attempting full context from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         msg = f'ANTLR context sensitivity from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
@@ -556,6 +557,9 @@ class PolicyStatementParser:
             if error_listener.errors:
                 for msg in error_listener.errors:
                     logger.debug(f'ANTLR parse error: {msg}')
+            if error_listener.warnings:
+                for msg in error_listener.warnings:
+                    logger.debug(f'ANTLR parse warning: {msg}')
             logger.debug(f'Parse result (raw): {parsed}')
             if not parsed or not isinstance(parsed, list):
                 logger.debug(f"Parser returned no statement objects for: '{text[:80]}...'")

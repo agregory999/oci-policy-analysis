@@ -320,7 +320,7 @@ class PermissionsReportTab(BaseUITab):
     def _show_policy_statement(self, statement_text):
         # Switch tab to policies_tab and filter to the statement_text
         for _i, tab in enumerate(self.app.notebook.tabs()):
-            if 'Policy' in self.app.notebook.tab(tab, 'text'):
+            if 'Policy\nAnalysis' in self.app.notebook.tab(tab, 'text'):
                 self.app.notebook.select(tab)
                 # Set search in policies_tab
                 if hasattr(self.app, 'policies_tab'):

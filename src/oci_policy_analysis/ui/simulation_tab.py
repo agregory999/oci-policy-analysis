@@ -329,6 +329,22 @@ class SimulationTab(BaseUITab):
         self.statement_checkbox_table = None
         self.checked_statements = {}
 
+    def _get_simulation_engine(self):
+        """Return the active simulation engine from the app when available.
+
+        MainApp may replace ``app.simulation_engine`` during tenancy reload.
+        This helper prevents SimulationTab from holding a stale engine
+        instance captured at construction time.
+        """
+
+        app_engine = getattr(self.app, 'simulation_engine', None)
+        current = getattr(self, 'simulation_engine', None)
+        if app_engine is not None and app_engine is not current:
+            self.simulation_engine = app_engine
+            logger.info('SimulationTab: refreshed simulation_engine reference from app.')
+            return app_engine
+        return app_engine or current
+
     def _build_layout(self):
         """Build the 3-subtab layout for Simulation.
 
@@ -763,29 +779,39 @@ class SimulationTab(BaseUITab):
         lines.append(f'Principal: {ptype} → {pname}')
         lines.append('Statements will be (re)loaded when you confirm and move to the "Statements and Context" tab.')
 
+        # Keep prospective service/engine in sync before rendering summary.
+        service = getattr(self.app, 'prospective_service', None)
+        if service is not None:
+            try:
+                service.persist_and_push_to_engine()
+                logger.info(
+                    'Environment summary sync: prospective_service records=%d pushed to engine',
+                    len(service.list_all()),
+                )
+            except Exception:
+                logger.warning('Environment summary sync: persist_and_push_to_engine failed', exc_info=True)
+
         # Append a short prospective statement preview, if available.
-        engine = getattr(self, 'simulation_engine', None)
+        engine = self._get_simulation_engine()
         prospective_lines: list[str] = []
         try:
             if engine and hasattr(engine, 'get_prospective_statements'):
                 all_prospective = engine.get_prospective_statements() or []
-                # Normalize principal in the same way load_statements does
+                # Normalize principal the same way as statement loading so
+                # preview matching stays consistent with the engine.
                 pname_display = self.selected_principal.get() or ''
-                effective_principal: object = ''
-                if ptype != 'any-user':
-                    effective_principal = pname_display
-                if '/' in str(effective_principal or ''):
-                    domain, name = str(effective_principal).split('/', 1)
-                    effective_principal = (domain if domain != '' else None, name)
-                elif effective_principal:
-                    effective_principal = (None, str(effective_principal))
-                elif ptype == 'any-user':
-                    effective_principal = 'any-user'
+                effective_principal = self._build_engine_principal_value(ptype, pname_display)
 
                 # Reuse engine helpers to keep matching semantics identical
                 principal_key = engine._normalize_principal_key(ptype, effective_principal)  # type: ignore[attr-defined]
                 subj_filter = engine._principal_key_to_policy_search_filter(principal_key)  # type: ignore[attr-defined]
                 any_subjects = {str(s).lower() for s in subj_filter.get('subject', []) if s}
+                logger.info(
+                    'Environment summary prospective check: principal_key=%s effective_path=%s total_prospective=%d',
+                    principal_key,
+                    cpath,
+                    len(all_prospective),
+                )
 
                 def _prospective_matches_env(pst: dict) -> bool:  # noqa: C901
                     # Scope by compartment path
@@ -841,6 +867,12 @@ class SimulationTab(BaseUITab):
                     if pst.get('parsed') and pst.get('valid') and _prospective_matches_env(pst)
                 ]
 
+                logger.info(
+                    'Environment summary prospective matches: %d matched (ids=%s)',
+                    len(matching),
+                    [pst.get('internal_id') for pst in matching],
+                )
+
                 if matching:
                     prospective_lines.append('Prospective statements in scope for this environment:')
                     # Keep this compact; show up to 5 entries with policy name and path
@@ -868,6 +900,31 @@ class SimulationTab(BaseUITab):
 
         self._update_principal_list()
         self._on_environment_changed(reason='principal_type')
+
+    @staticmethod
+    def _build_engine_principal_value(principal_type: str, principal_display: str) -> object:
+        """Build the principal payload expected by PolicySimulationEngine helpers.
+
+        For string-subject principal types (any-user/any-group/service), the
+        engine expects a plain string value and **not** a (domain, name) tuple.
+        For identity principals (user/group/dynamic-group), the engine expects
+        a (domain, name) tuple when available.
+        """
+
+        ptype = (principal_type or '').strip()
+        display = (principal_display or '').strip()
+
+        if ptype in ('any-user', 'any-group', 'service'):
+            return display or ptype
+
+        if '/' in display:
+            domain, name = display.split('/', 1)
+            return (domain if domain != '' else None, name)
+
+        if display:
+            return (None, display)
+
+        return ''
 
     def _build_inline_prospective_preview(self, parent: tk.Widget) -> None:
         """Read-only prospective statement preview in the Environment subtab.
@@ -908,7 +965,7 @@ class SimulationTab(BaseUITab):
         # available; otherwise fall back to the engine's in-memory list.
         items: list[dict] = []
         service = getattr(self.app, 'prospective_service', None)
-        engine = getattr(self, 'simulation_engine', None)
+        engine = self._get_simulation_engine()
         try:
             if service is not None:
                 items = [
@@ -982,24 +1039,34 @@ class SimulationTab(BaseUITab):
         pname_display = self.selected_principal.get()
         logger.info(f"Loading statements for Compartment '{cpath}', Principal '{pname_display}' ({ptype})")
         # Canonical principal normalization, for all types
-        sim_engine = getattr(self, 'simulation_engine', None)
+        sim_engine = self._get_simulation_engine()
         all_stmts = []
         if sim_engine:
-            # For any-user, blank principal string is canonical
-            effective_principal = ''
-            if ptype != 'any-user':
-                effective_principal = pname_display
-            # If principal includes a domain (e.g. "mydom/foobar"), split
-            if '/' in effective_principal:
-                domain, name = effective_principal.split('/', 1)
-                effective_principal = (domain if domain != '' else None, name)
-            elif effective_principal:
-                effective_principal = (None, effective_principal)
-            elif ptype == 'any-user':
-                effective_principal = 'any-user'
+            # Ensure tenancy-scoped prospective statements are pushed into
+            # the engine right before context matching.
+            service = getattr(self.app, 'prospective_service', None)
+            if service is not None:
+                try:
+                    service.persist_and_push_to_engine()
+                    logger.info(
+                        'load_statements sync: prospective_service records=%d pushed to engine',
+                        len(service.list_all()),
+                    )
+                except Exception:
+                    logger.warning('load_statements sync: persist_and_push_to_engine failed', exc_info=True)
+
+            # Normalize principal into the exact shape expected by the engine.
+            effective_principal = self._build_engine_principal_value(ptype, pname_display)
             # principal is either string for any-user/service, or (domain, name) tuple/user/group
             _principal_key, stmts = sim_engine.get_statements_for_context(cpath, ptype, effective_principal)
             logger.info(f'Found {len(stmts)} applicable statements from simulation engine.')
+            prospective_matched = [s for s in stmts if s.get('is_prospective')]
+            logger.info(
+                'load_statements: matched %d prospective statements (ids=%s names=%s)',
+                len(prospective_matched),
+                [s.get('internal_id') for s in prospective_matched],
+                [s.get('policy_name') for s in prospective_matched],
+            )
             all_stmts = stmts
         else:
             all_stmts = []
@@ -1132,7 +1199,7 @@ class SimulationTab(BaseUITab):
         }
 
         service = getattr(self.app, 'prospective_service', None)
-        engine = getattr(self, 'simulation_engine', None)
+        engine = self._get_simulation_engine()
 
         try:
             if service is not None and hasattr(service, 'append_from_simple_dict'):
@@ -1315,6 +1382,8 @@ class SimulationTab(BaseUITab):
                 loc = rm['loc_var'].get().strip()  # type: ignore[union-attr]
                 desc = rm['desc_var'].get().strip()  # type: ignore[union-attr]
                 text_widget = rm['text_widget']  # type: ignore[index]
+                if not isinstance(text_widget, tk.Text):
+                    continue
                 text = text_widget.get('1.0', 'end-1c').strip()
                 if not text:
                     # Skip completely empty rows

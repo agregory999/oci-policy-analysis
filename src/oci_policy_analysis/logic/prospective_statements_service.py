@@ -235,6 +235,8 @@ class ProspectiveStatementsService:
             existing = self._records.get(rec_id)
 
             if existing is not None and existing.tenancy_ocid == self._tenancy_ocid:
+                prior_text = (existing.statement_text or '').strip()
+                prior_comp = (existing.compartment_path or '').strip()
                 # Update mutable fields on the existing record but keep
                 # parsed/valid/invalid_reasons/normalized as-is so that
                 # a prior Parse operation continues to apply until the
@@ -243,6 +245,17 @@ class ProspectiveStatementsService:
                 existing.description = entry.get('description') or ''
                 existing.statement_text = text
                 existing.effective_path = entry.get('effective_path') or existing.effective_path
+
+                # If the statement text or compartment path changed, any
+                # previously derived parse/normalized/effective values are
+                # stale and must be cleared so downstream engine pushes are
+                # based on the new content.
+                if prior_text != text or prior_comp != (existing.compartment_path or '').strip():
+                    existing.parsed = False
+                    existing.valid = False
+                    existing.invalid_reasons = []
+                    existing.normalized = None
+                    existing.effective_path = entry.get('effective_path') or None
                 rec = existing
             else:
                 rec = ProspectiveStatementRecord(

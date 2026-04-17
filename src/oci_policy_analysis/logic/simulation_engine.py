@@ -973,9 +973,15 @@ class PolicySimulationEngine:
             for pst in self._prospective_statements:
                 if pst.get('parsed') is False or pst.get('valid') is False:
                     continue
-                pst_comp = str(pst.get('compartment_path', '')).strip()
+                # Use the same scope semantic as regular statements: effective_path.
+                # Fall back to compartment_path for older prospective payloads.
+                pst_comp = str(pst.get('effective_path') or pst.get('compartment_path') or '').strip()
+                comp_path_cmp = comp_path.lower()
+                pst_comp_cmp = pst_comp.lower()
                 # Simple prefix/equals check: ROOT/Finance applies to ROOT/Finance/Payables
-                if not pst_comp or not (comp_path == pst_comp or comp_path.startswith(pst_comp + '/')):
+                if not pst_comp_cmp or not (
+                    comp_path_cmp == pst_comp_cmp or comp_path_cmp.startswith(pst_comp_cmp + '/')
+                ):
                     continue
                 # Now enforce principal/subject match
                 if _prospective_matches_principal(pst):

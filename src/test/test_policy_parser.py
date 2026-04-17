@@ -239,3 +239,34 @@ def test_policy_statement_with_pattern_list(parser):
     assert results is not None, 'Parser returned None for valid input.'
     assert isinstance(results, list) and len(results) > 0
     assert not errors, f'Parser returned errors: {errors}'
+
+
+def test_policy_statement_with_tag_pattern_and_trailing_comment(parser):
+    statement = (
+        "allow group 'Default'/'Administrators' to manage all-resources in tenancy "
+        'where request.principal.group.tag.MyTagNamespace.MyTag !=/*sample/ //Testing tags'
+    )
+    results, errors = parser.parse(statement)
+    assert results is not None, 'Parser returned None for valid input.'
+    assert isinstance(results, list) and len(results) > 0
+    assert not errors, f'Parser returned errors: {errors}'
+
+    parsed = results[0]
+    assert parsed.get('condition'), f'Expected a parsed condition but got: {parsed}'
+    assert 'request.principal.group.tag.MyTagNamespace.MyTag' in parsed.get('condition', '')
+
+
+def test_policy_statement_with_not_in_pattern_list(parser):
+    statement = (
+        'Allow dynamic-group Federated/container-instances to read repos '
+        'in compartment lz1-top:application-cmp '
+        "where request.principal.group.tag.aaa.aaa NOT IN ('c','d',/e*/)"
+    )
+    results, errors = parser.parse(statement)
+    assert results is not None, 'Parser returned None for valid input.'
+    assert isinstance(results, list) and len(results) > 0
+    assert not errors, f'Parser returned errors: {errors}'
+
+    parsed = results[0]
+    condition = parsed.get('condition', '')
+    assert 'NOT IN' in condition.upper()

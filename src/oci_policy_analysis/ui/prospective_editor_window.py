@@ -892,7 +892,12 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                 )
                 return
 
-            loc = (self.builder_effective_path_var.get() or self.builder_location_var.get() or 'ROOT').strip()
+            # The row's compartment_path represents where the prospective
+            # policy statement *lives* (policy location), not the statement's
+            # effective scope. Effective scope is encoded in statement text
+            # (e.g. "in compartment ...") and resolved later by parser/
+            # intelligence logic.
+            loc = (self.builder_location_var.get() or 'ROOT').strip()
             ns = (self.builder_namespace_var.get() or '').strip()
             key = (self.builder_key_var.get() or '').strip()
 

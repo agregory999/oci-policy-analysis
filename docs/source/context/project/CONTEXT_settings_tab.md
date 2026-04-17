@@ -25,7 +25,7 @@ The Settings tab centralizes all project configuration for OCI Policy Analysis, 
 ### D. Cache Management
 - **Cache List**: Shows available local tenancy data caches.
 - **Load from Cache**: Reloads the UI with cached tenancy data as selected.
-- **Refresh Caches**: Option to refresh cache dropdown if new cache is created.
+- **Refresh Caches**: Cache dropdown is refreshed automatically after load/import operations.
 
 ### E. GenAI / Model Configuration
 - **Regional Endpoint**: Service endpoint for OCI GenAI API.
@@ -55,7 +55,10 @@ When **Context Help** is enabled in Display Options, a "Page Help" area is dynam
 - **Load from Compliance Output Data**: Import findings from regulatory/compliance scans if directory is provided.
 
 - Buttons/actions display in the "Tenancy and Config" section with corresponding UI elements for each option.
-- Progress text appears in the UI during asynchronous actions (loading, import, export, etc.).
+- Progress is shown using a **single modal popup workflow** for load/import operations (tenancy, cache, compliance output, and JSON import).
+- The popup uses staged messages (for example: loading source data, running policy intelligence, populating tab data, updating status bar, and final done/summary).
+- The previous right-side inline load status area in Settings is intentionally removed to avoid duplicate progress channels.
+- The fixed bottom status bar remains the canonical loaded-state indicator (data source/timestamps/tracking flag).
 
 ---
 

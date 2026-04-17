@@ -23,6 +23,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # Third-party imports
 from oci import config, pagination
@@ -131,6 +132,20 @@ class PolicyAnalysisRepository:
         self.identity_domains = []
         self.groups = []
         self.users: list[User] = []
+        # Catalog of defined tags discovered from OCI Resource Search +
+        # Identity tag APIs.
+        # Shape:
+        # {
+        #   namespace_name: {
+        #       "keys": {
+        #           "key1": ["AllowedValueA", "AllowedValueB"],
+        #           "key2": None,  # user supplied / no static enum list published
+        #       },
+        #       "compartment_ocid": "ocid1.compartment...",
+        #       "compartment_path": "ROOT/Shared"
+        #   }
+        # }
+        self.defined_tag_namespace_keys: dict[str, dict[str, Any]] = {}
         self.domain_clients = {}
         self.data_as_of = ''
         self.tenancy_ocid = None
@@ -169,6 +184,7 @@ class PolicyAnalysisRepository:
         self.identity_domains = []
         self.groups = []
         self.users = []
+        self.defined_tag_namespace_keys = {}
         self.domain_clients = {}
         self.data_as_of = ''
         self.tenancy_ocid = None
@@ -616,6 +632,7 @@ class PolicyAnalysisRepository:
         self.regular_statements = []
         self.cross_tenancy_statements = []
         self.defined_aliases = []
+        self.defined_tag_namespace_keys = {}
         # Ensure compliance flag is reset on live tenancy load
         self.loaded_from_compliance_output = False
         start_time = time.perf_counter()
@@ -738,6 +755,11 @@ class PolicyAnalysisRepository:
                 with ThreadPoolExecutor(max_workers=THREADS) as executor:
                     for idx, item in enumerate(policy_search_results.data.items):
                         executor.submit(_process_policy_resource, item, idx, total_policies)
+
+            # Build the defined tag namespace/key catalog from a dedicated
+            # resource query so UI consumers can display current namespaces
+            # independent of whether tags appear on policy objects.
+            self._refresh_defined_tag_catalog_from_resource_query()
             self.data_as_of = str(datetime.now(UTC))
             total_time = time.perf_counter() - start_time
             logger.info(f'Bulk loaded {len(self.regular_statements)} policy statements in {total_time:.2f}s')
@@ -747,6 +769,211 @@ class PolicyAnalysisRepository:
         except Exception as e:
             logger.error(f'Failed to load policies: {e}')
             return False
+
+    def get_compartment_path_for_ocid(self, compartment_ocid: str | None) -> str:
+        """Resolve a compartment OCID to a hierarchy path string."""
+        if not compartment_ocid:
+            return 'ROOT'
+        if compartment_ocid == self.tenancy_ocid:
+            return 'ROOT'
+
+        comp = next((c for c in (self.compartments or []) if c.get('id') == compartment_ocid), None)
+        if comp:
+            return comp.get('hierarchy_path') or self._get_hierarchy_path_for_compartment(comp, '')
+        return 'UNKNOWN_PATH'
+
+    def _extract_tag_static_values(self, validator_obj) -> list[str] | None:
+        """Extract static enum values from an OCI tag validator object."""
+        if not validator_obj:
+            return None
+
+        # Most OCI validator model objects expose "values" for enum-like lists.
+        values = getattr(validator_obj, 'values', None)
+        if isinstance(values, list | tuple | set):
+            normalized = sorted({str(v) for v in values if v is not None}, key=lambda x: x.lower())
+            return normalized or None
+
+        # Fallback for alternate object field names.
+        for attr_name in ('allowed_values', 'enum_values', 'list_values'):
+            vals = getattr(validator_obj, attr_name, None)
+            if isinstance(vals, list | tuple | set):
+                normalized = sorted({str(v) for v in vals if v is not None}, key=lambda x: x.lower())
+                return normalized or None
+
+        # Dict-style fallback if an SDK object is converted/intercepted as dict.
+        if isinstance(validator_obj, dict):
+            for key_name in ('values', 'allowedValues', 'allowed_values', 'enumValues', 'enum_values'):
+                vals = validator_obj.get(key_name)
+                if isinstance(vals, list | tuple | set):
+                    normalized = sorted({str(v) for v in vals if v is not None}, key=lambda x: x.lower())
+                    return normalized or None
+
+        return None
+
+    def _merge_tag_static_values(
+        self, existing_values: list[str] | None, new_values: list[str] | None
+    ) -> list[str] | None:
+        """Merge existing/new static values and return normalized output."""
+        if isinstance(existing_values, list) and isinstance(new_values, list):
+            return sorted(set(existing_values + new_values), key=lambda x: x.lower())
+        if isinstance(existing_values, list):
+            return existing_values
+        if isinstance(new_values, list):
+            return new_values
+        return None
+
+    def _get_static_values_for_tag(self, namespace_ocid: str, tag_name: str, tag_obj) -> list[str] | None:
+        """Resolve static values for a tag using get_tag first, then list_tags payload fallback."""
+        static_values = None
+
+        # Primary path: fetch full tag definition and inspect validator.
+        try:
+            tag_full_resp = self._api_call_with_logging(
+                'IdentityClient.get_tag',
+                self.identity_client.get_tag,
+                tag_namespace_id=namespace_ocid,
+                tag_name=tag_name,
+            )
+            tag_full = getattr(tag_full_resp, 'data', None)
+            static_values = self._extract_tag_static_values(getattr(tag_full, 'validator', None))
+            if static_values is None:
+                static_values = self._extract_tag_static_values(getattr(tag_full, 'tag_definition_validator', None))
+        except Exception:
+            logger.debug(
+                f'Unable to get full tag definition for namespace={namespace_ocid} tag={tag_name}; '
+                'falling back to list_tags payload.',
+                exc_info=True,
+            )
+
+        # Fallback path: some payloads may already include validator.
+        if static_values is None:
+            static_values = self._extract_tag_static_values(getattr(tag_obj, 'validator', None))
+        if static_values is None:
+            static_values = self._extract_tag_static_values(getattr(tag_obj, 'tag_definition_validator', None))
+
+        return static_values
+
+    def _load_tag_keys_for_namespace(self, namespace_ocid: str, keys: dict[str, list[str] | None]) -> None:
+        """Load/merge keys for a namespace into the provided mapping."""
+        tags_resp = self._api_call_with_logging(
+            'IdentityClient.list_tags',
+            pagination.list_call_get_all_results,
+            self.identity_client.list_tags,
+            tag_namespace_id=namespace_ocid,
+            limit=1000,
+        )
+
+        for tag_obj in getattr(tags_resp, 'data', []) or []:
+            tag_name = getattr(tag_obj, 'name', None)
+            if not tag_name:
+                continue
+            tag_name_str = str(tag_name)
+            static_values = self._get_static_values_for_tag(
+                namespace_ocid=namespace_ocid, tag_name=tag_name_str, tag_obj=tag_obj
+            )
+            keys[tag_name_str] = self._merge_tag_static_values(keys.get(tag_name_str), static_values)
+
+    def _ensure_tag_namespace_entry(self, item) -> tuple[str, str, dict[str, Any]] | None:
+        """Create/update catalog entry for a namespace and return (name, ocid, entry)."""
+        namespace_ocid = getattr(item, 'identifier', None)
+        namespace_name = getattr(item, 'display_name', None) or getattr(item, 'name', None) or str(namespace_ocid or '')
+        if not namespace_name:
+            return None
+
+        namespace_entry = self.defined_tag_namespace_keys.setdefault(
+            str(namespace_name),
+            {
+                'keys': {},
+                'compartment_ocid': getattr(item, 'compartment_id', None),
+                'compartment_path': self.get_compartment_path_for_ocid(getattr(item, 'compartment_id', None)),
+            },
+        )
+        keys = namespace_entry.setdefault('keys', {})
+        if not isinstance(keys, dict):
+            keys = {}
+            namespace_entry['keys'] = keys
+
+        namespace_entry['compartment_ocid'] = getattr(item, 'compartment_id', None)
+        namespace_entry['compartment_path'] = self.get_compartment_path_for_ocid(getattr(item, 'compartment_id', None))
+        return str(namespace_name), str(namespace_ocid or ''), namespace_entry
+
+    def _refresh_defined_tag_catalog_from_resource_query(self) -> None:
+        """Refresh defined tag namespace/key catalog using OCI Resource Search.
+
+        This method intentionally uses ``query tagnamespace resources`` to
+        discover namespaces, then calls Identity ``list_tags`` per namespace to
+        resolve keys.
+        """
+
+        self.defined_tag_namespace_keys = {}
+        logger.debug(
+            f'Starting defined tag namespace/key refresh from Resource Search (recursive={getattr(self, "recursive", None)}). '
+            'Results are stored in-memory only (cache persistence deferred).'
+        )
+        if not self.resource_search_client or not self.identity_client:
+            logger.debug('Skipping tag namespace catalog refresh: clients not initialized.')
+            return
+
+        try:
+            if self.recursive:
+                tag_ns_query = 'query tagnamespace resources'
+            else:
+                tag_ns_query = f"query tagnamespace resources where compartmentId = '{self.tenancy_ocid}'"
+
+            search_resp = self._api_call_with_logging(
+                'ResourceSearchClient.search_resources (tagnamespace)',
+                self.resource_search_client.search_resources,
+                search_details=StructuredSearchDetails(type='Structured', query=tag_ns_query),
+                limit=1000,
+            )
+            items = list(search_resp.data.items) if search_resp and search_resp.data and search_resp.data.items else []
+            logger.info(f'Discovered {len(items)} tag namespace resources via Resource Search.')
+
+            for item in items:
+                namespace_meta = self._ensure_tag_namespace_entry(item)
+                if not namespace_meta:
+                    continue
+                namespace_name, namespace_ocid, namespace_entry = namespace_meta
+
+                keys = namespace_entry.setdefault('keys', {})
+                if not isinstance(keys, dict):
+                    keys = {}
+                    namespace_entry['keys'] = keys
+                if not namespace_ocid:
+                    continue
+
+                try:
+                    self._load_tag_keys_for_namespace(namespace_ocid=namespace_ocid, keys=keys)
+                    logger.info(
+                        'Loaded defined tag namespace "%s" (ocid=%s) with %d key(s).',
+                        namespace_name,
+                        namespace_ocid,
+                        len(keys),
+                    )
+                except Exception:
+                    logger.info(
+                        'Unable to list keys for tag namespace %s (%s).',
+                        namespace_name,
+                        namespace_ocid,
+                        exc_info=True,
+                    )
+
+            # Drop empty placeholder namespaces if they have no keys and no
+            # meaningful name.
+            self.defined_tag_namespace_keys = {
+                ns: entry for ns, entry in self.defined_tag_namespace_keys.items() if ns and isinstance(entry, dict)
+            }
+            logger.info(
+                'Tag namespace catalog refreshed: %d namespaces, %d keys total (in-memory only).',
+                len(self.defined_tag_namespace_keys),
+                sum(
+                    len((v or {}).get('keys') or {})
+                    for v in self.defined_tag_namespace_keys.values()
+                    if isinstance((v or {}).get('keys'), dict)
+                ),
+            )
+        except Exception:
+            logger.info('Tag namespace catalog refresh failed.', exc_info=True)
 
     def load_policies_and_compartments(self) -> bool:  # noqa: C901
         """
@@ -1063,7 +1290,7 @@ class PolicyAnalysisRepository:
     ) -> bool:
         """
         Loads users, groups, dynamic groups, and domains for all compartments up to the given depth
-        below the root compartment. No longer uses explicit domain_compartment_ocids.
+        below the root compartment.
         """
 
         try:
@@ -1423,6 +1650,27 @@ class PolicyAnalysisRepository:
                         )
                         match = False
                         break
+                # Permission list search (OR logic across provided values)
+                elif key == 'permission':
+                    stmt_permissions = stmt.get('permission', [])
+                    if isinstance(stmt_permissions, str):
+                        stmt_permissions_list = [stmt_permissions]
+                    elif isinstance(stmt_permissions, list):
+                        stmt_permissions_list = [str(p) for p in stmt_permissions]
+                    else:
+                        stmt_permissions_list = [str(stmt_permissions)]
+
+                    stmt_perm_ci = [p.lower() for p in stmt_permissions_list if p]
+                    raw_values = values if isinstance(values, list) else [values]
+                    value_ci = [str(v).lower() for v in raw_values if str(v).strip()]
+
+                    if not value_ci:
+                        continue
+
+                    if not any(any(v in perm for perm in stmt_perm_ci) for v in value_ci):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to permission mismatch')
+                        match = False
+                        break
                 # Default lookup using column map
                 else:
                     column = key
@@ -1431,7 +1679,8 @@ class PolicyAnalysisRepository:
                         logger.debug(f'Unknown filter key: {key} or values empty, skipping')
                         continue
                     field_value = str(stmt.get(column, '')).lower()
-                    if not any(val.lower() in field_value for val in values):
+                    raw_values = values if isinstance(values, list) else [values]
+                    if not any(str(val).lower() in field_value for val in raw_values):
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to {key} mismatch')
                         match = False
                         break
@@ -1944,6 +2193,29 @@ class PolicyAnalysisRepository:
         logger.debug(f'Compartment {comp_string} full path: {full_path}')
         return full_path
 
+    def _load_defined_tag_catalog_from_compliance_output_placeholder(self, dir_path: str) -> None:
+        """Placeholder for future compliance-output tag namespace/key ingestion.
+
+        TODO (future): Parse compliance output artifacts for defined tag
+        namespaces/keys (+ optional value validators) and populate
+        ``self.defined_tag_namespace_keys`` with the same shape used by
+        live tenancy loading:
+
+            {
+                namespace_name: {
+                    "keys": {key_name: [values...] | None},
+                    "compartment_ocid": str | None,
+                    "compartment_path": str,
+                }
+            }
+
+        This is intentionally a no-op for now per product request.
+        """
+        logger.debug(
+            'Compliance placeholder: defined tag namespace catalog ingestion not yet implemented (dir=%s).',
+            dir_path,
+        )
+
     def load_from_compliance_output_dir(self, dir_path: str, load_all_users: bool = True) -> bool:  # noqa: C901
         """
         Load all compartments, domains, groups, users, dynamic groups, and policies from compliance tool output files.
@@ -2253,6 +2525,9 @@ class PolicyAnalysisRepository:
                             if not parsed_statement_valid:
                                 logger.warning(f'Invalid policy statement detected: {statement_text}')
                             logger.debug(f'Parsed regular policy statement: {regular_statement}')
+
+            # --- Step 7 (placeholder): Load defined tag catalog from compliance output ---
+            self._load_defined_tag_catalog_from_compliance_output_placeholder(dir_path)
 
             logger.info(f'Loaded {len(self.regular_statements)} policy statements')
 

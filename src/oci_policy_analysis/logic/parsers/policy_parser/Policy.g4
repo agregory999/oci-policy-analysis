@@ -53,7 +53,7 @@ compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
  condition           : (comparisonList | comparison | HCL_VAR) ; // Added HCL_VAR to allow conditions to be HCL variables
  comparison          : variable operator (value|valueList|timeWindow| patternMatch) ;
  variable            : (WORD | HCL_VAR) (('.' (WORD | HCL_VAR) )+)? ;
- operator            : ('=' | '!''=' | BEFORE | AFTER | IN | BETWEEN) ;
+ operator            : ('=' | '!''=' | BEFORE | AFTER | IN | NOT IN | BETWEEN) ;
  value               : (WORD 
                      | QUOTED_STRING 
                      | QUOTED_STRING '/' WORD 
@@ -95,6 +95,7 @@ compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
  TO                  : T O;
  OF                  : O F ;
  IN                  : I N;
+ NOT                 : N O T;
  WHERE               : W H E R E  ;
  WITH                : W I T H ;
  DYNAMICGROUP        : D Y N A M I C '-' G R O U P ;

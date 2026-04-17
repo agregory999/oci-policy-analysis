@@ -1929,6 +1929,20 @@ class ConsolidationWorkbenchTab(BaseUITab):
             return
 
         # Reload policies/compartments (App coordinates cache update and UI refresh)
+        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
+
+            def _after_reload_complete(success: bool, message: str, is_error: bool):
+                if not success:
+                    tkmessagebox.showerror('Reload Failed', message)
+                    return
+                self._continue_check_progress_after_reload(run=run, plan=plan)
+
+            self.app.reload_policies_and_compartments_and_update_cache_async(
+                callback={'complete': _after_reload_complete},
+                show_popup=True,
+            )
+            return
+
         try:
             self.logger.info('Reloading policies/compartments before checking consolidation plan progress.')
             self.configure(cursor='watch')
@@ -1948,6 +1962,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.logger.warning('Exception during reload before progress check: %s', e)
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
             return
+
+        self._continue_check_progress_after_reload(run=run, plan=plan)
+
+    def _continue_check_progress_after_reload(self, run, plan):
+        """Continue plan progress checks once policy reload has completed."""
 
         # At this point the repo and tags have been refreshed; ask engine to evaluate progress.
         try:

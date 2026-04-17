@@ -352,7 +352,7 @@ class PolicyRecommendationsTab(BaseUITab):
             try:
                 self.open_link(doc_url)
             except Exception:
-                tk.messagebox.showinfo('Documentation', f'Learn more: {doc_url}')
+                tkinter.messagebox.showinfo('Documentation', f'Learn more: {doc_url}')
 
         doc_link.bind('<Button-1>', open_doc_link)
         self.add_context_help(
@@ -1012,6 +1012,19 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def _on_reload_all(self):
         """Reload policies from OCI (only enabled when loaded from tenancy), then re-run policy intelligence."""
+        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
+            self.app.reload_policies_and_compartments_and_update_cache_async(
+                callback={
+                    'complete': lambda success, message, is_error: logger.info(
+                        'Reload All async completion: success=%s message=%s',
+                        success,
+                        message,
+                    )
+                },
+                show_popup=True,
+            )
+            return
+
         if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
             ok = self.app.reload_policies_and_compartments_and_update_cache()
             if ok:
@@ -2087,15 +2100,6 @@ class PolicyRecommendationsTab(BaseUITab):
         """Apply context help and font size settings for the recommendations tab."""
         super().apply_settings(context_help, font_size)
 
-    # --- Recommendation Summary source (prototype/stub) ---
-    def _get_recommendation_summary(self):
-        """
-        Returns list of dicts for populating the recommendation summary table.
-        Uses overlay["recommendations"] from intelligence engine only.
-        """
-        # Always get from latest self.app.policy_intelligence
-        # overlay_recs = getattr(self.app.policy_intelligence.overlay, "recommendations", []) if hasattr(self.app.policy_intelligence, "overlay") else []
-        logger.info(
-            f'Built recommendations list: {len(self.app.policy_intelligence.overlay.get("recommendations", []))} total.'
-        )
-        return self.app.policy_intelligence.overlay.get('recommendations', [])
+    # NOTE: _get_recommendation_summary is defined earlier in this class with
+    # limits-aware aggregation behavior and is intentionally the single source
+    # of truth for summary rows.

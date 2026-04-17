@@ -168,11 +168,10 @@ class TagBasedAccessTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'Explore tag-based OCI IAM policies. The top section discovers '
-                'and filters statements with tag conditions; the bottom section '
-                'sketches a builder for new tag-based where clauses, which are '
-                'evaluated using the existing Condition Tester and Simulation '
-                'tabs.'
+                'Explore tag-based OCI IAM policies. Use this page to discover '
+                'statements with tag conditions, filter by access type/namespace/'
+                'key/value, and inspect parsed tag-condition details for each '
+                'statement.'
             ),
             page_help_link='/context/project/CONTEXT_tag_based_access_tab.html',
         )
@@ -199,6 +198,7 @@ class TagBasedAccessTab(BaseUITab):
         # Filter variables for the overview section (statement + detail views)
         self.tag_namespace_var = tk.StringVar()
         self.tag_key_var = tk.StringVar()
+        self.tag_value_var = tk.StringVar()
         self.access_type_var = tk.StringVar(value='Any')
         # Controls whether parsed-statement columns are visible in the
         # top-level statement table.
@@ -237,7 +237,7 @@ class TagBasedAccessTab(BaseUITab):
 
         * Discovery of candidate tag-based policy statements using the
           repository's parsed statements.
-        * Application of in-memory filters for namespace, key, and access
+        * Application of in-memory filters for namespace, key, value, and access
           type.
         * Refresh of the top-half :class:`DataTable` with normalized rows.
 
@@ -366,8 +366,9 @@ class TagBasedAccessTab(BaseUITab):
             overview_frame,
             (
                 'Discover policy statements that use tag-based conditions. '
-                'Use the filters to narrow by tag namespace, key, or access '
-                'type, then inspect the flattened per-condition view.'
+                'Use the filters to narrow results by access type, tag '
+                'namespace, tag key, or tag value, then review matching '
+                'statements and their parsed condition elements.'
             ),
         )
 
@@ -387,33 +388,20 @@ class TagBasedAccessTab(BaseUITab):
             parent: The parent label frame that hosts the filter widgets.
         """
 
-        filter_row = ttk.Frame(parent)
-        filter_row.pack(fill='x', padx=6, pady=(6, 4))
+        filter_row_top = ttk.Frame(parent)
+        filter_row_top.pack(fill='x', padx=6, pady=(6, 2))
+        filter_row_top.columnconfigure(0, weight=1)
+        filter_row_top.columnconfigure(1, weight=0)
 
-        ttk.Label(filter_row, text='Tag Namespace:').grid(row=0, column=0, padx=3, pady=2, sticky='w')
-        ns_entry = ttk.Entry(filter_row, textvariable=self.tag_namespace_var, width=24)
-        ns_entry.grid(row=0, column=1, padx=3, pady=2, sticky='w')
-        self.add_context_help(
-            ns_entry,
-            'Filter rows where the discovered tag namespace contains this '
-            'string (case-insensitive). Multiple namespaces can be provided '
-            'using | separators in a future enhancement.',
-        )
+        filter_left = ttk.Frame(filter_row_top)
+        filter_left.grid(row=0, column=0, sticky='w')
 
-        ttk.Label(filter_row, text='Tag Key:').grid(row=0, column=2, padx=3, pady=2, sticky='w')
-        key_entry = ttk.Entry(filter_row, textvariable=self.tag_key_var, width=24)
-        key_entry.grid(row=0, column=3, padx=3, pady=2, sticky='w')
-        self.add_context_help(
-            key_entry,
-            'Filter rows where the discovered tag key contains this string ' '(case-insensitive).',
-        )
-
-        ttk.Label(filter_row, text='Access Type:').grid(row=0, column=4, padx=3, pady=2, sticky='w')
+        ttk.Label(filter_left, text='Access Type:').grid(row=0, column=0, padx=3, pady=2, sticky='w')
         access_combo = ttk.Combobox(
-            filter_row,
+            filter_left,
             textvariable=self.access_type_var,
             state='readonly',
-            width=26,
+            width=24,
             values=[
                 'Any',
                 'request.principal.group',
@@ -422,65 +410,109 @@ class TagBasedAccessTab(BaseUITab):
                 'target.resource.compartment',
             ],
         )
-        access_combo.grid(row=0, column=5, padx=3, pady=2, sticky='w')
+        access_combo.grid(row=0, column=1, padx=3, pady=2, sticky='w')
         self.add_context_help(
             access_combo,
-            'Restrict results to a specific access type (left-hand side of '
-            "the tag condition), or choose 'Any' to see all.",
+            'Filter by access type (the left-hand side of a tag condition, '
+            'such as request.principal.group or target.resource). Choose '
+            "'Any' to include all access types.",
         )
 
-        refresh_btn = ttk.Button(filter_row, text='Refresh from Loaded Policies', command=self._on_refresh_clicked)
-        refresh_btn.grid(row=0, column=6, padx=(12, 2), pady=2, sticky='w')
+        ttk.Label(filter_left, text='Tag Namespace:').grid(row=0, column=2, padx=3, pady=2, sticky='w')
+        ns_entry = ttk.Entry(filter_left, textvariable=self.tag_namespace_var, width=20)
+        ns_entry.grid(row=0, column=3, padx=3, pady=2, sticky='w')
         self.add_context_help(
-            refresh_btn,
-            'Re-scan the loaded policies for tag-based conditions and '
-            'rebuild the overview table. This is safe to use after reloads '
-            'or cache imports.',
+            ns_entry,
+            'Show only rows where the parsed tag namespace contains this '
+            'text (case-insensitive). Example: entering "Operations" matches '
+            'any namespace containing Operations.',
         )
+
+        ttk.Label(filter_left, text='Tag Key:').grid(row=0, column=4, padx=3, pady=2, sticky='w')
+        key_entry = ttk.Entry(filter_left, textvariable=self.tag_key_var, width=20)
+        key_entry.grid(row=0, column=5, padx=3, pady=2, sticky='w')
+        self.add_context_help(
+            key_entry,
+            'Show only rows where the parsed tag key contains this text ' '(case-insensitive). Example: "Environment".',
+        )
+
+        ttk.Label(filter_left, text='Tag Value:').grid(row=0, column=6, padx=3, pady=2, sticky='w')
+        value_entry = ttk.Entry(filter_left, textvariable=self.tag_value_var, width=22)
+        value_entry.grid(row=0, column=7, padx=3, pady=2, sticky='w')
+        self.add_context_help(
+            value_entry,
+            'Show only rows where the parsed tag value contains this text ' '(case-insensitive). Example: "Prod".',
+        )
+
+        clear_btn = ttk.Button(filter_left, text='Clear Filters', command=self._clear_filters)
+        clear_btn.grid(row=0, column=8, padx=(6, 0), pady=2, sticky='w')
+        self.add_context_help(clear_btn, 'Clear tag namespace/key/value/access filters and re-show all rows.')
+
+        filter_row_bottom = ttk.Frame(parent)
+        filter_row_bottom.pack(fill='x', padx=6, pady=(0, 4))
+        filter_row_bottom.columnconfigure(0, weight=1)
+        filter_row_bottom.columnconfigure(1, weight=0)
+
+        bottom_left = ttk.Frame(filter_row_bottom)
+        bottom_left.grid(row=0, column=0, sticky='w')
 
         # Simple trace wiring: any change to namespace/key/access type will
         # re-apply filters to the in-memory tag rows without re-scanning
         # policies.
         self.tag_namespace_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
         self.tag_key_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
+        self.tag_value_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
         self.access_type_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
 
         # Checkbox to toggle visibility of parsed-statement columns in the
         # statement overview table.
         parsed_chk = ttk.Checkbutton(
-            filter_row,
+            bottom_left,
             text='Show parsed statement',
             variable=self.show_parsed_statement_var,
             command=self._on_toggle_parsed_statement,
         )
-        parsed_chk.grid(row=0, column=7, padx=(12, 2), pady=2, sticky='w')
+        parsed_chk.grid(row=0, column=0, padx=(0, 8), pady=2, sticky='w')
+        self.add_context_help(
+            parsed_chk,
+            'Show or hide parsed statement columns in the top table ' '(Subject Type, Subject, Verb, and Resource).',
+        )
 
         # Prospective toggle mirrors the PoliciesTab experience so users can
         # include what-if statements authored in the Prospective editor.
         show_prospective_chk = ttk.Checkbutton(
-            filter_row,
+            bottom_left,
             text='Show Prospective',
             variable=self.show_prospective_var,
             command=self._on_toggle_prospective,
         )
-        show_prospective_chk.grid(row=0, column=8, padx=(12, 2), pady=2, sticky='w')
+        show_prospective_chk.grid(row=0, column=1, padx=(0, 8), pady=2, sticky='w')
         self.add_context_help(
             show_prospective_chk,
-            'Include prospective (what-if) policy statements that contain tag conditions. '
-            'These are defined in the Prospective Editor and evaluated alongside tenancy policies.',
+            'Include prospective (what-if) policy statements in this view. '
+            'Only prospective statements with tag conditions are shown.',
         )
 
         open_prospective_btn = ttk.Button(
-            filter_row,
+            bottom_left,
             text='Prospective Editor…',
             command=self._open_prospective_editor_from_tag_tab,
         )
-        open_prospective_btn.grid(row=0, column=9, padx=(6, 0), pady=2, sticky='w')
+        open_prospective_btn.grid(row=0, column=2, padx=(0, 8), pady=2, sticky='w')
         self.add_context_help(
             open_prospective_btn,
-            'Open the Prospective (what-if) Policy Editor. Statements saved there can appear '
-            'in this tab when “Show Prospective” is enabled.',
+            'Open the Prospective (what-if) Policy Editor to add or modify '
+            'test statements. Those statements appear here when "Show '
+            'Prospective" is enabled.',
         )
+
+    def _clear_filters(self) -> None:
+        """Clear all overview filters and refresh both tables."""
+        self.tag_namespace_var.set('')
+        self.tag_key_var.set('')
+        self.tag_value_var.set('')
+        self.access_type_var.set('Any')
+        self._apply_filters_and_refresh()
 
     def _build_statement_table(self, parent: ttk.LabelFrame) -> None:
         """Create the statement-level :class:`DataTable` (Table 1).
@@ -671,7 +703,17 @@ class TagBasedAccessTab(BaseUITab):
         try:
             from oci_policy_analysis.ui.prospective_editor_window import ProspectiveEditorWindow
 
-            ProspectiveEditorWindow(self, self.app)
+            editor = ProspectiveEditorWindow(self, self.app)
+
+            # Keep this tab in sync as the editor opens/closes so users
+            # immediately see any prospective changes reflected here.
+            self.populate_data()
+
+            def _on_editor_destroy(event: tk.Event, *, window: tk.Toplevel = editor) -> None:
+                if event.widget is window:
+                    self.populate_data()
+
+            editor.bind('<Destroy>', _on_editor_destroy)
         except Exception as exc:  # pragma: no cover - defensive UI guard
             logger.warning('TagBasedAccessTab: unable to open ProspectiveEditorWindow: %s', exc, exc_info=True)
 
@@ -782,10 +824,12 @@ class TagBasedAccessTab(BaseUITab):
         * Access Type: exact match on ``cond.access_type`` (unless "Any").
         * Tag Namespace: case-insensitive substring on ``cond.tag_namespace``.
         * Tag Key: case-insensitive substring on ``cond.tag_key``.
+        * Tag Value: case-insensitive substring on ``cond.value``.
         """
 
         ns_filter = self.tag_namespace_var.get().strip().lower()
         key_filter = self.tag_key_var.get().strip().lower()
+        value_filter = self.tag_value_var.get().strip().lower()
         access_filter = self.access_type_var.get().strip()
 
         if access_filter and access_filter != 'Any':
@@ -796,6 +840,9 @@ class TagBasedAccessTab(BaseUITab):
             return False
 
         if key_filter and key_filter not in (cond.tag_key or '').lower():
+            return False
+
+        if value_filter and value_filter not in (cond.value or '').lower():
             return False
 
         return True
@@ -814,16 +861,6 @@ class TagBasedAccessTab(BaseUITab):
             'Value': cond.value,
             'Subexpression': cond.subexpression,
         }
-
-    def _on_refresh_clicked(self) -> None:
-        """Handle the *Refresh from Loaded Policies* button click.
-
-        This simply re-runs :meth:`populate_data`, which re-scans the
-        repository and applies any active filters.
-        """
-
-        logger.info('Manual refresh requested from UI')
-        self.populate_data()
 
     def _apply_filters_and_refresh(self) -> None:  # noqa: C901
         """Filter the in-memory rows and update both overview tables.
@@ -845,8 +882,9 @@ class TagBasedAccessTab(BaseUITab):
 
         ns_filter = self.tag_namespace_var.get().strip()
         key_filter = self.tag_key_var.get().strip()
+        value_filter = self.tag_value_var.get().strip()
         access_filter = self.access_type_var.get().strip()
-        active_filters = bool(ns_filter or key_filter or (access_filter and access_filter != 'Any'))
+        active_filters = bool(ns_filter or key_filter or value_filter or (access_filter and access_filter != 'Any'))
 
         # First, filter statements based on whether any of their
         # TagCondition elements match the active filters (or include all

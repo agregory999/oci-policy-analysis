@@ -125,25 +125,22 @@ class PoliciesTab(BaseUITab):
 
         # Variables for policy and output filters
         self.subject_filter_var = tk.StringVar()
-        self.use_subject_any = tk.BooleanVar()
         self.verb_filter_var = tk.StringVar()
         self.action_filter_var = tk.StringVar(value='Both')
         self.location_filter_var = tk.StringVar()
         self.resource_filter_var = tk.StringVar()
+        self.permission_filter_var = tk.StringVar()
         self.hierarchy_filter_var = tk.StringVar()
         self.condition_filter_var = tk.StringVar()
         self.text_filter_var = tk.StringVar()
         self.effective_path_var = tk.StringVar()
         self.policy_filter_var = tk.StringVar()
-        self.hierarchy_filter_root = tk.BooleanVar()
-        self.location_filter_tenancy = tk.BooleanVar()
         self.chk_show_service = tk.BooleanVar()
         self.chk_show_dynamic = tk.BooleanVar()
         self.chk_show_resource = tk.BooleanVar()
         self.chk_show_invalid = tk.BooleanVar()
         self.chk_show_regular = tk.BooleanVar(value=True)
         self.chk_show_expanded = tk.BooleanVar()
-        self.tag_based_filter = tk.BooleanVar()
 
         # Policy Filters LabelFrame (left)
         self.label_frm_filters = ttk.LabelFrame(top_frm, text='Policy Filters - use | in fields for logical OR')
@@ -157,21 +154,21 @@ class PoliciesTab(BaseUITab):
 
         # Filter Actions LabelFrame (right)
         self.label_frm_actions = ttk.LabelFrame(top_frm, text='Filter Actions')
-        self.label_frm_actions.grid(row=0, column=1, sticky='nsew')
+        self.label_frm_actions.grid(row=0, column=1, sticky='ne')
         top_frm.grid_rowconfigure(0, weight=1)
         top_frm.grid_columnconfigure(0, weight=1)
-        top_frm.grid_columnconfigure(1, weight=1)
+        top_frm.grid_columnconfigure(1, weight=0)
 
         # --- Filter Actions widgets ---
 
         # Export to CSV button
         self.btn_export_policy = ttk.Button(
             self.label_frm_actions,
-            text='Export Filtered\nStatements to CSV',
+            text='Export Filtered Statements to CSV',
             state=tk.DISABLED,
             command=self.export_policy_to_csv,
         )
-        self.btn_export_policy.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.btn_export_policy.grid(row=0, column=0, padx=5, pady=(5, 3), sticky='ew')
 
         # ---- Reload Policy Data button ----
         self.btn_reload_policies = ttk.Button(
@@ -180,7 +177,7 @@ class PoliciesTab(BaseUITab):
             state=tk.DISABLED,
             command=self._handle_reload_policies,
         )
-        self.btn_reload_policies.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.btn_reload_policies.grid(row=1, column=0, padx=5, pady=3, sticky='ew')
         self.add_context_help(
             self.btn_reload_policies,
             (
@@ -191,29 +188,29 @@ class PoliciesTab(BaseUITab):
 
         # Saved Search Name entry/label
         ttk.Label(self.label_frm_actions, text='Saved Search Name:').grid(
-            row=2, column=0, columnspan=2, padx=5, pady=5, sticky='w'
+            row=2, column=0, padx=5, pady=(6, 2), sticky='w'
         )
         self.saved_search_name_var = tk.StringVar()
         self.entry_saved_search_name = ttk.Entry(
             self.label_frm_actions, textvariable=self.saved_search_name_var, width=22
         )
-        self.entry_saved_search_name.grid(row=3, column=0, padx=5, pady=5, sticky='ew')
+        self.entry_saved_search_name.grid(row=3, column=0, padx=5, pady=2, sticky='ew')
 
         # Save Search button - binds to custom method
         self.btn_save_search = ttk.Button(self.label_frm_actions, text='Save Search', command=self._handle_save_search)
-        self.btn_save_search.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
+        self.btn_save_search.grid(row=4, column=0, padx=5, pady=(2, 6), sticky='ew')
 
         # Saved Searches ComboBox
-        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=4, column=0, padx=5, pady=5, sticky='w')
+        ttk.Label(self.label_frm_actions, text='Saved Searches:').grid(row=5, column=0, padx=5, pady=(2, 2), sticky='w')
         self.saved_searches_var = tk.StringVar()
         self.cb_saved_searches = ttk.Combobox(
             self.label_frm_actions, textvariable=self.saved_searches_var, state='readonly', width=22, values=[]
         )
-        self.cb_saved_searches.grid(row=4, column=1, padx=5, pady=5, sticky='ew')
+        self.cb_saved_searches.grid(row=6, column=0, padx=5, pady=(2, 6), sticky='ew')
         self.cb_saved_searches.bind('<<ComboboxSelected>>', self._handle_restore_search)
 
         # Helper to adjust expandability if needed:
-        self.label_frm_actions.grid_rowconfigure(5, weight=1)
+        self.label_frm_actions.grid_rowconfigure(7, weight=1)
         self.label_frm_actions.grid_columnconfigure(0, weight=1)
 
         # Build the UI for policy filters
@@ -234,105 +231,149 @@ class PoliciesTab(BaseUITab):
     def _build_ui_policy_filters(self):
         # All logic to build the policy filter frame moved to separate method for clarity
         self.frm_policy_filter = ttk.Frame(self.label_frm_filters)
-        self.frm_policy_filter.grid(row=0, column=0, sticky='w', padx=10, pady=10)
+        self.frm_policy_filter.grid(row=0, column=0, sticky='w', padx=2, pady=1)
         self.frm_policy_filter.columnconfigure([0, 7], weight=1)
 
         # Subject
-        ttk.Label(self.frm_policy_filter, text='Subject').grid(row=1, column=0, padx=5, pady=2, sticky='w')
-        ttk.Entry(self.frm_policy_filter, textvariable=self.subject_filter_var, width=25).grid(
-            row=1, column=1, columnspan=2, padx=2, sticky='w'
+        ttk.Label(self.frm_policy_filter, text='Subject').grid(row=1, column=0, padx=2, pady=1, sticky='w')
+        ttk.Entry(self.frm_policy_filter, textvariable=self.subject_filter_var, width=30).grid(
+            row=1, column=1, columnspan=2, padx=2, pady=1, sticky='w'
         )
-        btn_any_user = ttk.Checkbutton(
-            self.frm_policy_filter, text='any-user / any-group', variable=self.use_subject_any
+        btn_any_user = ttk.Button(
+            self.frm_policy_filter,
+            text='Add any-user/group',
+            width=16,
+            command=lambda: self._append_filter_tokens(self.subject_filter_var, ['any-user', 'any-group']),
         )
-        btn_any_user.grid(row=1, column=3, padx=2, sticky='e')
-        btn_any_user.config(
-            command=lambda: (
-                self.subject_filter_var.set('any-user|any-group')
-                if self.use_subject_any.get()
-                else self.subject_filter_var.set(''),
-                self.update_policy_output(),
-            )
-        )
+        btn_any_user.grid(row=1, column=3, padx=2, pady=1, sticky='e')
+        self.add_context_help(btn_any_user, 'Append any-user|any-group to Subject filter.')
 
         # Verb
-        ttk.Label(self.frm_policy_filter, text='Verb').grid(row=1, column=4, padx=5, pady=2, sticky='w')
-        ttk.Entry(self.frm_policy_filter, textvariable=self.verb_filter_var, width=30).grid(
-            row=1, column=5, columnspan=3, padx=5, pady=2, sticky='w'
+        ttk.Label(self.frm_policy_filter, text='Verb').grid(row=1, column=4, padx=5, pady=1, sticky='w')
+        ttk.Entry(self.frm_policy_filter, textvariable=self.verb_filter_var, width=24).grid(
+            row=1, column=5, columnspan=2, padx=2, pady=1, sticky='w'
+        )
+        btn_add_lower_verbs = ttk.Button(
+            self.frm_policy_filter,
+            text='Add lower verbs',
+            width=16,
+            command=self._handle_add_lower_verbs,
+        )
+        btn_add_lower_verbs.grid(row=1, column=7, padx=2, pady=1, sticky='w')
+        self.add_context_help(
+            btn_add_lower_verbs,
+            'Expand Verb to include lower verbs: use→inspect|read|use, read→inspect|read, manage→inspect|read|use|manage.',
+        )
+
+        # Permission (moved up under Verb)
+        ttk.Label(self.frm_policy_filter, text='Permission').grid(row=2, column=4, padx=5, pady=1, sticky='w')
+        ttk.Entry(self.frm_policy_filter, textvariable=self.permission_filter_var, width=24).grid(
+            row=2, column=5, columnspan=2, padx=2, pady=1, sticky='w'
+        )
+        btn_lookup_permissions = ttk.Button(
+            self.frm_policy_filter,
+            text='Lookup Permissions',
+            width=16,
+            command=self._open_permission_lookup_popup,
+        )
+        btn_lookup_permissions.grid(row=2, column=7, padx=2, pady=1, sticky='w')
+        self.add_context_help(
+            btn_lookup_permissions,
+            'Open a lookup popup to build Permission filter values from API operation '
+            'or resource/family + verb mappings.',
         )
 
         # Resource
-        ttk.Label(self.frm_policy_filter, text='Resource').grid(row=2, column=0, padx=5, pady=2, sticky='w')
-        ttk.Entry(self.frm_policy_filter, textvariable=self.resource_filter_var, width=40).grid(
-            row=2, column=1, columnspan=3, padx=5, pady=2, sticky='w'
+        ttk.Label(self.frm_policy_filter, text='Resource').grid(row=2, column=0, padx=2, pady=1, sticky='w')
+        ttk.Entry(self.frm_policy_filter, textvariable=self.resource_filter_var, width=30).grid(
+            row=2, column=1, columnspan=2, padx=2, pady=1, sticky='w'
+        )
+        btn_add_hierarchy = ttk.Button(
+            self.frm_policy_filter,
+            text='Add Hierarchy',
+            width=16,
+            command=self._handle_add_hierarchy_to_resource_filter,
+        )
+        btn_add_hierarchy.grid(row=2, column=3, padx=2, pady=1, sticky='e')
+        self.add_context_help(
+            btn_add_hierarchy,
+            'Loads containing family (if any) and all-resources',
         )
 
         # Location
-        ttk.Label(self.frm_policy_filter, text='Location').grid(row=2, column=4, padx=5, pady=2, sticky='w')
-        entry_loc = ttk.Entry(self.frm_policy_filter, width=20, textvariable=self.location_filter_var)
-        entry_loc.grid(row=2, column=5, columnspan=2, padx=2, sticky='w')
-        btn_in_tenancy = ttk.Checkbutton(
-            self.frm_policy_filter, text='in tenancy?', variable=self.location_filter_tenancy
+        ttk.Label(self.frm_policy_filter, text='Location').grid(row=3, column=4, padx=5, pady=1, sticky='w')
+        entry_loc = ttk.Entry(self.frm_policy_filter, width=24, textvariable=self.location_filter_var)
+        entry_loc.grid(row=3, column=5, columnspan=2, padx=2, pady=1, sticky='w')
+        btn_in_tenancy = ttk.Button(
+            self.frm_policy_filter,
+            text='"in tenancy" only',
+            width=16,
+            command=lambda: self._set_filter_value(
+                self.location_filter_var, f'tenancy|{getattr(self.app.policy_compartment_analysis, "tenancy_ocid", "")}'
+            ),
         )
-        btn_in_tenancy.grid(row=2, column=7, padx=2)
-        btn_in_tenancy.config(
-            command=lambda: (
-                self.location_filter_var.set('tenancy')
-                if self.location_filter_tenancy.get()
-                else self.location_filter_var.set(''),
-                self.update_policy_output(),
-            )
-        )
+        btn_in_tenancy.grid(row=3, column=7, padx=2, pady=1, sticky='w')
+        self.add_context_help(btn_in_tenancy, "Set Location filter to 'tenancy'.")
 
         # Hierarchy
-        ttk.Label(self.frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=5, pady=2, sticky='w')
-        entry_hierarchy = ttk.Entry(self.frm_policy_filter, width=25, textvariable=self.hierarchy_filter_var)
-        entry_hierarchy.grid(row=3, column=1, columnspan=2, padx=5, pady=2, sticky='w')
-        btn_root_only = ttk.Checkbutton(
-            self.frm_policy_filter, text='Tenancy Root Only', variable=self.hierarchy_filter_root
+        ttk.Label(self.frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=2, pady=1, sticky='w')
+        entry_hierarchy = ttk.Entry(self.frm_policy_filter, width=30, textvariable=self.hierarchy_filter_var)
+        entry_hierarchy.grid(row=3, column=1, columnspan=2, padx=2, pady=1, sticky='w')
+        btn_root_only = ttk.Button(
+            self.frm_policy_filter,
+            text='Add ROOTONLY',
+            width=16,
+            command=lambda: self._insert_filter_tokens(self.hierarchy_filter_var, ['ROOTONLY']),
         )
-        btn_root_only.grid(row=3, column=3, padx=5, pady=2, sticky='e')
-        btn_root_only.config(
-            command=lambda: (
-                self.hierarchy_filter_var.set('ROOTONLY')
-                if self.hierarchy_filter_root.get()
-                else self.hierarchy_filter_var.set(''),
-                self.update_policy_output(),
-            )
-        )
+        btn_root_only.grid(row=3, column=3, padx=2, pady=1, sticky='e')
+        self.add_context_help(btn_root_only, 'Insert ROOTONLY into Hierarchy filter.')
 
         # Condition
-        ttk.Label(self.frm_policy_filter, text='Condition').grid(row=3, column=4, padx=5, pady=2, sticky='w')
-        entry_condition = ttk.Entry(self.frm_policy_filter, width=20, textvariable=self.condition_filter_var)
+        ttk.Label(self.frm_policy_filter, text='Condition').grid(row=4, column=4, padx=5, pady=1, sticky='w')
+        entry_condition = ttk.Entry(self.frm_policy_filter, width=24, textvariable=self.condition_filter_var)
         # Use columnspan=2 so we can place the Tag-based checkbox in column 7
-        entry_condition.grid(row=3, column=5, columnspan=2, padx=5, pady=2, sticky='w')
+        entry_condition.grid(row=4, column=5, columnspan=2, padx=2, pady=1, sticky='w')
 
-        # Tag-based condition helper checkbox (mirrors Location "in tenancy?" placement)
-        btn_tag_based = ttk.Checkbutton(
+        # Tag-based condition helper button
+        btn_tag_based = ttk.Button(
             self.frm_policy_filter,
-            text='Tag-based',
-            variable=self.tag_based_filter,
+            text='Add .tag.',
+            width=16,
+            command=lambda: self._insert_filter_tokens(self.condition_filter_var, ['.tag.']),
         )
-        btn_tag_based.grid(row=3, column=7, padx=2, sticky='w')
-        btn_tag_based.config(command=self._toggle_tag_based_filter)
+        btn_tag_based.grid(row=4, column=7, padx=2, pady=1, sticky='w')
+        self.add_context_help(btn_tag_based, 'Insert .tag. into Condition filter.')
 
         # Text
-        ttk.Label(self.frm_policy_filter, text='Text').grid(row=4, column=0, padx=5, pady=2, sticky='w')
-        entry_text = ttk.Entry(self.frm_policy_filter, width=40, textvariable=self.text_filter_var)
-        entry_text.grid(row=4, column=1, columnspan=3, padx=5, pady=2, sticky='w')
+        ttk.Label(self.frm_policy_filter, text='Text').grid(row=4, column=0, padx=2, pady=1, sticky='w')
+        entry_text = ttk.Entry(self.frm_policy_filter, width=45, textvariable=self.text_filter_var)
+        entry_text.grid(row=4, column=1, columnspan=3, padx=2, pady=1, sticky='w')
 
         # Policy Name
-        ttk.Label(self.frm_policy_filter, text='Policy Name').grid(row=4, column=4, padx=5, pady=2, sticky='w')
-        entry_policy = ttk.Entry(self.frm_policy_filter, textvariable=self.policy_filter_var, width=30)
-        entry_policy.grid(row=4, column=5, columnspan=3, padx=5, pady=2, sticky='w')
+        ttk.Label(self.frm_policy_filter, text='Policy Name').grid(row=5, column=4, padx=5, pady=1, sticky='w')
+        entry_policy = ttk.Entry(self.frm_policy_filter, textvariable=self.policy_filter_var, width=40)
+        entry_policy.grid(row=5, column=5, columnspan=3, padx=2, pady=1, sticky='w')
 
         # Effective Path
-        ttk.Label(self.frm_policy_filter, text='Effective Path').grid(row=5, column=0, padx=5, pady=2, sticky='w')
-        effective_path_text = ttk.Entry(self.frm_policy_filter, width=40, textvariable=self.effective_path_var)
-        effective_path_text.grid(row=5, column=1, columnspan=3, padx=5, pady=2, sticky='w')
+        ttk.Label(self.frm_policy_filter, text='Effective Path').grid(row=5, column=0, padx=2, pady=1, sticky='w')
+        effective_path_text = ttk.Entry(self.frm_policy_filter, width=30, textvariable=self.effective_path_var)
+        effective_path_text.grid(row=5, column=1, columnspan=2, padx=2, pady=1, sticky='w')
 
-        # Action dropdown (labels/controls on main row)
-        ttk.Label(self.frm_policy_filter, text='Action (allow|deny)').grid(row=5, column=4, padx=5, pady=2, sticky='w')
+        # Effective Path doc link (moved to right of field)
+        self.create_doc_link_label(
+            self.frm_policy_filter,
+            text='What is Effective Path?',
+            url=self.DOCROOT + '/architecture.html#policy-parsing',
+            row=5,
+            column=3,
+            columnspan=1,
+            padx=2,
+            pady=1,
+            sticky='w',
+        )
+
+        # Action dropdown (moved to a new left-side row)
+        ttk.Label(self.frm_policy_filter, text='Action (allow|deny)').grid(row=6, column=0, padx=2, pady=1, sticky='w')
         action_combo = ttk.Combobox(
             self.frm_policy_filter,
             textvariable=self.action_filter_var,
@@ -340,34 +381,22 @@ class PoliciesTab(BaseUITab):
             state='readonly',
             width=10,
         )
-        action_combo.grid(row=5, column=5, padx=2, sticky='w')
+        action_combo.grid(row=6, column=1, padx=2, pady=1, sticky='w')
         self.add_context_help(
             action_combo, "Select which policy actions to show: Both,\nonly 'allow', or only 'deny' statements."
         )
         action_combo.bind('<<ComboboxSelected>>', self.update_policy_output)
 
-        # Doc link row below the labels/controls (use standardized doc-link style)
+        # Doc link row (deny policy docs) to the right of Action controls
         self.create_doc_link_label(
             self.frm_policy_filter,
-            text='What is Effective Path?',
-            url=self.DOCROOT + '/architecture.html#policy-parsing',
-            row=6,
-            column=0,
-            columnspan=4,
-            padx=5,
-            pady=(0, 4),
-            sticky='w',
-        )
-
-        self.create_doc_link_label(
-            self.frm_policy_filter,
-            text='OCI Deny Policies Documentation',
+            text='OCI Deny Policies Docs',
             url='https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm',
             row=6,
-            column=4,
-            columnspan=2,
-            padx=5,
-            pady=(0, 4),
+            column=3,
+            columnspan=3,
+            padx=2,
+            pady=1,
             sticky='w',
         )
 
@@ -375,7 +404,381 @@ class PoliciesTab(BaseUITab):
         self.btn_clear = ttk.Button(
             self.frm_policy_filter, text='Clear Filters', state=tk.DISABLED, command=self.clear_policy_filters
         )
-        self.btn_clear.grid(row=6, column=6, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.btn_clear.grid(row=6, column=5, columnspan=3, padx=5, pady=1, sticky='ew')
+        self.add_context_help(self.btn_clear, 'Clear all policy filter fields.')
+
+    def _insert_filter_tokens(self, variable: tk.StringVar, tokens: list[str]) -> None:
+        """Insert one or more `|`-separated tokens into a filter field.
+
+        Preserves existing values and de-duplicates while keeping order.
+        """
+
+        existing = [t.strip() for t in variable.get().split('|') if t.strip()]
+        updated = list(dict.fromkeys(existing + [t.strip() for t in tokens if t.strip()]))
+        variable.set('|'.join(updated))
+        self.update_policy_output()
+
+    def _append_filter_tokens(self, variable: tk.StringVar, tokens: list[str]) -> None:
+        """Append one or more tokens to a filter, preserving existing text.
+
+        If existing value is present, appends as `|token1|token2`; otherwise
+        sets `token1|token2`.
+        """
+
+        to_add = '|'.join([t.strip() for t in tokens if t.strip()])
+        if not to_add:
+            return
+        current = variable.get().strip()
+        variable.set(f'{current}|{to_add}' if current else to_add)
+        self.update_policy_output()
+
+    def _set_filter_value(self, variable: tk.StringVar, value: str) -> None:
+        """Set a filter field to a specific value and refresh output."""
+
+        variable.set(value)
+        self.update_policy_output()
+
+    def _handle_add_lower_verbs(self) -> None:
+        """Expand Verb filter to include lower verbs for common OCI verb ladders."""
+
+        current = self.verb_filter_var.get().strip().lower()
+        mapping = {
+            'read': 'inspect|read',
+            'use': 'inspect|read|use',
+            'manage': 'inspect|read|use|manage',
+        }
+        new_value = mapping.get(current)
+        if new_value:
+            self.verb_filter_var.set(new_value)
+            self.update_policy_output()
+
+    def _handle_add_hierarchy_to_resource_filter(self) -> None:
+        """Expand the Resource filter with hierarchy tokens.
+
+        Always includes `all-resources` and, for each resource token, attempts to
+        include the containing family from reference data.
+        """
+
+        current = self.resource_filter_var.get().strip()
+        raw_tokens = [t.strip() for t in current.split('|') if t.strip()]
+
+        # Always include all-resources at the beginning per UX requirement.
+        ordered_tokens: list[str] = ['all-resources']
+        missing_family_for: list[str] = []
+
+        ref_repo = getattr(self.app, 'reference_data_repo', None)
+        family_map = getattr(ref_repo, 'family_name_map', {}) if ref_repo is not None else {}
+
+        # If no input resource token exists, still apply all-resources.
+        if not raw_tokens:
+            self.resource_filter_var.set('all-resources')
+            self.update_policy_output()
+            return
+
+        for token in raw_tokens:
+            token_lc = token.lower()
+
+            # Skip duplicates of all-resources from input.
+            if token_lc == 'all-resources':
+                continue
+
+            # If user already entered a family token, preserve it as canonical.
+            if token_lc in family_map:
+                ordered_tokens.append(family_map[token_lc])
+                continue
+
+            family_name = None
+            if ref_repo is not None and hasattr(ref_repo, 'get_containing_family'):
+                family_name = ref_repo.get_containing_family(token)
+
+            if family_name:
+                ordered_tokens.append(family_name)
+            else:
+                missing_family_for.append(token)
+
+            ordered_tokens.append(token)
+
+        # De-duplicate while preserving order.
+        deduped_tokens = list(dict.fromkeys(ordered_tokens))
+        self.resource_filter_var.set('|'.join(deduped_tokens))
+        self.update_policy_output()
+
+        if missing_family_for:
+            tkmessagebox.showwarning(
+                'No Family Type Found',
+                'No family types found for: '
+                + ', '.join(missing_family_for)
+                + '. Added all-resources and kept the provided resource values.',
+            )
+
+    def _merge_permissions_into_filter(self, permissions: list[str], *, refresh: bool = True) -> None:
+        """Merge permissions into Permission filter using `|` delimiters.
+
+        Existing values are preserved, new values are appended, and duplicates
+        are removed while retaining the original order.
+        """
+
+        normalized_new = [str(p).strip().upper() for p in permissions if str(p).strip()]
+        if not normalized_new:
+            return
+        existing = [t.strip() for t in self.permission_filter_var.get().split('|') if t.strip()]
+        merged = list(dict.fromkeys(existing + normalized_new))
+        self.permission_filter_var.set('|'.join(merged))
+        if refresh:
+            self.populate_data()
+
+    def _open_permission_lookup_popup(self) -> None:
+        """Open a popup that helps build the Permission filter value list."""
+
+        existing = getattr(self, '_perm_lookup_popup', None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_force()
+            return
+
+        ref_repo = getattr(self.app, 'reference_data_repo', None)
+        if ref_repo is None or not getattr(ref_repo, 'data', None):
+            tkmessagebox.showwarning('Permissions Lookup', 'Reference permissions data is not loaded yet.')
+            return
+
+        popup = tk.Toplevel(self.winfo_toplevel())
+        popup.title('Lookup Permissions')
+        popup.transient(self.winfo_toplevel())
+        popup.resizable(True, True)
+        popup.geometry('880x616')
+        try:
+            popup_bg = ttk.Style().lookup('TFrame', 'background') or self.cget('background')
+            if popup_bg:
+                popup.configure(background=popup_bg)
+        except Exception:
+            pass
+        self._perm_lookup_popup = popup
+
+        self._perm_lookup_pending_perms: list[str] = []
+        self._perm_lookup_api_filter_var = tk.StringVar()
+
+        outer = ttk.Frame(popup)
+        outer.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # --- API Operation lookup -------------------------------------------------
+        frm_api = ttk.LabelFrame(outer, text='Lookup by API Operation')
+        frm_api.pack(fill='x', pady=(0, 8))
+
+        ttk.Label(frm_api, text='Search API Operation:').grid(row=0, column=0, padx=4, pady=4, sticky='w')
+        self._perm_lookup_api_filter_entry = ttk.Entry(
+            frm_api,
+            textvariable=self._perm_lookup_api_filter_var,
+            width=44,
+        )
+        self._perm_lookup_api_filter_entry.grid(row=0, column=1, padx=4, pady=4, sticky='we')
+
+        ttk.Label(frm_api, text='API:Operation:').grid(row=1, column=0, padx=4, pady=4, sticky='w')
+        self._perm_lookup_api_combo = ttk.Combobox(frm_api, state='readonly', width=70)
+        self._perm_lookup_api_combo.grid(row=1, column=1, padx=4, pady=4, sticky='we')
+
+        self._perm_lookup_add_api_btn = ttk.Button(
+            frm_api,
+            text='Add from API Operation',
+            command=self._permission_lookup_add_from_api_operation,
+        )
+        self._perm_lookup_add_api_btn.grid(row=1, column=2, padx=4, pady=4, sticky='e')
+        frm_api.grid_columnconfigure(1, weight=1)
+
+        # --- Resource/family + verb lookup ---------------------------------------
+        frm_res = ttk.LabelFrame(outer, text='Lookup by Resource or Family + Verb')
+        frm_res.pack(fill='x', pady=(0, 8))
+
+        ttk.Label(frm_res, text='Resource/Family:').grid(row=0, column=0, padx=4, pady=4, sticky='w')
+        self._perm_lookup_resource_combo = ttk.Combobox(frm_res, width=44)
+        self._perm_lookup_resource_combo.grid(row=0, column=1, padx=4, pady=4, sticky='we')
+
+        ttk.Label(frm_res, text='Verb:').grid(row=0, column=2, padx=4, pady=4, sticky='w')
+        self._perm_lookup_verb_combo = ttk.Combobox(
+            frm_res,
+            values=['inspect', 'read', 'use', 'manage'],
+            state='readonly',
+            width=10,
+        )
+        self._perm_lookup_verb_combo.grid(row=0, column=3, padx=4, pady=4, sticky='w')
+        self._perm_lookup_verb_combo.set('read')
+
+        self._perm_lookup_add_res_btn = ttk.Button(
+            frm_res,
+            text='Add from Resource/Family',
+            command=self._permission_lookup_add_from_resource_or_family,
+        )
+        self._perm_lookup_add_res_btn.grid(row=0, column=4, padx=4, pady=4, sticky='e')
+        frm_res.grid_columnconfigure(1, weight=1)
+
+        # --- Lookup output and pending list --------------------------------------
+        split = ttk.Frame(outer)
+        split.pack(fill='both', expand=True)
+
+        frm_result = ttk.LabelFrame(split, text='Lookup Result')
+        frm_result.pack(side='left', fill='both', expand=True, padx=(0, 4))
+        self._perm_lookup_result_text = tk.Text(frm_result, wrap=tk.WORD, height=14)
+        self._perm_lookup_result_text.pack(fill='both', expand=True, padx=4, pady=4)
+
+        frm_pending = ttk.LabelFrame(split, text='Permissions to Insert')
+        frm_pending.pack(side='left', fill='both', expand=True, padx=(4, 0))
+        self._perm_lookup_pending_listbox = tk.Listbox(frm_pending, selectmode=tk.EXTENDED, height=14)
+        self._perm_lookup_pending_listbox.pack(fill='both', expand=True, padx=4, pady=4)
+
+        pending_btns = ttk.Frame(frm_pending)
+        pending_btns.pack(fill='x', padx=4, pady=(0, 4))
+        ttk.Button(pending_btns, text='Remove Selected', command=self._permission_lookup_remove_selected).pack(
+            side='left', padx=(0, 6)
+        )
+        ttk.Button(pending_btns, text='Clear', command=self._permission_lookup_clear_pending).pack(side='left')
+
+        # --- Footer actions -------------------------------------------------------
+        footer = ttk.Frame(outer)
+        footer.pack(fill='x', pady=(8, 0))
+
+        ttk.Button(footer, text='Insert and Close', command=self._permission_lookup_commit_and_close).pack(
+            side='right', padx=(6, 0)
+        )
+        ttk.Button(footer, text='Cancel', command=self._permission_lookup_cancel).pack(side='right')
+
+        # Build API operation map
+        self._perm_lookup_op_map: dict[str, tuple[str, dict]] = {}
+        for api_name, ops in sorted(ref_repo.data.get('operations_by_api', {}).items()):
+            if not isinstance(ops, dict):
+                continue
+            for op_name, meta in sorted(ops.items()):
+                label = f'{api_name}:{op_name}'
+                self._perm_lookup_op_map[label] = (op_name, meta if isinstance(meta, dict) else {})
+        self._permission_lookup_update_api_combo()
+
+        # Build resources/families list
+        all_items = sorted(ref_repo.data.get('resources', {}).keys()) + [
+            f'Family: {f}' for f in sorted(ref_repo.data.get('families', {}).keys())
+        ]
+        self._perm_lookup_resource_combo['values'] = all_items
+        if all_items:
+            self._perm_lookup_resource_combo.current(0)
+
+        self._perm_lookup_api_filter_var.trace_add('write', self._permission_lookup_update_api_combo)
+        popup.protocol('WM_DELETE_WINDOW', self._permission_lookup_commit_and_close)
+
+    def _permission_lookup_update_api_combo(self, *_args) -> None:
+        """Update API operation combobox from search text (case-insensitive)."""
+
+        if not hasattr(self, '_perm_lookup_api_combo'):
+            return
+        filter_txt = (
+            self._perm_lookup_api_filter_var.get() if hasattr(self, '_perm_lookup_api_filter_var') else ''
+        ).strip()
+        if not filter_txt:
+            labels = sorted(self._perm_lookup_op_map.keys())
+        else:
+            needle = filter_txt.lower()
+            labels = [label for label in sorted(self._perm_lookup_op_map.keys()) if needle in label.lower()]
+        self._perm_lookup_api_combo['values'] = labels
+        if labels:
+            self._perm_lookup_api_combo.current(0)
+        else:
+            self._perm_lookup_api_combo.set('')
+
+    def _permission_lookup_set_result_text(self, lines: list[str]) -> None:
+        if not hasattr(self, '_perm_lookup_result_text'):
+            return
+        self._perm_lookup_result_text.delete(1.0, tk.END)
+        self._perm_lookup_result_text.insert(tk.END, '\n'.join(lines))
+
+    def _permission_lookup_add_permissions(self, perms: list[str], source_label: str) -> None:
+        """Add permissions to pending list, de-duplicated, and update result details."""
+
+        clean = [str(p).strip().upper() for p in perms if str(p).strip()]
+        clean_sorted = sorted(set(clean))
+        if not clean_sorted:
+            self._permission_lookup_set_result_text(
+                [
+                    f'--- {source_label} ---',
+                    '',
+                    'Permissions (0):',
+                    '  (none)',
+                ]
+            )
+            return
+
+        self._perm_lookup_pending_perms = list(dict.fromkeys(self._perm_lookup_pending_perms + clean_sorted))
+        self._permission_lookup_refresh_pending_listbox()
+
+        lines = [f'--- {source_label} ---', '', f'Permissions ({len(clean_sorted)}):']
+        lines.extend([f'  {p}' for p in clean_sorted])
+        self._permission_lookup_set_result_text(lines)
+
+    def _permission_lookup_add_from_api_operation(self) -> None:
+        """Lookup operation permissions and add them to pending list."""
+
+        selected = self._perm_lookup_api_combo.get() if hasattr(self, '_perm_lookup_api_combo') else ''
+        if not selected or selected not in self._perm_lookup_op_map:
+            tkmessagebox.showwarning('Permissions Lookup', 'Select an API operation first.')
+            return
+
+        op_name, meta = self._perm_lookup_op_map[selected]
+        perms = [str(p).upper() for p in meta.get('permissions', [])] if isinstance(meta, dict) else []
+        self._permission_lookup_add_permissions(perms, f'API Operation: {op_name}')
+
+    def _permission_lookup_add_from_resource_or_family(self) -> None:
+        """Lookup resource/family + verb permissions and add to pending list."""
+
+        ref_repo = getattr(self.app, 'reference_data_repo', None)
+        if ref_repo is None:
+            tkmessagebox.showwarning('Permissions Lookup', 'Reference permissions data is not loaded yet.')
+            return
+
+        sel = self._perm_lookup_resource_combo.get() if hasattr(self, '_perm_lookup_resource_combo') else ''
+        verb = self._perm_lookup_verb_combo.get() if hasattr(self, '_perm_lookup_verb_combo') else ''
+        if not sel or not verb:
+            tkmessagebox.showwarning('Permissions Lookup', 'Select Resource/Family and Verb first.')
+            return
+
+        entity = sel.replace('Family: ', '') if sel.startswith('Family: ') else sel
+        perms = ref_repo.get_permissions(entity, verb)
+        self._permission_lookup_add_permissions(perms or [], f'{sel} | verb: {verb}')
+
+    def _permission_lookup_refresh_pending_listbox(self) -> None:
+        if not hasattr(self, '_perm_lookup_pending_listbox'):
+            return
+        self._perm_lookup_pending_listbox.delete(0, tk.END)
+        for perm in self._perm_lookup_pending_perms:
+            self._perm_lookup_pending_listbox.insert(tk.END, perm)
+
+    def _permission_lookup_remove_selected(self) -> None:
+        """Remove selected permissions from pending list."""
+
+        if not hasattr(self, '_perm_lookup_pending_listbox'):
+            return
+        indices = list(self._perm_lookup_pending_listbox.curselection())
+        if not indices:
+            return
+        to_remove = {self._perm_lookup_pending_listbox.get(i) for i in indices}
+        self._perm_lookup_pending_perms = [p for p in self._perm_lookup_pending_perms if p not in to_remove]
+        self._permission_lookup_refresh_pending_listbox()
+
+    def _permission_lookup_clear_pending(self) -> None:
+        self._perm_lookup_pending_perms = []
+        self._permission_lookup_refresh_pending_listbox()
+
+    def _permission_lookup_commit_and_close(self) -> None:
+        """Insert pending permissions into filter and close popup."""
+
+        if getattr(self, '_perm_lookup_pending_perms', []):
+            self._merge_permissions_into_filter(self._perm_lookup_pending_perms, refresh=True)
+        popup = getattr(self, '_perm_lookup_popup', None)
+        if popup is not None and popup.winfo_exists():
+            popup.destroy()
+        self._perm_lookup_popup = None
+
+    def _permission_lookup_cancel(self) -> None:
+        """Close popup without inserting pending permissions."""
+
+        popup = getattr(self, '_perm_lookup_popup', None)
+        if popup is not None and popup.winfo_exists():
+            popup.destroy()
+        self._perm_lookup_popup = None
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button. Toggles the AI (bottom) pane."""
@@ -409,10 +812,22 @@ class PoliciesTab(BaseUITab):
             )
             self._update_reload_policy_button_state()
             return
+        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
+            self.app.reload_policies_and_compartments_and_update_cache_async(
+                callback={
+                    'complete': lambda success, message, is_error: (
+                        self._update_reload_policy_button_state(),
+                        logger.info('Policy reload completion: success=%s message=%s', success, message),
+                    )
+                },
+                show_popup=True,
+            )
+            return
+
+        # Fallback to legacy synchronous path if async API is unavailable.
         try:
             self.configure(cursor='watch')
             self.update_idletasks()
-            # Let App coordinate the reload, cache update, and UI refresh
             ok = False
             if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
                 ok = self.app.reload_policies_and_compartments_and_update_cache()
@@ -451,12 +866,12 @@ class PoliciesTab(BaseUITab):
                 filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
         if self.resource_filter_var.get():
             filters['resource'] = self.resource_filter_var.get().split('|')
+        if self.permission_filter_var.get():
+            filters['permission'] = self.permission_filter_var.get().split('|')
         if self.location_filter_var.get():
             filters['location'] = self.location_filter_var.get().split('|')
         if self.hierarchy_filter_var.get():
-            filters['compartment_path'] = (
-                ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
-            )
+            filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
         if self.text_filter_var.get():
             filters['statement_text'] = self.text_filter_var.get().split('|')
         if self.policy_filter_var.get():
@@ -511,29 +926,16 @@ class PoliciesTab(BaseUITab):
         self.subject_filter_var.set('|'.join(filters.get('subject', [])) if 'subject' in filters else '')
         self.verb_filter_var.set('|'.join(filters.get('verb', [])) if 'verb' in filters else '')
         self.resource_filter_var.set('|'.join(filters.get('resource', [])) if 'resource' in filters else '')
+        self.permission_filter_var.set('|'.join(filters.get('permission', [])) if 'permission' in filters else '')
         self.location_filter_var.set('|'.join(filters.get('location', [])) if 'location' in filters else '')
         self.hierarchy_filter_var.set(
-            '|'.join(filters.get('compartment_path', []))
-            if 'compartment_path' in filters and filters.get('compartment_path') != ['ROOTONLY']
-            else ''
+            '|'.join(filters.get('compartment_path', [])) if 'compartment_path' in filters else ''
         )
         self.condition_filter_var.set('|'.join(filters.get('conditions', [])) if 'conditions' in filters else '')
         self.text_filter_var.set('|'.join(filters.get('statement_text', [])) if 'statement_text' in filters else '')
         self.policy_filter_var.set('|'.join(filters.get('policy_name', [])) if 'policy_name' in filters else '')
         self.effective_path_var.set('|'.join(filters.get('effective_path', [])) if 'effective_path' in filters else '')
-        # Handle booleans
-        self.hierarchy_filter_root.set(bool(filters.get('compartment_path') == ['ROOTONLY']))
-        self.location_filter_tenancy.set(bool(filters.get('location') == ['tenancy']))
         # "Action" field already handled above
-        self.chk_show_invalid.set(bool(filters.get('valid') is False))
-
-        # Sync Tag-based checkbox with restored conditions filter
-        cond_raw = self.condition_filter_var.get()
-        if cond_raw:
-            cond_parts = [c.strip() for c in cond_raw.split('|') if c.strip()]
-            self.tag_based_filter.set('.tag.' in cond_parts)
-        else:
-            self.tag_based_filter.set(False)
 
         self.populate_data()
         self.populate_data()
@@ -542,38 +944,13 @@ class PoliciesTab(BaseUITab):
         # --- Remove old label_frm_actions and its .place() ---
         # Create the policy filter frame and all fields/buttons (restoring the original layout)
 
-    def _toggle_tag_based_filter(self) -> None:
-        """Toggle helper for Tag-based checkbox.
-
-        Ensures the Condition filter includes or excludes the `.tag.` token as one of the
-        `|`-separated values, then refreshes the policy output.
-        """
-        current = self.condition_filter_var.get().strip()
-        parts: list[str] = []
-        if current:
-            parts = [p.strip() for p in current.split('|') if p.strip()]
-
-        if self.tag_based_filter.get():
-            # Add `.tag.` if not already present
-            if '.tag.' not in parts:
-                parts.append('.tag.')
-        else:
-            # Remove all exact `.tag.` tokens but keep any other conditions
-            parts = [p for p in parts if p != '.tag.']
-
-        new_value = '|'.join(parts)
-        if new_value != current:
-            self.condition_filter_var.set(new_value)
-
-        # Re-run filters (populate_data via update_policy_output)
-        self.update_policy_output()
-
     def clear_policy_filters(self):
         # Clear all filters
         for entry in [
             self.subject_filter_var,
             self.verb_filter_var,
             self.resource_filter_var,
+            self.permission_filter_var,
             self.location_filter_var,
             self.hierarchy_filter_var,
             self.condition_filter_var,
@@ -582,9 +959,6 @@ class PoliciesTab(BaseUITab):
             self.effective_path_var,
         ]:
             entry.set('')
-        self.use_subject_any.set(False)
-        self.location_filter_tenancy.set(False)
-        self.hierarchy_filter_root.set(False)
 
         # Change the Saved Search dropdown to blank
         self.saved_searches_var.set('')
@@ -614,12 +988,12 @@ class PoliciesTab(BaseUITab):
                     filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
             if self.resource_filter_var.get():
                 filters['resource'] = self.resource_filter_var.get().split('|')
+            if self.permission_filter_var.get():
+                filters['permission'] = self.permission_filter_var.get().split('|')
             if self.location_filter_var.get():
                 filters['location'] = self.location_filter_var.get().split('|')
             if self.hierarchy_filter_var.get():
-                filters['compartment_path'] = (
-                    ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
-                )
+                filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
             # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
             if self.text_filter_var.get():
                 filters['statement_text'] = self.text_filter_var.get().split('|')
@@ -779,8 +1153,17 @@ class PoliciesTab(BaseUITab):
         def policy_table_right_click(row_index: int) -> tk.Menu:  # noqa: C901
             effective_path_text = self.policy_table.data[row_index].get('Effective Path')
             policy_ocid_text = self.policy_table.data[row_index].get('Policy OCID')
+            policy_name_text = self.policy_table.data[row_index].get('Policy Name')
             logger.debug(f'Right click on row {row_index}. Row data: {self.policy_table.data[row_index]}')
             menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label='Show only this Policy',
+                command=lambda: (
+                    self.clear_policy_filters(),
+                    self.policy_filter_var.set(str(policy_name_text or '')),
+                    self.update_policy_output(),
+                ),
+            )
             menu.add_command(
                 label=f'Show all Policies with same Effective Path ({effective_path_text})',
                 command=lambda: perform_effective_path_search(effective_path_text or ''),
@@ -954,6 +1337,7 @@ class PoliciesTab(BaseUITab):
         self.verb_filter_var.trace_add('write', self.populate_data)
         self.subject_filter_var.trace_add('write', self.populate_data)
         self.resource_filter_var.trace_add('write', self.populate_data)
+        self.permission_filter_var.trace_add('write', self.populate_data)
         self.location_filter_var.trace_add('write', self.populate_data)
         self.hierarchy_filter_var.trace_add('write', self.populate_data)
         self.condition_filter_var.trace_add('write', self.populate_data)
@@ -988,12 +1372,12 @@ class PoliciesTab(BaseUITab):
                     filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
             if self.resource_filter_var.get():
                 filters['resource'] = self.resource_filter_var.get().split('|')
+            if self.permission_filter_var.get():
+                filters['permission'] = self.permission_filter_var.get().split('|')
             if self.location_filter_var.get():
                 filters['location'] = self.location_filter_var.get().split('|')
             if self.hierarchy_filter_var.get():
-                filters['compartment_path'] = (
-                    ['ROOTONLY'] if self.hierarchy_filter_root.get() else self.hierarchy_filter_var.get().split('|')
-                )
+                filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
             if self.text_filter_var.get():
                 filters['statement_text'] = self.text_filter_var.get().split('|')
             if self.policy_filter_var.get():
