@@ -1,3 +1,12 @@
+# [4.6.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.2...v4.6.0-beta.1) (2026-04-17)
+
+
+### Features
+
+* Prospective Editor, Tag-based, Policy Analysis filters, Dynamic Group ID, Tag Namespaces ([6198a8d](https://github.com/agregory999/oci-policy-analysis/commit/6198a8dc7d5f25cbaa63b75b8b9a59a78534575c))
+* Prospective Editor, Tag-based, Policy Analysis filters, Dynamic Group ID, Tag Namespaces ([257fa41](https://github.com/agregory999/oci-policy-analysis/commit/257fa4153e1d0f36854b91c9bba1e4a3ed656483))
+* Tag-based Focus area ([c6ddffd](https://github.com/agregory999/oci-policy-analysis/commit/c6ddffdf11e4448732e0fcd15fa8560484367122))
+
 ## [4.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.1...v4.5.2) (2026-03-24)
 
 
