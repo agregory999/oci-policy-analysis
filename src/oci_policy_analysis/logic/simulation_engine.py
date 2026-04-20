@@ -886,6 +886,45 @@ class PolicySimulationEngine:
             principal_key,
             effective_path,
         )
+
+        def _statement_principal_keys(stmt: dict) -> set[str]:
+            """Return any authoritative principal keys stored on a statement.
+
+            Principal keys are treated as authoritative when present. We
+            only fall back to legacy subject-based matching when no
+            principal keys exist.
+            """
+
+            keys: set[str] = set()
+            key = stmt.get('principal_key')
+            if isinstance(key, str) and key.strip():
+                keys.add(key.strip())
+
+            principals = stmt.get('principals')
+            if isinstance(principals, list):
+                for principal in principals:
+                    if not isinstance(principal, dict):
+                        continue
+                    pkey = principal.get('principal_key')
+                    if isinstance(pkey, str) and pkey.strip():
+                        keys.add(pkey.strip())
+
+            normalized = stmt.get('normalized')
+            if isinstance(normalized, dict):
+                nkey = normalized.get('principal_key')
+                if isinstance(nkey, str) and nkey.strip():
+                    keys.add(nkey.strip())
+                nprincipals = normalized.get('principals')
+                if isinstance(nprincipals, list):
+                    for principal in nprincipals:
+                        if not isinstance(principal, dict):
+                            continue
+                        pkey = principal.get('principal_key')
+                        if isinstance(pkey, str) and pkey.strip():
+                            keys.add(pkey.strip())
+
+            return keys
+
         # --- Base tenancy statements via repo filter ---
         if not self.policy_repo or not hasattr(self.policy_repo, 'filter_policy_statements'):
             logger.warning('get_applicable_statements: filter_policy_statements not available in repo.')
@@ -918,15 +957,18 @@ class PolicySimulationEngine:
             )
 
             def _prospective_matches_principal(pst: dict) -> bool:  # noqa: C901
-                # Prefer top-level subject data; fall back to normalized
-                # payload if subject/subject_type were only populated there
+                stored_keys = _statement_principal_keys(pst)
+                if stored_keys:
+                    return principal_key in stored_keys
+
+                # Legacy path: fall back to subject_type/subject matching
                 ptype = (pst.get('subject_type') or pst.get('normalized', {}).get('subject_type') or '').lower()
                 subjects = pst.get('subject')
                 if not subjects:
                     subjects = pst.get('normalized', {}).get('subject') or []
 
                 logger.info(
-                    '_prospective_matches_principal: checking pst internal_id=%r policy_name=%r subject_type=%r subjects=%r against filter=%r (any_subjects=%r) for principal_key=%s',
+                    '_prospective_matches_principal: legacy check pst internal_id=%r policy_name=%r subject_type=%r subjects=%r against filter=%r (any_subjects=%r) for principal_key=%s',
                     pst.get('internal_id'),
                     pst.get('policy_name'),
                     ptype,

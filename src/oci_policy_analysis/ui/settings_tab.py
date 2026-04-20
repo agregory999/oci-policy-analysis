@@ -321,6 +321,13 @@ class SettingsTab(BaseUITab):
         chk_instance_principal.grid(row=0, column=0, padx=4, pady=(2, 2), sticky='w')
         self.add_context_help(chk_instance_principal, CONTEXT_HELP['INSTANCE_PRINCIPAL'])
 
+        def _update_load_tenancy_state(*_args):
+            has_profile = bool((self.profile_var.get() or '').strip())
+            if self.ip_var.get() or has_profile:
+                self.load_tenancy_button.config(state='normal')
+            else:
+                self.load_tenancy_button.config(state='disabled')
+
         def _on_instance_principal_changed(*_):
             """
             When Instance Principal is checked, disable (grey out) the profile selector.
@@ -330,6 +337,7 @@ class SettingsTab(BaseUITab):
                 self.input_profile.config(state='disabled')
             else:
                 self.input_profile.config(state='normal' if len(self.profile_list) > 0 else 'disabled')
+            _update_load_tenancy_state()
 
         # Trace the variable to update OptionMenu state whenever Instance Principal toggled
         self.ip_var.trace_add('write', _on_instance_principal_changed)
@@ -477,12 +485,13 @@ class SettingsTab(BaseUITab):
         self.add_context_help(self.cache_list_dropdown, CONTEXT_HELP['CACHE_DROPDOWN'])
 
         # Load button (lambda function with boolean for cache)
-        ttk.Button(
+        self.load_tenancy_button = ttk.Button(
             label_frm_tenancy_config,
             width=25,
             text='Load from Tenancy',
             command=lambda: self._on_load_clicked(use_cache=False),
-        ).grid(row=0, column=3, padx=5, pady=5, sticky='w')
+        )
+        self.load_tenancy_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
         ttk.Button(
             label_frm_tenancy_config,
             width=25,

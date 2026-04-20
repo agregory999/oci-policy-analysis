@@ -24,6 +24,7 @@ import webbrowser
 from tkinter import messagebox, ttk
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.prospective_statements_service import (
     ProspectiveStatementsService,
 )
@@ -290,6 +291,16 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
 
             # We keep a reference to the service record id (if known)
             record_id: str | None = (initial or {}).get('id')  # type: ignore[assignment]
+            if record_id is None and self.service is not None:
+                try:
+                    rec = self.service.create(
+                        loc_var.get().strip() or 'ROOT',
+                        desc_var.get().strip(),
+                        text_var.get().strip(),
+                    )
+                    record_id = rec.id
+                except Exception:
+                    logger.warning('Unable to create prospective record during row initialization', exc_info=True)
 
             # Initialize status/notes based on any persisted validation state
             initial_data = initial or {}
@@ -360,6 +371,74 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                 # Prefer the service's validate helper when available so
                 # parsed/normalized state is recorded centrally.
                 rid_obj = row.get('record_id')
+
+                def _ensure_principals(normalized: dict[str, object]) -> None:
+                    subject_type = str(normalized.get('subject_type') or '').strip()
+                    subjects = normalized.get('subject')
+                    if not subject_type:
+                        return
+
+                    subj_list = subjects if isinstance(subjects, list) else [subjects]
+                    principals: list[dict[str, object]] = []
+
+                    if subject_type in ('any-user', 'any-group', 'service'):
+                        for subj in subj_list:
+                            name = str(subj or subject_type).strip()
+                            if not name:
+                                continue
+                            key = calculate_principal_key(subject_type, None, name)
+                            principals.append(
+                                {
+                                    'principal_type': subject_type,
+                                    'principal_key': key,
+                                    'display_name': name,
+                                    'name': name,
+                                }
+                            )
+                    elif subject_type in ('group-id', 'dynamic-group-id'):
+                        for subj in subj_list:
+                            ocid = str(subj or '').strip()
+                            if not ocid:
+                                continue
+                            key = f'{subject_type}:{ocid}'
+                            principals.append(
+                                {
+                                    'principal_type': subject_type,
+                                    'principal_key': key,
+                                    'ocid': ocid,
+                                    'display_name': ocid,
+                                    'name': ocid,
+                                }
+                            )
+                    else:
+                        for subj in subj_list:
+                            if isinstance(subj, (tuple | list)) and len(subj) == 2:
+                                domain, name = subj
+                            elif isinstance(subj, str):
+                                domain, name = None, subj
+                            else:
+                                continue
+                            name_str = str(name or '').strip()
+                            if not name_str:
+                                continue
+                            domain_val = str(domain).strip() if isinstance(domain, str) and domain.strip() else None
+                            key = calculate_principal_key(subject_type, domain_val, name_str)
+                            display = f'{domain_val}/{name_str}' if domain_val else name_str
+                            principals.append(
+                                {
+                                    'principal_type': subject_type,
+                                    'principal_key': key,
+                                    'domain_name': domain_val,
+                                    'display_name': display,
+                                    'name': name_str,
+                                }
+                            )
+
+                    if principals:
+                        normalized['principals'] = principals
+                        if len(principals) == 1:
+                            normalized['principal_key'] = principals[0]['principal_key']
+
                 if self.service is not None and isinstance(rid_obj, str):
                     rid: str = rid_obj
                     try:
@@ -367,7 +446,30 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                         logger.info(
                             'Requesting effective path calculation for record %s via ProspectiveStatementsService', rid
                         )
+                        rec = self.service.get(rid)
+                        if rec is None:
+                            rec = self.service.create(
+                                loc_var.get().strip() or 'ROOT',
+                                desc_var.get().strip(),
+                                stmt_text,
+                            )
+                            row['record_id'] = rec.id
+                            rid = rec.id
+                        else:
+                            rec.compartment_path = loc_var.get().strip() or 'ROOT'
+                            rec.description = desc_var.get().strip()
                         updated = self.service.validate_and_update_text(rid, stmt_text)
+                        if isinstance(updated.normalized, dict):
+                            _ensure_principals(updated.normalized)
+                            try:
+                                # Ensure the updated normalized principals are retained in the service cache
+                                # so downstream tabs (Policies, Simulation) can see them immediately.
+                                self.service.upsert(updated)
+                            except Exception:
+                                logger.info(
+                                    'ProspectiveEditorWindow: unable to upsert updated record after principal calc',
+                                    exc_info=True,
+                                )
                         logger.info(f'Validation result for {rid} -> parsed={updated.parsed}, valid={updated.valid}')
                         logger.info(
                             'Effective path for record %s resolved to %s',
@@ -419,6 +521,9 @@ class ProspectiveEditorWindow(tk.Toplevel):  # noqa: D401
                 try:
                     logger.info(f'Validating via engine only (no service id); length={len(stmt_text)}')
                     result = engine.validate_prospective_statement(stmt_text)
+                    normalized = result.get('normalized')
+                    if isinstance(normalized, dict):
+                        _ensure_principals(normalized)
                     parsed = bool(result.get('parsed'))
                     valid = bool(result.get('valid'))
                     reasons = result.get('invalid_reasons') or []

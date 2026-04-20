@@ -1,4 +1,9 @@
+from typing import cast
+
 import pytest
+from oci_policy_analysis.common.helpers import for_display_policy
+from oci_policy_analysis.common.models import RegularPolicyStatement
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementParser
 
 
@@ -154,6 +159,20 @@ def test_policy_statement_compartment_id_location(parser, statement, expected_lo
             'compartment',
             'Foo',
         ),
+        (
+            'allow service GenAI to use generative-ai-family in tenancy',
+            'service',
+            ['GenAI'],
+            'tenancy',
+            'tenancy',
+        ),
+        (
+            'allow service A, B, C to use generative-ai-family in tenancy',
+            'service',
+            ['A', 'B', 'C'],
+            'tenancy',
+            'tenancy',
+        ),
         ('allow any-group to read buckets in tenancy', 'any-group', ['any-group'], 'tenancy', 'tenancy'),
         # Add more as needed for real-world coverage
     ],
@@ -228,6 +247,81 @@ def test_policy_subject_id_variants(parser, statement, expected_subject_type, ex
     subj = result.get('subject')
     assert isinstance(subj, list), f'Subject is not a list: {subj!r}'
     assert subj == expected_subject, f'Expected subject {expected_subject}, got {subj}'
+
+
+def test_calculate_principal_key_normalizes_default_domain_and_any_user():
+    assert calculate_principal_key('group', None, 'Admins') == 'group:Default/Admins'
+    assert calculate_principal_key('group', 'default', 'Admins') == 'group:Default/Admins'
+    assert calculate_principal_key('any-user', None, 'any-user') == 'any-user:None/any-user'
+    assert calculate_principal_key('service', None, 'someservice') == 'service:None/someservice'
+
+
+@pytest.mark.parametrize(
+    'principals,expected',
+    [
+        (
+            [
+                {
+                    'principal_type': 'service',
+                    'principal_key': 'service:None/objectstorage',
+                    'display_name': 'objectstorage',
+                }
+            ],
+            'objectstorage',
+        ),
+        (
+            [
+                {
+                    'principal_type': 'dynamic-group-id',
+                    'principal_key': 'dynamic-group-id:ocid1.dynamicgroup.oc1..example',
+                    'ocid': 'ocid1.dynamicgroup.oc1..example',
+                }
+            ],
+            'dynamic-group-id:ocid1.dynamicgroup.oc1..example',
+        ),
+        (
+            [
+                {
+                    'principal_type': 'group-id',
+                    'principal_key': 'group-id:ocid1.group.oc1..aaa',
+                },
+                {
+                    'principal_type': 'group-id',
+                    'principal_key': 'group-id:ocid1.group.oc1..bbb',
+                },
+            ],
+            'group-id:ocid1.group.oc1..aaa, group-id:ocid1.group.oc1..bbb',
+        ),
+    ],
+)
+def test_for_display_policy_principals_variants(principals, expected):
+    statement = {
+        'policy_name': 'ExamplePolicy',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'internal_id': 'example-id',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': 'allow group Admins to inspect instances in tenancy',
+        'valid': True,
+        'subject_type': 'group',
+        'subject': [('Default', 'Admins')],
+        'verb': 'inspect',
+        'resource': 'instances',
+        'permission': [],
+        'location_type': 'tenancy',
+        'location': 'tenancy',
+        'effective_path': 'root',
+        'conditions': '',
+        'comments': '',
+        'parsing_notes': [],
+        'creation_time': '',
+        'parsed': True,
+        'principals': principals,
+    }
+
+    display_row = for_display_policy(cast(RegularPolicyStatement, statement))
+
+    assert display_row.get('Principals') == expected
 
 
 def test_policy_statement_with_pattern_list(parser):

@@ -106,7 +106,11 @@ def test_create_and_validate_and_update_text() -> None:
         'parsed': True,
         'valid': False,
         'invalid_reasons': ['Some semantic issue'],
-        'normalized': {'statement_text': text, 'subject_type': 'group'},
+        'normalized': {
+            'statement_text': text,
+            'subject_type': 'group',
+            'subject': [(None, 'Dev')],
+        },
     }
 
     updated = service.validate_and_update_text(rec.id, text)
@@ -116,6 +120,9 @@ def test_create_and_validate_and_update_text() -> None:
     assert updated.invalid_reasons == ['Some semantic issue']
     assert isinstance(updated.normalized, dict)
     assert updated.normalized.get('subject_type') == 'group'
+    assert updated.normalized.get('principal_key') == 'group:Default/Dev'
+    principals = updated.normalized.get('principals') or []
+    assert principals and principals[0].get('principal_key') == 'group:Default/Dev'
     assert updated.effective_path == 'ROOT/Dev'
 
 

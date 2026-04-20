@@ -14,6 +14,7 @@
 ##########################################################################
 
 import csv
+import json
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
@@ -40,6 +41,7 @@ ALL_POLICY_COLUMNS = [
     'Invalid Reasons',
     'Subject Type',
     'Subject',
+    'Principals',
     'Verb',
     'Resource',
     'Permission',
@@ -72,6 +74,7 @@ POLICY_COLUMN_WIDTHS = {
     'Effective Path': 200,
     'Subject Type': 120,
     'Subject': 200,
+    'Principals': 240,
     'Verb': 100,
     'Resource': 150,
     'Permission': 150,
@@ -847,7 +850,7 @@ class PoliciesTab(BaseUITab):
             self._update_reload_policy_button_state()
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
 
-    def _get_current_search_dict(self):  # noqa: C901
+    def _get_current_search_dict(self):
         # Build filter dict using update_policy_output convention
         filters: PolicySearch = {}
         if self.subject_filter_var.get():
@@ -890,6 +893,13 @@ class PoliciesTab(BaseUITab):
             tkmessagebox.showwarning('Save Search', 'Please enter a name for the saved search.')
             return
         filters = self._get_current_search_dict()
+        output_toggles = {
+            'show_service': self.chk_show_service.get(),
+            'show_dynamic': self.chk_show_dynamic.get(),
+            'show_resource': self.chk_show_resource.get(),
+            'show_regular': self.chk_show_regular.get(),
+            'show_invalid': self.chk_show_invalid.get(),
+        }
         # Check for duplicate name
         found = next((s for s in self.settings['saved_policy_searches'] if s['name'] == search_name), None)
         if found:
@@ -897,8 +907,15 @@ class PoliciesTab(BaseUITab):
             if not tkmessagebox.askyesno('Save Search', f'A saved search named "{search_name}" exists. Overwrite?'):
                 return
             found['filters'] = filters
+            found['output_toggles'] = output_toggles
         else:
-            self.settings['saved_policy_searches'].append({'name': search_name, 'filters': filters})
+            self.settings['saved_policy_searches'].append(
+                {
+                    'name': search_name,
+                    'filters': filters,
+                    'output_toggles': output_toggles,
+                }
+            )
         config.save_settings(self.settings)
         self._refresh_saved_searches_dropdown(selected=search_name)
         tkmessagebox.showinfo('Save Search', f'Search saved as "{search_name}".')
@@ -937,8 +954,19 @@ class PoliciesTab(BaseUITab):
         self.effective_path_var.set('|'.join(filters.get('effective_path', [])) if 'effective_path' in filters else '')
         # "Action" field already handled above
 
-        self.populate_data()
-        self.populate_data()
+        output_toggles = found.get('output_toggles', {})
+        if isinstance(output_toggles, dict):
+            if 'show_service' in output_toggles:
+                self.chk_show_service.set(bool(output_toggles.get('show_service')))
+            if 'show_dynamic' in output_toggles:
+                self.chk_show_dynamic.set(bool(output_toggles.get('show_dynamic')))
+            if 'show_resource' in output_toggles:
+                self.chk_show_resource.set(bool(output_toggles.get('show_resource')))
+            if 'show_regular' in output_toggles:
+                self.chk_show_regular.set(bool(output_toggles.get('show_regular')))
+            if 'show_invalid' in output_toggles:
+                self.chk_show_invalid.set(bool(output_toggles.get('show_invalid')))
+
         self.populate_data()
 
         # --- Remove old label_frm_actions and its .place() ---
@@ -964,7 +992,7 @@ class PoliciesTab(BaseUITab):
         self.saved_searches_var.set('')
         self.update_policy_output()
 
-    def export_policy_to_csv(self):  # noqa: C901
+    def export_policy_to_csv(self):
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
         if filepath:
             # TODO: Get filtered data from the table instead of re-filtering (and this is broken)
@@ -1302,12 +1330,21 @@ class PoliciesTab(BaseUITab):
                         self.app.open_condition_tester_with_condition(condition_text),
                     ),
                 )
+            menu.add_separator()
             menu.add_command(
-                label='Show Policy in logged-in Browser',
-                command=lambda: self.app.open_link(
-                    f'https://cloud.oracle.com/identity/domains/policies/{policy_ocid_text}'
-                ),
+                label='Statement Full Details',
+                command=lambda: self._open_statement_full_details(row),
             )
+            is_prospective = str(policy_ocid_text or '').strip() == '(prospective)' or str(
+                policy_name_text or ''
+            ).startswith('[Prospective]')
+            if not is_prospective:
+                menu.add_command(
+                    label='Show Policy in logged-in Browser',
+                    command=lambda: self.app.open_link(
+                        f'https://cloud.oracle.com/identity/domains/policies/{policy_ocid_text}'
+                    ),
+                )
             return menu
 
         label_frm_policy_table = ttk.LabelFrame(self, text='Filtered Policy Statements')
@@ -1492,6 +1529,7 @@ class PoliciesTab(BaseUITab):
                     for key in (
                         'subject_type',
                         'subject',
+                        'principals',
                         'verb',
                         'resource',
                         'permission',
@@ -1680,6 +1718,90 @@ class PoliciesTab(BaseUITab):
         self.timed_step(
             'log_final_info', lambda: logger.info(f'Populating policy data table with {len(rows_to_show)} statements')
         )
+
+    def _format_statement_detail_value(self, value: object) -> str:
+        """Normalize statement detail values for display in the full-details popup."""
+
+        if value is None or value == '':
+            return '(none)'
+        if isinstance(value, (list | tuple | set)):
+            items = list(value)
+            if not items:
+                return '(none)'
+            lines: list[str] = []
+            for item in items:
+                if isinstance(item, dict):
+                    lines.append(json.dumps(item, indent=2, ensure_ascii=False))
+                elif isinstance(item, (list | tuple)) and len(item) == 2:
+                    left, right = item
+                    left_txt = str(left) if left is not None else ''
+                    right_txt = str(right) if right is not None else ''
+                    if left_txt:
+                        lines.append(f'{left_txt}: {right_txt}'.strip())
+                    else:
+                        lines.append(right_txt)
+                else:
+                    lines.append(str(item))
+            return '\n'.join(lines)
+        if isinstance(value, dict):
+            return json.dumps(value, indent=2, ensure_ascii=False)
+        return str(value)
+
+    def _open_statement_full_details(self, row: dict) -> None:
+        """Open a modal window showing full statement details with readable formatting."""
+
+        popup = tk.Toplevel(self.winfo_toplevel())
+        popup.title('Statement Full Details')
+        popup.transient(self.winfo_toplevel())
+        popup.resizable(True, True)
+        popup.geometry('980x720')
+        try:
+            popup_bg = ttk.Style().lookup('TFrame', 'background') or self.cget('background')
+            if popup_bg:
+                popup.configure(background=popup_bg)
+        except Exception:
+            popup_bg = None
+
+        outer = ttk.Frame(popup)
+        outer.pack(fill='both', expand=True, padx=12, pady=12)
+
+        header = ttk.Label(
+            outer,
+            text=f"Policy: {row.get('Policy Name') or 'Unknown'}",
+            font=('TkDefaultFont', 11, 'bold'),
+        )
+        header.pack(anchor='w', pady=(0, 6))
+
+        text_frame = ttk.Frame(outer)
+        text_frame.pack(fill='both', expand=True)
+
+        details_text = tk.Text(text_frame, wrap='word', height=24)
+        scrollbar = ttk.Scrollbar(text_frame, orient='vertical', command=details_text.yview)
+        details_text.configure(yscrollcommand=scrollbar.set)
+        if popup_bg:
+            details_text.configure(background=popup_bg)
+        details_text.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+
+        details_text.tag_configure('field', font=('TkDefaultFont', 10, 'bold'))
+
+        for field in ALL_POLICY_COLUMNS:
+            value = row.get(field, '')
+            if field == 'Principals':
+                raw_principals = row.get('_Principals Raw')
+                if raw_principals:
+                    value = raw_principals
+            if field == 'Parsing Notes' and isinstance(value, str) and ';' in value:
+                value = [v.strip() for v in value.split(';') if v.strip()]
+            formatted = self._format_statement_detail_value(value)
+            details_text.insert(tk.END, f'{field}\n', 'field')
+            details_text.insert(tk.END, f'{formatted}\n\n')
+
+        details_text.configure(state='disabled')
+
+        btn_frame = ttk.Frame(outer)
+        btn_frame.pack(fill='x', pady=(8, 0))
+        ttk.Button(btn_frame, text='Close', command=popup.destroy).pack(side='right')
 
     # Backward compatibility: keep update_policy_output (deprecated) for now
     def update_policy_output(self, *args, **kwargs):

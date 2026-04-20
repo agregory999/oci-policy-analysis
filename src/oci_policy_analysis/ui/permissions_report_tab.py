@@ -61,8 +61,16 @@ class PermissionsReportTab(BaseUITab):
             control_frame, text='Export to JSON', state=tk.DISABLED, command=self.export_to_json
         )
         self.btn_export.grid(row=0, column=2, padx=5, pady=5, sticky='w')
+        self.show_inherited_principals_var = tk.BooleanVar(value=False)
+        self.chk_show_inherited = ttk.Checkbutton(
+            control_frame,
+            text='Show inherited principals in tree',
+            variable=self.show_inherited_principals_var,
+            command=self.populate_tree,
+        )
+        self.chk_show_inherited.grid(row=0, column=3, padx=5, pady=5, sticky='w')
         self.info_label = ttk.Label(control_frame, text='Load tenancy data to generate report')
-        self.info_label.grid(row=0, column=3, padx=10, pady=5, sticky='w')
+        self.info_label.grid(row=0, column=4, padx=10, pady=5, sticky='w')
 
         # Attach context help to controls; messages tailored
         self.add_context_help(
@@ -77,6 +85,10 @@ class PermissionsReportTab(BaseUITab):
         self.add_context_help(self.btn_expand_all, 'Expand all nodes in the permissions tree.')
         self.add_context_help(self.btn_collapse_all, 'Collapse all nodes in the permissions tree.')
         self.add_context_help(self.btn_export, 'Export the permissions report data to a JSON file.')
+        self.add_context_help(
+            self.chk_show_inherited,
+            'When enabled, show principals inherited from parent compartments in each tree node.',
+        )
         self.add_context_help(self.info_label, 'Status messages and steps for generating or exporting the report.')
 
         # Frames for split view
@@ -93,7 +105,12 @@ class PermissionsReportTab(BaseUITab):
         vsb = ttk.Scrollbar(left_frame, orient='vertical')
         hsb = ttk.Scrollbar(left_frame, orient='horizontal')
         self.permissions_tree = ttk.Treeview(
-            left_frame, columns=('Type',), yscrollcommand=vsb.set, xscrollcommand=hsb.set, selectmode='browse'
+            left_frame,
+            columns=('Type', 'SubjectKey', 'InheritedFrom'),
+            displaycolumns=('Type',),
+            yscrollcommand=vsb.set,
+            xscrollcommand=hsb.set,
+            selectmode='browse',
         )
         vsb.config(command=self.permissions_tree.yview)
         hsb.config(command=self.permissions_tree.xview)
@@ -101,6 +118,8 @@ class PermissionsReportTab(BaseUITab):
         self.permissions_tree.heading('Type', text='Type')
         self.permissions_tree.column('#0', width=350, minwidth=200, stretch=True)
         self.permissions_tree.column('Type', width=110, minwidth=70)
+        self.permissions_tree.column('SubjectKey', width=0, stretch=False)
+        self.permissions_tree.column('InheritedFrom', width=0, stretch=False)
         self.permissions_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
@@ -178,37 +197,45 @@ class PermissionsReportTab(BaseUITab):
         if not report_data:
             logger.info('No permissions report data available to populate tree')
             return
-        sorted_paths = sorted(report_data.keys())
-        for path in sorted_paths:
+        for path in sorted(report_data.keys()):
             path_node = self.permissions_tree.insert(
                 '', 'end', text=path, values=('Compartment',), tags=('compartment',)
             )
-            subjects = report_data[path]
-            sorted_subjects = sorted(subjects.keys())
-            for subject_key in sorted_subjects:
-                subject_parts = subject_key.split(':', 1)
-                subject_type = subject_parts[0] if len(subject_parts) > 1 else 'unknown'
+            for subject_key, subject_type, inherited_from in self._get_subjects_for_path(path, report_data):
+                display_name = subject_key
+                if inherited_from:
+                    display_name = f'{subject_key} (inherited from {inherited_from})'
                 self.permissions_tree.insert(
-                    path_node, 'end', text=subject_key, values=(subject_type,), tags=('subject',)
+                    path_node,
+                    'end',
+                    text=display_name,
+                    values=(subject_type, subject_key, inherited_from or ''),
+                    tags=('subject',),
                 )
 
-    def on_tree_selection(self, event):  # noqa: C901
-        sel = self.permissions_tree.selection()
-        if not sel:
-            return
-        item = sel[0]
-        node = self.permissions_tree.item(item)
-        parent = self.permissions_tree.parent(item)
-        if not parent:
-            return
-        subject_key = node['text']
-        path_key = self.permissions_tree.item(parent)['text']
-        perm_engine = self.app.policy_intelligence.permissions_report
-        report_data = perm_engine.get('report', {}) if perm_engine else {}
-        subject_data = report_data.get(path_key, {}).get(subject_key, {})
-        allow = list(subject_data.get('allow', []))
-        deny = list(subject_data.get('deny', []))
-        # Inheritance: collect from parent compartments as well
+    def _get_subjects_for_path(self, path: str, report_data: dict) -> list[tuple[str, str, str | None]]:
+        subjects = report_data.get(path, {})
+        subject_map: dict[str, tuple[str, str | None]] = {}
+        for subject_key, data in subjects.items():
+            subject_type = (data or {}).get('subject_type') or 'unknown'
+            subject_map[subject_key] = (subject_type, None)
+        if self.show_inherited_principals_var.get():
+            for ancestor in self._get_ancestor_paths(path):
+                for subject_key, data in report_data.get(ancestor, {}).items():
+                    if subject_key in subject_map:
+                        continue
+                    subject_type = (data or {}).get('subject_type') or 'unknown'
+                    subject_map[subject_key] = (subject_type, ancestor)
+        return sorted(
+            [
+                (subject_key, subject_type, inherited_from)
+                for subject_key, (subject_type, inherited_from) in subject_map.items()
+            ],
+            key=lambda item: item[0],
+        )
+
+    @staticmethod
+    def _get_ancestor_paths(path_key: str) -> list[str]:
         parent_path = path_key
         parent_nodes = []
         while parent_path:
@@ -219,10 +246,59 @@ class PermissionsReportTab(BaseUITab):
             else:
                 break
             parent_nodes.append(parent_path)
+        return parent_nodes
+
+    @staticmethod
+    def _build_permission_rows(
+        permissions: list[str],
+        parent_permissions: list[tuple[str, list[str]]],
+        perm_conditionals: dict[tuple[str, str, str], bool],
+        perm_statements: dict[tuple[str, str, str], str],
+        path_key: str,
+        subject_key: str,
+    ) -> list[dict[str, str]]:
+        rows = []
+        for perm in sorted(permissions):
+            rows.append(
+                {
+                    'Permission': perm,
+                    'Conditional': str(perm_conditionals.get((path_key, subject_key, perm), False)),
+                    'Statement Text': perm_statements.get((path_key, subject_key, perm), ''),
+                }
+            )
+        for ancestor, ancestor_perms in parent_permissions:
+            for perm in sorted(ancestor_perms):
+                rows.append(
+                    {
+                        'Permission': f'{perm} (inherited from {ancestor})',
+                        'Conditional': str(perm_conditionals.get((ancestor, subject_key, perm), False)),
+                        'Statement Text': perm_statements.get((ancestor, subject_key, perm), ''),
+                    }
+                )
+        return rows
+
+    def on_tree_selection(self, event):  # noqa: C901
+        sel = self.permissions_tree.selection()
+        if not sel:
+            return
+        item = sel[0]
+        node = self.permissions_tree.item(item)
+        parent = self.permissions_tree.parent(item)
+        if not parent:
+            return
+        subject_key = node.get('values', [None, None])[1] or node['text']
+        path_key = self.permissions_tree.item(parent)['text']
+        perm_engine = self.app.policy_intelligence.permissions_report
+        report_data = perm_engine.get('report', {}) if perm_engine else {}
+        perm_conditionals = perm_engine.get('perm_conditionals', {}) if perm_engine else {}
+        perm_statements = perm_engine.get('perm_statements', {}) if perm_engine else {}
+        subject_data = report_data.get(path_key, {}).get(subject_key, {})
+        allow = list(subject_data.get('allow', []))
+        deny = list(subject_data.get('deny', []))
+        # Inheritance: collect from parent compartments as well
+        parent_nodes = self._get_ancestor_paths(path_key)
         parent_perms = []
         parent_denies = []
-        for ancestor in parent_nodes:
-            ancestor_data = report_data.get(ancestor, {}).get(subject_key, {})
         for ancestor in parent_nodes:
             ancestor_data = report_data.get(ancestor, {}).get(subject_key, {})
             ap_all = ancestor_data.get('allow', [])
@@ -232,46 +308,22 @@ class PermissionsReportTab(BaseUITab):
             if ap_deny:
                 parent_denies.append((ancestor, ap_deny))
 
-        # Build allow data for DataTable: list of dicts for DataTable
-        allow_rows = []
-        perm_conditionals = perm_engine.get('perm_conditionals', {}) if perm_engine else {}
-        perm_statements = perm_engine.get('perm_statements', {}) if perm_engine else {}
-        for perm in sorted(allow):
-            allow_rows.append(
-                {
-                    'Permission': perm,
-                    'Conditional': str(perm_conditionals.get((path_key, subject_key, perm), False)),
-                    'Statement Text': perm_statements.get((path_key, subject_key, perm), ''),
-                }
-            )
-        for ancestor, ancpermlist in parent_perms:
-            for perm in sorted(ancpermlist):
-                allow_rows.append(
-                    {
-                        'Permission': f'{perm} (inherited from {ancestor})',
-                        'Conditional': str(perm_conditionals.get((ancestor, subject_key, perm), False)),
-                        'Statement Text': perm_statements.get((ancestor, subject_key, perm), ''),
-                    }
-                )
-
-        deny_rows = []
-        for perm in sorted(deny):
-            deny_rows.append(
-                {
-                    'Permission': perm,
-                    'Conditional': str(perm_conditionals.get((path_key, subject_key, perm), False)),
-                    'Statement Text': perm_statements.get((path_key, subject_key, perm), ''),
-                }
-            )
-        for ancestor, ancdenylist in parent_denies:
-            for perm in sorted(ancdenylist):
-                deny_rows.append(
-                    {
-                        'Permission': f'{perm} (inherited from {ancestor})',
-                        'Conditional': str(perm_conditionals.get((ancestor, subject_key, perm), False)),
-                        'Statement Text': perm_statements.get((ancestor, subject_key, perm), ''),
-                    }
-                )
+        allow_rows = self._build_permission_rows(
+            allow,
+            parent_perms,
+            perm_conditionals,
+            perm_statements,
+            path_key,
+            subject_key,
+        )
+        deny_rows = self._build_permission_rows(
+            deny,
+            parent_denies,
+            perm_conditionals,
+            perm_statements,
+            path_key,
+            subject_key,
+        )
 
         # Destroy existing tables to avoid duplication
         for widget in self.allow_dt_frame.winfo_children():
@@ -289,7 +341,6 @@ class PermissionsReportTab(BaseUITab):
             return menu
 
         def permission_ai_lookup(selected_rows: list[dict]):
-            selected_rows[0]
             permission = selected_rows[0].get('Permission', '')
             # Here you could integrate with an AI lookup function
             logger.info(f'AI Lookup for permission: {permission}')

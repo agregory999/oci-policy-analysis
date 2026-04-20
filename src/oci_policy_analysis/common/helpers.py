@@ -34,6 +34,13 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
     Returns:
         dict: A dictionary with keys and values formatted for display.
     """
+    principals_display = ''
+    principals = statement.get('principals')
+    if isinstance(principals, list):
+        principals_display = ', '.join(
+            [(p.get('display_name') or p.get('principal_key') or '') for p in principals if isinstance(p, dict)]
+        )
+
     return {
         'Action': statement.get('action', 'allow'),
         'Policy Name': statement['policy_name'],  # type: ignore
@@ -48,6 +55,8 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
         else '',
         'Subject Type': statement['subject_type'] if 'subject_type' in statement else '',
         'Subject': statement['subject'] if 'subject' in statement else '',
+        'Principals': principals_display,
+        '_Principals Raw': principals,
         'Verb': statement['verb'] if 'verb' in statement else '',
         'Resource': statement['resource'] if 'resource' in statement else '',
         'Permission': statement['permission'] if 'permission' in statement else '',

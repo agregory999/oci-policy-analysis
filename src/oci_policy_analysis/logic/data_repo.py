@@ -51,10 +51,12 @@ from oci_policy_analysis.common.models import (
     Group,
     GroupSearch,
     PolicySearch,
+    Principal,
     RegularPolicyStatement,
     User,
     UserSearch,
 )
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
 # Global logger for this module
@@ -457,23 +459,32 @@ class PolicyAnalysisRepository:
         """
         subject_type = stmt.get('subject_type')
         subjects = stmt.get('subject', [])
-        if not (subject_type in ('group', 'dynamic-group') and isinstance(subjects, list)):
+        principals = stmt.get('principals', [])
+        if not isinstance(subjects, list):
             return
 
-        # Detect if all subjects are in OCID format (no tuple/list inside)
-        all_ocids = all(isinstance(s, str) and s.lower().startswith('ocid1.') for s in subjects)
-        if not all_ocids:
-            return
+        # Handle group/dynamic-group subjects with raw OCID lists
+        is_named_group = subject_type in ('group', 'dynamic-group')
+        # Handle explicit group-id/dynamic-group-id subjects using principals
+        is_id_group = subject_type in ('group-id', 'dynamic-group-id')
+
+        if is_named_group:
+            # Detect if all subjects are in OCID format (no tuple/list inside)
+            all_ocids = all(isinstance(s, str) and s.lower().startswith('ocid1.') for s in subjects)
+            if not all_ocids:
+                return
 
         resolved_subjects = []
         unresolved_ocids = []
-        for ocid in subjects:
+        resolution_notes = []
+        for ocid in subjects if is_named_group else []:
             if subject_type == 'group':
                 grp = next((g for g in self.groups if g.get('group_ocid', '').lower() == ocid.lower()), None)
                 if grp:
                     dom = grp.get('domain_name') or 'Default'
                     name = grp.get('group_name') or ocid
                     resolved_subjects.append((dom, name))
+                    resolution_notes.append(f'Resolved group OCID {ocid} -> {dom}/{name}')
                 else:
                     resolved_subjects.append(('Unknown', ocid))
                     unresolved_ocids.append(ocid)
@@ -485,16 +496,150 @@ class PolicyAnalysisRepository:
                     dom = dg.get('domain_name') or 'Default'
                     name = dg.get('dynamic_group_name') or ocid
                     resolved_subjects.append((dom, name))
+                    resolution_notes.append(f'Resolved dynamic group OCID {ocid} -> {dom}/{name}')
                 else:
                     resolved_subjects.append(('Unknown', ocid))
                     unresolved_ocids.append(ocid)
-        stmt['subject'] = resolved_subjects
+        # Handle group-id/dynamic-group-id using principals
+        if is_id_group and isinstance(principals, list):
+            for principal in principals:
+                if not isinstance(principal, dict):
+                    continue
+                ocid = principal.get('ocid')
+                if not ocid and isinstance(principal.get('principal_key'), str):
+                    _prefix, candidate = principal['principal_key'].split(':', 1)
+                    ocid = candidate
+                if not ocid:
+                    continue
+                if subject_type == 'group-id':
+                    grp = next((g for g in self.groups if g.get('group_ocid', '').lower() == str(ocid).lower()), None)
+                    if grp:
+                        dom = grp.get('domain_name') or 'Default'
+                        name = grp.get('group_name') or ocid
+                        resolution_notes.append(f'Resolved group OCID {ocid} -> {dom}/{name}')
+                    else:
+                        unresolved_ocids.append(str(ocid))
+                else:
+                    dg = next(
+                        (
+                            d
+                            for d in self.dynamic_groups
+                            if d.get('dynamic_group_ocid', '').lower() == str(ocid).lower()
+                        ),
+                        None,
+                    )
+                    if dg:
+                        dom = dg.get('domain_name') or 'Default'
+                        name = dg.get('dynamic_group_name') or ocid
+                        resolution_notes.append(f'Resolved dynamic group OCID {ocid} -> {dom}/{name}')
+                    else:
+                        unresolved_ocids.append(str(ocid))
+
+        if resolved_subjects:
+            stmt['subject'] = resolved_subjects
+
         notes = stmt.setdefault('parsing_notes', [])
-        if len(unresolved_ocids) > 0:
-            notes.append(f"Failed to resolve OCID(s): {', '.join(unresolved_ocids)}; inserted as ('Unknown', ocid)")
+        if resolution_notes:
+            notes.extend(resolution_notes)
+        if unresolved_ocids:
+            notes.append(
+                f"Failed to resolve OCID(s): {', '.join(sorted(set(unresolved_ocids)))}; inserted as ('Unknown', ocid)"
+            )
             stmt['valid'] = False
-        else:
+        elif resolution_notes:
             notes.append('All OCID subject(s) resolved to domain/name tuple(s).')
+
+    def _build_principals_from_statement(self, stmt: RegularPolicyStatement) -> list[Principal]:
+        """Derive canonical principal models from subject_type + subject.
+
+        This is additive/non-breaking: it populates ``principals`` while
+        leaving legacy ``subject`` untouched.
+        """
+        subject_type = (stmt.get('subject_type') or '').strip()
+        subjects = stmt.get('subject')
+        principals: list[Principal] = []
+
+        if not subject_type:
+            stmt['principals'] = principals
+            return principals
+
+        def _append_principal(
+            *,
+            principal_type: str,
+            principal_key: str,
+            domain_name: str | None = None,
+            name: str | None = None,
+            ocid: str | None = None,
+            display_name: str | None = None,
+        ) -> None:
+            principals.append(
+                {
+                    'principal_type': principal_type,
+                    'principal_key': principal_key,
+                    'domain_name': domain_name,
+                    'name': name,
+                    'ocid': ocid,
+                    'display_name': display_name or principal_key,
+                }
+            )
+
+        if subject_type in ('any-user', 'any-group', 'service'):
+            subj_list = subjects if isinstance(subjects, list) else [subjects]
+            for subj in subj_list:
+                name = str(subj or subject_type).strip()
+                key = calculate_principal_key(subject_type, None, name)
+                _append_principal(
+                    principal_type=subject_type,
+                    principal_key=key,
+                    name=name,
+                    display_name=name,
+                )
+            stmt['principals'] = principals
+            return principals
+
+        if subject_type in ('group-id', 'dynamic-group-id'):
+            subj_list = subjects if isinstance(subjects, list) else [subjects]
+            for subj in subj_list:
+                ocid = None
+                if isinstance(subj, tuple | list) and len(subj) >= 2:
+                    ocid = str(subj[1] or '').strip()
+                elif isinstance(subj, str):
+                    ocid = subj.strip()
+                if not ocid:
+                    continue
+                key = f'{subject_type}:{ocid}'
+                _append_principal(
+                    principal_type=subject_type,
+                    principal_key=key,
+                    ocid=ocid,
+                    display_name=ocid,
+                )
+            stmt['principals'] = principals
+            return principals
+
+        subj_list = subjects if isinstance(subjects, list) else [subjects]
+        for subj in subj_list:
+            domain = None
+            name = None
+            if isinstance(subj, tuple | list) and len(subj) >= 2:
+                domain = str(subj[0] or 'Default')
+                name = str(subj[1] or '').strip()
+            elif isinstance(subj, str):
+                name = subj.strip()
+            if not name:
+                continue
+            key = calculate_principal_key(subject_type, domain, name)
+            display = f'{domain}/{name}' if domain else name
+            _append_principal(
+                principal_type=subject_type,
+                principal_key=key,
+                domain_name=domain,
+                name=name,
+                display_name=display,
+            )
+
+        stmt['principals'] = principals
+        return principals
 
     def _parse_statement(self, policy: BasePolicy, statement: RegularPolicyStatement) -> bool:
         """
@@ -530,8 +675,11 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Full invalid statement data: {statement_dict}')
                 self.regular_statements.append(statement_dict)
                 return False
-            # OCID subject resolution step
+            # Build principals first (raw subject), resolve OCIDs, then rebuild principals
+            # so they reflect resolved domain/name tuples.
+            self._build_principals_from_statement(normalized)
             self._resolve_ocid_subjects_in_statement(normalized)
+            self._build_principals_from_statement(normalized)
             self.regular_statements.append(normalized)
             logger.debug(f'Regular Policy Statement Parsed: {normalized}')
             logger.debug(f'Regular Policy Statement Parsed: {normalized}')
@@ -624,7 +772,7 @@ class PolicyAnalysisRepository:
             logger.error(f'Failed to load compartments: {e}')
             return False
 
-    def load_policies_only(self) -> bool:  # noqa: C901
+    def load_policies_only(self) -> bool:
         """
         Loads policies/statements only, assuming compartments are already loaded.
         """
@@ -655,7 +803,7 @@ class PolicyAnalysisRepository:
                 )
                 total_policies = len(policy_search_results.data.items)
 
-                def _process_policy_resource(item, position, total_policies):  # noqa: C901
+                def _process_policy_resource(item, position, total_policies):
                     policy_ocid = item.identifier
                     compartment_ocid = item.compartment_id
                     try:
@@ -975,7 +1123,7 @@ class PolicyAnalysisRepository:
         except Exception:
             logger.info('Tag namespace catalog refresh failed.', exc_info=True)
 
-    def load_policies_and_compartments(self) -> bool:  # noqa: C901
+    def load_policies_and_compartments(self) -> bool:
         """
         Loads both compartments and all policies using OCI Clients. (Convenience function)
         """
@@ -1192,7 +1340,7 @@ class PolicyAnalysisRepository:
             logger.error(f'Exception during group fetch: {e}')
             return []
 
-    def _fetch_users_for_domain(self, domain, domain_client):  # noqa: C901
+    def _fetch_users_for_domain(self, domain, domain_client):
         """
         Fetch users for a domain using OCI generator + ThreadPoolExecutor for user detail calls.
         Uses pagination.list_call_get_all_results_generator to list users.
@@ -1285,7 +1433,7 @@ class PolicyAnalysisRepository:
 
         return user_list
 
-    def load_complete_identity_domains(  # noqa: C901
+    def load_complete_identity_domains(
         self, load_all_users: bool = True, compartment_domain_search_depth: int = 1
     ) -> bool:
         """
@@ -1491,7 +1639,7 @@ class PolicyAnalysisRepository:
         filters: PolicySearch,
         *,
         statements: list[RegularPolicyStatement] | None = None,
-    ) -> list[RegularPolicyStatement]:  # noqa: C901
+    ) -> list[RegularPolicyStatement]:
         """
         Filter policy statements by one or more criteria.
 
@@ -1536,10 +1684,10 @@ class PolicyAnalysisRepository:
                 if key == 'exact_groups':
                     # Get the groups from the exact filter
                     logger.debug(f'Filtering on exact_groups with values: {values}')
-                    groups_filter = filters.get('exact_groups', None)
-                    # Only applies to statements where "subject_type" == "group"
-                    if stmt.get('subject_type') != 'group':
-                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to subject_type not 'group'")
+                    groups_filter = filters.get('exact_groups', []) or []
+                    subject_type = (stmt.get('subject_type') or '').lower()
+                    if subject_type not in ('group', 'group-id'):
+                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to subject_type not group/group-id")
                         match = False
                         break
                     subjects = stmt.get('subject', [])
@@ -1551,21 +1699,53 @@ class PolicyAnalysisRepository:
                         logger.debug('No groups in exact_groups filter, thus no match possible')
                         match = False
                         break
-                    # A match occurs if any provided domain and group name combo matches any subject in the statement (case-insensitive)
+                    group_name_refs = set()
+                    group_ocid_refs = set()
+                    for group in groups_filter:
+                        group_domain = (group.get('domain_name') or 'default').strip()
+                        group_name = (group.get('group_name') or '').strip()
+                        if group_name:
+                            group_name_refs.add((group_domain.casefold(), group_name.casefold()))
+                        group_ocid = (group.get('group_ocid') or '').strip()
+                        if group_ocid:
+                            group_ocid_refs.add(group_ocid.casefold())
+                        elif group_name:
+                            resolved = next(
+                                (
+                                    g
+                                    for g in self.groups
+                                    if (g.get('group_name') or '').casefold() == group_name.casefold()
+                                    and (g.get('domain_name') or 'default').casefold() == group_domain.casefold()
+                                ),
+                                None,
+                            )
+                            if resolved and resolved.get('group_ocid'):
+                                group_ocid_refs.add(str(resolved.get('group_ocid')).casefold())
+
                     subj_matched = False
-                    for subj_domain, subj_name in subjects:
-                        # Now we need to iterate the provided groups and see if any match
-                        for group in groups_filter:
-                            group_domain = group.get('domain_name') or 'default'
-                            group_name = group.get('group_name')
-                            if (
-                                subj_domain.casefold() == group_domain.casefold()
-                                and subj_name.casefold() == group_name.casefold()
-                            ):
+                    if subject_type == 'group':
+                        for subj_domain, subj_name in subjects:
+                            subj_domain_str = str(subj_domain or 'default').casefold()
+                            subj_name_str = str(subj_name or '').casefold()
+                            if (subj_domain_str, subj_name_str) in group_name_refs:
                                 logger.debug(
-                                    f'Matched group {subj_domain}/{subj_name} in statement {stmt.get("policy_name")} to filter group {group_domain}/{group_name}'
+                                    f'Matched group {subj_domain}/{subj_name} in statement {stmt.get("policy_name")} to exact_groups filter'
                                 )
                                 subj_matched = True
+                                break
+                    else:
+                        for subj in subjects:
+                            ocid = None
+                            if isinstance(subj, tuple | list) and len(subj) >= 2:
+                                ocid = subj[1]
+                            elif isinstance(subj, str):
+                                ocid = subj
+                            if ocid and str(ocid).casefold() in group_ocid_refs:
+                                logger.debug(
+                                    f'Matched group-id {ocid} in statement {stmt.get("policy_name")} to exact_groups filter'
+                                )
+                                subj_matched = True
+                                break
                     if not subj_matched:
                         logger.debug(
                             f'No match found for exact_group filter in statement {stmt.get("policy_name")} Text: {stmt.get("statement_text")} Statement: {stmt.get("subject")}'
@@ -1576,9 +1756,12 @@ class PolicyAnalysisRepository:
                 # For exact dynamic group, similar logic
                 elif key == 'exact_dynamic_groups' and values:
                     logger.debug(f'Filtering on exact_dynamic_groups with values: {values}')
-                    dyn_groups_filter = filters.get('exact_dynamic_groups', [])
-                    if stmt.get('subject_type') != 'dynamic-group':
-                        logger.debug(f"Rejecting {stmt.get('policy_name')} due to Subject Type not 'dynamic-group'")
+                    dyn_groups_filter = filters.get('exact_dynamic_groups', []) or []
+                    subject_type = (stmt.get('subject_type') or '').lower()
+                    if subject_type not in ('dynamic-group', 'dynamic-group-id'):
+                        logger.debug(
+                            f"Rejecting {stmt.get('policy_name')} due to Subject Type not dynamic-group/dynamic-group-id"
+                        )
                         match = False
                         break
                     subjects = stmt.get('subject', [])
@@ -1586,19 +1769,70 @@ class PolicyAnalysisRepository:
                         logger.warning(f'Unexpected Subject format in statement {stmt.get("policy_name")}: {subjects}')
                         match = False
                         break
+                    dg_name_refs = set()
+                    dg_ocid_refs = set()
+                    for dg in dyn_groups_filter:
+                        dg_domain = (dg.get('domain_name') or 'default').strip()
+                        dg_name = (dg.get('dynamic_group_name') or '').strip()
+                        if dg_name:
+                            dg_name_refs.add((dg_domain.casefold(), dg_name.casefold()))
+                        dg_ocid = (dg.get('dynamic_group_ocid') or '').strip()
+                        if dg_ocid:
+                            dg_ocid_refs.add(dg_ocid.casefold())
+                        elif dg_name:
+                            resolved = next(
+                                (
+                                    d
+                                    for d in self.dynamic_groups
+                                    if (d.get('dynamic_group_name') or '').casefold() == dg_name.casefold()
+                                    and (d.get('domain_name') or 'default').casefold() == dg_domain.casefold()
+                                ),
+                                None,
+                            )
+                            if resolved and resolved.get('dynamic_group_ocid'):
+                                dg_ocid_refs.add(str(resolved.get('dynamic_group_ocid')).casefold())
+
                     subj_matched = False
-                    for subj_domain, subj_name in subjects:
-                        for dg in dyn_groups_filter:
-                            dg_domain = dg.get('domain_name') or 'default'
-                            dg_name = dg.get('dynamic_group_name')
-                            if (
-                                subj_domain.casefold() == dg_domain.casefold()
-                                and subj_name.casefold() == dg_name.casefold()
-                            ):
+                    if subject_type == 'dynamic-group':
+                        for subj_domain, subj_name in subjects:
+                            subj_domain_str = str(subj_domain or 'default').casefold()
+                            subj_name_str = str(subj_name or '').casefold()
+                            if (subj_domain_str, subj_name_str) in dg_name_refs:
                                 logger.debug(
-                                    f'Matched dynamic group {subj_domain}/{subj_name} in statement {stmt.get("policy_name")} to filter group {dg_domain}/{dg_name}'
+                                    f'Matched dynamic group {subj_domain}/{subj_name} in statement {stmt.get("policy_name")} to exact_dynamic_groups filter'
                                 )
                                 subj_matched = True
+                                break
+                    else:
+                        for subj in subjects:
+                            ocid = None
+                            if isinstance(subj, tuple | list) and len(subj) >= 2:
+                                ocid = subj[1]
+                            elif isinstance(subj, str):
+                                ocid = subj
+                            if ocid and str(ocid).casefold() in dg_ocid_refs:
+                                logger.debug(
+                                    f'Matched dynamic-group-id {ocid} in statement {stmt.get("policy_name")} to exact_dynamic_groups filter'
+                                )
+                                subj_matched = True
+                                break
+                    if not subj_matched and dg_ocid_refs:
+                        principals = stmt.get('principals', [])
+                        for principal in principals if isinstance(principals, list) else []:
+                            ocid = None
+                            if isinstance(principal, dict):
+                                ocid = principal.get('ocid')
+                                if not ocid:
+                                    principal_key = principal.get('principal_key')
+                                    if isinstance(principal_key, str) and ':' in principal_key:
+                                        _prefix, candidate = principal_key.split(':', 1)
+                                        ocid = candidate
+                            if ocid and str(ocid).casefold() in dg_ocid_refs:
+                                logger.debug(
+                                    f'Matched dynamic group OCID {ocid} via principals in statement {stmt.get("policy_name")}'
+                                )
+                                subj_matched = True
+                                break
                     if not subj_matched:
                         logger.debug(
                             f'No match found for exact_dynamic_groups filter in statement {stmt.get("policy_name")} Text: {stmt.get("statement_text")} Statement: {stmt.get("subject")}'
@@ -1868,7 +2102,7 @@ class PolicyAnalysisRepository:
         logger.info(f'Dynamic Group Search returning {len(dgs_return)} dynamic groups')
         return dgs_return
 
-    def _resolve_fuzzy_search(self, filters: PolicySearch):  # noqa: C901
+    def _resolve_fuzzy_search(self, filters: PolicySearch):
         """Look for fuzzy search and turn it into an exact search"""
         logger.debug(f'Resolve fuzzy Groups: {filters.get("search_groups")}')
         logger.debug(f'Resolve fuzzy Users: {filters.get("search_users")}')

@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 
 logger = get_logger(component='prospective_statements_service')
@@ -354,6 +355,7 @@ class ProspectiveStatementsService:
         else:
             rec.normalized = None
 
+        self._ensure_principal_keys(rec)
         self._ensure_effective_path(rec)
 
         logger.debug(
@@ -497,6 +499,7 @@ class ProspectiveStatementsService:
                 rec.effective_path = eff_path.strip()
             else:
                 self._ensure_effective_path(rec)
+            self._ensure_principal_keys(rec)
 
     # ------------------------------------------------------------------
     # Effective path helpers
@@ -596,3 +599,81 @@ class ProspectiveStatementsService:
         normalized_segments = [segments[0]] + list(segments[1:])
         normalized_segments[0] = 'ROOT'
         return '/'.join(normalized_segments)
+
+    def _ensure_principal_keys(self, record: ProspectiveStatementRecord) -> None:
+        """Populate principal keys on normalized prospective statements.
+
+        Principals are treated as authoritative when present. We reuse the
+        shared helper to ensure the principal_key format matches the rest of
+        the application.
+        """
+
+        normalized = record.normalized if isinstance(record.normalized, dict) else None
+        if not normalized:
+            return
+
+        subject_type = (normalized.get('subject_type') or '').strip()
+        subjects = normalized.get('subject')
+        if not subject_type:
+            return
+
+        subj_list = subjects if isinstance(subjects, list) else [subjects]
+        principals: list[dict[str, Any]] = []
+
+        if subject_type in ('any-user', 'any-group', 'service'):
+            for subj in subj_list:
+                name = str(subj or subject_type).strip()
+                if not name:
+                    continue
+                key = calculate_principal_key(subject_type, None, name)
+                principals.append(
+                    {
+                        'principal_type': subject_type,
+                        'principal_key': key,
+                        'display_name': name,
+                        'name': name,
+                    }
+                )
+        elif subject_type in ('group-id', 'dynamic-group-id'):
+            for subj in subj_list:
+                ocid = str(subj or '').strip()
+                if not ocid:
+                    continue
+                key = f'{subject_type}:{ocid}'
+                principals.append(
+                    {
+                        'principal_type': subject_type,
+                        'principal_key': key,
+                        'ocid': ocid,
+                        'display_name': ocid,
+                        'name': ocid,
+                    }
+                )
+        else:
+            for subj in subj_list:
+                if isinstance(subj, (tuple | list)) and len(subj) == 2:
+                    domain, name = subj
+                elif isinstance(subj, str):
+                    domain, name = None, subj
+                else:
+                    continue
+                name_str = str(name or '').strip()
+                if not name_str:
+                    continue
+                domain_val = str(domain).strip() if domain not in (None, '') else None
+                key = calculate_principal_key(subject_type, domain_val, name_str)
+                display = f'{domain_val}/{name_str}' if domain_val else name_str
+                principals.append(
+                    {
+                        'principal_type': subject_type,
+                        'principal_key': key,
+                        'domain_name': domain_val,
+                        'display_name': display,
+                        'name': name_str,
+                    }
+                )
+
+        if principals:
+            normalized['principals'] = principals
+            if len(principals) == 1:
+                normalized['principal_key'] = principals[0]['principal_key']

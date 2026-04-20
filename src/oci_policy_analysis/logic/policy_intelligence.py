@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicyIntelligence, PolicyOverlap
 from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import collect_tag_conditions
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 if TYPE_CHECKING:
@@ -105,47 +106,10 @@ class PolicyIntelligenceEngine:
     def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:
         """Return the canonical *principal key* string for a subject triple.
 
-        Canonical format is::
-
-            "{subject_type}:{domain}/{name}"
-
-        with the following normalization rules:
-
-        * ``subject_type`` is used as provided (callers typically lowercase).
-        * For **user/group/dynamic-group** subjects, if ``domain`` is falsy or
-          equal to ``"default"`` (any casing), the domain component is
-          normalized to the literal string ``"Default"``. This makes the
-          implicit tenancy-default domain explicit in the key.
-        * For **any-user/any-group/service** subjects, the domain component is
-          always ``"None"`` in the key. The ``name`` piece should carry the
-          semantic value (for example ``"any-user"``, ``"any-group"`` or the
-          concrete service name such as ``"objectstorage"``).
-        * For **id-based subjects** such as ``group-id`` or
-          ``dynamic-group-id``, callers are expected to use the more compact
-          forms (for example ``"group-id:ocid1.group.oc1..xyz"``) and may
-          bypass this helper entirely. This helper is focused on the
-          ``{type}:{domain}/{name}`` family.
+        Delegates to shared helper in policy_helpers for consistent
+        normalization across repo/intelligence/simulation layers.
         """
-
-        # TODO: Might want to return service:xxx or simply any-user or any-group but undecided now
-
-        stype = (subject_type or '').strip()
-        name_str = str(name).strip()
-        domain_str: str | None
-
-        if stype in {'any-user', 'any-group', 'service'}:
-            domain_str = 'None'
-        elif stype in {'user', 'group', 'dynamic-group'}:
-            if domain is None:
-                domain_str = 'Default'
-            else:
-                d = str(domain).strip()
-                domain_str = 'Default' if d.lower() == 'default' or not d else d
-        else:
-            # Fallback: preserve domain as-is, but ensure it is a string.
-            domain_str = str(domain) if domain is not None else 'None'
-
-        return f'{stype}:{domain_str}/{name_str}'
+        return calculate_principal_key(subject_type, domain, name)
 
     def _get_default_strategies(self) -> list['IntelligenceStrategy']:
         """Lazy import to avoid circular import at module load."""
@@ -275,7 +239,11 @@ class PolicyIntelligenceEngine:
                     if effective_path not in report:
                         report[effective_path] = {}
                     if subject_key not in report[effective_path]:
-                        report[effective_path][subject_key] = {'allow': set(), 'deny': set()}
+                        report[effective_path][subject_key] = {
+                            'allow': set(),
+                            'deny': set(),
+                            'subject_type': subject_type,
+                        }
                     if action == 'deny':
                         report[effective_path][subject_key]['deny'].update(permissions)
                     else:

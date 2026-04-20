@@ -273,6 +273,14 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 fields['subject'] = result
         else:
             raw_subject = ctx_subject.getText() if ctx_subject else ''
+
+            # Service subjects come through as "serviceX" (no delimiter) or
+            # "serviceA,serviceB" in some parse shapes. Strip the leading
+            # keyword before handing to parse_policy_subjects.
+            if fields['subject_type'] == 'service' and raw_subject:
+                raw_subject = re.sub(r'^service\s*', '', raw_subject, flags=re.IGNORECASE)
+                raw_subject = re.sub(r',\s*service\s*', ',', raw_subject, flags=re.IGNORECASE)
+
             logger.info(
                 f"[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
             )
@@ -734,6 +742,15 @@ class PolicyStatementNormalizer:
         if 'permissionList' in fields and fields['permissionList']:
             perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
             perms = [p.upper() for p in perms_original]
+        existing_notes = []
+        if isinstance(base, dict):
+            existing_notes = list(base.get('parsing_notes') or [])
+        if isinstance(fields.get('parsing_notes'), list):
+            existing_notes.extend(fields.get('parsing_notes'))
+        parsing_notes = list(dict.fromkeys(existing_notes))
+        if isinstance(subjects_out, list) and len(subjects_out) > 1:
+            parsing_notes.append('Statement has multiple subjects')
+
         obj = {
             **base,
             # 'permission_original': perms_original,
@@ -749,9 +766,7 @@ class PolicyStatementNormalizer:
             'location': strip_quotes(fields.get('location', '')),
             'conditions': fields.get('condition', '') or '',
             'comments': fields.get('comments', ''),
-            'parsing_notes': ['Statement has multiple subjects']
-            if isinstance(subjects_out, list) and len(subjects_out) > 1
-            else [],
+            'parsing_notes': parsing_notes,
             'statement_text': statement_text,
             'parsed': True,
         }
