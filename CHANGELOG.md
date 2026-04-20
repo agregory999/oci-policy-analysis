@@ -1,3 +1,14 @@
+# [4.6.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.2...v4.6.0) (2026-04-20)
+
+
+### Features
+
+* Merge pull request [#42](https://github.com/agregory999/oci-policy-analysis/issues/42) from agregory999/feature/tag-based-access-tab ([d4dbe15](https://github.com/agregory999/oci-policy-analysis/commit/d4dbe15ac55cfc56284c2db629ed3b1d5ae3bbc0))
+* Principal keys, Details popup, Permissions Report ingeritance, Simualtion updates, Group/DG OCID display ([f4a90e5](https://github.com/agregory999/oci-policy-analysis/commit/f4a90e5942ea37d42a8a5cc831dc1c9d9456148f))
+* Prospective Editor, Tag-based, Policy Analysis filters, Dynamic Group ID, Tag Namespaces ([6198a8d](https://github.com/agregory999/oci-policy-analysis/commit/6198a8dc7d5f25cbaa63b75b8b9a59a78534575c))
+* Prospective Editor, Tag-based, Policy Analysis filters, Dynamic Group ID, Tag Namespaces ([257fa41](https://github.com/agregory999/oci-policy-analysis/commit/257fa4153e1d0f36854b91c9bba1e4a3ed656483))
+* Tag-based Focus area ([c6ddffd](https://github.com/agregory999/oci-policy-analysis/commit/c6ddffdf11e4448732e0fcd15fa8560484367122))
+
 # [4.6.0-beta.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0-beta.1...v4.6.0-beta.2) (2026-04-20)
 
 
