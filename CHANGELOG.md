@@ -1,3 +1,10 @@
+# [4.6.0-beta.2](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0-beta.1...v4.6.0-beta.2) (2026-04-20)
+
+
+### Features
+
+* Principal keys, Details popup, Permissions Report ingeritance, Simualtion updates, Group/DG OCID display ([f4a90e5](https://github.com/agregory999/oci-policy-analysis/commit/f4a90e5942ea37d42a8a5cc831dc1c9d9456148f))
+
 # [4.6.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.2...v4.6.0-beta.1) (2026-04-17)
 
 
