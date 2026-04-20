@@ -28,6 +28,12 @@ from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable
 
+# NOTE: ProspectiveEditorWindow is now the primary editor for prospective
+# (what-if) policy statements. The inline editor embedded in this tab is
+# deprecated and kept only as a non-interactive preview until it is fully
+# removed.
+from oci_policy_analysis.ui.prospective_editor_window import ProspectiveEditorWindow
+
 logger = get_logger(component='simulation_tab')
 
 
@@ -88,28 +94,48 @@ class SimulationTab(BaseUITab):
         tenancy.
         """
 
-        engine = getattr(self, 'simulation_engine', None)
-        tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
-        if engine and tenancy_key:
+        # Ensure the simulation engine has the latest prospective
+        # statements for the active tenancy via the shared
+        # ProspectiveStatementsService, if available. This centralizes
+        # prospective CRUD/persistence at the tenancy level instead of
+        # having SimulationTab own it directly.
+        prospective_service = getattr(self.app, 'prospective_service', None)
+        if prospective_service is not None:
             try:
-                all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-                initial_list = all_sim_settings.get(str(tenancy_key)) or []
-                if initial_list:
-                    engine.set_prospective_statements(initial_list)
-                    logger.info(
-                        'SimulationTab.populate_data: hydrated %d prospective statements from settings for tenancy %s',
-                        len(initial_list),
-                        tenancy_key,
-                    )
+                prospective_service.persist_and_push_to_engine()
             except Exception as ex:  # defensive; do not break UI if settings malformed
                 logger.warning(
-                    'SimulationTab.populate_data: failed to hydrate prospective statements: %s', ex, exc_info=True
+                    'SimulationTab.populate_data: failed to propagate prospective statements via service: %s',
+                    ex,
+                    exc_info=True,
                 )
+        else:
+            # Backwards-compatible fallback: preserve the prior
+            # behavior when the service is not yet wired.
+            engine = getattr(self, 'simulation_engine', None)
+            tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
+            if engine and tenancy_key:
+                try:
+                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
+                    initial_list = all_sim_settings.get(str(tenancy_key)) or []
+                    if initial_list:
+                        engine.set_prospective_statements(initial_list)
+                        logger.info(
+                            'SimulationTab.populate_data: hydrated %d prospective statements from settings for tenancy %s',
+                            len(initial_list),
+                            tenancy_key,
+                        )
+                except Exception as ex:  # defensive; do not break UI if settings malformed
+                    logger.warning(
+                        'SimulationTab.populate_data: failed to hydrate prospective statements: %s',
+                        ex,
+                        exc_info=True,
+                    )
 
         # Refresh dropdowns after any prospective/tenancy changes
         self.refresh_dropdowns()
 
-        # Rebuild the inline prospective editor contents using the
+        # Rebuild the inline prospective preview contents using the
         # latest compartments list and hydrated prospective statements.
         # The outer LabelFrame (self.prospective_container) is created
         # once in _build_layout; here we only clear and repopulate its
@@ -120,7 +146,7 @@ class SimulationTab(BaseUITab):
         except Exception:
             logger.debug('SimulationTab.populate_data: unable to clear prospective_container children', exc_info=True)
 
-        self._build_inline_prospective_editor(self.prospective_container)
+        self._build_inline_prospective_preview(self.prospective_container)
 
     def refresh_dropdowns(self):  # noqa: C901
         """Refreshes the dropdowns for compartment and principals.
@@ -303,6 +329,22 @@ class SimulationTab(BaseUITab):
         self.statement_checkbox_table = None
         self.checked_statements = {}
 
+    def _get_simulation_engine(self):
+        """Return the active simulation engine from the app when available.
+
+        MainApp may replace ``app.simulation_engine`` during tenancy reload.
+        This helper prevents SimulationTab from holding a stale engine
+        instance captured at construction time.
+        """
+
+        app_engine = getattr(self.app, 'simulation_engine', None)
+        current = getattr(self, 'simulation_engine', None)
+        if app_engine is not None and app_engine is not current:
+            self.simulation_engine = app_engine
+            logger.info('SimulationTab: refreshed simulation_engine reference from app.')
+            return app_engine
+        return app_engine or current
+
     def _build_layout(self):
         """Build the 3-subtab layout for Simulation.
 
@@ -377,20 +419,15 @@ class SimulationTab(BaseUITab):
         # Any change to the environment will mark statements/history as
         # needing reload via _on_environment_changed.
 
-        # Inline Prospective Statements editor lives on the Environment subtab.
-        # We create the outer LabelFrame once here, and then (re)build the
-        # inner table contents as-needed. This avoids recreating the
-        # containing frame from multiple call sites.
         self.prospective_container = ttk.LabelFrame(
             self.env_frame,
             text='Prospective (What-If) Policy Statements',
         )
-        # Do NOT expand vertically; let it size to its contents similar to
-        # the where-clause panel.
         self.prospective_container.pack(fill='x', padx=8, pady=(4, 8))
-        # Build initial contents; populate_data will rebuild rows once
-        # tenancy-specific data / compartments are loaded.
-        self._build_inline_prospective_editor(self.prospective_container)
+        # Build an initial read-only prospective preview. This will be
+        # refreshed on tenancy load and whenever the environment
+        # changes, but all editing happens in ProspectiveEditorWindow.
+        self._build_inline_prospective_preview(self.prospective_container)
 
         # Environment Summary + explicit navigation to Statements & Context
         summary_frame = ttk.LabelFrame(self.env_frame, text='Environment Summary')
@@ -742,29 +779,39 @@ class SimulationTab(BaseUITab):
         lines.append(f'Principal: {ptype} → {pname}')
         lines.append('Statements will be (re)loaded when you confirm and move to the "Statements and Context" tab.')
 
+        # Keep prospective service/engine in sync before rendering summary.
+        service = getattr(self.app, 'prospective_service', None)
+        if service is not None:
+            try:
+                service.persist_and_push_to_engine()
+                logger.info(
+                    'Environment summary sync: prospective_service records=%d pushed to engine',
+                    len(service.list_all()),
+                )
+            except Exception:
+                logger.warning('Environment summary sync: persist_and_push_to_engine failed', exc_info=True)
+
         # Append a short prospective statement preview, if available.
-        engine = getattr(self, 'simulation_engine', None)
+        engine = self._get_simulation_engine()
         prospective_lines: list[str] = []
         try:
             if engine and hasattr(engine, 'get_prospective_statements'):
                 all_prospective = engine.get_prospective_statements() or []
-                # Normalize principal in the same way load_statements does
+                # Normalize principal the same way as statement loading so
+                # preview matching stays consistent with the engine.
                 pname_display = self.selected_principal.get() or ''
-                effective_principal: object = ''
-                if ptype != 'any-user':
-                    effective_principal = pname_display
-                if '/' in str(effective_principal or ''):
-                    domain, name = str(effective_principal).split('/', 1)
-                    effective_principal = (domain if domain != '' else None, name)
-                elif effective_principal:
-                    effective_principal = (None, str(effective_principal))
-                elif ptype == 'any-user':
-                    effective_principal = 'any-user'
+                effective_principal = self._build_engine_principal_value(ptype, pname_display)
 
                 # Reuse engine helpers to keep matching semantics identical
                 principal_key = engine._normalize_principal_key(ptype, effective_principal)  # type: ignore[attr-defined]
                 subj_filter = engine._principal_key_to_policy_search_filter(principal_key)  # type: ignore[attr-defined]
                 any_subjects = {str(s).lower() for s in subj_filter.get('subject', []) if s}
+                logger.info(
+                    'Environment summary prospective check: principal_key=%s effective_path=%s total_prospective=%d',
+                    principal_key,
+                    cpath,
+                    len(all_prospective),
+                )
 
                 def _prospective_matches_env(pst: dict) -> bool:  # noqa: C901
                     # Scope by compartment path
@@ -820,6 +867,12 @@ class SimulationTab(BaseUITab):
                     if pst.get('parsed') and pst.get('valid') and _prospective_matches_env(pst)
                 ]
 
+                logger.info(
+                    'Environment summary prospective matches: %d matched (ids=%s)',
+                    len(matching),
+                    [pst.get('internal_id') for pst in matching],
+                )
+
                 if matching:
                     prospective_lines.append('Prospective statements in scope for this environment:')
                     # Keep this compact; show up to 5 entries with policy name and path
@@ -848,213 +901,116 @@ class SimulationTab(BaseUITab):
         self._update_principal_list()
         self._on_environment_changed(reason='principal_type')
 
-    def _build_inline_prospective_editor(self, parent: tk.Widget) -> None:  # noqa: C901
-        """Inline prospective statement editor on the Environment subtab.
+    @staticmethod
+    def _build_engine_principal_value(principal_type: str, principal_display: str) -> object:
+        """Build the principal payload expected by PolicySimulationEngine helpers.
 
-        This reuses the core behavior of open_prospective_editor but keeps
-        the controls anchored in the main Simulation Environment tab so
-        users can see and edit prospective statements without a popup.
+        For string-subject principal types (any-user/any-group/service), the
+        engine expects a plain string value and **not** a (domain, name) tuple.
+        For identity principals (user/group/dynamic-group), the engine expects
+        a (domain, name) tuple when available.
         """
 
-        engine = getattr(self, 'simulation_engine', None)
-        if not engine or not hasattr(engine, 'get_prospective_statements'):
-            logger.info('SimulationTab: prospective support not available; inline editor disabled.')
-            return
+        ptype = (principal_type or '').strip()
+        display = (principal_display or '').strip()
 
-        # Build contents directly inside the provided parent (which is
-        # the outer LabelFrame created in _build_layout). This avoids
-        # nesting a LabelFrame inside another LabelFrame.
+        if ptype in ('any-user', 'any-group', 'service'):
+            return display or ptype
+
+        if '/' in display:
+            domain, name = display.split('/', 1)
+            return (domain if domain != '' else None, name)
+
+        if display:
+            return (None, display)
+
+        return ''
+
+    def _build_inline_prospective_preview(self, parent: tk.Widget) -> None:
+        """Read-only prospective statement preview in the Environment subtab.
+
+        All editing is handled by ProspectiveEditorWindow/prospective_service.
+        This helper only renders a summary list for the current tenancy and
+        provides a button to open the dedicated editor.
+        """
+
+        # Intro / help text
         intro = (
-            'Define prospective (what-if) policy statements anywhere in the tenancy. '
-            'Only statements applicable to the selected compartment and principal will be used during simulation.'
+            'Prospective (what-if) policy statements are evaluated alongside real '
+            'tenancy policies during simulation. Use the Prospective Editor to add '
+            'or modify these statements. This section shows the current saved set '
+            'for the active tenancy.'
         )
         ttk.Label(parent, text=intro, wraplength=700, justify='left').grid(
-            row=0, column=0, columnspan=6, sticky='w', padx=4, pady=(4, 4)
+            row=0, column=0, columnspan=2, sticky='w', padx=4, pady=(4, 4)
         )
 
-        # Header row: use a simple grid so column labels line up with
-        # the input widgets below. We bias column weights so they
-        # approximate the following layout when expanded:
-        #   Location  ~19%
-        #   Description ~18%
-        #   Statement Text ~40%
-        #   Status ~15%
-        #   Actions ~10%
-        header = ttk.Frame(parent)
-        header.grid(row=1, column=0, sticky='ew', padx=4)
-
-        ttk.Label(header, text='Location (Compartment)').grid(row=0, column=0, sticky='w', padx=2)
-        ttk.Label(header, text='Description').grid(row=0, column=1, sticky='w', padx=2)
-        ttk.Label(header, text='Statement Text').grid(row=0, column=2, sticky='w', padx=2)
-        ttk.Label(header, text='Status').grid(row=0, column=3, sticky='w', padx=2)
-        ttk.Label(header, text='Actions').grid(row=0, column=4, sticky='w', padx=2)
-
-        # Use relative weights that roughly match the desired
-        # percentages while still behaving nicely with Tk's geometry.
-        #  Location: 19  Description: 18  Text: 40  Status: 10  Actions: 10
-        for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 10)):
-            header.columnconfigure(col, weight=weight)
-
-        # Body rows share the same column layout as the header so that
-        # all fields are visually aligned.
-        body = ttk.Frame(parent)
-        body.grid(row=2, column=0, sticky='nsew', padx=4, pady=(0, 4))
-        parent.rowconfigure(2, weight=1)
+        # Container for the read-only list
+        list_frame = ttk.Frame(parent)
+        list_frame.grid(row=1, column=0, sticky='nsew', padx=4, pady=(0, 4))
+        parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        row_models: list[dict[str, object]] = []
-        compartments = list(self._sim_index_compartments or ['ROOT'])
+        # Simple 3-column layout: Compartment, Description, Statement
+        header = ttk.Frame(list_frame)
+        header.pack(fill='x')
+        ttk.Label(header, text='Compartment', width=30).grid(row=0, column=0, sticky='w', padx=2)
+        ttk.Label(header, text='Description', width=35).grid(row=0, column=1, sticky='w', padx=2)
+        ttk.Label(header, text='Statement', width=60).grid(row=0, column=2, sticky='w', padx=2)
 
-        def add_row(initial: dict | None = None):
-            idx = len(row_models)
-            row: dict[str, object] = {}
+        body = ttk.Frame(list_frame)
+        body.pack(fill='both', expand=True, pady=(2, 0))
 
-            loc_var = tk.StringVar(
-                value=(initial or {}).get('compartment_path') or (self.selected_compartment.get() or 'ROOT')
-            )
-            desc_var = tk.StringVar(value=(initial or {}).get('description') or '')
-            text_var = tk.StringVar(value=(initial or {}).get('statement_text') or '')
-            status_var = tk.StringVar(value='Not parsed')
-            frame = ttk.Frame(body)
-            # One row per prospective statement, using the same column
-            # layout as the header so everything lines up.
-            frame.grid(row=idx, column=0, sticky='ew', pady=1)
-
-            # Match header's column weighting so longer compartment paths
-            # or statement text can expand when the window is resized.
-            # We mirror the header weights (19/18/40/15) and keep the
-            # two action buttons in a compact actions column.
-            for col, weight in ((0, 16), (1, 16), (2, 50), (3, 8), (4, 5), (5, 5)):
-                frame.columnconfigure(col, weight=weight)
-
-            loc_cb = ttk.Combobox(frame, textvariable=loc_var, values=compartments, state='readonly', width=25)
-            loc_cb.grid(row=0, column=0, padx=2, sticky='ew')
-
-            desc_entry = ttk.Entry(frame, textvariable=desc_var, width=20)
-            desc_entry.grid(row=0, column=1, padx=2, sticky='ew')
-
-            text_entry = ttk.Entry(frame, textvariable=text_var, width=75)
-            text_entry.grid(row=0, column=2, padx=2, sticky='ew')
-
-            status_lbl = ttk.Label(frame, textvariable=status_var, width=10, foreground='#555')
-            status_lbl.grid(row=0, column=3, padx=2, sticky='w')
-
-            def on_parse():
-                stmt_text = text_var.get().strip()
-                if not stmt_text:
-                    status_var.set('Enter statement text')
-                    return
-                try:
-                    result = self.simulation_engine.validate_prospective_statement(stmt_text)
-                    logger.debug('Prospective parse debug result (inline): %r', result)
-                    if result.get('parsed') and result.get('valid'):
-                        status_var.set('Parsed')
-                    else:
-                        reasons = result.get('invalid_reasons') or []
-                        status_var.set('Invalid')
-                        logger.warning(
-                            'Inline prospective statement parse failed or invalid. reasons=%s, text=%r',
-                            reasons,
-                            stmt_text,
-                        )
-                except Exception as ex:  # defensive
-                    status_var.set('Error')
-                    logger.warning('Exception during inline prospective parse: %s', ex, exc_info=True)
-
-            def on_delete():
-                frame.destroy()
-                if row in row_models:
-                    row_models.remove(row)
-
-            # Keep actions visually compact and aligned with the header.
-            parse_btn = ttk.Button(frame, text='Parse', command=on_parse, width=7)
-            parse_btn.grid(row=0, column=4, padx=(2, 0), sticky='w')
-            del_btn = ttk.Button(frame, text='Delete', command=on_delete, width=7)
-            del_btn.grid(row=0, column=5, padx=(2, 2), sticky='w')
-
-            row.update(
-                {
-                    'frame': frame,
-                    'loc_var': loc_var,
-                    'desc_var': desc_var,
-                    'text_var': text_var,
-                    'status_var': status_var,
-                }
-            )
-            row_models.append(row)
-
+        # Fetch prospective statements from the tenancy-scoped service when
+        # available; otherwise fall back to the engine's in-memory list.
+        items: list[dict] = []
+        service = getattr(self.app, 'prospective_service', None)
+        engine = self._get_simulation_engine()
         try:
-            existing = engine.get_prospective_statements() or []
-        except Exception as ex:  # defensive
-            logger.warning('Unable to load prospective statements for inline editor: %s', ex)
-            existing = []
-
-        if existing:
-            for stmt in existing:
-                add_row(stmt)
-        else:
-            add_row({})
-
-        # Subtle horizontal separator below the rows to visually
-        # separate the table from the action buttons.
-        sep = ttk.Separator(parent, orient='horizontal')
-        sep.grid(row=3, column=0, sticky='ew', padx=4, pady=(4, 2))
-
-        btns = ttk.Frame(parent)
-        btns.grid(row=4, column=0, sticky='ew', padx=4, pady=(2, 6))
-
-        def on_add():
-            add_row({})
-
-        def on_save():  # noqa: C901
-            new_list: list[dict[str, object]] = []
-            for rm in row_models:
-                loc = rm['loc_var'].get().strip()  # type: ignore[union-attr]
-                desc = rm['desc_var'].get().strip()  # type: ignore[union-attr]
-                text = rm['text_var'].get().strip()  # type: ignore[union-attr]
-                if not text:
-                    # Skip completely empty rows
-                    continue
-                if not loc:
-                    loc = 'ROOT'
-                new_list.append(
+            if service is not None:
+                items = [
                     {
-                        'compartment_path': loc,
-                        'description': desc,
-                        'statement_text': text,
+                        'compartment_path': r.compartment_path,
+                        'description': r.description,
+                        'statement_text': r.statement_text,
                     }
+                    for r in service.list_all()
+                ]
+            elif engine is not None and hasattr(engine, 'get_prospective_statements'):
+                items = engine.get_prospective_statements() or []
+        except Exception:
+            logger.warning('SimulationTab: unable to load prospective statements for preview', exc_info=True)
+            items = []
+
+        if not items:
+            ttk.Label(
+                body,
+                text='No prospective (what-if) policy statements are currently defined for this tenancy.',
+                foreground='#555',
+                justify='left',
+                wraplength=700,
+            ).grid(row=0, column=0, columnspan=3, sticky='w', padx=2, pady=(2, 4))
+        else:
+            for idx, pst in enumerate(items):
+                comp = pst.get('compartment_path') or 'ROOT'
+                desc = pst.get('description') or ''
+                stmt = pst.get('statement_text') or ''
+
+                ttk.Label(body, text=comp, width=30).grid(row=idx, column=0, sticky='w', padx=2, pady=1)
+                ttk.Label(body, text=desc, width=35).grid(row=idx, column=1, sticky='w', padx=2, pady=1)
+                ttk.Label(body, text=stmt, wraplength=600, justify='left').grid(
+                    row=idx, column=2, sticky='w', padx=2, pady=1
                 )
 
-            try:
-                engine.set_prospective_statements(new_list)
-                logger.info('Saved %d prospective statements via inline editor', len(new_list))
-                # Persist to settings per-tenancy so prospective list is restored on restart
-                tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
-                if tenancy_key:
-                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-                    all_sim_settings[str(tenancy_key)] = new_list
-                    self.settings['simulation_prospective_statements_by_tenancy'] = all_sim_settings
-                    try:
-                        from oci_policy_analysis.common import config as _cfg
-
-                        _cfg.save_settings(self.settings)
-                    except Exception:
-                        # Non-fatal; UI/engine already have in-memory copy
-                        logger.warning('Unable to persist prospective statements to settings.json', exc_info=True)
-            except Exception as ex:  # defensive UI guard
-                import tkinter.messagebox as mb
-
-                mb.showerror('Error Saving Prospective Statements', str(ex))
-                return
-
-            # Environment has changed; clear dependent state so statements
-            # and context will be recomputed.
-            self._on_environment_changed(reason='prospective_changed')
-
-        # Keep core actions together on the left so they are easy to
-        # discover and consistent with other tabs.
-        ttk.Button(btns, text='Add Statement', command=on_add).pack(side='left')
-        ttk.Button(btns, text='Save Prospective Statements', command=on_save).pack(side='left', padx=(6, 0))
+        # Footer with a single button to open the dedicated editor
+        footer = ttk.Frame(parent)
+        footer.grid(row=2, column=0, sticky='ew', padx=4, pady=(2, 6))
+        footer.columnconfigure(0, weight=1)
+        ttk.Button(
+            footer,
+            text='Manage Prospective Statements…',
+            command=lambda: ProspectiveEditorWindow(self, self.app),
+        ).grid(row=0, column=0, sticky='e')
 
     def load_statements(self):  # noqa: C901
         """Loads and displays policy statements for the currently selected compartment and principal.
@@ -1083,24 +1039,34 @@ class SimulationTab(BaseUITab):
         pname_display = self.selected_principal.get()
         logger.info(f"Loading statements for Compartment '{cpath}', Principal '{pname_display}' ({ptype})")
         # Canonical principal normalization, for all types
-        sim_engine = getattr(self, 'simulation_engine', None)
+        sim_engine = self._get_simulation_engine()
         all_stmts = []
         if sim_engine:
-            # For any-user, blank principal string is canonical
-            effective_principal = ''
-            if ptype != 'any-user':
-                effective_principal = pname_display
-            # If principal includes a domain (e.g. "mydom/foobar"), split
-            if '/' in effective_principal:
-                domain, name = effective_principal.split('/', 1)
-                effective_principal = (domain if domain != '' else None, name)
-            elif effective_principal:
-                effective_principal = (None, effective_principal)
-            elif ptype == 'any-user':
-                effective_principal = 'any-user'
+            # Ensure tenancy-scoped prospective statements are pushed into
+            # the engine right before context matching.
+            service = getattr(self.app, 'prospective_service', None)
+            if service is not None:
+                try:
+                    service.persist_and_push_to_engine()
+                    logger.info(
+                        'load_statements sync: prospective_service records=%d pushed to engine',
+                        len(service.list_all()),
+                    )
+                except Exception:
+                    logger.warning('load_statements sync: persist_and_push_to_engine failed', exc_info=True)
+
+            # Normalize principal into the exact shape expected by the engine.
+            effective_principal = self._build_engine_principal_value(ptype, pname_display)
             # principal is either string for any-user/service, or (domain, name) tuple/user/group
             _principal_key, stmts = sim_engine.get_statements_for_context(cpath, ptype, effective_principal)
             logger.info(f'Found {len(stmts)} applicable statements from simulation engine.')
+            prospective_matched = [s for s in stmts if s.get('is_prospective')]
+            logger.info(
+                'load_statements: matched %d prospective statements (ids=%s names=%s)',
+                len(prospective_matched),
+                [s.get('internal_id') for s in prospective_matched],
+                [s.get('policy_name') for s in prospective_matched],
+            )
             all_stmts = stmts
         else:
             all_stmts = []
@@ -1203,6 +1169,62 @@ class SimulationTab(BaseUITab):
     # Prospective Statement Editor
     # ------------------------------------------------------------------
 
+    def add_prospective_statement_from_builder(  # noqa: C901
+        self,
+        statement_text: str,
+        compartment_path: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Add a new prospective statement generated by the Tag-based builder.
+
+        This now delegates persistence to the tenancy-scoped
+        ProspectiveStatementsService when available, or falls back to the
+        simulation engine's in-memory list. The Simulation tab itself
+        remains read-only and simply refreshes its prospective preview.
+        """
+
+        statement_text = (statement_text or '').strip()
+        if not statement_text:
+            return
+
+        if not compartment_path:
+            compartment_path = self.selected_compartment.get() or 'ROOT'
+        if description is None:
+            description = 'Tag-based builder statement'
+
+        record = {
+            'compartment_path': compartment_path,
+            'description': description,
+            'statement_text': statement_text,
+        }
+
+        service = getattr(self.app, 'prospective_service', None)
+        engine = self._get_simulation_engine()
+
+        try:
+            if service is not None and hasattr(service, 'append_from_simple_dict'):
+                service.append_from_simple_dict(record)  # type: ignore[attr-defined]
+                service.persist_and_push_to_engine()
+            elif engine is not None and hasattr(engine, 'get_prospective_statements'):
+                current = engine.get_prospective_statements() or []
+                current.append(record)
+                engine.set_prospective_statements(current)
+        except Exception:
+            logger.warning('SimulationTab: failed to add prospective statement from builder', exc_info=True)
+            return
+
+        # Refresh the read-only prospective preview
+        try:
+            if getattr(self, 'prospective_container', None) is not None:
+                for child in self.prospective_container.winfo_children():
+                    child.destroy()
+                self._build_inline_prospective_preview(self.prospective_container)
+        except Exception:
+            logger.debug('SimulationTab: unable to refresh prospective preview after builder add', exc_info=True)
+
+        # Mark environment changed so Statements & Context will be recomputed
+        self._on_environment_changed(reason='prospective_added_from_builder')
+
     def open_prospective_editor(self, *_):  # noqa: C901
         """Open a simple CRUD dialog for managing prospective policy statements.
 
@@ -1269,7 +1291,7 @@ class SimulationTab(BaseUITab):
                 value=(initial or {}).get('compartment_path') or (self.selected_compartment.get() or 'ROOT')
             )
             desc_var = tk.StringVar(value=(initial or {}).get('description') or '')
-            text_var = tk.StringVar(value=(initial or {}).get('statement_text') or '')
+            text_initial = (initial or {}).get('statement_text') or ''
             status_var = tk.StringVar(value='Not parsed')
 
             frame = ttk.Frame(body)
@@ -1279,13 +1301,20 @@ class SimulationTab(BaseUITab):
             loc_cb.grid(row=0, column=0, padx=2, sticky='w')
             desc_entry = ttk.Entry(frame, textvariable=desc_var, width=25)
             desc_entry.grid(row=0, column=1, padx=2, sticky='w')
-            text_entry = ttk.Entry(frame, textvariable=text_var, width=60)
-            text_entry.grid(row=0, column=2, padx=2, sticky='w')
+            # Use a scrollable, word-wrapped Text widget for long statements
+            text_container = ttk.Frame(frame)
+            text_container.grid(row=0, column=2, padx=2, sticky='w')
+            text_widget = tk.Text(text_container, width=60, height=2, wrap='word')
+            text_widget.insert('1.0', text_initial)
+            text_widget.grid(row=0, column=0, sticky='w')
+            text_scroll = ttk.Scrollbar(text_container, orient='vertical', command=text_widget.yview)
+            text_scroll.grid(row=0, column=1, sticky='ns')
+            text_widget.configure(yscrollcommand=text_scroll.set)
             status_lbl = ttk.Label(frame, textvariable=status_var, width=20, foreground='#555')
             status_lbl.grid(row=0, column=3, padx=2, sticky='w')
 
             def on_parse():
-                stmt_text = text_var.get().strip()
+                stmt_text = text_widget.get('1.0', 'end-1c').strip()
                 if not stmt_text:
                     status_var.set('Enter statement text')
                     return
@@ -1320,7 +1349,7 @@ class SimulationTab(BaseUITab):
                     'frame': frame,
                     'loc_var': loc_var,
                     'desc_var': desc_var,
-                    'text_var': text_var,
+                    'text_widget': text_widget,
                     'status_var': status_var,
                 }
             )
@@ -1352,7 +1381,10 @@ class SimulationTab(BaseUITab):
             for rm in row_models:
                 loc = rm['loc_var'].get().strip()  # type: ignore[union-attr]
                 desc = rm['desc_var'].get().strip()  # type: ignore[union-attr]
-                text = rm['text_var'].get().strip()  # type: ignore[union-attr]
+                text_widget = rm['text_widget']  # type: ignore[index]
+                if not isinstance(text_widget, tk.Text):
+                    continue
+                text = text_widget.get('1.0', 'end-1c').strip()
                 if not text:
                     # Skip completely empty rows
                     continue
@@ -1698,14 +1730,25 @@ class SimulationTab(BaseUITab):
         ptype = self.selected_principal_type.get()
         pname_display = self.selected_principal.get()
         api_operation = self.selected_api_operation.get()
-        # Compose principal_key for engine
-        if ptype == 'any-user':
-            principal_key = 'any-user:None/any-user'
+        # Compose principal_key for engine using the same normalization
+        # rules as PolicyIntelligenceEngine.calculate_principal_key and
+        # PolicySimulationEngine._normalize_principal_key. Keep this
+        # logic local to avoid importing engine classes into the UI
+        # layer while still producing identical keys.
+        if ptype in ('any-user', 'any-group', 'service'):
+            # any-user:any-group/service always carry domain "None" in the key.
+            pname = pname_display or ptype
+            principal_key = f'{ptype}:None/{pname}'
         elif '/' in pname_display:
             domain, name = pname_display.split('/', 1)
-            principal_key = f'{ptype}:{domain}/{name}'
+            dom_norm = domain or 'Default'
+            if dom_norm.lower() == 'default':
+                dom_norm = 'Default'
+            principal_key = f'{ptype}:{dom_norm}/{name}'
         else:
-            principal_key = f'{ptype}:None/{pname_display}'
+            # No explicit domain given; default identity domain is
+            # represented explicitly as "Default".
+            principal_key = f'{ptype}:Default/{pname_display}'
         # Normalize where-clause timestring entries
         where_context = {k: self._normalize_timestring(v.get()) for k, v in self.simulation_inputs.items()}
 

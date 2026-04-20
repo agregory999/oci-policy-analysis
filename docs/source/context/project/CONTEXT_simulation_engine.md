@@ -214,35 +214,53 @@ All future contributions must comply with this policy.
 
 The simulation engine also supports **prospective** policy statements: hypothetical or planned policies that do not exist in the live tenancy but should be evaluated as if they did. This enables “what-if” analysis for future changes.
 
+Prospective data is now **tenancy-scoped and centralized** via
+`ProspectiveStatementsService`; the engine remains the single source of
+truth for normalization and evaluation.
+
 - **Storage & Scope**
-  - Stored per tenancy in settings under `simulation_prospective_statements_by_tenancy`.
-  - Keyed by tenancy OCID, value is a list of lightweight statement dicts with at least:
+  - Persisted per tenancy under
+    `simulation_prospective_statements_by_tenancy` in `settings.json`.
+  - Keyed by tenancy OCID, value is a list of simple dicts with at least:
     - `compartment_path` (hierarchy path where the statement would live)
-    - `description` (user-friendly label, used by UI)
+    - `description` (human‑friendly label)
     - `statement_text` (full OCI IAM policy statement text)
-  - The Simulation Tab’s “Manage Prospective Statements” dialog lets users create/edit/delete these rows for *any* compartment in the tenancy.
+    - Optional `parsed`, `valid`, `invalid_reasons`, and `normalized`
+      fields (captured by `ProspectiveStatementsService` after
+      validation).
+  - `ProspectiveStatementsService` is responsible for reading/writing this
+    list and pushing it into the engine.
 
 - **Engine Representation**
-  - Internally, the engine normalizes these into full statement dicts and keeps them in:
-    - `PolicySimulationEngine._prospective_statements: list[dict]`
-  - Normalized fields include:
-    - `internal_id` (unique, in a `prospective-*` namespace)
+  - Internally, the engine normalizes the simple list into full statement
+    dicts and keeps them in an internal collection
+    (e.g. `_prospective_statements`).
+  - Normalized fields include, at minimum:
+    - `internal_id` (unique ID in a `prospective-*` namespace)
     - `compartment_path`
     - `policy_name` (derived from `description` when not provided)
     - `statement_text`
-    - Optional `conditions`, `subject_type`, etc. once parsed.
+    - Optional `conditions`, `subject_type`, `subject`, `verb`,
+      `resource`, etc. once parsed.
     - `is_prospective = True` marker for UI/analysis.
 
 - **Engine APIs**
   - `get_prospective_statements() -> list[dict]`
-    - Returns the current in-memory list of normalized prospective statements.
+    - Returns the current engine‑internal list of normalized prospective
+      statements (used by SimulationTab and the Prospective preview when
+      needed).
   - `set_prospective_statements(statements: list[dict]) -> None`
     - Replaces the engine’s prospective statement set.
-    - Caller passes lightweight dicts with `compartment_path`, `statement_text`, optional `description`.
-    - Engine normalizes, sets `is_prospective=True`, and assigns unique `internal_id` values.
+    - Expects the simple dict list produced by
+      `ProspectiveStatementsService.persist_and_push_to_engine()`.
+    - Normalizes, sets `is_prospective=True`, and assigns engine‑internal
+      `internal_id` values.
 
 - **Applicability & Merging (Stage 2)**
-  - Prospective statements are merged into the normal flow as part of **Stage 2 – Load Policy Statements** via `get_applicable_statements`:
+  - Prospective statements are merged into the normal flow as part of
+    **Stage 2 – Load Policy Statements** via the canonical helper
+    `get_applicable_statements(principal_key, effective_path)`:
+
     ```python
     def get_applicable_statements(self, principal_key: str, effective_path: str) -> list[dict]:
         # 1) Use policy_repo.filter_policy_statements for base (tenancy) statements.
@@ -250,25 +268,45 @@ The simulation engine also supports **prospective** policy statements: hypotheti
         #    or a parent of effective_path, include it.
         # 3) Return a merged list.
     ```
-  - The same principal filtering semantics apply: callers pass a `principal_key` and `effective_path`, and any prospective statements that would be in scope for that path are included alongside real tenancy statements.
-  - Downstream stages (where-field extraction, simulation, history) always operate on this **merged set**; they do not distinguish between real and prospective statements for business logic.
+
+  - The same principal filtering semantics apply: callers pass a
+    `principal_key` and `effective_path`, and any prospective statements
+    that would be in scope for that path are included alongside real
+    tenancy statements.
+  - Downstream stages (where‑field extraction, simulation, history)
+    always operate on this **merged set**; there is no separate code path
+    for prospective vs real statements.
 
 - **Simulation Semantics**
-  - After merging, prospective statements are indistinguishable from real statements for:
-    - where-clause extraction (`get_required_where_fields`)
-    - selection-by-internal-id from the UI
-    - evaluation in `simulate_and_record` (allow/deny logic, permissions, and trace output).
-  - The Simulation Tab displays them with a `[Prospective]` prefix in the “Policy Path/Name” column but otherwise treats them identically.
+  - After merging, prospective statements are indistinguishable from real
+    statements for:
+    - where‑clause extraction (`get_required_where_fields`),
+    - selection‑by‑internal‑id from the UI, and
+    - evaluation in `simulate_and_record` (allow/deny logic, permissions,
+      and trace output).
+  - The Simulation Tab displays prospective entries with a
+    `[Prospective]` prefix in the “Policy Path/Name” column but otherwise
+    treats them identically.
 
-- **UI Integration Notes**
-  - The Simulation Tab includes a **“Manage Prospective Statements”** button in the Applicable Policy Statements table.
-  - The dialog explains scope: users may define statements anywhere in the tenancy, but only those applicable to the currently selected compartment/principal will appear in the main table.
-  - On save, the UI:
-    - Calls `set_prospective_statements` with the new list.
-    - Updates the per-tenancy settings entry `simulation_prospective_statements_by_tenancy[tenancy_ocid]` and persists via `config.save_settings`.
-    - Reloads the Applicable Policy Statements table so new prospective entries appear.
+- **UI Integration Notes (Simulation Tab)**
+  - On tenancy load, `SimulationTab.populate_data()` calls
+    `prospective_service.persist_and_push_to_engine()` when
+    `app.prospective_service` is available, ensuring the engine is always
+    hydrated from the latest tenancy‑scoped prospective list.
+  - The **Simulation Environment** subtab includes a read‑only
+    prospective preview and a **Manage Prospective Statements…** button
+    that opens `ProspectiveEditorWindow` (see
+    `CONTEXT_prospective_statement_editor.md`).
+  - `SimulationTab.load_statements()` calls
+    `get_statements_for_context(...)`, which internally delegates to
+    `get_applicable_statements(...)` and therefore always returns a
+    merged real+prospective list for the selected environment.
 
-As with all other simulation behavior, the **engine remains the single source of truth** for how prospective statements are normalized, merged, and evaluated. The UI is responsible only for collection and presentation of these inputs.
+As with all other simulation behavior, the **engine remains the single
+source of truth** for how prospective statements are normalized, merged,
+and evaluated. The UI is responsible only for collection, preview, and
+orchestration, delegating persistence to
+`ProspectiveStatementsService`.
 
 ---
 

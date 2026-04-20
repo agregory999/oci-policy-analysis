@@ -159,6 +159,11 @@ class PolicyVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PolicyParser#listElement.
+    def visitListElement(self, ctx:PolicyParser.ListElementContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PolicyParser#timeWindow.
     def visitTimeWindow(self, ctx:PolicyParser.TimeWindowContext):
         return self.visitChildren(ctx)

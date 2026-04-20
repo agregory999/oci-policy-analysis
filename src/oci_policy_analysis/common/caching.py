@@ -290,6 +290,7 @@ class CacheManager:
             'tenancy_ocid': policy_analysis.tenancy_ocid,
             'policies': policy_analysis.policies,  # BasePolicy objects only!
             'policy_statements': policy_analysis.regular_statements,  # List of statements
+            'defined_tag_namespace_keys': getattr(policy_analysis, 'defined_tag_namespace_keys', {}),
             'dynamic_groups': policy_analysis.dynamic_groups,
             'defined_aliases': policy_analysis.defined_aliases,
             'cross_tenancy_statements': policy_analysis.cross_tenancy_statements,
@@ -450,6 +451,7 @@ class CacheManager:
                         )
                     policy_analysis.policies = cache_data['policies']
                     policy_analysis.regular_statements = cache_data['policy_statements']
+                    policy_analysis.defined_tag_namespace_keys = cache_data.get('defined_tag_namespace_keys', {})
 
                     dynamic_groups = cache_data.get('dynamic_groups', [])
                     cross_tenancy_data = cache_data.get('cross_tenancy_statements', [])
@@ -512,6 +514,7 @@ class CacheManager:
                 )
             policy_analysis.policies = loaded_json['policies']
             policy_analysis.regular_statements = loaded_json['policy_statements']
+            policy_analysis.defined_tag_namespace_keys = loaded_json.get('defined_tag_namespace_keys', {})
 
             dynamic_groups = loaded_json.get('dynamic_groups', [])
             cross_tenancy_data = loaded_json.get('cross_tenancy_statements', [])
@@ -766,7 +769,7 @@ class CacheManager:
 
     def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str | None):
         """
-        Update ONLY the policies, policy_statements, compartments, defined_aliases, and cross_tenancy_statements in
+        Update ONLY the policies, policy_statements, tag catalog, compartments, defined_aliases, and cross_tenancy_statements in
         the most recent cache file for a given tenancy, and set 'policy_data_reloaded' with the supplied timestamp.
         This preserves IAM/user/group data and other session metadata. No effect if no cache is present.
 
@@ -793,6 +796,7 @@ class CacheManager:
         # Update the compartment/policy section fields (other identity data are left untouched)
         cache_data['policies'] = policy_analysis.policies
         cache_data['policy_statements'] = policy_analysis.regular_statements
+        cache_data['defined_tag_namespace_keys'] = getattr(policy_analysis, 'defined_tag_namespace_keys', {})
         cache_data['compartments'] = policy_analysis.compartments
         cache_data['defined_aliases'] = policy_analysis.defined_aliases
         cache_data['cross_tenancy_statements'] = policy_analysis.cross_tenancy_statements

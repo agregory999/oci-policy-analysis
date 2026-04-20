@@ -103,17 +103,30 @@ The **Policy Tab** is the primary workspace for **searching, filtering, and deep
 **Purpose**  
 - Perform detailed audits of policy statements across compartments.  
 - Search by text, subject, resource family, compartment, or access level.  
+- Quickly isolate special policy patterns such as tag-based conditions, invalid statements, or prospective (what-if) statements.  
 - Understand how individual statements are structured and which subjects they affect.
 
 **General Flow**  
 1. Select initial filters (compartment path, subject type, resource family, etc.) to narrow down the policy set.  
-2. Use the main policy table to sort and refine (e.g., by path, access level, risk flags).  
-3. Select a statement to see a structured breakdown (subject, verb, resource, where-clause).  
-4. Optionally invoke AI explanations or recommendations for complex statements (if GenAI is enabled in Settings).  
-5. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
+2. Use helper filter controls (for example `any-user|any-group`, `ROOTONLY`, and resource hierarchy expansion) to build broader or more precise filter sets.  
+3. Use optional filter toggles (Action = Allow/Deny, Invalid Only, Tag-based, Show Prospective) to focus on specific policy classes.  
+4. Use the main policy table to sort and refine (e.g., by path, access level, risk flags).  
+5. Select a statement to see a structured breakdown (subject, verb, resource, where-clause).  
+6. Optionally invoke AI explanations or recommendations for complex statements (if GenAI is enabled in Settings).  
+7. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
 
 **Key Widgets and Right-Click Actions**  
-- **Filter Bar / Search Panel:** Filter by compartment path, policy name, subject type, resource family, or free-text search within statements.  
+- **Filter Bar / Search Panel:** Filter by Subject, Verb, Resource, Permission, Location/Hierarchy, statement text, policy name, and raw conditions. Multiple values in a field can be entered with `|` for OR matching.  
+- **Helper Filter Buttons:**
+  - **Add any-user / any-group** inserts `any-user|any-group` in Subject.
+  - **Add ROOTONLY** inserts `ROOTONLY` in Hierarchy.
+  - **Add Hierarchy** expands resources to include `all-resources` and the containing family when known.
+- **Filter Toggles / Options:**
+  - **Action** selector (Both / Allow / Deny).
+  - **Invalid Only** to focus on invalid statements.
+  - **Tag-based** helper to quickly target statements with `.tag.` conditions.
+  - **Show Prospective** to include prospective `[Prospective]` rows in the same filtered view.
+- **Prospective Editor… button:** Opens the tenancy-scoped prospective statement editor popup for creating/editing what-if statements used by this tab and Simulation.  
 - **Policy Statement Table:** Shows normalized statements with columns for path, subject, verb, resource, risk markers, and where-clauses.  
 - **Statement Details / Inspector:** A side panel that breaks a statement into its parsed components and may show derived metadata (e.g., permissions, risk categorizations).  
 - **Right-click on a Statement:**
@@ -122,6 +135,35 @@ The **Policy Tab** is the primary workspace for **searching, filtering, and deep
   - "Explain with AI" – request a human-readable explanation (if enabled).  
 
 Use this tab for **compliance checks, policy clean-up, and forensic investigations** into particular statements.
+
+### Prospective Editor Popup
+<!-- Anchor link; do not change or remove this line! -->
+
+The **Prospective Editor Popup** is a shared, tenancy-scoped window used to manage **prospective (what-if) policy statements**.
+
+**Purpose**
+- Create hypothetical IAM statements that are *not* deployed in OCI.
+- Validate and organize these statements before using them in analysis/simulation.
+- Maintain one shared prospective statement set used consistently across the UI.
+
+**Where You Open It**
+- **Policy Tab** via **Prospective Editor…**.
+- **API Simulation Tab** via **Manage Prospective Statements…**.
+- (In advanced workflows) from **Tag-based Access Tab** integrations.
+
+**What It Contains**
+- A CRUD grid for statement rows (compartment/location, description, statement text, parse status).
+- Per-row **Parse** actions for validation and diagnostics.
+- Per-row **Delete** actions.
+- A statement builder area (including optional tag-based where-clause helpers) to synthesize complete Allow/Deny statements quickly.
+- **Save and Close** to persist prospective statements for the current tenancy.
+
+**How It Affects Other Tabs**
+- On save, statements are persisted per tenancy and pushed to the simulation engine.
+- **Policy Tab** can immediately show them when **Show Prospective** is enabled.
+- **API Simulation Tab** includes them in scenario evaluation as what-if inputs.
+
+Use this popup when your question is: **“What would happen if we added/changed this policy statement?”**
 
 ### Groups / Users Tab
 <!-- Anchor link; do not change or remove this line! -->
@@ -364,6 +406,32 @@ The **API Simulation Tab** provides a full **what-if simulation environment** fo
 - **Simulation History Subtab:** Shows previous runs, their inputs (principal, operation, variables, included prospective statements), and trace details; supports JSON export.
 
 For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page and the project context document [Simulation Engine](./context/project/CONTEXT_simulation_engine.md).
+
+### Tag-based Access Tab
+<!-- Anchor link; do not change or remove this line! -->
+
+The **Tag-based Access Tab** is an advanced, mostly read-only workspace for understanding IAM statements that use `.tag.` conditions.
+
+**Purpose**
+- Discover and review policy statements that rely on tag-based access logic.
+- Break complex `where` clauses into structured tag-condition components.
+- Help you pivot quickly into testing and what-if authoring workflows.
+
+**General Flow**
+1. Load the tab to see statements containing tag-based conditions.
+2. Apply filters by **Tag Namespace**, **Tag Key**, and **Access Type** (for example `target.resource` or `request.principal.group`).
+3. Select a statement to inspect individual extracted tag conditions (operator, values, subexpression).
+4. Use right-click actions to send full conditions or individual subexpressions to **Condition Tester**.
+5. Optionally open **Prospective Editor…** (and/or use builder actions) for what-if statement workflows.
+
+**Key Widgets and Actions**
+- **Tag-based Policies Overview:** Upper table for statements plus parsed condition structure (for example `ANY { c1, ALL { c2, c3 } }`).
+- **Tag Condition Detail Table:** Lower table showing condition ID, access type, namespace/key, operator, and value.
+- **Filter Controls:** Namespace/key text filters, access-type selector, parsed-column toggle, and **Show Prospective**.
+- **Prospective Editor… button:** Opens the shared prospective editor window.
+- **Refresh from Loaded Policies:** Rebuilds the in-memory tag-based view from currently loaded data.
+
+Use this tab when you’re asking: **“How are tags being used to gate access in our policies?”**
 
 ### Recommendations Tab
 <!-- Anchor link; do not change or remove this line! -->

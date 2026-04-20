@@ -1,0 +1,15 @@
+admit group orasenatdpltintegration03-admins of tenancy orasenatdpltintegration03 to read all-resources in tenancy
+admit group limits-requestors-sales of tenancy boat to {limits_increase_manage} in tenancy
+admit dynamic-group fams-workload-dg of tenancy fams-tenancy to read orm-stack in tenancy where all { request.principal.type = 'workload' }
+admit group digital01-users of tenancy digital01 to manage autonomous-database-family in compartment cloud-engineering-specialprojects:data-integration-demo
+admit group parent_tenant_admin of tenancy parent to manage all-resources in tenancy
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy GroupTenancy with database-tools-private-endpoints in compartment PrivateEndpointsCompartment
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to read secret-family in compartment PrivateEndpointsCompartment
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to use database-tools-private-endpoints in compartment PrivateEndpointsCompartment
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy
+
+
+endorse group DatabaseToolsConnectionManagers to associate database-tools-connections in compartment ConnectionsCompartment with database-tools-private-endpoints in tenancy ResourceTenancy
+endorse group DatabaseToolsConnectionManagers to read secret-family in tenancy ResourceTenancy
+endorse group DatabaseToolsConnectionManagers to use database-tools-private-endpoints in tenancy ResourceTenancy
+endorse group DatabaseToolsConnectionManagers to associate database-tools-connections in tenancy ConnectionTenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy

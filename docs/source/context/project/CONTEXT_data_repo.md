@@ -117,6 +117,11 @@ The TypedDict structures empower strict validation on load, human-centric error 
 - Recursively scans all compartments (robust to hierarchies, future compatibility with API expansion), fetches all policies, users, dynamic groups, groups.
 - Enforces type normalization, provenance tagging, deduplication, and assignment of *analysis-only fields* (e.g. cumulative statement counts).
 - **Compartment Depth** — Tree-walk up to arbitrary depth; loading is robust to tenancy expansions.
+- **Defined Tag Catalog Enrichment** — Live policy loads now also build an in-memory defined-tag namespace catalog (`defined_tag_namespace_keys`) using OCI Resource Search + Identity Tag APIs. The catalog tracks:
+    - namespace name
+    - namespace compartment OCID
+    - resolved namespace compartment path
+    - discovered keys and optional static value enumerations
 
 **B. Import from Cache (JSON) and CSV**
 - Either entire previous session or specific entity subsets loadable.
@@ -178,7 +183,50 @@ repo.filter_policy_statements({
     'compartment_path': ['ROOT/Finance']
 })
 ```
-See full docstrings in data_repo.py for pattern details.
+
+### 5.1 Alternate Statement Sets (Prospective / What-If)
+
+The `filter_policy_statements` helper also supports filtering an
+**alternate list of policy-like statements** via the `statements=`
+keyword parameter:
+
+```python
+def filter_policy_statements(
+    self,
+    filters: PolicySearch,
+    *,
+    statements: list[RegularPolicyStatement] | None = None,
+) -> list[RegularPolicyStatement]:
+    ...
+```
+
+- When `statements` is **not** provided, the filter operates on the repo’s
+  canonical `regular_statements` list (real tenancy policies).
+- When `statements` **is** provided, that list is filtered instead, using the
+  **exact same JSON filter semantics** (subject, verb, resource, conditions,
+  effective_path, etc.).
+- This is used in the UI to apply the same filtering rules to
+  **prospective (what-if) statements** that are not part of
+  `regular_statements` but are normalized into the same shape.
+
+Typical usage in the Policies tab:
+
+1. Build a list of prospective records from `ProspectiveStatementsService` or
+   the simulation engine and shape them like `RegularPolicyStatement`.
+2. Call:
+
+   ```python
+   # Apply the same filters used for real policies
+   prospective_filtered = repo.filter_policy_statements(
+       filters=filters,
+       statements=prospective_like_list,
+   )
+   ```
+3. Normalize these for display and append them **after** the
+   real tenancy rows to form a combined view.
+
+This keeps the filtering logic **centralized and uniform** across both real and
+what-if policy sets, and avoids duplicating filter behavior in UI layers.
 
 ---
 
@@ -187,6 +235,9 @@ See full docstrings in data_repo.py for pattern details.
 - **All session state** (entities, policies, indices, provenance) kept in-memory for maximal performance.
 - **Cache Writes**:  
   At explicit user request (via CLI/UI) or on auto-save, *full snapshot* is serialized (as JSON/CSV). Each load from cache is re-validated against the latest model, discarding or logging out-of-schema rows.
+- **Tag Catalog Persistence**:
+  - Combined cache save/load/update flows now persist `defined_tag_namespace_keys` alongside policies/statements.
+  - This keeps the Policy Browser/Tag-based Access tag-discovery experience consistent across tenancy loads, cache reloads, and policy-only reload updates.
 - **Reload Consistency**:  
   On reload, *the same validation path* is traversed again—no assumptions of trust. Invalid/mismatched data is reported, not silently dropped.
 - **Mix-Mode Loads**:  
@@ -241,6 +292,9 @@ flowchart TD
 - Expects OCI-generated CIS compliance CSVs; loads users, groups, policies, comps, dgs.
 - **Best Effort Mapping**:  
   Columns are mapped to model fields; unmapped/missing info is logged (never dropped silently or hidden).
+- **Tag Catalog Placeholder**:
+  - Compliance loading currently includes an explicit placeholder hook for future defined-tag ingestion.
+  - The method is intentionally no-op today, but documents the target canonical shape for `defined_tag_namespace_keys` so future compliance parsers can populate it consistently.
 - **Special “Compliance Mode”**:  
   Disables reload-from-cloud, disables modification, sets all analysis to read-only (auditability above completeness).
 - **Limitations**:  
@@ -293,6 +347,15 @@ flowchart TD
     })
     ```
 
+   **Compartment Path Lookup Helper**
+   ```python
+   path = repo.get_compartment_path_for_ocid("ocid1.compartment...")
+   # -> "ROOT/Shared/Security" (or "UNKNOWN_PATH" when not resolvable)
+   ```
+
+   This helper is used by UI components (notably Policy Browser tag catalog)
+   to convert namespace compartment OCIDs into human-readable hierarchy paths.
+
 4. **Diagnostics/Error Handling**
     - All methods return strict types or raise/log critical errors.
     - Invalid/malformed data triggers Exception or returns empty results + diagnostic logs.
@@ -329,9 +392,37 @@ flowchart TD
 
 - Data Models: src/oci_policy_analysis/common/models.py
 - Data Repository: src/oci_policy_analysis/logic/data_repo.py
+- Cache Manager: src/oci_policy_analysis/common/caching.py
 - CLI Demo: src/oci_policy_analysis/cli.py
 - Logger: src/oci_policy_analysis/common/logger.py
 - Filter API Example: filter_policy_statements in src/oci_policy_analysis/logic/data_repo.py
+
+---
+
+## 13. **2026-04 Tag Catalog Evolution (Repository + Cache + UI contracts)**
+
+As of 2026-04 updates, the repository and surrounding cache/UI contracts were expanded for tag namespace observability:
+
+- **Repository model shape** (`defined_tag_namespace_keys`) is now documented/used as:
+
+```python
+{
+  "NamespaceName": {
+    "keys": {
+      "TagKeyA": ["Value1", "Value2"],
+      "TagKeyB": None,  # user-supplied / no static enum exposed
+    },
+    "compartment_ocid": "ocid1.compartment...",
+    "compartment_path": "ROOT/..."
+  }
+}
+```
+
+- **Path resolution helper** (`get_compartment_path_for_ocid`) ensures OCID-based metadata can be displayed consistently as hierarchy paths.
+- **Cache compatibility** remains backward-safe:
+  - older cache files without `defined_tag_namespace_keys` still load (default `{}`).
+  - newer cache files preserve the richer namespace metadata.
+- **Compliance mode** now has an explicit future ingestion hook so the same shape can be adopted once compliance artifacts provide sufficient tag metadata.
 
 ---
 

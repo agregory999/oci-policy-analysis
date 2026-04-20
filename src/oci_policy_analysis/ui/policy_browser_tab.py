@@ -14,7 +14,9 @@
 ##########################################################################
 
 import tkinter as tk
+import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
+from typing import Any
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.ui.base_tab import BaseUITab
@@ -42,6 +44,7 @@ class PolicyBrowserTab(BaseUITab):
         self.app = app
         self.settings = settings
         self.policy_repo = app.policy_compartment_analysis
+        self._data_initialized = False
         self._build_ui()
 
     def _build_ui(self):
@@ -153,8 +156,15 @@ class PolicyBrowserTab(BaseUITab):
 
         logger.info('Expand/collapse/search/clear buttons and entry added to Policy Browser tab UI.')
 
-        label_frm_tree = ttk.LabelFrame(self, text='Compartment / Policy / Statement Tree', borderwidth=5)
-        label_frm_tree.pack(fill='both', expand=True, padx=10, pady=10)
+        # --- Main content area: left = policy tree (75%), right = tag namespaces (25%) ---
+        content_frame = ttk.Frame(self)
+        content_frame.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+        content_frame.columnconfigure(0, weight=4)
+        content_frame.columnconfigure(1, weight=1)
+        content_frame.rowconfigure(0, weight=1)
+
+        label_frm_tree = ttk.LabelFrame(content_frame, text='Compartment / Policy / Statement Tree', borderwidth=5)
+        label_frm_tree.grid(row=0, column=0, sticky='nsew', padx=(0, 8), pady=0)
         logger.debug(
             f'label_frm_tree.winfo_class={label_frm_tree.winfo_class()} is mapped: {label_frm_tree.winfo_ismapped()}, size: {label_frm_tree.winfo_width()}x{label_frm_tree.winfo_height()}'
         )
@@ -176,8 +186,90 @@ class PolicyBrowserTab(BaseUITab):
             self.tree,
             'This tree shows the full compartment hierarchy with all OCI policies underneath. Expand compartments to view their policies and each statement. Right-click for actions.',
         )
-        self._populate_tree()
-        logger.info('Finished _build_ui; tree and parent should be visible and expanded')
+
+        # Initial placeholder until the app calls post-load update.
+        self.tree.insert('', 'end', text='Load tenancy/cache/compliance data from Settings to populate this tree.')
+
+        # --- Defined Tag Namespace/Key catalog (from currently loaded data) ---
+        tag_catalog_frame = ttk.LabelFrame(content_frame, text='Defined Tag Namespaces and Keys (Collected Data)')
+        tag_catalog_frame.grid(row=0, column=1, sticky='nsew', padx=(0, 0), pady=0)
+        self.add_context_help(
+            tag_catalog_frame,
+            'Shows currently discovered defined tag namespaces and keys from the loaded repository data. '
+            'This is a read-only view to help browsing for now.',
+        )
+
+        tag_toolbar = ttk.Frame(tag_catalog_frame)
+        tag_toolbar.pack(fill='x', padx=6, pady=(4, 2))
+
+        refresh_tag_catalog_btn = ttk.Button(
+            tag_toolbar,
+            text='Refresh Tag Catalog',
+            command=self._refresh_tag_catalog_display,
+        )
+        refresh_tag_catalog_btn.pack(side='left', padx=(0, 6))
+        self.add_context_help(
+            refresh_tag_catalog_btn,
+            'Rebuild the namespace/key list from currently loaded policies.',
+        )
+
+        self.tag_catalog_summary_var = tk.StringVar(
+            value='No loaded data yet. Tag namespaces will appear after tenancy/cache/compliance load.'
+        )
+        ttk.Label(tag_toolbar, textvariable=self.tag_catalog_summary_var).pack(side='left', padx=(4, 0))
+
+        # Top table (about 70%): namespace/key rows (no values column).
+        self.tag_catalog_tree = ttk.Treeview(
+            tag_catalog_frame,
+            columns=('Namespace', 'Compartment Path', 'Defined Key'),
+            show='headings',
+            height=12,
+        )
+        self.tag_catalog_tree.heading('Namespace', text='Namespace', anchor='w')
+        self.tag_catalog_tree.heading('Compartment Path', text='Compartment Path', anchor='w')
+        self.tag_catalog_tree.heading('Defined Key', text='Defined Key', anchor='w')
+        # Keep requested width small so this pane can shrink gracefully on narrow windows.
+        self.tag_catalog_tree.column('Namespace', width=120, minwidth=90, anchor='w', stretch=True)
+        self.tag_catalog_tree.column('Compartment Path', width=160, minwidth=110, anchor='w', stretch=True)
+        self.tag_catalog_tree.column('Defined Key', width=120, minwidth=90, anchor='w', stretch=True)
+        self.tag_catalog_tree.pack(fill='both', expand=True, padx=6, pady=(0, 4))
+
+        tag_vsb = ttk.Scrollbar(tag_catalog_frame, orient='vertical', command=self.tag_catalog_tree.yview)
+        tag_hsb = ttk.Scrollbar(tag_catalog_frame, orient='horizontal', command=self.tag_catalog_tree.xview)
+        self.tag_catalog_tree.configure(yscrollcommand=tag_vsb.set, xscrollcommand=tag_hsb.set)
+        tag_vsb.place(in_=self.tag_catalog_tree, relx=1.0, rely=0, relheight=1.0, anchor='ne')
+        tag_hsb.pack(fill='x', padx=6, pady=(0, 4))
+
+        # Bottom table (~30%): value details for selected namespace/key row.
+        value_label = ttk.Label(tag_catalog_frame, text='Values for selected namespace/key:')
+        value_label.pack(fill='x', padx=6, pady=(2, 2))
+        self.tag_catalog_values_tree = ttk.Treeview(
+            tag_catalog_frame,
+            columns=('Value',),
+            show='headings',
+            height=6,
+        )
+        self.tag_catalog_values_tree.heading('Value', text='Value', anchor='w')
+        self.tag_catalog_values_tree.column('Value', width=320, minwidth=120, anchor='w', stretch=True)
+        self.tag_catalog_values_tree.pack(fill='both', expand=False, padx=6, pady=(0, 6))
+
+        value_vsb = ttk.Scrollbar(tag_catalog_frame, orient='vertical', command=self.tag_catalog_values_tree.yview)
+        self.tag_catalog_values_tree.configure(yscrollcommand=value_vsb.set)
+        value_vsb.place(in_=self.tag_catalog_values_tree, relx=1.0, rely=0, relheight=1.0, anchor='ne')
+
+        # Metadata for top-row selection -> value detail rendering.
+        self._tag_catalog_top_row_meta: dict[str, dict[str, Any]] = {}
+
+        # Right-click context menu on tag catalog rows (cross-platform).
+        self.tag_catalog_tree.bind('<Button-3>', self._on_tag_catalog_right_click)  # Right-click (Win/Linux)
+        self.tag_catalog_tree.bind('<Button-2>', self._on_tag_catalog_right_click)  # Middle-click (some mac setups)
+        self.tag_catalog_tree.bind('<Control-Button-1>', self._on_tag_catalog_right_click)  # Ctrl+Click (mac legacy)
+        self.tag_catalog_tree.bind('<<TreeviewSelect>>', self._on_tag_catalog_selection_changed)
+        self.tag_catalog_values_tree.bind('<Button-3>', self._on_tag_catalog_right_click)
+        self.tag_catalog_values_tree.bind('<Button-2>', self._on_tag_catalog_right_click)
+        self.tag_catalog_values_tree.bind('<Control-Button-1>', self._on_tag_catalog_right_click)
+
+        logger.info('Finished _build_ui; Policy Browser widgets constructed (data population deferred).')
         # Bind context menu for universal cross-platform support
         self.tree.bind('<Button-3>', self._on_right_click)  # Right-click (Win/Linux)
         self.tree.bind('<Button-2>', self._on_right_click)  # Middle-click (Control+Click on Mac, some setups)
@@ -204,12 +296,10 @@ class PolicyBrowserTab(BaseUITab):
     def _handle_reload_policies(self):
         """Handler for Reload Compartment / Policy Data button. Delegates actual reload+cache+UI to App."""
         repo = getattr(self, 'policy_repo', None)
-        if not (hasattr(repo, 'policies_loaded_from_tenancy') and repo.policies_loaded_from_tenancy) or getattr(
+        if not getattr(repo, 'policies_loaded_from_tenancy', False) or getattr(
             repo, 'loaded_from_compliance_output', False
         ):
             try:
-                import tkinter.messagebox as tkmessagebox
-
                 tkmessagebox.showwarning(
                     'Not allowed',
                     'Policy data can only be reloaded from tenancy (not cache/compliance). Please load from tenancy first.',
@@ -218,6 +308,19 @@ class PolicyBrowserTab(BaseUITab):
                 pass
             self._update_reload_policy_button_state()
             return
+        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
+            self.app.reload_policies_and_compartments_and_update_cache_async(
+                callback={
+                    'complete': lambda success, message, is_error: (
+                        self._update_reload_policy_button_state(),
+                        self.refresh_tree(),
+                        logger.info('Policy reload completion: success=%s message=%s', success, message),
+                    )
+                },
+                show_popup=True,
+            )
+            return
+
         try:
             self.configure(cursor='watch')
             self.update_idletasks()
@@ -227,8 +330,6 @@ class PolicyBrowserTab(BaseUITab):
             self.configure(cursor='')
             if ok:
                 try:
-                    import tkinter.messagebox as tkmessagebox
-
                     tkmessagebox.showinfo(
                         'Policy Data Reloaded', 'Policies and compartments have been reloaded from tenancy.'
                     )
@@ -236,8 +337,6 @@ class PolicyBrowserTab(BaseUITab):
                     pass
             else:
                 self._update_reload_policy_button_state()
-                import tkinter.messagebox as tkmessagebox
-
                 tkmessagebox.showerror(
                     'Reload Failed',
                     'Policy data reload from tenancy failed. See application logs for details.',
@@ -245,8 +344,6 @@ class PolicyBrowserTab(BaseUITab):
         except Exception as e:
             self.configure(cursor='')
             self._update_reload_policy_button_state()
-            import tkinter.messagebox as tkmessagebox
-
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
 
     def _ai_btn_is_packed(self):
@@ -424,11 +521,221 @@ class PolicyBrowserTab(BaseUITab):
         self.search_var.set('')
         self.refresh_tree()
 
+    def post_load_update_ui(self):
+        """Populate Policy Browser data widgets after repository data has been loaded."""
+        self._data_initialized = True
+        self._update_reload_policy_button_state()
+        self.refresh_tree()
+
     def refresh_tree(self):
         """Refresh the compartment/policy/statement tree from latest repo data."""
         for i in self.tree.get_children():
             self.tree.delete(i)
         self._populate_tree()
+        self._refresh_tag_catalog_display()
+
+    def _collect_defined_tag_namespace_keys(self) -> dict[str, dict[str, Any]]:  # noqa: C901
+        """Collect namespace catalog rows, including keys + compartment path."""
+        repo_catalog = getattr(self.policy_repo, 'defined_tag_namespace_keys', None)
+        if isinstance(repo_catalog, dict) and repo_catalog:
+            normalized: dict[str, dict[str, Any]] = {}
+            for ns, entry in repo_catalog.items():
+                ns_str = str(ns)
+                if isinstance(entry, dict):
+                    raw_keys = entry.get('keys') or {}
+                    key_map: dict[str, list[str] | None] = {}
+                    if isinstance(raw_keys, dict):
+                        for key_name, value_choices in raw_keys.items():
+                            key_str = str(key_name)
+                            if isinstance(value_choices, list | tuple | set):
+                                key_map[key_str] = sorted({str(v) for v in value_choices if v is not None}) or None
+                            else:
+                                key_map[key_str] = None
+                    else:
+                        # Legacy path where keys is set/list
+                        for key_name in raw_keys:
+                            key_map[str(key_name)] = None
+                    comp_ocid = entry.get('compartment_ocid')
+                    comp_path = entry.get('compartment_path')
+                else:
+                    # Backward compatibility with legacy shape {namespace: set(keys)}
+                    key_map = {str(k): None for k in (entry or [])}
+                    comp_ocid = None
+                    comp_path = None
+
+                if not comp_path and hasattr(self.policy_repo, 'get_compartment_path_for_ocid'):
+                    comp_path = self.policy_repo.get_compartment_path_for_ocid(comp_ocid)
+
+                normalized[ns_str] = {
+                    'keys': key_map,
+                    'compartment_ocid': comp_ocid,
+                    'compartment_path': comp_path or 'UNKNOWN_PATH',
+                }
+
+            total_keys = 0
+            for row in normalized.values():
+                row_keys = row.get('keys') or {}
+                if isinstance(row_keys, dict):
+                    total_keys += len(row_keys)
+
+            logger.info(
+                'Tag catalog source=repository in-memory catalog: %d namespace(s), %d key(s).',
+                len(normalized),
+                total_keys,
+            )
+            return normalized
+
+        namespace_to_rows: dict[str, dict[str, Any]] = {}
+        policies = self.policy_repo.policies or []
+        logger.info(
+            'Tag catalog source=fallback policy defined_tags scan across %d loaded policies.',
+            len(policies),
+        )
+        for policy in policies:
+            defined_tags = policy.get('defined_tags') or {}
+            if not isinstance(defined_tags, dict):
+                continue
+            for namespace, value in defined_tags.items():
+                namespace_str = str(namespace)
+                entry = namespace_to_rows.setdefault(
+                    namespace_str,
+                    {
+                        'keys': {},
+                        'compartment_ocid': policy.get('compartment_ocid'),
+                        'compartment_path': policy.get('compartment_path')
+                        or self.policy_repo.get_compartment_path_for_ocid(policy.get('compartment_ocid')),
+                    },
+                )
+                key_map = entry.setdefault('keys', {})
+                if not isinstance(key_map, dict):
+                    key_map = {}
+                    entry['keys'] = key_map
+                if isinstance(value, dict):
+                    for key_name in value.keys():
+                        key_map[str(key_name)] = None
+                else:
+                    # Non-dict values are uncommon for OCI defined_tags, but keep visible
+                    key_map['(value)'] = None
+
+        total_keys = 0
+        for row in namespace_to_rows.values():
+            row_keys = row.get('keys') or {}
+            if isinstance(row_keys, dict):
+                total_keys += len(row_keys)
+
+        logger.info(
+            'Tag catalog fallback scan complete: %d namespace(s), %d key(s).',
+            len(namespace_to_rows),
+            total_keys,
+        )
+        return namespace_to_rows
+
+    def _refresh_tag_catalog_display(self):  # noqa: C901
+        """Refresh the small tag namespace/key catalog on the Policy Browser tab."""
+        if not hasattr(self, 'tag_catalog_tree'):
+            return
+
+        logger.info('Refreshing Policy Browser tag namespace/key catalog display.')
+
+        for item in self.tag_catalog_tree.get_children():
+            self.tag_catalog_tree.delete(item)
+        if hasattr(self, 'tag_catalog_values_tree'):
+            for item in self.tag_catalog_values_tree.get_children():
+                self.tag_catalog_values_tree.delete(item)
+        self._tag_catalog_top_row_meta = {}
+
+        namespace_catalog = self._collect_defined_tag_namespace_keys()
+        if not namespace_catalog:
+            self.tag_catalog_summary_var.set('No defined tags discovered in loaded policy data.')
+            logger.info('Tag catalog display refresh complete: no namespace data available.')
+            return
+
+        namespace_count = len(namespace_catalog)
+        key_count = 0
+        for entry in namespace_catalog.values():
+            entry_keys = entry.get('keys') or {}
+            if isinstance(entry_keys, dict):
+                key_count += len(entry_keys)
+        self.tag_catalog_summary_var.set(f'Discovered {namespace_count} namespace(s), {key_count} key(s).')
+
+        rendered_rows = 0
+        for namespace in sorted(namespace_catalog.keys(), key=lambda x: x.lower()):
+            entry = namespace_catalog[namespace]
+            compartment_path = str(entry.get('compartment_path') or 'UNKNOWN_PATH')
+            entry_keys = entry.get('keys') or {}
+            if not isinstance(entry_keys, dict):
+                entry_keys = {}
+
+            sorted_key_names = sorted([str(k) for k in entry_keys.keys()], key=lambda x: x.lower())
+            if not sorted_key_names:
+                iid = self.tag_catalog_tree.insert(
+                    '', 'end', values=(namespace, compartment_path, '(no keys discovered)')
+                )
+                self._tag_catalog_top_row_meta[iid] = {
+                    'namespace': namespace,
+                    'compartment_path': compartment_path,
+                    'key_name': '(no keys discovered)',
+                    'values': None,
+                }
+                rendered_rows += 1
+                continue
+
+            for key_name in sorted_key_names:
+                values = entry_keys.get(key_name)
+                normalized_values: list[str] | None = None
+                if isinstance(values, list | tuple | set) and len(values) > 0:
+                    normalized_values = sorted({str(v) for v in values}, key=lambda x: x.lower())
+                iid = self.tag_catalog_tree.insert('', 'end', values=(namespace, compartment_path, key_name))
+                self._tag_catalog_top_row_meta[iid] = {
+                    'namespace': namespace,
+                    'compartment_path': compartment_path,
+                    'key_name': key_name,
+                    'values': normalized_values,
+                }
+                rendered_rows += 1
+
+        # Select first row by default so lower values table is populated.
+        children = self.tag_catalog_tree.get_children()
+        if children:
+            first = children[0]
+            self.tag_catalog_tree.selection_set(first)
+            self._render_tag_value_detail_for_top_item(first)
+        elif hasattr(self, 'tag_catalog_values_tree'):
+            self.tag_catalog_values_tree.insert('', 'end', values=('No values to display.',))
+
+        logger.info(
+            'Tag catalog display refresh complete: rendered %d namespace/key row(s).',
+            rendered_rows,
+        )
+
+    def _on_tag_catalog_selection_changed(self, _event=None):
+        """Render lower value table from currently selected namespace/key row."""
+        selection = self.tag_catalog_tree.selection()
+        if not selection:
+            return
+        self._render_tag_value_detail_for_top_item(selection[0])
+
+    def _render_tag_value_detail_for_top_item(self, item_id: str):
+        """Populate lower values table for selected top-row item."""
+        if not hasattr(self, 'tag_catalog_values_tree'):
+            return
+        for item in self.tag_catalog_values_tree.get_children():
+            self.tag_catalog_values_tree.delete(item)
+
+        meta = self._tag_catalog_top_row_meta.get(item_id, {})
+        values = meta.get('values')
+        key_name = str(meta.get('key_name') or '')
+
+        if key_name == '(no keys discovered)':
+            self.tag_catalog_values_tree.insert('', 'end', values=('User-Supplied',))
+            return
+
+        if isinstance(values, list) and values:
+            for value in values:
+                self.tag_catalog_values_tree.insert('', 'end', values=(value,))
+            return
+
+        self.tag_catalog_values_tree.insert('', 'end', values=('User-Supplied',))
 
     def _populate_tree(self):  # noqa: C901
         # Get all compartments and policies from the repo
@@ -597,6 +904,113 @@ class PolicyBrowserTab(BaseUITab):
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(label='Focus in Next Tab', command=lambda: self._focus_in_next_tab(item_id, node_text))
         menu.tk_popup(event.x_root, event.y_root)
+
+    def _on_tag_catalog_right_click(self, event):
+        """Context menu for tag catalog table rows."""
+        item_id = self.tag_catalog_tree.identify_row(event.y)
+        using_value_table = False
+        if not item_id and hasattr(self, 'tag_catalog_values_tree'):
+            item_id = self.tag_catalog_values_tree.identify_row(event.y)
+            using_value_table = bool(item_id)
+
+        if not item_id:
+            return
+
+        if using_value_table:
+            # Keep top selection as source-of-truth for namespace/key metadata.
+            value_selection = self.tag_catalog_values_tree.selection()
+            if not value_selection:
+                self.tag_catalog_values_tree.selection_set(item_id)
+            top_selection = self.tag_catalog_tree.selection()
+            if not top_selection:
+                return
+            top_item_id = top_selection[0]
+        else:
+            self.tag_catalog_tree.selection_set(item_id)
+            top_item_id = item_id
+
+        meta = self._tag_catalog_top_row_meta.get(top_item_id)
+        if not meta:
+            return
+
+        selected_tag_value = self._get_selected_tag_value()
+
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label='Open in Tag-based Access Tab',
+            command=lambda row_meta=meta, tag_value=selected_tag_value: self._open_tag_row_in_tag_based_access_tab(
+                row_meta=row_meta,
+                tag_value=tag_value,
+            ),
+        )
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _get_selected_tag_value(self) -> str:
+        """Return selected value from the lower values table, if any."""
+        if not hasattr(self, 'tag_catalog_values_tree'):
+            return ''
+        selection = self.tag_catalog_values_tree.selection()
+        if not selection:
+            return ''
+        value_row = self.tag_catalog_values_tree.item(selection[0], 'values')
+        if not value_row:
+            return ''
+        value_text = str(value_row[0]).strip() if len(value_row) > 0 else ''
+        if value_text in ('User-Supplied', 'No values to display.'):
+            return ''
+        return value_text
+
+    def _open_tag_row_in_tag_based_access_tab(self, row_meta: dict[str, Any], tag_value: str = ''):  # noqa: C901
+        """Navigate to Tag-based Access tab and pre-fill filters from selected catalog row."""
+        tag_tab = getattr(self.app, 'tag_based_access_tab', None)
+        notebook = getattr(self.app, 'notebook', None)
+        if not tag_tab or not notebook:
+            logger.info('Tag-based Access tab is not available for navigation.')
+            return
+
+        try:
+            tab_ids = notebook.tabs()
+            if str(tag_tab) not in tab_ids:
+                import tkinter.messagebox as tkmessagebox
+
+                tkmessagebox.showinfo(
+                    'Advanced Tabs Hidden',
+                    'Tag-based Access is currently hidden. Please enable Advanced Tabs from Settings first.',
+                )
+                return
+        except Exception:
+            pass
+
+        namespace = str(row_meta.get('namespace') or '').strip()
+        key_name = str(row_meta.get('key_name') or '').strip()
+        if key_name == '(no keys discovered)':
+            key_name = ''
+
+        try:
+            if hasattr(tag_tab, 'tag_namespace_var'):
+                tag_tab.tag_namespace_var.set(namespace)
+            if hasattr(tag_tab, 'tag_key_var'):
+                tag_tab.tag_key_var.set(key_name)
+            if hasattr(tag_tab, 'tag_value_var'):
+                tag_tab.tag_value_var.set(tag_value or '')
+            if hasattr(tag_tab, 'access_type_var'):
+                tag_tab.access_type_var.set('Any')
+
+            # Ensure latest data is available before applying filters.
+            if hasattr(tag_tab, 'populate_data'):
+                tag_tab.populate_data()
+            if hasattr(tag_tab, '_apply_filters_and_refresh'):
+                tag_tab._apply_filters_and_refresh()
+
+            notebook.select(tag_tab)
+            logger.info(
+                'Policy Browser tag-catalog navigation: namespace=%s key=%s value=%s -> Tag-based Access tab',
+                namespace,
+                key_name,
+                tag_value,
+            )
+        except Exception:
+            logger.info('Failed to navigate to Tag-based Access tab from tag catalog row.', exc_info=True)
 
     def expand_collapse_all(self, expand: bool = True):
         """Expand or collapse all nodes in the tree."""

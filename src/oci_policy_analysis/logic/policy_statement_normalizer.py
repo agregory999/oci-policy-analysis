@@ -57,6 +57,7 @@ class LoggingErrorListener(ErrorListener):
         super().__init__()
         self.logger = logger or logging.getLogger('antlr')
         self.errors = []
+        self.warnings = []
         self.context_text = context_text
 
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
@@ -69,19 +70,19 @@ class LoggingErrorListener(ErrorListener):
 
     def reportAmbiguity(self, recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs):
         msg = f'ANTLR ambiguity from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
     def reportAttemptingFullContext(self, recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs):
         msg = f'ANTLR attempting full context from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         msg = f'ANTLR context sensitivity from {startIndex} to {stopIndex}.'
-        self.errors.append(msg)
+        self.warnings.append(msg)
         if self.logger:
             self.logger.debug(msg)
 
@@ -272,6 +273,14 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 fields['subject'] = result
         else:
             raw_subject = ctx_subject.getText() if ctx_subject else ''
+
+            # Service subjects come through as "serviceX" (no delimiter) or
+            # "serviceA,serviceB" in some parse shapes. Strip the leading
+            # keyword before handing to parse_policy_subjects.
+            if fields['subject_type'] == 'service' and raw_subject:
+                raw_subject = re.sub(r'^service\s*', '', raw_subject, flags=re.IGNORECASE)
+                raw_subject = re.sub(r',\s*service\s*', ',', raw_subject, flags=re.IGNORECASE)
+
             logger.info(
                 f"[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
             )
@@ -556,6 +565,9 @@ class PolicyStatementParser:
             if error_listener.errors:
                 for msg in error_listener.errors:
                     logger.debug(f'ANTLR parse error: {msg}')
+            if error_listener.warnings:
+                for msg in error_listener.warnings:
+                    logger.debug(f'ANTLR parse warning: {msg}')
             logger.debug(f'Parse result (raw): {parsed}')
             if not parsed or not isinstance(parsed, list):
                 logger.debug(f"Parser returned no statement objects for: '{text[:80]}...'")
@@ -730,6 +742,15 @@ class PolicyStatementNormalizer:
         if 'permissionList' in fields and fields['permissionList']:
             perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
             perms = [p.upper() for p in perms_original]
+        existing_notes = []
+        if isinstance(base, dict):
+            existing_notes = list(base.get('parsing_notes') or [])
+        if isinstance(fields.get('parsing_notes'), list):
+            existing_notes.extend(fields.get('parsing_notes'))
+        parsing_notes = list(dict.fromkeys(existing_notes))
+        if isinstance(subjects_out, list) and len(subjects_out) > 1:
+            parsing_notes.append('Statement has multiple subjects')
+
         obj = {
             **base,
             # 'permission_original': perms_original,
@@ -745,9 +766,7 @@ class PolicyStatementNormalizer:
             'location': strip_quotes(fields.get('location', '')),
             'conditions': fields.get('condition', '') or '',
             'comments': fields.get('comments', ''),
-            'parsing_notes': ['Statement has multiple subjects']
-            if isinstance(subjects_out, list) and len(subjects_out) > 1
-            else [],
+            'parsing_notes': parsing_notes,
             'statement_text': statement_text,
             'parsed': True,
         }

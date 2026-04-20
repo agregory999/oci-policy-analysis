@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicyIntelligence, PolicyOverlap
+from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import collect_tag_conditions
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 if TYPE_CHECKING:
@@ -86,7 +88,7 @@ class PolicyIntelligenceEngine:
             overlaps=[], recommendations=[], risk_scores=[], consolidations=[]
         )
         self.permissions_report = {}
-        self._strategies: dict[str, 'IntelligenceStrategy'] = {}
+        self._strategies: dict[str, IntelligenceStrategy] = {}
         self._run_order: list[str] = list(DEFAULT_STRATEGY_RUN_ORDER)
         to_register = strategies if strategies is not None else self._get_default_strategies()
         for s in to_register:
@@ -95,6 +97,19 @@ class PolicyIntelligenceEngine:
             'Initialized PolicyIntelligenceEngine with repo; strategies=%s',
             list(self._strategies.keys()) if self._strategies else 'none (legacy mode)',
         )
+
+    # ------------------------------------------------------------------
+    # Principal key helpers (shared across simulation/intelligence/UI)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:
+        """Return the canonical *principal key* string for a subject triple.
+
+        Delegates to shared helper in policy_helpers for consistent
+        normalization across repo/intelligence/simulation layers.
+        """
+        return calculate_principal_key(subject_type, domain, name)
 
     def _get_default_strategies(self) -> list['IntelligenceStrategy']:
         """Lazy import to avoid circular import at module load."""
@@ -218,12 +233,17 @@ class PolicyIntelligenceEngine:
                 if subjects is None:
                     subjects = [('Default', 'UNKNOWN')]
                 for subject_domain, subject_name in subjects:
-                    domain_str = str(subject_domain) if subject_domain else 'Default'
-                    subject_key = f'{subject_type}:{domain_str}/{subject_name}'
+                    # Use shared helper to ensure principal_key / subject_key
+                    # format is consistent with simulation and UI surfaces.
+                    subject_key = self.calculate_principal_key(subject_type, subject_domain, subject_name)
                     if effective_path not in report:
                         report[effective_path] = {}
                     if subject_key not in report[effective_path]:
-                        report[effective_path][subject_key] = {'allow': set(), 'deny': set()}
+                        report[effective_path][subject_key] = {
+                            'allow': set(),
+                            'deny': set(),
+                            'subject_type': subject_type,
+                        }
                     if action == 'deny':
                         report[effective_path][subject_key]['deny'].update(permissions)
                     else:
@@ -252,37 +272,62 @@ class PolicyIntelligenceEngine:
         }
         return self.permissions_report
 
-    def run_dg_in_use_analysis(self):
+    def run_dg_in_use_analysis(self):  # noqa: C901
         """
         Analyzes Dynamic Group data for unused Dynamic Groups.
         Should be called after repo is loaded and statements parsed.
         """
-        # Build a list of all subjects as list(tuple(domain,name))
-        all_subjects: list[tuple] = []
+        # Build normalized subject reference sets for both supported DG principal forms:
+        #   1) dynamic-group: domain/name references
+        #   2) dynamic-group-id: OCID references
+        named_subject_refs: set[tuple[str, str]] = set()
+        id_subject_refs: set[str] = set()
+
         for st in self.policy_repo.regular_statements:
             subject_list = st.get('subject') or []
             subject_type = st.get('subject_type')
             logger.debug(f'SubType: {subject_type} Subject: {subject_list}')
+
             if subject_type == 'dynamic-group':
                 logger.debug(f'Add: {subject_type} Subject: {subject_list}')
-                all_subjects.extend(subject_list)
+                for subject in subject_list:
+                    if isinstance(subject, tuple | list) and len(subject) >= 2:
+                        subj_domain = str(subject[0] or 'default').strip().casefold()
+                        subj_name = str(subject[1] or '').strip().casefold()
+                        if subj_name:
+                            named_subject_refs.add((subj_domain, subj_name))
+            elif subject_type == 'dynamic-group-id':
+                logger.debug(f'Add: {subject_type} Subject: {subject_list}')
+                for subject in subject_list:
+                    subj_ocid = ''
+                    if isinstance(subject, tuple | list) and len(subject) >= 2:
+                        # Canonical parser shape is (None, ocid), but be tolerant.
+                        subj_ocid = str(subject[1] or '').strip()
+                    elif isinstance(subject, str):
+                        subj_ocid = subject.strip()
+                    if subj_ocid:
+                        id_subject_refs.add(subj_ocid.casefold())
 
-        logger.debug(f'Subject Count for DG in-use analysis: {len(all_subjects)}')
+        logger.debug(
+            'Subject counts for DG in-use analysis: named=%s id=%s',
+            len(named_subject_refs),
+            len(id_subject_refs),
+        )
 
-        # Iterate all DGs, look at their Domain and Name, then look through each statement
+        # Iterate all DGs, and consider in-use if matched by either domain/name or OCID.
         unused_dynamic_groups = 0
         for dg in self.policy_repo.dynamic_groups:
-            dg_domain = dg.get('domain_name') or 'default'
-            dg_name = dg.get('dynamic_group_name')
-            in_use = False  # Will be true at end if it exists
-            for subj_domain, subj_name in all_subjects:
-                logger.debug(f'Compare {dg_domain} = {subj_domain} and {dg_name} = {subj_name}')
-                if dg_domain.casefold() == subj_domain.casefold() and dg_name.casefold() == subj_name.casefold():
-                    in_use = True
-                    break
+            dg_domain = str(dg.get('domain_name') or 'default').strip()
+            dg_name = str(dg.get('dynamic_group_name') or '').strip()
+            dg_ocid = str(dg.get('dynamic_group_ocid') or '').strip()
+
+            in_use_by_name = bool(dg_name) and (dg_domain.casefold(), dg_name.casefold()) in named_subject_refs
+            in_use_by_id = bool(dg_ocid) and dg_ocid.casefold() in id_subject_refs
+            in_use = in_use_by_name or in_use_by_id
+
+            dg['in_use'] = in_use
             if not in_use:
                 logger.info(f'Dynamic Group {dg_domain}/{dg_name} not in use')
-                dg['in_use'] = False
                 unused_dynamic_groups += 1
 
         logger.info(f'Found {unused_dynamic_groups} unused dynamic groups')
@@ -440,12 +485,43 @@ class PolicyIntelligenceEngine:
         """
         Mark regular policy statements as invalid if they fail various validity checks, such as:
         - Nonexistent Dynamic Groups or Groups
+        - Tag-based where-clause references to missing defined tag namespace/key
         - Invalid compartment OCIDs
         - Invalid verbs/resources
 
         This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.
         """
         repo = self.policy_repo
+
+        # Build a case-insensitive lookup for defined tag namespaces/keys discovered
+        # by the repository. Shape:
+        #   {
+        #     ns_casefold: {
+        #        "name": "OriginalNamespace",
+        #        "keys": { key_casefold: "OriginalKey" }
+        #     }
+        #   }
+        raw_catalog = getattr(repo, 'defined_tag_namespace_keys', {})
+        tag_catalog_index: dict[str, dict[str, dict[str, str] | str]] = {}
+        if isinstance(raw_catalog, dict):
+            for ns_name, ns_entry in raw_catalog.items():
+                ns_name_str = str(ns_name or '').strip()
+                if not ns_name_str or not isinstance(ns_entry, dict):
+                    continue
+                keys_map = ns_entry.get('keys')
+                keys_lookup: dict[str, str] = {}
+                if isinstance(keys_map, dict):
+                    for key_name in keys_map.keys():
+                        key_name_str = str(key_name or '').strip()
+                        if key_name_str:
+                            keys_lookup[key_name_str.casefold()] = key_name_str
+                tag_catalog_index[ns_name_str.casefold()] = {
+                    'name': ns_name_str,
+                    'keys': keys_lookup,
+                }
+
+        tag_catalog_available = len(tag_catalog_index) > 0
+
         for st in repo.regular_statements:
             logger.debug(f'Checking validity for statement: {st.get("statement_text")}')
             # If parsing errors have already populated invalid_reasons, preserve them
@@ -493,6 +569,39 @@ class PolicyIntelligenceEngine:
                 st['valid'] = False
                 invalid_reasons.append(f'Invalid Verb ({st.get("verb")}) found')
 
+            # Tag where-clause namespace/key check
+            conditions_text = str(st.get('conditions') or '').strip()
+            if conditions_text and '.tag.' in conditions_text.casefold():
+                if not tag_catalog_available:
+                    note = 'Tag namespace catalog unavailable; tag existence validation skipped.'
+                    parsing_notes = st.setdefault('parsing_notes', [])
+                    if note not in parsing_notes:
+                        parsing_notes.append(note)
+                else:
+                    _structure, tag_conditions = collect_tag_conditions(conditions_text)
+                    for cond in tag_conditions:
+                        ns_name = (cond.tag_namespace or '').strip()
+                        key_name = (cond.tag_key or '').strip()
+                        if not ns_name:
+                            continue
+
+                        ns_entry = tag_catalog_index.get(ns_name.casefold())
+                        if not ns_entry:
+                            reason = f"Tag namespace '{ns_name}' not found in tenancy defined tags"
+                            if reason not in invalid_reasons:
+                                invalid_reasons.append(reason)
+                            st['valid'] = False
+                            continue
+
+                        if key_name:
+                            ns_keys = ns_entry.get('keys', {}) if isinstance(ns_entry, dict) else {}
+                            if isinstance(ns_keys, dict) and key_name.casefold() not in ns_keys:
+                                normalized_ns_name = str(ns_entry.get('name') or ns_name)
+                                reason = f"Tag key '{key_name}' not found in tag namespace '{normalized_ns_name}'"
+                                if reason not in invalid_reasons:
+                                    invalid_reasons.append(reason)
+                                st['valid'] = False
+
             if len(invalid_reasons) > 0:
                 st['invalid_reasons'] = invalid_reasons
 
@@ -516,14 +625,14 @@ class PolicyIntelligenceEngine:
             st['effective_path'] = '(Compartments not loaded or indexes unavailable)'
             return
 
-        logger.debug(f"-Statement: {st.get('statement_text')}")
+        logger.debug(f'-Statement: {st.get("statement_text")}')
         # Case 1 - in tenancy
         if st.get('location_type') == 'tenancy':
             st['effective_compartment_ocid'] = repo.tenancy_ocid
             st['effective_path'] = self._name_path_from_ocid(repo.tenancy_ocid)
             if st['effective_path']:
                 st['effective_path'] = st['effective_path'].lower()
-            logger.debug(f"Effective (ten) path for {st.get('statement_text')}: {st.get('effective_path')}")
+            logger.debug(f'Effective (ten) path for {st.get("statement_text")}: {st.get("effective_path")}')
         # Case 2 - Compartment ID
         elif st.get('location_type') == 'compartment id':
             st['effective_compartment_ocid'] = st.get('location')
@@ -531,18 +640,54 @@ class PolicyIntelligenceEngine:
             if st['effective_path']:
                 st['effective_path'] = st['effective_path'].lower()
             st.setdefault('parsing_notes', []).append('Compartment ID used for location')
-            logger.debug(f"Effective (id) path for {st.get('statement_text')}: {st.get('effective_path')}")
+            logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
         # Case 3 - Compartment Name (with or without full path)
         else:
-            logger.debug(f"Need to calc eff path for {st.get('statement_text')}")
+            logger.debug(f'Need to calc eff path for {st.get("statement_text")}')
             location = st.get('location')
+            location_str = str(location or '').strip()
+
+            # When location arrives as an absolute hierarchy path (for example
+            # ROOT/Finance/Sub), use it directly. This keeps prospective/editor
+            # flows aligned with regular-statement effective path semantics and
+            # avoids accidental duplication when a path-shaped location is
+            # appended to policy_path.
+            if location_str and '/' in location_str and ':' not in location_str:
+                norm_loc = location_str.replace('\\', '/').strip('/')
+                if norm_loc and norm_loc.split('/')[0].casefold() == 'root':
+                    abs_eff_path = norm_loc.lower()
+                    st['effective_path'] = abs_eff_path
+                    st['effective_compartment_ocid'] = self.compartments_by_path.get(abs_eff_path, {}).get('id')
+                    st.setdefault('parsing_notes', []).append('Absolute compartment path used for location')
+                    logger.debug(
+                        'Effective (abs-loc) path for %s: %s',
+                        st.get('statement_text'),
+                        abs_eff_path,
+                    )
+                    return
+
             parts = [p.strip() for p in location.split(':') if p.strip()] if location else []
             policy_path = self._name_path_from_ocid(st.get('compartment_ocid'))
+            # Prospective statements may not always carry a concrete
+            # compartment_ocid. Fall back to explicit compartment_path from
+            # the editor/service payload so relative locations are resolved
+            # under the selected policy compartment path.
+            if not policy_path:
+                cp = st.get('compartment_path')
+                if isinstance(cp, str) and cp.strip():
+                    policy_path = cp.strip()
             logger.debug(f'Policy Path: {policy_path} / Location parts: {parts}')
             eff_path = policy_path
             logger.debug(f'Initial effective path: {eff_path}')
-            logger.debug(f"Compartment OCID for policy: {st.get('compartment_ocid')}")
+            logger.debug(f'Compartment OCID for policy: {st.get("compartment_ocid")}')
             comp_name = self._comp_name_path_ocid(st.get('compartment_ocid'))
+            # Prospective statements may not carry compartment_ocid. In that
+            # case, infer the policy compartment basename from policy_path so
+            # first-segment duplicate elimination still works (for example,
+            # policy_path ROOT/Dev + location Dev should stay ROOT/Dev).
+            if not comp_name and isinstance(policy_path, str) and policy_path.strip():
+                pparts = [p for p in policy_path.replace('\\', '/').split('/') if p]
+                comp_name = pparts[-1] if pparts else None
             logger.debug(f'Compartment name for compare: {comp_name}')
             if parts and parts[0].casefold() == (comp_name.casefold() if comp_name else ''):
                 st.setdefault('parsing_notes', []).append('Deleted compartment from effective location')
@@ -553,7 +698,7 @@ class PolicyIntelligenceEngine:
                 eff_path += f'/{p}'
             if eff_path:
                 eff_path = eff_path.lower()
-            logger.debug(f"Effective (loc) path for {st.get('statement_text')}: {eff_path}")
+            logger.debug(f'Effective (loc) path for {st.get("statement_text")}: {eff_path}')
             st['effective_path'] = eff_path
             st['effective_compartment_ocid'] = self.compartments_by_path.get(eff_path, {}).get('id')
 
@@ -606,7 +751,7 @@ class PolicyIntelligenceEngine:
         )
 
     def _name_path_from_ocid(self, ocid: str):
-        logger.debug(f"Lookup details: {getattr(self, 'compartments_by_id', {})}")
+        logger.debug(f'Lookup details: {getattr(self, "compartments_by_id", {})}')
         comp = getattr(self, 'compartments_by_id', {}).get(ocid)
         return comp.get('path') if comp else None
 
@@ -911,7 +1056,7 @@ class PolicyIntelligenceEngine:
         if consolidations:
             strategy_hint = ''
             if consolidation_strategy_names:
-                strategy_hint = f" Consider strategies: {', '.join(consolidation_strategy_names)}."
+                strategy_hint = f' Consider strategies: {", ".join(consolidation_strategy_names)}.'
             recommendations.append(
                 {
                     'Recommendation': 'Consider consolidating policies',
@@ -936,7 +1081,7 @@ class PolicyIntelligenceEngine:
                     'Recommendation': 'Investigate invalid policy statements',
                     'Priority': 'High',
                     'Category': 'Policy Hygiene',
-                    'Notes': f"{len(cleanup['invalid_statements'])} invalid policy statement(s) detected. Review the cleanup/fix tab for details.",
+                    'Notes': f'{len(cleanup["invalid_statements"])} invalid policy statement(s) detected. Review the cleanup/fix tab for details.',
                     'Action': 'Plan: Review and remediate invalid policy statements',
                     'ActionDetail': 'Examine policies with invalid statements and resolve as appropriate.',
                 }
@@ -947,7 +1092,7 @@ class PolicyIntelligenceEngine:
                     'Recommendation': 'Ensure all groups are needed; consider removing unused groups',
                     'Priority': 'Medium',
                     'Category': 'Identity Management',
-                    'Notes': f"{len(cleanup['unused_groups'])} unused group(s) (0 members) detected. See cleanup/fix tab for actionable list.",
+                    'Notes': f'{len(cleanup["unused_groups"])} unused group(s) (0 members) detected. See cleanup/fix tab for actionable list.',
                     'Action': 'Plan: Remove or repurpose unused groups',
                     'ActionDetail': 'Review business need for empty groups and remove unless justified.',
                 }
@@ -958,7 +1103,7 @@ class PolicyIntelligenceEngine:
                     'Recommendation': 'Clean up unused Dynamic Groups',
                     'Priority': 'Medium',
                     'Category': 'Identity Management',
-                    'Notes': f"{len(cleanup['unused_dynamic_groups'])} unused dynamic group(s) detected. See cleanup/fix tab for actionable list.",
+                    'Notes': f'{len(cleanup["unused_dynamic_groups"])} unused dynamic group(s) detected. See cleanup/fix tab for actionable list.',
                     'Action': 'Plan: Remove unused dynamic groups',
                     'ActionDetail': 'Delete or reassign dynamic groups not referenced in policy statements.',
                 }
@@ -1024,7 +1169,7 @@ class PolicyIntelligenceEngine:
                         'Category': 'Compartment Resolution',
                         'Notes': f'Statement in policy {policy_name} has no effective path calculated. Ensure compartments are loaded and statement locations are valid.',
                         'Action': 'Plan: Review statement locations',
-                        'ActionDetail': f"Check statement: '{st.get('statement_text','')}' in policy '{policy_name}' for location issues.",
+                        'ActionDetail': f"Check statement: '{st.get('statement_text', '')}' in policy '{policy_name}' for location issues.",
                     }
                 )
                 continue
@@ -1171,7 +1316,7 @@ class PolicyIntelligenceEngine:
                         'Principal': combo[0],
                         'Service/Resource': combo[2],
                         'Consolidation Reason': 'Multiple policies found with same principal, resource/service, and compartment; recommend merge for clarity.',
-                        'Action': f"Plan: Consolidate policies {', '.join(sorted(policy_names))} into one.",
+                        'Action': f'Plan: Consolidate policies {", ".join(sorted(policy_names))} into one.',
                         'ActionDetail': f'Statements: {statement_texts}.\nEvaluate details and propose a single policy.',
                     }
                 )

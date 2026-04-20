@@ -229,12 +229,15 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 - Data loading, data refresh, and status updates are handled centrally.
     - The application uses repositories (e.g., `PolicyAnalysisRepository`) and engines (`PolicyIntelligenceEngine`, `PolicySimulationEngine`). These are initialized at the application level and exposed to tabs on creation.
     - Upon data (or cache) load via various methods (tenancy, compliance output, JSON), special post-load update flows run: see `_post_load_update_ui` for UART-registered function calls.
+    - Load/import/reload progress messaging is consolidated into a shared modal popup workflow in `App` (rather than multiple per-tab status channels).
+    - Typical staged messages include loading source data, running policy intelligence, populating tab data, updating status bar, and final done summary.
     - Each tab exposes a set of update, refresh, or enable functions (e.g., `update_user_analysis_output`, `refresh_tree`, `enable_widgets_after_load`) which the application can call to propagate new data/UI states.
     - Central settings changes (context help, font size) are propagated live to all tabs via `App.refresh_all_tabs_settings()`, which in turn calls each tab's `apply_settings(...)`.
 
 **Timing and Logging:**
 - Timing for each post-load UI refresh or data push is logged for performance diagnostics.
 - All tabs support rapid enable/disable and refresh cycles coordinated from the main App.
+- The lower fixed status bar remains the canonical loaded-state indicator (source, timestamp(s), and tracking state).
 
 ---
 

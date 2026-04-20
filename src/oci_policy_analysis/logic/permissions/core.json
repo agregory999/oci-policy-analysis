@@ -1109,6 +1109,86 @@
         }
     },
     "operations": {
+        "ListByoipRanges": {
+            "permissions": [
+                "BYOIP_RANGE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_READ"
+            ],
+            "notes": ""
+        },
+        "ListByoipAllocatedRanges": {
+            "permissions": [
+                "BYOIP_RANGE_READ"
+            ],
+            "notes": ""
+        },
+        "AddPublicIpPoolCapacity": {
+            "permissions": [
+                "BYOIP_RANGE_ADD_CAPACITY_FROM"
+            ],
+            "notes": ""
+        },
+        "CreateByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_DELETE"
+            ],
+            "notes": ""
+        },
+        "UpdateByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "ValidateByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_VALIDATE"
+            ],
+            "notes": ""
+        },
+        "AdvertiseByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_ADVERTISE"
+            ],
+            "notes": ""
+        },
+        "WithdrawByoipRange": {
+            "permissions": [
+                "BYOIP_RANGE_WITHDRAW"
+            ],
+            "notes": ""
+        },
+        "ChangeByoipRangeCompartment": {
+            "permissions": [
+                "BYOIP_RANGE_MOVE"
+            ],
+            "notes": ""
+        },
+        "AddIpv6VcnCidr": {
+            "permissions": [
+                "BYOIP_RANGE_ASSIGN_TO_VCN",
+                "VCN_UPDATE"
+            ],
+            "notes": "AddIpv6VcnCidr requires both BYOIP_RANGE_ASSIGN_TO_VCN and VCN_UPDATE to add a BYOIPv6 prefix to an existing VCN."
+        },
+        "RemoveIpv6VcnCidr": {
+            "permissions": [
+                "BYOIP_RANGE_UNASSIGN_FROM_VCN",
+                "VCN_UPDATE"
+            ],
+            "notes": "RemoveIpv6VcnCidr requires both BYOIP_RANGE_UNASSIGN_FROM_VCN and VCN_UPDATE to remove a BYOIPv6 prefix from an existing VCN."
+        },
         "CreateVolumeBackupPolicy": {
             "permissions": [
                 "BACKUP_POLICIES_CREATE"

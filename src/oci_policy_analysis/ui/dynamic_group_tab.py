@@ -241,11 +241,15 @@ class DynamicGroupsTab(BaseUITab):
             dgs_for_filter = []
             for row in selected_rows:
                 logger.info(f"Selected DG: {row.get('Domain')}, {row.get('DG Name')}")
-                dgs_for_filter.append((row.get('Domain'), row.get('DG Name')))
+                dgs_for_filter.append(
+                    {
+                        'domain_name': row.get('Domain'),
+                        'dynamic_group_name': row.get('DG Name'),
+                        'dynamic_group_ocid': row.get('DG OCID') or row.get('DG ID'),
+                    }
+                )
             logger.info(f'DGs for filter: {dgs_for_filter}')
-            exact_dg_filter: list[DynamicGroup] = [
-                DynamicGroup(domain_name=dg[0], dynamic_group_name=dg[1]) for dg in dgs_for_filter
-            ]  # type: ignore
+            exact_dg_filter: list[DynamicGroup] = [DynamicGroup(**dg) for dg in dgs_for_filter]  # type: ignore
             policy_filter: PolicySearch = PolicySearch(exact_dynamic_groups=exact_dg_filter)
             filtered = self.policy_compartment_analysis.filter_policy_statements(filters=policy_filter)
             filtered = [for_display_policy(stmt) for stmt in filtered]
@@ -308,6 +312,7 @@ class DynamicGroupsTab(BaseUITab):
                 self.app.notebook.select(tab_id=2)  # Policy Analysis tab
                 logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
                 self.app.policies_tab.chk_show_dynamic.set(True)
+                self.app.policies_tab.clear_policy_filters()
                 self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
 
             menu.add_command(

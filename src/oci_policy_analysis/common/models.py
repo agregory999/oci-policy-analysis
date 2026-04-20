@@ -113,6 +113,27 @@ class DynamicGroup(TypedDict):
     ]
 
 
+class Principal(TypedDict, total=False):
+    """Canonical principal representation for parsed policy statements.
+
+    This is currently additive/non-breaking and coexists with legacy
+    ``subject`` storage. The long-term direction is to use this model as the
+    primary internal principal representation.
+    """
+
+    principal_type: Annotated[
+        str,
+        "Principal type (e.g., 'group', 'group-id', 'dynamic-group', 'dynamic-group-id', 'user', 'any-user', 'service').",
+    ]
+    principal_key: Annotated[str, 'Canonical principal key used for stable matching/display.']
+    domain_name: NotRequired[
+        Annotated[str | None, 'Identity domain for name-based principals; usually None for id-based principals.']
+    ]
+    name: NotRequired[Annotated[str, 'Display/principal name for name-based principals.']]
+    ocid: NotRequired[Annotated[str, 'OCID for id-based principals when present.']]
+    display_name: NotRequired[Annotated[str, 'Human-readable display string for UI/debug output.']]
+
+
 class BasePolicy(TypedDict, total=False):
     """
     Model representing an OCI IAM policy.
@@ -421,6 +442,10 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
     subject: Annotated[
         list[tuple[str | None, str]] | str,
         'The subject(s) this policy applies to. May be a list of (domain, name) tuples or a simple string if unstructured.',
+    ]
+    principals: Annotated[
+        list[Principal],
+        'Derived canonical principal model list. Additive/non-breaking; legacy subject field remains during transition.',
     ]
     verb: Annotated[str, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."]
     resource: Annotated[

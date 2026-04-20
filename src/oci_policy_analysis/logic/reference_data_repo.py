@@ -118,7 +118,7 @@ class ReferenceDataRepo:
         self.family_name_map = {k.lower(): k for k in self.data['families'].keys()}
         self.verb_set = {'inspect', 'read', 'use', 'manage'}
 
-    def get_permission_risk(self, permission: str, resource: str = None):
+    def get_permission_risk(self, permission: str, resource: str | None = None):
         """
         Get the risk score for a single permission string (optionally for a given resource).
         If resource is not provided, search all resources.
@@ -140,7 +140,7 @@ class ReferenceDataRepo:
                 return risk
         return 1  # default fall-back risk score
 
-    def get_permissions_risk_sum(self, permissions, resource: str = None):
+    def get_permissions_risk_sum(self, permissions, resource: str | None = None):
         """
         Given a list of permissions (case-insensitive), compute the summed risk score.
         """
@@ -273,6 +273,33 @@ class ReferenceDataRepo:
                         if source_url:
                             sources.add(source_url)
         return ', '.join(sources) if sources else ''
+
+    def get_containing_family(self, resource_name: str) -> str | None:
+        """Return the family that contains the given resource, if any.
+
+        The lookup is case-insensitive for the resource name and returns the
+        canonical family key as loaded from reference data JSON files.
+
+        Args:
+            resource_name: OCI resource token (for example: ``subnets``).
+
+        Returns:
+            The family name (for example: ``virtual-network-family``) if found,
+            otherwise ``None``.
+        """
+
+        resource_ci = (resource_name or '').strip().lower()
+        if not resource_ci:
+            return None
+
+        # Normalize to canonical resource key when possible.
+        resource_key = self.resource_name_map.get(resource_ci, resource_name)
+
+        for fam_name, fam_data in self.data.get('families', {}).items():
+            resources = fam_data.get('resources', []) or []
+            if any(str(res).strip().lower() == str(resource_key).strip().lower() for res in resources):
+                return fam_name
+        return None
 
     def has_api_operation_permissions(self, operation_name, granted_permissions):
         """

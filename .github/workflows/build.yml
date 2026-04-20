@@ -295,6 +295,7 @@ jobs:
 
   publish:
     needs: [release, build]
+    if: github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'feature/')
     runs-on: ubuntu-latest
     steps:
       - name: Skip publish if docs-only commit
@@ -334,6 +335,6 @@ jobs:
             dist/oci-policy-analysis-windows/oci-policy-analysis-windows-${{ needs.release.outputs.version }}.zip
           draft: false
           prerelease: ${{ needs.release.outputs.prerelease == 'true' }}
-          overwrite_files: true
+          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

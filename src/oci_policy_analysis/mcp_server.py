@@ -145,6 +145,30 @@ def _track_mcp_tool(tool_name: str, status: str = 'success', **extra: object) ->
         logger.debug('Usage tracking for mcp_tool.%s (%s) failed', tool_name, status, exc_info=True)
 
 
+def _normalize_subject_for_mcp(stmt: dict) -> dict:
+    """Return a MCP-safe copy of a policy statement.
+
+    For any-user/any-group subjects, clear the subject list so that the
+    JSON output always uses an array type for ``subject`` even when the
+    underlying repository uses a simple string like "any-user".
+
+    Semantics for these special subjects are conveyed via ``subject_type``;
+    MCP consumers should rely on that field rather than the ``subject``
+    contents. This helper is intentionally scoped to MCP output only and
+    does not mutate the underlying repository statements.
+    """
+
+    # Shallow copy to avoid mutating repository-backed dicts.
+    st = dict(stmt)
+    stype = st.get('subject_type')
+    if stype in ('any-user', 'any-group'):
+        # Ensure JSON schema expecting an array type for "subject" is satisfied
+        # regardless of how the repo stored this field internally.
+        st['subject'] = []
+        logger.debug('_normalize_subject_for_mcp: normalized subject for subject_type=%s', stype)
+    return st
+
+
 def _summarize_schema(schema: dict[str, Any] | None) -> str:
     """Return a short description of a JSON schema for display in the MCP tab tools table.
 
@@ -709,17 +733,21 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
         # Return full results for smaller sets
         logger.info('Manageable result set (%d statements), returning full data', len(raw_results))
 
+        # Log raw results for debugging
         for st in raw_results:
             logger.debug('Raw Result: %s\n\n', st)
 
+        # Normalize subjects for MCP output (e.g., any-user / any-group)
+        normalized_results = [_normalize_subject_for_mcp(st) for st in raw_results]
+
         full_response: PolicyStatementFull = {
             'response_type': 'full',
-            'statements': raw_results,
-            'total_count': len(raw_results),
+            'statements': normalized_results,
+            'total_count': len(normalized_results),
         }
 
-        logger.info('Filter returning %d full policy statements to client', len(raw_results))
-        _track_mcp_tool(tool_name, status='success', total_statements=len(raw_results))
+        logger.info('Filter returning %d full policy statements to client', len(normalized_results))
+        _track_mcp_tool(tool_name, status='success', total_statements=len(normalized_results))
         return full_response
     except ToolError:
         _track_mcp_tool(tool_name, status='error')

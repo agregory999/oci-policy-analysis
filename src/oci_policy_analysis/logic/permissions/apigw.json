@@ -196,7 +196,7 @@
                 "API_GATEWAY_UPDATE",
                 "API_GATEWAY_MOVE"
             ],
-            "notes": "and and"
+            "notes": ""
         },
         "ListDeployments": {
             "permissions": [

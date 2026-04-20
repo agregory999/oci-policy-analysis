@@ -8,6 +8,9 @@ select = [
 ]
 ignore = ["E501"]
 
+[lint.mccabe]
+max-complexity = 25
+
 [format]
 quote-style = "single"
 indent-style = "space"
