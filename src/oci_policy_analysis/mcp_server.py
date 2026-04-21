@@ -48,25 +48,29 @@ from uvicorn import Server  # noqa: E402
 
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
-from oci_policy_analysis.common.models import (  # noqa: E402
-    BasePolicyStatement,
-    DefineStatement,
+from oci_policy_analysis.common.models_iam import (  # noqa: E402
     DynamicGroupSearch,
-    DynamicGroupSearchFull,
-    DynamicGroupSearchResponse,
-    DynamicGroupSummary,
     Group,
     GroupSearch,
-    GroupSearchFull,
-    GroupSearchResponse,
-    GroupSummary,
+    User,
+    UserSearch,
+)
+from oci_policy_analysis.common.models_policy import (  # noqa: E402
+    BasePolicyStatement,
+    DefineStatement,
     PolicyFilterResponse,
     PolicySearch,
     PolicyStatementFull,
     PolicySummary,
+)
+from oci_policy_analysis.common.models_responses import (  # noqa: E402
+    DynamicGroupSearchFull,
+    DynamicGroupSearchResponse,
+    DynamicGroupSummary,
+    GroupSearchFull,
+    GroupSearchResponse,
+    GroupSummary,
     ReferenceDataDiffResult,
-    User,
-    UserSearch,
     UserSearchFull,
     UserSearchResponse,
     UserSummary,

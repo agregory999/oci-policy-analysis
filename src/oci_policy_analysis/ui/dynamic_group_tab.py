@@ -16,9 +16,10 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
+from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch, PolicySearch
+from oci_policy_analysis.common.models import DynamicGroup, DynamicGroupSearch
+from oci_policy_analysis.presentation import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -114,6 +115,7 @@ class DynamicGroupsTab(BaseUITab):
         )
         self.app = app
         self.policy_compartment_analysis = app.policy_compartment_analysis
+        self.principal_analysis = PrincipalAnalysisService(app.app_context)
         self._build_ui()
 
     def _build_ui(self):
@@ -250,8 +252,7 @@ class DynamicGroupsTab(BaseUITab):
                 )
             logger.info(f'DGs for filter: {dgs_for_filter}')
             exact_dg_filter: list[DynamicGroup] = [DynamicGroup(**dg) for dg in dgs_for_filter]  # type: ignore
-            policy_filter: PolicySearch = PolicySearch(exact_dynamic_groups=exact_dg_filter)
-            filtered = self.policy_compartment_analysis.filter_policy_statements(filters=policy_filter)
+            filtered = self.principal_analysis.by_exact_dynamic_groups(exact_dg_filter).statements
             filtered = [for_display_policy(stmt) for stmt in filtered]
             self.dg_policy_table.update_data(filtered)
             logger.info(f'Policies added to policy table: {len(filtered)}')

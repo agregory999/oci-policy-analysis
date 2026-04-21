@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Policy Filter</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      textarea {
+        margin-top: 0.5rem;
+      }
+
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.6rem;
+        margin-top: 0.75rem;
+      }
+
+      .filter-actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .policy-layout {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+        position: relative;
+      }
+
+      .policy-layout.has-selection {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .table-shell {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .table-scroll {
+        max-height: 62vh;
+        overflow: auto;
+      }
+
+      #resultsTable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f1ef;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #resultsTable thead th:hover {
+        color: var(--oci-red);
+      }
+
+      #resultsTable tbody tr:nth-child(odd) {
+        background: #ffffff;
+      }
+
+      #resultsTable tbody tr:nth-child(even) {
+        background: #f7f7f7;
+      }
+
+      #resultsTable tbody tr:hover {
+        background: #fdf1ef;
+      }
+
+      #resultsTable tbody tr.active-row {
+        background: #fbe4e0;
+      }
+
+      .sort-indicator {
+        font-size: 0.8rem;
+        margin-left: 0.3rem;
+        opacity: 0.7;
+      }
+
+      .results-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .results-hint {
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+
+      .policy-inspector {
+        display: none;
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      .policy-inspector.open {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .policy-inspector-header {
+        padding: 0.9rem 1rem;
+        background: #1f1b1a;
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.8rem;
+      }
+
+      .policy-inspector-header h3 {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+
+      .policy-inspector-subtitle {
+        margin-top: 0.2rem;
+        color: #d7cbc4;
+        font-size: 0.75rem;
+      }
+
+      .policy-inspector-body {
+        padding: 0;
+        max-height: 58vh;
+        overflow: auto;
+      }
+
+      .policy-inspector-body table {
+        width: 100%;
+      }
+
+      .policy-inspector-body th {
+        width: 32%;
+        background: #faf8f6;
+        color: #5f5956;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .policy-inspector-body td {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .policy-inspector-body .inspector-separator th {
+        width: 100%;
+        background: #f1ede9;
+        color: #6c625d;
+        text-align: center;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.5rem;
+      }
+
+      .policy-inspector-footer {
+        padding: 0.7rem;
+        display: flex;
+        gap: 0.5rem;
+        border-top: 1px solid var(--oci-line);
+        background: #fffdfa;
+      }
+
+      .policy-inspector-footer button {
+        margin-top: 0;
+        padding: 0.45rem 0.7rem;
+        font-size: 0.82rem;
+      }
+
+      .inspector-empty {
+        padding: 1rem;
+        font-size: 0.88rem;
+        color: #6b7280;
+      }
+
+      @media (min-width: 1200px) {
+        .policy-inspector {
+          display: flex;
+          flex-direction: column;
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: min(460px, 40vw);
+          border-radius: 0;
+          z-index: 40;
+          box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
+          transform: translateX(105%);
+          transition: transform 180ms ease;
+          pointer-events: none;
+        }
+
+        .policy-inspector.open {
+          transform: translateX(0);
+          pointer-events: auto;
+        }
+
+        .policy-inspector-body {
+          max-height: none;
+          flex: 1;
+          min-height: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Policy Analysis</h1>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="card">
+        <label for="subjectFilter">Policy Filters (use | for OR values)</label>
+        <div class="filter-grid">
+          <input id="subjectFilter" placeholder="Subject (e.g. any-user|group-id)" />
+          <select id="actionFilter">
+            <option value="Both">Action: Both</option>
+            <option value="Allow">Action: Allow</option>
+            <option value="Deny">Action: Deny</option>
+          </select>
+          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" value="manage" />
+          <input id="resourceFilter" placeholder="Resource" value="instance-family" />
+          <input id="permissionFilter" placeholder="Permission" />
+          <input id="locationFilter" placeholder="Location" />
+          <input id="compartmentPathFilter" placeholder="Compartment Path" />
+          <input id="statementTextFilter" placeholder="Statement Text" />
+          <input id="policyNameFilter" placeholder="Policy Name" />
+          <input id="effectivePathFilter" placeholder="Effective Path" />
+          <input id="conditionsFilter" placeholder="Conditions" />
+          <select id="validFilter">
+            <option value="">Valid: Any</option>
+            <option value="true">Valid: True</option>
+            <option value="false">Valid: False</option>
+          </select>
+        </div>
+        <details style="margin-top:0.7rem;">
+          <summary style="cursor:pointer; font-weight:600;">Advanced: raw JSON payload override</summary>
+          <textarea id="filters" placeholder="Optional JSON payload override. If valid JSON is present, it overrides the field filters."></textarea>
+        </details>
+        <div class="filter-actions" style="margin-top:0.6rem;">
+          <button id="runBtn">Run Filter</button>
+          <button id="clearFiltersBtn" class="ghost">Clear Filters</button>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+
+      <div class="policy-layout">
+        <div class="card">
+          <div class="results-meta">
+            <div id="summary" class="pill">No results yet</div>
+            <div class="results-hint">Tip: click a row to view more details.</div>
+          </div>
+          <div class="table-shell" style="margin-top: 1rem;">
+            <div class="table-scroll">
+              <table id="resultsTable">
+                <thead>
+                  <tr>
+                    <th data-sort-key="compartment_path">Compartment <span class="sort-indicator"></span></th>
+                    <th data-sort-key="policy_name">Policy Name <span class="sort-indicator"></span></th>
+                    <th data-sort-key="effective_path">Effective Path <span class="sort-indicator"></span></th>
+                    <th data-sort-key="statement_text">Statement <span class="sort-indicator"></span></th>
+                    <th data-sort-key="conditions">Conditions <span class="sort-indicator"></span></th>
+                    <th data-sort-key="verb">Verb <span class="sort-indicator"></span></th>
+                    <th data-sort-key="resource">Resource <span class="sort-indicator"></span></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside id="policyInspector" class="policy-inspector" aria-live="polite">
+          <div class="policy-inspector-header">
+            <div>
+              <h3 id="inspectorTitle">Statement Details</h3>
+              <div id="inspectorSubtitle" class="policy-inspector-subtitle">Select a row to inspect statement details</div>
+            </div>
+            <button id="closeInspectorBtn" class="ghost" style="margin-top: 0;">×</button>
+          </div>
+          <div class="policy-inspector-body">
+            <div id="inspectorEmpty" class="inspector-empty">No policy selected.</div>
+            <table id="inspectorTable" style="display:none;">
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="policy-inspector-footer">
+            <button id="copyStatementBtn" class="ghost" disabled>Copy Statement</button>
+            <button id="copySummaryBtn" class="ghost" disabled>Copy Summary</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const runBtn = document.getElementById('runBtn');
+      const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+      const status = document.getElementById('status');
+      const filters = document.getElementById('filters');
+      const subjectFilter = document.getElementById('subjectFilter');
+      const actionFilter = document.getElementById('actionFilter');
+      const verbFilter = document.getElementById('verbFilter');
+      const resourceFilter = document.getElementById('resourceFilter');
+      const permissionFilter = document.getElementById('permissionFilter');
+      const locationFilter = document.getElementById('locationFilter');
+      const compartmentPathFilter = document.getElementById('compartmentPathFilter');
+      const statementTextFilter = document.getElementById('statementTextFilter');
+      const policyNameFilter = document.getElementById('policyNameFilter');
+      const effectivePathFilter = document.getElementById('effectivePathFilter');
+      const conditionsFilter = document.getElementById('conditionsFilter');
+      const validFilter = document.getElementById('validFilter');
+      const tbody = document.querySelector('#resultsTable tbody');
+      const summary = document.getElementById('summary');
+      const headerCells = document.querySelectorAll('#resultsTable thead th[data-sort-key]');
+      const policyInspector = document.getElementById('policyInspector');
+      const closeInspectorBtn = document.getElementById('closeInspectorBtn');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const inspectorSubtitle = document.getElementById('inspectorSubtitle');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const copyStatementBtn = document.getElementById('copyStatementBtn');
+      const copySummaryBtn = document.getElementById('copySummaryBtn');
+      const policyLayout = document.querySelector('.policy-layout');
+
+      let currentRows = [];
+      let selectedRow = null;
+      let sortState = { key: 'policy_name', dir: 'asc' };
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function getRowValue(row, key) {
+        const titleKey = key.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      function formatInspectorValue(key, value) {
+        if (value === null || value === undefined || value === '') return '-';
+
+        if (key === 'principals' && Array.isArray(value)) {
+          if (!value.length) return '-';
+          return value
+            .map((principal) => {
+              if (!principal || typeof principal !== 'object') return String(principal);
+              const principalType = principal.principal_type || 'principal';
+              const principalDisplay =
+                principal.display_name ||
+                [principal.domain_name, principal.name].filter(Boolean).join('/') ||
+                principal.ocid ||
+                principal.principal_key ||
+                JSON.stringify(principal);
+              return `${principalType}: ${principalDisplay}`;
+            })
+            .join('\n');
+        }
+
+        if (Array.isArray(value)) {
+          return value
+            .map((item) => {
+              if (item === null || item === undefined) return '';
+              if (typeof item === 'object') return JSON.stringify(item);
+              return String(item);
+            })
+            .filter((item) => item !== '')
+            .join('\n');
+        }
+
+        if (typeof value === 'object') {
+          return JSON.stringify(value, null, 2);
+        }
+
+        return String(value);
+      }
+
+      function updateSortIndicators() {
+        headerCells.forEach((th) => {
+          const indicator = th.querySelector('.sort-indicator');
+          const key = th.dataset.sortKey;
+          indicator.textContent = key === sortState.key ? (sortState.dir === 'asc' ? '▲' : '▼') : '';
+        });
+      }
+
+      function setInspector(row) {
+        selectedRow = row || null;
+        document.querySelectorAll('#resultsTable tbody tr').forEach((tr) => {
+          tr.classList.toggle('active-row', tr.dataset.rowId === String(row?._row_id || ''));
+        });
+
+        if (!row) {
+          policyInspector.classList.remove('open');
+          policyLayout.classList.remove('has-selection');
+          inspectorEmpty.style.display = 'block';
+          inspectorTable.style.display = 'none';
+          copyStatementBtn.disabled = true;
+          copySummaryBtn.disabled = true;
+          return;
+        }
+
+        policyInspector.classList.add('open');
+        policyLayout.classList.add('has-selection');
+        inspectorTitle.textContent = 'Statement Details';
+        inspectorSubtitle.textContent = 'Inspecting selected statement';
+
+        const primaryFieldOrder = [
+          'compartment_path',
+          'policy_name',
+          'policy_ocid',
+          'effective_path',
+          'statement_text',
+        ];
+
+        const parsedFieldOrder = [
+          'action',
+          'subject_type',
+          'subject',
+          'principals',
+          'verb',
+          'resource',
+          'permission',
+          'location',
+          'conditions',
+          'valid',
+          'invalid_reason',
+          'invalid_reasons',
+          'parsed',
+          'comments',
+        ];
+
+        const excludedFields = new Set(['_row_id', 'internal_id', 'effective_compartment_ocid']);
+        const keySet = new Set([...primaryFieldOrder, ...parsedFieldOrder]);
+        Object.keys(row || {}).forEach((key) => {
+          if (!excludedFields.has(key)) keySet.add(key);
+        });
+
+        const orderedPrimary = primaryFieldOrder.filter((key) => keySet.has(key));
+        const orderedParsed = parsedFieldOrder.filter((key) => keySet.has(key));
+        const orderedOther = [
+          ...Array.from(keySet)
+            .filter((key) => !primaryFieldOrder.includes(key) && !parsedFieldOrder.includes(key))
+            .sort((a, b) => a.localeCompare(b)),
+        ];
+
+        const orderedKeys = [
+          ...orderedPrimary,
+          '__separator_parsed__',
+          ...orderedParsed,
+          ...orderedOther,
+        ];
+
+        const labelForKey = (key) =>
+          String(key || '')
+            .replaceAll('_', ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        inspectorTableBody.innerHTML = orderedKeys
+          .map((key) => {
+            if (key === '__separator_parsed__') {
+              return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
+            }
+            const label = labelForKey(key);
+            const value = getRowValue(row, key);
+            return `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(formatInspectorValue(key, value))}</td></tr>`;
+          })
+          .join('');
+
+        inspectorEmpty.style.display = 'none';
+        inspectorTable.style.display = 'table';
+        copyStatementBtn.disabled = false;
+        copySummaryBtn.disabled = false;
+      }
+
+      function renderRows(rows) {
+        tbody.innerHTML = '';
+        rows.forEach((row) => {
+          const tr = document.createElement('tr');
+          tr.dataset.rowId = String(row._row_id);
+          tr.innerHTML = `
+            <td>${escapeHtml(getRowValue(row, 'compartment_path'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'policy_name'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'effective_path'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'statement_text'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'conditions'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'verb'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'resource'))}</td>
+          `;
+          tr.addEventListener('click', () => setInspector(row));
+          if (selectedRow && selectedRow._row_id === row._row_id) {
+            tr.classList.add('active-row');
+          }
+          tbody.appendChild(tr);
+        });
+      }
+
+      function buildPayloadFromFields() {
+        const payload = {};
+        const setIfPresent = (key, value) => {
+          if (String(value || '').trim()) payload[key] = String(value).trim();
+        };
+        setIfPresent('subject', subjectFilter.value);
+        setIfPresent('action', actionFilter.value);
+        setIfPresent('verb', verbFilter.value);
+        setIfPresent('resource', resourceFilter.value);
+        setIfPresent('permission', permissionFilter.value);
+        setIfPresent('location', locationFilter.value);
+        setIfPresent('compartment_path', compartmentPathFilter.value);
+        setIfPresent('statement_text', statementTextFilter.value);
+        setIfPresent('policy_name', policyNameFilter.value);
+        setIfPresent('effective_path', effectivePathFilter.value);
+        setIfPresent('conditions', conditionsFilter.value);
+        if (validFilter.value === 'true') payload.valid = true;
+        if (validFilter.value === 'false') payload.valid = false;
+        return payload;
+      }
+
+      async function runFilter() {
+        status.textContent = '';
+        status.className = 'status';
+        let payload = buildPayloadFromFields();
+        const rawJson = String(filters.value || '').trim();
+        if (rawJson) {
+          try {
+            payload = JSON.parse(rawJson);
+          } catch (err) {
+            status.textContent = `Invalid JSON override: ${err}`;
+            status.className = 'status error';
+            return;
+          }
+        }
+        runBtn.disabled = true;
+        status.textContent = 'Running...';
+        try {
+          const response = await fetch('/filter/policies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filters: payload, sort_by: sortState.key, sort_dir: sortState.dir }),
+          });
+          const result = await response.json();
+          const matched = result.matched || 0;
+          const total = result.total || 0;
+          currentRows = (result.statements || []).map((row, idx) => ({ ...row, _row_id: idx + 1 }));
+          summary.textContent = `Showing ${currentRows.length} of ${matched} (total ${total})`;
+          renderRows(currentRows);
+          setInspector(null);
+          status.textContent = '';
+        } catch (err) {
+          status.textContent = `Filter failed: ${err}`;
+          status.className = 'status error';
+        } finally {
+          runBtn.disabled = false;
+        }
+      }
+
+      headerCells.forEach((th) => {
+        th.addEventListener('click', () => {
+          const key = th.dataset.sortKey;
+          if (!key) return;
+          if (sortState.key === key) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortState.key = key;
+            sortState.dir = 'asc';
+          }
+          updateSortIndicators();
+          runFilter();
+        });
+      });
+
+      closeInspectorBtn.addEventListener('click', () => setInspector(null));
+
+      clearFiltersBtn.addEventListener('click', () => {
+        subjectFilter.value = '';
+        actionFilter.value = 'Both';
+        verbFilter.value = '';
+        resourceFilter.value = '';
+        permissionFilter.value = '';
+        locationFilter.value = '';
+        compartmentPathFilter.value = '';
+        statementTextFilter.value = '';
+        policyNameFilter.value = '';
+        effectivePathFilter.value = '';
+        conditionsFilter.value = '';
+        validFilter.value = '';
+        filters.value = '';
+        status.textContent = '';
+      });
+
+      copyStatementBtn.addEventListener('click', async () => {
+        if (!selectedRow) return;
+        await navigator.clipboard.writeText(String(getRowValue(selectedRow, 'statement_text') || ''));
+      });
+
+      copySummaryBtn.addEventListener('click', async () => {
+        if (!selectedRow) return;
+        const text = [
+          `Policy: ${getRowValue(selectedRow, 'policy_name') || '-'}`,
+          `Verb: ${getRowValue(selectedRow, 'verb') || '-'}`,
+          `Resource: ${getRowValue(selectedRow, 'resource') || '-'}`,
+          `Compartment: ${getRowValue(selectedRow, 'compartment_path') || '-'}`,
+          `Statement: ${getRowValue(selectedRow, 'statement_text') || '-'}`,
+        ].join('\n');
+        await navigator.clipboard.writeText(text);
+      });
+
+      updateSortIndicators();
+      runBtn.addEventListener('click', runFilter);
+    </script>
+  </body>
+</html>

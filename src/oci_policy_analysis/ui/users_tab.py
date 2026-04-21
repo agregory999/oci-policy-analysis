@@ -16,10 +16,11 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.common.helpers import for_display_policy
+from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import Group, GroupSearch, PolicySearch, User, UserSearch
+from oci_policy_analysis.common.models import Group, GroupSearch, RegularPolicyStatement, User, UserSearch
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.presentation import for_display_policy
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -106,6 +107,7 @@ class UsersTab(BaseUITab):
         # Reference to main app and data repository
         self.app = app
         self.policy_compartment_analysis: PolicyAnalysisRepository = app.policy_compartment_analysis
+        self.principal_analysis = PrincipalAnalysisService(app.app_context)
 
         # --- UI state variables and widget handles ---
         self.chk_show_expanded = tk.BooleanVar(value=False)
@@ -520,7 +522,7 @@ class UsersTab(BaseUITab):
         # Grid the correct table
         # Patch: Hide USERS mode if unavailable, and display red warning instead
         if self.groups_option_var.get() == 'GROUPS':
-            if self.disabled_users_label.winfo_manager():
+            if self.disabled_users_label is not None and self.disabled_users_label.winfo_manager():
                 self.disabled_users_label.grid_remove()
             self.users_users_table.grid_forget()
             self.users_groups_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
@@ -550,10 +552,12 @@ class UsersTab(BaseUITab):
         elif self.groups_option_var.get() == 'USERS':
             if not self.users_available():
                 self.users_users_table.grid_forget()
-                self.disabled_users_label.grid(row=3, column=0, columnspan=3, sticky='w', padx=5, pady=(8, 2))
+                if self.disabled_users_label is not None:
+                    self.disabled_users_label.grid(row=3, column=0, columnspan=3, sticky='w', padx=5, pady=(8, 2))
                 logger.info('User view disabled due to no users loaded')
                 return
-            self.disabled_users_label.grid_remove()
+            if self.disabled_users_label is not None:
+                self.disabled_users_label.grid_remove()
             self.users_groups_table.grid_forget()
             self.users_users_table.grid(row=0, column=1, rowspan=3, sticky='nsew')
 
@@ -611,9 +615,9 @@ class UsersTab(BaseUITab):
         if self.chk_show_any_group_user.get():
             logger.info('Including any-user and any-group policies in output')
             # Create filter for any-user/any-group
-            any_user_group_policies = self.policy_compartment_analysis.filter_policy_statements(
-                PolicySearch(subject=['any-user', 'any-group'])
-            )
+            any_user_group_policies: list[RegularPolicyStatement] = self.principal_analysis.by_subject_types(
+                subject_types=['any-user', 'any-group']
+            ).statements
             logger.info(f'Found {len(any_user_group_policies)} any-user/any-group policies')
             # Add to existing data table data in self.filtered_policies
             seen_ids = {
@@ -655,10 +659,11 @@ class UsersTab(BaseUITab):
         logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
         exact_groups_filter: list[Group] = groups_for_filter
         exact_users_filter: list[User] = users_for_filter
-        exact_groups_users_filter = PolicySearch(exact_groups=exact_groups_filter, exact_users=exact_users_filter)
-        self.filtered_policies = self.policy_compartment_analysis.filter_policy_statements(
-            filters=exact_groups_users_filter
+        policy_result = self.principal_analysis.by_exact_groups_users(
+            groups=exact_groups_filter,
+            users=exact_users_filter,
         )
+        self.filtered_policies: list[RegularPolicyStatement] = policy_result.statements
         logger.info(f'Found {len(self.filtered_policies)} policies for selected users/groups')
         self.selected_groups_for_table = []
         if groups_for_filter:

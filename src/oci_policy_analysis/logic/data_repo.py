@@ -124,6 +124,52 @@ class PolicyAnalysisRepository:
             )
             raise
 
+    def _iter_legacy_subject_strings(self, stmt: RegularPolicyStatement) -> list[str]:
+        """Flatten legacy ``subject`` representations into searchable strings."""
+        subjects = stmt.get('subject', [])
+        flattened: list[str] = []
+        if isinstance(subjects, str):
+            return [subjects]
+        if not isinstance(subjects, list):
+            return flattened
+
+        for subj in subjects:
+            if isinstance(subj, tuple | list):
+                parts = [str(p) for p in subj if p is not None and str(p).strip()]
+                if parts:
+                    flattened.append('/'.join(parts))
+                    flattened.extend(parts)
+            elif subj is not None:
+                flattened.append(str(subj))
+        return flattened
+
+    def _subject_token_matches_statement(self, stmt: RegularPolicyStatement, token: str) -> bool:
+        """Principal-first subject matching with legacy fallback.
+
+        A token matches if it appears (case-insensitive substring) in any of:
+        principal domain/name/ocid/principal_key/display_name.
+        If principals are unavailable, fallback to flattened legacy ``subject``.
+        """
+        needle = (token or '').strip().casefold()
+        if not needle:
+            return True
+
+        principals = stmt.get('principals', [])
+        if isinstance(principals, list) and principals:
+            for principal in principals:
+                if not isinstance(principal, dict):
+                    continue
+                for field in ('domain_name', 'name', 'ocid', 'principal_key', 'display_name'):
+                    value = principal.get(field)
+                    if isinstance(value, str) and needle in value.casefold():
+                        return True
+
+        # Legacy fallback for older statements missing principals
+        for legacy_text in self._iter_legacy_subject_strings(stmt):
+            if needle in str(legacy_text).casefold():
+                return True
+        return False
+
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
@@ -1903,6 +1949,15 @@ class PolicyAnalysisRepository:
 
                     if not any(any(v in perm for perm in stmt_perm_ci) for v in value_ci):
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to permission mismatch')
+                        match = False
+                        break
+                elif key == 'subject':
+                    raw_values = values if isinstance(values, list) else [values]
+                    value_ci = [str(v).strip() for v in raw_values if str(v).strip()]
+                    if not value_ci:
+                        continue
+                    if not any(self._subject_token_matches_statement(stmt, token) for token in value_ci):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to principal/subject mismatch')
                         match = False
                         break
                 # Default lookup using column map

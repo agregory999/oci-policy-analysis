@@ -19,12 +19,14 @@ import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
-from typing import Literal, cast  # <-- ADD for type handling
 
+from oci_policy_analysis.application.services.analysis_service import AnalysisService
+from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
+from oci_policy_analysis.application.services.search_builders import build_policy_search_from_filters
 from oci_policy_analysis.common import config
-from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import PolicySearch
+from oci_policy_analysis.common.models import RegularPolicyStatement
+from oci_policy_analysis.presentation import for_display_policy
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -114,6 +116,8 @@ class PoliciesTab(BaseUITab):
         self.app = app
         self.settings = settings
         self.policy_repo = app.policy_compartment_analysis
+        self.analysis_service = AnalysisService(app.app_context)
+        self.principal_analysis = PrincipalAnalysisService(app.app_context)
         self.page_help_text = self.default_help_text
         # Set initial help visibility for startup, matching context_help setting
         self.show_help = self.settings.get('context_help', True)
@@ -851,41 +855,20 @@ class PoliciesTab(BaseUITab):
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
 
     def _get_current_search_dict(self):
-        # Build filter dict using update_policy_output convention
-        filters: PolicySearch = {}
-        if self.subject_filter_var.get():
-            filters['subject'] = self.subject_filter_var.get().split('|')
-        action_value = self.action_filter_var.get().lower()
-        if action_value == 'allow':
-            filters['action'] = ['allow']
-        elif action_value == 'deny':
-            filters['action'] = ['deny']
-        else:
-            filters['action'] = ['allow', 'deny', 'unknown']
-        if self.verb_filter_var.get():
-            allowed_verbs = {'inspect', 'read', 'use', 'manage'}
-            verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
-            if verbs:
-                filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
-        if self.resource_filter_var.get():
-            filters['resource'] = self.resource_filter_var.get().split('|')
-        if self.permission_filter_var.get():
-            filters['permission'] = self.permission_filter_var.get().split('|')
-        if self.location_filter_var.get():
-            filters['location'] = self.location_filter_var.get().split('|')
-        if self.hierarchy_filter_var.get():
-            filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
-        if self.text_filter_var.get():
-            filters['statement_text'] = self.text_filter_var.get().split('|')
-        if self.policy_filter_var.get():
-            filters['policy_name'] = self.policy_filter_var.get().split('|')
-        if self.effective_path_var.get():
-            filters['effective_path'] = self.effective_path_var.get().split('|')
-        if self.condition_filter_var.get():
-            filters['conditions'] = self.condition_filter_var.get().split('|')
-        if self.chk_show_invalid.get():
-            filters['valid'] = False
-        return filters
+        return build_policy_search_from_filters(
+            subject=self.subject_filter_var.get(),
+            action=self.action_filter_var.get(),
+            verb=self.verb_filter_var.get(),
+            resource=self.resource_filter_var.get(),
+            permission=self.permission_filter_var.get(),
+            location=self.location_filter_var.get(),
+            compartment_path=self.hierarchy_filter_var.get(),
+            statement_text=self.text_filter_var.get(),
+            policy_name=self.policy_filter_var.get(),
+            effective_path=self.effective_path_var.get(),
+            conditions=self.condition_filter_var.get(),
+            valid=False if self.chk_show_invalid.get() else None,
+        )
 
     def _handle_save_search(self):
         search_name = self.saved_search_name_var.get().strip()
@@ -996,44 +979,23 @@ class PoliciesTab(BaseUITab):
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
         if filepath:
             # TODO: Get filtered data from the table instead of re-filtering (and this is broken)
-            # Build filter dict for new call to filter (mirroring update_policy_output)
-            filters: PolicySearch = {}
-            if self.subject_filter_var.get():
-                filters['subject'] = self.subject_filter_var.get().split('|')
-            # Action filter for export
-            action_value = self.action_filter_var.get().lower()
-            if action_value == 'allow':
-                filters['action'] = ['allow']
-            elif action_value == 'deny':
-                filters['action'] = ['deny']
-            else:  # both
-                filters['action'] = ['allow', 'deny']
-            if self.verb_filter_var.get():
-                # restrict to only allowed values for verb
-                allowed_verbs = {'inspect', 'read', 'use', 'manage'}
-                verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
-                if verbs:
-                    filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
-            if self.resource_filter_var.get():
-                filters['resource'] = self.resource_filter_var.get().split('|')
-            if self.permission_filter_var.get():
-                filters['permission'] = self.permission_filter_var.get().split('|')
-            if self.location_filter_var.get():
-                filters['location'] = self.location_filter_var.get().split('|')
-            if self.hierarchy_filter_var.get():
-                filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
-            # Do not assign 'condition' key—it is not valid in PolicySearch, skip!
-            if self.text_filter_var.get():
-                filters['statement_text'] = self.text_filter_var.get().split('|')
-            if self.policy_filter_var.get():
-                filters['policy_name'] = self.policy_filter_var.get().split('|')
-            if self.effective_path_var.get():
-                filters['effective_path'] = self.effective_path_var.get().split('|')
+            filters = build_policy_search_from_filters(
+                subject=self.subject_filter_var.get(),
+                action=self.action_filter_var.get(),
+                verb=self.verb_filter_var.get(),
+                resource=self.resource_filter_var.get(),
+                permission=self.permission_filter_var.get(),
+                location=self.location_filter_var.get(),
+                compartment_path=self.hierarchy_filter_var.get(),
+                statement_text=self.text_filter_var.get(),
+                policy_name=self.policy_filter_var.get(),
+                effective_path=self.effective_path_var.get(),
+                valid=False if self.chk_show_invalid.get() else None,
+            )
             if self.chk_show_invalid.get():
-                filters['valid'] = False
                 logger.debug('Filtering for invalid policies only')
 
-            filtered = self.policy_repo.filter_policy_statements(filters=filters)
+            filtered = self.analysis_service.filter_policy_statements(filters=filters).statements
             with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
                 # writer.writerow(self.sheet_policies.headers())
@@ -1392,39 +1354,21 @@ class PoliciesTab(BaseUITab):
                 self.tenancy_name_var.set('Please Load a Tenancy')
 
         def _build_filters():  # noqa: C901
-            filters: PolicySearch = {}
-            if self.subject_filter_var.get():
-                filters['subject'] = self.subject_filter_var.get().split('|')
-            action_value = self.action_filter_var.get().lower()
-            if action_value == 'allow':
-                filters['action'] = ['allow']
-            elif action_value == 'deny':
-                filters['action'] = ['deny']
-            else:
-                filters['action'] = ['allow', 'deny', 'unknown']
-            if self.verb_filter_var.get():
-                allowed_verbs = {'inspect', 'read', 'use', 'manage'}
-                verbs = [v for v in self.verb_filter_var.get().split('|') if v in allowed_verbs]
-                if verbs:
-                    filters['verb'] = cast(list[Literal['inspect', 'read', 'use', 'manage']], verbs)
-            if self.resource_filter_var.get():
-                filters['resource'] = self.resource_filter_var.get().split('|')
-            if self.permission_filter_var.get():
-                filters['permission'] = self.permission_filter_var.get().split('|')
-            if self.location_filter_var.get():
-                filters['location'] = self.location_filter_var.get().split('|')
-            if self.hierarchy_filter_var.get():
-                filters['compartment_path'] = self.hierarchy_filter_var.get().split('|')
-            if self.text_filter_var.get():
-                filters['statement_text'] = self.text_filter_var.get().split('|')
-            if self.policy_filter_var.get():
-                filters['policy_name'] = self.policy_filter_var.get().split('|')
-            if self.effective_path_var.get():
-                filters['effective_path'] = self.effective_path_var.get().split('|')
-            if self.condition_filter_var.get():
-                filters['conditions'] = self.condition_filter_var.get().split('|')
+            filters = build_policy_search_from_filters(
+                subject=self.subject_filter_var.get(),
+                action=self.action_filter_var.get(),
+                verb=self.verb_filter_var.get(),
+                resource=self.resource_filter_var.get(),
+                permission=self.permission_filter_var.get(),
+                location=self.location_filter_var.get(),
+                compartment_path=self.hierarchy_filter_var.get(),
+                statement_text=self.text_filter_var.get(),
+                policy_name=self.policy_filter_var.get(),
+                effective_path=self.effective_path_var.get(),
+                conditions=self.condition_filter_var.get(),
+                valid=False if self.chk_show_invalid.get() else None,
+            )
             if self.chk_show_invalid.get():
-                filters['valid'] = False
                 logger.debug('Filtering for invalid policies only')
             return filters
 
@@ -1434,7 +1378,7 @@ class PoliciesTab(BaseUITab):
         def _filter_policy_statements(filters):
             """Filter real tenancy policy statements using the repository helper."""
 
-            return self.policy_repo.filter_policy_statements(filters=filters)
+            return self.analysis_service.filter_policy_statements(filters=filters).statements
 
         def _build_prospective_statement_like_list() -> list[dict]:  # noqa: C901
             """Build a RegularPolicyStatement-like list from prospective records.
@@ -1663,7 +1607,7 @@ class PoliciesTab(BaseUITab):
         # Optional prospective/what-if statements, filtered with the same JSON
         # criteria when the toggle is enabled.
         prospective_like = self.timed_step('build_prospective_like', _build_prospective_statement_like_list)
-        prospective_filtered: list[dict] = []
+        prospective_filtered: list[RegularPolicyStatement] = []
         if prospective_like:
             logger.info(
                 'PoliciesTab: filtering %d prospective statements with filters=%s',
@@ -1672,7 +1616,10 @@ class PoliciesTab(BaseUITab):
             )
             prospective_filtered = self.timed_step(
                 'filter_prospective_statements',
-                lambda: self.policy_repo.filter_policy_statements(filters=filters, statements=prospective_like),
+                lambda: self.analysis_service.filter_policy_statements_subset(
+                    filters=filters,
+                    statements=prospective_like,
+                ).statements,
             )
             logger.info(
                 'PoliciesTab: %d prospective statements matched after filter',

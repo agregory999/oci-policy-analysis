@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Home</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      main {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .card h2 {
+        margin: 0;
+        font-size: 1.05rem;
+      }
+      .card p {
+        margin: 0;
+        color: #4b5563;
+      }
+      .card a {
+        align-self: flex-start;
+        background: var(--oci-red);
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 0.9rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 700;
+      }
+      .card a.secondary {
+        background: var(--oci-red);
+      }
+      footer {
+        padding: 1rem 2rem 2rem;
+        color: #6b7280;
+        font-size: 0.85rem;
+      }
+      .panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+      .inline-field {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .inline-field > label {
+        min-width: 190px;
+        margin: 0;
+        font-weight: 600;
+      }
+      .inline-field > input,
+      .inline-field > select {
+        flex: 1;
+      }
+      .tenancy-options-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+      .tenancy-profile-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .tenancy-profile-row label {
+        margin: 0;
+        font-weight: 600;
+      }
+      .tenancy-profile-row select {
+        flex: 0 1 220px;
+        max-width: 220px;
+      }
+      .progress-widget {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 0.75rem;
+        background: #fafafa;
+        display: grid;
+        gap: 0.45rem;
+      }
+      .progress-widget-title {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        color: #6b7280;
+      }
+      .progress-widget-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .progress-widget-percent {
+        font-weight: 800;
+        color: #1f2937;
+      }
+      .progress-widget-track {
+        width: 100%;
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+      .progress-widget-fill {
+        height: 100%;
+        width: 0%;
+        background: var(--oci-red);
+        transition: width 0.25s ease;
+      }
+      .progress-widget-detail {
+        font-size: 0.82rem;
+        color: #4b5563;
+      }
+      .common-progress-row {
+        display: grid;
+        grid-template-columns: minmax(320px, 1fr) minmax(280px, 1fr);
+        gap: 1rem;
+        align-items: start;
+      }
+      .common-options-compact {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        align-items: center;
+      }
+      .layout-main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 1rem;
+        padding: 1rem 2rem;
+      }
+      .side-stack {
+        display: grid;
+        gap: 1rem;
+        align-content: start;
+      }
+      .section-separator {
+        margin: 0;
+        border: 0;
+        border-top: 1px solid #e5e7eb;
+      }
+      .cache-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      @media (max-width: 980px) {
+        .common-progress-row {
+          grid-template-columns: 1fr;
+        }
+        .cache-row {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 980px) {
+        .layout-main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>OCI Policy Analysis (Web)</h1>
+      <p>Start here for the web experience and shared settings.</p>
+    </header>
+
+    <main class="layout-main">
+      <div class="card compact-card">
+        <p class="card-title">Data Operations</p>
+        <p>Choose a source below, then run a load. Progress is shared across all load options.</p>
+
+        <div class="form-grid" style="gap: 1rem;">
+          <div>
+            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">Common Options</h3>
+            <div class="common-options-compact">
+              <label class="checkbox-label"><input type="checkbox" id="commonLoadAllUsers" checked /> Load All Users</label>
+              <label class="checkbox-label"><input type="checkbox" id="runIntelligenceAfterLoad" checked /> Create Intelligence</label>
+            </div>
+          </div>
+
+          <hr class="section-separator" />
+
+          <div>
+            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Profile (Tenancy)</h3>
+            <div style="font-size: 0.82rem; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Options</div>
+            <div class="tenancy-options-row">
+              <label for="compartmentDepth" style="margin: 0; font-weight: 600;">Compartment Depth (Identity Domains):</label>
+              <select id="compartmentDepth" style="min-width: 170px; max-width: 220px;">
+                <option value="1">1 (Root Only)</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
+            <div class="tenancy-options-row">
+              <label class="checkbox-label"><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
+              <label class="checkbox-label"><input type="checkbox" id="recursiveLoad" checked /> Recursive</label>
+            </div>
+            <div class="tenancy-profile-row" style="margin-top: 0.45rem;">
+              <label for="profileSelect">Profile:</label>
+              <select id="profileSelect"></select>
+              <button id="loadTenancyBtn">Load from Tenancy</button>
+            </div>
+          </div>
+
+          <hr class="section-separator" />
+
+          <div>
+            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Compliance</h3>
+            <div class="inline-field">
+              <label for="compliancePath">Compliance Output Directory:</label>
+              <input id="compliancePath" placeholder="/path/to/compliance/output" />
+              <button id="loadComplianceBtn">Load Compliance Data</button>
+            </div>
+          </div>
+
+          <hr class="section-separator" />
+
+          <div class="cache-row">
+            <div>
+              <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Cache</h3>
+              <div class="inline-field">
+                <label for="cacheSelect">Cache:</label>
+                <select id="cacheSelect"></select>
+                <button id="loadCacheStandaloneBtn">Load Selected Cache</button>
+              </div>
+            </div>
+          </div>
+
+          <hr class="section-separator" />
+
+          <div>
+            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Export</h3>
+            <div class="inline-field">
+              <label for="exportPath">Export File:</label>
+              <input id="exportPath" placeholder="/path/to/export.json" />
+              <button id="loadExportBtn">Load Export File</button>
+            </div>
+          </div>
+
+          <div id="tenancyStatus" class="status"></div>
+          <div id="complianceStatus" class="status"></div>
+          <div id="loadStatus" class="status"></div>
+        </div>
+      </div>
+      <div class="side-stack">
+        <div class="progress-widget" id="sharedProgressWidget">
+          <div class="progress-widget-title">Tenancy Data Status</div>
+          <div class="progress-widget-head">
+            <span id="sharedProgressSummary" class="progress-widget-detail">Waiting to start a load.</span>
+            <span id="sharedProgressPercent" class="progress-widget-percent">0%</span>
+          </div>
+          <div class="progress-widget-track"><div id="sharedProgressFill" class="progress-widget-fill"></div></div>
+          <div id="sharedProgressDetail" class="progress-widget-detail">No active load.</div>
+          <div id="sharedDatasetDetail" class="progress-widget-detail">No dataset loaded yet.</div>
+        </div>
+        <div class="card">
+          <p class="card-title">Analysis</p>
+          <p>Run initial policy filtering queries.</p>
+          <a href="/policy-analysis.html">Open Policy Analysis</a>
+          <a href="/users-groups-analysis.html" class="secondary">User/Group Analysis</a>
+          <a href="/dynamic-group-analysis.html" class="secondary">Dynamic Group Analysis</a>
+          <a href="/resource-principals-analysis.html" class="secondary">Resource Principals Analysis</a>
+        </div>
+        <div class="card">
+          <p class="card-title">Utilities</p>
+          <p>Reference data lookups, settings, diagnostics, and tenancy utility views.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.6rem;">
+            <a href="/tag-namespaces.html">Tag Namespaces</a>
+            <a href="/compartment-hierarchy.html" class="secondary">Compartment Hierarchy</a>
+            <a href="/reference-data.html" class="secondary">Reference Data</a>
+            <a href="/logging.html" class="secondary">Logging</a>
+            <a href="/settings.html" class="secondary">Settings</a>
+            <a class="secondary" href="/caches.html">Policy Caches</a>
+          </div>
+        </div>
+      </div>
+    </main>
+
+
+    <script>
+      const cacheSelect = document.getElementById('cacheSelect');
+      const loadCacheBtn = document.getElementById('loadCacheBtn');
+      const loadCacheStandaloneBtn = document.getElementById('loadCacheStandaloneBtn');
+      const loadStatus = document.getElementById('loadStatus');
+      const tenancyStatus = document.getElementById('tenancyStatus');
+      const complianceStatus = document.getElementById('complianceStatus');
+      const profileSelect = document.getElementById('profileSelect');
+      const instancePrincipal = document.getElementById('instancePrincipal');
+      const recursiveLoad = document.getElementById('recursiveLoad');
+      const commonLoadAllUsers = document.getElementById('commonLoadAllUsers');
+      const compartmentDepth = document.getElementById('compartmentDepth');
+      const loadTenancyBtn = document.getElementById('loadTenancyBtn');
+      const compliancePath = document.getElementById('compliancePath');
+      const loadComplianceBtn = document.getElementById('loadComplianceBtn');
+      const exportPath = document.getElementById('exportPath');
+      const loadExportBtn = document.getElementById('loadExportBtn');
+      const runIntelligenceAfterLoad = document.getElementById('runIntelligenceAfterLoad');
+      const sharedProgressSummary = document.getElementById('sharedProgressSummary');
+      const sharedProgressPercent = document.getElementById('sharedProgressPercent');
+      const sharedProgressFill = document.getElementById('sharedProgressFill');
+      const sharedProgressDetail = document.getElementById('sharedProgressDetail');
+
+      const LOAD_STAGE_MAP = {
+        cache: [
+          { match: /loading cache/i, label: 'Loading Cache' },
+          { match: /running intelligence/i, label: 'Running Intelligence' },
+          { match: /complete/i, label: 'Complete', done: true },
+          { match: /failed/i, label: 'Failed', done: true, failed: true },
+        ],
+        compliance: [
+          { match: /loading compliance/i, label: 'Loading Compliance' },
+          { match: /running intelligence/i, label: 'Running Intelligence' },
+          { match: /complete/i, label: 'Complete', done: true },
+          { match: /failed/i, label: 'Failed', done: true, failed: true },
+        ],
+        export: [
+          { match: /loading export/i, label: 'Loading Export' },
+          { match: /running intelligence/i, label: 'Running Intelligence' },
+          { match: /complete/i, label: 'Complete', done: true },
+          { match: /failed/i, label: 'Failed', done: true, failed: true },
+        ],
+        tenancy: [
+          { match: /initializing/i, label: 'Initializing' },
+          { match: /loading compartments/i, label: 'Loading Compartments' },
+          { match: /loading identity domains/i, label: 'Loading Identity Domains' },
+          { match: /loading policies/i, label: 'Loading Policies' },
+          { match: /running intelligence/i, label: 'Running Intelligence' },
+          { match: /complete/i, label: 'Complete', done: true },
+          { match: /failed/i, label: 'Failed', done: true, failed: true },
+        ],
+      };
+
+      function updateProgressWidget({ percent = 0, summary = '', detail = '' } = {}) {
+        const bounded = Math.max(0, Math.min(100, Number(percent || 0)));
+        if (sharedProgressSummary) sharedProgressSummary.textContent = summary || sharedProgressSummary.textContent;
+        if (sharedProgressPercent) sharedProgressPercent.textContent = `${bounded}%`;
+        if (sharedProgressFill) sharedProgressFill.style.width = `${bounded}%`;
+        if (sharedProgressDetail) sharedProgressDetail.textContent = detail || sharedProgressDetail.textContent;
+      }
+
+      function updateDatasetDetail(summary = {}) {
+        const datasetDetail = document.getElementById('sharedDatasetDetail');
+        if (!datasetDetail) return;
+        const source = summary.loaded_from_compliance_output
+          ? 'Compliance Output'
+          : summary.policies_loaded_from_tenancy
+            ? `Tenancy ${summary.tenancy_name || ''}`.trim()
+            : summary.data_as_of
+              ? 'Cache / Export'
+              : '';
+        const parts = [];
+        if (source) parts.push(`Source: ${source}`);
+        if (summary.tenancy_ocid) parts.push(`Tenancy OCID: ${summary.tenancy_ocid}`);
+        if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
+        if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
+        datasetDetail.textContent = parts.length ? parts.join(' • ') : 'No dataset loaded yet.';
+      }
+
+      async function refreshTenancyDataStatus() {
+        try {
+          const response = await fetch('/status', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          updateDatasetDetail(payload.summary || {});
+        } catch (err) {
+          // ignore status polling errors
+        }
+      }
+
+      function progressFromStages(kind, stages = []) {
+        const defs = LOAD_STAGE_MAP[kind] || [];
+        if (!defs.length || !Array.isArray(stages) || !stages.length) {
+          return { percent: 0, summary: 'Waiting to start.', detail: 'No load stages reported yet.' };
+        }
+        const normalize = (value) => String(value || '').toLowerCase();
+        let idx = -1;
+        let isDone = false;
+        let isFailed = false;
+        const latest = stages[stages.length - 1] || {};
+        stages.forEach((entry) => {
+          const stageText = normalize(entry.stage);
+          defs.forEach((def, defIndex) => {
+            if (def.match.test(stageText)) {
+              idx = Math.max(idx, defIndex);
+              if (def.done) isDone = true;
+              if (def.failed) isFailed = true;
+            }
+          });
+        });
+        if (idx < 0) {
+          return {
+            percent: 10,
+            summary: latest.stage || 'Starting',
+            detail: latest.detail || 'Load in progress.',
+          };
+        }
+        const total = defs.length;
+        const percent = isDone
+          ? 100
+          : Math.max(5, Math.round(((idx + 1) / total) * 100));
+        return {
+          percent,
+          summary: defs[idx]?.label || latest.stage || 'In Progress',
+          detail: latest.detail || latest.stage || (isFailed ? 'Load failed.' : 'Load in progress.'),
+          failed: isFailed,
+        };
+      }
+
+      async function loadCaches() {
+        loadStatus.textContent = '';
+        const response = await fetch('/caches');
+        const payload = await response.json();
+        const caches = payload.caches || [];
+        cacheSelect.innerHTML = '';
+        caches.forEach((cache) => {
+          const option = document.createElement('option');
+          option.value = cache;
+          option.textContent = cache;
+          cacheSelect.appendChild(option);
+        });
+        if (!caches.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No caches found';
+          cacheSelect.appendChild(option);
+        }
+      }
+
+      async function loadCache() {
+        const cacheName = cacheSelect.value;
+        if (!cacheName) {
+          loadStatus.textContent = 'Select a cache to load.';
+          loadStatus.className = 'status error';
+          return;
+        }
+        if (loadCacheBtn) loadCacheBtn.disabled = true;
+        if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.disabled = true;
+        loadStatus.textContent = 'Loading cache...';
+        loadStatus.className = 'status';
+        updateProgressWidget({
+          percent: 8,
+          summary: 'Starting cache load',
+          detail: 'Submitting cache load request...',
+        });
+        try {
+          const response = await fetch(`/load/cache/${cacheName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ run_post_load_intelligence: runIntelligenceAfterLoad.checked }),
+          });
+          const payload = await response.json();
+          loadStatus.textContent = payload.message || 'Cache loaded.';
+          loadStatus.className = payload.success ? 'status success' : 'status error';
+          updateProgressWidget(progressFromStages('cache', payload.stages || []));
+          updateDatasetDetail(payload.summary || {});
+        } catch (err) {
+          loadStatus.textContent = `Failed to load cache: ${err}`;
+          loadStatus.className = 'status error';
+          updateProgressWidget({
+            percent: 100,
+            summary: 'Failed',
+            detail: `Failed to load cache: ${err}`,
+          });
+        } finally {
+          if (loadCacheBtn) loadCacheBtn.disabled = false;
+          if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.disabled = false;
+        }
+      }
+
+      async function loadProfiles() {
+        const response = await fetch('/profiles');
+        const payload = await response.json();
+        const profiles = payload.profiles || [];
+        profileSelect.innerHTML = '';
+        profiles.forEach((profile) => {
+          const option = document.createElement('option');
+          option.value = profile;
+          option.textContent = profile;
+          profileSelect.appendChild(option);
+        });
+        if (!profiles.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No profiles found';
+          profileSelect.appendChild(option);
+        }
+      }
+
+      function syncProfileState() {
+        const ip = instancePrincipal.checked;
+        profileSelect.disabled = ip;
+      }
+
+      async function loadTenancy() {
+        tenancyStatus.textContent = '';
+        tenancyStatus.className = 'status';
+        updateProgressWidget({ percent: 8, summary: 'Starting tenancy load', detail: 'Submitting tenancy load request...' });
+        loadTenancyBtn.disabled = true;
+        try {
+          const response = await fetch('/load/tenancy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profile: profileSelect.value,
+              instance_principal: instancePrincipal.checked,
+              recursive: recursiveLoad.checked,
+              load_all_users: commonLoadAllUsers.checked,
+              compartment_domain_search_depth: Number(compartmentDepth.value || 1),
+            }),
+          });
+          const payload = await response.json();
+          tenancyStatus.textContent = payload.message || 'Load complete.';
+          tenancyStatus.className = payload.success ? 'status success' : 'status error';
+          updateProgressWidget(progressFromStages('tenancy', payload.stages || []));
+          updateDatasetDetail(payload.summary || {});
+        } catch (err) {
+          tenancyStatus.textContent = `Load failed: ${err}`;
+          tenancyStatus.className = 'status error';
+          updateProgressWidget({ percent: 100, summary: 'Failed', detail: `Tenancy load failed: ${err}` });
+        } finally {
+          loadTenancyBtn.disabled = false;
+        }
+      }
+
+      async function loadCompliance() {
+        complianceStatus.textContent = '';
+        complianceStatus.className = 'status';
+        loadComplianceBtn.disabled = true;
+        updateProgressWidget({
+          percent: 8,
+          summary: 'Starting compliance load',
+          detail: 'Submitting compliance load request...',
+        });
+        try {
+          const response = await fetch('/load/compliance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              dir_path: compliancePath.value.trim(),
+              load_all_users: commonLoadAllUsers.checked,
+              run_post_load_intelligence: runIntelligenceAfterLoad.checked,
+            }),
+          });
+          const payload = await response.json();
+          complianceStatus.textContent = payload.message || 'Compliance load complete.';
+          complianceStatus.className = payload.success ? 'status success' : 'status error';
+          updateProgressWidget(progressFromStages('compliance', payload.stages || []));
+          updateDatasetDetail(payload.summary || {});
+        } catch (err) {
+          complianceStatus.textContent = `Compliance load failed: ${err}`;
+          complianceStatus.className = 'status error';
+          updateProgressWidget({
+            percent: 100,
+            summary: 'Failed',
+            detail: `Compliance load failed: ${err}`,
+          });
+        } finally {
+          loadComplianceBtn.disabled = false;
+        }
+      }
+
+      async function loadExport() {
+        const filePath = exportPath.value.trim();
+        if (!filePath) {
+          loadStatus.textContent = 'Provide an export JSON file path.';
+          loadStatus.className = 'status error';
+          return;
+        }
+        loadStatus.textContent = '';
+        if (loadExportBtn) loadExportBtn.disabled = true;
+        updateProgressWidget({
+          percent: 8,
+          summary: 'Starting export load',
+          detail: 'Submitting export JSON load request...',
+        });
+        try {
+          const response = await fetch('/load/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              file_path: filePath,
+              run_post_load_intelligence: runIntelligenceAfterLoad.checked,
+            }),
+          });
+          const payload = await response.json();
+          loadStatus.textContent = payload.message || 'Export loaded.';
+          loadStatus.className = payload.success ? 'status success' : 'status error';
+          updateProgressWidget(progressFromStages('export', payload.stages || []));
+          updateDatasetDetail(payload.summary || {});
+        } catch (err) {
+          loadStatus.textContent = `Export load failed: ${err}`;
+          loadStatus.className = 'status error';
+          updateProgressWidget({
+            percent: 100,
+            summary: 'Failed',
+            detail: `Export load failed: ${err}`,
+          });
+        } finally {
+          if (loadExportBtn) loadExportBtn.disabled = false;
+        }
+      }
+
+      if (loadCacheBtn) loadCacheBtn.addEventListener('click', loadCache);
+      if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.addEventListener('click', loadCache);
+      instancePrincipal.addEventListener('change', syncProfileState);
+      loadTenancyBtn.addEventListener('click', loadTenancy);
+      loadComplianceBtn.addEventListener('click', loadCompliance);
+      loadExportBtn.addEventListener('click', loadExport);
+      loadCaches();
+      loadProfiles();
+      syncProfileState();
+      refreshTenancyDataStatus();
+      setInterval(refreshTenancyDataStatus, 3000);
+    </script>
+  </body>
+</html>

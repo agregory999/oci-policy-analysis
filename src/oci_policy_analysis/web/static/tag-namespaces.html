@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Tag Namespaces</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+      }
+      .toolbar input {
+        min-width: 260px;
+        flex: 1;
+      }
+      .table-shell {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .table-scroll {
+        max-height: 68vh;
+        overflow: auto;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Tag Namespaces</h1>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="card">
+        <p>Browse loaded defined tag namespaces, keys, and any discovered value options.</p>
+        <div class="toolbar">
+          <input id="searchInput" placeholder="Search namespace, path, key, or value" />
+          <button id="refreshBtn">Refresh</button>
+        </div>
+        <div id="summary" class="muted">No data loaded yet.</div>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table id="rowsTable">
+              <thead>
+                <tr>
+                  <th>Namespace</th>
+                  <th>Compartment Path</th>
+                  <th>Key</th>
+                  <th>Values</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const searchInput = document.getElementById('searchInput');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const summary = document.getElementById('summary');
+      const tableBody = document.querySelector('#rowsTable tbody');
+
+      let allRows = [];
+
+      function rowMatches(row, needle) {
+        const values = Array.isArray(row.values) ? row.values.join(' | ') : '';
+        const hay = [row.namespace, row.compartment_path, row.key_name, values].join(' ').toLowerCase();
+        return hay.includes(needle);
+      }
+
+      function renderRows() {
+        const needle = String(searchInput.value || '').trim().toLowerCase();
+        const rows = needle ? allRows.filter((row) => rowMatches(row, needle)) : allRows;
+        tableBody.innerHTML = '';
+        if (!rows.length) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td colspan="4">No matching rows.</td>';
+          tableBody.appendChild(tr);
+        } else {
+          rows.forEach((row) => {
+            const values = Array.isArray(row.values) && row.values.length ? row.values.join(', ') : 'User-Supplied';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.namespace || ''}</td>
+              <td>${row.compartment_path || ''}</td>
+              <td>${row.key_name || ''}</td>
+              <td>${values}</td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        }
+        summary.textContent = `Showing ${rows.length} row(s)${needle ? ` (filtered from ${allRows.length})` : ''}.`;
+      }
+
+      async function loadRows() {
+        summary.textContent = 'Loading...';
+        try {
+          const response = await fetch('/utilities/tag-namespaces', { cache: 'no-store' });
+          const payload = await response.json();
+          allRows = Array.isArray(payload.rows) ? payload.rows : [];
+          renderRows();
+        } catch (err) {
+          allRows = [];
+          tableBody.innerHTML = '<tr><td colspan="4">Failed to load tag namespace data.</td></tr>';
+          summary.textContent = `Load failed: ${err}`;
+        }
+      }
+
+      searchInput.addEventListener('input', renderRows);
+      refreshBtn.addEventListener('click', loadRows);
+      loadRows();
+    </script>
+  </body>
+</html>

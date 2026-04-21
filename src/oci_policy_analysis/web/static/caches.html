@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Policy Caches</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .cache-layout {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .cache-grid {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .cache-item {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        padding: 0.9rem;
+        background: #fff;
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .cache-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .cache-name {
+        font-weight: 800;
+        color: #1f2937;
+      }
+
+      .cache-meta {
+        color: #6b7280;
+        font-size: 0.84rem;
+      }
+
+      .cache-actions {
+        display: flex;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+      }
+
+      .cache-actions button,
+      .cache-actions a {
+        margin-top: 0;
+        text-decoration: none;
+      }
+
+      .inline-rename {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.45rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="page-eyebrow">Data Management</p>
+      <h1>Policy Caches</h1>
+      <p>View, rename, delete, and export saved policy cache snapshots.</p>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main class="cache-layout">
+      <div class="card">
+        <p class="card-title">Cache Library</p>
+        <div class="cache-row">
+          <h2 style="margin: 0;">Available Caches</h2>
+          <button id="refreshCaches" class="ghost" type="button">Refresh</button>
+        </div>
+        <div id="cacheStatus" class="status"></div>
+        <div id="cacheList" class="cache-grid"></div>
+      </div>
+    </main>
+
+    <script>
+      const cacheList = document.getElementById('cacheList');
+      const cacheStatus = document.getElementById('cacheStatus');
+      const refreshCaches = document.getElementById('refreshCaches');
+
+      function formatBytes(value) {
+        const n = Number(value || 0);
+        if (!n) return '0 B';
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+        return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
+      function sanitize(value) {
+        return String(value || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      async function fetchCaches() {
+        cacheStatus.textContent = '';
+        try {
+          const response = await fetch('/caches/details');
+          const payload = await response.json();
+          renderCaches(payload.caches || []);
+        } catch (err) {
+          cacheStatus.textContent = `Unable to load caches: ${err}`;
+          cacheStatus.className = 'status error';
+        }
+      }
+
+      function renderCaches(caches) {
+        if (!caches.length) {
+          cacheList.innerHTML = '<div class="helper-text">No caches are currently available.</div>';
+          return;
+        }
+        cacheList.innerHTML = caches
+          .map((cache) => {
+            const rawName = String(cache.name || '');
+            const name = sanitize(rawName);
+            const key = encodeURIComponent(rawName);
+            const downloadHref = `/caches/download/${encodeURIComponent(rawName)}`;
+            return `
+              <div class="cache-item">
+                <div class="cache-row">
+                  <div>
+                    <div class="cache-name">${name}</div>
+                    <div class="cache-meta">${formatBytes(cache.size_bytes)}${cache.preserved ? ' • Preserved' : ''}</div>
+                  </div>
+                  <div class="cache-actions">
+                    <a class="ghost" href="${downloadHref}" download>Download</a>
+                    <button class="ghost" type="button" onclick="beginRename(decodeURIComponent('${key}'))">Rename</button>
+                    <button class="secondary" type="button" onclick="deleteCache(decodeURIComponent('${key}'))">Delete</button>
+                  </div>
+                </div>
+                <div class="inline-rename" id="rename-${key}" style="display:none;">
+                  <input id="input-${key}" placeholder="new cache name" />
+                  <button type="button" onclick="submitRename(decodeURIComponent('${key}'))">Save</button>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      function beginRename(name) {
+        const key = encodeURIComponent(String(name || ''));
+        const panel = document.getElementById(`rename-${key}`);
+        if (!panel) return;
+        panel.style.display = 'grid';
+      }
+
+      async function submitRename(oldName) {
+        const key = encodeURIComponent(String(oldName || ''));
+        const input = document.getElementById(`input-${key}`);
+        const newName = String(input?.value || '').trim();
+        if (!newName) {
+          cacheStatus.textContent = 'Provide a new cache name.';
+          cacheStatus.className = 'status error';
+          return;
+        }
+        cacheStatus.textContent = 'Renaming cache...';
+        cacheStatus.className = 'status';
+        try {
+          const response = await fetch('/caches/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_name: oldName, new_name: newName }),
+          });
+          const payload = await response.json();
+          cacheStatus.textContent = payload.message || 'Rename complete.';
+          cacheStatus.className = payload.success ? 'status success' : 'status error';
+          await fetchCaches();
+        } catch (err) {
+          cacheStatus.textContent = `Rename failed: ${err}`;
+          cacheStatus.className = 'status error';
+        }
+      }
+
+      async function deleteCache(name) {
+        const confirmed = window.confirm(`Delete cache '${name}'?`);
+        if (!confirmed) return;
+        cacheStatus.textContent = 'Deleting cache...';
+        cacheStatus.className = 'status';
+        try {
+          const response = await fetch('/caches/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          });
+          const payload = await response.json();
+          cacheStatus.textContent = payload.message || 'Delete complete.';
+          cacheStatus.className = payload.success ? 'status success' : 'status error';
+          await fetchCaches();
+        } catch (err) {
+          cacheStatus.textContent = `Delete failed: ${err}`;
+          cacheStatus.className = 'status error';
+        }
+      }
+
+      window.beginRename = beginRename;
+      window.submitRename = submitRename;
+      window.deleteCache = deleteCache;
+
+      refreshCaches.addEventListener('click', fetchCaches);
+      fetchCaches();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Reference Data</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .result {
+        background: #f3f4f6;
+        padding: 0.75rem;
+        border-radius: 10px;
+        margin-top: 0.5rem;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Reference Data Lookup</h1>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="card">
+        <label for="resourceSelect">Resource</label>
+        <select id="resourceSelect"></select>
+        <label for="verbSelect" style="margin-top: 1rem; display: block;">Verb</label>
+        <select id="verbSelect">
+          <option value="inspect">inspect</option>
+          <option value="read">read</option>
+          <option value="use">use</option>
+          <option value="manage">manage</option>
+        </select>
+        <label for="actionSelect" style="margin-top: 1rem; display: block;">Action</label>
+        <select id="actionSelect">
+          <option value="allow">allow</option>
+          <option value="deny">deny</option>
+        </select>
+        <button id="lookupBtn">Lookup Permissions</button>
+        <div id="lookupStatus" class="status"></div>
+        <div id="permissionsResult" class="result">No lookup yet.</div>
+      </div>
+
+      <div class="card">
+        <label for="sourceEntity">Find Source URL</label>
+        <input id="sourceEntity" placeholder="resource or family" />
+        <button id="sourceBtn">Lookup Source</button>
+        <div id="sourceResult" class="result">No source lookup yet.</div>
+      </div>
+    </main>
+
+    <div class="status-footer">
+      <span id="statusFooterStage">Status: Idle</span>
+      <span id="statusFooterDetail" class="status-muted">No tenancy load active.</span>
+      <span id="statusFooterMeta" class="status-muted"></span>
+    </div>
+    <script>
+      const statusFooterStage = document.getElementById('statusFooterStage');
+      const statusFooterDetail = document.getElementById('statusFooterDetail');
+      const statusFooterMeta = document.getElementById('statusFooterMeta');
+      const resourceSelect = document.getElementById('resourceSelect');
+      const verbSelect = document.getElementById('verbSelect');
+      const actionSelect = document.getElementById('actionSelect');
+      const lookupBtn = document.getElementById('lookupBtn');
+      const lookupStatus = document.getElementById('lookupStatus');
+      const permissionsResult = document.getElementById('permissionsResult');
+      const sourceEntity = document.getElementById('sourceEntity');
+      const sourceBtn = document.getElementById('sourceBtn');
+      const sourceResult = document.getElementById('sourceResult');
+
+      async function loadResources() {
+        const response = await fetch('/reference/resources');
+        const payload = await response.json();
+        const resources = payload.resources || [];
+        resourceSelect.innerHTML = '';
+        resources.forEach((resource) => {
+          const option = document.createElement('option');
+          option.value = resource;
+          option.textContent = resource;
+          resourceSelect.appendChild(option);
+        });
+        if (!resources.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No resources found';
+          resourceSelect.appendChild(option);
+        }
+      }
+
+      async function lookupPermissions() {
+        lookupStatus.textContent = '';
+        lookupStatus.className = 'status';
+        permissionsResult.textContent = 'Loading...';
+        try {
+          const response = await fetch('/reference/permissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entity: resourceSelect.value,
+              verb: verbSelect.value,
+              action: actionSelect.value,
+            }),
+          });
+          const payload = await response.json();
+          permissionsResult.textContent = (payload.permissions || []).join('\n') || 'No permissions found.';
+        } catch (err) {
+          lookupStatus.textContent = `Lookup failed: ${err}`;
+          lookupStatus.className = 'status error';
+          permissionsResult.textContent = 'No results.';
+        }
+      }
+
+      async function lookupSource() {
+        sourceResult.textContent = 'Loading...';
+        try {
+          const response = await fetch('/reference/source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity: sourceEntity.value }),
+          });
+          const payload = await response.json();
+          sourceResult.textContent = payload.source || 'No source found.';
+        } catch (err) {
+          sourceResult.textContent = `Lookup failed: ${err}`;
+        }
+      }
+
+      async function refreshStatusFooter() {
+        if (!statusFooterStage) return;
+        try {
+          const response = await fetch('/status', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const stage = payload.stage || 'Idle';
+          const detail = payload.detail || '';
+          const summary = payload.summary || {};
+          statusFooterStage.textContent = `Status: ${stage}`;
+          statusFooterDetail.textContent = detail || 'No tenancy load active.';
+          const source = summary.loaded_from_compliance_output
+            ? 'CIS Compliance'
+            : summary.policies_loaded_from_tenancy
+              ? `Tenancy ${summary.tenancy_name || ''}`.trim()
+              : summary.data_as_of
+                ? 'Cache'
+                : '';
+          const parts = [];
+          if (source) parts.push(`Source: ${source}`);
+          if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
+          if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
+          statusFooterMeta.textContent = parts.join(' • ');
+        } catch (err) {
+          // Ignore status errors.
+        }
+      }
+
+      lookupBtn.addEventListener('click', lookupPermissions);
+      sourceBtn.addEventListener('click', lookupSource);
+      loadResources();
+      refreshStatusFooter();
+      setInterval(refreshStatusFooter, 2000);
+    </script>
+  </body>
+</html>

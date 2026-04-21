@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Logging</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .log-grid {
+        display: grid;
+        grid-template-columns: minmax(340px, 1fr) minmax(420px, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+      }
+      @media (max-width: 960px) {
+        .log-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      #logOutput {
+        padding: 1.5rem;
+        max-height: 480px;
+        overflow: auto;
+      }
+      .log-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .left-stack {
+        display: grid;
+        gap: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="page-eyebrow">Configuration</p>
+      <h1>Logging Configuration</h1>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="log-grid">
+        <div class="left-stack">
+          <div class="card">
+            <p class="card-title">Global Options</p>
+            <label for="globalLevel">Global Log Level</label>
+            <select id="globalLevel">
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+            <div style="margin-top: 1rem; display: grid; gap: 0.5rem;">
+              <label class="checkbox-label"><input type="checkbox" id="alwaysTimings" /> Always log timings (CRITICAL)</label>
+              <label class="checkbox-label"><input type="checkbox" id="alwaysApiCalls" /> Always log API calls (CRITICAL)</label>
+            </div>
+            <button id="saveGlobal">Save Global Settings</button>
+            <div id="globalStatus" class="status"></div>
+
+            <hr class="section-separator" style="margin: 1.1rem 0;" />
+
+            <p class="card-title">Component Overrides</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Level</th>
+                </tr>
+              </thead>
+              <tbody id="componentTable"></tbody>
+            </table>
+            <button id="saveComponents">Save Component Overrides</button>
+            <div id="componentStatus" class="status"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="log-toolbar">
+            <div>
+              <p class="card-title" style="margin-bottom: 0.2rem;">Live Log</p>
+              <h2 style="margin: 0;">Combined Collector Log</h2>
+              <p class="status-meta">Streaming the latest application log from <code>~/.oci-policy-analysis/logs/app.log</code>.</p>
+            </div>
+            <span id="logStatus" class="status-badge refresh-status-running">Idle</span>
+          </div>
+          <div class="log-actions">
+            <button id="logToggle" class="ghost" type="button">Start Live</button>
+            <button id="logRefresh" class="ghost" type="button">Refresh Log</button>
+            <button id="logCopy" class="ghost" type="button">Copy Log</button>
+          </div>
+          <pre id="logOutput" class="refresh-log">Loading log stream...</pre>
+          <div id="logError" class="status error"></div>
+        </div>
+      </div>
+    </main>
+
+    <div class="status-footer">
+      <span id="statusFooterStage">Status: Idle</span>
+      <span id="statusFooterDetail" class="status-muted">No tenancy load active.</span>
+      <span id="statusFooterMeta" class="status-muted"></span>
+    </div>
+
+    <script>
+      const statusFooterStage = document.getElementById('statusFooterStage');
+      const statusFooterDetail = document.getElementById('statusFooterDetail');
+      const statusFooterMeta = document.getElementById('statusFooterMeta');
+      const globalLevel = document.getElementById('globalLevel');
+      const alwaysTimings = document.getElementById('alwaysTimings');
+      const alwaysApiCalls = document.getElementById('alwaysApiCalls');
+      const globalStatus = document.getElementById('globalStatus');
+      const componentTable = document.getElementById('componentTable');
+      const componentStatus = document.getElementById('componentStatus');
+      const saveGlobal = document.getElementById('saveGlobal');
+      const saveComponents = document.getElementById('saveComponents');
+      const logOutput = document.getElementById('logOutput');
+      const logStatus = document.getElementById('logStatus');
+      const logError = document.getElementById('logError');
+      const logRefresh = document.getElementById('logRefresh');
+      const logCopy = document.getElementById('logCopy');
+      const logToggle = document.getElementById('logToggle');
+      let logStreamHandle = null;
+
+      const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
+
+      const GROUPS = {
+        Common: [
+          'cli',
+          'main',
+          'config',
+          'logger',
+          'usage_tracking',
+          'caching',
+          'mcp_server',
+        ],
+        Analytics: [
+          'analytics.main',
+          'analytics.ui',
+          'analytics.model',
+          'analytics.loader',
+          'analytics.aggregator',
+        ],
+        Application: [
+          'analysis_service',
+          'cache_service',
+          'intelligence_service',
+          'load_service',
+          'logging_service',
+          'reference_data_service',
+          'settings_service',
+          'simulation_service',
+        ],
+        Logic: [
+          'policy_simulation_engine',
+          'ai_repo',
+          'reference_data_repo',
+          'policy_parser',
+          'data_repo',
+          'policy_intelligence',
+          'where_clause_evaluator',
+          'tag_condition_collector',
+          'prospective_statements_service',
+          'consolidation_engine',
+          'consolidation_strategies',
+        ],
+        Presentation: ['presentation.formatters', 'presentation.policy_builder', 'presentation.conditions'],
+        Web: ['web_routes'],
+        UI: [
+          'settings_tab',
+          'policies_tab',
+          'policy_browser_tab',
+          'dynamic_group_tab',
+          'users_tab',
+          'resource_principals_tab',
+          'historical_tab',
+          'cross_tenancy_tab',
+          'condition_tester_tab',
+          'tag_based_access_tab',
+          'permissions_report_tab',
+          'simulation_tab',
+          'policy_recommendations_tab',
+          'mcp_tab',
+          'data_table',
+          'prospective_editor_window',
+          'builder_helpers',
+          'maintenance_tab',
+          'internal.console_tab',
+        ],
+      };
+
+      function buildLevelSelect(component, level) {
+        return `
+          <select data-component="${component}">
+            ${LEVELS.map((lvl) => `<option value="${lvl}" ${lvl === level ? 'selected' : ''}>${lvl}</option>`).join('')}
+          </select>
+        `;
+      }
+
+      function renderComponentTable(logLevels) {
+        componentTable.innerHTML = '';
+        const groupedComponents = new Set();
+
+        Object.entries(GROUPS).forEach(([groupName, components]) => {
+          const headerRow = document.createElement('tr');
+          headerRow.innerHTML = `<td colspan="2" style="font-weight: 700; background: #f9fafb;">${groupName}</td>`;
+          componentTable.appendChild(headerRow);
+          components.forEach((component) => {
+            groupedComponents.add(component);
+            const level = logLevels[component] || 'INFO';
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${component}</td>
+              <td>${buildLevelSelect(component, level)}</td>
+            `;
+            componentTable.appendChild(row);
+          });
+        });
+
+        const ungrouped = Object.keys(logLevels)
+          .filter((component) => !groupedComponents.has(component))
+          .sort();
+        if (ungrouped.length) {
+          const headerRow = document.createElement('tr');
+          headerRow.innerHTML = `<td colspan="2" style="font-weight: 700; background: #f9fafb;">Other</td>`;
+          componentTable.appendChild(headerRow);
+          ungrouped.forEach((component) => {
+            const level = logLevels[component] || 'INFO';
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${component}</td>
+              <td>${buildLevelSelect(component, level)}</td>
+            `;
+            componentTable.appendChild(row);
+          });
+        }
+      }
+
+      async function loadLogging() {
+        const response = await fetch('/logging');
+        const payload = await response.json();
+        const logging = payload.logging || {};
+        globalLevel.value = logging.global_log_level || 'WARNING';
+        alwaysTimings.checked = Boolean(logging.always_log_timings);
+        alwaysApiCalls.checked = Boolean(logging.always_log_api_calls);
+
+        const logLevels = logging.log_levels || {};
+        renderComponentTable(logLevels);
+      }
+
+      function classifyLogLine(line) {
+        const lower = String(line).toLowerCase();
+        if (
+          lower.includes('error') ||
+          lower.includes('exception') ||
+          lower.includes('traceback')
+        ) {
+          return 'refresh-log-error';
+        }
+        if (lower.includes('warning')) {
+          return 'refresh-log-warning';
+        }
+        return '';
+      }
+
+      async function loadLogStream() {
+        logError.textContent = '';
+        logStatus.textContent = 'Loading';
+        logStatus.className = 'status-badge refresh-status-running';
+        try {
+          const response = await fetch('/logging/logs');
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const payload = await response.json();
+          const lines = payload.lines || [];
+          logOutput.innerHTML = lines
+            .map((line) => {
+              const className = classifyLogLine(line);
+              return `<span class="refresh-log-line ${className}">${line}</span>`;
+            })
+            .join('');
+          logStatus.textContent = 'Ready';
+          logStatus.className = 'status-badge refresh-status-success';
+        } catch (err) {
+          logStatus.textContent = 'Error';
+          logStatus.className = 'status-badge refresh-status-error';
+          logError.textContent = `Unable to load log: ${err}`;
+          logOutput.textContent = 'Log stream unavailable.';
+        }
+      }
+
+      async function copyLog() {
+        const text = logOutput.textContent || '';
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          logError.textContent = 'Log copied to clipboard.';
+          logError.className = 'status success';
+        } catch (err) {
+          logError.textContent = `Copy failed: ${err}`;
+          logError.className = 'status error';
+        }
+      }
+
+      function stopLogStream() {
+        if (logStreamHandle) {
+          window.clearInterval(logStreamHandle);
+          logStreamHandle = null;
+        }
+        logToggle.textContent = 'Start Live';
+        logStatus.textContent = 'Paused';
+        logStatus.className = 'status-badge refresh-status-partial';
+      }
+
+      function startLogStream() {
+        if (logStreamHandle) return;
+        logToggle.textContent = 'Pause Live';
+        logStatus.textContent = 'Live';
+        logStatus.className = 'status-badge refresh-status-running';
+        loadLogStream();
+        logStreamHandle = window.setInterval(loadLogStream, 3000);
+      }
+
+      async function saveGlobalSettings() {
+        globalStatus.textContent = 'Saving...';
+        try {
+          const response = await fetch('/logging', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logging: {
+                global_log_level: globalLevel.value,
+                always_log_timings: alwaysTimings.checked,
+                always_log_api_calls: alwaysApiCalls.checked,
+              },
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          globalStatus.textContent = 'Saved.';
+          globalStatus.className = 'status';
+        } catch (err) {
+          globalStatus.textContent = `Save failed: ${err}`;
+          globalStatus.className = 'status error';
+        }
+      }
+
+      async function saveComponentSettings() {
+        componentStatus.textContent = 'Saving...';
+        const updates = {};
+        componentTable.querySelectorAll('select[data-component]').forEach((select) => {
+          const comp = select.getAttribute('data-component');
+          updates[comp] = select.value;
+        });
+        try {
+          const response = await fetch('/logging', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logging: { log_levels: updates } }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          componentStatus.textContent = 'Saved.';
+          componentStatus.className = 'status';
+        } catch (err) {
+          componentStatus.textContent = `Save failed: ${err}`;
+          componentStatus.className = 'status error';
+        }
+      }
+
+      async function refreshStatusFooter() {
+        if (!statusFooterStage) return;
+        try {
+          const response = await fetch('/status', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const stage = payload.stage || 'Idle';
+          const detail = payload.detail || '';
+          const summary = payload.summary || {};
+          statusFooterStage.textContent = `Status: ${stage}`;
+          statusFooterDetail.textContent = detail || 'No tenancy load active.';
+          const source = summary.loaded_from_compliance_output
+            ? 'CIS Compliance'
+            : summary.policies_loaded_from_tenancy
+              ? `Tenancy ${summary.tenancy_name || ''}`.trim()
+              : summary.data_as_of
+                ? 'Cache'
+                : '';
+          const parts = [];
+          if (source) parts.push(`Source: ${source}`);
+          if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
+          if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
+          statusFooterMeta.textContent = parts.join(' • ');
+        } catch (err) {
+          // Ignore status errors.
+        }
+      }
+
+      saveGlobal.addEventListener('click', saveGlobalSettings);
+      saveComponents.addEventListener('click', saveComponentSettings);
+      logRefresh.addEventListener('click', loadLogStream);
+      logCopy.addEventListener('click', copyLog);
+      logToggle.addEventListener('click', () => {
+        if (logStreamHandle) {
+          stopLogStream();
+        } else {
+          startLogStream();
+        }
+      });
+      loadLogging();
+      loadLogStream();
+      refreshStatusFooter();
+      setInterval(refreshStatusFooter, 2000);
+    </script>
+  </body>
+</html>

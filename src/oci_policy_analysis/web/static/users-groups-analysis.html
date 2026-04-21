@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - User/Group Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .top-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .filter-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin-top: .75rem; }
+      .table-shell { border:1px solid var(--oci-line); border-radius: 12px; overflow:hidden; }
+      .table-scroll { max-height: 34vh; overflow:auto; }
+      .policy-layout { display:grid; gap:1rem; grid-template-columns: minmax(0,1fr); position:relative; }
+      .policy-layout.has-selection { grid-template-columns: minmax(0,1fr); }
+      #entitiesTable thead th, #resultsTable thead th { position: sticky; top:0; z-index:1; background:#f3f1ef; }
+      #entitiesTable tbody tr:nth-child(odd), #resultsTable tbody tr:nth-child(odd) { background:#fff; }
+      #entitiesTable tbody tr:nth-child(even), #resultsTable tbody tr:nth-child(even) { background:#f7f7f7; }
+      #entitiesTable tbody tr:hover, #resultsTable tbody tr:hover { background:#fdf1ef; }
+      #entitiesTable tbody tr.active-row, #resultsTable tbody tr.active-row { background:#fbe4e0; }
+      .policy-inspector { display:none; border:1px solid var(--oci-line); border-radius:12px; overflow:hidden; background:#fff; }
+      .policy-inspector.open { display:flex; flex-direction:column; }
+      .policy-inspector-header { padding:.9rem 1rem; background:#1f1b1a; color:#fff; display:flex; justify-content:space-between; }
+      .policy-inspector-body { max-height:58vh; overflow:auto; }
+      .policy-inspector-body th { width:34%; background:#faf8f6; font-size:.75rem; text-transform:uppercase; }
+      .policy-inspector-body .inspector-separator th { width:100%; background:#f1ede9; color:#6c625d; text-align:center; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; padding:.45rem .5rem; }
+      .inspector-empty { padding:1rem; color:#6b7280; }
+      @media (min-width:1200px){
+        .policy-inspector {
+          display:flex;
+          flex-direction:column;
+          position:fixed;
+          top:0;
+          right:0;
+          bottom:0;
+          width:min(460px, 40vw);
+          border-radius:0;
+          z-index:40;
+          box-shadow:-16px 0 32px rgba(0,0,0,0.22);
+          transform:translateX(105%);
+          transition:transform 180ms ease;
+          pointer-events:none;
+        }
+        .policy-inspector.open { transform:translateX(0); pointer-events:auto; }
+        .policy-inspector-body { max-height:none; flex:1; min-height:0; }
+      }
+      @media (max-width:1000px){ .top-grid { grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <header><h1>User/Group Analysis</h1><a href="/">← Back to home</a></header>
+    <main>
+      <div class="top-grid">
+        <div class="card">
+          <h3 style="margin:0;">Filters</h3>
+          <div class="filter-grid">
+            <select id="mode"><option>GROUPS</option><option>USERS</option></select>
+            <input id="search" placeholder="Entity Search (use | for OR)" />
+            <label class="checkbox-label"><input type="checkbox" id="showAllData" /> Show all Data</label>
+            <label class="checkbox-label"><input type="checkbox" id="includeAny" /> Show any-group / any-user</label>
+            <input id="subjectTypeFilter" placeholder="Subject Type" />
+            <input id="subjectFilter" placeholder="Subject contains..." />
+            <input id="principalFilter" placeholder="Principal contains..." />
+          </div>
+          <div style="margin-top:.7rem; display:flex; gap:.6rem;"><button id="runBtn">Apply</button><button id="clearBtn" class="ghost">Clear</button></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap;">
+            <div id="entityCounts" class="pill">Total Groups: 0 • Total Users: 0</div>
+            <div class="helper-text">Entities Found (select one or more)</div>
+          </div>
+          <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll"><table id="entitiesTable"><thead></thead><tbody></tbody></table></div></div>
+        </div>
+      </div>
+
+      <div class="policy-layout" id="policyLayout" style="margin-top:1rem;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap;">
+            <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
+            <div class="helper-text">Tip: click a row to inspect details.</div>
+          </div>
+          <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll"><table id="resultsTable"><thead><tr><th>Policy Name</th><th>Policy Compartment</th><th>Effective Path</th><th>Statement</th><th>Subject Type</th><th>Subject</th></tr></thead><tbody></tbody></table></div></div>
+        </div>
+        <aside id="policyInspector" class="policy-inspector">
+          <div class="policy-inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" style="margin-top:0;">×</button></div>
+          <div class="policy-inspector-body"><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" style="display:none;"><tbody></tbody></table></div>
+        </aside>
+      </div>
+    </main>
+    <script>
+      const modeEl = document.getElementById('mode');
+      const searchEl = document.getElementById('search');
+      const showAllDataEl = document.getElementById('showAllData');
+      const includeAnyEl = document.getElementById('includeAny');
+      const subjectTypeFilterEl = document.getElementById('subjectTypeFilter');
+      const subjectFilterEl = document.getElementById('subjectFilter');
+      const principalFilterEl = document.getElementById('principalFilter');
+      const entityCounts = document.getElementById('entityCounts');
+      const entitiesHead = document.querySelector('#entitiesTable thead');
+      const entitiesBody = document.querySelector('#entitiesTable tbody');
+      const resultsBody = document.querySelector('#resultsTable tbody');
+      const summary = document.getElementById('summary');
+      const policyLayout = document.getElementById('policyLayout');
+      const policyInspector = document.getElementById('policyInspector');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+
+      const GROUP_COLS = ['Domain Name','Group Name','User Count'];
+      const GROUP_COLS_ALL = ['Domain Name','Group Name','User Count','Group ID','Group OCID'];
+      const USER_COLS = ['Domain Name','Username','Display Name','Primary Email'];
+      const USER_COLS_ALL = ['Domain Name','Username','Display Name','Primary Email','User ID','User OCID'];
+      let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = []; let selectedPolicy = null;
+      const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      const cols = () => modeEl.value === 'GROUPS' ? (showAllDataEl.checked ? GROUP_COLS_ALL : GROUP_COLS) : (showAllDataEl.checked ? USER_COLS_ALL : USER_COLS);
+      const val = (r, c) => r?.[c] ?? r?.[{'Domain Name':'domain_name','Username':'user_name','Display Name':'display_name','Primary Email':'email','User ID':'user_id','User OCID':'user_ocid'}[c]] ?? '';
+
+      function getRowValue(row, key){
+        const titleKey = String(key || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      function formatInspectorValue(key, value){
+        if (value === null || value === undefined || value === '') return '-';
+
+        if (key === 'principals' && Array.isArray(value)) {
+          if (!value.length) return '-';
+          return value.map((principal) => {
+            if (!principal || typeof principal !== 'object') return String(principal);
+            const principalType = principal.principal_type || 'principal';
+            const principalDisplay =
+              principal.display_name ||
+              [principal.domain_name, principal.name].filter(Boolean).join('/') ||
+              principal.ocid ||
+              principal.principal_key ||
+              JSON.stringify(principal);
+            return `${principalType}: ${principalDisplay}`;
+          }).join('\n');
+        }
+
+        if (Array.isArray(value)) {
+          return value
+            .map((item) => {
+              if (item === null || item === undefined) return '';
+              if (typeof item === 'object') return JSON.stringify(item);
+              return String(item);
+            })
+            .filter(Boolean)
+            .join('\n');
+        }
+
+        if (typeof value === 'object') return JSON.stringify(value, null, 2);
+        return String(value);
+      }
+
+      function setInspector(row){
+        selectedPolicy = row || null;
+        [...resultsBody.querySelectorAll('tr')].forEach((tr) => tr.classList.toggle('active-row', tr.dataset.rowId === String(row?._row_id || '')));
+        if (!row){ policyInspector.classList.remove('open'); policyLayout.classList.remove('has-selection'); inspectorEmpty.style.display='block'; inspectorTable.style.display='none'; return; }
+        policyInspector.classList.add('open'); policyLayout.classList.add('has-selection'); inspectorTitle.textContent = 'Statement Details';
+
+        const primaryFieldOrder = ['compartment_path','policy_name','policy_ocid','effective_path','statement_text'];
+        const parsedFieldOrder = ['action','subject_type','subject','principals','verb','resource','permission','location','conditions','valid','invalid_reason','invalid_reasons','parsed','comments'];
+        const excluded = new Set(['_row_id','internal_id','effective_compartment_ocid']);
+        const keySet = new Set([...primaryFieldOrder, ...parsedFieldOrder]);
+        Object.keys(row || {}).forEach((k) => { if (!excluded.has(k)) keySet.add(k); });
+        const orderedPrimary = primaryFieldOrder.filter((k) => keySet.has(k));
+        const orderedParsed = parsedFieldOrder.filter((k) => keySet.has(k));
+        const orderedOther = Array.from(keySet).filter((k) => !primaryFieldOrder.includes(k) && !parsedFieldOrder.includes(k)).sort((a,b) => a.localeCompare(b));
+        const orderedKeys = [...orderedPrimary, '__separator_parsed__', ...orderedParsed, ...orderedOther];
+        const labelForKey = (k) => String(k || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+        inspectorTableBody.innerHTML = orderedKeys
+          .map((k) => {
+            if (k === '__separator_parsed__') return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
+            return `<tr><th>${esc(labelForKey(k))}</th><td>${esc(formatInspectorValue(k, getRowValue(row, k)))}</td></tr>`;
+          })
+          .join('');
+        inspectorEmpty.style.display='none'; inspectorTable.style.display='table';
+      }
+
+      function renderEntities(){
+        entitiesHead.innerHTML = '<tr><th>Select</th>' + cols().map((c)=>`<th>${esc(c)}</th>`).join('') + '</tr>';
+        entitiesBody.innerHTML = entityRows.map((r,i)=>`<tr data-row-id="${i}" class="${selectedEntityIndexes.has(i)?'active-row':''}"><td><input type="checkbox" ${selectedEntityIndexes.has(i)?'checked':''}></td>${cols().map((c)=>`<td>${esc(val(r,c))}</td>`).join('')}</tr>`).join('');
+        [...entitiesBody.querySelectorAll('tr')].forEach((tr)=>{
+          tr.querySelector('input').addEventListener('change', async (e)=>{ const i = Number(tr.dataset.rowId); if(e.target.checked) selectedEntityIndexes.add(i); else selectedEntityIndexes.delete(i); renderEntities(); await loadPolicies(); });
+        });
+      }
+
+      function renderPolicies(){
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Subject Type'])}</td><td>${esc(p['Subject'])}</td></tr>`).join('');
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+      }
+
+      function selectedPayload(){
+        const chosen = [...selectedEntityIndexes].map(i => entityRows[i]).filter(Boolean);
+        if (modeEl.value === 'GROUPS') return { exact_groups: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', group_name: r['Group Name'] })) };
+        return { exact_users: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', user_name: r['Username'] || r['user_name'] })) };
+      }
+
+      async function loadEntities(){
+        selectedEntityIndexes.clear();
+        const q = encodeURIComponent(searchEl.value || '');
+        const [g,u,m] = await Promise.all([fetch('/entities/groups?search='+q), fetch('/entities/users?search='+q), fetch((modeEl.value==='GROUPS'?'/entities/groups':'/entities/users')+'?search='+q)]);
+        const groups = await g.json(); const users = await u.json(); const main = await m.json();
+        entityCounts.textContent = `Total Groups: ${groups.total || 0} • Total Users: ${users.total || 0}`;
+        entityRows = modeEl.value === 'GROUPS' ? (main.groups || []) : (main.users || []);
+        renderEntities();
+        await loadPolicies();
+      }
+
+      async function loadPolicies(){
+        const payload = { ...selectedPayload(), include_any_subjects: includeAnyEl.checked, subject_type: subjectTypeFilterEl.value, subject: subjectFilterEl.value, principal: principalFilterEl.value };
+        const resp = await fetch('/filter/policies/by-subjects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await resp.json();
+        currentPolicies = (data.statements || []).map((r, idx) => ({...r, _row_id: idx + 1}));
+        summary.textContent = `Policy Statements (Filtered): ${currentPolicies.length}`;
+        setInspector(null);
+        renderPolicies();
+      }
+
+      document.getElementById('runBtn').addEventListener('click', loadEntities);
+      document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; subjectTypeFilterEl.value=''; subjectFilterEl.value=''; principalFilterEl.value=''; includeAnyEl.checked=false; loadEntities(); });
+      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> setInspector(null));
+      [modeEl, showAllDataEl].forEach((el)=> el.addEventListener('change', ()=>{ renderEntities(); loadPolicies(); }));
+      loadEntities();
+    </script>
+  </body>
+</html>

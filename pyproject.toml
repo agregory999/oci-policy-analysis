@@ -24,6 +24,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29"
+]
 docs = [
     "sphinx>=7",
     "sphinx-rtd-theme>=3",

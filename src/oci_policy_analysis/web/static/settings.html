@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Settings</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      main {
+        grid-template-columns: minmax(320px, 760px);
+      }
+
+      .settings-stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .card h2 {
+        margin: 0;
+      }
+
+      .field {
+        margin-bottom: 1rem;
+      }
+      label {
+        font-weight: 600;
+      }
+      input[type="checkbox"] {
+        transform: scale(1.15);
+      }
+      .hint {
+        color: #5f6368;
+        font-size: 0.9rem;
+        margin-left: 1.9rem;
+      }
+
+      .meta-list {
+        margin: 0;
+        padding-left: 1rem;
+        color: #4b5563;
+        display: grid;
+        gap: 0.45rem;
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="page-eyebrow">Configuration</p>
+      <h1>Settings</h1>
+      <p>Manage shared settings used by the desktop and web experiences.</p>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="settings-stack">
+        <div class="card">
+          <p class="card-title">Application Settings</p>
+          <h2>Privacy & Usage</h2>
+          <div class="field" style="margin-top: 1rem;">
+            <label class="checkbox-label">
+              <input id="usageTracking" type="checkbox" />
+              Anonymous usage tracking
+            </label>
+            <div class="hint">
+              Helps prioritize features; no policy text or sensitive data is stored.
+            </div>
+          </div>
+
+          <button id="saveBtn">Save settings</button>
+          <div id="status" class="status"></div>
+        </div>
+
+        <div class="card compact-card">
+          <p class="card-title">About</p>
+          <h2 style="font-size: 1rem;">How settings are used</h2>
+          <ul class="meta-list" style="margin-top: 0.8rem;">
+            <li>These settings are shared between desktop and web flows.</li>
+            <li>Changes apply immediately after saving.</li>
+            <li>Use Logging for diagnostic and component-level verbosity controls.</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const usageTracking = document.getElementById('usageTracking');
+      const saveBtn = document.getElementById('saveBtn');
+      const status = document.getElementById('status');
+
+      async function loadSettings() {
+        status.textContent = '';
+        const response = await fetch('/settings');
+        const payload = await response.json();
+        const settings = payload.settings || {};
+        usageTracking.checked = Boolean(settings.usage_tracking_enabled ?? true);
+      }
+
+      async function saveSettings() {
+        saveBtn.disabled = true;
+        status.textContent = 'Saving...';
+        status.className = 'status';
+        try {
+          const response = await fetch('/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              settings: {
+                usage_tracking_enabled: usageTracking.checked,
+              },
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          status.textContent = 'Settings saved.';
+          status.className = 'status success';
+        } catch (err) {
+          status.textContent = `Failed to save settings: ${err}`;
+          status.className = 'status error';
+        } finally {
+          saveBtn.disabled = false;
+        }
+      }
+
+      saveBtn.addEventListener('click', saveSettings);
+      loadSettings();
+    </script>
+  </body>
+</html>

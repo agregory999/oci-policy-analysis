@@ -1,0 +1,275 @@
+:root {
+  --oci-red: #c74634;
+  --oci-red-deep: #9f3022;
+  --oci-red-soft: #fdf1ef;
+  --oci-ink: #1f1b1a;
+  --oci-steel: #5f5956;
+  --oci-line: #e7dfdb;
+  --oci-panel: #fffdfa;
+  --oci-bg: #f7f4f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Oracle Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(199, 70, 52, 0.08), transparent 22%),
+    linear-gradient(180deg, #fbf9f8 0%, var(--oci-bg) 100%);
+  color: var(--oci-ink);
+}
+
+header {
+  background: #111827;
+  color: #f9fafb;
+  padding: 1.5rem 2rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+header p {
+  margin: 0.4rem 0 0;
+  color: #d1d5db;
+}
+
+header a {
+  color: #93c5fd;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+main {
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.card {
+  background: var(--oci-panel);
+  border-radius: 14px;
+  padding: 1.5rem;
+  border: 1px solid var(--oci-line);
+  box-shadow: 0 10px 24px rgba(38, 30, 26, 0.06);
+}
+
+.compact-card {
+  padding: 1.1rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(38, 30, 26, 0.05);
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.form-row > * {
+  flex: 1 1 160px;
+}
+
+.helper-text {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+label {
+  font-weight: 600;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--oci-line);
+  background: #fff;
+  font-family: inherit;
+}
+
+textarea {
+  min-height: 140px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+button {
+  margin-top: 0.75rem;
+  background: var(--oci-red);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+button.secondary {
+  background: #6b7280;
+}
+
+button.ghost {
+  background: #fff;
+  color: var(--oci-steel);
+  border: 1px solid var(--oci-line);
+}
+
+button:disabled {
+  background: #c5c7d0;
+  cursor: not-allowed;
+}
+
+.status {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.status.success {
+  color: #0f7b0f;
+}
+
+.status.error {
+  color: #b00020;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+th {
+  background: #f3f4f6;
+}
+
+.pill {
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  display: inline-block;
+}
+
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.refresh-log {
+  background: #1b1715;
+  color: #f7f4f2;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 16px;
+}
+
+.refresh-log-line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.refresh-log-warning {
+  color: #fde68a;
+}
+
+.refresh-log-error {
+  color: #fca5a5;
+}
+
+.refresh-status-running {
+  background: var(--oci-red-soft);
+  color: var(--oci-red);
+  border: 1px solid #efc6be;
+}
+
+.refresh-status-success {
+  background: #ecfdf3;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.refresh-status-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.refresh-status-partial {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.status-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-meta {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.page-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #9ca3af;
+}
+
+.card-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  color: #9ca3af;
+}

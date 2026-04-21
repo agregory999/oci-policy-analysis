@@ -479,7 +479,9 @@ class CacheManager:
                         f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                         f'{len(cross_tenancy_data)} cross-tenancy policies, '
                         f'{len(policy_analysis.identity_domains)} identity domains, '
-                        f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
+                        f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache. '
+                        f'Policy statements: {len(policy_analysis.regular_statements)}. '
+                        f'Defined tag namespaces: {len(getattr(policy_analysis, "defined_tag_namespace_keys", {}) or {})}.'
                     )
 
             except json.JSONDecodeError as e:
@@ -542,7 +544,9 @@ class CacheManager:
                 f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
                 f'{len(policy_analysis.identity_domains)} identity domains, '
-                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache (JSON input).'
+                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache (JSON input). '
+                f'Policy statements: {len(policy_analysis.regular_statements)}. '
+                f'Defined tag namespaces: {len(getattr(policy_analysis, "defined_tag_namespace_keys", {}) or {})}.'
             )
             return True
         except json.JSONDecodeError as e:
