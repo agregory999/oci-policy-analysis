@@ -1,3 +1,10 @@
+# [5.0.0-beta.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.2...v5.0.0-beta.3) (2026-04-22)
+
+
+### Features
+
+* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
+
 # [5.0.0-beta.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.1...v5.0.0-beta.2) (2026-04-22)
 
 
