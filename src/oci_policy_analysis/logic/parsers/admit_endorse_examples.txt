@@ -43,3 +43,7 @@ endorse group DatabaseToolsConnectionManagers to use database-tools-private-endp
 
 endorse group DatabaseToolsConnectionManagers to associate database-tools-connections in tenancy ConnectionTenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy
 - any time you encounter "in tenancy XXX" you will need to use the alias to get to the OCID of remote tenancy
+
+endorse any-user to { WLP_LOG_CREATE } in any-tenancy where all { request.principal.id = target.agent.id, request.principal.type = 'workloadprotectionagent' }
+- any-tenancy means the endorsed operation is not tied to one specific tenancy alias
+- useful for broad remote tenancy scenarios to avoid duplicating nearly identical endorse statements
