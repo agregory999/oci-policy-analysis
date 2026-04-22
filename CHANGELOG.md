@@ -1,3 +1,11 @@
+# [5.0.0-beta.4](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.3...v5.0.0-beta.4) (2026-04-22)
+
+
+### Bug Fixes
+
+* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
+* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
+
 # [5.0.0-beta.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.2...v5.0.0-beta.3) (2026-04-22)
 
 
