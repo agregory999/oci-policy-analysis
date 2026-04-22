@@ -1,3 +1,15 @@
+# [5.0.0-beta.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.1...v5.0.0-beta.2) (2026-04-22)
+
+
+### Features
+
+* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
+
+
+### BREAKING CHANGES
+
+* web UI/service architecture changed; incompatible with 4.x behavior
+
 # [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-04-21)
 
 
