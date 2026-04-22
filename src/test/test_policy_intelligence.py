@@ -258,6 +258,41 @@ def test_policy_helpers_calculate_principal_key_handles_default_domain():
     assert calculate_principal_key('dynamic-group', 'default', 'DG1') == 'dynamic-group:Default/DG1'
 
 
+def test_resolve_cross_tenancy_aliases_marks_unresolved_alias_invalid():
+    repo = SimpleNamespace(
+        regular_statements=[],
+        dynamic_groups=[],
+        groups=[],
+        defined_tag_namespace_keys={},
+        defined_aliases=[
+            {
+                'defined_name': 'ResourceTenancy',
+                'ocid_alias': 'ocid1.tenancy.oc1..resource',
+            }
+        ],
+        cross_tenancy_statements=[
+            {
+                'statement_text': 'endorse group A to read buckets in tenancy ResourceTenancy',
+                'tenancy_aliases': ['ResourceTenancy', 'MissingTenancy'],
+                'valid': True,
+                'invalid_reasons': [],
+            }
+        ],
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+
+    engine.resolve_cross_tenancy_aliases()
+
+    st = repo.cross_tenancy_statements[0]
+    assert st.get('aliases_resolved') is False
+    assert st.get('valid') is False
+    resolved = st.get('resolved_aliases', {})
+    assert resolved.get('ResourceTenancy', {}).get('resolved') is True
+    assert resolved.get('ResourceTenancy', {}).get('ocid') == 'ocid1.tenancy.oc1..resource'
+    assert resolved.get('MissingTenancy', {}).get('resolved') is False
+    assert any('Unresolved tenancy alias: MissingTenancy' in r for r in st.get('invalid_reasons', []))
+
+
 def test_calculate_effective_compartment_avoids_duplicate_basename_when_compartment_ocid_missing():
     repo = SimpleNamespace(
         tenancy_ocid='ocid1.tenancy.oc1..tenancy',

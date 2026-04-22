@@ -2457,8 +2457,17 @@ class PolicyAnalysisRepository:
         if not domain_ocid or domain_ocid == '':
             return 'Default'
         for domain in self.identity_domains:
-            if domain.get('id') == domain_ocid:
-                return domain.get('display_name', 'Default')
+            # Domains may be represented either as dicts (CSV/offline path)
+            # or SDK model objects such as DomainSummary (tenancy path).
+            if isinstance(domain, dict):
+                candidate_id = domain.get('id')
+                candidate_name = domain.get('display_name', 'Default')
+            else:
+                candidate_id = getattr(domain, 'id', None)
+                candidate_name = getattr(domain, 'display_name', 'Default')
+
+            if candidate_id == domain_ocid:
+                return candidate_name or 'Default'
         return 'Default'
 
     def _get_hierarchy_path_for_compartment(self, compartment, comp_string: str) -> str:

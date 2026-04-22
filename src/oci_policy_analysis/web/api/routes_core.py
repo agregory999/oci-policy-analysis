@@ -501,6 +501,8 @@ def get_cross_tenancy_basic() -> dict[str, object]:
                 'defined_type': str(item.get('defined_type') or ''),
                 'defined_name': str(item.get('defined_name') or ''),
                 'ocid_alias': str(item.get('ocid_alias') or ''),
+                'statement_text': str(item.get('statement_text') or ''),
+                'creation_time': str(item.get('creation_time') or ''),
             }
         )
 
@@ -512,12 +514,25 @@ def get_cross_tenancy_basic() -> dict[str, object]:
         statement_text = str(item.get('statement_text') or '')
         text_cf = statement_text.casefold()
         policy_ocid = str(item.get('policy_ocid') or '')
+        parsed_fields = {
+            str(k): v
+            for k, v in dict(item).items()
+            if str(k)
+            not in {
+                'policy_name',
+                'policy_ocid',
+                'statement_text',
+                'creation_time',
+                'parsed',
+            }
+        }
         row: dict[str, object] = {
             'policy_name': str(item.get('policy_name') or ''),
             'policy_ocid': policy_ocid,
             'statement_text': statement_text,
             'creation_time': str(item.get('creation_time') or ''),
             'parsed': bool(item.get('parsed', False)),
+            'parsed_fields': parsed_fields,
             'stable_key': _build_cross_tenancy_stable_key(policy_ocid, statement_text),
         }
         if text_cf.startswith('admit') or text_cf.startswith('deny admit'):

@@ -5,7 +5,7 @@ Analyze Oracle Cloud IAM policies and identity data.
 📘 **Full documentation:**  
 👉 [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
 
-## Quick Start
+## Quick Start (Desktop App)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -14,6 +14,8 @@ python -m oci_policy_analysis.main
 ```
 
 ## Run the Web App via PyPI (no repo clone)
+
+(Won't work until out of beta)
 
 Install in a virtual environment and run the packaged web entrypoint:
 

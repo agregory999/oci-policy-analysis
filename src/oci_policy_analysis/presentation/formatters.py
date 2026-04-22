@@ -25,10 +25,13 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
     """Return a dictionary suitable for display purposes for policy statements."""
     principals_display = ''
     principals = statement.get('principals')
+    principal_keys = statement.get('principal_keys')
     if isinstance(principals, list):
         principals_display = ', '.join(
             [(p.get('display_name') or p.get('principal_key') or '') for p in principals if isinstance(p, dict)]
         )
+    elif isinstance(principal_keys, list):
+        principals_display = ', '.join(str(k) for k in principal_keys if k)
 
     row = {
         'Action': statement.get('action', 'allow'),
@@ -45,6 +48,7 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
         'Subject Type': statement['subject_type'] if 'subject_type' in statement else '',
         'Subject': statement['subject'] if 'subject' in statement else '',
         'Principals': principals_display,
+        'Principal Keys': ', '.join(str(k) for k in principal_keys) if isinstance(principal_keys, list) else '',
         '_Principals Raw': principals,
         'Verb': statement['verb'] if 'verb' in statement else '',
         'Resource': statement['resource'] if 'resource' in statement else '',
@@ -76,6 +80,7 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
             'subject': statement.get('subject', ''),
             # Keep Principals display string for tabular views, but expose raw list for inspectors.
             'principals': principals if isinstance(principals, list) else [],
+            'principal_keys': principal_keys if isinstance(principal_keys, list) else [],
             'verb': statement.get('verb', ''),
             'resource': statement.get('resource', ''),
             'permission': statement.get('permission', ''),
@@ -162,11 +167,11 @@ def for_display_define(define: DefineStatement) -> dict:
 def for_display_admit(statement) -> dict:
     """Display-friendly dict for parsed AdmitStatement, mapped to UI columns."""
     permissions_list_display = ''
-    if 'admit_permission_set' in statement:
-        if isinstance(statement['admit_permission_set'], list) and len(statement['admit_permission_set']) > 0:
-            permissions_list_display = '{' + ', '.join(statement['admit_permission_set']) + '}'
-        elif isinstance(statement['admit_permission_set'], str):
-            permissions_list_display = '{' + statement['admit_permission_set'] + '}'
+    if 'admit_permissions' in statement:
+        if isinstance(statement['admit_permissions'], list) and len(statement['admit_permissions']) > 0:
+            permissions_list_display = '{' + ', '.join(statement['admit_permissions']) + '}'
+        elif isinstance(statement['admit_permissions'], str):
+            permissions_list_display = '{' + statement['admit_permissions'] + '}'
 
     return {
         'Policy Name': statement.get('policy_name', ''),

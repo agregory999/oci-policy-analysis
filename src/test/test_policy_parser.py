@@ -4,7 +4,7 @@ import pytest
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.models import RegularPolicyStatement
 from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementParser
+from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer, PolicyStatementParser
 
 
 @pytest.fixture
@@ -65,6 +65,126 @@ def test_complex_policy_statements(parser, stmt):
     assert isinstance(results, list)
     assert len(results) > 0
     assert not errors, f"Parser returned errors for '{stmt}': {errors}"
+
+
+def test_admit_and_endorse_normalization_handles_tuple_subjects():
+    """Regression test for tuple-subject join failures in admit/endorse normalization.
+
+    Historically admit/endorse normalization used ','.join(subject_list) which
+    breaks when parse_policy_subjects returns tuple entries like
+    ('Default', 'Name') or (None, 'ocid1....').
+    """
+    normalizer = PolicyStatementNormalizer()
+    base = {
+        'policy_name': 'P',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': '',
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'x',
+        'parsed': False,
+    }
+
+    admit_stmt = (
+        'admit group id ocid1.group.oc1..aaaaaaaabbbbbccccdddd of tenancy parent ' 'to read all-resources in tenancy'
+    )
+    endorse_stmt = (
+        'endorse dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaabbbbbccccdddd '
+        'to read all-resources in tenancy target'
+    )
+
+    admit_norm = normalizer.normalize(admit_stmt, 'admit', base)
+    endorse_norm = normalizer.normalize(endorse_stmt, 'endorse', base)
+
+    assert isinstance(admit_norm, dict), f'Unexpected admit normalization type: {type(admit_norm)}'
+    assert admit_norm.get('parsed') is True, f'Admit normalization failed: {admit_norm}'
+    assert isinstance(admit_norm.get('admitted_principal', ''), str)
+    assert 'ocid1.group' in (admit_norm.get('admitted_principal') or '')
+    assert isinstance(admit_norm.get('principal_keys'), list)
+    assert any(str(k).startswith('group:') for k in (admit_norm.get('principal_keys') or []))
+
+    assert isinstance(endorse_norm, dict), f'Unexpected endorse normalization type: {type(endorse_norm)}'
+    assert endorse_norm.get('parsed') is True, f'Endorse normalization failed: {endorse_norm}'
+    assert isinstance(endorse_norm.get('endorsed_principal', ''), str)
+    assert 'ocid1.dynamicgroup' in (endorse_norm.get('endorsed_principal') or '')
+    assert isinstance(endorse_norm.get('principal_keys'), list)
+    assert any(str(k).startswith('dynamic-group:') for k in (endorse_norm.get('principal_keys') or []))
+
+
+def test_regular_normalization_emits_principal_keys_for_named_group_subjects():
+    normalizer = PolicyStatementNormalizer()
+    base = {
+        'policy_name': 'P',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': '',
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'x',
+        'parsed': False,
+    }
+    stmt = "allow group 'Default'/'Admins' to inspect instances in tenancy"
+    normalized = normalizer.normalize(stmt, 'allow', base)
+    assert isinstance(normalized, dict)
+    assert normalized.get('parsed') is True
+    keys = normalized.get('principal_keys') or []
+    assert isinstance(keys, list)
+    assert 'group:Default/Admins' in keys
+
+
+def test_endorse_any_tenancy_permission_set_parses_and_normalizes():
+    normalizer = PolicyStatementNormalizer()
+    base = {
+        'policy_name': 'P',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': '',
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'x',
+        'parsed': False,
+    }
+    stmt = (
+        'endorse any-user to { WLP_LOG_CREATE } in any-tenancy '
+        "where all { request.principal.id = target.agent.id, request.principal.type = 'workloadprotectionagent' }"
+    )
+    normalized = normalizer.normalize(stmt, 'endorse', base)
+    assert isinstance(normalized, dict)
+    assert normalized.get('parsed') is True, f'Normalization failed: {normalized}'
+    assert normalized.get('endorsed_principal_type') == 'any-user'
+    assert normalized.get('endorse_permissions') == ['WLP_LOG_CREATE']
+    assert normalized.get('endorse_tenancy') == 'any-tenancy'
+    assert 'any-tenancy' in str(normalized.get('statement_text', '')).lower()
+    assert 'request.principal.id = target.agent.id' in (normalized.get('where_clause') or '')
+
+
+def test_endorse_associate_compartment_of_tenancy_parses_and_normalizes():
+    normalizer = PolicyStatementNormalizer()
+    base = {
+        'policy_name': 'P',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': '',
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'x',
+        'parsed': False,
+    }
+    stmt = (
+        'endorse any-user to associate compute-container-instances '
+        'in compartment ske_compartment of tenancy ske '
+        "with network-security-group in tenancy where ALL {request.principal.type='virtualnode',request.operation='CreateContainerInstance'}"
+    )
+    normalized = normalizer.normalize(stmt, 'endorse', base)
+    assert isinstance(normalized, dict)
+    assert normalized.get('parsed') is True, f'Normalization failed: {normalized}'
+    assert normalized.get('endorsed_principal_type') == 'any-user'
+    assert str(normalized.get('endorse_action', '')).lower() == 'associate'
+    assert normalized.get('endorse_resource') == 'compute-container-instances'
+    assert normalized.get('endorse_tenancy') == 'ske'
+    assert normalized.get('endorse_associate_with_resource') == 'network-security-group'
+    assert 'request.operation' in (normalized.get('where_clause') or '')
 
 
 @pytest.mark.parametrize(

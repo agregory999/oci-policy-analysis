@@ -153,11 +153,23 @@ class CrossTenancyTab(BaseUITab):
 
             def admit_filter(st):
                 admitted_tenancy = (st.get('admitted_tenancy') or '').strip().lower()
-                return admitted_tenancy in selected_defined_names
+                if admitted_tenancy in selected_defined_names:
+                    return True
+                aliases = [str(a).strip().lower() for a in (st.get('tenancy_aliases') or []) if str(a).strip()]
+                if any(a in selected_defined_names for a in aliases):
+                    return True
+                statement_text = (st.get('statement_text') or '').strip().lower()
+                return any(alias in statement_text for alias in selected_defined_names)
 
             def endorse_filter(st):
                 endorse_tenancy = (st.get('endorse_tenancy') or '').strip().lower()
-                return endorse_tenancy in selected_defined_names
+                if endorse_tenancy in selected_defined_names:
+                    return True
+                aliases = [str(a).strip().lower() for a in (st.get('tenancy_aliases') or []) if str(a).strip()]
+                if any(a in selected_defined_names for a in aliases):
+                    return True
+                statement_text = (st.get('statement_text') or '').strip().lower()
+                return any(alias in statement_text for alias in selected_defined_names)
 
             if selected_defined_names:
                 filtered_admits = [

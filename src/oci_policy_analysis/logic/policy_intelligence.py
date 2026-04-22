@@ -161,6 +161,7 @@ class PolicyIntelligenceEngine:
         # Prerequisites used by one or more strategies
         if not getattr(self, 'compartments_by_path', None) and repo.compartments:
             self.build_compartment_index()
+        self.resolve_cross_tenancy_aliases()
         self.find_invalid_statements()
         self.run_dg_in_use_analysis()
 
@@ -185,9 +186,54 @@ class PolicyIntelligenceEngine:
                 continue
             strategy = self._strategies[strategy_id]
             try:
-                strategy.run(repo, overlay, params)
+                strategy.run(repo, overlay, params)  # pyright: ignore[reportArgumentType]
             except Exception as e:
                 logger.warning('Intelligence strategy %s failed: %s', strategy_id, e)
+
+    def resolve_cross_tenancy_aliases(self) -> None:
+        """Resolve referenced cross-tenancy aliases to define OCIDs.
+
+        Parse-time sets alias placeholders as unresolved. This step resolves them
+        after all define/admit/endorse parsing is complete.
+        """
+        repo = self.policy_repo
+        defined_aliases = list(getattr(repo, 'defined_aliases', []) or [])
+        ct_statements = list(getattr(repo, 'cross_tenancy_statements', []) or [])
+
+        alias_map: dict[str, str] = {}
+        for define in defined_aliases:
+            alias_name = str(define.get('defined_name') or '').strip()
+            alias_ocid = str(define.get('ocid_alias') or '').strip()
+            if alias_name:
+                alias_map[alias_name.casefold()] = alias_ocid
+
+        for st in ct_statements:
+            aliases = st.get('tenancy_aliases')
+            if not isinstance(aliases, list):
+                aliases = []
+            aliases = [str(a).strip() for a in aliases if str(a).strip()]
+            st['tenancy_aliases'] = aliases
+
+            resolved_aliases: dict[str, dict[str, str | bool]] = {}
+            unresolved: list[str] = []
+            for alias in aliases:
+                ocid = alias_map.get(alias.casefold(), '')
+                resolved = bool(ocid)
+                resolved_aliases[alias] = {'alias': alias, 'ocid': ocid, 'resolved': resolved}
+                if not resolved:
+                    unresolved.append(alias)
+
+            st['resolved_aliases'] = resolved_aliases
+            st['aliases_resolved'] = len(unresolved) == 0
+
+            if unresolved:
+                st['valid'] = False
+                reasons = list(st.get('invalid_reasons') or [])
+                for alias in unresolved:
+                    reason = f'Unresolved tenancy alias: {alias}'
+                    if reason not in reasons:
+                        reasons.append(reason)
+                st['invalid_reasons'] = reasons
 
     def build_permissions_report(self):  # noqa: C901
         """

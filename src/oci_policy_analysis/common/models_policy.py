@@ -146,6 +146,9 @@ class EndorseStatement(BasePolicyStatement, total=False):
         Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
         'Type of principal: group, dynamic-group, any-user, service.',
     ]
+    principal_keys: NotRequired[
+        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
+    ]
     endorsed_principal: Annotated[str, 'Name of the principal being endorsed (group, dynamic-group, etc.)']
     endorsed_principal_tenancy: Annotated[str, 'The tenancy of the endorsed group or dynamic-group']
     endorse_action: Annotated[str, 'Verb or permission for the endorse statement (e.g., associate, use, etc.)']
@@ -158,6 +161,17 @@ class EndorseStatement(BasePolicyStatement, total=False):
     endorse_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
     endorse_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
     endorse_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
+    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause text when endorse uses associate semantics']]
+    tenancy_aliases: NotRequired[
+        Annotated[list[str], 'Referenced tenancy aliases discovered during parsing (unresolved)']
+    ]
+    resolved_aliases: NotRequired[
+        Annotated[
+            dict[str, dict[str, str | bool]],
+            'Alias resolution map populated by intelligence step; keys are alias names and values include ocid/resolved.',
+        ]
+    ]
+    aliases_resolved: NotRequired[Annotated[bool, 'True when all referenced aliases are resolved to define OCIDs']]
     where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
     comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
 
@@ -171,6 +185,9 @@ class AdmitStatement(BasePolicyStatement, total=False):
         Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
         'Type of principal: group, dynamic-group, any-user, etc.',
     ]
+    principal_keys: NotRequired[
+        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
+    ]
     admitted_principal: Annotated[str, 'Name of the principal being admitted (group, dynamic-group, etc.)']
     admitted_tenancy: Annotated[str, 'The tenancy of the admitted group or dynamic-group']
     admit_action: Annotated[str, 'Verb or permission for the admit statement (e.g., read, manage, use, etc.)']
@@ -182,6 +199,17 @@ class AdmitStatement(BasePolicyStatement, total=False):
     admit_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
     admit_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
     admit_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
+    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause text when admit uses associate semantics']]
+    tenancy_aliases: NotRequired[
+        Annotated[list[str], 'Referenced tenancy aliases discovered during parsing (unresolved)']
+    ]
+    resolved_aliases: NotRequired[
+        Annotated[
+            dict[str, dict[str, str | bool]],
+            'Alias resolution map populated by intelligence step; keys are alias names and values include ocid/resolved.',
+        ]
+    ]
+    aliases_resolved: NotRequired[Annotated[bool, 'True when all referenced aliases are resolved to define OCIDs']]
     where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
     comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
 
@@ -205,6 +233,9 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
     principals: Annotated[
         list[Principal],
         'Derived canonical principal model list. Additive/non-breaking; legacy subject field remains during transition.',
+    ]
+    principal_keys: NotRequired[
+        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
     ]
     verb: Annotated[str, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."]
     resource: Annotated[

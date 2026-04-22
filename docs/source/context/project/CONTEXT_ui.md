@@ -315,6 +315,7 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 - `src/oci_policy_analysis/main.py`: App wiring, lifecycle, model/engine initialization, centralized tab management.
 - `src/oci_policy_analysis/ui/base_tab.py`: Shared base tab implementation.
 - `src/oci_policy_analysis/ui/`: All tab modules.
+- `docs/source/context/project/CONTEXT_web_ui.md`: Web UI architecture, data flow, and right-side detail pane patterns.
 - Other `context/project/CONTEXT_*.md` files for individual tab details.
 
 ---

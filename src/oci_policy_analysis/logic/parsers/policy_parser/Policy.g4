@@ -36,7 +36,11 @@ compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
  verb                : (INSPECT | READ | USE | MANAGE) ;
  permissionList      : '{'  WORD  (',' WORD)* '}'  ; // e.g {USER_UPDATE, USER_UIPASS_SET, USER_UIPASS_SET}
  scope               : ((COMPARTMENT ID?) (WORD | OCID | HCL_VAR | QUOTED_STRING) (':' (WORD | OCID | HCL_VAR | QUOTED_STRING))* | TENANCY) ;
- endorseScope        : (ANYTENANCY| TENANCY (WORD | HCL_VAR));
+ endorseScope
+     : ANYTENANCY
+     | TENANCY (WORD | HCL_VAR)?
+     | (COMPARTMENT ID?) (WORD | OCID | HCL_VAR | QUOTED_STRING) (':' (WORD | OCID | HCL_VAR | QUOTED_STRING))* (OF TENANCY (WORD | HCL_VAR))?
+     ;
  subject             : (groupSubject | serviceSubject | dynamicGroupSubject | resourceSubject | ANYUSER | ANYGROUP) ;
  groupSubject        : GROUP (groupName| groupID) (','(groupName|groupID))* ;
  resourceSubject     : RESOURCE resourceSubjectId (resourceSubjectId)*;

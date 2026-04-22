@@ -228,8 +228,8 @@
             <option value="Allow">Action: Allow</option>
             <option value="Deny">Action: Deny</option>
           </select>
-          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" value="manage" />
-          <input id="resourceFilter" placeholder="Resource" value="instance-family" />
+          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" />
+          <input id="resourceFilter" placeholder="Resource" />
           <input id="permissionFilter" placeholder="Permission" />
           <input id="locationFilter" placeholder="Location" />
           <input id="compartmentPathFilter" placeholder="Compartment Path" />
@@ -245,11 +245,19 @@
         </div>
         <details style="margin-top:0.7rem;">
           <summary style="cursor:pointer; font-weight:600;">Advanced: raw JSON payload override</summary>
+          <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
+            <button id="loadJsonExampleBtn" class="ghost" style="margin-top:0;">Load Example JSON</button>
+          </div>
           <textarea id="filters" placeholder="Optional JSON payload override. If valid JSON is present, it overrides the field filters."></textarea>
         </details>
         <div class="filter-actions" style="margin-top:0.6rem;">
           <button id="runBtn">Run Filter</button>
           <button id="clearFiltersBtn" class="ghost">Clear Filters</button>
+          <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" />
+          <button id="saveSearchBtn" class="ghost">Save Search</button>
+          <select id="savedSearchSelect" style="max-width:260px; min-width:180px;">
+            <option value="">Saved Searches</option>
+          </select>
         </div>
         <div id="status" class="status"></div>
       </div>
@@ -305,6 +313,10 @@
     <script>
       const runBtn = document.getElementById('runBtn');
       const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+      const saveSearchBtn = document.getElementById('saveSearchBtn');
+      const savedSearchName = document.getElementById('savedSearchName');
+      const savedSearchSelect = document.getElementById('savedSearchSelect');
+      const loadJsonExampleBtn = document.getElementById('loadJsonExampleBtn');
       const status = document.getElementById('status');
       const filters = document.getElementById('filters');
       const subjectFilter = document.getElementById('subjectFilter');
@@ -336,6 +348,13 @@
       let currentRows = [];
       let selectedRow = null;
       let sortState = { key: 'policy_name', dir: 'asc' };
+      let appSettings = {};
+
+      const JSON_OVERRIDE_EXAMPLE = {
+        subject: 'any-user|group-id',
+        verb: 'read|use|manage',
+        resource: 'instance|database'
+      };
 
       function escapeHtml(value) {
         return String(value ?? '')
@@ -529,6 +548,131 @@
         return payload;
       }
 
+      function getCurrentSearchSnapshot() {
+        return {
+          subject: String(subjectFilter.value || '').trim(),
+          action: String(actionFilter.value || 'Both').trim() || 'Both',
+          verb: String(verbFilter.value || '').trim(),
+          resource: String(resourceFilter.value || '').trim(),
+          permission: String(permissionFilter.value || '').trim(),
+          location: String(locationFilter.value || '').trim(),
+          compartment_path: String(compartmentPathFilter.value || '').trim(),
+          statement_text: String(statementTextFilter.value || '').trim(),
+          policy_name: String(policyNameFilter.value || '').trim(),
+          effective_path: String(effectivePathFilter.value || '').trim(),
+          conditions: String(conditionsFilter.value || '').trim(),
+          valid: String(validFilter.value || '').trim(),
+        };
+      }
+
+      function applySearchSnapshot(snapshot) {
+        const data = snapshot && typeof snapshot === 'object' ? snapshot : {};
+        subjectFilter.value = String(data.subject || '');
+        actionFilter.value = String(data.action || 'Both');
+        verbFilter.value = String(data.verb || '');
+        resourceFilter.value = String(data.resource || '');
+        permissionFilter.value = String(data.permission || '');
+        locationFilter.value = String(data.location || '');
+        compartmentPathFilter.value = String(data.compartment_path || '');
+        statementTextFilter.value = String(data.statement_text || '');
+        policyNameFilter.value = String(data.policy_name || '');
+        effectivePathFilter.value = String(data.effective_path || '');
+        conditionsFilter.value = String(data.conditions || '');
+        validFilter.value = String(data.valid || '');
+      }
+
+      function getSavedSearches() {
+        const searches = appSettings.saved_policy_searches;
+        return Array.isArray(searches) ? searches : [];
+      }
+
+      function refreshSavedSearchDropdown(selected = '') {
+        const searches = getSavedSearches();
+        savedSearchSelect.innerHTML = '<option value="">Saved Searches</option>';
+        searches.forEach((entry) => {
+          const name = String(entry?.name || '').trim();
+          if (!name) return;
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          savedSearchSelect.appendChild(option);
+        });
+        savedSearchSelect.value = selected && searches.some((s) => s?.name === selected) ? selected : '';
+      }
+
+      async function loadSettings() {
+        const response = await fetch('/settings');
+        if (!response.ok) throw new Error(`Failed to load settings (${response.status})`);
+        const payload = await response.json();
+        appSettings = payload?.settings && typeof payload.settings === 'object' ? payload.settings : {};
+        if (!Array.isArray(appSettings.saved_policy_searches)) {
+          appSettings.saved_policy_searches = [];
+        }
+        refreshSavedSearchDropdown();
+      }
+
+      async function persistSettings() {
+        const response = await fetch('/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settings: appSettings }),
+        });
+        if (!response.ok) throw new Error(`Failed to save settings (${response.status})`);
+      }
+
+      async function saveCurrentSearch() {
+        const name = String(savedSearchName.value || '').trim();
+        if (!name) {
+          status.textContent = 'Enter a Saved Search Name before saving.';
+          status.className = 'status error';
+          return;
+        }
+
+        const existing = getSavedSearches();
+        const idx = existing.findIndex((entry) => String(entry?.name || '') === name);
+        if (idx >= 0 && !window.confirm(`A saved search named "${name}" exists. Overwrite?`)) {
+          return;
+        }
+
+        const updatedEntry = {
+          name,
+          search: getCurrentSearchSnapshot(),
+          raw_json: String(filters.value || '').trim(),
+        };
+
+        const next = [...existing];
+        if (idx >= 0) next[idx] = updatedEntry;
+        else next.push(updatedEntry);
+        appSettings.saved_policy_searches = next;
+
+        try {
+          await persistSettings();
+          refreshSavedSearchDropdown(name);
+          status.textContent = `Saved search "${name}".`;
+          status.className = 'status success';
+        } catch (err) {
+          status.textContent = `Failed to save search: ${err}`;
+          status.className = 'status error';
+        }
+      }
+
+      async function restoreSavedSearch() {
+        const selected = String(savedSearchSelect.value || '').trim();
+        if (!selected) return;
+        const found = getSavedSearches().find((entry) => String(entry?.name || '') === selected);
+        if (!found) {
+          status.textContent = `Could not find saved search "${selected}".`;
+          status.className = 'status error';
+          return;
+        }
+        applySearchSnapshot(found.search || {});
+        filters.value = String(found.raw_json || '');
+        savedSearchName.value = selected;
+        status.textContent = `Loaded saved search "${selected}".`;
+        status.className = 'status success';
+        await runFilter();
+      }
+
       async function runFilter() {
         status.textContent = '';
         status.className = 'status';
@@ -601,6 +745,14 @@
         status.textContent = '';
       });
 
+      saveSearchBtn.addEventListener('click', saveCurrentSearch);
+      savedSearchSelect.addEventListener('change', restoreSavedSearch);
+      loadJsonExampleBtn.addEventListener('click', () => {
+        filters.value = JSON.stringify(JSON_OVERRIDE_EXAMPLE, null, 2);
+        status.textContent = 'Loaded JSON example. Run Filter to apply it.';
+        status.className = 'status';
+      });
+
       copyStatementBtn.addEventListener('click', async () => {
         if (!selectedRow) return;
         await navigator.clipboard.writeText(String(getRowValue(selectedRow, 'statement_text') || ''));
@@ -620,6 +772,18 @@
 
       updateSortIndicators();
       runBtn.addEventListener('click', runFilter);
+
+      async function initializePage() {
+        try {
+          await loadSettings();
+        } catch (err) {
+          status.textContent = `Failed to load settings: ${err}`;
+          status.className = 'status error';
+        }
+        await runFilter();
+      }
+
+      initializePage();
     </script>
   </body>
 </html>

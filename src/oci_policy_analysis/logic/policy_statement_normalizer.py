@@ -45,6 +45,7 @@ from oci_policy_analysis.common.models import (
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyLexer import PolicyLexer
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyParser import PolicyParser
 from oci_policy_analysis.logic.parsers.policy_parser.PolicyVisitor import PolicyVisitor
+from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.policy_subject_parser import parse_policy_subjects
 
 logger = get_logger(component='policy_parser')
@@ -595,6 +596,24 @@ def strip_quotes(val):
     return val
 
 
+def _extract_tenancy_aliases(*values: str) -> list[str]:
+    """Extract referenced tenancy aliases from raw clause strings."""
+    aliases: list[str] = []
+    for value in values:
+        text = str(value or '')
+        for match in re.finditer(r'\btenancy\s+([^\s,{}]+)', text, flags=re.IGNORECASE):
+            alias = str(match.group(1) or '').strip().strip('\'"')
+            if alias:
+                aliases.append(alias)
+    # preserve order, remove dupes
+    return list(dict.fromkeys(aliases))
+
+
+def _build_unresolved_alias_map(aliases: list[str]) -> dict[str, dict[str, str | bool]]:
+    """Build default unresolved alias map populated at parse time."""
+    return {alias: {'alias': alias, 'ocid': '', 'resolved': False} for alias in aliases}
+
+
 class PolicyStatementNormalizer:
     def __init__(self):
         self.antlr_parser = PolicyStatementParser()
@@ -670,38 +689,119 @@ class PolicyStatementNormalizer:
         }
         return DefineStatement(**obj)
 
+    @staticmethod
+    def _subject_to_text(subject_value) -> str:
+        """Normalize parsed subject payload to a stable display string.
+
+        Parsed subject values can be lists containing tuples (domain/name)
+        and/or plain strings (OCIDs, any-user, service names). Joining directly
+        can raise when tuples are present, so we normalize each element first.
+        """
+        if isinstance(subject_value, list):
+            rendered: list[str] = []
+            for item in subject_value:
+                if isinstance(item, tuple):
+                    # Common canonical shape from parse_policy_subjects:
+                    # (domain, name) where domain may be None for id subjects.
+                    if len(item) >= 2:
+                        domain = '' if item[0] is None else str(item[0]).strip()
+                        name = str(item[1]).strip()
+                        rendered.append(f'{domain}/{name}' if domain else name)
+                    else:
+                        rendered.append('/'.join(str(x) for x in item if x is not None))
+                else:
+                    rendered.append(str(item))
+            return ','.join(x for x in rendered if x)
+        return str(subject_value or '')
+
+    @staticmethod
+    def _subject_to_principal_keys(subject_type: str, subject_value) -> list[str]:
+        """Convert parsed subject payload into canonical principal key list."""
+        stype = str(subject_type or '').strip().lower()
+
+        if not isinstance(subject_value, list):
+            subject_value = [subject_value] if subject_value else []
+
+        keys: list[str] = []
+        for item in subject_value:
+            if isinstance(item, tuple):
+                domain = item[0] if len(item) >= 1 else None
+                name = item[1] if len(item) >= 2 else ''
+                if stype in {'group-id', 'dynamic-group-id'}:
+                    key_type = stype
+                    keys.append(f'{key_type}:{str(name).strip()}')
+                else:
+                    keys.append(calculate_principal_key(stype, domain, str(name)))
+                continue
+
+            value = str(item or '').strip()
+            if not value:
+                continue
+
+            # For name-based group/dynamic-group entries encoded as strings
+            # (typically OCIDs), generate id-style principal keys.
+            if stype == 'group':
+                keys.append(f'group-id:{value}')
+            elif stype == 'dynamic-group':
+                keys.append(f'dynamic-group-id:{value}')
+            elif stype in {'group-id', 'dynamic-group-id'}:
+                keys.append(f'{stype}:{value}')
+            elif stype in {'any-user', 'any-group', 'service'}:
+                keys.append(calculate_principal_key(stype, None, value or stype))
+            else:
+                keys.append(calculate_principal_key(stype, None, value))
+
+        return list(dict.fromkeys(k for k in keys if k))
+
     def _normalize_admit(self, statement_text, fields, base):
-        subject = (
-            ','.join(fields.get('subject', []))
-            if isinstance(fields.get('subject', []), list)
-            else fields.get('subject', '')
-        )
+        subject = self._subject_to_text(fields.get('subject', ''))
         admitted_principal_type = fields.get('subject_type', '')
+        principal_keys = self._subject_to_principal_keys(admitted_principal_type, fields.get('subject', ''))
         of_tenancy_val = fields.get('of_endorse_scope', '')
-        admitted_principal_tenancy = ''
+        admitted_tenancy = ''
         if of_tenancy_val:
             m = re.match(r'tenancy\s*(.+)', of_tenancy_val, re.IGNORECASE)
             if m:
-                admitted_principal_tenancy = m.group(1).strip()
+                admitted_tenancy = m.group(1).strip()
         perms = []
         perms_original = []
         if fields.get('permissionList'):
             perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
             perms = [p.upper() for p in perms_original]
+        admit_action = fields.get('endorseVerb', '') or fields.get('verb', '')
+        with_resource = fields.get('associated_resource', '')
+        with_scope = fields.get('associated_scope', '') or fields.get('with_endorse_scope', '')
+        associate_clause_raw = ''
+        if str(admit_action).strip().lower() == 'associate':
+            associate_clause_raw = (
+                f"associate {fields.get('resource', '')} in {fields.get('scope', '')}"
+                + (f' with {with_resource} in {with_scope}' if with_resource and with_scope else '')
+            ).strip()
+
+        tenancy_aliases = _extract_tenancy_aliases(of_tenancy_val, fields.get('scope', ''), with_scope)
         obj = {
             **base,
             'admit_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'admitted_principal_type': admitted_principal_type,
             'admitted_principal': subject,
-            'admitted_principal_tenancy': admitted_principal_tenancy,
-            'admit_action': fields.get('endorseVerb', '') or fields.get('verb', ''),
+            'principal_keys': principal_keys,
+            'admitted_tenancy': admitted_tenancy,
+            # Back-compat alias while downstream references migrate.
+            'admitted_principal_tenancy': admitted_tenancy,
+            'admit_action': admit_action,
             'admit_resource': fields.get('resource', ''),
             'admit_permissions': perms,
             'admit_location_type': fields.get('location_type', ''),
             'admit_location': strip_quotes(fields.get('location', '')),
             'admit_associate_resource': fields.get('associated_resource', ''),
             'admit_associate_tenancy': fields.get('associated_scope', ''),
+            'admit_associate_with_resource': with_resource,
+            'admit_associate_with_tenancy': with_scope,
+            'associate_clause_raw': associate_clause_raw,
+            'tenancy_aliases': tenancy_aliases,
+            'resolved_aliases': _build_unresolved_alias_map(tenancy_aliases),
+            'aliases_resolved': False,
             'where_clause': fields.get('condition', ''),
             'comment': fields.get('comments', ''),
             'parsed': True,
@@ -711,32 +811,47 @@ class PolicyStatementNormalizer:
         return AdmitStatement(**obj)
 
     def _normalize_endorse(self, statement_text, fields, base):
-        subject = (
-            ','.join(fields.get('subject', []))
-            if isinstance(fields.get('subject', []), list)
-            else fields.get('subject', '')
-        )
+        subject = self._subject_to_text(fields.get('subject', ''))
         endorsed_principal_type = fields.get('subject_type', '')
+        principal_keys = self._subject_to_principal_keys(endorsed_principal_type, fields.get('subject', ''))
         endorse_scope_val = fields.get('endorseScope', '')
         endorse_tenancy = ''
         if endorse_scope_val:
+            if str(endorse_scope_val).strip().lower() == 'any-tenancy':
+                endorse_tenancy = 'any-tenancy'
             m = re.match(r'tenancy\s*(.+)', endorse_scope_val, re.IGNORECASE)
             if m:
                 endorse_tenancy = m.group(1).strip()
+            if not endorse_tenancy:
+                m_of = re.search(r'\bof\s+tenancy\s+([^\s,{}]+)', str(endorse_scope_val), re.IGNORECASE)
+                if m_of:
+                    endorse_tenancy = m_of.group(1).strip()
 
         perms = []
         perms_original = []
         if fields.get('permissionList'):
             perms_original = [p.strip() for p in fields['permissionList'].strip('{}').split(',') if p.strip()]
             perms = [p.upper() for p in perms_original]
+        endorse_action = fields.get('endorseVerb', '') or fields.get('verb', '')
+        with_resource = fields.get('associated_resource', '')
+        with_scope = fields.get('associated_scope', '')
+        associate_clause_raw = ''
+        if str(endorse_action).strip().lower() == 'associate':
+            associate_clause_raw = (
+                f"associate {fields.get('resource', '')} in {fields.get('endorseScope', '')}"
+                + (f' with {with_resource} in {with_scope}' if with_resource and with_scope else '')
+            ).strip()
+
+        tenancy_aliases = _extract_tenancy_aliases(fields.get('endorseScope', ''), with_scope)
         obj = {
             **base,
             'endorse_permissions_original': perms_original,
             'action_type': fields.get('action', ''),
             'endorsed_principal_type': endorsed_principal_type,
             'endorsed_principal': subject,
+            'principal_keys': principal_keys,
             'endorsed_principal_tenancy': '',
-            'endorse_action': fields.get('endorseVerb', '') or fields.get('verb', ''),
+            'endorse_action': endorse_action,
             'endorse_resource': fields.get('resource', ''),
             'endorse_permissions': perms,
             'endorse_tenancy': endorse_tenancy,
@@ -744,6 +859,12 @@ class PolicyStatementNormalizer:
             'endorse_location': strip_quotes(fields.get('location', '')),
             'endorse_associate_resource': fields.get('associated_resource', ''),
             'endorse_associate_tenancy': fields.get('associated_scope', ''),
+            'endorse_associate_with_resource': with_resource,
+            'endorse_associate_with_tenancy': with_scope,
+            'associate_clause_raw': associate_clause_raw,
+            'tenancy_aliases': tenancy_aliases,
+            'resolved_aliases': _build_unresolved_alias_map(tenancy_aliases),
+            'aliases_resolved': False,
             'where_clause': fields.get('condition', ''),
             'comment': fields.get('comments', ''),
             'parsed': True,
@@ -757,6 +878,7 @@ class PolicyStatementNormalizer:
         subject_type = fields.get('subject_type', '') or ''
         subjects_out = []
         subj_raw = fields.get('subject', '')
+        principal_keys = self._subject_to_principal_keys(subject_type, subj_raw)
 
         # Need to log both the subject_type and the raw subject value for debugging, especially for edge cases
         logger.info(f"Subject type: '{subject_type}', raw subject value: '{subj_raw}'")
@@ -787,6 +909,7 @@ class PolicyStatementNormalizer:
             'invalid_reasons': [],
             'subject_type': subject_type,
             'subject': subjects_out,
+            'principal_keys': principal_keys,
             'verb': fields.get('verb', '') or '',
             'resource': fields.get('resource', '') or '',
             'permission': perms,

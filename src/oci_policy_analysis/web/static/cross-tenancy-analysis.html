@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/app.css" />
     <style>
       .stack { display: grid; gap: 1rem; }
+      .split-2 { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       .table-shell { border: 1px solid var(--oci-line); border-radius: 12px; overflow: hidden; }
       .table-scroll { max-height: 30vh; overflow: auto; }
       .table-scroll.large { max-height: 36vh; }
@@ -18,6 +19,91 @@
       .pill-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
       .small { font-size: 0.85rem; color: #6b7280; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .details-box {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        padding: .75rem;
+        min-height: 150px;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+        background: #fff;
+      }
+      .details-box h4 { margin: 0 0 .5rem 0; }
+      .details-grid { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: .35rem .6rem; font-size: .92rem; }
+      .details-grid .k { color: #6b7280; }
+      .details-grid > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+      .details-box .mono {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        word-break: break-all;
+      }
+      .policy-layout { display: block; }
+      .policy-main { display: grid; gap: 1rem; }
+      .policy-inspector {
+        display: none;
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .policy-inspector.open { display: flex; flex-direction: column; }
+      .policy-inspector-header {
+        padding: .9rem 1rem;
+        background: #1f1b1a;
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .policy-inspector-body { max-height: 58vh; overflow: auto; }
+      .policy-inspector-body table { width: 100%; border-collapse: collapse; }
+      .policy-inspector-body th {
+        width: 34%;
+        background: #faf8f6;
+        font-size: .75rem;
+        text-transform: uppercase;
+        color: #6c625d;
+      }
+      .policy-inspector-body td { white-space: pre-wrap; word-break: break-word; }
+      .policy-inspector-body .inspector-separator th {
+        width: 100%;
+        background: #f1ede9;
+        text-align: center;
+        font-size: .72rem;
+        letter-spacing: .08em;
+      }
+      .inspector-empty { padding: 1rem; color: #6b7280; }
+      @media (min-width: 1200px) {
+        .policy-layout {
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: minmax(0, 1fr);
+          position: relative;
+        }
+        .policy-layout.has-selection { grid-template-columns: minmax(0, 1fr); }
+        .policy-inspector {
+          display: flex;
+          flex-direction: column;
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: min(460px, 40vw);
+          border-radius: 0;
+          z-index: 40;
+          box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
+          transform: translateX(105%);
+          transition: transform 180ms ease;
+          pointer-events: none;
+        }
+        .policy-inspector.open { transform: translateX(0); pointer-events: auto; }
+        .policy-inspector-body { max-height: none; flex: 1; min-height: 0; }
+      }
+      @media (max-width: 980px) { .split-2 { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -49,19 +135,37 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap;">
           <strong>Defined Aliases</strong>
-          <div class="small">Select one or more aliases to filter Admit/Endorse tables.</div>
+          <div class="small">Select aliases via checkbox for filtering. Click any row to view define details.</div>
         </div>
-        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll"><table id="definesTable"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th><th>OCID Alias</th></tr></thead><tbody></tbody></table></div></div>
+        <div class="split-2" style="margin-top:.8rem; align-items:start;">
+          <div class="table-shell"><div class="table-scroll"><table id="definesTable"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th></tr></thead><tbody></tbody></table></div></div>
+          <div id="defineDetails" class="details-box"><h4>Define Details</h4><div class="small">Click a define row to see details.</div></div>
+        </div>
       </div>
 
-      <div class="card">
-        <strong>Admit Statements</strong>
-        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="admitTable"><thead><tr><th>Policy Name</th><th>Policy OCID</th><th>Statement Text</th><th>Creation Time</th><th>Parsed</th></tr></thead><tbody></tbody></table></div></div>
-      </div>
+      <div id="policyLayout" class="policy-layout">
+        <div class="policy-main">
+          <div class="card">
+            <strong>Admit Statements</strong>
+            <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="admitTable"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
+          </div>
 
-      <div class="card">
-        <strong>Endorse Statements</strong>
-        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="endorseTable"><thead><tr><th>Policy Name</th><th>Policy OCID</th><th>Statement Text</th><th>Creation Time</th><th>Parsed</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="card">
+            <strong>Endorse Statements</strong>
+            <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="endorseTable"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
+          </div>
+        </div>
+
+        <aside id="policyInspector" class="policy-inspector" aria-live="polite">
+          <div class="policy-inspector-header">
+            <strong id="inspectorTitle">Statement Details</strong>
+            <button id="closeInspectorBtn" class="ghost" style="margin-top:0;">×</button>
+          </div>
+          <div class="policy-inspector-body">
+            <div id="inspectorEmpty" class="inspector-empty">No admit/endorse statement selected.</div>
+            <table id="inspectorTable" style="display:none;"><tbody></tbody></table>
+          </div>
+        </aside>
       </div>
     </main>
 
@@ -69,6 +173,14 @@
       const definesBody = document.querySelector('#definesTable tbody');
       const admitBody = document.querySelector('#admitTable tbody');
       const endorseBody = document.querySelector('#endorseTable tbody');
+      const defineDetailsEl = document.getElementById('defineDetails');
+      const policyLayout = document.getElementById('policyLayout');
+      const policyInspector = document.getElementById('policyInspector');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const closeInspectorBtn = document.getElementById('closeInspectorBtn');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
       const statusEl = document.getElementById('status');
       const countDefines = document.getElementById('countDefines');
       const countAdmits = document.getElementById('countAdmits');
@@ -79,8 +191,13 @@
       let allAdmits = [];
       let allEndorses = [];
       let selectedAliases = new Set();
+      let selectedDefineIdx = null;
+      let selectedAdmitStableKey = null;
+      let selectedEndorseStableKey = null;
+      let selectedInspectorType = null;
 
       const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      const ocidWithBreaks = (v) => esc(v).replaceAll('.', '.<wbr>');
 
       function setStatus(message, kind = '') {
         statusEl.textContent = message || '';
@@ -108,11 +225,18 @@
         definesBody.innerHTML = allDefines.map((row, i) => {
           const alias = String(row.defined_name || '').trim();
           const checked = alias && selectedAliases.has(alias.toLowerCase());
-          return `<tr data-row-id="${i}" class="${checked ? 'active-row' : ''}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td><td class="mono">${esc(row.ocid_alias)}</td></tr>`;
+          const rowClass = `${checked ? 'active-row' : ''} ${selectedDefineIdx === i ? 'active-row' : ''}`.trim();
+          return `<tr data-row-id="${i}" class="${rowClass}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td></tr>`;
         }).join('');
 
         [...definesBody.querySelectorAll('tr')].forEach((tr) => {
           const idx = Number(tr.dataset.rowId);
+          tr.addEventListener('click', (event) => {
+            if (event.target && event.target.tagName === 'INPUT') return;
+            selectedDefineIdx = idx;
+            renderDefines();
+            renderDefineDetails(allDefines[idx]);
+          });
           tr.querySelector('input')?.addEventListener('change', (event) => {
             const alias = String(allDefines[idx]?.defined_name || '').trim().toLowerCase();
             if (!alias) return;
@@ -124,16 +248,118 @@
         });
       }
 
-      function renderStatementRows(body, rows) {
-        body.innerHTML = rows.map((row) =>
-          `<tr><td>${esc(row.policy_name)}</td><td class="mono">${esc(row.policy_ocid)}</td><td>${esc(row.statement_text)}</td><td>${esc(row.creation_time)}</td><td>${row.parsed ? 'true' : 'false'}</td></tr>`
-        ).join('');
+      function renderDefineDetails(row) {
+        if (!row) {
+          defineDetailsEl.innerHTML = `<h4>Define Details</h4><div class="small">Click a define row to see details.</div>`;
+          return;
+        }
+        defineDetailsEl.innerHTML = `
+          <h4>Define Details</h4>
+          <div class="details-grid">
+            <div class="k">Policy Name</div><div>${esc(row.policy_name)}</div>
+            <div class="k">Defined Type</div><div>${esc(row.defined_type)}</div>
+            <div class="k">Defined Name</div><div>${esc(row.defined_name)}</div>
+            <div class="k">OCID Alias</div><div>${ocidWithBreaks(row.ocid_alias)}</div>
+            <div class="k">Statement Text</div><div>${esc(row.statement_text || '')}</div>
+            <div class="k">Created</div><div>${esc(row.creation_time || '')}</div>
+          </div>
+        `;
+      }
+
+      function renderStatementRows(body, rows, selectedStableKey) {
+        body.innerHTML = rows.map((row) => {
+          const active = selectedStableKey && row.stable_key === selectedStableKey ? 'active-row' : '';
+          return `<tr data-stable-key="${esc(row.stable_key || '')}" class="${active}"><td>${esc(row.policy_name)}</td><td>${esc(row.statement_text)}</td></tr>`;
+        }).join('');
+      }
+
+      function formatInspectorValue(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'object') {
+          try { return JSON.stringify(value, null, 2); } catch (_err) { return String(value); }
+        }
+        return String(value);
+      }
+
+      function renderStatementDetails(type, row) {
+        if (!row) {
+          policyInspector.classList.remove('open');
+          policyLayout.classList.remove('has-selection');
+          inspectorTitle.textContent = 'Statement Details';
+          inspectorEmpty.style.display = 'block';
+          inspectorTable.style.display = 'none';
+          return;
+        }
+
+        policyInspector.classList.add('open');
+        policyLayout.classList.add('has-selection');
+        inspectorTitle.textContent = `${type} Statement Details`;
+
+        const primaryFieldOrder = ['policy_name', 'policy_ocid', 'statement_text', 'creation_time', 'parsed', 'stable_key'];
+        const labelForKey = (k) => String(k || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const parsedFields = row.parsed_fields && typeof row.parsed_fields === 'object' ? row.parsed_fields : {};
+        const parsedKeys = Object.keys(parsedFields);
+
+        const ordered = [
+          ...primaryFieldOrder.filter((k) => k in row),
+          ...(parsedKeys.length ? ['__separator_parsed__'] : []),
+          ...parsedKeys.sort((a, b) => a.localeCompare(b)),
+        ];
+
+        inspectorTableBody.innerHTML = ordered
+          .map((k) => {
+            if (k === '__separator_parsed__') {
+              return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
+            }
+            if (k in row) {
+              const val = k.includes('ocid') ? ocidWithBreaks(row[k]) : esc(formatInspectorValue(row[k]));
+              return `<tr><th>${esc(labelForKey(k))}</th><td>${val}</td></tr>`;
+            }
+            const v = parsedFields[k];
+            const val = k.includes('ocid') ? ocidWithBreaks(v) : esc(formatInspectorValue(v));
+            return `<tr><th>${esc(labelForKey(k))}</th><td>${val}</td></tr>`;
+          })
+          .join('');
+
+        inspectorEmpty.style.display = 'none';
+        inspectorTable.style.display = 'table';
       }
 
       function renderStatements() {
         const { admits, endorses } = applyAliasFilter();
-        renderStatementRows(admitBody, admits);
-        renderStatementRows(endorseBody, endorses);
+        renderStatementRows(admitBody, admits, selectedAdmitStableKey);
+        renderStatementRows(endorseBody, endorses, selectedEndorseStableKey);
+
+        [...admitBody.querySelectorAll('tr')].forEach((tr) => {
+          tr.addEventListener('click', () => {
+            selectedAdmitStableKey = tr.dataset.stableKey || null;
+            selectedInspectorType = 'Admit';
+            const row = admits.find((r) => String(r.stable_key || '') === String(selectedAdmitStableKey || ''));
+            renderStatementDetails('Admit', row);
+            renderStatements();
+          });
+        });
+
+        [...endorseBody.querySelectorAll('tr')].forEach((tr) => {
+          tr.addEventListener('click', () => {
+            selectedEndorseStableKey = tr.dataset.stableKey || null;
+            selectedInspectorType = 'Endorse';
+            const row = endorses.find((r) => String(r.stable_key || '') === String(selectedEndorseStableKey || ''));
+            renderStatementDetails('Endorse', row);
+            renderStatements();
+          });
+        });
+
+        if (selectedInspectorType === 'Admit') {
+          const row = admits.find((r) => String(r.stable_key || '') === String(selectedAdmitStableKey || ''));
+          renderStatementDetails('Admit', row || null);
+        } else if (selectedInspectorType === 'Endorse') {
+          const row = endorses.find((r) => String(r.stable_key || '') === String(selectedEndorseStableKey || ''));
+          renderStatementDetails('Endorse', row || null);
+        } else {
+          renderStatementDetails('', null);
+        }
+
         countAdmits.textContent = `Admit: ${admits.length}`;
         countEndorses.textContent = `Endorse: ${endorses.length}`;
       }
@@ -173,6 +399,13 @@
       document.getElementById('clearAliasBtn').addEventListener('click', () => {
         selectedAliases = new Set();
         renderDefines();
+        renderStatements();
+      });
+
+      closeInspectorBtn.addEventListener('click', () => {
+        selectedAdmitStableKey = null;
+        selectedEndorseStableKey = null;
+        selectedInspectorType = null;
         renderStatements();
       });
 
