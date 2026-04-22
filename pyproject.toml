@@ -11,7 +11,6 @@ version = "5.0.0-beta.1"
 dependencies = [
     "oci==2.168.0",
     "deepdiff==8.5.0",
-    "fastmcp==2.12.5",
     "antlr4-python3-runtime==4.13.2"
 ]
 
@@ -24,9 +23,19 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+core = []
+ui = []
 web = [
     "fastapi>=0.110",
     "uvicorn>=0.29"
+]
+mcp = [
+    "fastmcp==2.12.5"
+]
+all = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "fastmcp==2.12.5"
 ]
 docs = [
     "sphinx>=7",
@@ -41,6 +50,12 @@ commit = [
 test = [
     "pytest"
 ]
+
+[project.scripts]
+oci-policy-analysis-ui = "oci_policy_analysis.main:main"
+oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
+oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
+oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]

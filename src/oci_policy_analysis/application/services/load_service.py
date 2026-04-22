@@ -1,0 +1,303 @@
+"""Load and reload workflows for policy data."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.post_load import run_post_load_pipeline
+from oci_policy_analysis.common.logger import get_logger
+
+
+@dataclass
+class LoadResult:
+    """Result wrapper for policy load operations."""
+
+    success: bool
+    message: str
+    summary: dict[str, int] | None = None
+
+
+class LoadService:
+    """Orchestrate tenancy/cache/compliance loads without UI coupling."""
+
+    def __init__(self, context: AppContext) -> None:
+        """Initialize the load service.
+
+        Args:
+            context: Shared application context.
+
+        Returns:
+            None
+        """
+        self.context = context
+        self.logger = get_logger(component='load_service')
+
+    def _emit_stage(
+        self,
+        *,
+        stage: str,
+        detail: str = '',
+        state: str = 'running',
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> None:
+        """Emit stage updates to context status and optional callback.
+
+        Args:
+            stage: Current stage name.
+            detail: Optional stage detail text.
+            state: Stage state value.
+            on_stage: Optional callback for stage notifications.
+
+        Returns:
+            None
+        """
+        if hasattr(self.context, 'set_status'):
+            self.context.set_status(stage=stage, detail=detail, state=state)
+        if callable(on_stage):
+            on_stage(stage, detail, state)
+
+    def load_from_cache(
+        self,
+        cache_name: str,
+        *,
+        run_post_load_intelligence: bool = True,
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> LoadResult:
+        """Load repository data from a named cache entry.
+
+        Args:
+            cache_name: Cache entry to load.
+            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            on_stage: Optional stage progress callback.
+
+        Returns:
+            LoadResult: Load status and data summary.
+        """
+        self.logger.info('Loading cache via LoadService: %s', cache_name)
+        self._emit_stage(stage='Loading Cache', detail=f'Loading cache {cache_name}', on_stage=on_stage)
+        repo = self.context.policy_repo
+        success = self.context.cache.load_combined_cache(repo, named_cache=cache_name)
+        if success and run_post_load_intelligence:
+            self._post_load_create_intelligence()
+        elif not success:
+            self.logger.error('Cache load failed: cache_name=%s', cache_name)
+        summary = self._build_summary(repo)
+        msg = f'Loaded cache {cache_name}' if success else f'Failed to load cache {cache_name}'
+        self._emit_stage(
+            stage='Complete' if success else 'Failed',
+            detail=msg,
+            state='success' if success else 'error',
+            on_stage=on_stage,
+        )
+        return LoadResult(success=bool(success), message=msg, summary=summary)
+
+    def load_from_export_json(
+        self,
+        file_path: str,
+        *,
+        run_post_load_intelligence: bool = True,
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> LoadResult:
+        """Load repository data from an exported JSON file.
+
+        Args:
+            file_path: Path to export JSON file.
+            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            on_stage: Optional stage progress callback.
+
+        Returns:
+            LoadResult: Load status and data summary.
+        """
+        self.logger.info('Loading export JSON via LoadService: %s', file_path)
+        self._emit_stage(stage='Loading Export', detail=f'Reading {file_path}', on_stage=on_stage)
+        repo = self.context.policy_repo
+        try:
+            with open(file_path, encoding='utf-8') as jsonfile:
+                loaded_json = json.load(jsonfile)
+        except Exception as exc:
+            msg = f'Failed to read export JSON: {exc}'
+            self.logger.exception('Failed reading export JSON file: %s', file_path)
+            self._emit_stage(stage='Failed', detail=msg, state='error', on_stage=on_stage)
+            return LoadResult(success=False, message=msg)
+
+        success = bool(self.context.cache_service.import_from_json(loaded_json=loaded_json, policy_repo=repo))
+        if success and run_post_load_intelligence:
+            self._emit_stage(
+                stage='Running Intelligence',
+                detail='Calculating effective compartments and overlays',
+                on_stage=on_stage,
+            )
+            self._post_load_create_intelligence()
+        elif not success:
+            self.logger.error('Export JSON import failed: file_path=%s', file_path)
+        summary = self._build_summary(repo)
+        msg = f'Loaded export JSON from {file_path}' if success else f'Failed to load export JSON: {file_path}'
+        self._emit_stage(
+            stage='Complete' if success else 'Failed',
+            detail=msg,
+            state='success' if success else 'error',
+            on_stage=on_stage,
+        )
+        return LoadResult(success=success, message=msg, summary=summary)
+
+    def load_from_compliance_output(
+        self,
+        dir_path: str,
+        *,
+        load_all_users: bool = True,
+        run_post_load_intelligence: bool = True,
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> LoadResult:
+        """Load repository data from compliance output directory.
+
+        Args:
+            dir_path: Directory containing compliance output artifacts.
+            load_all_users: Whether to load all users from identity data.
+            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            on_stage: Optional stage progress callback.
+
+        Returns:
+            LoadResult: Load status and data summary.
+        """
+        self.logger.info('Loading compliance output via LoadService: %s', dir_path)
+        self._emit_stage(stage='Loading Compliance', detail=f'Loading from {dir_path}', on_stage=on_stage)
+        repo = self.context.policy_repo
+        success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
+        if success and run_post_load_intelligence:
+            self._post_load_create_intelligence()
+        elif not success:
+            self.logger.error('Compliance output load failed: dir_path=%s', dir_path)
+        summary = self._build_summary(repo)
+        msg = f'Loaded compliance output from {dir_path}' if success else f'Compliance load failed: {dir_path}'
+        self._emit_stage(
+            stage='Complete' if success else 'Failed',
+            detail=msg,
+            state='success' if success else 'error',
+            on_stage=on_stage,
+        )
+        return LoadResult(success=bool(success), message=msg, summary=summary)
+
+    def load_from_tenancy(
+        self,
+        *,
+        use_instance_principal: bool,
+        profile: str | None = None,
+        session_token: str | None = None,
+        recursive: bool = False,
+        load_all_users: bool = True,
+        compartment_domain_search_depth: int = 1,
+        run_post_load_intelligence: bool = True,
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> LoadResult:
+        """Load policy data directly from OCI tenancy.
+
+        Args:
+            use_instance_principal: Whether to authenticate with instance principal.
+            profile: Optional OCI profile name.
+            session_token: Optional session token for auth.
+            recursive: Whether tenancy traversal should be recursive.
+            load_all_users: Whether to load all users for identity domains.
+            compartment_domain_search_depth: Identity domain search depth.
+            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            on_stage: Optional stage progress callback.
+
+        Returns:
+            LoadResult: Load status and data summary.
+        """
+        self.logger.info(
+            'Loading tenancy via LoadService: instance_principal=%s profile=%s recursive=%s',
+            use_instance_principal,
+            profile or '',
+            recursive,
+        )
+        self._emit_stage(stage='Initializing', detail='Configuring OCI client', on_stage=on_stage)
+        repo = self.context.policy_repo
+        success = repo.initialize_client(
+            use_instance_principal=use_instance_principal,
+            session_token=session_token,
+            recursive=recursive,
+            profile=profile or '',
+        )
+        if not success:
+            self.logger.error('Tenancy client initialization failed')
+            self._emit_stage(
+                stage='Failed', detail='Failed to initialize tenancy client', state='error', on_stage=on_stage
+            )
+            return LoadResult(success=False, message='Failed to initialize tenancy client')
+
+        self._emit_stage(stage='Loading Compartments', detail='Fetching tenancy compartments', on_stage=on_stage)
+        if not repo.load_compartments_only():
+            self.logger.error('Tenancy load failed while loading compartments')
+            self._emit_stage(stage='Failed', detail='Failed to load compartments', state='error', on_stage=on_stage)
+            return LoadResult(success=False, message='Failed to load compartments')
+
+        self._emit_stage(
+            stage='Loading Identity Domains',
+            detail='Fetching identity domains, groups, and users',
+            on_stage=on_stage,
+        )
+        if not repo.load_complete_identity_domains(
+            load_all_users=load_all_users,
+            compartment_domain_search_depth=compartment_domain_search_depth,
+        ):
+            self.logger.error('Tenancy load failed while loading identity domains')
+            self._emit_stage(stage='Failed', detail='Failed to load identity domains', state='error', on_stage=on_stage)
+            return LoadResult(success=False, message='Failed to load identity domains')
+
+        self._emit_stage(stage='Loading Policies', detail='Fetching policy statements', on_stage=on_stage)
+        if not repo.load_policies_only():
+            self.logger.error('Tenancy load failed while loading policies')
+            self._emit_stage(stage='Failed', detail='Failed to load policies', state='error', on_stage=on_stage)
+            return LoadResult(success=False, message='Failed to load policies')
+
+        if run_post_load_intelligence:
+            self._emit_stage(
+                stage='Running Intelligence',
+                detail='Calculating effective compartments and overlays',
+                on_stage=on_stage,
+            )
+            self._post_load_create_intelligence()
+
+        summary = self._build_summary(repo)
+        self._emit_stage(
+            stage='Complete',
+            detail=f"Loaded {summary.get('policies', 0)} policies and {summary.get('statements', 0)} statements",
+            state='success',
+            on_stage=on_stage,
+        )
+        self.logger.info(
+            'Tenancy load completed: policies=%s statements=%s',
+            summary.get('policies', 0),
+            summary.get('statements', 0),
+        )
+        return LoadResult(success=True, message='Loaded tenancy data', summary=summary)
+
+    def _post_load_create_intelligence(self) -> None:
+        """Run post-load intelligence and simulation refresh orchestration.
+
+        Returns:
+            None
+        """
+        run_post_load_pipeline(self.context)
+
+    @staticmethod
+    def _build_summary(repo: Any) -> dict[str, int]:
+        """Build a summary of loaded repository entity counts.
+
+        Args:
+            repo: Policy repository instance.
+
+        Returns:
+            dict[str, int]: Counts for key loaded entity types.
+        """
+        return {
+            'compartments': len(getattr(repo, 'compartments', []) or []),
+            'policies': len(getattr(repo, 'policies', []) or []),
+            'statements': len(getattr(repo, 'regular_statements', []) or []),
+            'groups': len(getattr(repo, 'groups', []) or []),
+            'users': len(getattr(repo, 'users', []) or []),
+        }
