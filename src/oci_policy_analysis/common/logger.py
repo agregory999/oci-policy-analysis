@@ -129,6 +129,12 @@ def set_log_level(level: str | int) -> None:
         if isinstance(obj, logging.Logger) and name.startswith('oci-policy-analysis'):
             obj.setLevel(level_value)
 
+    # Also mirror to uvicorn loggers when running web mode so access/error
+    # output respects the same global threshold (e.g., WARNING hides
+    # frequent INFO request lines like "GET /status 200 OK").
+    for logger_name in ('uvicorn', 'uvicorn.error', 'uvicorn.access'):
+        logging.getLogger(logger_name).setLevel(level_value)
+
     # logging.getLogger().setLevel(level_value)  # Root
     logging.getLogger().warning(f'Global (root) log level set to {logging.getLevelName(level_value)}')
 

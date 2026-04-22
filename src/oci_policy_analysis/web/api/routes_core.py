@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
+from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.application.services.intelligence_service import IntelligenceService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
@@ -59,6 +62,17 @@ def _build_stage_collector() -> tuple[list[dict[str, str]], Any]:
         )
 
     return stages, on_stage
+
+
+def _normalize_statement_text_for_key(statement_text: str) -> str:
+    """Normalize statement text for stable key generation."""
+    return re.sub(r'\s+', ' ', statement_text.strip()).casefold()
+
+
+def _build_cross_tenancy_stable_key(policy_ocid: str, statement_text: str) -> str:
+    """Build parser-independent stable key for cross-tenancy statement rows."""
+    payload = f'{policy_ocid}|{_normalize_statement_text_for_key(statement_text)}'
+    return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
 @router.get('/health')
@@ -185,6 +199,48 @@ def run_intelligence() -> dict[str, object]:
     service = IntelligenceService(ctx)
     result = service.run_all()
     return {'overlay': result.overlay}
+
+
+@router.post('/analysis/historical-compare')
+def historical_compare(payload: dict[str, object]) -> dict[str, object]:
+    """Compare two named caches and return normalized sectioned diff results."""
+    logger.info('POST /analysis/historical-compare')
+    left_cache = str(payload.get('left_cache') or '').strip()
+    right_cache = str(payload.get('right_cache') or '').strip()
+    if not left_cache or not right_cache:
+        raise HTTPException(status_code=400, detail='left_cache and right_cache are required.')
+
+    ctx = get_context()
+    service = HistoricalAnalysisService(ctx.cache)
+    result = service.compare_caches(left_cache=left_cache, right_cache=right_cache)
+
+    def _section_to_dict(section) -> dict[str, object]:
+        return {
+            'section': section.section,
+            'key': section.key,
+            'added': section.added,
+            'removed': section.removed,
+            'modified': section.modified,
+            'items': [
+                {
+                    'action': item.action,
+                    'section': item.section,
+                    'stable_key': item.stable_key,
+                    'title': item.title,
+                    'old_value': item.old_value,
+                    'new_value': item.new_value,
+                    'changed_fields': item.changed_fields,
+                }
+                for item in section.items
+            ],
+        }
+
+    return {
+        'left_cache': result.left_cache,
+        'right_cache': result.right_cache,
+        'policy_sections': [_section_to_dict(s) for s in result.policy_sections],
+        'identity_sections': [_section_to_dict(s) for s in result.identity_sections],
+    }
 
 
 @router.post('/filter/policies')
@@ -424,6 +480,64 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         'matched': len(statements),
         'statements': [for_display_policy(st) for st in statements],
         'selected_groups': selected_groups_unique,
+    }
+
+
+@router.get('/analysis/cross-tenancy')
+def get_cross_tenancy_basic() -> dict[str, object]:
+    """Return basic cross-tenancy rows for web display with stable keys."""
+    logger.info('GET /analysis/cross-tenancy')
+    ctx = get_context()
+    repo = ctx.policy_repo
+
+    defines_raw = list(getattr(repo, 'defined_aliases', []) or [])
+    ct_raw = list(getattr(repo, 'cross_tenancy_statements', []) or [])
+
+    define_rows: list[dict[str, str]] = []
+    for item in defines_raw:
+        define_rows.append(
+            {
+                'policy_name': str(item.get('policy_name') or ''),
+                'defined_type': str(item.get('defined_type') or ''),
+                'defined_name': str(item.get('defined_name') or ''),
+                'ocid_alias': str(item.get('ocid_alias') or ''),
+            }
+        )
+
+    admit_rows: list[dict[str, object]] = []
+    endorse_rows: list[dict[str, object]] = []
+    unknown_rows: list[dict[str, object]] = []
+
+    for item in ct_raw:
+        statement_text = str(item.get('statement_text') or '')
+        text_cf = statement_text.casefold()
+        policy_ocid = str(item.get('policy_ocid') or '')
+        row: dict[str, object] = {
+            'policy_name': str(item.get('policy_name') or ''),
+            'policy_ocid': policy_ocid,
+            'statement_text': statement_text,
+            'creation_time': str(item.get('creation_time') or ''),
+            'parsed': bool(item.get('parsed', False)),
+            'stable_key': _build_cross_tenancy_stable_key(policy_ocid, statement_text),
+        }
+        if text_cf.startswith('admit') or text_cf.startswith('deny admit'):
+            admit_rows.append(row)
+        elif text_cf.startswith('endorse') or text_cf.startswith('deny endorse'):
+            endorse_rows.append(row)
+        else:
+            unknown_rows.append(row)
+
+    return {
+        'defines': define_rows,
+        'admit_statements_basic': admit_rows,
+        'endorse_statements_basic': endorse_rows,
+        'unknown_statements_basic': unknown_rows,
+        'counts': {
+            'defines': len(define_rows),
+            'admit': len(admit_rows),
+            'endorse': len(endorse_rows),
+            'unknown': len(unknown_rows),
+        },
     }
 
 

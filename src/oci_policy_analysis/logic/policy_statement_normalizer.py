@@ -484,25 +484,33 @@ class _FieldCollectingVisitor(PolicyVisitor):
         fields['type'] = 'define'
         fields['action'] = 'define'
         subj_ctx = ctx.definedSubject()
-        name_cls = type(subj_ctx).__name__
         # Group/dynamic-group/compartment/tenancy type mapping
-        if name_cls == 'GroupSubjectContext':
+        # Prefer feature detection on parse-context accessors over exact class
+        # names, because generated ANTLR class names can vary slightly.
+        if subj_ctx and hasattr(subj_ctx, 'groupSubject') and subj_ctx.groupSubject():
             fields['defined_type'] = 'group'
             names = parse_policy_subjects('group', subj_ctx.getText())
             fields['defined_name'] = names[0][1] if names else ''
-        elif name_cls == 'DynamicGroupSubjectContext':
+        elif subj_ctx and hasattr(subj_ctx, 'dynamicGroupSubject') and subj_ctx.dynamicGroupSubject():
             fields['defined_type'] = 'dynamic-group'
             names = parse_policy_subjects('dynamic-group', subj_ctx.getText())
             fields['defined_name'] = names[0][1] if names else ''
-        elif name_cls == 'CompartmentSubjectContext':
+        elif subj_ctx and hasattr(subj_ctx, 'compartmentSubject') and subj_ctx.compartmentSubject():
             fields['defined_type'] = 'compartment'
             fields['defined_name'] = subj_ctx.getChild(1).getText() if subj_ctx.getChildCount() >= 2 else ''
-        elif name_cls == 'TenancySubjectContext':
+        elif subj_ctx and hasattr(subj_ctx, 'tenancySubject') and subj_ctx.tenancySubject():
             fields['defined_type'] = 'tenancy'
             fields['defined_name'] = subj_ctx.getChild(1).getText() if subj_ctx.getChildCount() >= 2 else ''
         else:
-            fields['defined_type'] = ''
-            fields['defined_name'] = self._get_text(subj_ctx)
+            # Fallback: parse best-effort from raw defined subject text.
+            raw_defined_subject = self._get_text(subj_ctx).strip()
+            parts = raw_defined_subject.split(None, 1)
+            if len(parts) == 2 and parts[0].casefold() in {'group', 'dynamic-group', 'compartment', 'tenancy'}:
+                fields['defined_type'] = parts[0].casefold()
+                fields['defined_name'] = parts[1]
+            else:
+                fields['defined_type'] = ''
+                fields['defined_name'] = raw_defined_subject
         fields['definedSubject'] = self._get_text(subj_ctx)
         fields['defined'] = self._get_text(ctx.defined())
         fields['comments'] = ''
@@ -625,8 +633,28 @@ class PolicyStatementNormalizer:
 
     def _normalize_define(self, statement_text, fields, base):
         # The visitor now provides explicit defined_type and defined_name
-        defined_type = fields.get('defined_type', '')
-        defined_name = fields.get('defined_name', '')
+        defined_type = str(fields.get('defined_type', '') or '').strip()
+        defined_name = str(fields.get('defined_name', '') or '').strip()
+
+        # Defensive fallback for legacy parse shape where defined_name may
+        # contain both parts, e.g. "tenancy aliasName".
+        if not defined_type and defined_name:
+            parts = defined_name.split(None, 1)
+            if len(parts) == 2 and parts[0].casefold() in {'group', 'dynamic-group', 'compartment', 'tenancy'}:
+                defined_type = parts[0].casefold()
+                defined_name = parts[1].strip()
+
+        # Additional fallback directly from statement text.
+        if (not defined_type or not defined_name) and isinstance(statement_text, str):
+            match = re.match(
+                r'^\s*define\s+(group|dynamic-group|compartment|tenancy)\s+(.+?)\s+as\s+(.+?)\s*$',
+                statement_text,
+                re.IGNORECASE,
+            )
+            if match:
+                defined_type = defined_type or match.group(1).casefold()
+                defined_name = defined_name or match.group(2).strip()
+
         logger.info(f'Normalizing define statement: {statement_text}')
         logger.info(f"Extracted fields for define: defined_type='{defined_type}', defined_name='{defined_name}'")
         logger.info(f'All fields extracted by visitor: {fields}')

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -23,14 +26,15 @@ app.mount('/', StaticFiles(directory='src/oci_policy_analysis/web/static', html=
 
 
 def main() -> None:
-    """Placeholder runner for CLI invocation.
+    """Run the web app via CLI-friendly options."""
 
-    Use `uvicorn oci_policy_analysis.web.main:app --reload` for dev.
-    """
+    parser = argparse.ArgumentParser(description='Run OCI Policy Analysis web server')
+    parser.add_argument('--host', default='127.0.0.1', help='Bind host (default: 127.0.0.1)')
+    parser.add_argument('--port', type=int, default=8000, help='Bind port (default: 8000)')
+    parser.add_argument('--reload', action='store_true', help='Enable auto-reload (dev only)')
+    args = parser.parse_args()
 
-    import uvicorn
-
-    uvicorn.run('oci_policy_analysis.web.main:app', host='127.0.0.1', port=8000, reload=True)
+    uvicorn.run('oci_policy_analysis.web.main:app', host=args.host, port=args.port, reload=args.reload)
 
 
 if __name__ == '__main__':

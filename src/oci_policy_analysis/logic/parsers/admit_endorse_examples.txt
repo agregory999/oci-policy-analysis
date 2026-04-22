@@ -1,15 +1,45 @@
 admit group orasenatdpltintegration03-admins of tenancy orasenatdpltintegration03 to read all-resources in tenancy
-admit group limits-requestors-sales of tenancy boat to {limits_increase_manage} in tenancy
-admit dynamic-group fams-workload-dg of tenancy fams-tenancy to read orm-stack in tenancy where all { request.principal.type = 'workload' }
-admit group digital01-users of tenancy digital01 to manage autonomous-database-family in compartment cloud-engineering-specialprojects:data-integration-demo
-admit group parent_tenant_admin of tenancy parent to manage all-resources in tenancy
-admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy GroupTenancy with database-tools-private-endpoints in compartment PrivateEndpointsCompartment
-admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to read secret-family in compartment PrivateEndpointsCompartment
-admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to use database-tools-private-endpoints in compartment PrivateEndpointsCompartment
-admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy
+- the of tenancy orasenatdpltintegration03 is a reference to an alias that must be defined
+- the "read all-resources in tenancy" is a verb/resource/location in our tenancy
 
+admit group limits-requestors-sales of tenancy boat to {limits_increase_manage} in tenancy
+- this uses a PERMISSION in our tenancy
+- any time you encounter "of tenancy XXX" you will need to use the alias to get to the OCID of remote tenancy
+
+admit dynamic-group fams-workload-dg of tenancy fams-tenancy to read orm-stack in tenancy where all { request.principal.type = 'workload' }
+- defined tenancy is fams-tenancy
+- admits a dynamic group; group is the other option
+
+admit group digital01-users of tenancy digital01 to manage autonomous-database-family in compartment cloud-engineering-specialprojects:data-integration-demo
+- compartment path as location MUST come from root of our tenancy, as cross-tenancy policies only allowed in root
+
+admit group parent_tenant_admin of tenancy parent to manage all-resources in tenancy
+- in terms of recommendation, this enables a group from outside to manage our tenancy (dangerous)
+
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy GroupTenancy with database-tools-private-endpoints in compartment PrivateEndpointsCompartment
+- associate is a complex verb, only for cross-tenancy.  You must "associate" a resource from a defined tenancy "with" a resource in our tenancy
+- could this be a nested structure inside the json?
+
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to read secret-family in compartment PrivateEndpointsCompartment
+- simple
+
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to use database-tools-private-endpoints in compartment PrivateEndpointsCompartment
+-simple
+
+admit group DatabaseToolsConnectionManagers of tenancy GroupTenancy to associate database-tools-connections in tenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy
+- associate statements can go backwards too - associating our tenancy to another. 
 
 endorse group DatabaseToolsConnectionManagers to associate database-tools-connections in compartment ConnectionsCompartment with database-tools-private-endpoints in tenancy ResourceTenancy
+- endorse allows association too
+- we are giving privs for a group or dynamic group in our tenancy in associate 
+
 endorse group DatabaseToolsConnectionManagers to read secret-family in tenancy ResourceTenancy
+- tenancy ResourceTenancy must be a defined alias
+
 endorse group DatabaseToolsConnectionManagers to use database-tools-private-endpoints in tenancy ResourceTenancy
+- "use database-tools-private-endpoints" is an endorsed verb and endorsed resource 
+- tenancy ResourceTenancy is an endorsed tenancy
+- in theory, get the defined alias and you know the OCID
+
 endorse group DatabaseToolsConnectionManagers to associate database-tools-connections in tenancy ConnectionTenancy with database-tools-private-endpoints in tenancy PrivateEndpointTenancy
+- any time you encounter "in tenancy XXX" you will need to use the alias to get to the OCID of remote tenancy

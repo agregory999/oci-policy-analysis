@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Cross-Tenancy Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .stack { display: grid; gap: 1rem; }
+      .table-shell { border: 1px solid var(--oci-line); border-radius: 12px; overflow: hidden; }
+      .table-scroll { max-height: 30vh; overflow: auto; }
+      .table-scroll.large { max-height: 36vh; }
+      table thead th { position: sticky; top: 0; z-index: 1; background: #f3f1ef; }
+      table tbody tr:nth-child(odd) { background: #fff; }
+      table tbody tr:nth-child(even) { background: #f7f7f7; }
+      table tbody tr:hover { background: #fdf1ef; }
+      table tbody tr.active-row { background: #fbe4e0; }
+      .pill-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+      .small { font-size: 0.85rem; color: #6b7280; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Cross-Tenancy Analysis</h1>
+      <a href="/">← Back to home</a>
+    </header>
+    <main class="stack">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; gap:0.8rem; flex-wrap:wrap; align-items:center;">
+          <div>
+            <h3 style="margin:0;">Cross-Tenancy (Basic Fields)</h3>
+            <div class="small">Alias filtering uses statement text contains matching (case-insensitive).</div>
+          </div>
+          <div style="display:flex; gap:0.6rem;">
+            <button id="refreshBtn">Refresh</button>
+            <button id="clearAliasBtn" class="ghost">Clear Alias Filter</button>
+          </div>
+        </div>
+        <div id="status" class="status"></div>
+        <div class="pill-row" style="margin-top:0.6rem;">
+          <div id="countDefines" class="pill">Defines: 0</div>
+          <div id="countAdmits" class="pill">Admit: 0</div>
+          <div id="countEndorses" class="pill">Endorse: 0</div>
+          <div id="countUnknown" class="pill">Unknown: 0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap;">
+          <strong>Defined Aliases</strong>
+          <div class="small">Select one or more aliases to filter Admit/Endorse tables.</div>
+        </div>
+        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll"><table id="definesTable"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th><th>OCID Alias</th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+
+      <div class="card">
+        <strong>Admit Statements</strong>
+        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="admitTable"><thead><tr><th>Policy Name</th><th>Policy OCID</th><th>Statement Text</th><th>Creation Time</th><th>Parsed</th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+
+      <div class="card">
+        <strong>Endorse Statements</strong>
+        <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="endorseTable"><thead><tr><th>Policy Name</th><th>Policy OCID</th><th>Statement Text</th><th>Creation Time</th><th>Parsed</th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+    </main>
+
+    <script>
+      const definesBody = document.querySelector('#definesTable tbody');
+      const admitBody = document.querySelector('#admitTable tbody');
+      const endorseBody = document.querySelector('#endorseTable tbody');
+      const statusEl = document.getElementById('status');
+      const countDefines = document.getElementById('countDefines');
+      const countAdmits = document.getElementById('countAdmits');
+      const countEndorses = document.getElementById('countEndorses');
+      const countUnknown = document.getElementById('countUnknown');
+
+      let allDefines = [];
+      let allAdmits = [];
+      let allEndorses = [];
+      let selectedAliases = new Set();
+
+      const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+
+      function setStatus(message, kind = '') {
+        statusEl.textContent = message || '';
+        statusEl.className = kind ? `status ${kind}` : 'status';
+      }
+
+      function containsAlias(statementText, aliases) {
+        const normalized = String(statementText || '').toLowerCase();
+        for (const alias of aliases) {
+          if (normalized.includes(alias)) return true;
+        }
+        return false;
+      }
+
+      function applyAliasFilter() {
+        if (!selectedAliases.size) return { admits: allAdmits, endorses: allEndorses };
+        const aliases = Array.from(selectedAliases).map((a) => a.toLowerCase());
+        return {
+          admits: allAdmits.filter((row) => containsAlias(row.statement_text, aliases)),
+          endorses: allEndorses.filter((row) => containsAlias(row.statement_text, aliases)),
+        };
+      }
+
+      function renderDefines() {
+        definesBody.innerHTML = allDefines.map((row, i) => {
+          const alias = String(row.defined_name || '').trim();
+          const checked = alias && selectedAliases.has(alias.toLowerCase());
+          return `<tr data-row-id="${i}" class="${checked ? 'active-row' : ''}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td><td class="mono">${esc(row.ocid_alias)}</td></tr>`;
+        }).join('');
+
+        [...definesBody.querySelectorAll('tr')].forEach((tr) => {
+          const idx = Number(tr.dataset.rowId);
+          tr.querySelector('input')?.addEventListener('change', (event) => {
+            const alias = String(allDefines[idx]?.defined_name || '').trim().toLowerCase();
+            if (!alias) return;
+            if (event.target.checked) selectedAliases.add(alias);
+            else selectedAliases.delete(alias);
+            renderDefines();
+            renderStatements();
+          });
+        });
+      }
+
+      function renderStatementRows(body, rows) {
+        body.innerHTML = rows.map((row) =>
+          `<tr><td>${esc(row.policy_name)}</td><td class="mono">${esc(row.policy_ocid)}</td><td>${esc(row.statement_text)}</td><td>${esc(row.creation_time)}</td><td>${row.parsed ? 'true' : 'false'}</td></tr>`
+        ).join('');
+      }
+
+      function renderStatements() {
+        const { admits, endorses } = applyAliasFilter();
+        renderStatementRows(admitBody, admits);
+        renderStatementRows(endorseBody, endorses);
+        countAdmits.textContent = `Admit: ${admits.length}`;
+        countEndorses.textContent = `Endorse: ${endorses.length}`;
+      }
+
+      async function loadCrossTenancy() {
+        setStatus('Loading cross-tenancy data...');
+        try {
+          const response = await fetch('/analysis/cross-tenancy');
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const payload = await response.json();
+
+          allDefines = Array.isArray(payload.defines) ? payload.defines : [];
+          allAdmits = Array.isArray(payload.admit_statements_basic) ? payload.admit_statements_basic : [];
+          allEndorses = Array.isArray(payload.endorse_statements_basic) ? payload.endorse_statements_basic : [];
+
+          const counts = payload.counts || {};
+          countDefines.textContent = `Defines: ${counts.defines ?? allDefines.length}`;
+          countUnknown.textContent = `Unknown: ${counts.unknown ?? 0}`;
+
+          renderDefines();
+          renderStatements();
+          setStatus('Cross-tenancy data loaded.', 'success');
+        } catch (err) {
+          setStatus(`Failed to load cross-tenancy data: ${err}`, 'error');
+          allDefines = [];
+          allAdmits = [];
+          allEndorses = [];
+          selectedAliases = new Set();
+          renderDefines();
+          renderStatements();
+          countDefines.textContent = 'Defines: 0';
+          countUnknown.textContent = 'Unknown: 0';
+        }
+      }
+
+      document.getElementById('refreshBtn').addEventListener('click', loadCrossTenancy);
+      document.getElementById('clearAliasBtn').addEventListener('click', () => {
+        selectedAliases = new Set();
+        renderDefines();
+        renderStatements();
+      });
+
+      loadCrossTenancy();
+    </script>
+  </body>
+  </html>

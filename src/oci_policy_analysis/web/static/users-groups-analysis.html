@@ -114,7 +114,37 @@
       let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = []; let selectedPolicy = null;
       const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
       const cols = () => modeEl.value === 'GROUPS' ? (showAllDataEl.checked ? GROUP_COLS_ALL : GROUP_COLS) : (showAllDataEl.checked ? USER_COLS_ALL : USER_COLS);
-      const val = (r, c) => r?.[c] ?? r?.[{'Domain Name':'domain_name','Username':'user_name','Display Name':'display_name','Primary Email':'email','User ID':'user_id','User OCID':'user_ocid'}[c]] ?? '';
+      function val(r, c){
+        if (!r) return '';
+        const direct = r[c];
+        if (direct !== undefined && direct !== null) return direct;
+
+        const aliases = {
+          'Domain Name': ['domain_name', 'Domain', 'domain'],
+          'Group Name': ['group_name', 'name'],
+          'Username': ['user_name', 'username', 'name'],
+          'Display Name': ['display_name', 'displayName'],
+          'Primary Email': ['email', 'primary_email', 'primaryEmail'],
+          'User ID': ['user_id', 'id'],
+          'User OCID': ['user_ocid', 'ocid'],
+          'Group ID': ['group_id', 'id'],
+          'Group OCID': ['group_ocid', 'ocid'],
+          'User Count': ['user_count', 'UserCount'],
+        };
+
+        for (const k of aliases[c] || []) {
+          const v = r[k];
+          if (v !== undefined && v !== null) return v;
+        }
+
+        // Last-resort case-insensitive lookup for header-compatible keys.
+        const normalized = String(c || '').toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+        for (const [k, v] of Object.entries(r)) {
+          const nk = String(k || '').toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+          if (nk === normalized && v !== undefined && v !== null) return v;
+        }
+        return '';
+      }
 
       function getRowValue(row, key){
         const titleKey = String(key || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());

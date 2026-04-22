@@ -48,6 +48,10 @@ class LoggingService:
             self.settings['global_log_level'] = updates['global_log_level']
             set_log_level(updates['global_log_level'])
 
+        # Optional explicit reset of per-component overrides.
+        if updates.get('clear_log_levels'):
+            self.settings['log_levels'] = {}
+
         if 'log_levels' in updates and isinstance(updates['log_levels'], dict):
             if 'log_levels' not in self.settings:
                 self.settings['log_levels'] = {}

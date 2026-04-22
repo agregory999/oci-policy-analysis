@@ -13,15 +13,17 @@
 # coding: utf-8
 ##########################################################################
 
-import re
 import threading
 import time
 import tkinter as tk
 from tkinter import ttk
 
-from deepdiff import DeepDiff
-
+from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.presentation.formatters import (
+    format_historical_changed_fields,
+    format_historical_diff_detail,
+)
 from oci_policy_analysis.ui.base_tab import BaseUITab
 
 logger = get_logger('historical_tab')
@@ -70,6 +72,7 @@ class HistoricalTab(BaseUITab):
         self.right_cache_var = tk.StringVar()
         self._left_data = None
         self._right_data = None
+        self.historical_service = HistoricalAnalysisService(self.caching)
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -249,56 +252,11 @@ class HistoricalTab(BaseUITab):
             """
             start = time.time()
             try:
-                # Step 2: Canonicalize unordered lists for robust comparison.
-                logger.info(
-                    'Filtering known unordered lists (policies/statements/defined_aliases/cross_tenancy_statements/domains/groups/dynamic_groups/users)...'
-                )
-                logger.debug(
-                    'Skipping canonical_filter; running per-section DeepDiff on raw dict input (ignore_order=True).'
-                )
-
-                policy_sections_to_keys = [
-                    ('Policies', 'policies'),
-                    ('Regular Statements', 'policy_statements'),
-                    ('Defined Aliases', 'defined_aliases'),
-                    ('Cross-Tenancy Statements', 'cross_tenancy_statements'),
-                ]
-                identity_sections_to_keys = [
-                    ('Identity Domains', 'domains'),
-                    ('Groups', 'groups'),
-                    ('Dynamic Groups', 'dynamic_groups'),
-                    ('Users', 'users'),
-                ]
-                policy_diffs_by_section = {}
-                identity_diffs_by_section = {}
-                # Ignore 'internal_id' fields from statements in all lists:
-                internal_id_exclude_regex = r"root\[\d+\]\['internal_id'\]"
-
-                for label, key in policy_sections_to_keys:
-                    lval = self._left_data.get(key, [])
-                    rval = self._right_data.get(key, [])
-                    diff = DeepDiff(
-                        lval, rval, verbose_level=2, ignore_order=True, exclude_regex_paths=[internal_id_exclude_regex]
-                    )
-                    policy_diffs_by_section[label] = diff.to_dict()
-                    logger.info(
-                        f'DeepDiff for {label} [key={key}] completed. Diff types: {list(policy_diffs_by_section[label].keys())}; Count: {sum(len(v) if isinstance(v, dict) else 1 for v in policy_diffs_by_section[label].values())}'
-                    )
-                for label, key in identity_sections_to_keys:
-                    lval = self._left_data.get(key, [])
-                    rval = self._right_data.get(key, [])
-                    diff = DeepDiff(
-                        lval, rval, verbose_level=2, ignore_order=True, exclude_regex_paths=[internal_id_exclude_regex]
-                    )
-                    identity_diffs_by_section[label] = diff.to_dict()
-                    logger.info(
-                        f'DeepDiff for {label} [key={key}] completed. Diff types: {list(identity_diffs_by_section[label].keys())}; Count: {sum(len(v) if isinstance(v, dict) else 1 for v in identity_diffs_by_section[label].values())}'
-                    )
+                result = self.historical_service.compare_caches(left_cache=left, right_cache=right)
 
                 elapsed = time.time() - start
 
-                # Step 5: Main thread callback for grouped display and status update
-                self.after(0, lambda: self._display_grouped(policy_diffs_by_section, identity_diffs_by_section))
+                self.after(0, lambda: self._display_grouped(result.policy_sections, result.identity_sections))
                 self.after(0, lambda: self._set_status(f'Done in {elapsed:.2f}s.', 'green'))
 
             except Exception as exc:
@@ -319,7 +277,7 @@ class HistoricalTab(BaseUITab):
     #     return filtered
 
     # ------------------------------------------------------------------
-    def _display_grouped(self, policy_sections: dict, identity_sections: dict):
+    def _display_grouped(self, policy_sections, identity_sections):
         """
         Populate the policy and identity trees with grouped differences.
 
@@ -339,26 +297,11 @@ class HistoricalTab(BaseUITab):
         for tree in (self.policy_tree, self.identity_tree):
             tree.delete(*tree.get_children())
 
-        # Populate the policy section: show each as its own group even if no changes.
-        for section in [
-            'Policies',
-            'Regular Statements',
-            'Defined Aliases',
-            'Cross-Tenancy Statements',
-        ]:
-            payload = policy_sections.get(section, {})
-            self._populate_group_section(self.policy_tree, section, payload, is_policy=True)
+        for section_result in policy_sections:
+            self._populate_group_section(self.policy_tree, section_result)
 
-        # Populate the identity section: show each as its own group even if no changes.
-        identity_section_display = [
-            'Identity Domains',
-            'Groups',
-            'Dynamic Groups',
-            'Users',
-        ]
-        for section in identity_section_display:
-            payload = identity_sections.get(section, {})
-            self._populate_group_section(self.identity_tree, section, payload, is_policy=False)
+        for section_result in identity_sections:
+            self._populate_group_section(self.identity_tree, section_result)
 
         # No differences detected — show explicit message in both trees
         if not self.policy_tree.get_children() and not self.identity_tree.get_children():
@@ -372,140 +315,28 @@ class HistoricalTab(BaseUITab):
                 f'{len(self.identity_tree.get_children())} identity nodes.'
             )
 
-    def _populate_group_section(self, tree: ttk.Treeview, section_title: str, deepdiff_subset: dict, is_policy: bool):  # noqa: C901
-        """
-        Populate a Treeview with grouped diff results. Simpler version: each diff shown as a node with its path and action label,
-        value(s) as children. Uses section-based node titling for consistency and clarity.
-        """
-        import json
-
-        logger.info(f'Populate section: {section_title} - diff keys: {list(deepdiff_subset.keys())}')
-        total_entries = sum(len(v) for v in deepdiff_subset.values()) if deepdiff_subset else 0
-        parent = tree.insert('', 'end', text=f'{section_title} ({total_entries})', open=False)
-        if not deepdiff_subset or total_entries == 0:
+    def _populate_group_section(self, tree: ttk.Treeview, section_result):
+        """Populate a Treeview section from normalized historical diff results."""
+        total_entries = section_result.added + section_result.removed + section_result.modified
+        parent = tree.insert(
+            '',
+            'end',
+            text=f'{section_result.section} (Added: {section_result.added}, Removed: {section_result.removed}, Modified: {section_result.modified})',
+            open=False,
+        )
+        if total_entries == 0:
             return
-
-        # Helper: extract index and optionally a field from a DeepDiff "path" string
-        def _extract_index_field(path):
-            # Typical: "root[2]" or "root[3]['statement_text']"
-            m = re.match(r"root\[(\d+)\](?:\['(.+)'\])?", path)
-            if m:
-                idx = int(m.group(1))
-                field = m.group(2)
-                return idx, field
-            return None, None
-
-        for diff_kind, entries in deepdiff_subset.items():
-            for path, detail in entries.items():
-                kind_map = {
-                    'dictionary_item_added': 'Added',
-                    'iterable_item_added': 'Added',
-                    'dictionary_item_removed': 'Removed',
-                    'iterable_item_removed': 'Removed',
-                    'values_changed': 'Modified',
-                }
-                action = kind_map.get(diff_kind, diff_kind.title())
-
-                # --- DEBUGGING: Log core details for each entry ---
-                logger.debug(
-                    f'[DiffNode] Section: {section_title} | Diff kind: {diff_kind} | Path: {path} | Action: {action}'
-                )
-                logger.debug(f'[DiffNode]   Detail type: {type(detail)} | Detail (truncated): {str(detail)[:512]}')
-
-                # Try to extract a display title for this node
-                idx, field = _extract_index_field(path)
-                logger.debug(f'[DiffNode]   Extracted index: {idx} | Field: {field}')
-
-                # Determine which list the index applies to
-                obj = None
-                source_list = None
-                list_key = None
-                try:
-                    if section_title in [
-                        'Policies',
-                        'Regular Statements',
-                        'Defined Aliases',
-                        'Cross-Tenancy Statements',
-                    ]:
-                        list_key = {
-                            'Policies': 'policies',
-                            'Regular Statements': 'policy_statements',
-                            'Defined Aliases': 'defined_aliases',
-                            'Cross-Tenancy Statements': 'cross_tenancy_statements',
-                        }[section_title]
-                    else:
-                        list_key = {
-                            'Identity Domains': 'domains',
-                            'Groups': 'groups',
-                            'Dynamic Groups': 'dynamic_groups',
-                            'Users': 'users',
-                        }[section_title]
-                    # Choose source list for lookup
-                    side = 'right' if action == 'Added' else 'left'
-                    logger.debug(f'[DiffNode]   List key: {list_key} | Data side: {side}')
-                    if idx is not None:
-                        if action == 'Added':
-                            source_list = getattr(self, '_right_data', {}).get(list_key, [])
-                        else:
-                            source_list = getattr(self, '_left_data', {}).get(list_key, [])
-                        logger.debug(
-                            f"[DiffNode]   Source list type: {type(source_list)}, Length: {len(source_list) if isinstance(source_list, list) else '?'}"
-                        )
-                        if isinstance(source_list, list) and 0 <= idx < len(source_list):
-                            obj = source_list[idx]
-                    if obj:
-                        logger.debug(f'[DiffNode]   Resolved object: {repr(obj)[:256]}')
-                    else:
-                        logger.debug(f'[DiffNode]   Could not resolve object at index {idx} in {side} list')
-                except Exception as e:
-                    logger.debug(f'[DiffNode]   Error retrieving object: {e}')
-                    obj = None
-
-                title = self._get_node_title(section_title, obj) if obj else None
-                if title:
-                    label = title
-                    if field:
-                        label += f' → {field}'
-                    label += f' ({action})'
-                else:
-                    label = f'{path} ({action})'
-
-                logger.debug(f'[DiffNode]   Final label: {label}')
-
-                node = tree.insert(parent, 'end', text=label, open=False)
-                # Show value details (unchanged from original)
-                if isinstance(detail, dict) and 'old_value' in detail and 'new_value' in detail:
-                    tree.insert(
-                        node,
-                        'end',
-                        text=f"Old value: {json.dumps(detail['old_value'], indent=2, ensure_ascii=False) if isinstance(detail['old_value'], dict | list) else detail['old_value']}",
-                    )
-                    tree.insert(
-                        node,
-                        'end',
-                        text=f"New value: {json.dumps(detail['new_value'], indent=2, ensure_ascii=False) if isinstance(detail['new_value'], dict | list) else detail['new_value']}",
-                    )
-                elif isinstance(detail, dict) and 'old_value' in detail:
-                    tree.insert(
-                        node,
-                        'end',
-                        text=f"Old value: {json.dumps(detail['old_value'], indent=2, ensure_ascii=False) if isinstance(detail['old_value'], dict | list) else detail['old_value']}",
-                    )
-                elif isinstance(detail, dict) and 'new_value' in detail:
-                    tree.insert(
-                        node,
-                        'end',
-                        text=f"New value: {json.dumps(detail['new_value'], indent=2, ensure_ascii=False) if isinstance(detail['new_value'], dict | list) else detail['new_value']}",
-                    )
-                elif isinstance(detail, dict):
-                    for k, v in detail.items():
-                        tree.insert(
-                            node,
-                            'end',
-                            text=f'{k}: {json.dumps(v, indent=2, ensure_ascii=False) if isinstance(v, dict | list) else v}',
-                        )
-                else:
-                    tree.insert(node, 'end', text=str(detail))
+        for item in section_result.items:
+            node = tree.insert(parent, 'end', text=f'{item.title} ({item.action})', open=False)
+            tree.insert(node, 'end', text=f'Stable key: {item.stable_key}')
+            changed_lines = format_historical_changed_fields(getattr(item, 'changed_fields', None))
+            if item.action == 'Modified' and changed_lines:
+                tree.insert(node, 'end', text='Changed fields:')
+                for line in changed_lines:
+                    tree.insert(node, 'end', text=f'  - {line}')
+            else:
+                for line in format_historical_diff_detail(item.old_value, item.new_value):
+                    tree.insert(node, 'end', text=line)
 
     # ------------------------------------------------------------------
     @staticmethod

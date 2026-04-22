@@ -67,6 +67,25 @@
             </div>
           </div>
 
+          <div class="field">
+            <label for="defaultProfile">Default OCI Profile</label>
+            <input id="defaultProfile" type="text" placeholder="e.g. DEFAULT" />
+            <div class="hint">Used as the default Profile on the home page load form.</div>
+          </div>
+
+          <div class="field">
+            <label for="defaultCompartmentDepth">Default Compartment Depth</label>
+            <select id="defaultCompartmentDepth">
+              <option value="1">1 (Root Only)</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+            <div class="hint">Used as the default Compartment Depth on the home page load form.</div>
+          </div>
+
           <button id="saveBtn">Save settings</button>
           <div id="status" class="status"></div>
         </div>
@@ -85,6 +104,8 @@
 
     <script>
       const usageTracking = document.getElementById('usageTracking');
+      const defaultProfile = document.getElementById('defaultProfile');
+      const defaultCompartmentDepth = document.getElementById('defaultCompartmentDepth');
       const saveBtn = document.getElementById('saveBtn');
       const status = document.getElementById('status');
 
@@ -94,6 +115,8 @@
         const payload = await response.json();
         const settings = payload.settings || {};
         usageTracking.checked = Boolean(settings.usage_tracking_enabled ?? true);
+        defaultProfile.value = String(settings.default_profile || '');
+        defaultCompartmentDepth.value = String(settings.default_compartment_depth || '1');
       }
 
       async function saveSettings() {
@@ -107,6 +130,8 @@
             body: JSON.stringify({
               settings: {
                 usage_tracking_enabled: usageTracking.checked,
+                default_profile: String(defaultProfile.value || '').trim(),
+                default_compartment_depth: Number(defaultCompartmentDepth.value || 1),
               },
             }),
           });

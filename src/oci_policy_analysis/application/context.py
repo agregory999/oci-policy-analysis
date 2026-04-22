@@ -11,6 +11,7 @@ from oci_policy_analysis.application.services.logging_service import LoggingServ
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.settings_service import SettingsService
 from oci_policy_analysis.common.caching import CacheManager
+from oci_policy_analysis.common.logger import set_component_level, set_log_level
 from oci_policy_analysis.logic.ai_repo import AI
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
@@ -55,6 +56,16 @@ class AppContext:
         This mirrors existing wiring in main.py but keeps it reusable for
         non-Tk consumers.
         """
+
+        # Apply persisted logging settings at startup for web/non-Tk flows.
+        # Without this, root logger remains at default INFO from logger setup.
+        set_log_level(str(settings.get('global_log_level', 'WARNING')))
+        component_levels = settings.get('log_levels', {})
+        if isinstance(component_levels, dict):
+            for component, level in component_levels.items():
+                if not component:
+                    continue
+                set_component_level(str(component), str(level))
 
         reference_data = ReferenceDataRepo()
         reference_data.load_data()

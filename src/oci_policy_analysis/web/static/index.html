@@ -270,6 +270,8 @@
           <p class="card-title">Analysis</p>
           <p>Run initial policy filtering queries.</p>
           <a href="/policy-analysis.html">Open Policy Analysis</a>
+          <a href="/cross-tenancy-analysis.html" class="secondary">Cross-Tenancy Analysis</a>
+          <a href="/historical-analysis.html" class="secondary">Historical Analysis</a>
           <a href="/users-groups-analysis.html" class="secondary">User/Group Analysis</a>
           <a href="/dynamic-group-analysis.html" class="secondary">Dynamic Group Analysis</a>
           <a href="/resource-principals-analysis.html" class="secondary">Resource Principals Analysis</a>
@@ -312,6 +314,7 @@
       const sharedProgressPercent = document.getElementById('sharedProgressPercent');
       const sharedProgressFill = document.getElementById('sharedProgressFill');
       const sharedProgressDetail = document.getElementById('sharedProgressDetail');
+      let appSettings = {};
 
       const LOAD_STAGE_MAP = {
         cache: [
@@ -466,6 +469,7 @@
           loadStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('cache', payload.stages || []));
           updateDatasetDetail(payload.summary || {});
+          if (payload.success) await loadCaches();
         } catch (err) {
           loadStatus.textContent = `Failed to load cache: ${err}`;
           loadStatus.className = 'status error';
@@ -496,6 +500,26 @@
           option.value = '';
           option.textContent = 'No profiles found';
           profileSelect.appendChild(option);
+          return;
+        }
+
+        const desiredProfile = String(appSettings.default_profile || '').trim();
+        if (desiredProfile && profiles.includes(desiredProfile)) {
+          profileSelect.value = desiredProfile;
+        }
+      }
+
+      async function loadAppSettings() {
+        try {
+          const response = await fetch('/settings');
+          const payload = await response.json();
+          appSettings = payload.settings || {};
+          const depth = Number(appSettings.default_compartment_depth || 1);
+          if (Number.isFinite(depth) && depth >= 1 && depth <= 6) {
+            compartmentDepth.value = String(depth);
+          }
+        } catch (err) {
+          appSettings = {};
         }
       }
 
@@ -526,6 +550,7 @@
           tenancyStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('tenancy', payload.stages || []));
           updateDatasetDetail(payload.summary || {});
+          if (payload.success) await loadCaches();
         } catch (err) {
           tenancyStatus.textContent = `Load failed: ${err}`;
           tenancyStatus.className = 'status error';
@@ -559,6 +584,7 @@
           complianceStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('compliance', payload.stages || []));
           updateDatasetDetail(payload.summary || {});
+          if (payload.success) await loadCaches();
         } catch (err) {
           complianceStatus.textContent = `Compliance load failed: ${err}`;
           complianceStatus.className = 'status error';
@@ -600,6 +626,7 @@
           loadStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('export', payload.stages || []));
           updateDatasetDetail(payload.summary || {});
+          if (payload.success) await loadCaches();
         } catch (err) {
           loadStatus.textContent = `Export load failed: ${err}`;
           loadStatus.className = 'status error';
@@ -619,11 +646,14 @@
       loadTenancyBtn.addEventListener('click', loadTenancy);
       loadComplianceBtn.addEventListener('click', loadCompliance);
       loadExportBtn.addEventListener('click', loadExport);
-      loadCaches();
-      loadProfiles();
-      syncProfileState();
-      refreshTenancyDataStatus();
-      setInterval(refreshTenancyDataStatus, 3000);
+      (async () => {
+        await loadAppSettings();
+        await loadCaches();
+        await loadProfiles();
+        syncProfileState();
+        refreshTenancyDataStatus();
+        setInterval(refreshTenancyDataStatus, 3000);
+      })();
     </script>
   </body>
 </html>

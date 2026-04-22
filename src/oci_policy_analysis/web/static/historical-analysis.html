@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Historical Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .row { display: grid; gap: 0.7rem; grid-template-columns: 1fr 1fr auto; }
+      .sections { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .section-card { border: 1px solid var(--oci-line); border-radius: 12px; padding: 0.8rem; background: #fff; }
+      .section-title { margin: 0 0 0.4rem; font-weight: 700; }
+      .pill-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.55rem; }
+      .muted { color: #6b7280; font-size: 0.86rem; }
+      details { border-top: 1px solid #eee; padding-top: 0.45rem; margin-top: 0.45rem; }
+      summary { cursor: pointer; }
+      pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 0.55rem; }
+      @media (max-width: 980px) { .sections { grid-template-columns: 1fr; } .row { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Historical Analysis</h1>
+      <a href="/">← Back to home</a>
+    </header>
+
+    <main>
+      <div class="card">
+        <label>Compare two cache snapshots</label>
+        <div class="row">
+          <select id="leftCache"></select>
+          <select id="rightCache"></select>
+          <button id="compareBtn">Compare</button>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+
+      <div class="sections">
+        <div class="card"><h2>Policy Sections</h2><div id="policySections"></div></div>
+        <div class="card"><h2>Identity Sections</h2><div id="identitySections"></div></div>
+      </div>
+    </main>
+
+    <script>
+      const leftCache = document.getElementById('leftCache');
+      const rightCache = document.getElementById('rightCache');
+      const compareBtn = document.getElementById('compareBtn');
+      const statusEl = document.getElementById('status');
+      const policySectionsEl = document.getElementById('policySections');
+      const identitySectionsEl = document.getElementById('identitySections');
+
+      function renderSection(container, section) {
+        const card = document.createElement('div');
+        card.className = 'section-card';
+        card.innerHTML = `
+          <div class="section-title">${section.section}</div>
+          <div class="pill-row">
+            <span class="pill">Added: ${section.added}</span>
+            <span class="pill">Removed: ${section.removed}</span>
+            <span class="pill">Modified: ${section.modified}</span>
+          </div>
+        `;
+        if (!Array.isArray(section.items) || section.items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = 'No differences.';
+          card.appendChild(empty);
+          container.appendChild(card);
+          return;
+        }
+        section.items.forEach((item) => {
+          const details = document.createElement('details');
+          details.innerHTML = `<summary>${item.title} (${item.action})</summary>`;
+          const keyEl = document.createElement('div');
+          keyEl.className = 'muted';
+          keyEl.textContent = `Stable key: ${item.stable_key}`;
+          details.appendChild(keyEl);
+          if (item.action === 'Modified' && Array.isArray(item.changed_fields) && item.changed_fields.length) {
+            const pre = document.createElement('pre');
+            const lines = item.changed_fields.map((change) => {
+              const field = String(change.field || '');
+              const oldVal = JSON.stringify(change.old);
+              const newVal = JSON.stringify(change.new);
+              return `${field}: ${oldVal} -> ${newVal}`;
+            });
+            pre.textContent = `Changed fields:\n${lines.join('\n')}`;
+            details.appendChild(pre);
+          } else {
+          if (item.old_value) {
+            const pre = document.createElement('pre');
+            pre.textContent = `Old:\n${JSON.stringify(item.old_value, null, 2)}`;
+            details.appendChild(pre);
+          }
+          if (item.new_value) {
+            const pre = document.createElement('pre');
+            pre.textContent = `New:\n${JSON.stringify(item.new_value, null, 2)}`;
+            details.appendChild(pre);
+          }
+          }
+          card.appendChild(details);
+        });
+        container.appendChild(card);
+      }
+
+      async function loadCaches() {
+        const res = await fetch('/caches');
+        const payload = await res.json();
+        const caches = payload.caches || [];
+        leftCache.innerHTML = '';
+        rightCache.innerHTML = '';
+        caches.forEach((cache) => {
+          const l = document.createElement('option');
+          l.value = cache; l.textContent = cache;
+          leftCache.appendChild(l);
+          const r = document.createElement('option');
+          r.value = cache; r.textContent = cache;
+          rightCache.appendChild(r);
+        });
+        if (caches.length) {
+          leftCache.value = caches[0];
+          rightCache.value = caches[caches.length - 1];
+        }
+      }
+
+      async function refreshCachesKeepSelection() {
+        const prevLeft = leftCache.value;
+        const prevRight = rightCache.value;
+        await loadCaches();
+        const leftExists = Array.from(leftCache.options).some((o) => o.value === prevLeft);
+        const rightExists = Array.from(rightCache.options).some((o) => o.value === prevRight);
+        if (leftExists) leftCache.value = prevLeft;
+        if (rightExists) rightCache.value = prevRight;
+      }
+
+      async function runCompare() {
+        statusEl.textContent = 'Comparing...';
+        statusEl.className = 'status';
+        policySectionsEl.innerHTML = '';
+        identitySectionsEl.innerHTML = '';
+        try {
+          const res = await fetch('/analysis/historical-compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ left_cache: leftCache.value, right_cache: rightCache.value }),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Historical compare failed');
+          }
+          const payload = await res.json();
+          (payload.policy_sections || []).forEach((section) => renderSection(policySectionsEl, section));
+          (payload.identity_sections || []).forEach((section) => renderSection(identitySectionsEl, section));
+          statusEl.textContent = 'Comparison complete.';
+          statusEl.className = 'status success';
+        } catch (err) {
+          statusEl.textContent = `Failed: ${err}`;
+          statusEl.className = 'status error';
+        }
+      }
+
+      compareBtn.addEventListener('click', runCompare);
+      loadCaches().catch((err) => {
+        statusEl.textContent = `Failed to load caches: ${err}`;
+        statusEl.className = 'status error';
+      });
+      setInterval(() => {
+        refreshCachesKeepSelection().catch(() => {});
+      }, 10000);
+    </script>
+  </body>
+</html>

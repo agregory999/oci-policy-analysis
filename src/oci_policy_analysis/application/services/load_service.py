@@ -169,6 +169,10 @@ class LoadService:
         success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
         if success and run_post_load_intelligence:
             self._post_load_create_intelligence()
+            try:
+                self.context.cache_service.save_cache(repo)
+            except Exception as exc:
+                self.logger.warning('Compliance load succeeded but cache save failed: %s', exc)
         elif not success:
             self.logger.error('Compliance output load failed: dir_path=%s', dir_path)
         summary = self._build_summary(repo)
@@ -261,6 +265,12 @@ class LoadService:
                 on_stage=on_stage,
             )
             self._post_load_create_intelligence()
+
+        # Persist a fresh cache entry for web/API-driven tenancy loads.
+        try:
+            self.context.cache_service.save_cache(repo)
+        except Exception as exc:
+            self.logger.warning('Tenancy load succeeded but cache save failed: %s', exc)
 
         summary = self._build_summary(repo)
         self._emit_stage(

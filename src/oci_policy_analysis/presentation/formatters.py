@@ -14,6 +14,9 @@
 ##########################################################################
 """Presentation-layer formatting helpers."""
 
+import json
+from typing import Any
+
 from oci_policy_analysis.common.models_iam import DynamicGroup, Group, User
 from oci_policy_analysis.common.models_policy import DefineStatement, RegularPolicyStatement
 
@@ -210,3 +213,26 @@ def for_display_endorse(statement) -> dict:
         'Where Clause': statement.get('where_clause', ''),
         'Comments': statement.get('comment', ''),
     }
+
+
+def format_historical_diff_detail(old_value: dict[str, Any] | None, new_value: dict[str, Any] | None) -> list[str]:
+    """Return display-friendly lines for historical compare detail payloads."""
+    lines: list[str] = []
+    if old_value is not None:
+        lines.append(f'Old: {json.dumps(old_value, ensure_ascii=False, indent=2)}')
+    if new_value is not None:
+        lines.append(f'New: {json.dumps(new_value, ensure_ascii=False, indent=2)}')
+    return lines
+
+
+def format_historical_changed_fields(changed_fields: list[dict[str, Any]] | None) -> list[str]:
+    """Return compact one-level field diff lines for modified historical items."""
+    if not changed_fields:
+        return []
+    lines: list[str] = []
+    for change in changed_fields:
+        field = str(change.get('field') or '')
+        old = json.dumps(change.get('old'), ensure_ascii=False)
+        new = json.dumps(change.get('new'), ensure_ascii=False)
+        lines.append(f'{field}: {old} -> {new}')
+    return lines

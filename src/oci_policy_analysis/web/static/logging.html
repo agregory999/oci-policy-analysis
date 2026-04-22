@@ -121,6 +121,8 @@
       const logCopy = document.getElementById('logCopy');
       const logToggle = document.getElementById('logToggle');
       let logStreamHandle = null;
+      let currentGlobalLevel = 'WARNING';
+      let currentComponentOverrides = {};
 
       const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
 
@@ -134,14 +136,7 @@
           'caching',
           'mcp_server',
         ],
-        Analytics: [
-          'analytics.main',
-          'analytics.ui',
-          'analytics.model',
-          'analytics.loader',
-          'analytics.aggregator',
-        ],
-        Application: [
+        Services: [
           'analysis_service',
           'cache_service',
           'intelligence_service',
@@ -151,42 +146,7 @@
           'settings_service',
           'simulation_service',
         ],
-        Logic: [
-          'policy_simulation_engine',
-          'ai_repo',
-          'reference_data_repo',
-          'policy_parser',
-          'data_repo',
-          'policy_intelligence',
-          'where_clause_evaluator',
-          'tag_condition_collector',
-          'prospective_statements_service',
-          'consolidation_engine',
-          'consolidation_strategies',
-        ],
         Presentation: ['presentation.formatters', 'presentation.policy_builder', 'presentation.conditions'],
-        Web: ['web_routes'],
-        UI: [
-          'settings_tab',
-          'policies_tab',
-          'policy_browser_tab',
-          'dynamic_group_tab',
-          'users_tab',
-          'resource_principals_tab',
-          'historical_tab',
-          'cross_tenancy_tab',
-          'condition_tester_tab',
-          'tag_based_access_tab',
-          'permissions_report_tab',
-          'simulation_tab',
-          'policy_recommendations_tab',
-          'mcp_tab',
-          'data_table',
-          'prospective_editor_window',
-          'builder_helpers',
-          'maintenance_tab',
-          'internal.console_tab',
-        ],
       };
 
       function buildLevelSelect(component, level) {
@@ -197,7 +157,7 @@
         `;
       }
 
-      function renderComponentTable(logLevels) {
+      function renderComponentTable(logLevels, globalLevelValue) {
         componentTable.innerHTML = '';
         const groupedComponents = new Set();
 
@@ -207,7 +167,7 @@
           componentTable.appendChild(headerRow);
           components.forEach((component) => {
             groupedComponents.add(component);
-            const level = logLevels[component] || 'INFO';
+            const level = logLevels[component] || globalLevelValue;
             const row = document.createElement('tr');
             row.innerHTML = `
               <td>${component}</td>
@@ -225,7 +185,7 @@
           headerRow.innerHTML = `<td colspan="2" style="font-weight: 700; background: #f9fafb;">Other</td>`;
           componentTable.appendChild(headerRow);
           ungrouped.forEach((component) => {
-            const level = logLevels[component] || 'INFO';
+            const level = logLevels[component] || globalLevelValue;
             const row = document.createElement('tr');
             row.innerHTML = `
               <td>${component}</td>
@@ -240,12 +200,13 @@
         const response = await fetch('/logging');
         const payload = await response.json();
         const logging = payload.logging || {};
-        globalLevel.value = logging.global_log_level || 'WARNING';
+        currentGlobalLevel = logging.global_log_level || 'WARNING';
+        globalLevel.value = currentGlobalLevel;
         alwaysTimings.checked = Boolean(logging.always_log_timings);
         alwaysApiCalls.checked = Boolean(logging.always_log_api_calls);
 
-        const logLevels = logging.log_levels || {};
-        renderComponentTable(logLevels);
+        currentComponentOverrides = logging.log_levels || {};
+        renderComponentTable(currentComponentOverrides, currentGlobalLevel);
       }
 
       function classifyLogLine(line) {
@@ -333,6 +294,7 @@
                 global_log_level: globalLevel.value,
                 always_log_timings: alwaysTimings.checked,
                 always_log_api_calls: alwaysApiCalls.checked,
+                clear_log_levels: true,
               },
             }),
           });
@@ -341,6 +303,7 @@
           }
           globalStatus.textContent = 'Saved.';
           globalStatus.className = 'status';
+          await loadLogging();
         } catch (err) {
           globalStatus.textContent = `Save failed: ${err}`;
           globalStatus.className = 'status error';
@@ -352,7 +315,9 @@
         const updates = {};
         componentTable.querySelectorAll('select[data-component]').forEach((select) => {
           const comp = select.getAttribute('data-component');
-          updates[comp] = select.value;
+          if (select.value !== currentGlobalLevel) {
+            updates[comp] = select.value;
+          }
         });
         try {
           const response = await fetch('/logging', {
@@ -365,6 +330,7 @@
           }
           componentStatus.textContent = 'Saved.';
           componentStatus.className = 'status';
+          await loadLogging();
         } catch (err) {
           componentStatus.textContent = `Save failed: ${err}`;
           componentStatus.className = 'status error';
