@@ -131,8 +131,8 @@ jobs:
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
 
-          echo "📦 Installing your project..."
-          pip install -e .
+          echo "📦 Installing your project (+mcp extra for PyInstaller metadata copy)..."
+          pip install -e ".[mcp]"
                 
 
 
@@ -145,7 +145,7 @@ jobs:
           echo "🏗️ Building wheel/sdist..."
           mkdir -p src/oci_policy_analysis
           python -m build
-          pip install -e .
+          pip install -e ".[mcp]"
 
       - name: Run Ruff check
         if: steps.skip_build.outputs.skip != 'true'
