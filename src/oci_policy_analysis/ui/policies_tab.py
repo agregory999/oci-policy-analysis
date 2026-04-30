@@ -1036,12 +1036,10 @@ class PoliciesTab(BaseUITab):
             filtered = self.policy_repo.filter_policy_statements(filters=filters)
             with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
-                # writer.writerow(self.sheet_policies.headers())
-                # Write header row
                 writer.writerow(ALL_POLICY_COLUMNS)
-                # Write data rows
                 for row in filtered:
-                    writer.writerow(row.values())
+                    display = for_display_policy(row)
+                    writer.writerow([display.get(col, '') for col in ALL_POLICY_COLUMNS])
             logger.info(f'Exported {len(filtered)} policy statements to {filepath}')
             tkmessagebox.showinfo('Export Complete', f'Exported {len(filtered)} policy statements to {filepath}')
 
