@@ -4,7 +4,11 @@ This package provides the main analysis, caching, and UI components.
 """
 
 from .cli import main as cli_main
-from .mcp_server import main as mcp_main
+
+try:
+    from .mcp_server import main as mcp_main
+except Exception:  # pragma: no cover - optional dependency (fastmcp)
+    mcp_main = None
 
 
 def __getattr__(name: str):

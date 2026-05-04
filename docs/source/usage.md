@@ -2,24 +2,25 @@
 
 ## Getting Started
 
-There are three main entry points to the OCI Policy Analysis application:
+OCI Policy Analysis is multi-modal. The main startup modes are:
 
-1. User Interface — the main UI
-2. Command Line access — the CLI
-3. Model Context Protocol — the MCP Server
+1. Desktop UI (Tkinter)
+2. Web UI (FastAPI/static pages)
+3. Command Line access (CLI)
+4. Model Context Protocol (MCP Server)
 
-For CLI/MCP details, see other documentation. This page covers getting the app open and how to use each tab and its functions.
+For CLI/MCP details, see their dedicated pages. This page focuses on interactive UI usage (desktop/web).
 
 If you have not yet built or installed the application, please see the [Setup Guide](./setup.md).
 
 ## Starting the UI
 
-You can launch the UI in either of these ways:
+You can launch UI workflows in either desktop or web mode.
 
-**Double-click executable**  
-Most users can simply double-click the downloaded executable. On first launch (Mac/Windows), you may need to allow permissions.
+**Desktop executable**  
+Most desktop users can double-click the downloaded executable. On first launch (Mac/Windows), you may need to allow permissions.
 
-**Command Line (after build)**  
+**Desktop from source**  
 ```bash
 python3 -V              # Should be 3.12.x
 python3 -m venv .venv
@@ -27,6 +28,18 @@ source .venv/bin/activate    # On Windows: .venv\Scripts\activate
 pip install -e .
 python -m oci_policy_analysis.main
 ```
+
+**Web from source (no desktop/Tk usage)**
+
+```bash
+python3 -V              # Should be 3.12.x
+python3 -m venv .venv
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+pip install -e ".[web]"
+oci-policy-analysis-web --host 127.0.0.1 --port 8000
+```
+
+Then browse to: `http://127.0.0.1:8000`
 
 If you run into issues, consult the [Setup Guide](./setup.md) for troubleshooting.
 

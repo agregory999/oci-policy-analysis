@@ -2,6 +2,21 @@
 set -e
 
 PYTHON_BIN=${PYTHON_BIN:-python3.12}
+MODE=${MODE:-all}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --mode)
+            MODE="$2"
+            shift 2
+            ;;
+        *)
+            echo "❌ Unknown argument: $1"
+            echo "Usage: ./local-build.sh [--mode desktop|web|cli|mcp|all]"
+            exit 1
+            ;;
+    esac
+done
 
 if [ ! -d ".venv" ]; then
     echo "🐍 Creating fresh venv with ${PYTHON_BIN}..."
@@ -35,8 +50,31 @@ pip install --no-index --find-links=./wheels -r frozen.txt
 echo "📦 Building your own package..."
 python -m build
 
-echo "🚀 Installing your package (editable mode)..."
-pip install -e .
+case "$MODE" in
+    desktop)
+        EXTRAS=""
+        ;;
+    web)
+        EXTRAS="[web]"
+        ;;
+    cli)
+        EXTRAS=""
+        ;;
+    mcp)
+        EXTRAS="[mcp]"
+        ;;
+    all)
+        EXTRAS="[all]"
+        ;;
+    *)
+        echo "❌ Invalid mode: $MODE"
+        echo "   Valid modes: desktop, web, cli, mcp, all"
+        exit 1
+        ;;
+esac
+
+echo "🚀 Installing your package (editable mode) for mode: $MODE"
+pip install -e ".${EXTRAS}"
 
 echo "🎉 Local build complete!"
 echo "   Wheels → wheels/"

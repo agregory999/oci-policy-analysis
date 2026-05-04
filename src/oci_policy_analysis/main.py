@@ -199,15 +199,6 @@ class App(tk.Tk):
         self.policy_compartment_analysis = self.app_context.policy_repo
         self.ai = self.app_context.ai
         self.simulation_engine = self.app_context.simulation
-        # Initialize prospective statements from settings (per-tenancy, if known)
-        try:
-            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
-            if tenancy_key and tenancy_key in sim_settings:
-                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
-        except Exception:
-            # Non-fatal; prospective list will simply start empty
-            pass
         self.policy_intelligence = self.app_context.intelligence
         # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
 
@@ -624,8 +615,8 @@ class App(tk.Tk):
         if tenancy_key:
             try:
                 self.prospective_service = ProspectiveStatementsService(
-                    settings=self.settings,
-                    simulation_engine=self.simulation_engine,
+                    cache_manager=self.caching,
+                    policy_repo=self.policy_compartment_analysis,
                     tenancy_ocid=str(tenancy_key),
                 )
                 logger.info(
@@ -635,7 +626,7 @@ class App(tk.Tk):
                 )
                 # Ensure the simulation engine has the latest
                 # prospective statements for this tenancy.
-                self.prospective_service.persist_and_push_to_engine()
+                self.simulation_engine.set_prospective_statements(self.prospective_service.to_simple_list())
             except Exception:
                 logger.warning(
                     'Post-load: unable to initialize ProspectiveStatementsService; '

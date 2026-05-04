@@ -53,11 +53,9 @@ from typing import Any
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
+from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
 logger = get_logger(component='prospective_statements_service')
-
-
-SETTINGS_KEY_PROSPECTIVE_BY_TENANCY = 'simulation_prospective_statements_by_tenancy'
 
 
 @dataclass
@@ -108,19 +106,20 @@ class ProspectiveStatementsService:
     :class:`PolicySimulationEngine`.
     """
 
-    def __init__(self, settings: dict, simulation_engine: Any, tenancy_ocid: str):
+    def __init__(self, cache_manager: Any, policy_repo: Any, tenancy_ocid: str):
         if not tenancy_ocid:
             raise ValueError('ProspectiveStatementsService requires a non-empty tenancy_ocid')
 
-        self._settings = settings
-        self._engine = simulation_engine
+        self._cache = cache_manager
+        self._policy_repo = policy_repo
         self._tenancy_ocid = str(tenancy_ocid)
         # Internal mapping from record id -> ProspectiveStatementRecord
         self._records: dict[str, ProspectiveStatementRecord] = {}
         self._intelligence_engine_cache: PolicyIntelligenceEngine | None = None
+        self._statement_normalizer = PolicyStatementNormalizer()
 
         logger.info('ProspectiveStatementsService: initializing for tenancy %s', self._tenancy_ocid)
-        self._load_from_settings()
+        self._load_from_cache()
 
     # ------------------------------------------------------------------
     # Public query helpers
@@ -305,24 +304,15 @@ class ProspectiveStatementsService:
             self._ensure_effective_path(rec)
             return rec
 
-        engine = self._engine
-        if engine is None or not hasattr(engine, 'validate_prospective_statement'):
-            # Without a simulation engine, we cannot validate, but we keep
-            # the text so it can be validated later.
-            logger.info(
-                'ProspectiveStatementsService: simulation engine missing; skipping validation for record %s',
-                record_id,
-            )
-            rec.parsed = False
-            rec.valid = False
-            rec.invalid_reasons = ['Simulation engine not available; statement has not been validated yet.']
-            rec.normalized = None
-            self._ensure_effective_path(rec)
-            return rec
-
         try:
-            result = engine.validate_prospective_statement(rec.statement_text)
-        except Exception:  # pragma: no cover - defensive, engine logs details
+            norm = self._statement_normalizer.normalize(rec.statement_text, 'regular', {})
+            result = {
+                'parsed': bool(norm.get('parsed', False)),
+                'valid': bool(norm.get('valid', bool(norm.get('parsed', False)))),
+                'invalid_reasons': list(norm.get('invalid_reasons') or []),
+                'normalized': norm if bool(norm.get('parsed', False)) else {},
+            }
+        except Exception:  # pragma: no cover - defensive
             logger.warning(
                 'ProspectiveStatementsService: error validating prospective statement for record %s',
                 record_id,
@@ -367,7 +357,7 @@ class ProspectiveStatementsService:
         return rec
 
     def persist_and_push_to_engine(self) -> None:
-        """Persist current records to settings and push them into the engine.
+        """Persist current records to standalone prospects storage.
 
         This method performs two related operations:
 
@@ -417,40 +407,54 @@ class ProspectiveStatementsService:
             self._tenancy_ocid,
         )
 
-        # Push into the simulation engine so future simulations see the
-        # updated set. The engine owns normalization and internal ids.
-        engine = self._engine
-        if engine is not None and hasattr(engine, 'set_prospective_statements'):
-            try:
-                engine.set_prospective_statements(simple_list)
-            except Exception:  # pragma: no cover - defensive
-                logger.warning(
-                    'ProspectiveStatementsService: engine.set_prospective_statements failed',
-                    exc_info=True,
-                )
-
-        # Persist to settings using the same structure described in
-        # CONTEXT_simulation_engine.md (section 10).
-        all_sim_settings = self._settings.get(SETTINGS_KEY_PROSPECTIVE_BY_TENANCY, {}) or {}
-        all_sim_settings[self._tenancy_ocid] = simple_list
-        self._settings[SETTINGS_KEY_PROSPECTIVE_BY_TENANCY] = all_sim_settings
-
         try:
-            from oci_policy_analysis.common import config as _cfg
-
-            _cfg.save_settings(self._settings)
+            self._cache.save_prospects(self._tenancy_ocid, simple_list)
         except Exception:  # pragma: no cover - non-fatal persistence
             logger.warning(
-                'ProspectiveStatementsService: unable to persist settings; in-memory state and engine are updated',
+                'ProspectiveStatementsService: unable to persist prospects cache; in-memory state is updated',
                 exc_info=True,
             )
+
+    def to_simple_list(self) -> list[dict[str, Any]]:
+        """Return service records in simple list format for simulation-engine consumption."""
+        items: list[dict[str, Any]] = []
+        for rec in self._records.values():
+            text = (rec.statement_text or '').strip()
+            if not text:
+                continue
+            row: dict[str, Any] = {
+                'compartment_path': rec.compartment_path or 'ROOT',
+                'description': rec.description or '',
+                'statement_text': text,
+                'parsed': bool(rec.parsed),
+                'valid': bool(rec.valid),
+            }
+            if rec.invalid_reasons:
+                row['invalid_reasons'] = list(rec.invalid_reasons)
+            if isinstance(rec.normalized, dict):
+                row['normalized'] = rec.normalized
+            if rec.effective_path:
+                row['effective_path'] = rec.effective_path
+            items.append(row)
+        return items
+
+    def append_from_simple_dict(self, entry: dict[str, Any]) -> ProspectiveStatementRecord:
+        """Append one statement row from UI-style simple dict payload."""
+        rec = self.create(
+            compartment_path=str(entry.get('compartment_path') or 'ROOT'),
+            description=str(entry.get('description') or ''),
+            statement_text=str(entry.get('statement_text') or ''),
+        )
+        if rec.statement_text:
+            self.validate_and_update_text(rec.id, rec.statement_text)
+        return rec
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load_from_settings(self) -> None:
-        """Hydrate the in-memory records from the shared settings dict.
+    def _load_from_cache(self) -> None:
+        """Hydrate the in-memory records from standalone per-tenancy prospects cache.
 
         This reads the per-tenancy list under
         ``simulation_prospective_statements_by_tenancy`` and creates a
@@ -461,8 +465,7 @@ class ProspectiveStatementsService:
         :meth:`validate_and_update_text` per record if desired.
         """
 
-        raw_all = self._settings.get(SETTINGS_KEY_PROSPECTIVE_BY_TENANCY, {}) or {}
-        raw_list = raw_all.get(self._tenancy_ocid) or []
+        raw_list = self._cache.load_prospects(self._tenancy_ocid) or []
 
         logger.info(
             'ProspectiveStatementsService: loading %d prospective statements from settings for tenancy %s',
@@ -509,8 +512,7 @@ class ProspectiveStatementsService:
         if self._intelligence_engine_cache is not None:
             return self._intelligence_engine_cache
 
-        engine = self._engine
-        policy_repo = getattr(engine, 'policy_repo', None)
+        policy_repo = self._policy_repo
         if policy_repo is None:
             return None
 

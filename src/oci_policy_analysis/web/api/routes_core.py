@@ -17,6 +17,7 @@ from oci_policy_analysis.application.services.intelligence_service import Intell
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
+from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
 from oci_policy_analysis.common import config
@@ -36,10 +37,31 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
+from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.web.dependencies import get_context, get_settings
 
 logger = get_logger(component='web_routes')
 router = APIRouter()
+
+
+def _get_or_init_prospective_service(ctx) -> ProspectiveStatementsService:
+    """Return a tenancy-scoped prospective service for the current web context."""
+
+    existing = getattr(ctx, '_prospective_service', None)
+    tenancy_ocid = str(getattr(ctx.policy_repo, 'tenancy_ocid', '') or '').strip()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+
+    if isinstance(existing, ProspectiveStatementsService) and existing.tenancy_ocid == tenancy_ocid:
+        return existing
+
+    service = ProspectiveStatementsService(
+        cache_manager=ctx.cache,
+        policy_repo=ctx.policy_repo,
+        tenancy_ocid=tenancy_ocid,
+    )
+    ctx._prospective_service = service
+    return service
 
 
 def _split_pipe(value: str | None) -> list[str]:
@@ -732,6 +754,140 @@ def get_status() -> dict[str, object]:
         'state': ctx.status.get('state', 'idle'),
         'updated_at': ctx.status.get('updated_at', ''),
         'summary': summary,
+    }
+
+
+@router.get('/prospective/statements')
+def get_prospective_statements() -> dict[str, object]:
+    """Return tenancy-scoped prospective statement records."""
+    logger.info('GET /prospective/statements')
+    ctx = get_context()
+    service = _get_or_init_prospective_service(ctx)
+    rows = []
+    for rec in service.list_all():
+        rows.append(
+            {
+                'id': rec.id,
+                'tenancy_ocid': rec.tenancy_ocid,
+                'compartment_path': rec.compartment_path,
+                'effective_path': rec.effective_path,
+                'description': rec.description,
+                'statement_text': rec.statement_text,
+                'parsed': rec.parsed,
+                'valid': rec.valid,
+                'invalid_reasons': list(rec.invalid_reasons or []),
+                'normalized': rec.normalized if isinstance(rec.normalized, dict) else None,
+            }
+        )
+    return {'rows': rows}
+
+
+@router.post('/prospective/statements/validate')
+def validate_prospective_statement(payload: dict[str, object]) -> dict[str, object]:
+    """Validate one prospective statement text for Parse action semantics."""
+    logger.info('POST /prospective/statements/validate')
+    ctx = get_context()
+    service = _get_or_init_prospective_service(ctx)
+
+    record_id = str(payload.get('id') or '').strip()
+    compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    description = str(payload.get('description') or '').strip()
+    statement_text = str(payload.get('statement_text') or '').strip()
+
+    if not record_id:
+        rec = service.create(compartment_path=compartment_path, description=description, statement_text=statement_text)
+        record_id = rec.id
+
+    existing = service.get(record_id)
+    if existing is None:
+        rec = service.create(compartment_path=compartment_path, description=description, statement_text=statement_text)
+        record_id = rec.id
+        existing = rec
+
+    existing.compartment_path = compartment_path
+    existing.description = description
+    updated = service.validate_and_update_text(record_id, statement_text)
+
+    return {
+        'row': {
+            'id': updated.id,
+            'tenancy_ocid': updated.tenancy_ocid,
+            'compartment_path': updated.compartment_path,
+            'effective_path': updated.effective_path,
+            'description': updated.description,
+            'statement_text': updated.statement_text,
+            'parsed': updated.parsed,
+            'valid': updated.valid,
+            'invalid_reasons': list(updated.invalid_reasons or []),
+            'normalized': updated.normalized if isinstance(updated.normalized, dict) else None,
+        }
+    }
+
+
+@router.post('/prospective/statements/replace')
+def replace_prospective_statements(payload: dict[str, object]) -> dict[str, object]:
+    """Replace all prospective statements (deferred save-and-close semantics)."""
+    logger.info('POST /prospective/statements/replace')
+    ctx = get_context()
+    service = _get_or_init_prospective_service(ctx)
+
+    rows = payload.get('rows')
+    if not isinstance(rows, list):
+        raise HTTPException(status_code=400, detail='rows must be a list')
+
+    simple_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        text = str(row.get('statement_text') or '').strip()
+        if not text:
+            continue
+        simple_entry: dict[str, Any] = {
+            'compartment_path': str(row.get('compartment_path') or 'ROOT').strip() or 'ROOT',
+            'description': str(row.get('description') or '').strip(),
+            'statement_text': text,
+        }
+        if row.get('id'):
+            simple_entry['id'] = str(row.get('id'))
+        simple_rows.append(simple_entry)
+
+    service.replace_all_from_simple_list(simple_rows)
+    service.persist_and_push_to_engine()
+    return {'success': True, 'count': len(simple_rows)}
+
+
+@router.get('/prospective/builder/metadata')
+def get_prospective_builder_metadata() -> dict[str, object]:
+    """Return builder dropdown metadata for prospective statement authoring."""
+    logger.info('GET /prospective/builder/metadata')
+    ctx = get_context()
+    svc = ProspectiveBuilderService(
+        policy_repo=ctx.policy_repo,
+        reference_repo=ctx.reference_data,
+        simulation_engine=ctx.simulation,
+    )
+    return svc.get_builder_metadata()
+
+
+@router.post('/prospective/builder/preview')
+def get_prospective_builder_preview(payload: dict[str, object]) -> dict[str, object]:
+    """Return generated statement preview for current builder state."""
+    logger.info('POST /prospective/builder/preview')
+    ctx = get_context()
+    svc = ProspectiveBuilderService(
+        policy_repo=ctx.policy_repo,
+        reference_repo=ctx.reference_data,
+        simulation_engine=ctx.simulation,
+    )
+    result = svc.build_preview(payload if isinstance(payload, dict) else {})
+    return {
+        'subject_phrase': result.subject_phrase,
+        'location_clause': result.location_clause,
+        'condition_snippet': result.condition_snippet,
+        'statement_text': result.statement_text,
+        'description_suggestion': result.description_suggestion,
+        'effective_path': result.effective_path,
+        'warnings': result.warnings,
     }
 
 

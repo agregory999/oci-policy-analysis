@@ -74,9 +74,9 @@ Python 3.12.x
 
 If your system uses `py` (Windows) or `python` as the primary command, adjust accordingly (e.g., `py -3.12 -V` or `python -V`).
 
-#### 2. Verify Tkinter (UI toolkit)
+#### 2. Verify Tkinter (desktop mode only)
 
-The desktop UI is built with Tkinter. You must have Tkinter available in your Python installation.
+The desktop UI mode is built with Tkinter. If you plan to run **web/CLI/MCP only**, you can skip this Tkinter validation step.
 
 From a terminal or command prompt, run:
 
@@ -136,17 +136,25 @@ After activation, your prompt will typically show `(.venv)` at the beginning. Al
 
 #### 4. Install and run from source
 
-Once your virtual environment is active, install the project and its dependencies:
+Once your virtual environment is active, install the project and its dependencies.
+
+Choose an install profile based on startup mode:
 
 ```bash
 python -m pip install --upgrade pip
-pip install -e .
+pip install -e .            # desktop/core
+pip install -e ".[web]"     # web only
+pip install -e ".[mcp]"     # mcp only
+pip install -e ".[all]"     # all optional components
 ```
 
-You can then run the application directly:
+You can then run the mode you want:
 
 ```bash
-python -m oci_policy_analysis.main
+python -m oci_policy_analysis.main                     # desktop UI
+oci-policy-analysis-web --host 127.0.0.1 --port 8000  # web UI
+oci-policy-analysis-cli --help                         # cli
+oci-policy-analysis-mcp --help                         # mcp server
 ```
 
 ##### Helper scripts (local install, run, clean)
@@ -170,7 +178,8 @@ Typical usage on macOS / Linux:
 cd oci-policy-analysis
 python3 -m venv .venv
 source .venv/bin/activate
-./local-run.sh
+./local-build.sh --mode web
+./local-run.sh --mode web --host 127.0.0.1 --port 8000
 ```
 
 Typical usage on Windows (PowerShell):
@@ -179,10 +188,24 @@ Typical usage on Windows (PowerShell):
 cd oci-policy-analysis
 py -3.12 -m venv .venv
 .venv\Scripts\activate
-./local-run.ps1
+./local-build.ps1 --mode web
+./local-run.ps1 --mode web --host 127.0.0.1 --port 8000
 ```
 
-The `local-run` scripts generally handle installing dependencies if needed, running the app, and may be combined with the `local-clean` scripts to remove build artifacts.
+Mode-aware helper scripts:
+
+- Build scripts:
+  - `local-build.sh --mode desktop|web|cli|mcp|all`
+  - `local-build.ps1 --mode desktop|web|cli|mcp|all`
+- Run scripts:
+  - `local-run.sh --mode desktop|web|cli|mcp [--host H] [--port P] [--reload]`
+  - `local-run.ps1 --mode desktop|web|cli|mcp [--host H] [--port P] [--reload]`
+
+For server-hosted web mode, a common pattern is:
+
+```bash
+nohup ./local-run.sh --mode web --host 0.0.0.0 --port 8080 > oci-policy-analysis-web.log 2>&1 &
+```
 
 ---
 

@@ -115,8 +115,8 @@
         const payload = await response.json();
         const settings = payload.settings || {};
         usageTracking.checked = Boolean(settings.usage_tracking_enabled ?? true);
-        defaultProfile.value = String(settings.default_profile || '');
-        defaultCompartmentDepth.value = String(settings.default_compartment_depth || '1');
+        defaultProfile.value = String(settings.named_profile || '');
+        defaultCompartmentDepth.value = String(settings.domain_compartment_depth || '1');
       }
 
       async function saveSettings() {
@@ -130,8 +130,8 @@
             body: JSON.stringify({
               settings: {
                 usage_tracking_enabled: usageTracking.checked,
-                default_profile: String(defaultProfile.value || '').trim(),
-                default_compartment_depth: Number(defaultCompartmentDepth.value || 1),
+                named_profile: String(defaultProfile.value || '').trim(),
+                domain_compartment_depth: Number(defaultCompartmentDepth.value || 1),
               },
             }),
           });

@@ -6,6 +6,64 @@
     <title>OCI Policy Analysis - Home</title>
     <link rel="stylesheet" href="/app.css" />
     <style>
+      .top-row {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);
+        gap: 1rem;
+        padding: 1rem 2rem 0;
+        align-items: stretch;
+      }
+      .app-masthead {
+        margin: 0;
+        padding: 1rem 1.25rem;
+        border: 1px solid #e5ddd9;
+        border-top: 3px solid var(--oci-red);
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.06);
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+      }
+      .masthead-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+      }
+      .masthead-badge {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--oci-red-soft, #fdf1ef);
+        border: 1px solid #efc6be;
+        color: var(--oci-red);
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .app-masthead h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: #1f1b1a;
+        font-weight: 800;
+      }
+      .app-masthead p {
+        margin: 0.25rem 0 0;
+        color: #6b7280;
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+      }
+      .masthead-meta {
+        text-align: right;
+        font-size: 0.8rem;
+        color: #6b7280;
+        font-weight: 700;
+      }
       main {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
@@ -49,6 +107,7 @@
         display: flex;
         align-items: center;
         gap: 0.45rem;
+        flex-wrap: wrap;
       }
       .inline-field > label {
         min-width: 190px;
@@ -78,20 +137,54 @@
         flex: 0 1 220px;
         max-width: 220px;
       }
+      .ops-button {
+        min-width: 190px;
+        justify-content: center;
+      }
+      .inline-field .ops-button,
+      .tenancy-profile-row .ops-button {
+        margin-left: auto;
+      }
+      .context-help-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        background: #fff;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.04);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .context-help-kicker {
+        margin: 0;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 800;
+        color: #6b7280;
+      }
+      .context-help-title {
+        margin: 0.35rem 0 0;
+        font-size: 0.95rem;
+        color: #1f1b1a;
+      }
+      .context-help-body {
+        margin: 0.4rem 0 0;
+        color: #4b5563;
+        line-height: 1.45;
+        font-size: 0.88rem;
+      }
       .progress-widget {
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
+        border-radius: 16px;
         padding: 0.75rem;
-        background: #fafafa;
+        background: #fff;
+        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.04);
         display: grid;
         gap: 0.45rem;
       }
       .progress-widget-title {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-weight: 700;
-        color: #6b7280;
+        margin: 0;
       }
       .progress-widget-head {
         display: flex;
@@ -134,7 +227,7 @@
       }
       .layout-main {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
         gap: 1rem;
         padding: 1rem 2rem;
       }
@@ -154,6 +247,18 @@
         gap: 1rem;
       }
       @media (max-width: 980px) {
+        .top-row {
+          grid-template-columns: 1fr;
+          padding: 0.75rem 1rem 0;
+        }
+        .app-masthead {
+          padding: 0.9rem;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .masthead-meta {
+          text-align: left;
+        }
         .common-progress-row {
           grid-template-columns: 1fr;
         }
@@ -169,13 +274,26 @@
     </style>
   </head>
   <body>
-    <header>
-      <h1>OCI Policy Analysis (Web)</h1>
-      <p>Start here for the web experience and shared settings.</p>
-    </header>
+    <div class="top-row">
+      <header class="app-masthead" data-help-title="Policy Analysis Home" data-help-body="This page is the launch point for data loading, analysis pages, and operational utilities. Use the Data Operations card first to load the dataset you want to analyze.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>OCI Policy Analysis</h1>
+            <p>Web Workspace • Data Load + Analysis Navigation</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="context-help-card" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Hover or focus on controls to see what each option does. Start in Data Operations to load tenancy, compliance, cache, or export data.</p>
+      </div>
+    </div>
 
     <main class="layout-main">
-      <div class="card compact-card">
+      <div class="card compact-card" data-help-title="Data Operations" data-help-body="Pick one source path (tenancy, compliance output, cache, or export), then run the matching load action. The shared status widget tracks progress across these paths.">
         <p class="card-title">Data Operations</p>
         <p>Choose a source below, then run a load. Progress is shared across all load options.</p>
 
@@ -210,8 +328,8 @@
             </div>
             <div class="tenancy-profile-row" style="margin-top: 0.45rem;">
               <label for="profileSelect">Profile:</label>
-              <select id="profileSelect"></select>
-              <button id="loadTenancyBtn">Load from Tenancy</button>
+              <select id="profileSelect" data-help-title="Profile Selector" data-help-body="Select the OCI config profile to use when loading tenancy data."></select>
+              <button id="loadTenancyBtn" class="ops-button" data-help-title="Load from Tenancy" data-help-body="Runs a direct tenancy load using the selected profile or instance principal settings.">Load from Tenancy</button>
             </div>
           </div>
 
@@ -221,8 +339,8 @@
             <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Compliance</h3>
             <div class="inline-field">
               <label for="compliancePath">Compliance Output Directory:</label>
-              <input id="compliancePath" placeholder="/path/to/compliance/output" />
-              <button id="loadComplianceBtn">Load Compliance Data</button>
+              <input id="compliancePath" placeholder="/path/to/compliance/output" data-help-title="Compliance Path" data-help-body="Set the folder that contains compliance output artifacts to import." />
+              <button id="loadComplianceBtn" class="ops-button" data-help-title="Load Compliance Data" data-help-body="Imports compliance output files and updates the active dataset.">Load Compliance Data</button>
             </div>
           </div>
 
@@ -233,8 +351,8 @@
               <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Cache</h3>
               <div class="inline-field">
                 <label for="cacheSelect">Cache:</label>
-                <select id="cacheSelect"></select>
-                <button id="loadCacheStandaloneBtn">Load Selected Cache</button>
+                <select id="cacheSelect" data-help-title="Cache Selector" data-help-body="Choose a previously saved cache dataset to reload quickly."></select>
+                <button id="loadCacheStandaloneBtn" class="ops-button" data-help-title="Load Selected Cache" data-help-body="Loads the selected cache and refreshes in-memory analysis data.">Load Selected Cache</button>
               </div>
             </div>
           </div>
@@ -245,8 +363,8 @@
             <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Export</h3>
             <div class="inline-field">
               <label for="exportPath">Export File:</label>
-              <input id="exportPath" placeholder="/path/to/export.json" />
-              <button id="loadExportBtn">Load Export File</button>
+              <input id="exportPath" placeholder="/path/to/export.json" data-help-title="Export File Path" data-help-body="Point to an exported JSON file to import directly as the active dataset." />
+              <button id="loadExportBtn" class="ops-button" data-help-title="Load Export File" data-help-body="Loads a JSON export file and applies post-load intelligence if enabled.">Load Export File</button>
             </div>
           </div>
 
@@ -256,8 +374,8 @@
         </div>
       </div>
       <div class="side-stack">
-        <div class="progress-widget" id="sharedProgressWidget">
-          <div class="progress-widget-title">Tenancy Data Status</div>
+        <div class="progress-widget" id="sharedProgressWidget" data-help-title="Data Load Status" data-help-body="Tracks the active load flow across tenancy, compliance, cache, and export paths, including percent complete, current stage, and loaded dataset details.">
+          <p class="card-title progress-widget-title">Data Load Status</p>
           <div class="progress-widget-head">
             <span id="sharedProgressSummary" class="progress-widget-detail">Waiting to start a load.</span>
             <span id="sharedProgressPercent" class="progress-widget-percent">0%</span>
@@ -266,6 +384,7 @@
           <div id="sharedProgressDetail" class="progress-widget-detail">No active load.</div>
           <div id="sharedDatasetDetail" class="progress-widget-detail">No dataset loaded yet.</div>
         </div>
+
         <div class="card">
           <p class="card-title">Analysis</p>
           <p>Run initial policy filtering queries.</p>
@@ -314,7 +433,30 @@
       const sharedProgressPercent = document.getElementById('sharedProgressPercent');
       const sharedProgressFill = document.getElementById('sharedProgressFill');
       const sharedProgressDetail = document.getElementById('sharedProgressDetail');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
       let appSettings = {};
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Hover or focus on controls to see what each option does. Start in Data Operations to load tenancy, compliance, cache, or export data.',
+      };
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        const helpNodes = document.querySelectorAll('[data-help-title], [data-help-body]');
+        helpNodes.forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
 
       const LOAD_STAGE_MAP = {
         cache: [
@@ -503,7 +645,7 @@
           return;
         }
 
-        const desiredProfile = String(appSettings.default_profile || '').trim();
+        const desiredProfile = String(appSettings.named_profile || '').trim();
         if (desiredProfile && profiles.includes(desiredProfile)) {
           profileSelect.value = desiredProfile;
         }
@@ -514,7 +656,7 @@
           const response = await fetch('/settings');
           const payload = await response.json();
           appSettings = payload.settings || {};
-          const depth = Number(appSettings.default_compartment_depth || 1);
+          const depth = Number(appSettings.domain_compartment_depth || 1);
           if (Number.isFinite(depth) && depth >= 1 && depth <= 6) {
             compartmentDepth.value = String(depth);
           }
@@ -647,6 +789,7 @@
       loadComplianceBtn.addEventListener('click', loadCompliance);
       loadExportBtn.addEventListener('click', loadExport);
       (async () => {
+        bindContextHelp();
         await loadAppSettings();
         await loadCaches();
         await loadProfiles();

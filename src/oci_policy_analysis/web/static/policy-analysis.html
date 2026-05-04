@@ -133,6 +133,52 @@
         overflow: auto;
       }
 
+      .prospective-editor {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(1100px, 66vw);
+        background: #fff;
+        border-left: 1px solid var(--oci-line);
+        box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
+        transform: translateX(105%);
+        transition: transform 180ms ease;
+        z-index: 60;
+      }
+
+      .prospective-editor.open { transform: translateX(0); }
+      .prospective-editor-header { padding: 0.9rem 1rem; background: #1f1b1a; color: #fff; display:flex; justify-content:space-between; align-items:center; }
+      .prospective-editor-body { padding: 0.8rem; overflow: auto; display: grid; gap: 0.8rem; }
+      .prospective-grid table { width: 100%; }
+      .prospective-grid textarea { min-height: 52px; width: 100%; }
+      .prospective-rows-head th { background: #faf8f6; }
+      .prospective-line2-cell { padding-top: 0.35rem; padding-bottom: 0.55rem; }
+      .prospective-sep td { padding: 0; border: 0; }
+      .prospective-sep-line { height: 1px; background: #e9e3de; margin: 0.2rem 0; }
+      .prospective-builder-grid { display: grid; gap: 0.5rem; }
+      .prospective-builder-row { display: grid; gap: 0.5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .prospective-builder-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .prospective-field { display: grid; gap: 0.2rem; }
+      .prospective-field label { font-size: 0.78rem; color: #5f5956; font-weight: 600; }
+      .prospective-note { font-size: 0.74rem; color: #6b7280; }
+      .prospective-inline-check {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.45rem;
+        width: 100%;
+        text-align: left;
+      }
+      .prospective-inline-check .prospective-note { text-align: left; }
+      #pbIncludeDefault,
+      #pbUseAllResources { justify-self: start; }
+      #pbOtherWhereField { grid-column: 1 / -1; }
+      .prospective-preview { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; white-space: pre-wrap; background: #faf8f6; border: 1px solid var(--oci-line); border-radius: 8px; padding: 0.5rem; }
+      .prospective-editor-footer { padding: 0.7rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top: 1px solid var(--oci-line); }
+
       .policy-inspector-body table {
         width: 100%;
       }
@@ -253,6 +299,8 @@
         <div class="filter-actions" style="margin-top:0.6rem;">
           <button id="runBtn">Run Filter</button>
           <button id="clearFiltersBtn" class="ghost">Clear Filters</button>
+          <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;"><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
+          <button id="manageProspectiveBtn" class="ghost">Manage Prospective Statements</button>
           <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" />
           <button id="saveSearchBtn" class="ghost">Save Search</button>
           <select id="savedSearchSelect" style="max-width:260px; min-width:180px;">
@@ -308,6 +356,80 @@
           </div>
         </aside>
       </div>
+
+      <aside id="prospectiveEditor" class="prospective-editor" aria-live="polite">
+        <div class="prospective-editor-header">
+          <strong>Prospective Statement Editor</strong>
+          <button id="closeProspectiveBtn" class="ghost" style="margin-top:0;">×</button>
+        </div>
+        <div class="prospective-editor-body">
+          <div class="prospective-grid">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+              <strong>Statements</strong>
+              <button id="addProspectiveRowBtn" class="ghost" style="margin-top:0;">Add Free-Form Statement</button>
+            </div>
+            <table id="prospectiveRowsTable">
+              <thead class="prospective-rows-head"><tr><th>Location</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div>
+            <strong>Builder</strong>
+            <div class="prospective-builder-grid" style="margin-top:.5rem;">
+              <div class="prospective-builder-row">
+                <div class="prospective-field"><label for="pbAction">Action</label><select id="pbAction"></select></div>
+                <div class="prospective-field"><label for="pbPrincipal">Principal</label><select id="pbPrincipal"></select></div>
+                <div class="prospective-field">
+                  <label for="pbIncludeDefault">Include Default</label>
+                  <div class="prospective-inline-check">
+                    <input id="pbIncludeDefault" type="checkbox" />
+                    <span class="prospective-note">Checking the box adds Default domain if not specified.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="prospective-builder-row">
+                <div class="prospective-field"><label for="pbVerb">Verb</label><select id="pbVerb"></select></div>
+                <div class="prospective-field"><label for="pbResource">Resource</label><select id="pbResource"></select></div>
+                <div class="prospective-field">
+                  <label for="pbUseAllResources">All Possible Resources</label>
+                  <div class="prospective-inline-check">
+                    <input id="pbUseAllResources" type="checkbox" />
+                    <span class="prospective-note">Loads all known resources and families instead of those in use by tenancy.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="prospective-builder-row two">
+                <div class="prospective-field"><label for="pbLocation">Location / Compartment</label><select id="pbLocation"></select></div>
+                <div class="prospective-field"><label for="pbEffectivePath">Effective Path</label><select id="pbEffectivePath"></select></div>
+              </div>
+              <div class="prospective-builder-row">
+                <div class="prospective-field"><label for="pbWhereMode">Where Clause Mode</label><select id="pbWhereMode"></select></div>
+              </div>
+              <div id="pbOtherWhereRow" class="prospective-builder-row" style="display:none;">
+                <div id="pbOtherWhereField" class="prospective-field"><label for="pbOtherWhereText">Other Where Clause Text (no 'where')</label><textarea id="pbOtherWhereText"></textarea></div>
+              </div>
+              <div id="pbTagWhereRow1" class="prospective-builder-row">
+                <div class="prospective-field"><label for="pbAccessType">Access Type</label><select id="pbAccessType"></select></div>
+                <div class="prospective-field"><label for="pbNamespace">Tag Namespace</label><input id="pbNamespace" /></div>
+                <div class="prospective-field"><label for="pbTagKey">Tag Key</label><input id="pbTagKey" /></div>
+              </div>
+              <div id="pbTagWhereRow2" class="prospective-builder-row two">
+                <div class="prospective-field"><label for="pbOperator">Operator</label><select id="pbOperator"></select></div>
+                <div class="prospective-field"><label for="pbValue">Value(s)</label><input id="pbValue" /></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+              <button id="previewProspectiveBtn" class="ghost" style="margin-top:0;">Preview</button>
+              <button id="clearBuilderBtn" class="ghost" style="margin-top:0;">Clear Builder</button>
+              <button id="addBuilderToRowsBtn" class="ghost" style="margin-top:0;">Add to Statements</button>
+            </div>
+            <div id="pbPreview" class="prospective-preview" style="margin-top:.5rem;">No preview yet.</div>
+          </div>
+        </div>
+        <div class="prospective-editor-footer">
+          <button id="saveProspectiveBtn">Save and Close</button>
+        </div>
+      </aside>
     </main>
 
     <script>
@@ -317,6 +439,8 @@
       const savedSearchName = document.getElementById('savedSearchName');
       const savedSearchSelect = document.getElementById('savedSearchSelect');
       const loadJsonExampleBtn = document.getElementById('loadJsonExampleBtn');
+      const manageProspectiveBtn = document.getElementById('manageProspectiveBtn');
+      const showProspectiveFilter = document.getElementById('showProspectiveFilter');
       const status = document.getElementById('status');
       const filters = document.getElementById('filters');
       const subjectFilter = document.getElementById('subjectFilter');
@@ -344,11 +468,28 @@
       const copyStatementBtn = document.getElementById('copyStatementBtn');
       const copySummaryBtn = document.getElementById('copySummaryBtn');
       const policyLayout = document.querySelector('.policy-layout');
+      const prospectiveEditor = document.getElementById('prospectiveEditor');
+      const closeProspectiveBtn = document.getElementById('closeProspectiveBtn');
+      const addProspectiveRowBtn = document.getElementById('addProspectiveRowBtn');
+      const saveProspectiveBtn = document.getElementById('saveProspectiveBtn');
+      const prospectiveRowsBody = document.querySelector('#prospectiveRowsTable tbody');
+      const previewProspectiveBtn = document.getElementById('previewProspectiveBtn');
+      const addBuilderToRowsBtn = document.getElementById('addBuilderToRowsBtn');
+      const pbPreview = document.getElementById('pbPreview');
+      const pbUseAllResources = document.getElementById('pbUseAllResources');
+      const clearBuilderBtn = document.getElementById('clearBuilderBtn');
+      const pbWhereMode = document.getElementById('pbWhereMode');
+      const pbTagWhereRow1 = document.getElementById('pbTagWhereRow1');
+      const pbTagWhereRow2 = document.getElementById('pbTagWhereRow2');
+      const pbOtherWhereRow = document.getElementById('pbOtherWhereRow');
+      const pbOtherWhereField = document.getElementById('pbOtherWhereField');
 
       let currentRows = [];
       let selectedRow = null;
       let sortState = { key: 'policy_name', dir: 'asc' };
       let appSettings = {};
+      let prospectiveRows = [];
+      let prospectiveMetadata = null;
 
       const JSON_OVERRIDE_EXAMPLE = {
         subject: 'any-user|group-id',
@@ -414,6 +555,172 @@
           const key = th.dataset.sortKey;
           indicator.textContent = key === sortState.key ? (sortState.dir === 'asc' ? '▲' : '▼') : '';
         });
+      }
+
+      function escAttr(value) {
+        return escapeHtml(value).replaceAll('"', '&quot;');
+      }
+
+      function prospectiveStatus(row) {
+        if (row.parsed && row.valid) return 'Parsed';
+        if (Array.isArray(row.invalid_reasons) && row.invalid_reasons.length) return 'Invalid';
+        return 'Not parsed';
+      }
+
+      function renderProspectiveRows() {
+        prospectiveRowsBody.innerHTML = '';
+        prospectiveRows.forEach((row, idx) => {
+          const trTop = document.createElement('tr');
+          trTop.innerHTML = `
+            <td><input data-k="compartment_path" data-i="${idx}" value="${escAttr(row.compartment_path || 'ROOT')}" /></td>
+            <td><input data-k="description" data-i="${idx}" value="${escAttr(row.description || '')}" /></td>
+            <td>${escapeHtml(prospectiveStatus(row))}</td>
+            <td>
+              <button data-action="parse" data-i="${idx}" class="ghost" style="margin-top:0;">Parse</button>
+              <button data-action="delete" data-i="${idx}" class="ghost" style="margin-top:0;">Delete</button>
+            </td>
+          `;
+
+          const trBottom = document.createElement('tr');
+          trBottom.innerHTML = `
+            <td colspan="4" class="prospective-line2-cell">
+              <textarea data-k="statement_text" data-i="${idx}">${escapeHtml(row.statement_text || '')}</textarea>
+              <div style="color:#b45309;font-size:.75rem;">${escapeHtml((row.invalid_reasons || []).join('; '))}</div>
+            </td>
+          `;
+
+          const trSep = document.createElement('tr');
+          trSep.className = 'prospective-sep';
+          trSep.innerHTML = '<td colspan="4"><div class="prospective-sep-line"></div></td>';
+
+          prospectiveRowsBody.appendChild(trTop);
+          prospectiveRowsBody.appendChild(trBottom);
+          prospectiveRowsBody.appendChild(trSep);
+        });
+      }
+
+      async function loadProspectiveEditor() {
+        const [rowsResp, metaResp] = await Promise.all([
+          fetch('/prospective/statements'),
+          fetch('/prospective/builder/metadata'),
+        ]);
+        const rowsPayload = await rowsResp.json();
+        prospectiveMetadata = await metaResp.json();
+        prospectiveRows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
+        if (!prospectiveRows.length) prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
+
+        const setOpts = (id, vals) => {
+          const el = document.getElementById(id);
+          el.innerHTML = (vals || []).map((v) => `<option value="${escAttr(v)}">${escapeHtml(v)}</option>`).join('');
+        };
+        setOpts('pbAction', prospectiveMetadata.actions || ['Allow', 'Deny']);
+        setOpts('pbVerb', prospectiveMetadata.verbs || ['inspect', 'read', 'use', 'manage']);
+        setOpts('pbWhereMode', prospectiveMetadata.where_modes || ['No Where Clause', 'Tag-based Where Clause', 'Other Where Clause']);
+        setOpts('pbAccessType', prospectiveMetadata.access_types || []);
+        setOpts('pbOperator', prospectiveMetadata.operators || ['=', '!=', 'IN', 'NOT IN']);
+        setOpts('pbPrincipal', prospectiveMetadata.principals || []);
+        setOpts('pbResource', prospectiveMetadata.resources_in_use || []);
+        setOpts('pbLocation', prospectiveMetadata.locations || ['ROOT']);
+        setOpts('pbEffectivePath', prospectiveMetadata.effective_paths || ['ROOT']);
+
+        document.getElementById('pbAction').value = 'Allow';
+        document.getElementById('pbVerb').value = 'use';
+        document.getElementById('pbWhereMode').value = 'No Where Clause';
+        if ((prospectiveMetadata.access_types || []).length) {
+          document.getElementById('pbAccessType').value = prospectiveMetadata.access_types[0];
+        }
+        document.getElementById('pbOperator').value = '=';
+
+        updateWhereModeVisibility();
+        renderProspectiveRows();
+      }
+
+      function refreshResourceDropdownFromMode() {
+        if (!prospectiveMetadata) return;
+        const source = pbUseAllResources.checked
+          ? (prospectiveMetadata.resources_all_possible || [])
+          : (prospectiveMetadata.resources_in_use || []);
+        const pbResource = document.getElementById('pbResource');
+        const prior = pbResource.value;
+        pbResource.innerHTML = (source || []).map((v) => `<option value="${escAttr(v)}">${escapeHtml(v)}</option>`).join('');
+        if (source.includes(prior)) pbResource.value = prior;
+        else if ((source || []).length) pbResource.value = source[0];
+      }
+
+      function updateWhereModeVisibility() {
+        const mode = String(pbWhereMode?.value || 'No Where Clause');
+        if (pbTagWhereRow1) pbTagWhereRow1.style.display = mode === 'Tag-based Where Clause' ? 'grid' : 'none';
+        if (pbTagWhereRow2) pbTagWhereRow2.style.display = mode === 'Tag-based Where Clause' ? 'grid' : 'none';
+        if (pbOtherWhereRow) pbOtherWhereRow.style.display = mode === 'Other Where Clause' ? 'grid' : 'none';
+        if (pbOtherWhereField) {
+          pbOtherWhereField.style.display = mode === 'Other Where Clause' ? 'grid' : 'none';
+        }
+      }
+
+      function clearBuilderDraft() {
+        document.getElementById('pbAction').value = 'Allow';
+        document.getElementById('pbIncludeDefault').checked = false;
+        document.getElementById('pbVerb').value = 'use';
+        pbUseAllResources.checked = false;
+        refreshResourceDropdownFromMode();
+        const loc = document.getElementById('pbLocation');
+        const eff = document.getElementById('pbEffectivePath');
+        if (loc?.options?.length) loc.value = loc.options[0].value;
+        if (eff?.options?.length) eff.value = eff.options[0].value;
+        pbWhereMode.value = 'No Where Clause';
+        document.getElementById('pbNamespace').value = '';
+        document.getElementById('pbTagKey').value = '';
+        document.getElementById('pbValue').value = '';
+        document.getElementById('pbOtherWhereText').value = '';
+        document.getElementById('pbOperator').value = '=';
+        if ((prospectiveMetadata?.access_types || []).length) {
+          document.getElementById('pbAccessType').value = prospectiveMetadata.access_types[0];
+        }
+        pbPreview.textContent = 'No preview yet.';
+        updateWhereModeVisibility();
+      }
+
+      async function parseProspectiveRow(index) {
+        const row = prospectiveRows[index];
+        const resp = await fetch('/prospective/statements/validate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row),
+        });
+        const payload = await resp.json();
+        prospectiveRows[index] = payload.row;
+        renderProspectiveRows();
+      }
+
+      async function previewBuilder() {
+        const payload = {
+          action: document.getElementById('pbAction').value,
+          principal_key: document.getElementById('pbPrincipal').value,
+          include_default: document.getElementById('pbIncludeDefault').checked,
+          verb: document.getElementById('pbVerb').value,
+          resource: document.getElementById('pbResource').value,
+          location: document.getElementById('pbLocation').value,
+          effective_path: document.getElementById('pbEffectivePath').value,
+          where_mode: document.getElementById('pbWhereMode').value,
+          access_type: document.getElementById('pbAccessType').value,
+          namespace: document.getElementById('pbNamespace').value,
+          tag_key: document.getElementById('pbTagKey').value,
+          operator: document.getElementById('pbOperator').value,
+          value: document.getElementById('pbValue').value,
+          other_where_text: document.getElementById('pbOtherWhereText').value,
+        };
+        const resp = await fetch('/prospective/builder/preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        const p = await resp.json();
+        pbPreview.textContent = p.statement_text || 'No preview.';
+        return p;
+      }
+
+      async function saveProspectiveRows() {
+        await fetch('/prospective/statements/replace', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: prospectiveRows }),
+        });
+        prospectiveEditor.classList.remove('open');
+        await runFilter();
       }
 
       function setInspector(row) {
@@ -698,8 +1005,67 @@
           const result = await response.json();
           const matched = result.matched || 0;
           const total = result.total || 0;
-          currentRows = (result.statements || []).map((row, idx) => ({ ...row, _row_id: idx + 1 }));
-          summary.textContent = `Showing ${currentRows.length} of ${matched} (total ${total})`;
+          currentRows = (result.statements || []).map((row) => ({ ...row }));
+
+          if (showProspectiveFilter.checked) {
+            const prospectiveResp = await fetch('/prospective/statements');
+            if (prospectiveResp.ok) {
+              const prospectivePayload = await prospectiveResp.json();
+              const prospectiveRows = (prospectivePayload.rows || [])
+                .filter((r) => String(r?.statement_text || '').trim())
+                .map((r) => ({
+                  compartment_path: r.compartment_path || 'ROOT',
+                  effective_path: r.effective_path || r.compartment_path || 'ROOT',
+                  policy_name: `[Prospective] ${String(r.description || 'Prospective Statement').trim() || 'Prospective Statement'}`,
+                  policy_ocid: r.tenancy_ocid || '',
+                  statement_text: r.statement_text || '',
+                  action: String(r.normalized?.action || '').toLowerCase() || '',
+                  subject_type: r.normalized?.subject_type || '',
+                  subject: r.normalized?.subject || '',
+                  verb: r.normalized?.verb || '',
+                  resource: r.normalized?.resource || '',
+                  permission: r.normalized?.permission || '',
+                  location: r.normalized?.location || '',
+                  conditions: r.normalized?.conditions || '',
+                  parsed: !!r.parsed,
+                  valid: !!r.valid,
+                  invalid_reasons: Array.isArray(r.invalid_reasons) ? r.invalid_reasons : [],
+                  is_prospective: true,
+                }))
+                .filter((row) => {
+                  const contains = (value, term) => String(value || '').toLowerCase().includes(String(term || '').toLowerCase());
+                  if (String(subjectFilter.value || '').trim() && !contains(`${row.subject_type} ${JSON.stringify(row.subject)}`, subjectFilter.value)) return false;
+                  if (String(verbFilter.value || '').trim() && !contains(row.verb, verbFilter.value)) return false;
+                  if (String(resourceFilter.value || '').trim() && !contains(row.resource, resourceFilter.value)) return false;
+                  if (String(permissionFilter.value || '').trim() && !contains(row.permission, permissionFilter.value)) return false;
+                  if (String(locationFilter.value || '').trim() && !contains(row.location, locationFilter.value)) return false;
+                  if (String(compartmentPathFilter.value || '').trim() && !contains(row.compartment_path, compartmentPathFilter.value)) return false;
+                  if (String(statementTextFilter.value || '').trim() && !contains(row.statement_text, statementTextFilter.value)) return false;
+                  if (String(policyNameFilter.value || '').trim() && !contains(row.policy_name, policyNameFilter.value)) return false;
+                  if (String(effectivePathFilter.value || '').trim() && !contains(row.effective_path, effectivePathFilter.value)) return false;
+                  if (String(conditionsFilter.value || '').trim() && !contains(row.conditions, conditionsFilter.value)) return false;
+                  if (actionFilter.value === 'Allow' && String(row.action || '').toLowerCase() !== 'allow') return false;
+                  if (actionFilter.value === 'Deny' && String(row.action || '').toLowerCase() !== 'deny') return false;
+                  if (validFilter.value === 'true' && !row.valid) return false;
+                  if (validFilter.value === 'false' && row.valid) return false;
+                  return true;
+                });
+
+              currentRows = currentRows.concat(prospectiveRows);
+            }
+          }
+
+          const getComparable = (row, key) => String(getRowValue(row, key) || '').toLowerCase();
+          currentRows.sort((a, b) => {
+            const av = getComparable(a, sortState.key);
+            const bv = getComparable(b, sortState.key);
+            if (av === bv) return 0;
+            return sortState.dir === 'asc' ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1);
+          });
+          currentRows = currentRows.map((row, idx) => ({ ...row, _row_id: idx + 1 }));
+
+          const prospectiveCount = currentRows.filter((r) => r.is_prospective).length;
+          summary.textContent = `Showing ${currentRows.length} of ${matched} (total ${total})${prospectiveCount ? ` + ${prospectiveCount} prospective` : ''}`;
           renderRows(currentRows);
           setInspector(null);
           status.textContent = '';
@@ -753,6 +1119,57 @@
         status.className = 'status';
       });
 
+      prospectiveRowsBody.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const i = Number(target.dataset.i);
+        const k = target.dataset.k;
+        if (!Number.isFinite(i) || !k || !prospectiveRows[i]) return;
+        prospectiveRows[i][k] = target.value;
+      });
+
+      prospectiveRowsBody.addEventListener('click', async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const action = target.dataset.action;
+        const i = Number(target.dataset.i);
+        if (!Number.isFinite(i)) return;
+        if (action === 'delete') {
+          prospectiveRows.splice(i, 1);
+          if (!prospectiveRows.length) prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
+          renderProspectiveRows();
+          return;
+        }
+        if (action === 'parse') {
+          await parseProspectiveRow(i);
+        }
+      });
+
+      manageProspectiveBtn.addEventListener('click', async () => {
+        await loadProspectiveEditor();
+        prospectiveEditor.classList.add('open');
+      });
+      closeProspectiveBtn.addEventListener('click', () => prospectiveEditor.classList.remove('open'));
+      addProspectiveRowBtn.addEventListener('click', () => {
+        prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
+        renderProspectiveRows();
+      });
+      previewProspectiveBtn.addEventListener('click', previewBuilder);
+      addBuilderToRowsBtn.addEventListener('click', async () => {
+        const p = await previewBuilder();
+        prospectiveRows.push({
+          compartment_path: document.getElementById('pbLocation').value || 'ROOT',
+          description: p.description_suggestion || '',
+          statement_text: p.statement_text || '',
+          invalid_reasons: [],
+        });
+        renderProspectiveRows();
+      });
+      saveProspectiveBtn.addEventListener('click', saveProspectiveRows);
+      pbUseAllResources.addEventListener('change', refreshResourceDropdownFromMode);
+      pbWhereMode.addEventListener('change', updateWhereModeVisibility);
+      clearBuilderBtn.addEventListener('click', clearBuilderDraft);
+
       copyStatementBtn.addEventListener('click', async () => {
         if (!selectedRow) return;
         await navigator.clipboard.writeText(String(getRowValue(selectedRow, 'statement_text') || ''));
@@ -772,6 +1189,7 @@
 
       updateSortIndicators();
       runBtn.addEventListener('click', runFilter);
+      showProspectiveFilter.addEventListener('change', runFilter);
 
       async function initializePage() {
         try {

@@ -150,6 +150,188 @@ inspection and future parser/validator iteration.
 - Where parser output exists, provide an explicit parsed-details section.
 
 
+## 8) OCI Tenancy Explorer UI Style Reference (from `src/sample/index.html`)
+
+This section captures reusable UI conventions observed in
+`src/sample/index.html` so future pages can use named patterns instead of
+ad-hoc styling.
+
+### 8.1 Design Tokens and Visual Language
+
+Primary semantic tokens used throughout the sample page:
+
+- `--oci-red`, `--oci-red-deep`, `--oci-red-soft`: brand/action emphasis.
+- `--oci-ink`: primary text color.
+- `--oci-steel`: secondary text color.
+- `--oci-line`, `--oci-line-strong`: borders/dividers.
+- `--oci-panel`, `--oci-panel-alt`: surface backgrounds.
+- `--oci-bg`: page background.
+
+Practical rule:
+
+- Use red tokens for primary actions, active state, and high-attention accents.
+- Keep body surfaces neutral (`--oci-panel`) and reserve gradients for focused
+  highlight regions (tabs, score bars, active chips where needed).
+
+### 8.2 Typography Roles (Named Usage)
+
+Use these named roles when designing content hierarchy:
+
+- **Page Title**: large, high-contrast heading (example: `h1`/`h2` with
+  `text-2xl` to `text-3xl`, `font-black`, tighter letter spacing).
+- **Section Label**: small uppercase kicker above content blocks
+  (`text-[10px]`, `font-black`, `uppercase`, `tracking-widest`, muted color).
+- **Card Title**: section heading inside cards (`text-xl`, `font-black`).
+- **Body Copy**: explanatory text (`text-[11px]`/`text-sm`, relaxed line-height).
+- **Meta/Caption**: status and helper text (`text-[10px]` or `text-[9px]`,
+  uppercase tracking for operational metadata).
+
+### 8.3 Layout and Container Patterns
+
+Reusable layout patterns:
+
+- **Page Shell**: centered max-width app container with consistent paddings
+  (`max-w-[1920px] mx-auto px-4 py-4`).
+- **Top Masthead Card**: rounded header with top border accent and soft shadow.
+- **Content Card**: `bg-white`, `rounded-2xl`, `border`, `shadow-sm`, padded.
+- **Workspace Split**: filter/sidebar + results/table + optional right inspector.
+- **Inspector Panel**: fixed-right, high-z panel on desktop;
+  full-width/stacked behavior on smaller screens.
+
+### 8.4 Navigation and Selection Components
+
+Named reusable components:
+
+- **Portal Tab** (`.portal-tab`, `.portal-tab-active`): top-level view switch.
+- **Subtab** (`.opportunity-subtab`, `.opportunity-subtab-active`):
+  section-level switch inside one view.
+- **Filter Pill / Chip** (`.opportunity-filter-pill`, `.regional-chip` + active
+  variants): quick multi-filter entry points.
+- **Info Button + Popover** (`.section-info-button`, `.section-info-popover`):
+  inline help for metric cards or labels.
+
+### 8.5 Actions, Inputs, and Link Styling
+
+Use these action patterns consistently:
+
+- **Primary Action Button**: red background, white text, rounded corners, hover
+  deepens red (e.g., refresh/run/open).
+- **Secondary Button**: white background, neutral border/text, subtle hover fill.
+- **Destructive/critical tone**: use only for error/alert semantics, not for
+  regular navigation.
+
+Input conventions from sample:
+
+- Rounded controls (`rounded-xl`) with neutral border.
+- Focus state uses red border + soft ring (`rgba(199,70,52,0.12)`).
+- Search inputs and selects share visual baseline for alignment.
+
+Link conventions:
+
+- **Utility link-button** style for JSON/doc links (`.json-source-link`):
+  button-like border and uppercase metadata typography.
+- For external references in content cards, keep links visually consistent with
+  secondary button treatment.
+
+### 8.6 Data Display Patterns
+
+Primary data-display building blocks:
+
+- **Stat Card Ribbon**: key numeric KPIs with short labels (top-of-view).
+- **Filter Summary Bar**: one-line statement describing filtered scope.
+- **Data Table**: sticky header, compact rows, hover highlight, sortable columns.
+- **Status Badge/Tag**: semantic classes for operational state
+  (`.status-*`, `.refresh-status-*`, `.opportunity-check-*`).
+- **OCID Chip** (`.ocid-chip`): compact, copy-friendly identifier display.
+
+Row/table interaction conventions:
+
+- Keep rows scan-friendly and move verbose diagnostics to the inspector.
+- Use copy affordances (`.copy-icon-btn`) for OCIDs and key metadata values.
+
+### 8.7 Overlays and Feedback Patterns
+
+Modal and feedback conventions:
+
+- **Modal Overlay** (`.modal-overlay`) with blur/dim treatment.
+- **Modal Container**: rounded, bordered card with distinct header and body.
+- **Live Activity**: spinner (`.refresh-spinner`), progress bar, and status chips.
+- **Log Surface** (`.refresh-log`): monospace, dark background, warning/error
+  color accents for troubleshooting readability.
+
+### 8.8 Quick Mapping for Future Page Authors
+
+When creating a new page, map elements to named roles before coding:
+
+1. Page Title + subtitle/meta label.
+2. Header action row (primary + secondary buttons).
+3. Summary stat cards (if metrics exist).
+4. Filter/search strip.
+5. Main table/grid.
+6. Right inspector panel (desktop fixed-right).
+7. Optional modal(s) for workflow or detail drilldown.
+
+This keeps new pages visually aligned with OCI Tenancy Explorer conventions and
+prevents one-off class decisions.
+
+### 8.9 Hover-Driven Context Help Area (TK-style Pattern for Web)
+
+Yes — this is a strong fit for the web pages and can mirror the TK context-help
+experience.
+
+Recommended web pattern:
+
+- Add a persistent **Context Help card** in the right rail (or below filters on
+  narrower layouts).
+- Any interactive widget can declare help text via attributes like:
+  - `data-help-title="Quick Search"`
+  - `data-help-body="Search by policy name, OCID, or statement text..."`
+- Use delegated events (`mouseover`, `focusin`) to update the shared help card.
+- On `mouseout`/`focusout`, restore default page guidance.
+
+Minimal interaction model:
+
+1. Page loads with a default “How to use this page” message.
+2. Hover/focus on control -> help panel updates with role-specific guidance.
+3. Leaving control -> help panel reverts to default.
+
+Implementation notes:
+
+- Keep one central helper in page JS (e.g., `setContextHelp(title, body)`).
+- Prefer `focusin/focusout` in addition to hover for keyboard accessibility.
+- Do not overload tooltips; use the help card for richer guidance.
+- This pattern pairs well with existing `.section-info-button`/popover usage:
+  popover for point details, help card for persistent workflow guidance.
+
+### 8.10 Title Bar Modernization Experiment (Tenancy Explorer-inspired)
+
+Yes — we can experiment with a title bar closer to Tenancy Explorer while
+keeping policy-analysis functionality unchanged.
+
+Proposed title-bar characteristics:
+
+- Card-style masthead with subtle border, radius, and shadow.
+- Left cluster: icon badge + page title + small uppercase subtitle.
+- Right cluster: primary action(s) then secondary action(s).
+- Optional top accent border using `--oci-red`.
+
+Suggested structure to standardize across pages:
+
+1. **Header shell** (`rounded-2xl`, bordered, shadowed panel).
+2. **Identity block** (icon + title + descriptor text).
+3. **Action block** (refresh/export/help, consistent button hierarchy).
+4. **Status/meta line** (last refresh timestamp, data source, warning count).
+
+Safe rollout strategy:
+
+- Start with one page (recommended: `cross-tenancy-analysis.html`) as a visual
+  pilot.
+- Keep existing JS hooks/IDs; change only presentation classes first.
+- Validate table/inspector layout still aligns at desktop and smaller widths.
+- If successful, promote the masthead pattern to a shared reference snippet in
+  this context doc.
+
+
 ## References
 
 - Web routes: `src/oci_policy_analysis/web/api/routes_core.py`

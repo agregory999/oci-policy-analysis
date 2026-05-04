@@ -294,6 +294,38 @@ class CacheManager:
         logger.info(f'Initialized Caching at {self.cache_dir}')
 
     # ----
+    # Prospective statements (standalone per-tenancy storage)
+    # ----
+
+    def _prospects_path(self, tenancy_ocid: str) -> Path:
+        if not tenancy_ocid or str(tenancy_ocid).lower() in {'unknown', '', 'none'}:
+            raise ValueError('tenancy_ocid required for prospects persistence.')
+        outdir = self.cache_dir / 'prospects'
+        outdir.mkdir(parents=True, exist_ok=True)
+        return outdir / f'prospects_{tenancy_ocid}.json'
+
+    def load_prospects(self, tenancy_ocid: str) -> list[dict[str, Any]]:
+        """Load standalone prospective statements for a tenancy from cache/prospects."""
+        path = self._prospects_path(tenancy_ocid)
+        if not path.exists():
+            return []
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return [x for x in data if isinstance(x, dict)]
+        except Exception:
+            logger.warning('Failed loading prospects file %s', path, exc_info=True)
+        return []
+
+    def save_prospects(self, tenancy_ocid: str, rows: list[dict[str, Any]]) -> None:
+        """Persist standalone prospective statements for a tenancy to cache/prospects."""
+        path = self._prospects_path(tenancy_ocid)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(rows, f, ensure_ascii=False, indent=2, default=str)
+        logger.info('Saved %d prospective statements to %s', len(rows or []), path)
+
+    # ----
     # Consolidation Session Save/Load
     # ----
 

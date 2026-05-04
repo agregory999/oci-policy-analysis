@@ -44,6 +44,7 @@ Thumbs.db
 # --- Local artifacts ---
 src/sample/
 old/
+private/
 
 # --- GitHub & CI ---
 # Keep workflow files
