@@ -1,3 +1,10 @@
+# [4.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.1...v4.7.0) (2026-05-06)
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
 ## [4.6.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v4.6.1) (2026-05-06)
 
 
