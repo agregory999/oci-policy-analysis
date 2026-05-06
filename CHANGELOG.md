@@ -1,3 +1,10 @@
+# [5.0.0-beta.6](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.5...v5.0.0-beta.6) (2026-05-06)
+
+
+### Features
+
+* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
+
 # [5.0.0-beta.5](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.4...v5.0.0-beta.5) (2026-05-04)
 
 
