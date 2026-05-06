@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Workflow Workbench Template</title>
+    <link rel="stylesheet" href="/app.css?v=workflow-template-v3" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Workflow Workbench Template</h1>
+            <p>Generic SPA pattern • Context → Statements → Variables → Execution</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link secondary">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Template</h3>
+        <p id="contextHelpBody" class="context-help-body">Use step pills to switch sections. Keep status/summary in the right rail. Use inspector buttons to demo right-side and bottom-drawer detail patterns.</p>
+      </div>
+    </div>
+
+    <main class="layout-two-column workflow-workbench">
+      <section class="card compact-card workflow-main">
+        <div class="workflow-steps" role="tablist" aria-label="Workflow steps">
+          <button type="button" class="workflow-step workflow-step-active" data-step="1">1 • Context</button>
+          <button type="button" class="workflow-step" data-step="2">2 • Statements</button>
+          <button type="button" class="workflow-step" data-step="3">3 • Variables</button>
+          <button type="button" class="workflow-step" data-step="4">4 • Execution</button>
+        </div>
+
+        <article class="workflow-panel workflow-panel-active" data-panel="1">
+          <div class="workflow-panel-header">
+            <div>
+              <p class="workflow-panel-kicker">Step 1</p>
+              <h2 class="workflow-panel-title">Context</h2>
+            </div>
+            <div class="workflow-actions">
+              <button type="button" class="ghost" id="openRightInspector">Right Fly-in</button>
+              <button type="button" class="ghost" id="openBottomInspector">Bottom Fly-in</button>
+              <button type="button" class="ghost">Reset</button>
+              <button type="button" data-next-step="2">Continue</button>
+            </div>
+          </div>
+          <div class="form-grid form-grid-spacious">
+            <div class="inline-field"><label for="ctxPath">Effective Path</label><select id="ctxPath"><option>ROOT</option><option>ROOT/security</option></select></div>
+            <div class="inline-field"><label for="ctxType">Principal Type</label><select id="ctxType"><option>group</option><option>user</option><option>dynamic-group</option></select></div>
+            <div class="inline-field"><label for="ctxPrincipal">Principal</label><input id="ctxPrincipal" value="Default/Admins" /></div>
+          </div>
+        </article>
+
+        <article class="workflow-panel" data-panel="2">
+          <div class="workflow-panel-header">
+            <div>
+              <p class="workflow-panel-kicker">Step 2</p>
+              <h2 class="workflow-panel-title">Statements</h2>
+            </div>
+            <div class="workflow-actions">
+              <button type="button" class="ghost" data-prev-step="1">Back</button>
+              <button type="button" data-next-step="3">Continue</button>
+            </div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll custom-scrollbar">
+              <table>
+                <thead><tr><th>Select</th><th>Policy</th><th>Statement</th><th>Conditional</th></tr></thead>
+                <tbody>
+                  <tr><td><input type="checkbox" checked /></td><td>Platform-Admins</td><td>Allow group Admins to manage instance-family in tenancy</td><td>No</td></tr>
+                  <tr><td><input type="checkbox" checked /></td><td>NetOps</td><td>Allow group NetOps to use virtual-network-family in compartment network</td><td>Yes</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <article class="workflow-panel" data-panel="3">
+          <div class="workflow-panel-header">
+            <div>
+              <p class="workflow-panel-kicker">Step 3</p>
+              <h2 class="workflow-panel-title">Variables</h2>
+            </div>
+            <div class="workflow-actions">
+              <button type="button" class="ghost" data-prev-step="2">Back</button>
+              <button type="button" data-next-step="4">Continue</button>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="inline-field"><label for="var1">request.region</label><input id="var1" value="us-ashburn-1" /></div>
+            <div class="inline-field"><label for="var2">request.permission</label><input id="var2" value="IDENTITY_USER_INSPECT" /></div>
+          </div>
+        </article>
+
+        <article class="workflow-panel" data-panel="4">
+          <div class="workflow-panel-header">
+            <div>
+              <p class="workflow-panel-kicker">Step 4</p>
+              <h2 class="workflow-panel-title">Execution</h2>
+            </div>
+            <div class="workflow-actions">
+              <button type="button" class="ghost" data-prev-step="3">Back</button>
+              <button type="button" id="mockRunBtn">Run</button>
+            </div>
+          </div>
+          <div class="inline-field"><label for="op">API Operation</label><input id="op" value="identity:listusers" /></div>
+          <p id="mockRunStatus" class="status">Ready to run.</p>
+        </article>
+      </section>
+
+      <aside class="workflow-rail side-stack">
+        <section class="card compact-card">
+          <p class="card-title">Current Summary</p>
+          <div class="workflow-summary-grid">
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Path</p><p class="workflow-summary-value">ROOT/security</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Principal</p><p class="workflow-summary-value">Default/Admins</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Statements selected</p><p class="workflow-summary-value">2</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Variables used</p><p class="workflow-summary-value">2</p></div>
+          </div>
+        </section>
+
+        <section class="card compact-card">
+          <p class="card-title">Workflow Status (Optional)</p>
+          <div class="progress-widget-head"><span class="progress-widget-detail" id="workflowStatusText">In Progress</span><span class="progress-widget-percent" id="workflowStatusPercent">25%</span></div>
+          <div class="progress-widget-track"><div class="progress-widget-fill" id="workflowStatusFill" style="width:25%"></div></div>
+          <div class="progress-widget-detail">Useful for longer workflows (optional pattern).</div>
+        </section>
+
+        <section class="card compact-card">
+          <p class="card-title">Decision Snapshot</p>
+          <div class="workflow-metric-list">
+            <div class="workflow-metric"><span>Last Result</span><span id="mockResultBadge" class="result-badge denied">DENIED</span></div>
+            <div class="workflow-metric"><span>Allow statements</span><strong>3</strong></div>
+            <div class="workflow-metric"><span>Deny statements</span><strong>1</strong></div>
+          </div>
+        </section>
+
+        <section class="card compact-card">
+          <p class="card-title">Mini Event Log</p>
+          <pre id="miniLog" class="workflow-mini-log">[09:41:22] Context selected
+[09:41:25] Statements selected
+[09:41:29] Variables loaded
+[09:41:33] Awaiting execution…</pre>
+        </section>
+      </aside>
+    </main>
+
+    <section class="analysis-layout">
+      <aside id="rightInspector" class="inspector-panel" aria-label="Right inspector">
+        <div class="inspector-header"><strong>Right-side Inspector</strong><button type="button" class="ghost" id="closeRightInspector">×</button></div>
+        <div class="inspector-body custom-scrollbar">
+          <table class="inspector-table"><tbody>
+            <tr><th>Use Case</th><td>Statement inspection during selection</td></tr>
+            <tr><th>Pattern</th><td>Preferred for row-by-row detail</td></tr>
+          </tbody></table>
+        </div>
+      </aside>
+
+      <aside id="bottomInspector" class="inspector-panel inspector-panel-bottom" aria-label="Bottom inspector">
+        <div class="inspector-header"><strong>Bottom-drawer Inspector</strong><button type="button" class="ghost" id="closeBottomInspector">×</button></div>
+        <div class="inspector-body custom-scrollbar">
+          <table class="inspector-table"><tbody>
+            <tr><th>Use Case</th><td>Batch output / execution logs / larger trace slices</td></tr>
+            <tr><th>Pattern</th><td>Alternative detail surface retained as reusable style</td></tr>
+          </tbody></table>
+        </div>
+      </aside>
+    </section>
+
+    <script>
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Template',
+        body: 'Use step pills to switch sections. Keep status/summary in the right rail. Use inspector buttons to demo right-side and bottom-drawer detail patterns.',
+      };
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+      document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+        const title = node.getAttribute('data-help-title') || '';
+        const body = node.getAttribute('data-help-body') || '';
+        node.addEventListener('mouseenter', () => setContextHelp(title, body));
+        node.addEventListener('focusin', () => setContextHelp(title, body));
+        node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+      });
+
+      const stepBtns = Array.from(document.querySelectorAll('.workflow-step'));
+      const panels = Array.from(document.querySelectorAll('.workflow-panel'));
+      const statusText = document.getElementById('workflowStatusText');
+      const statusPercent = document.getElementById('workflowStatusPercent');
+      const statusFill = document.getElementById('workflowStatusFill');
+
+      function activateStep(step) {
+        const s = String(step);
+        stepBtns.forEach((btn) => btn.classList.toggle('workflow-step-active', btn.dataset.step === s));
+        panels.forEach((panel) => panel.classList.toggle('workflow-panel-active', panel.dataset.panel === s));
+        const pct = s === '1' ? 25 : s === '2' ? 50 : s === '3' ? 75 : 100;
+        if (statusPercent) statusPercent.textContent = `${pct}%`;
+        if (statusFill) statusFill.style.width = `${pct}%`;
+        if (statusText) statusText.textContent = s === '4' ? 'Ready to execute' : 'In Progress';
+      }
+      stepBtns.forEach((btn) => btn.addEventListener('click', () => activateStep(btn.dataset.step || '1')));
+      document.querySelectorAll('[data-next-step]').forEach((btn) => btn.addEventListener('click', () => activateStep(btn.getAttribute('data-next-step') || '1')));
+      document.querySelectorAll('[data-prev-step]').forEach((btn) => btn.addEventListener('click', () => activateStep(btn.getAttribute('data-prev-step') || '1')));
+
+      const mockRunBtn = document.getElementById('mockRunBtn');
+      const mockRunStatus = document.getElementById('mockRunStatus');
+      const mockResultBadge = document.getElementById('mockResultBadge');
+      const miniLog = document.getElementById('miniLog');
+      mockRunBtn?.addEventListener('click', () => {
+        const allowed = Math.random() > 0.5;
+        if (mockRunStatus) {
+          mockRunStatus.textContent = allowed ? 'Result: ALLOWED (template demo result)' : 'Result: DENIED (template demo result)';
+          mockRunStatus.className = `status ${allowed ? 'success' : 'error'}`;
+        }
+        if (mockResultBadge) {
+          mockResultBadge.textContent = allowed ? 'ALLOWED' : 'DENIED';
+          mockResultBadge.classList.toggle('allowed', allowed);
+          mockResultBadge.classList.toggle('denied', !allowed);
+        }
+        if (miniLog) {
+          miniLog.textContent += `\n[${new Date().toLocaleTimeString()}] Execution completed (${allowed ? 'ALLOWED' : 'DENIED'})`;
+          miniLog.scrollTop = miniLog.scrollHeight;
+        }
+      });
+
+      const rightInspector = document.getElementById('rightInspector');
+      document.getElementById('openRightInspector')?.addEventListener('click', () => rightInspector?.classList.add('open'));
+      document.getElementById('closeRightInspector')?.addEventListener('click', () => rightInspector?.classList.remove('open'));
+
+      const bottomInspector = document.getElementById('bottomInspector');
+      document.getElementById('openBottomInspector')?.addEventListener('click', () => bottomInspector?.classList.add('open'));
+      document.getElementById('closeBottomInspector')?.addEventListener('click', () => bottomInspector?.classList.remove('open'));
+    </script>
+  </body>
+</html>

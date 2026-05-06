@@ -1,280 +1,16 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Document metadata + shared stylesheet -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Home</title>
     <link rel="stylesheet" href="/app.css" />
-    <style>
-      .top-row {
-        display: grid;
-        grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);
-        gap: 1rem;
-        padding: 1rem 2rem 0;
-        align-items: stretch;
-      }
-      .app-masthead {
-        margin: 0;
-        padding: 1rem 1.25rem;
-        border: 1px solid #e5ddd9;
-        border-top: 3px solid var(--oci-red);
-        border-radius: 16px;
-        background: #fff;
-        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.06);
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: center;
-      }
-      .masthead-brand {
-        display: flex;
-        align-items: center;
-        gap: 0.9rem;
-      }
-      .masthead-badge {
-        width: 34px;
-        height: 34px;
-        border-radius: 10px;
-        background: var(--oci-red-soft, #fdf1ef);
-        border: 1px solid #efc6be;
-        color: var(--oci-red);
-        font-weight: 900;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .app-masthead h1 {
-        margin: 0;
-        font-size: 1.5rem;
-        letter-spacing: -0.02em;
-        color: #1f1b1a;
-        font-weight: 800;
-      }
-      .app-masthead p {
-        margin: 0.25rem 0 0;
-        color: #6b7280;
-        font-size: 0.86rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-weight: 700;
-      }
-      .masthead-meta {
-        text-align: right;
-        font-size: 0.8rem;
-        color: #6b7280;
-        font-weight: 700;
-      }
-      main {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      }
-      .card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-      .card h2 {
-        margin: 0;
-        font-size: 1.05rem;
-      }
-      .card p {
-        margin: 0;
-        color: #4b5563;
-      }
-      .card a {
-        align-self: flex-start;
-        background: var(--oci-red);
-        color: white;
-        text-decoration: none;
-        padding: 0.5rem 0.9rem;
-        border-radius: 10px;
-        font-size: 0.95rem;
-        font-weight: 700;
-      }
-      .card a.secondary {
-        background: var(--oci-red);
-      }
-      footer {
-        padding: 1rem 2rem 2rem;
-        color: #6b7280;
-        font-size: 0.85rem;
-      }
-      .panel-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-      }
-      .inline-field {
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        flex-wrap: wrap;
-      }
-      .inline-field > label {
-        min-width: 190px;
-        margin: 0;
-        font-weight: 600;
-      }
-      .inline-field > input,
-      .inline-field > select {
-        flex: 1;
-      }
-      .tenancy-options-row {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-      }
-      .tenancy-profile-row {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-      }
-      .tenancy-profile-row label {
-        margin: 0;
-        font-weight: 600;
-      }
-      .tenancy-profile-row select {
-        flex: 0 1 220px;
-        max-width: 220px;
-      }
-      .ops-button {
-        min-width: 190px;
-        justify-content: center;
-      }
-      .inline-field .ops-button,
-      .tenancy-profile-row .ops-button {
-        margin-left: auto;
-      }
-      .context-help-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        background: #fff;
-        padding: 1rem 1.1rem;
-        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.04);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-      }
-      .context-help-kicker {
-        margin: 0;
-        font-size: 0.68rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        font-weight: 800;
-        color: #6b7280;
-      }
-      .context-help-title {
-        margin: 0.35rem 0 0;
-        font-size: 0.95rem;
-        color: #1f1b1a;
-      }
-      .context-help-body {
-        margin: 0.4rem 0 0;
-        color: #4b5563;
-        line-height: 1.45;
-        font-size: 0.88rem;
-      }
-      .progress-widget {
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 0.75rem;
-        background: #fff;
-        box-shadow: 0 10px 22px rgba(30, 24, 21, 0.04);
-        display: grid;
-        gap: 0.45rem;
-      }
-      .progress-widget-title {
-        margin: 0;
-      }
-      .progress-widget-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-      }
-      .progress-widget-percent {
-        font-weight: 800;
-        color: #1f2937;
-      }
-      .progress-widget-track {
-        width: 100%;
-        height: 8px;
-        background: #e5e7eb;
-        border-radius: 9999px;
-        overflow: hidden;
-      }
-      .progress-widget-fill {
-        height: 100%;
-        width: 0%;
-        background: var(--oci-red);
-        transition: width 0.25s ease;
-      }
-      .progress-widget-detail {
-        font-size: 0.82rem;
-        color: #4b5563;
-      }
-      .common-progress-row {
-        display: grid;
-        grid-template-columns: minmax(320px, 1fr) minmax(280px, 1fr);
-        gap: 1rem;
-        align-items: start;
-      }
-      .common-options-compact {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.75rem 1rem;
-        align-items: center;
-      }
-      .layout-main {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-        gap: 1rem;
-        padding: 1rem 2rem;
-      }
-      .side-stack {
-        display: grid;
-        gap: 1rem;
-        align-content: start;
-      }
-      .section-separator {
-        margin: 0;
-        border: 0;
-        border-top: 1px solid #e5e7eb;
-      }
-      .cache-row {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1rem;
-      }
-      @media (max-width: 980px) {
-        .top-row {
-          grid-template-columns: 1fr;
-          padding: 0.75rem 1rem 0;
-        }
-        .app-masthead {
-          padding: 0.9rem;
-          flex-direction: column;
-          align-items: flex-start;
-        }
-        .masthead-meta {
-          text-align: left;
-        }
-        .common-progress-row {
-          grid-template-columns: 1fr;
-        }
-        .cache-row {
-          grid-template-columns: 1fr;
-        }
-      }
-      @media (max-width: 980px) {
-        .layout-main {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
   </head>
   <body>
-    <div class="top-row">
+    <!-- Top row: branded masthead + persistent context-help panel -->
+    <div class="top-row has-fixed-help">
+      <!-- Masthead: page identity and high-level purpose -->
       <header class="app-masthead" data-help-title="Policy Analysis Home" data-help-body="This page is the launch point for data loading, analysis pages, and operational utilities. Use the Data Operations card first to load the dataset you want to analyze.">
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
@@ -285,21 +21,26 @@
         </div>
       </header>
 
-      <div class="context-help-card" id="contextHelpCard">
+      <!-- Context Help: updated by hover/focus handlers in page script -->
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
         <p class="context-help-kicker">Context Help</p>
         <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
         <p id="contextHelpBody" class="context-help-body">Hover or focus on controls to see what each option does. Start in Data Operations to load tenancy, compliance, cache, or export data.</p>
       </div>
     </div>
 
-    <main class="layout-main">
+    <!-- Main workspace: left = operations, right = progress + navigation cards -->
+    <main class="layout-two-column layout-two-column-equal">
+      <!-- Left column: unified data load operations -->
       <div class="card compact-card" data-help-title="Data Operations" data-help-body="Pick one source path (tenancy, compliance output, cache, or export), then run the matching load action. The shared status widget tracks progress across these paths.">
         <p class="card-title">Data Operations</p>
         <p>Choose a source below, then run a load. Progress is shared across all load options.</p>
 
-        <div class="form-grid" style="gap: 1rem;">
+        <!-- Form sections: common options + 4 data source entry points -->
+        <div class="form-grid form-grid-spacious">
+          <!-- Common toggles used by multiple load paths -->
           <div>
-            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">Common Options</h3>
+            <h3 class="section-heading">Common Options</h3>
             <div class="common-options-compact">
               <label class="checkbox-label"><input type="checkbox" id="commonLoadAllUsers" checked /> Load All Users</label>
               <label class="checkbox-label"><input type="checkbox" id="runIntelligenceAfterLoad" checked /> Create Intelligence</label>
@@ -308,12 +49,13 @@
 
           <hr class="section-separator" />
 
+          <!-- Tenancy load: profile/instance principal + recursive options -->
           <div>
-            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Profile (Tenancy)</h3>
-            <div style="font-size: 0.82rem; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Options</div>
+            <h3 class="section-heading">From Profile (Tenancy)</h3>
+            <div class="section-kicker">Options</div>
             <div class="tenancy-options-row">
-              <label for="compartmentDepth" style="margin: 0; font-weight: 600;">Compartment Depth (Identity Domains):</label>
-              <select id="compartmentDepth" style="min-width: 170px; max-width: 220px;">
+              <label for="compartmentDepth" class="no-margin-label">Compartment Depth (Identity Domains):</label>
+              <select id="compartmentDepth" class="select-compact">
                 <option value="1">1 (Root Only)</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
@@ -326,7 +68,7 @@
               <label class="checkbox-label"><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
               <label class="checkbox-label"><input type="checkbox" id="recursiveLoad" checked /> Recursive</label>
             </div>
-            <div class="tenancy-profile-row" style="margin-top: 0.45rem;">
+            <div class="tenancy-profile-row mt-compact">
               <label for="profileSelect">Profile:</label>
               <select id="profileSelect" data-help-title="Profile Selector" data-help-body="Select the OCI config profile to use when loading tenancy data."></select>
               <button id="loadTenancyBtn" class="ops-button" data-help-title="Load from Tenancy" data-help-body="Runs a direct tenancy load using the selected profile or instance principal settings.">Load from Tenancy</button>
@@ -335,8 +77,9 @@
 
           <hr class="section-separator" />
 
+          <!-- Compliance import: load artifacts from compliance output directory -->
           <div>
-            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Compliance</h3>
+            <h3 class="section-heading">From Compliance</h3>
             <div class="inline-field">
               <label for="compliancePath">Compliance Output Directory:</label>
               <input id="compliancePath" placeholder="/path/to/compliance/output" data-help-title="Compliance Path" data-help-body="Set the folder that contains compliance output artifacts to import." />
@@ -346,9 +89,10 @@
 
           <hr class="section-separator" />
 
+          <!-- Cache reload: restore previously cached dataset -->
           <div class="cache-row">
             <div>
-              <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Cache</h3>
+              <h3 class="section-heading">From Cache</h3>
               <div class="inline-field">
                 <label for="cacheSelect">Cache:</label>
                 <select id="cacheSelect" data-help-title="Cache Selector" data-help-body="Choose a previously saved cache dataset to reload quickly."></select>
@@ -359,8 +103,9 @@
 
           <hr class="section-separator" />
 
+          <!-- Export import: load dataset directly from exported JSON -->
           <div>
-            <h3 style="margin: 0 0 0.45rem; font-size: 0.95rem;">From Export</h3>
+            <h3 class="section-heading">From Export</h3>
             <div class="inline-field">
               <label for="exportPath">Export File:</label>
               <input id="exportPath" placeholder="/path/to/export.json" data-help-title="Export File Path" data-help-body="Point to an exported JSON file to import directly as the active dataset." />
@@ -368,12 +113,15 @@
             </div>
           </div>
 
+          <!-- Status lines: operation-specific feedback surfaces -->
           <div id="tenancyStatus" class="status"></div>
           <div id="complianceStatus" class="status"></div>
           <div id="loadStatus" class="status"></div>
         </div>
       </div>
-      <div class="side-stack">
+      <!-- Right rail: progress/status + analysis/utilities navigation -->
+      <aside class="side-stack">
+        <!-- Shared load progress widget (all load flows write here) -->
         <div class="progress-widget" id="sharedProgressWidget" data-help-title="Data Load Status" data-help-body="Tracks the active load flow across tenancy, compliance, cache, and export paths, including percent complete, current stage, and loaded dataset details.">
           <p class="card-title progress-widget-title">Data Load Status</p>
           <div class="progress-widget-head">
@@ -385,33 +133,47 @@
           <div id="sharedDatasetDetail" class="progress-widget-detail">No dataset loaded yet.</div>
         </div>
 
-        <div class="card">
+        <!-- Analysis page entry points -->
+        <section class="card compact-card" data-help-title="Analysis Navigation" data-help-body="Use these links to open core policy analysis workflows after data has been loaded.">
           <p class="card-title">Analysis</p>
           <p>Run initial policy filtering queries.</p>
-          <a href="/policy-analysis.html">Open Policy Analysis</a>
-          <a href="/cross-tenancy-analysis.html" class="secondary">Cross-Tenancy Analysis</a>
-          <a href="/historical-analysis.html" class="secondary">Historical Analysis</a>
-          <a href="/users-groups-analysis.html" class="secondary">User/Group Analysis</a>
-          <a href="/dynamic-group-analysis.html" class="secondary">Dynamic Group Analysis</a>
-          <a href="/resource-principals-analysis.html" class="secondary">Resource Principals Analysis</a>
-        </div>
-        <div class="card">
+          <div class="icon-button-grid">
+            <a href="/policy-analysis.html" class="icon-button"><span class="icon-button-mark">PA</span><span class="icon-button-label">Policy Analysis</span></a>
+            <a href="/simulation.html" class="icon-button icon-button-primary"><span class="icon-button-mark">SIM</span><span class="icon-button-label">Policy Simulation</span></a>
+            <a href="/cross-tenancy-analysis.html" class="icon-button"><span class="icon-button-mark">XT</span><span class="icon-button-label">Cross-Tenancy Analysis</span></a>
+            <a href="/historical-analysis.html" class="icon-button"><span class="icon-button-mark">HI</span><span class="icon-button-label">Historical Analysis</span></a>
+            <a href="/users-groups-analysis.html" class="icon-button"><span class="icon-button-mark">UG</span><span class="icon-button-label">User/Group Analysis</span></a>
+            <a href="/dynamic-group-analysis.html" class="icon-button"><span class="icon-button-mark">DG</span><span class="icon-button-label">Dynamic Group Analysis</span></a>
+            <a href="/resource-principals-analysis.html" class="icon-button"><span class="icon-button-mark">RP</span><span class="icon-button-label">Resource Principals Analysis</span></a>
+          </div>
+        </section>
+        <!-- Utility page entry points -->
+        <section class="card compact-card" data-help-title="Utilities Navigation" data-help-body="Open supporting utility pages for tenancy metadata, diagnostics, logging, and settings.">
           <p class="card-title">Utilities</p>
           <p>Reference data lookups, settings, diagnostics, and tenancy utility views.</p>
-          <div style="display: flex; flex-wrap: wrap; gap: 0.6rem;">
-            <a href="/tag-namespaces.html">Tag Namespaces</a>
-            <a href="/compartment-hierarchy.html" class="secondary">Compartment Hierarchy</a>
-            <a href="/reference-data.html" class="secondary">Reference Data</a>
-            <a href="/logging.html" class="secondary">Logging</a>
-            <a href="/settings.html" class="secondary">Settings</a>
-            <a class="secondary" href="/caches.html">Policy Caches</a>
+          <div class="icon-button-grid">
+            <a href="/tag-namespaces.html" class="icon-button"><span class="icon-button-mark">TN</span><span class="icon-button-label">Tag Namespaces</span></a>
+            <a href="/compartment-hierarchy.html" class="icon-button"><span class="icon-button-mark">CH</span><span class="icon-button-label">Compartment Hierarchy</span></a>
+            <a href="/condition-tester.html" class="icon-button"><span class="icon-button-mark">CT</span><span class="icon-button-label">Condition Tester</span></a>
+            <a href="/reference-data.html" class="icon-button"><span class="icon-button-mark">RD</span><span class="icon-button-label">Reference Data</span></a>
+            <a href="/logging.html" class="icon-button"><span class="icon-button-mark">LG</span><span class="icon-button-label">Logging</span></a>
+            <a href="/settings.html" class="icon-button"><span class="icon-button-mark">ST</span><span class="icon-button-label">Settings / Caches</span></a>
           </div>
-        </div>
-      </div>
+        </section>
+      </aside>
     </main>
 
-
+    <!--
+      Page script contract
+      - Keeps state + DOM references local to this page.
+      - Handles load flows (tenancy/compliance/cache/export).
+      - Updates shared progress + dataset detail widgets.
+      - Implements hover/focus context-help behavior.
+    -->
     <script>
+      // ------------------------------
+      // DOM references and page state
+      // ------------------------------
       const cacheSelect = document.getElementById('cacheSelect');
       const loadCacheBtn = document.getElementById('loadCacheBtn');
       const loadCacheStandaloneBtn = document.getElementById('loadCacheStandaloneBtn');
@@ -441,11 +203,13 @@
         body: 'Hover or focus on controls to see what each option does. Start in Data Operations to load tenancy, compliance, cache, or export data.',
       };
 
+      // Update the persistent context-help card.
       function setContextHelp(title, body) {
         if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
         if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
       }
 
+      // Bind hover/focus listeners for all data-help-* nodes.
       function bindContextHelp() {
         const helpNodes = document.querySelectorAll('[data-help-title], [data-help-body]');
         helpNodes.forEach((node) => {
@@ -458,6 +222,7 @@
         });
       }
 
+      // Stage-to-label mappings by load type for progress summarization.
       const LOAD_STAGE_MAP = {
         cache: [
           { match: /loading cache/i, label: 'Loading Cache' },
@@ -488,6 +253,7 @@
         ],
       };
 
+      // Update shared progress widget text + bar width.
       function updateProgressWidget({ percent = 0, summary = '', detail = '' } = {}) {
         const bounded = Math.max(0, Math.min(100, Number(percent || 0)));
         if (sharedProgressSummary) sharedProgressSummary.textContent = summary || sharedProgressSummary.textContent;
@@ -496,6 +262,7 @@
         if (sharedProgressDetail) sharedProgressDetail.textContent = detail || sharedProgressDetail.textContent;
       }
 
+      // Render currently loaded dataset metadata summary.
       function updateDatasetDetail(summary = {}) {
         const datasetDetail = document.getElementById('sharedDatasetDetail');
         if (!datasetDetail) return;
@@ -514,6 +281,7 @@
         datasetDetail.textContent = parts.length ? parts.join(' • ') : 'No dataset loaded yet.';
       }
 
+      // Poll lightweight status endpoint for active dataset summary.
       async function refreshTenancyDataStatus() {
         try {
           const response = await fetch('/status', { cache: 'no-store' });
@@ -525,6 +293,7 @@
         }
       }
 
+      // Convert backend stage list into normalized percent/summary/detail values.
       function progressFromStages(kind, stages = []) {
         const defs = LOAD_STAGE_MAP[kind] || [];
         if (!defs.length || !Array.isArray(stages) || !stages.length) {
@@ -564,6 +333,7 @@
         };
       }
 
+      // Load available cache names into cache selector.
       async function loadCaches() {
         loadStatus.textContent = '';
         const response = await fetch('/caches');
@@ -584,6 +354,7 @@
         }
       }
 
+      // Trigger cache load flow and refresh status widgets.
       async function loadCache() {
         const cacheName = cacheSelect.value;
         if (!cacheName) {
@@ -626,6 +397,7 @@
         }
       }
 
+      // Load available OCI profiles for tenancy path.
       async function loadProfiles() {
         const response = await fetch('/profiles');
         const payload = await response.json();
@@ -651,6 +423,7 @@
         }
       }
 
+      // Load app settings used to initialize default form values.
       async function loadAppSettings() {
         try {
           const response = await fetch('/settings');
@@ -665,11 +438,13 @@
         }
       }
 
+      // Disable profile selector when instance principal mode is enabled.
       function syncProfileState() {
         const ip = instancePrincipal.checked;
         profileSelect.disabled = ip;
       }
 
+      // Trigger direct tenancy load flow.
       async function loadTenancy() {
         tenancyStatus.textContent = '';
         tenancyStatus.className = 'status';
@@ -702,6 +477,7 @@
         }
       }
 
+      // Trigger compliance directory load flow.
       async function loadCompliance() {
         complianceStatus.textContent = '';
         complianceStatus.className = 'status';
@@ -740,6 +516,7 @@
         }
       }
 
+      // Trigger export JSON load flow.
       async function loadExport() {
         const filePath = exportPath.value.trim();
         if (!filePath) {
@@ -782,12 +559,15 @@
         }
       }
 
+      // Event wiring for page controls.
       if (loadCacheBtn) loadCacheBtn.addEventListener('click', loadCache);
       if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.addEventListener('click', loadCache);
       instancePrincipal.addEventListener('change', syncProfileState);
       loadTenancyBtn.addEventListener('click', loadTenancy);
       loadComplianceBtn.addEventListener('click', loadCompliance);
       loadExportBtn.addEventListener('click', loadExport);
+
+      // Page bootstrap: bind help, load defaults, and start status polling.
       (async () => {
         bindContextHelp();
         await loadAppSettings();

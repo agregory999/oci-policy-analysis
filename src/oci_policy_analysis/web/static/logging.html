@@ -5,45 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Logging</title>
     <link rel="stylesheet" href="/app.css" />
-    <style>
-      .log-grid {
-        display: grid;
-        grid-template-columns: minmax(340px, 1fr) minmax(420px, 1fr);
-        gap: 1.5rem;
-        align-items: start;
-      }
-      @media (max-width: 960px) {
-        .log-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      #logOutput {
-        padding: 1.5rem;
-        max-height: 480px;
-        overflow: auto;
-      }
-      .log-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-      .left-stack {
-        display: grid;
-        gap: 1rem;
-      }
-    </style>
   </head>
   <body>
-    <header>
-      <p class="page-eyebrow">Configuration</p>
-      <h1>Logging Configuration</h1>
-      <a href="/">← Back to home</a>
-    </header>
+    <!-- Standard top-row shell: app masthead + persistent context help -->
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Logging Configuration" data-help-body="Configure global/component log levels and monitor the live application log stream.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Logging Configuration</h1>
+            <p>Global options, component overrides, and live collector log</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link">← Back to home</a>
+        </div>
+      </header>
 
-    <main>
-      <div class="log-grid">
-        <div class="left-stack">
-          <div class="card">
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">Logging Page Layout</h3>
+        <p id="contextHelpBody" class="context-help-body">This page uses the standard 3-column row utility: left 1/3 for options and overrides, right 2/3 for the live log stream.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <!-- 3-column layout utility: left card = 1/3, right card spans 2/3 -->
+      <section class="layout-row layout-row-3 logging-layout-row">
+        <article class="card">
+          <div class="form-grid">
             <p class="card-title">Global Options</p>
             <label for="globalLevel">Global Log Level</label>
             <select id="globalLevel">
@@ -52,14 +42,14 @@
               <option value="ERROR">ERROR</option>
               <option value="CRITICAL">CRITICAL</option>
             </select>
-            <div style="margin-top: 1rem; display: grid; gap: 0.5rem;">
+            <div class="logging-options-grid">
               <label class="checkbox-label"><input type="checkbox" id="alwaysTimings" /> Always log timings (CRITICAL)</label>
               <label class="checkbox-label"><input type="checkbox" id="alwaysApiCalls" /> Always log API calls (CRITICAL)</label>
             </div>
             <button id="saveGlobal">Save Global Settings</button>
             <div id="globalStatus" class="status"></div>
 
-            <hr class="section-separator" style="margin: 1.1rem 0;" />
+            <hr class="section-separator logging-section-separator" />
 
             <p class="card-title">Component Overrides</p>
             <table>
@@ -74,13 +64,13 @@
             <button id="saveComponents">Save Component Overrides</button>
             <div id="componentStatus" class="status"></div>
           </div>
-        </div>
+        </article>
 
-        <div class="card">
+        <article class="card layout-col-span-2">
           <div class="log-toolbar">
             <div>
-              <p class="card-title" style="margin-bottom: 0.2rem;">Live Log</p>
-              <h2 style="margin: 0;">Combined Collector Log</h2>
+              <p class="card-title logging-tight-title">Live Log</p>
+              <h2 class="logging-main-heading">Combined Collector Log</h2>
               <p class="status-meta">Streaming the latest application log from <code>~/.oci-policy-analysis/logs/app.log</code>.</p>
             </div>
             <span id="logStatus" class="status-badge refresh-status-running">Idle</span>
@@ -92,8 +82,8 @@
           </div>
           <pre id="logOutput" class="refresh-log">Loading log stream...</pre>
           <div id="logError" class="status error"></div>
-        </div>
-      </div>
+        </article>
+      </section>
     </main>
 
     <div class="status-footer">
@@ -135,16 +125,24 @@
           'usage_tracking',
           'caching',
           'mcp_server',
+          'web_routes',
         ],
         Services: [
           'analysis_service',
           'cache_service',
+          'condition_tester_service',
           'intelligence_service',
           'load_service',
           'logging_service',
           'reference_data_service',
           'settings_service',
           'simulation_service',
+        ],
+        ConditionEvaluation: [
+          'condition_evaluator',
+          'condition_tester_tab',
+          'policy_simulation_engine',
+          'where_clause_evaluator',
         ],
         Presentation: ['presentation.formatters', 'presentation.policy_builder', 'presentation.conditions'],
       };
@@ -163,7 +161,7 @@
 
         Object.entries(GROUPS).forEach(([groupName, components]) => {
           const headerRow = document.createElement('tr');
-          headerRow.innerHTML = `<td colspan="2" style="font-weight: 700; background: #f9fafb;">${groupName}</td>`;
+          headerRow.innerHTML = `<td colspan="2" class="logging-group-header-cell">${groupName}</td>`;
           componentTable.appendChild(headerRow);
           components.forEach((component) => {
             groupedComponents.add(component);
@@ -182,7 +180,7 @@
           .sort();
         if (ungrouped.length) {
           const headerRow = document.createElement('tr');
-          headerRow.innerHTML = `<td colspan="2" style="font-weight: 700; background: #f9fafb;">Other</td>`;
+          headerRow.innerHTML = `<td colspan="2" class="logging-group-header-cell">Other</td>`;
           componentTable.appendChild(headerRow);
           ungrouped.forEach((component) => {
             const level = logLevels[component] || globalLevelValue;

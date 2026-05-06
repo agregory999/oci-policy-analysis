@@ -74,6 +74,30 @@ class ReferenceDataService:
         """
         return self.reference_data.get_source(entity)
 
+    def check_overlap(
+        self,
+        entity1: str,
+        verb1: str,
+        action1: str,
+        entity2: str,
+        verb2: str,
+        action2: str,
+    ) -> list[str]:
+        """Check overlapping permissions between two statement-style selectors.
+
+        Args:
+            entity1: First resource/family entity.
+            verb1: First verb.
+            action1: First action (allow/deny).
+            entity2: Second resource/family entity.
+            verb2: Second verb.
+            action2: Second action (allow/deny).
+
+        Returns:
+            list[str]: Overlapping permissions.
+        """
+        return self.reference_data.check_overlap_params(entity1, verb1, action1, entity2, verb2, action2)
+
     def get_family(self, resource_name: str) -> str | None:
         """Get containing family for a resource name.
 

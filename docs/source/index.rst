@@ -17,6 +17,7 @@ Contents
    recommendations
    mcp
    cli
+   web_ui_styling
    logging_and_troubleshooting
 
 .. toctree::

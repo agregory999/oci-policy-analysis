@@ -3,74 +3,48 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OCI Policy Analysis - Settings</title>
+    <title>OCI Policy Analysis - Settings / Caches</title>
     <link rel="stylesheet" href="/app.css" />
-    <style>
-      main {
-        grid-template-columns: minmax(320px, 760px);
-      }
-
-      .settings-stack {
-        display: grid;
-        gap: 1rem;
-      }
-
-      .card h2 {
-        margin: 0;
-      }
-
-      .field {
-        margin-bottom: 1rem;
-      }
-      label {
-        font-weight: 600;
-      }
-      input[type="checkbox"] {
-        transform: scale(1.15);
-      }
-      .hint {
-        color: #5f6368;
-        font-size: 0.9rem;
-        margin-left: 1.9rem;
-      }
-
-      .meta-list {
-        margin: 0;
-        padding-left: 1rem;
-        color: #4b5563;
-        display: grid;
-        gap: 0.45rem;
-        font-size: 0.92rem;
-      }
-    </style>
   </head>
   <body>
-    <header>
-      <p class="page-eyebrow">Configuration</p>
-      <h1>Settings</h1>
-      <p>Manage shared settings used by the desktop and web experiences.</p>
-      <a href="/">← Back to home</a>
-    </header>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Settings / Caches" data-help-body="Manage shared application settings and maintain saved cache snapshots from one workspace.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Settings / Caches</h1>
+            <p>Shared configuration and cache library management</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link">← Back to home</a>
+        </div>
+      </header>
 
-    <main>
-      <div class="settings-stack">
-        <div class="card">
-          <p class="card-title">Application Settings</p>
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Use the left column for shared defaults and references. Use the right column to refresh, download, rename, and delete saved cache snapshots.</p>
+      </div>
+    </div>
+
+    <main class="layout-two-column layout-two-column-equal">
+      <section class="side-stack">
+        <article class="card" data-help-title="Application Settings" data-help-body="Set global defaults used by the web and desktop workflows.">
+          <p class="card-title">Settings</p>
           <h2>Privacy & Usage</h2>
-          <div class="field" style="margin-top: 1rem;">
+          <div class="field mt-compact">
             <label class="checkbox-label">
               <input id="usageTracking" type="checkbox" />
               Anonymous usage tracking
             </label>
-            <div class="hint">
-              Helps prioritize features; no policy text or sensitive data is stored.
-            </div>
+            <div class="helper-text">Helps prioritize features; no policy text or sensitive data is stored.</div>
           </div>
 
           <div class="field">
             <label for="defaultProfile">Default OCI Profile</label>
             <input id="defaultProfile" type="text" placeholder="e.g. DEFAULT" />
-            <div class="hint">Used as the default Profile on the home page load form.</div>
+            <div class="helper-text">Used as the default profile on the home page load form.</div>
           </div>
 
           <div class="field">
@@ -83,23 +57,45 @@
               <option value="5">5</option>
               <option value="6">6</option>
             </select>
-            <div class="hint">Used as the default Compartment Depth on the home page load form.</div>
+            <div class="helper-text">Used as the default compartment depth on the home page load form.</div>
           </div>
 
-          <button id="saveBtn">Save settings</button>
+          <button id="saveBtn" type="button">Save settings</button>
           <div id="status" class="status"></div>
-        </div>
+        </article>
 
-        <div class="card compact-card">
-          <p class="card-title">About</p>
-          <h2 style="font-size: 1rem;">How settings are used</h2>
-          <ul class="meta-list" style="margin-top: 0.8rem;">
+        <article class="card compact-card" data-help-title="Notes" data-help-body="Read where settings apply and where to go for diagnostics.">
+          <p class="card-title">Notes</p>
+          <h2>How settings are used</h2>
+          <ul class="meta-list">
             <li>These settings are shared between desktop and web flows.</li>
             <li>Changes apply immediately after saving.</li>
             <li>Use Logging for diagnostic and component-level verbosity controls.</li>
           </ul>
-        </div>
-      </div>
+        </article>
+
+        <article class="card compact-card" data-help-title="Documents" data-help-body="Quick links to key project documentation.">
+          <p class="card-title">Documents</p>
+          <h2>Reference docs</h2>
+          <div class="card-link-row">
+            <a href="https://github.com/agregory999/oci-policy-analysis/blob/main/docs/source/context/project/CONTEXT_web_ui.md" class="card-link secondary" target="_blank" rel="noopener noreferrer">Web UI Context</a>
+            <a href="https://github.com/agregory999/oci-policy-analysis/blob/main/docs/source/web_ui_styling.md" class="card-link secondary" target="_blank" rel="noopener noreferrer">Web UI Styling</a>
+            <a href="https://github.com/agregory999/oci-policy-analysis/blob/main/docs/source/usage.md" class="card-link secondary" target="_blank" rel="noopener noreferrer">Usage Guide</a>
+          </div>
+        </article>
+      </section>
+
+      <section class="side-stack">
+        <article class="card" data-help-title="Cache Library" data-help-body="Refresh and manage saved cache snapshots. You can download, rename, or delete each cache.">
+          <p class="card-title">Caches</p>
+          <div class="policy-toolbar">
+            <h2>Available Caches</h2>
+            <button id="refreshCaches" class="ghost" type="button">Refresh</button>
+          </div>
+          <div id="cacheStatus" class="status"></div>
+          <div id="cacheList" class="form-grid"></div>
+        </article>
+      </section>
     </main>
 
     <script>
@@ -108,6 +104,51 @@
       const defaultCompartmentDepth = document.getElementById('defaultCompartmentDepth');
       const saveBtn = document.getElementById('saveBtn');
       const status = document.getElementById('status');
+
+      const cacheList = document.getElementById('cacheList');
+      const cacheStatus = document.getElementById('cacheStatus');
+      const refreshCaches = document.getElementById('refreshCaches');
+
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Use the left column for shared defaults and references. Use the right column to refresh, download, rename, and delete saved cache snapshots.',
+      };
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        const helpNodes = document.querySelectorAll('[data-help-title], [data-help-body]');
+        helpNodes.forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function formatBytes(value) {
+        const n = Number(value || 0);
+        if (!n) return '0 B';
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+        return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
+      function sanitize(value) {
+        return String(value || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
 
       async function loadSettings() {
         status.textContent = '';
@@ -148,8 +189,116 @@
         }
       }
 
+      async function fetchCaches() {
+        cacheStatus.textContent = '';
+        cacheStatus.className = 'status';
+        try {
+          const response = await fetch('/caches/details');
+          const payload = await response.json();
+          renderCaches(payload.caches || []);
+        } catch (err) {
+          cacheStatus.textContent = `Unable to load caches: ${err}`;
+          cacheStatus.className = 'status error';
+        }
+      }
+
+      function renderCaches(caches) {
+        if (!caches.length) {
+          cacheList.innerHTML = '<div class="helper-text">No caches are currently available.</div>';
+          return;
+        }
+        cacheList.innerHTML = caches
+          .map((cache) => {
+            const rawName = String(cache.name || '');
+            const name = sanitize(rawName);
+            const key = encodeURIComponent(rawName);
+            const downloadHref = `/caches/download/${encodeURIComponent(rawName)}`;
+            return `
+              <div class="card compact-card">
+                <div class="policy-toolbar">
+                  <div>
+                    <div><strong>${name}</strong></div>
+                    <div class="helper-text">${formatBytes(cache.size_bytes)}${cache.preserved ? ' • Preserved' : ''}</div>
+                  </div>
+                  <div class="panel-actions">
+                    <a class="card-link secondary cache-download-link" href="${downloadHref}" download>Download</a>
+                    <button type="button" onclick="beginRename(decodeURIComponent('${key}'))">Rename</button>
+                    <button type="button" onclick="deleteCache(decodeURIComponent('${key}'))">Delete</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      async function beginRename(oldName) {
+        const currentName = String(oldName || '').trim();
+        if (!currentName) return;
+        const proposed = window.prompt('Enter a new cache name:', currentName);
+        if (proposed === null) return;
+        const newName = String(proposed || '').trim();
+        if (!newName) {
+          cacheStatus.textContent = 'Provide a new cache name.';
+          cacheStatus.className = 'status error';
+          return;
+        }
+        if (newName === currentName) {
+          cacheStatus.textContent = 'Cache name unchanged.';
+          cacheStatus.className = 'status';
+          return;
+        }
+        cacheStatus.textContent = 'Renaming cache...';
+        cacheStatus.className = 'status';
+        try {
+          const response = await fetch('/caches/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_name: oldName, new_name: newName }),
+          });
+          const payload = await response.json();
+          cacheStatus.textContent = payload.message || 'Rename complete.';
+          cacheStatus.className = payload.success ? 'status success' : 'status error';
+        } catch (err) {
+          cacheStatus.textContent = `Rename failed: ${err}`;
+          cacheStatus.className = 'status error';
+        } finally {
+          await fetchCaches();
+        }
+      }
+
+      async function deleteCache(name) {
+        const confirmed = window.confirm(`Delete cache '${name}'?`);
+        if (!confirmed) return;
+        cacheStatus.textContent = 'Deleting cache...';
+        cacheStatus.className = 'status';
+        try {
+          const response = await fetch('/caches/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          });
+          const payload = await response.json();
+          cacheStatus.textContent = payload.message || 'Delete complete.';
+          cacheStatus.className = payload.success ? 'status success' : 'status error';
+        } catch (err) {
+          cacheStatus.textContent = `Delete failed: ${err}`;
+          cacheStatus.className = 'status error';
+        } finally {
+          await fetchCaches();
+        }
+      }
+
+      window.beginRename = beginRename;
+      window.deleteCache = deleteCache;
+
       saveBtn.addEventListener('click', saveSettings);
+      refreshCaches.addEventListener('click', fetchCaches);
+
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
       loadSettings();
+      fetchCaches();
     </script>
   </body>
 </html>

@@ -21,6 +21,15 @@
         display: flex;
         gap: 0.6rem;
         flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .toolbar-separator {
+        width: 1px;
+        height: 1.8rem;
+        align-self: center;
+        background: var(--oci-line);
+        opacity: 0.95;
       }
 
       .policy-layout {
@@ -93,30 +102,7 @@
         color: #6b7280;
       }
 
-      .policy-inspector {
-        display: none;
-        border: 1px solid var(--oci-line);
-        border-radius: 12px;
-        overflow: hidden;
-        background: #fff;
-      }
-
-      .policy-inspector.open {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .policy-inspector-header {
-        padding: 0.9rem 1rem;
-        background: #1f1b1a;
-        color: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 0.8rem;
-      }
-
-      .policy-inspector-header h3 {
+      .inspector-header h3 {
         margin: 0;
         font-size: 0.95rem;
       }
@@ -127,63 +113,11 @@
         font-size: 0.75rem;
       }
 
-      .policy-inspector-body {
-        padding: 0;
-        max-height: 58vh;
-        overflow: auto;
-      }
-
-      .prospective-editor {
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: min(1100px, 66vw);
-        background: #fff;
-        border-left: 1px solid var(--oci-line);
-        box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
-        transform: translateX(105%);
-        transition: transform 180ms ease;
-        z-index: 60;
-      }
-
-      .prospective-editor.open { transform: translateX(0); }
-      .prospective-editor-header { padding: 0.9rem 1rem; background: #1f1b1a; color: #fff; display:flex; justify-content:space-between; align-items:center; }
-      .prospective-editor-body { padding: 0.8rem; overflow: auto; display: grid; gap: 0.8rem; }
-      .prospective-grid table { width: 100%; }
-      .prospective-grid textarea { min-height: 52px; width: 100%; }
-      .prospective-rows-head th { background: #faf8f6; }
-      .prospective-line2-cell { padding-top: 0.35rem; padding-bottom: 0.55rem; }
-      .prospective-sep td { padding: 0; border: 0; }
-      .prospective-sep-line { height: 1px; background: #e9e3de; margin: 0.2rem 0; }
-      .prospective-builder-grid { display: grid; gap: 0.5rem; }
-      .prospective-builder-row { display: grid; gap: 0.5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .prospective-builder-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .prospective-field { display: grid; gap: 0.2rem; }
-      .prospective-field label { font-size: 0.78rem; color: #5f5956; font-weight: 600; }
-      .prospective-note { font-size: 0.74rem; color: #6b7280; }
-      .prospective-inline-check {
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 0.45rem;
-        width: 100%;
-        text-align: left;
-      }
-      .prospective-inline-check .prospective-note { text-align: left; }
-      #pbIncludeDefault,
-      #pbUseAllResources { justify-self: start; }
-      #pbOtherWhereField { grid-column: 1 / -1; }
-      .prospective-preview { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; white-space: pre-wrap; background: #faf8f6; border: 1px solid var(--oci-line); border-radius: 8px; padding: 0.5rem; }
-      .prospective-editor-footer { padding: 0.7rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top: 1px solid var(--oci-line); }
-
-      .policy-inspector-body table {
+      .inspector-body table {
         width: 100%;
       }
 
-      .policy-inspector-body th {
+      .inspector-body th {
         width: 32%;
         background: #faf8f6;
         color: #5f5956;
@@ -192,12 +126,12 @@
         letter-spacing: 0.06em;
       }
 
-      .policy-inspector-body td {
+      .inspector-body td {
         white-space: pre-wrap;
         word-break: break-word;
       }
 
-      .policy-inspector-body .inspector-separator th {
+      .inspector-body .inspector-separator th {
         width: 100%;
         background: #f1ede9;
         color: #6c625d;
@@ -228,62 +162,95 @@
         color: #6b7280;
       }
 
-      @media (min-width: 1200px) {
-        .policy-inspector {
-          display: flex;
-          flex-direction: column;
-          position: fixed;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          width: min(460px, 40vw);
-          border-radius: 0;
-          z-index: 40;
-          box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
-          transform: translateX(105%);
-          transition: transform 180ms ease;
-          pointer-events: none;
-        }
+      .policy-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
 
-        .policy-inspector.open {
-          transform: translateX(0);
-          pointer-events: auto;
-        }
+      .policy-context-menu {
+        position: fixed;
+        z-index: 1200;
+        min-width: 220px;
+        background: #ffffff;
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+        padding: 0.3rem;
+      }
 
-        .policy-inspector-body {
-          max-height: none;
-          flex: 1;
-          min-height: 0;
-        }
+      .policy-context-menu[hidden] {
+        display: none;
+      }
+
+      .policy-context-menu button {
+        display: block;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        text-align: left;
+        font-size: 0.85rem;
+        color: #2f2a27;
+        padding: 0.45rem 0.55rem;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .policy-context-menu button:hover:not(:disabled) {
+        background: #fdf1ef;
+      }
+
+      .policy-context-menu button:disabled {
+        color: #9ca3af;
+        cursor: not-allowed;
       }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Policy Analysis</h1>
-      <a href="/">← Back to home</a>
-    </header>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Policy Analysis" data-help-body="Use this page to filter policy statements and inspect details in the right-side fly-in. Use Manage Prospective Statements for the wider editor fly-in.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Policy Analysis</h1>
+            <p>Single Column • Filter + Inspector + Prospective Editor</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary">← Back to home</a>
+        </div>
+      </header>
 
-    <main>
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Run filters to load statements, click rows to open the standard fly-in inspector, and use Manage Prospective Statements to open the wide editor fly-in.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
       <div class="card">
         <label for="subjectFilter">Policy Filters (use | for OR values)</label>
         <div class="filter-grid">
-          <input id="subjectFilter" placeholder="Subject (e.g. any-user|group-id)" />
-          <select id="actionFilter">
+          <input id="subjectFilter" placeholder="Subject (e.g. any-user|group-id)" data-help-title="Subject filter" data-help-body="Filter by principal subject. Use | to match multiple values (for example: any-user|group-id)." />
+          <select id="actionFilter" data-help-title="Action filter" data-help-body="Limit results to Allow, Deny, or show both action types.">
             <option value="Both">Action: Both</option>
             <option value="Allow">Action: Allow</option>
             <option value="Deny">Action: Deny</option>
           </select>
-          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" />
-          <input id="resourceFilter" placeholder="Resource" />
-          <input id="permissionFilter" placeholder="Permission" />
-          <input id="locationFilter" placeholder="Location" />
-          <input id="compartmentPathFilter" placeholder="Compartment Path" />
-          <input id="statementTextFilter" placeholder="Statement Text" />
-          <input id="policyNameFilter" placeholder="Policy Name" />
-          <input id="effectivePathFilter" placeholder="Effective Path" />
-          <input id="conditionsFilter" placeholder="Conditions" />
-          <select id="validFilter">
+          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" data-help-title="Verb filter" data-help-body="Filter statements by IAM verb. Use | to search for multiple verbs." />
+          <input id="resourceFilter" placeholder="Resource" data-help-title="Resource filter" data-help-body="Filter by resource or resource family used in the statement." />
+          <input id="permissionFilter" placeholder="Permission" data-help-title="Permission filter" data-help-body="Filter by normalized permission extracted from policy text." />
+          <input id="locationFilter" placeholder="Location" data-help-title="Location filter" data-help-body="Match statement location text, such as tenancy or compartment references." />
+          <input id="compartmentPathFilter" placeholder="Compartment Path" data-help-title="Compartment path filter" data-help-body="Filter by the compartment path where the statement is defined." />
+          <input id="statementTextFilter" placeholder="Statement Text" data-help-title="Statement text filter" data-help-body="Search raw statement text. Use this when you want exact wording matches." />
+          <input id="policyNameFilter" placeholder="Policy Name" data-help-title="Policy name filter" data-help-body="Filter by policy name containing the entered text." />
+          <input id="effectivePathFilter" placeholder="Effective Path" data-help-title="Effective path filter" data-help-body="Filter by effective evaluation path after inheritance/placement." />
+          <input id="conditionsFilter" placeholder="Conditions" data-help-title="Conditions filter" data-help-body="Search the parsed where/condition clause text." />
+          <select id="validFilter" data-help-title="Validity filter" data-help-body="Show only valid or invalid parsed statements, or include all.">
             <option value="">Valid: Any</option>
             <option value="true">Valid: True</option>
             <option value="false">Valid: False</option>
@@ -294,16 +261,18 @@
           <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
             <button id="loadJsonExampleBtn" class="ghost" style="margin-top:0;">Load Example JSON</button>
           </div>
-          <textarea id="filters" placeholder="Optional JSON payload override. If valid JSON is present, it overrides the field filters."></textarea>
+          <textarea id="filters" placeholder="Optional JSON payload override. If valid JSON is present, it overrides the field filters." data-help-title="Raw JSON filter override" data-help-body="If this contains valid JSON, it fully overrides the field-based filters when you run the query."></textarea>
         </details>
         <div class="filter-actions" style="margin-top:0.6rem;">
-          <button id="runBtn">Run Filter</button>
-          <button id="clearFiltersBtn" class="ghost">Clear Filters</button>
-          <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;"><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
-          <button id="manageProspectiveBtn" class="ghost">Manage Prospective Statements</button>
-          <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" />
-          <button id="saveSearchBtn" class="ghost">Save Search</button>
-          <select id="savedSearchSelect" style="max-width:260px; min-width:180px;">
+          <button id="runBtn" data-help-title="Run filter" data-help-body="Run the query using field filters or the JSON override if provided.">Run Filter</button>
+          <button id="clearFiltersBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset all filter inputs and the JSON override area.">Clear Filters</button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;" data-help-title="Show Prospective" data-help-body="Include saved prospective statements in the results table alongside matched policy data."><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
+          <button id="manageProspectiveBtn" data-help-title="Manage Prospective Statements" data-help-body="Open the prospective statement editor to add, parse, and save what-if policy statements.">Manage Prospective Statements</button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" data-help-title="Saved search name" data-help-body="Enter a name for the current filter set before saving it to settings." />
+          <button id="saveSearchBtn" data-help-title="Save search" data-help-body="Save or overwrite the current filter configuration under the provided name.">Save Search</button>
+          <select id="savedSearchSelect" style="max-width:260px; min-width:180px;" data-help-title="Saved searches" data-help-body="Load a previously saved filter preset and run it immediately.">
             <option value="">Saved Searches</option>
           </select>
         </div>
@@ -314,7 +283,7 @@
         <div class="card">
           <div class="results-meta">
             <div id="summary" class="pill">No results yet</div>
-            <div class="results-hint">Tip: click a row to view more details.</div>
+            <div class="results-hint" data-help-title="Results table" data-help-body="Click a row to inspect parsed details. Click column headers to sort ascending/descending.">Tip: click a row to view more details.</div>
           </div>
           <div class="table-shell" style="margin-top: 1rem;">
             <div class="table-scroll">
@@ -336,17 +305,17 @@
           </div>
         </div>
 
-        <aside id="policyInspector" class="policy-inspector" aria-live="polite">
-          <div class="policy-inspector-header">
+        <aside id="policyInspector" class="policy-inspector inspector-panel" aria-live="polite">
+          <div class="inspector-header">
             <div>
               <h3 id="inspectorTitle">Statement Details</h3>
               <div id="inspectorSubtitle" class="policy-inspector-subtitle">Select a row to inspect statement details</div>
             </div>
             <button id="closeInspectorBtn" class="ghost" style="margin-top: 0;">×</button>
           </div>
-          <div class="policy-inspector-body">
+          <div class="inspector-body custom-scrollbar">
             <div id="inspectorEmpty" class="inspector-empty">No policy selected.</div>
-            <table id="inspectorTable" style="display:none;">
+            <table id="inspectorTable" class="inspector-table" style="display:none;">
               <tbody></tbody>
             </table>
           </div>
@@ -430,10 +399,22 @@
           <button id="saveProspectiveBtn">Save and Close</button>
         </div>
       </aside>
+
+      <div id="policyContextMenu" class="policy-context-menu" hidden>
+        <button id="sendConditionToTesterBtn" type="button">Send condition to Condition Tester</button>
+      </div>
+      <div id="prospectiveEditorHost"></div>
     </main>
 
+    <script src="/prospective-editor.js"></script>
     <script>
       const runBtn = document.getElementById('runBtn');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Run filters to load statements, click rows to open the standard fly-in inspector, and use Manage Prospective Statements to open the wide editor fly-in.',
+      };
       const clearFiltersBtn = document.getElementById('clearFiltersBtn');
       const saveSearchBtn = document.getElementById('saveSearchBtn');
       const savedSearchName = document.getElementById('savedSearchName');
@@ -483,6 +464,27 @@
       const pbTagWhereRow2 = document.getElementById('pbTagWhereRow2');
       const pbOtherWhereRow = document.getElementById('pbOtherWhereRow');
       const pbOtherWhereField = document.getElementById('pbOtherWhereField');
+      const policyContextMenu = document.getElementById('policyContextMenu');
+      const sendConditionToTesterBtn = document.getElementById('sendConditionToTesterBtn');
+
+      const CONDITION_TESTER_STORAGE_KEY = 'ociConditionTesterClause';
+      let contextMenuRow = null;
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
 
       let currentRows = [];
       let selectedRow = null;
@@ -490,6 +492,13 @@
       let appSettings = {};
       let prospectiveRows = [];
       let prospectiveMetadata = null;
+      const sharedProspectiveEditor = window.createProspectiveEditor({
+        host: document.getElementById('prospectiveEditorHost'),
+        mode: 'drawer',
+        onSaved: async () => {
+          await runFilter();
+        },
+      });
 
       const JSON_OVERRIDE_EXAMPLE = {
         subject: 'any-user|group-id',
@@ -507,6 +516,13 @@
       }
 
       function getRowValue(row, key) {
+        if (key === 'invalid_reasons') {
+          const reasons = row?.invalid_reasons;
+          if (Array.isArray(reasons) && reasons.length) return reasons;
+          const legacy = row?.invalid_reason;
+          if (Array.isArray(legacy)) return legacy;
+          if (legacy !== undefined && legacy !== null && String(legacy).trim() !== '') return [String(legacy)];
+        }
         const titleKey = key.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         return row?.[key] ?? row?.[titleKey] ?? '';
       }
@@ -763,7 +779,6 @@
           'location',
           'conditions',
           'valid',
-          'invalid_reason',
           'invalid_reasons',
           'parsed',
           'comments',
@@ -827,11 +842,42 @@
             <td>${escapeHtml(getRowValue(row, 'resource'))}</td>
           `;
           tr.addEventListener('click', () => setInspector(row));
+          tr.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            openRowContextMenu(event, row);
+          });
           if (selectedRow && selectedRow._row_id === row._row_id) {
             tr.classList.add('active-row');
           }
           tbody.appendChild(tr);
         });
+      }
+
+      function hideRowContextMenu() {
+        if (policyContextMenu) {
+          policyContextMenu.hidden = true;
+        }
+        contextMenuRow = null;
+      }
+
+      function openRowContextMenu(event, row) {
+        if (!policyContextMenu || !sendConditionToTesterBtn) return;
+        contextMenuRow = row || null;
+
+        const conditionText = String(getRowValue(row, 'conditions') || '').trim();
+        sendConditionToTesterBtn.disabled = !conditionText;
+        sendConditionToTesterBtn.textContent = conditionText
+          ? 'Send condition to Condition Tester'
+          : 'No condition available for this row';
+
+        const menuWidth = 240;
+        const menuHeight = 44;
+        const x = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8));
+        const y = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8));
+
+        policyContextMenu.style.left = `${x}px`;
+        policyContextMenu.style.top = `${y}px`;
+        policyContextMenu.hidden = false;
       }
 
       function buildPayloadFromFields() {
@@ -1146,8 +1192,7 @@
       });
 
       manageProspectiveBtn.addEventListener('click', async () => {
-        await loadProspectiveEditor();
-        prospectiveEditor.classList.add('open');
+        await sharedProspectiveEditor.open();
       });
       closeProspectiveBtn.addEventListener('click', () => prospectiveEditor.classList.remove('open'));
       addProspectiveRowBtn.addEventListener('click', () => {
@@ -1187,12 +1232,35 @@
         await navigator.clipboard.writeText(text);
       });
 
+      sendConditionToTesterBtn.addEventListener('click', () => {
+        if (!contextMenuRow) return;
+        const conditionText = String(getRowValue(contextMenuRow, 'conditions') || '').trim();
+        if (!conditionText) return;
+        sessionStorage.setItem(CONDITION_TESTER_STORAGE_KEY, conditionText);
+        hideRowContextMenu();
+        window.location.href = '/condition-tester.html?from=policy-analysis';
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!policyContextMenu || policyContextMenu.hidden) return;
+        if (!policyContextMenu.contains(event.target)) {
+          hideRowContextMenu();
+        }
+      });
+
+      window.addEventListener('scroll', hideRowContextMenu, true);
+      window.addEventListener('resize', hideRowContextMenu);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') hideRowContextMenu();
+      });
+
       updateSortIndicators();
       runBtn.addEventListener('click', runFilter);
       showProspectiveFilter.addEventListener('change', runFilter);
 
       async function initializePage() {
         try {
+          bindContextHelp();
           await loadSettings();
         } catch (err) {
           status.textContent = `Failed to load settings: ${err}`;

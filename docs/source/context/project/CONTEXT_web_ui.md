@@ -95,6 +95,56 @@ For consistency with `policy-analysis.html`, desktop inspector behavior should b
 This is now the expected standard for right-side details on web analysis pages.
 
 
+## 4.1) Row Context Menu (Right-Click) Pattern
+
+For table-driven analysis pages, support a custom right-click action menu when it
+improves workflow speed (desktop parity with Tkinter context actions).
+
+Recommended behavior:
+
+- Bind `contextmenu` on result rows and call `event.preventDefault()`.
+- Show a lightweight custom menu near pointer position.
+- Enable/disable menu items based on row content availability.
+  - Example: enable "Send condition to Condition Tester" only when `conditions`
+    is non-empty.
+- Hide the menu on:
+  - outside click,
+  - `Escape`,
+  - scroll,
+  - window resize.
+
+UX conventions:
+
+- Keep row primary click behavior unchanged (selection + inspector).
+- Use right-click for **secondary actions** only.
+- Prefer explicit action labels over icon-only context items.
+
+
+## 4.2) Cross-Page Handoff Pattern (Inspector/Row -> Utility Page)
+
+When a row action needs to open another page/tool with prefilled input, use a
+small client-side handoff pattern.
+
+Preferred mechanism:
+
+- Use `sessionStorage` for payload handoff (safer for long/special-character
+  text than query strings).
+- Optional query parameter may still be used as source metadata
+  (`?from=policy-analysis`) but not as the primary payload transport.
+
+Implementation standard:
+
+1. Source page stores payload:
+   - `sessionStorage.setItem('<key>', payloadText)`
+2. Source page navigates to target utility page.
+3. Target page reads payload on load, pre-fills UI, and clears the key.
+4. Target page optionally runs immediate post-load helper actions
+   (for example, auto-generate variable inputs).
+
+This pattern should be preferred for "send to utility" flows across static web
+pages.
+
+
 ## 5) Cross-Tenancy Web Page (Current Behavior)
 
 File: `src/oci_policy_analysis/web/static/cross-tenancy-analysis.html`
@@ -148,6 +198,31 @@ inspection and future parser/validator iteration.
 - Include stable row identifiers for selection persistence.
 - Put verbose/diagnostic fields in the inspector instead of widening tables.
 - Where parser output exists, provide an explicit parsed-details section.
+- Where row-level secondary actions are needed, use the standard right-click
+  context menu pattern from section 4.1.
+- For cross-page utility workflows, use the handoff pattern from section 4.2.
+
+
+## 7.1) Concrete Reference: Policy Analysis -> Condition Tester
+
+Reference files:
+
+- Source page: `src/oci_policy_analysis/web/static/policy-analysis.html`
+- Target page: `src/oci_policy_analysis/web/static/condition-tester.html`
+
+Current standardized interaction:
+
+1. User right-clicks a policy row in Policy Analysis.
+2. Context menu action "Send condition to Condition Tester" appears when row
+   has non-empty `conditions`.
+3. Source page stores condition text in
+   `sessionStorage['ociConditionTesterClause']` and navigates to
+   `/condition-tester.html`.
+4. Condition Tester preloads clause input from session storage, clears the key,
+   and runs variable generation.
+
+Use this as the baseline implementation for future "send selected row data to
+another tool page" features.
 
 
 ## 8) OCI Tenancy Explorer UI Style Reference (from `src/sample/index.html`)
@@ -332,9 +407,194 @@ Safe rollout strategy:
   this context doc.
 
 
+## 9) Standard Shared Web Styles (`app.css`)
+
+All new static web pages should start from the shared stylesheet at
+`src/oci_policy_analysis/web/static/app.css`. Avoid page-local `<style>` blocks
+and inline `style=` attributes for standard layout/presentation. Add reusable
+classes to `app.css` when a pattern is expected to appear on more than one page.
+
+Reference templates:
+
+- `src/oci_policy_analysis/web/static/template-single-column.html`
+- `src/oci_policy_analysis/web/static/template-two-column.html`
+- `src/oci_policy_analysis/web/static/template-three-column.html`
+- `src/oci_policy_analysis/web/static/template-workflow-workbench.html`
+
+These templates intentionally show the class names in visible content so page
+authors can copy the structure without inventing one-off styles.
+
+### 9.1 Standard Page Skeleton
+
+Every new page should use the standard masthead + context-help opening pattern:
+
+```html
+<link rel="stylesheet" href="/app.css" />
+
+<div class="top-row">
+  <header class="app-masthead" data-help-title="Page Name" data-help-body="What this page does.">
+    <div class="masthead-brand">
+      <span class="masthead-badge">OCI</span>
+      <div>
+        <h1>Page Name</h1>
+        <p>Uppercase page subtitle or workflow descriptor</p>
+      </div>
+    </div>
+    <div class="masthead-meta">Optional status/meta</div>
+  </header>
+
+  <div class="context-help-card" id="contextHelpCard">
+    <p class="context-help-kicker">Context Help</p>
+    <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+    <p id="contextHelpBody" class="context-help-body">Default page guidance.</p>
+  </div>
+</div>
+```
+
+Required masthead/context-help classes:
+
+- `.top-row`
+- `.app-masthead`
+- `.masthead-brand`
+- `.masthead-badge`
+- `.masthead-meta` when right-side metadata/actions are needed
+- `.context-help-card`
+- `.context-help-kicker`
+- `.context-help-title`
+- `.context-help-body`
+
+### 9.2 Standard Layout Choices
+
+Use one of these page-level layouts below the masthead:
+
+- `.layout-single`: one primary vertical content stream.
+- `.layout-two-column`: primary work area plus right rail.
+- `.layout-main`: home-page-compatible alias for the two-column layout.
+- `.side-stack`: stacked right-rail cards/widgets.
+
+Single-column page shell:
+
+```html
+<main class="layout-single">
+  <section class="card compact-card">...</section>
+</main>
+```
+
+Two-column page shell:
+
+```html
+<main class="layout-two-column">
+  <section class="card compact-card">...</section>
+  <aside class="side-stack">...</aside>
+</main>
+```
+
+### 9.2.1 Reusable Row Utilities (1/2/3/4 Columns + Span)
+
+For row-level layout composition inside any page (independent of the page shell),
+use the generic row classes in `app.css`:
+
+- `.layout-row`: base row container (`display:grid; gap:1rem`)
+- `.layout-row-1`: one-column row
+- `.layout-row-2`: two-column row
+- `.layout-row-3`: three-column row
+- `.layout-row-4`: four-column row
+- `.layout-col-span-2`: span two columns
+- `.layout-col-span-3`: span three columns
+- `.layout-col-span-4`: span four columns
+
+Example (1/3 + 2/3 split):
+
+```html
+<div class="layout-row layout-row-3">
+  <section class="card">Left card (1/3)</section>
+  <section class="card layout-col-span-2">Right card (2/3)</section>
+</div>
+```
+
+Behavior on smaller screens:
+
+- `.layout-row-2`, `.layout-row-3`, and `.layout-row-4` collapse to one column at mobile/tablet breakpoints.
+- `.layout-col-span-2`, `.layout-col-span-3`, and `.layout-col-span-4` reset to auto span in the collapsed layout.
+
+Use this row utility pattern instead of adding new page-specific grid classes
+whenever possible.
+
+### 9.3 Standard Content, Forms, and Actions
+
+Preferred shared classes:
+
+- Cards: `.card`, `.compact-card`, `.card-title`.
+- Card links/navigation: `.card-link-row`, `.card a`, `.card a.secondary`.
+- Action rows: `.panel-actions`.
+- Forms: `.form-grid`, `.form-grid-spacious`, `.inline-field`, `.options-row`,
+  `.checkbox-label`, `.ops-button`.
+- Section text: `.section-heading`, `.section-kicker`, `.helper-text`,
+  `.status-meta`.
+- Compact controls: `.select-compact`, `.no-margin-label`, `.mt-compact`.
+- Separators: `.section-separator`.
+
+### 9.4 Standard Feedback and Progress
+
+Use these classes for status/progress displays:
+
+- `.status`, `.status.success`, `.status.error` for text feedback.
+- `.status-badge` plus `.refresh-status-running`, `.refresh-status-success`,
+  `.refresh-status-error`, or `.refresh-status-partial` for badges.
+- `.progress-widget`, `.progress-widget-title`, `.progress-widget-head`,
+  `.progress-widget-detail`, `.progress-widget-percent`,
+  `.progress-widget-track`, `.progress-widget-fill` for progress cards.
+- `.refresh-log`, `.refresh-log-line`, `.refresh-log-warning`,
+  `.refresh-log-error` for log output surfaces.
+
+### 9.5 Context Help Rules
+
+Interactive controls should declare help text with attributes:
+
+```html
+<button
+  data-help-title="Run Analysis"
+  data-help-body="Runs the current filters and refreshes the result table."
+>
+  Run
+</button>
+```
+
+Use one central page helper to update `#contextHelpTitle` and
+`#contextHelpBody` on hover and keyboard focus. Prefer `mouseenter`/`mouseleave`
+plus `focusin`/`focusout` so the pattern remains keyboard-accessible.
+
+### 9.6 Style Hygiene Rules
+
+- Do not add page-local `<style>` blocks for standard components.
+- Do not add inline `style=` for spacing, layout, typography, or colors that can
+  be expressed as a named class in `app.css`.
+- Keep IDs stable for JavaScript/API hooks, but use classes for presentation.
+- If a page truly needs unique behavior, prefer a narrowly named class in
+  `app.css` and document the pattern here if it may be reused.
+
+### 9.7 Template Guidance (How to Pick)
+
+- Use `template-single-column.html` for vertically stacked workflows.
+- Use `template-two-column.html` for main-work-area + side-rail pages.
+- Use `template-three-column.html` when you need row-level 3-column composition,
+  especially 1/3 + 2/3 patterns (using `.layout-col-span-2`).
+- Use `template-workflow-workbench.html` for SPA-style guided workflows with
+  ordered steps, persistent summary/status right rail, and optional inspector
+  variants (right fly-in and bottom fly-in).
+
+All templates demonstrate:
+
+- shared `app.css` class usage,
+- context-help data attributes (`data-help-title`, `data-help-body`),
+- and table/card structures that avoid page-local style duplication.
+
+
 ## References
 
 - Web routes: `src/oci_policy_analysis/web/api/routes_core.py`
 - Cross-tenancy page: `src/oci_policy_analysis/web/static/cross-tenancy-analysis.html`
 - Policy analysis page (inspector pattern reference):
   `src/oci_policy_analysis/web/static/policy-analysis.html`
+- Condition tester page (cross-page handoff target reference):
+  `src/oci_policy_analysis/web/static/condition-tester.html`

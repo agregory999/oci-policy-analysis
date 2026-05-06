@@ -38,6 +38,7 @@ class PolicyBrowserService:
             path = str(comp.get('path') or comp.get('compartment_path') or name)
             hierarchy_path = str(comp.get('hierarchy_path') or path)
             description = str(comp.get('description') or '')
+            tags = self._normalize_compartment_tags(comp)
             parent_ocid = str(comp.get('parent_id') or '')
             direct_count = int(comp.get('statement_count_direct') or 0)
             cumulative_count = int(comp.get('statement_count_cumulative') or 0)
@@ -55,6 +56,7 @@ class PolicyBrowserService:
                     'compartment_path': path,
                     'hierarchy_path': hierarchy_path,
                     'description': description,
+                    'tags': tags,
                     'parent_ocid': parent_ocid,
                     'policy_count': policy_counts_by_compartment.get(ocid, 0),
                     'statement_count_direct': direct_count,
@@ -63,12 +65,62 @@ class PolicyBrowserService:
                 }
             )
 
-        rows.sort(key=lambda row: str(row.get('compartment_path') or '').casefold())
+        # Sort by the same display-first path used in the UI column
+        # (hierarchy_path fallback to compartment_path, then compartment_name)
+        # so row order matches what users visually scan.
+        rows.sort(
+            key=lambda row: str(
+                row.get('hierarchy_path') or row.get('compartment_path') or row.get('compartment_name') or ''
+            ).casefold()
+        )
         self.logger.info('Compartment hierarchy utility rows built: %d', len(rows))
         return {
             'total': len(rows),
             'rows': rows,
         }
+
+    def _normalize_compartment_tags(self, compartment: dict[str, Any]) -> list[dict[str, str]]:
+        """Normalize compartment tags into a flat list for web rendering/search.
+
+        Output shape: [{"source": "freeform|defined", "name": "key", "value": "val"}, ...]
+        """
+        tags: list[dict[str, str]] = []
+
+        freeform_tags = compartment.get('freeform_tags') or {}
+        if isinstance(freeform_tags, dict):
+            for key, value in freeform_tags.items():
+                key_text = str(key or '').strip()
+                if not key_text:
+                    continue
+                tags.append({'source': 'freeform', 'name': key_text, 'value': str(value or '')})
+
+        defined_tags = compartment.get('defined_tags') or {}
+        if isinstance(defined_tags, dict):
+            for namespace, value_map in defined_tags.items():
+                ns = str(namespace or '').strip()
+                if not ns:
+                    continue
+                if isinstance(value_map, dict):
+                    for key, value in value_map.items():
+                        key_text = str(key or '').strip()
+                        if not key_text:
+                            continue
+                        tags.append({'source': 'defined', 'name': f'{ns}.{key_text}', 'value': str(value or '')})
+                else:
+                    tags.append({'source': 'defined', 'name': ns, 'value': str(value_map or '')})
+
+        # Backward-compat fallback when only flattened `tags` map exists.
+        if not tags:
+            legacy_tags = compartment.get('tags') or {}
+            if isinstance(legacy_tags, dict):
+                for key, value in legacy_tags.items():
+                    key_text = str(key or '').strip()
+                    if not key_text:
+                        continue
+                    tags.append({'source': 'legacy', 'name': key_text, 'value': str(value or '')})
+
+        tags.sort(key=lambda item: f"{item.get('name', '')}:{item.get('value', '')}".casefold())
+        return tags
 
     def list_tag_namespaces(self) -> dict[str, object]:
         """Return tag namespace/key/value catalog rows for utility rendering."""

@@ -12,11 +12,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
+from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.application.services.intelligence_service import IntelligenceService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
+from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
@@ -42,6 +44,7 @@ from oci_policy_analysis.web.dependencies import get_context, get_settings
 
 logger = get_logger(component='web_routes')
 router = APIRouter()
+condition_tester_service = ConditionTesterService()
 
 
 def _get_or_init_prospective_service(ctx) -> ProspectiveStatementsService:
@@ -95,6 +98,109 @@ def _build_cross_tenancy_stable_key(policy_ocid: str, statement_text: str) -> st
     """Build parser-independent stable key for cross-tenancy statement rows."""
     payload = f'{policy_ocid}|{_normalize_statement_text_for_key(statement_text)}'
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
+
+def _build_engine_principal_value(principal_type: str, principal_display: str) -> object:
+    """Convert web principal display into engine principal payload."""
+
+    ptype = (principal_type or '').strip()
+    display = (principal_display or '').strip()
+
+    if ptype in ('any-user', 'any-group', 'service'):
+        return display or ptype
+
+    if '/' in display:
+        domain, name = display.split('/', 1)
+        return (domain if domain != '' else None, name)
+
+    if display:
+        return (None, display)
+
+    return ''
+
+
+def _simulation_context_options(ctx) -> dict[str, object]:
+    """Build context dropdown options for simulation workbench."""
+
+    repo = ctx.policy_repo
+    sim = ctx.simulation
+
+    compartments: set[str] = set()
+    for comp in getattr(repo, 'compartments', []) or []:
+        if isinstance(comp, dict):
+            path = str(comp.get('hierarchy_path') or '').strip()
+        else:
+            path = str(getattr(comp, 'hierarchy_path', '') or '').strip()
+        if path:
+            compartments.add(path)
+    if not compartments:
+        compartments.add('ROOT')
+
+    principals_by_type: dict[str, set[tuple[str | None, str]]] = {}
+    principal_types: set[str] = set()
+    for stmt in getattr(repo, 'regular_statements', []) or []:
+        subject_type = str(stmt.get('subject_type') or '').strip()
+        subjects = stmt.get('subject') or []
+        if not subject_type or not isinstance(subjects, list):
+            continue
+        principal_types.add(subject_type)
+        principals_by_type.setdefault(subject_type, set())
+        for subj in subjects:
+            if isinstance(subj, (list | tuple)) and len(subj) == 2:
+                domain, name = subj
+                if isinstance(name, str) and name.strip():
+                    dom = None if str(domain).lower() == 'default' else (str(domain) if domain else None)
+                    principals_by_type[subject_type].add((dom, name.strip()))
+            elif isinstance(subj, str) and subj.strip():
+                principals_by_type[subject_type].add((None, subj.strip()))
+
+    users = getattr(repo, 'users', []) or []
+    if users:
+        principal_types.add('user')
+        principals_by_type.setdefault('user', set())
+        for entry in users:
+            domain = entry.get('domain_name') if isinstance(entry, dict) else None
+            name = entry.get('user_name') if isinstance(entry, dict) else None
+            if isinstance(name, str) and name.strip():
+                dom = None if str(domain).lower() == 'default' else (str(domain) if domain else None)
+                principals_by_type['user'].add((dom, name.strip()))
+
+    principal_display_map: dict[str, list[str]] = {}
+    for ptype in sorted(principal_types):
+        tuples = sorted(principals_by_type.get(ptype, set()), key=lambda t: ((t[0] or ''), t[1]))
+        principal_display_map[ptype] = [f'{d}/{n}' if d else n for (d, n) in tuples]
+
+    api_operations = sim.get_api_operations('') if sim else []
+    return {
+        'compartments': sorted(compartments),
+        'principal_types': sorted(principal_types),
+        'principals_by_type': principal_display_map,
+        'api_operations': api_operations,
+    }
+
+
+def _statement_to_web_row(stmt: dict[str, Any]) -> dict[str, Any]:
+    """Normalize statement payload for simulation workbench table/inspector."""
+
+    action = str(stmt.get('action') or 'allow').lower()
+    return {
+        'internal_id': str(stmt.get('internal_id') or ''),
+        'policy_name': str(stmt.get('policy_name') or stmt.get('description') or ''),
+        'policy_path': str(stmt.get('compartment_path') or ''),
+        'effective_path': str(stmt.get('effective_path') or ''),
+        'statement_text': str(stmt.get('statement_text') or ''),
+        'action': action,
+        'subject_type': stmt.get('subject_type'),
+        'subject': stmt.get('subject'),
+        'principals': stmt.get('principals'),
+        'verb': stmt.get('verb'),
+        'resource': stmt.get('resource'),
+        'permission': stmt.get('permission'),
+        'conditions': stmt.get('conditions'),
+        'valid': stmt.get('valid'),
+        'parsed': stmt.get('parsed'),
+        'is_prospective': bool(stmt.get('is_prospective')),
+    }
 
 
 @router.get('/health')
@@ -359,6 +465,15 @@ def list_dynamic_groups(
     }
 
 
+@router.get('/metadata/resource-types')
+def list_resource_types() -> dict[str, list[str]]:
+    """Return dynamically discovered Resource Type values for RP filtering."""
+    logger.info('GET /metadata/resource-types')
+    ctx = get_context()
+    principal_service = PrincipalAnalysisService(ctx)
+    return {'resource_types': principal_service.get_resource_types()}
+
+
 @router.post('/filter/policies/by-subjects')
 def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]:  # noqa: C901
     """Filter policies by exact selected groups/users/dynamic groups and optional any-user/group expansion."""
@@ -619,6 +734,22 @@ def get_reference_source(payload: dict[str, object]) -> dict[str, object]:
     return {'source': service.get_source(str(entity))}
 
 
+@router.post('/reference/overlap')
+def get_reference_overlap(payload: dict[str, object]) -> dict[str, object]:
+    """Return overlapping permissions between two statement-style selectors."""
+    logger.info('POST /reference/overlap')
+    ctx = get_context()
+    service = ReferenceDataService(ctx.reference_data)
+    entity1 = str(payload.get('entity1', '') if isinstance(payload, dict) else '')
+    verb1 = str(payload.get('verb1', '') if isinstance(payload, dict) else '')
+    action1 = str(payload.get('action1', 'allow') if isinstance(payload, dict) else 'allow')
+    entity2 = str(payload.get('entity2', '') if isinstance(payload, dict) else '')
+    verb2 = str(payload.get('verb2', '') if isinstance(payload, dict) else '')
+    action2 = str(payload.get('action2', 'allow') if isinstance(payload, dict) else 'allow')
+    overlap = service.check_overlap(entity1, verb1, action1, entity2, verb2, action2)
+    return {'overlap': overlap}
+
+
 @router.get('/utilities/tag-namespaces')
 def list_tag_namespaces() -> dict[str, object]:
     """Return tag namespace/key/value rows for utility browsing."""
@@ -635,6 +766,63 @@ def list_compartment_hierarchy() -> dict[str, object]:
     ctx = get_context()
     service = PolicyBrowserService(ctx)
     return service.list_compartment_hierarchy()
+
+
+@router.post('/utilities/condition-tester/format')
+def format_condition_clause(payload: dict[str, object]) -> dict[str, str]:
+    """Format a condition clause for readability.
+
+    Args:
+        payload: JSON body that may include ``clause``.
+
+    Returns:
+        Dict with normalized ``clause`` string.
+    """
+    clause = str(payload.get('clause') or '').strip()
+    return {'clause': condition_tester_service.format_clause(clause)}
+
+
+@router.post('/utilities/condition-tester/variables')
+def extract_condition_variables(payload: dict[str, object]) -> dict[str, object]:
+    """Extract variable names referenced by a condition clause.
+
+    Args:
+        payload: JSON body that may include ``clause``.
+
+    Returns:
+        Dict with sorted ``variables`` and input ``examples`` map.
+    """
+    clause = str(payload.get('clause') or '').strip()
+    variables = condition_tester_service.extract_variables(clause)
+    examples = {
+        'request.utc-timestamp': 'e.g. 2026-01-05T12:34:56Z',
+        'request.utc-timestamp.time-of-day': 'e.g. 13:27:00Z',
+    }
+    return {'variables': variables, 'examples': examples}
+
+
+@router.post('/utilities/condition-tester/evaluate')
+def evaluate_condition_clause(payload: dict[str, object]) -> dict[str, object]:
+    """Evaluate condition clause against provided simulated variables.
+
+    Args:
+        payload: JSON body with ``clause`` and optional ``variables`` map.
+
+    Returns:
+        Structured evaluation response including condition string, policy
+        result, boolean ``granted`` flag, and comparison log entries.
+    """
+    clause = str(payload.get('clause') or '').strip()
+    vars_payload = payload.get('variables')
+    variables = vars_payload if isinstance(vars_payload, dict) else {}
+    evaluated = condition_tester_service.evaluate(clause, variables)
+    return {
+        'condition_string': evaluated.condition_string,
+        'policy_result': evaluated.policy_result,
+        'granted': evaluated.granted,
+        'log': evaluated.log,
+        'timestamp': datetime.now(UTC).isoformat(),
+    }
 
 
 @router.get('/logging')
@@ -889,6 +1077,157 @@ def get_prospective_builder_preview(payload: dict[str, object]) -> dict[str, obj
         'effective_path': result.effective_path,
         'warnings': result.warnings,
     }
+
+
+@router.get('/simulation/context-options')
+def get_simulation_context_options() -> dict[str, object]:
+    """Return compartments/principals/API ops for simulation context step."""
+
+    logger.info('GET /simulation/context-options')
+    ctx = get_context()
+    return _simulation_context_options(ctx)
+
+
+@router.post('/simulation/statements')
+def get_simulation_statements(payload: dict[str, object]) -> dict[str, object]:
+    """Return statements for selected simulation context."""
+
+    logger.info('POST /simulation/statements')
+    ctx = get_context()
+    service = _get_or_init_prospective_service(ctx)
+    try:
+        ctx.simulation.set_prospective_statements(service.to_simple_list())
+    except Exception:
+        logger.warning('Unable to sync prospective statements to simulation engine', exc_info=True)
+
+    compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    principal_type = str(payload.get('principal_type') or '').strip()
+    principal_display = str(payload.get('principal') or '').strip()
+    if not principal_type:
+        raise HTTPException(status_code=400, detail='principal_type is required')
+
+    principal = _build_engine_principal_value(principal_type, principal_display)
+    principal_key, statements = ctx.simulation.get_statements_for_context(compartment_path, principal_type, principal)
+    return {
+        'principal_key': principal_key,
+        'statements': [_statement_to_web_row(s) for s in statements],
+    }
+
+
+@router.post('/simulation/variables')
+def get_simulation_variables(payload: dict[str, object]) -> dict[str, object]:
+    """Extract where-clause variables from selected simulation statements."""
+
+    logger.info('POST /simulation/variables')
+    ctx = get_context()
+    statements_obj = payload.get('statements')
+    statements_raw = cast(list[object], statements_obj) if isinstance(statements_obj, list) else []
+    statements: list[dict[str, object]] = [cast(dict[str, object], s) for s in statements_raw if isinstance(s, dict)]
+    selected_obj = payload.get('selected_statement_ids')
+    selected_raw = cast(list[object], selected_obj) if isinstance(selected_obj, list) else []
+    selected: list[str] = [str(x) for x in selected_raw]
+    selected_ids = {str(x) for x in selected}
+
+    all_vars: set[str] = set()
+    for stmt in statements:
+        sid = str(stmt.get('internal_id') or '')
+        if selected_ids and sid not in selected_ids:
+            continue
+        cond = stmt.get('conditions')
+        if not cond:
+            continue
+        all_vars.update(ctx.simulation.extract_variable_names(str(cond)))
+
+    variables = sorted(all_vars)
+    hints = {
+        'request.utc-timestamp': 'e.g. 2026-01-05T12:34:56Z',
+        'request.utc-timestamp.time-of-day': 'e.g. 13:27:00Z',
+    }
+    return {
+        'variables': variables,
+        'hints': {v: hints.get(v, '') for v in variables},
+    }
+
+
+@router.post('/simulation/run')
+def run_simulation(payload: dict[str, object]) -> dict[str, object]:
+    """Run one-or-many API operation simulations for selected context."""
+
+    logger.info('POST /simulation/run')
+    ctx = get_context()
+    principal_key = str(payload.get('principal_key') or '').strip()
+    compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    scenario_internal_id = str(payload.get('scenario_internal_id') or '').strip()
+    scenario_name = str(payload.get('scenario_name') or '').strip()
+    simulation_name = str(payload.get('simulation_name') or '').strip()
+    where_context_raw = payload.get('where_context')
+    where_context = where_context_raw if isinstance(where_context_raw, dict) else {}
+    checked_statement_ids_raw = payload.get('checked_statement_ids')
+    checked_statement_ids = (
+        [str(x) for x in checked_statement_ids_raw] if isinstance(checked_statement_ids_raw, list) else None
+    )
+    api_operations_raw = payload.get('api_operations')
+    if isinstance(api_operations_raw, list):
+        api_operations = [str(x).strip() for x in api_operations_raw if str(x).strip()]
+    else:
+        one = str(payload.get('api_operation') or '').strip()
+        api_operations = [one] if one else []
+
+    if not principal_key:
+        raise HTTPException(status_code=400, detail='principal_key is required')
+    if not api_operations:
+        raise HTTPException(status_code=400, detail='At least one api_operation is required')
+
+    results: list[dict[str, Any]] = []
+    for op in api_operations:
+        if scenario_name and simulation_name:
+            trace_name = f'{scenario_name} | {simulation_name} | {op}'
+        elif scenario_name:
+            trace_name = f'{scenario_name} | {op}'
+        elif simulation_name:
+            trace_name = f'{simulation_name} | {op}'
+        else:
+            trace_name = op
+        result = ctx.simulation.simulate_and_record(
+            principal_key=principal_key,
+            effective_path=compartment_path,
+            api_operation=op,
+            where_context=where_context,
+            checked_statement_ids=checked_statement_ids,
+            trace_name=trace_name,
+            scenario_internal_id=scenario_internal_id,
+            scenario_name=scenario_name,
+            simulation_name=simulation_name,
+        )
+        row = dict(result)
+        row['api_operation'] = op
+        results.append(row)
+
+    return {
+        'results': results,
+        'history': ctx.simulation.get_simulation_trace_list(),
+    }
+
+
+@router.get('/simulation/history')
+def get_simulation_history() -> dict[str, object]:
+    """Return simulation history list for web workbench history step."""
+
+    logger.info('GET /simulation/history')
+    ctx = get_context()
+    return {'history': ctx.simulation.get_simulation_trace_list()}
+
+
+@router.get('/simulation/history/{idx}')
+def get_simulation_history_entry(idx: int) -> dict[str, object]:
+    """Return simulation history detail by index."""
+
+    logger.info('GET /simulation/history/%s', idx)
+    ctx = get_context()
+    trace = ctx.simulation.get_simulation_trace_by_index(idx)
+    if trace is None:
+        raise HTTPException(status_code=404, detail='Simulation history entry not found')
+    return {'trace': trace}
 
 
 @router.post('/load/compliance')

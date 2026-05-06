@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -20,6 +21,10 @@ class PrincipalPolicyResult:
 
 class PrincipalAnalysisService:
     AllowedSubjectType = Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']
+    _RESOURCE_TYPE_PATTERN = re.compile(
+        r"request\.principal\.type\s*=\s*(['\"])(?P<rtype>[^'\"\s{}]+)\1",
+        re.IGNORECASE,
+    )
 
     """Principal-key/subject-type-first policy retrieval helper.
 
@@ -95,11 +100,16 @@ class PrincipalAnalysisService:
             'Filtering policies by subject types: count=%s resource_type=%s', len(subject_types), resource_type
         )
         filters: PolicySearch
-        if resource_type == 'Any':
-            filters = PolicySearch(subject_type=subject_types)
-        else:
-            filters = PolicySearch(subject_type=subject_types, statement_text=[resource_type])
-        return PrincipalPolicyResult(statements=self.analysis.filter_policy_statements(filters=filters).statements)
+        filters = PolicySearch(subject_type=subject_types)
+        statements = list(self.analysis.filter_policy_statements(filters=filters).statements)
+        if resource_type != 'Any':
+            target = resource_type.casefold()
+            statements = [
+                st
+                for st in statements
+                if target in self._extract_resource_types_from_conditions(str(st.get('conditions') or ''))
+            ]
+        return PrincipalPolicyResult(statements=statements)
 
     @staticmethod
     def merge_unique(*statement_lists: list[RegularPolicyStatement]) -> list[RegularPolicyStatement]:
@@ -120,3 +130,33 @@ class PrincipalAnalysisService:
                     seen.add(key)
                     merged.append(st)
         return merged
+
+    def get_resource_types(self) -> list[str]:
+        """Return dynamic Resource Type values derived from policy where clauses.
+
+        Resource Type values are extracted from condition clauses using
+        ``request.principal.type = '<value>'`` expressions.
+        """
+        statements = list(getattr(self.context.policy_repo, 'regular_statements', []) or [])
+        discovered: dict[str, str] = {}
+
+        for st in statements:
+            cond = str(st.get('conditions') or '')
+            for resource_type in self._extract_resource_types_from_conditions(cond):
+                if resource_type not in discovered:
+                    discovered[resource_type] = resource_type
+
+        return ['Any', *sorted(discovered.values(), key=str.casefold)]
+
+    @classmethod
+    def _extract_resource_types_from_conditions(cls, conditions: str) -> set[str]:
+        """Extract normalized request.principal.type values from a condition string."""
+        cond = str(conditions or '').strip()
+        if not cond or 'request.principal.type' not in cond.casefold():
+            return set()
+        values: set[str] = set()
+        for match in cls._RESOURCE_TYPE_PATTERN.finditer(cond):
+            raw_value = str(match.group('rtype') or '').strip()
+            if raw_value:
+                values.add(raw_value.casefold())
+        return values

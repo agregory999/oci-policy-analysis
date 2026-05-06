@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Simulation Workbench</title>
+    <link rel="stylesheet" href="/app.css?v=simulation-v2" />
+    <style>
+      #statementTable td.statement-cell {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-width: 520px;
+      }
+
+      .simulation-left-stack {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .simulation-statement-shell {
+        min-height: 56vh;
+      }
+
+      .simulation-statement-scroll {
+        max-height: none;
+        height: 100%;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead">
+        <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Simulation Workbench</h1><p>Context → Statements → Variables → Execution → History</p></div></div>
+        <div class="masthead-meta"><a href="/" class="card-link secondary">← Back to home</a></div>
+      </header>
+      <div class="context-help-card context-help-fixed"><p class="context-help-kicker">Context Help</p><h3 class="context-help-title">Simulation Flow</h3><p class="context-help-body">Pick context, select statements, fill variables, run APIs, inspect results/history.</p></div>
+    </div>
+
+    <main class="layout-two-column workflow-workbench">
+      <div class="simulation-left-stack workflow-main">
+        <section class="card compact-card">
+          <p class="card-title">Simulation Readiness</p>
+          <div class="progress-widget-head"><span id="readinessText" class="progress-widget-detail">Not started</span><span id="readinessPct" class="progress-widget-percent">0%</span></div>
+          <div class="progress-widget-track"><div id="readinessFill" class="progress-widget-fill" style="width:0%"></div></div>
+        </section>
+
+        <section class="card compact-card workflow-main">
+          <p class="card-title">Simulation Steps</p>
+        <div class="workflow-steps">
+          <button class="workflow-step workflow-step-active" data-step="1">1 • Context</button>
+          <button class="workflow-step" data-step="2">2 • Statements</button>
+          <button class="workflow-step" data-step="3">3 • Variables</button>
+          <button class="workflow-step" data-step="4">4 • Execution</button>
+          <button class="workflow-step" data-step="5">5 • History</button>
+        </div>
+
+        <article class="workflow-panel workflow-panel-active" data-panel="1">
+          <div class="workflow-panel-header"><h2 class="workflow-panel-title">Context</h2><div class="workflow-actions"><button id="manageProspectiveBtn" class="ghost" type="button">Manage Prospective Statements</button><button data-next-step="2" type="button">Continue</button></div></div>
+          <div class="form-grid">
+            <div class="inline-field"><label for="ctxCompartment">Effective Path</label><select id="ctxCompartment"></select></div>
+            <div class="inline-field"><label for="ctxPrincipalType">Principal Type</label><select id="ctxPrincipalType"></select></div>
+            <div class="inline-field"><label for="ctxPrincipal">Principal</label><select id="ctxPrincipal"></select></div>
+            <div class="panel-actions"><button id="loadStatements" type="button">Load Matching Statements</button></div>
+          </div>
+        </article>
+
+        <article class="workflow-panel" data-panel="2">
+          <div class="workflow-panel-header"><h2 class="workflow-panel-title">Statement Selection</h2><div class="workflow-actions"><button class="ghost" data-prev-step="1" type="button">Back</button><button id="generateVariables" type="button">Generate Variables</button><button data-next-step="3" type="button">Continue</button></div></div>
+          <div class="table-shell simulation-statement-shell"><div class="simulation-statement-scroll custom-scrollbar"><table id="statementTable" class="analysis-table"><thead><tr><th>Select</th><th>Action</th><th>Policy</th><th>Statement</th><th>Path</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <article class="workflow-panel" data-panel="3">
+          <div class="workflow-panel-header"><h2 class="workflow-panel-title">Variables</h2><div class="workflow-actions"><button class="ghost" data-prev-step="2" type="button">Back</button><button data-next-step="4" type="button">Continue</button></div></div>
+          <div id="variablesArea" class="form-grid"><p class="helper-text">Generate variables from selected statements.</p></div>
+        </article>
+
+        <article class="workflow-panel" data-panel="4">
+          <div class="workflow-panel-header"><h2 class="workflow-panel-title">Execution</h2><div class="workflow-actions"><button class="ghost" data-prev-step="3" type="button">Back</button><button id="runSimulation" type="button">Run</button></div></div>
+          <div class="inline-field"><label for="scenarioName">Scenario Name</label><input id="scenarioName" placeholder="Quarterly Access Review" /></div>
+          <div class="inline-field"><label for="simulationName">Simulation Name</label><input id="simulationName" placeholder="My Simulation Run" /></div>
+          <div class="inline-field"><label for="apiSearch">Search API</label><input id="apiSearch" placeholder="type to filter" /></div>
+          <div class="inline-field"><label for="apiSelect">API Operations (multi-select)</label><select id="apiSelect" multiple size="8"></select></div>
+          <p id="runStatus" class="status">Ready.</p>
+        </article>
+
+        <article class="workflow-panel" data-panel="5">
+          <div class="workflow-panel-header"><h2 class="workflow-panel-title">History</h2><div class="workflow-actions"><button class="ghost" data-prev-step="4" type="button">Back</button><button id="refreshHistory" class="ghost" type="button">Refresh</button></div></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar"><table><thead><tr><th>#</th><th>Scenario</th><th>Simulation</th><th>API(s)</th><th>Result</th><th>Timestamp</th><th>Details</th></tr></thead><tbody id="historyRows"></tbody></table></div></div>
+        </article>
+        </section>
+      </div>
+
+      <aside class="workflow-rail side-stack">
+        <section class="card compact-card"><p class="card-title">Current Summary</p><div class="workflow-summary-grid">
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Path</p><p id="sumPath" class="workflow-summary-value">-</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Principal</p><p id="sumPrincipal" class="workflow-summary-value">-</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Statements</p><p id="sumStatements" class="workflow-summary-value">0</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Allow / Deny</p><p id="sumAllowDeny" class="workflow-summary-value">0 / 0</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Variables</p><p id="sumVariables" class="workflow-summary-value">0 / 0 filled</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">APIs</p><p id="sumApis" class="workflow-summary-value">0 selected</p></div>
+        </div></section>
+        <section class="card compact-card"><p class="card-title">Decision Snapshot</p><div class="workflow-metric-list"><div class="workflow-metric"><span>Last Result</span><span id="lastBadge" class="result-badge denied">NOT RUN</span></div><div class="workflow-metric"><span>Missing Permissions</span><strong id="lastMissing">0</strong></div><div class="workflow-metric"><span>Allow considered</span><strong id="lastAllow">0</strong></div><div class="workflow-metric"><span>Deny considered</span><strong id="lastDeny">0</strong></div></div></section>
+        <section class="card compact-card"><p class="card-title">Mini Event Log</p><pre id="miniLog" class="workflow-mini-log">[init] Simulation workbench ready.</pre></section>
+      </aside>
+    </main>
+
+    <section class="analysis-layout">
+      <aside id="stmtInspector" class="inspector-panel" aria-live="polite">
+        <div class="inspector-header"><strong>Statement Details</strong><button id="closeInspector" class="ghost" style="margin-top:0;">×</button></div>
+        <div class="inspector-body custom-scrollbar"><table class="inspector-table"><tbody id="inspectorBody"></tbody></table></div>
+      </aside>
+
+      <aside id="prospectiveDrawer" class="inspector-panel inspector-panel-bottom" aria-live="polite">
+        <div class="inspector-header"><strong>Prospective Statement Editor</strong><button id="closeProspectiveBtn" class="ghost" style="margin-top:0;">×</button></div>
+        <div class="inspector-body custom-scrollbar" style="padding:.8rem; display:grid; gap:.8rem;">
+          <div class="prospective-grid">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;"><strong>Statements</strong><button id="addProspectiveRowBtn" class="ghost" style="margin-top:0;">Add Free-Form Statement</button></div>
+            <table id="prospectiveRowsTable"><thead class="prospective-rows-head"><tr><th>Location</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div>
+            <strong>Builder</strong>
+            <div class="prospective-builder-grid" style="margin-top:.5rem;">
+              <div class="prospective-builder-row"><div class="prospective-field"><label for="pbAction">Action</label><select id="pbAction"></select></div><div class="prospective-field"><label for="pbPrincipal">Principal</label><select id="pbPrincipal"></select></div><div class="prospective-field"><label for="pbIncludeDefault">Include Default</label><div class="prospective-inline-check"><input id="pbIncludeDefault" type="checkbox" /><span class="prospective-note">Adds Default domain where applicable.</span></div></div></div>
+              <div class="prospective-builder-row"><div class="prospective-field"><label for="pbVerb">Verb</label><select id="pbVerb"></select></div><div class="prospective-field"><label for="pbResource">Resource</label><select id="pbResource"></select></div><div class="prospective-field"><label for="pbUseAllResources">All Resources</label><div class="prospective-inline-check"><input id="pbUseAllResources" type="checkbox" /><span class="prospective-note">Use all known resources/families.</span></div></div></div>
+              <div class="prospective-builder-row two"><div class="prospective-field"><label for="pbLocation">Location</label><select id="pbLocation"></select></div><div class="prospective-field"><label for="pbEffectivePath">Effective Path</label><select id="pbEffectivePath"></select></div></div>
+              <div class="prospective-builder-row"><div class="prospective-field"><label for="pbWhereMode">Where Mode</label><select id="pbWhereMode"></select></div></div>
+              <div id="pbOtherWhereRow" class="prospective-builder-row" style="display:none;"><div id="pbOtherWhereField" class="prospective-field"><label for="pbOtherWhereText">Other Where Text (no 'where')</label><textarea id="pbOtherWhereText"></textarea></div></div>
+              <div id="pbTagWhereRow1" class="prospective-builder-row"><div class="prospective-field"><label for="pbAccessType">Access Type</label><select id="pbAccessType"></select></div><div class="prospective-field"><label for="pbNamespace">Tag Namespace</label><input id="pbNamespace" /></div><div class="prospective-field"><label for="pbTagKey">Tag Key</label><input id="pbTagKey" /></div></div>
+              <div id="pbTagWhereRow2" class="prospective-builder-row two"><div class="prospective-field"><label for="pbOperator">Operator</label><select id="pbOperator"></select></div><div class="prospective-field"><label for="pbValue">Value(s)</label><input id="pbValue" /></div></div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem;"><button id="previewProspectiveBtn" class="ghost" style="margin-top:0;">Preview</button><button id="clearBuilderBtn" class="ghost" style="margin-top:0;">Clear Builder</button><button id="addBuilderToRowsBtn" class="ghost" style="margin-top:0;">Add to Statements</button><button id="saveProspectiveBtn" style="margin-top:0;">Save and Close</button></div>
+            <div id="pbPreview" class="prospective-preview" style="margin-top:.5rem;">No preview yet.</div>
+          </div>
+        </div>
+      </aside>
+
+      <aside id="historyDrawer" class="inspector-panel inspector-panel-bottom" aria-live="polite">
+        <div class="inspector-header"><strong>Simulation History Detail</strong><button id="closeHistoryDrawer" class="ghost" style="margin-top:0;">×</button></div>
+        <div class="inspector-body custom-scrollbar"><pre id="historyDetail" class="workflow-mini-log" style="max-height:none;height:100%;border:0;"></pre></div>
+      </aside>
+
+      <aside id="historyBasicInspector" class="inspector-panel" aria-live="polite">
+        <div class="inspector-header"><strong>History Basic Detail</strong><button id="closeHistoryBasic" class="ghost" style="margin-top:0;">×</button></div>
+        <div class="inspector-body custom-scrollbar"><table class="inspector-table"><tbody id="historyBasicBody"></tbody></table></div>
+      </aside>
+    </section>
+
+    <script>
+      const state = { options:null, principalKey:'', statements:[], selectedStatementIds:new Set(), variables:[], variableValues:{}, apis:[], rows:[], historyMeta:[], lastRun:[] };
+      const $ = (id)=>document.getElementById(id);
+      const stepBtns=[...document.querySelectorAll('.workflow-step')], panels=[...document.querySelectorAll('.workflow-panel')];
+      function log(msg){ const p=$('miniLog'); p.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`; p.scrollTop=p.scrollHeight; }
+      function activateStep(s){ s=String(s); stepBtns.forEach((b)=>b.classList.toggle('workflow-step-active', b.dataset.step===s)); panels.forEach((p)=>p.classList.toggle('workflow-panel-active', p.dataset.panel===s)); }
+      stepBtns.forEach((b)=>b.addEventListener('click',()=>activateStep(b.dataset.step))); document.querySelectorAll('[data-next-step]').forEach((b)=>b.addEventListener('click',()=>activateStep(b.getAttribute('data-next-step')))); document.querySelectorAll('[data-prev-step]').forEach((b)=>b.addEventListener('click',()=>activateStep(b.getAttribute('data-prev-step'))));
+
+      function selectedApis(){ return [...$('apiSelect').selectedOptions].map((o)=>o.value); }
+      function updateSummary(){ const sel=state.statements.filter((s)=>state.selectedStatementIds.has(s.internal_id)); const a=sel.filter((s)=>String(s.action).toLowerCase()==='allow').length; const d=sel.filter((s)=>String(s.action).toLowerCase()==='deny').length; const f=state.variables.filter((v)=>String(state.variableValues[v]||'').trim()).length; $('sumPath').textContent=$('ctxCompartment').value||'-'; $('sumPrincipal').textContent=`${$('ctxPrincipalType').value||'-'} / ${$('ctxPrincipal').value||'-'}`; $('sumStatements').textContent=String(sel.length); $('sumAllowDeny').textContent=`${a} / ${d}`; $('sumVariables').textContent=`${state.variables.length} / ${f} filled`; $('sumApis').textContent=`${selectedApis().length} selected`; }
+      function readiness(){ const c=Boolean($('ctxCompartment').value&&$('ctxPrincipalType').value); const s=state.selectedStatementIds.size>0; const v=state.variables.length===0 ? !!state.rows.length : state.variables.every((x)=>String(state.variableValues[x]||'').trim()); const api=selectedApis().length>0; if(api)return[100,'Ready to run']; if(v&&state.variables.length>=0&&s)return[75,'Variables complete']; if(s)return[50,'Statements selected']; if(c)return[25,'Context selected']; return[0,'Not started']; }
+      function updateReadiness(){ const [pct,text]=readiness(); $('readinessPct').textContent=`${pct}%`; $('readinessFill').style.width=`${pct}%`; $('readinessText').textContent=text; }
+
+      function esc(v){ return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+      function renderPrincipalList(){ const t=$('ctxPrincipalType').value; const arr=(state.options?.principals_by_type?.[t])||[]; $('ctxPrincipal').innerHTML=arr.map((x)=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''); updateSummary(); updateReadiness(); }
+      function renderApiOptions(filter=''){ const f=String(filter).toLowerCase(); $('apiSelect').innerHTML=state.apis.filter((a)=>a.toLowerCase().includes(f)).map((a)=>`<option value="${esc(a)}">${esc(a)}</option>`).join(''); }
+
+      function renderStatementTable(){ const tb=document.querySelector('#statementTable tbody'); tb.innerHTML=''; state.statements.forEach((s)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="checkbox" data-id="${esc(s.internal_id)}" checked/></td><td>${esc(String(s.action||'').toUpperCase())}</td><td>${s.is_prospective?'[Prospective] ':''}${esc(s.policy_name||'')}</td><td class="statement-cell">${esc(s.statement_text||'')}</td><td>${esc(s.policy_path||'')}</td>`; tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(s); }); tb.appendChild(tr); }); tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{ const id=e.target.dataset.id; if(e.target.checked) state.selectedStatementIds.add(id); else state.selectedStatementIds.delete(id); state.variables=[]; state.variableValues={}; $('variablesArea').innerHTML='<p class="helper-text">Statement selection changed. Regenerate variables.</p>'; $('apiSelect').selectedIndex=-1; log('Statement selection changed; variables/API reset.'); updateSummary(); updateReadiness(); })); }
+
+      function formatInspectorValue(key,value){ if(value===null||value===undefined||value==='')return '-'; if(Array.isArray(value)) return value.map((x)=>typeof x==='object'?JSON.stringify(x):String(x)).join('\n'); if(typeof value==='object') return JSON.stringify(value,null,2); return String(value); }
+      function openInspector(row){ const primary=['policy_path','policy_name','effective_path','statement_text']; const parsed=['action','subject_type','subject','principals','verb','resource','permission','conditions','valid','parsed']; const all=[...new Set([...primary,...parsed,...Object.keys(row||{})])].filter((k)=>!['_row_id'].includes(k)); const ordered=[...primary,'__parsed__',...parsed,...all.filter((k)=>!primary.includes(k)&&!parsed.includes(k)).sort()]; $('inspectorBody').innerHTML=ordered.map((k)=>k==='__parsed__'?'<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>':`<tr><th>${esc(k.replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase()))}</th><td>${esc(formatInspectorValue(k,row[k]))}</td></tr>`).join(''); $('stmtInspector').classList.add('open'); }
+
+      async function loadOptions(){ const r=await fetch('/simulation/context-options'); const d=await r.json(); state.options=d; state.apis=d.api_operations||[]; $('ctxCompartment').innerHTML=(d.compartments||[]).map((x)=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''); $('ctxPrincipalType').innerHTML=(d.principal_types||[]).map((x)=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''); renderPrincipalList(); renderApiOptions(); }
+      async function loadStatements(){ const body={compartment_path:$('ctxCompartment').value,principal_type:$('ctxPrincipalType').value,principal:$('ctxPrincipal').value}; const r=await fetch('/simulation/statements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); state.principalKey=d.principal_key||''; state.statements=d.statements||[]; state.selectedStatementIds=new Set(state.statements.map((s)=>s.internal_id)); renderStatementTable(); log(`Loaded ${state.statements.length} matching statements.`); updateSummary(); updateReadiness(); activateStep(2); }
+      async function generateVariables(){ const r=await fetch('/simulation/variables',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({statements:state.statements,selected_statement_ids:[...state.selectedStatementIds]})}); const d=await r.json(); state.variables=d.variables||[]; $('variablesArea').innerHTML=state.variables.length?state.variables.map((v)=>`<div class="inline-field"><label>${esc(v)}</label><input data-var="${esc(v)}" value="${esc(state.variableValues[v]||'')}"/><span class="helper-text">${esc((d.hints||{})[v]||'')}</span></div>`).join(''):'<p class="helper-text">No variables required.</p>'; $('variablesArea').querySelectorAll('input[data-var]').forEach((i)=>i.addEventListener('input',(e)=>{ state.variableValues[e.target.dataset.var]=e.target.value; updateSummary(); updateReadiness(); })); log(`Generated ${state.variables.length} variables.`); updateSummary(); updateReadiness(); activateStep(3); }
+
+      async function runSimulation(){ const apis=selectedApis(); if(!apis.length){ $('runStatus').textContent='Select at least one API.'; $('runStatus').className='status error'; return; } const scenarioName=$('scenarioName').value.trim(); const simulationName=$('simulationName').value.trim(); const scenarioInternalId=(scenarioName||'default').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'default'; const body={scenario_internal_id:scenarioInternalId,scenario_name:scenarioName,simulation_name:simulationName,principal_key:state.principalKey,compartment_path:$('ctxCompartment').value,checked_statement_ids:[...state.selectedStatementIds],where_context:state.variableValues,api_operations:apis}; const r=await fetch('/simulation/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); state.lastRun=d.results||[]; const allAllowed=state.lastRun.every((x)=>x.api_call_allowed); const miss=state.lastRun.reduce((n,x)=>n+((x.missing_permissions||[]).length),0); const last=state.lastRun[state.lastRun.length-1]||{}; $('lastBadge').textContent=allAllowed?'ALLOWED':'DENIED'; $('lastBadge').classList.toggle('allowed',allAllowed); $('lastBadge').classList.toggle('denied',!allAllowed); $('lastMissing').textContent=String(miss); $('lastAllow').textContent=String(last.allow_statements_considered||0); $('lastDeny').textContent=String(last.deny_statements_considered||0); $('runStatus').textContent=`Ran ${state.lastRun.length} API simulation(s).`; $('runStatus').className=`status ${allAllowed?'success':'error'}`; log(`Executed ${state.lastRun.length} API operation(s).`); await refreshHistory(); activateStep(5); }
+
+      async function refreshHistory(){ const r=await fetch('/simulation/history'); const d=await r.json(); state.historyMeta=d.history||[]; const tb=$('historyRows'); tb.innerHTML=''; state.historyMeta.forEach((h,i)=>{ const tr=document.createElement('tr'); const scenario=h.scenario_name||'-'; const simulation=h.simulation_name||'-'; const api=h.api_operation||'-'; const result=h.api_call_allowed ? 'ALLOWED' : 'DENIED'; tr.innerHTML=`<td>${i}</td><td>${esc(scenario)}</td><td>${esc(simulation)}</td><td>${esc(api)}</td><td>${esc(result)}</td><td>${esc(h.timestamp||'')}</td><td><button class="ghost" data-action="basic" data-i="${i}" style="margin-top:0;">Basic</button> <button data-action="full" data-i="${i}" style="margin-top:0;">Full</button></td>`; tb.appendChild(tr); }); }
+      async function openHistoryDetail(i){ const r=await fetch(`/simulation/history/${i}`); const d=await r.json(); $('historyDetail').textContent=JSON.stringify(d.trace||{},null,2); $('historyDrawer').classList.add('open'); }
+      async function openHistoryBasic(i){ const r=await fetch(`/simulation/history/${i}`); const d=await r.json(); const t=d.trace||{}; const rows=[['api_call_allowed',t.api_call_allowed],['missing_permissions',JSON.stringify(t.missing_permissions||[])],['required_permissions_for_api_operation',JSON.stringify(t.required_permissions_for_api_operation||[])],['failure_reason',t.failure_reason||''],['allow_statements_considered',t.allow_statements_considered||0],['deny_statements_considered',t.deny_statements_considered||0]]; $('historyBasicBody').innerHTML=rows.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(String(v))}</td></tr>`).join(''); $('historyBasicInspector').classList.add('open'); }
+
+      let prospectiveRows=[], prospectiveMetadata=null;
+      function prospectiveStatus(row){ if(row.parsed&&row.valid)return 'Parsed'; if(Array.isArray(row.invalid_reasons)&&row.invalid_reasons.length)return 'Invalid'; return 'Not parsed'; }
+      function renderProspectiveRows(){ const b=document.querySelector('#prospectiveRowsTable tbody'); b.innerHTML=''; prospectiveRows.forEach((row,idx)=>{ const tr1=document.createElement('tr'); tr1.innerHTML=`<td><input data-k="compartment_path" data-i="${idx}" value="${esc(row.compartment_path||'ROOT')}" /></td><td><input data-k="description" data-i="${idx}" value="${esc(row.description||'')}" /></td><td>${esc(prospectiveStatus(row))}</td><td><button data-action="parse" data-i="${idx}" class="ghost" style="margin-top:0;">Parse</button><button data-action="delete" data-i="${idx}" class="ghost" style="margin-top:0;">Delete</button></td>`; const tr2=document.createElement('tr'); tr2.innerHTML=`<td colspan="4" class="prospective-line2-cell"><textarea data-k="statement_text" data-i="${idx}">${esc(row.statement_text||'')}</textarea><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons||[]).join('; '))}</div></td>`; const tr3=document.createElement('tr'); tr3.className='prospective-sep'; tr3.innerHTML='<td colspan="4"><div class="prospective-sep-line"></div></td>'; b.append(tr1,tr2,tr3); }); }
+      const setOpts=(id,vals)=>{ const el=$(id); el.innerHTML=(vals||[]).map((v)=>`<option value="${esc(v)}">${esc(v)}</option>`).join(''); };
+      function updateWhereModeVisibility(){ const mode=String($('pbWhereMode')?.value||'No Where Clause'); $('pbTagWhereRow1').style.display=mode==='Tag-based Where Clause'?'grid':'none'; $('pbTagWhereRow2').style.display=mode==='Tag-based Where Clause'?'grid':'none'; $('pbOtherWhereRow').style.display=mode==='Other Where Clause'?'grid':'none'; }
+      function refreshResourceDropdownFromMode(){ if(!prospectiveMetadata)return; const src=$('pbUseAllResources').checked?(prospectiveMetadata.resources_all_possible||[]):(prospectiveMetadata.resources_in_use||[]); const prior=$('pbResource').value; $('pbResource').innerHTML=src.map((v)=>`<option value="${esc(v)}">${esc(v)}</option>`).join(''); if(src.includes(prior)) $('pbResource').value=prior; }
+      async function loadProspectiveEditor(){ const [rowsResp,metaResp]=await Promise.all([fetch('/prospective/statements'),fetch('/prospective/builder/metadata')]); const rowsPayload=await rowsResp.json(); prospectiveMetadata=await metaResp.json(); prospectiveRows=Array.isArray(rowsPayload.rows)?rowsPayload.rows:[]; if(!prospectiveRows.length) prospectiveRows.push({compartment_path:'ROOT',description:'',statement_text:'',invalid_reasons:[]}); setOpts('pbAction',prospectiveMetadata.actions||['Allow','Deny']); setOpts('pbPrincipal',prospectiveMetadata.principals||[]); setOpts('pbVerb',prospectiveMetadata.verbs||['inspect','read','use','manage']); setOpts('pbResource',prospectiveMetadata.resources_in_use||[]); setOpts('pbLocation',prospectiveMetadata.locations||['ROOT']); setOpts('pbEffectivePath',prospectiveMetadata.effective_paths||['ROOT']); setOpts('pbWhereMode',prospectiveMetadata.where_modes||['No Where Clause','Tag-based Where Clause','Other Where Clause']); setOpts('pbAccessType',prospectiveMetadata.access_types||[]); setOpts('pbOperator',prospectiveMetadata.operators||['=','!=','IN','NOT IN']); $('pbAction').value='Allow'; $('pbVerb').value='use'; $('pbWhereMode').value='No Where Clause'; $('pbOperator').value='='; updateWhereModeVisibility(); renderProspectiveRows(); $('prospectiveDrawer').classList.add('open'); }
+      async function parseProspectiveRow(index){ const row=prospectiveRows[index]; const r=await fetch('/prospective/statements/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(row)}); const p=await r.json(); prospectiveRows[index]=p.row; renderProspectiveRows(); }
+      async function previewBuilder(){ const payload={action:$('pbAction').value,principal_key:$('pbPrincipal').value,include_default:$('pbIncludeDefault').checked,verb:$('pbVerb').value,resource:$('pbResource').value,location:$('pbLocation').value,effective_path:$('pbEffectivePath').value,where_mode:$('pbWhereMode').value,access_type:$('pbAccessType').value,namespace:$('pbNamespace').value,tag_key:$('pbTagKey').value,operator:$('pbOperator').value,value:$('pbValue').value,other_where_text:$('pbOtherWhereText').value}; const r=await fetch('/prospective/builder/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const p=await r.json(); $('pbPreview').textContent=p.statement_text||'No preview.'; return p; }
+      async function saveProspectiveRows(){ await fetch('/prospective/statements/replace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:prospectiveRows})}); $('prospectiveDrawer').classList.remove('open'); log('Saved prospective statements.'); }
+
+      $('ctxPrincipalType').addEventListener('change',()=>{ renderPrincipalList(); log('Principal type changed.'); });
+      $('ctxCompartment').addEventListener('change',()=>{ updateSummary(); updateReadiness(); log('Effective path changed.'); });
+      $('ctxPrincipal').addEventListener('change',()=>{ updateSummary(); updateReadiness(); });
+      $('loadStatements').addEventListener('click',loadStatements);
+      $('generateVariables').addEventListener('click',generateVariables);
+      $('apiSearch').addEventListener('input',(e)=>renderApiOptions(e.target.value));
+      $('apiSelect').addEventListener('change',()=>{ updateSummary(); updateReadiness(); });
+      $('runSimulation').addEventListener('click',runSimulation);
+      $('refreshHistory').addEventListener('click',refreshHistory);
+      $('closeInspector').addEventListener('click',()=>$('stmtInspector').classList.remove('open'));
+      $('closeHistoryDrawer').addEventListener('click',()=>$('historyDrawer').classList.remove('open'));
+      $('closeHistoryBasic').addEventListener('click',()=>$('historyBasicInspector').classList.remove('open'));
+      $('manageProspectiveBtn').addEventListener('click',loadProspectiveEditor);
+      $('closeProspectiveBtn').addEventListener('click',()=>$('prospectiveDrawer').classList.remove('open'));
+      $('historyRows').addEventListener('click',(e)=>{ const btn=e.target.closest('button[data-action]'); if(!btn) return; const i=Number(btn.dataset.i); if(!Number.isFinite(i)) return; if(btn.dataset.action==='basic') openHistoryBasic(i); if(btn.dataset.action==='full') openHistoryDetail(i); });
+      document.querySelector('#prospectiveRowsTable tbody').addEventListener('input',(e)=>{ const t=e.target; const i=Number(t.dataset.i),k=t.dataset.k; if(!Number.isFinite(i)||!k||!prospectiveRows[i])return; prospectiveRows[i][k]=t.value; });
+      document.querySelector('#prospectiveRowsTable tbody').addEventListener('click',async(e)=>{ const t=e.target; const action=t.dataset.action; const i=Number(t.dataset.i); if(!Number.isFinite(i)) return; if(action==='delete'){ prospectiveRows.splice(i,1); if(!prospectiveRows.length)prospectiveRows.push({compartment_path:'ROOT',description:'',statement_text:'',invalid_reasons:[]}); renderProspectiveRows(); return;} if(action==='parse') await parseProspectiveRow(i); });
+      $('addProspectiveRowBtn').addEventListener('click',()=>{ prospectiveRows.push({compartment_path:'ROOT',description:'',statement_text:'',invalid_reasons:[]}); renderProspectiveRows(); });
+      $('previewProspectiveBtn').addEventListener('click',previewBuilder);
+      $('clearBuilderBtn').addEventListener('click',()=>{ $('pbIncludeDefault').checked=false; $('pbWhereMode').value='No Where Clause'; $('pbNamespace').value=''; $('pbTagKey').value=''; $('pbValue').value=''; $('pbOtherWhereText').value=''; $('pbPreview').textContent='No preview yet.'; updateWhereModeVisibility(); });
+      $('addBuilderToRowsBtn').addEventListener('click',async()=>{ const p=await previewBuilder(); prospectiveRows.push({compartment_path:$('pbLocation').value||'ROOT',description:p.description_suggestion||'',statement_text:p.statement_text||'',invalid_reasons:[]}); renderProspectiveRows(); });
+      $('saveProspectiveBtn').addEventListener('click',saveProspectiveRows);
+      $('pbUseAllResources').addEventListener('change',refreshResourceDropdownFromMode);
+      $('pbWhereMode').addEventListener('change',updateWhereModeVisibility);
+
+      loadOptions().then(()=>{ refreshHistory(); updateSummary(); updateReadiness(); });
+    </script>
+  </body>
+</html>

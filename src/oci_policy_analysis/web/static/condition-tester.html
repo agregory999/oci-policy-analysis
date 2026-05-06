@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Condition Tester</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Condition Tester" data-help-body="Evaluate OCI where-clause expressions with simulated variables. Use Generate Inputs to discover variable names, then Evaluate to append results to the in-page log.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Condition Tester</h1>
+            <p>Utilities • Interactive Where-Clause Evaluation</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Enter a where clause, generate variable inputs, provide sample values, then evaluate. The log is session-local and not persisted.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <section class="card compact-card condition-layout" data-help-title="Condition Clause" data-help-body="Enter the OCI where clause to test. Multi-line input is supported.">
+        <p class="card-title">Condition (Where) Clause</p>
+        <div class="condition-clause-row">
+          <textarea id="clauseInput" placeholder="Example: all { request.principal.id = target.bucket.owner.id }"></textarea>
+          <div class="condition-actions-vertical">
+            <button id="generateBtn" type="button">Generate/Clear Inputs</button>
+            <button id="formatBtn" type="button" class="ghost">Format</button>
+          </div>
+        </div>
+        <div id="statusLine" class="status"></div>
+      </section>
+
+      <section class="card compact-card" data-help-title="Simulated Input Variables" data-help-body="These fields are generated from variables found in the clause. Populate values before evaluating.">
+        <p class="card-title">Simulated Input Variables</p>
+        <div id="varsContainer" class="condition-vars-grid"></div>
+        <div class="panel-actions">
+          <button id="evaluateBtn" type="button">Evaluate Condition</button>
+        </div>
+      </section>
+
+      <section class="card compact-card" data-help-title="Evaluation Result / Log" data-help-body="Each evaluation appends a timestamped result. This log is not persisted.">
+        <p class="card-title">Evaluation Result / Log</p>
+        <div class="panel-actions">
+          <button id="clearBtn" type="button">Clear Output</button>
+        </div>
+        <div id="resultLog" class="result-log refresh-log custom-scrollbar">Result details will appear here.</div>
+      </section>
+    </main>
+
+    <script>
+      const clauseInput = document.getElementById('clauseInput');
+      const generateBtn = document.getElementById('generateBtn');
+      const formatBtn = document.getElementById('formatBtn');
+      const evaluateBtn = document.getElementById('evaluateBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const varsContainer = document.getElementById('varsContainer');
+      const resultLog = document.getElementById('resultLog');
+      const statusLine = document.getElementById('statusLine');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Enter a where clause, generate variable inputs, provide sample values, then evaluate. The log is session-local and not persisted.',
+      };
+      const inputValues = {};
+      const CONDITION_TESTER_STORAGE_KEY = 'ociConditionTesterClause';
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        const helpNodes = document.querySelectorAll('[data-help-title], [data-help-body]');
+        helpNodes.forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function setStatus(message, isError = false) {
+        statusLine.textContent = message || '';
+        statusLine.className = isError ? 'status error' : 'status';
+      }
+
+      function renderVariableInputs(variables, examples = {}) {
+        varsContainer.innerHTML = '';
+        if (!Array.isArray(variables) || !variables.length) {
+          varsContainer.innerHTML = '<div class="hint">No variables detected for this clause.</div>';
+          return;
+        }
+        variables.forEach((variable) => {
+          const row = document.createElement('div');
+          row.className = 'condition-var-row';
+
+          const label = document.createElement('label');
+          label.textContent = `${variable}:`;
+          label.setAttribute('for', `var__${variable}`);
+
+          const input = document.createElement('input');
+          input.id = `var__${variable}`;
+          input.value = inputValues[variable] || '';
+          input.addEventListener('input', (event) => {
+            inputValues[variable] = event.target.value;
+          });
+
+          const hint = document.createElement('div');
+          hint.className = 'hint';
+          hint.textContent = examples[variable] || '';
+
+          row.appendChild(label);
+          row.appendChild(input);
+          row.appendChild(hint);
+          varsContainer.appendChild(row);
+        });
+      }
+
+      async function formatClause() {
+        setStatus('Formatting condition clause...');
+        try {
+          const response = await fetch('/utilities/condition-tester/format', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clause: clauseInput.value || '' }),
+          });
+          const payload = await response.json();
+          clauseInput.value = payload.clause || clauseInput.value;
+          setStatus('Clause formatted.');
+        } catch (error) {
+          setStatus(`Format failed: ${error}`, true);
+        }
+      }
+
+      async function generateInputs() {
+        setStatus('Generating input variables...');
+        try {
+          const response = await fetch('/utilities/condition-tester/variables', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clause: clauseInput.value || '' }),
+          });
+          const payload = await response.json();
+          renderVariableInputs(payload.variables || [], payload.examples || {});
+          setStatus('Input variables generated.');
+        } catch (error) {
+          renderVariableInputs([]);
+          setStatus(`Variable extraction failed: ${error}`, true);
+        }
+      }
+
+      function collectVariablePayload() {
+        const payload = {};
+        const inputs = varsContainer.querySelectorAll('input[id^="var__"]');
+        inputs.forEach((input) => {
+          const variable = input.id.replace('var__', '');
+          payload[variable] = input.value || '';
+        });
+        return payload;
+      }
+
+      function appendResult(payload) {
+        const stamp = payload.timestamp ? new Date(payload.timestamp).toLocaleString() : new Date().toLocaleString();
+        const resultClass = payload.policy_result === 'GRANTED' ? 'result-pass' : 'result-fail';
+        const logEntries = Array.isArray(payload.log) ? payload.log : [];
+        const lines = [];
+        lines.push(`==================== ${stamp} ====================`);
+        lines.push(`Condition: ${payload.condition_string || ''}`);
+        lines.push(`Access Result: ${payload.policy_result || 'DENIED'}`);
+        lines.push('--- Comparison Log ---');
+
+        if (!logEntries.length) {
+          lines.push('  No comparisons made / syntax or execution error.');
+        } else {
+          logEntries.forEach((entry) => {
+            const sim = entry.sim_value ?? '';
+            const op = entry.operator ?? '';
+            const expected = entry.expected ?? '';
+            const variable = entry.variable ?? '';
+            const result = Boolean(entry.result);
+            const status = result ? 'PASS' : 'FAIL';
+            if (sim === 'MISSING') {
+              lines.push(`  [FAIL] Variable '${variable || '?'}' is MISSING.`);
+            } else if (![sim, op, expected, variable].some((v) => v && v !== '?')) {
+              lines.push(`  [${status}] Comparison performed; details unavailable`);
+            } else {
+              lines.push(`  [${status}] ${sim} ${op} ${expected} -> ${result}`);
+            }
+          });
+        }
+
+        const block = document.createElement('div');
+        block.innerHTML = `<div class="result-head">${lines[0]}</div>
+          <div>${lines[1]}</div>
+          <div class="${resultClass}">${lines[2]}</div>
+          <div>${lines.slice(3).join('\n')}</div>`;
+        if (resultLog.textContent.trim() === 'Result details will appear here.') {
+          resultLog.innerHTML = '';
+        }
+        resultLog.prepend(block);
+        resultLog.scrollTop = 0;
+
+        const parseLikeError = logEntries.find((entry) => {
+          const type = String(entry?.type || '').toLowerCase();
+          const info = String(entry?.info || '').toLowerCase();
+          return type.includes('exception') || type.includes('syntax') || info.includes('parse') || info.includes('syntax');
+        });
+        if (parseLikeError) {
+          setStatus(`Condition parse/evaluation error: ${parseLikeError.info || parseLikeError.type || 'See log details.'}`, true);
+          return;
+        }
+        if (String(payload.policy_result || '').toUpperCase() !== 'GRANTED') {
+          setStatus('Condition evaluated to DENIED.', true);
+        }
+      }
+
+      async function evaluateClause() {
+        setStatus('Evaluating condition...');
+        try {
+          const response = await fetch('/utilities/condition-tester/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clause: clauseInput.value || '',
+              variables: collectVariablePayload(),
+            }),
+          });
+          const payload = await response.json();
+          appendResult(payload || {});
+          setStatus('Condition evaluation complete.');
+        } catch (error) {
+          setStatus(`Evaluation failed: ${error}`, true);
+        }
+      }
+
+      function clearOutput() {
+        resultLog.textContent = '';
+        setStatus('Output log cleared.');
+      }
+
+      function preloadConditionFromPolicyAnalysis() {
+        try {
+          const preloadClause = sessionStorage.getItem(CONDITION_TESTER_STORAGE_KEY);
+          if (!preloadClause || !String(preloadClause).trim()) return;
+          clauseInput.value = String(preloadClause).trim();
+          sessionStorage.removeItem(CONDITION_TESTER_STORAGE_KEY);
+          setStatus('Loaded condition from Policy Analysis.');
+          generateInputs();
+        } catch (error) {
+          setStatus(`Unable to load prefilled condition: ${error}`, true);
+        }
+      }
+
+      generateBtn.addEventListener('click', generateInputs);
+      formatBtn.addEventListener('click', formatClause);
+      evaluateBtn.addEventListener('click', evaluateClause);
+      clearBtn.addEventListener('click', clearOutput);
+
+      bindContextHelp();
+      preloadConditionFromPolicyAnalysis();
+      renderVariableInputs([]);
+    </script>
+  </body>
+</html>

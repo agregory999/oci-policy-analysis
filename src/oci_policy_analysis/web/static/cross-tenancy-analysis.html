@@ -5,122 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Cross-Tenancy Analysis</title>
     <link rel="stylesheet" href="/app.css" />
-    <style>
-      .stack { display: grid; gap: 1rem; }
-      .split-2 { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-      .table-shell { border: 1px solid var(--oci-line); border-radius: 12px; overflow: hidden; }
-      .table-scroll { max-height: 30vh; overflow: auto; }
-      .table-scroll.large { max-height: 36vh; }
-      table thead th { position: sticky; top: 0; z-index: 1; background: #f3f1ef; }
-      table tbody tr:nth-child(odd) { background: #fff; }
-      table tbody tr:nth-child(even) { background: #f7f7f7; }
-      table tbody tr:hover { background: #fdf1ef; }
-      table tbody tr.active-row { background: #fbe4e0; }
-      .pill-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-      .small { font-size: 0.85rem; color: #6b7280; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-      .details-box {
-        border: 1px solid var(--oci-line);
-        border-radius: 12px;
-        padding: .75rem;
-        min-height: 150px;
-        min-width: 0;
-        max-width: 100%;
-        overflow-x: hidden;
-        background: #fff;
-      }
-      .details-box h4 { margin: 0 0 .5rem 0; }
-      .details-grid { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: .35rem .6rem; font-size: .92rem; }
-      .details-grid .k { color: #6b7280; }
-      .details-grid > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-      .details-box .mono {
-        display: block;
-        width: 100%;
-        max-width: 100%;
-        white-space: normal !important;
-        overflow-wrap: anywhere;
-        word-break: break-all;
-      }
-      .policy-layout { display: block; }
-      .policy-main { display: grid; gap: 1rem; }
-      .policy-inspector {
-        display: none;
-        border: 1px solid var(--oci-line);
-        border-radius: 12px;
-        overflow: hidden;
-        background: #fff;
-      }
-      .policy-inspector.open { display: flex; flex-direction: column; }
-      .policy-inspector-header {
-        padding: .9rem 1rem;
-        background: #1f1b1a;
-        color: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .policy-inspector-body { max-height: 58vh; overflow: auto; }
-      .policy-inspector-body table { width: 100%; border-collapse: collapse; }
-      .policy-inspector-body th {
-        width: 34%;
-        background: #faf8f6;
-        font-size: .75rem;
-        text-transform: uppercase;
-        color: #6c625d;
-      }
-      .policy-inspector-body td { white-space: pre-wrap; word-break: break-word; }
-      .policy-inspector-body .inspector-separator th {
-        width: 100%;
-        background: #f1ede9;
-        text-align: center;
-        font-size: .72rem;
-        letter-spacing: .08em;
-      }
-      .inspector-empty { padding: 1rem; color: #6b7280; }
-      @media (min-width: 1200px) {
-        .policy-layout {
-          display: grid;
-          gap: 1rem;
-          grid-template-columns: minmax(0, 1fr);
-          position: relative;
-        }
-        .policy-layout.has-selection { grid-template-columns: minmax(0, 1fr); }
-        .policy-inspector {
-          display: flex;
-          flex-direction: column;
-          position: fixed;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          width: min(460px, 40vw);
-          border-radius: 0;
-          z-index: 40;
-          box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
-          transform: translateX(105%);
-          transition: transform 180ms ease;
-          pointer-events: none;
-        }
-        .policy-inspector.open { transform: translateX(0); pointer-events: auto; }
-        .policy-inspector-body { max-height: none; flex: 1; min-height: 0; }
-      }
-      @media (max-width: 980px) { .split-2 { grid-template-columns: 1fr; } }
-    </style>
   </head>
   <body>
-    <header>
-      <h1>Cross-Tenancy Analysis</h1>
-      <a href="/">← Back to home</a>
-    </header>
-    <main class="stack">
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; gap:0.8rem; flex-wrap:wrap; align-items:center;">
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Cross-Tenancy Analysis" data-help-body="Use this page to review define/admit/endorse statements and filter admit/endorse results by selected aliases.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Cross-Tenancy Analysis</h1>
+            <p>Define, Admit, and Endorse statement review with alias filtering</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Hover over cards, tables, and controls to see guidance for each widget.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <div class="card" data-help-title="Toolbar + counts" data-help-body="Refresh loads latest cross-tenancy data. Clear Alias Filter removes all selected define aliases and shows all admit/endorse statements.">
+        <div class="policy-toolbar">
           <div>
             <h3 style="margin:0;">Cross-Tenancy (Basic Fields)</h3>
-            <div class="small">Alias filtering uses statement text contains matching (case-insensitive).</div>
+            <div class="helper-text">Alias filtering uses statement text contains matching (case-insensitive).</div>
           </div>
-          <div style="display:flex; gap:0.6rem;">
-            <button id="refreshBtn">Refresh</button>
-            <button id="clearAliasBtn" class="ghost">Clear Alias Filter</button>
+          <div class="panel-actions">
+            <button id="refreshBtn" data-help-title="Refresh data" data-help-body="Reloads cross-tenancy data from /analysis/cross-tenancy and refreshes all widgets.">Refresh</button>
+            <button id="clearAliasBtn" class="ghost" data-help-title="Clear alias filter" data-help-body="Clears all selected define aliases so admit and endorse tables show all statements.">Clear Alias Filter</button>
           </div>
         </div>
         <div id="status" class="status"></div>
@@ -132,38 +49,35 @@
         </div>
       </div>
 
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; gap:.6rem; align-items:center; flex-wrap:wrap;">
+      <div class="card" data-help-title="Defined aliases table" data-help-body="Select one or more aliases using checkboxes to filter admit/endorse statements by statement text match.">
+        <div class="policy-toolbar">
           <strong>Defined Aliases</strong>
-          <div class="small">Select aliases via checkbox for filtering. Click any row to view define details.</div>
+          <div class="helper-text">Select aliases via checkbox for filtering. Define statement text is shown directly in the table.</div>
         </div>
-        <div class="split-2" style="margin-top:.8rem; align-items:start;">
-          <div class="table-shell"><div class="table-scroll"><table id="definesTable"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th></tr></thead><tbody></tbody></table></div></div>
-          <div id="defineDetails" class="details-box"><h4>Define Details</h4><div class="small">Click a define row to see details.</div></div>
-        </div>
+        <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="definesTable" class="analysis-table"><thead><tr><th>Select</th><th>Policy Name</th><th>Defined Type</th><th>Defined Name</th><th>Define Statement</th></tr></thead><tbody></tbody></table></div></div>
       </div>
 
-      <div id="policyLayout" class="policy-layout">
-        <div class="policy-main">
-          <div class="card">
+      <div id="policyLayout" class="analysis-layout">
+        <div class="layout-row layout-row-1">
+          <div class="card" data-help-title="Admit statements" data-help-body="Rows shown here are filtered by selected aliases. Click a row to open detailed fields in the inspector.">
             <strong>Admit Statements</strong>
-            <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="admitTable"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
+            <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="admitTable" class="analysis-table"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
           </div>
 
-          <div class="card">
+          <div class="card" data-help-title="Endorse statements" data-help-body="Rows shown here are filtered by selected aliases. Click a row to open detailed fields in the inspector.">
             <strong>Endorse Statements</strong>
-            <div class="table-shell" style="margin-top:.8rem;"><div class="table-scroll large"><table id="endorseTable"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
+            <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="endorseTable" class="analysis-table"><thead><tr><th>Policy Name</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
           </div>
         </div>
 
-        <aside id="policyInspector" class="policy-inspector" aria-live="polite">
-          <div class="policy-inspector-header">
+        <aside id="policyInspector" class="inspector-panel" aria-live="polite">
+          <div class="inspector-header">
             <strong id="inspectorTitle">Statement Details</strong>
             <button id="closeInspectorBtn" class="ghost" style="margin-top:0;">×</button>
           </div>
-          <div class="policy-inspector-body">
+          <div class="inspector-body custom-scrollbar">
             <div id="inspectorEmpty" class="inspector-empty">No admit/endorse statement selected.</div>
-            <table id="inspectorTable" style="display:none;"><tbody></tbody></table>
+            <table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table>
           </div>
         </aside>
       </div>
@@ -173,7 +87,6 @@
       const definesBody = document.querySelector('#definesTable tbody');
       const admitBody = document.querySelector('#admitTable tbody');
       const endorseBody = document.querySelector('#endorseTable tbody');
-      const defineDetailsEl = document.getElementById('defineDetails');
       const policyLayout = document.getElementById('policyLayout');
       const policyInspector = document.getElementById('policyInspector');
       const inspectorTitle = document.getElementById('inspectorTitle');
@@ -186,18 +99,29 @@
       const countAdmits = document.getElementById('countAdmits');
       const countEndorses = document.getElementById('countEndorses');
       const countUnknown = document.getElementById('countUnknown');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Hover over cards, tables, and controls to see guidance for each widget.',
+      };
 
       let allDefines = [];
       let allAdmits = [];
       let allEndorses = [];
       let selectedAliases = new Set();
-      let selectedDefineIdx = null;
       let selectedAdmitStableKey = null;
       let selectedEndorseStableKey = null;
       let selectedInspectorType = null;
 
       const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
       const ocidWithBreaks = (v) => esc(v).replaceAll('.', '.<wbr>');
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
 
       function setStatus(message, kind = '') {
         statusEl.textContent = message || '';
@@ -225,18 +149,12 @@
         definesBody.innerHTML = allDefines.map((row, i) => {
           const alias = String(row.defined_name || '').trim();
           const checked = alias && selectedAliases.has(alias.toLowerCase());
-          const rowClass = `${checked ? 'active-row' : ''} ${selectedDefineIdx === i ? 'active-row' : ''}`.trim();
-          return `<tr data-row-id="${i}" class="${rowClass}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td></tr>`;
+          const rowClass = `${checked ? 'active-row' : ''}`.trim();
+          return `<tr data-row-id="${i}" class="${rowClass}"><td><input type="checkbox" ${checked ? 'checked' : ''} ${alias ? '' : 'disabled'} /></td><td>${esc(row.policy_name)}</td><td>${esc(row.defined_type)}</td><td>${esc(row.defined_name)}</td><td>${esc(row.statement_text || '')}</td></tr>`;
         }).join('');
 
         [...definesBody.querySelectorAll('tr')].forEach((tr) => {
           const idx = Number(tr.dataset.rowId);
-          tr.addEventListener('click', (event) => {
-            if (event.target && event.target.tagName === 'INPUT') return;
-            selectedDefineIdx = idx;
-            renderDefines();
-            renderDefineDetails(allDefines[idx]);
-          });
           tr.querySelector('input')?.addEventListener('change', (event) => {
             const alias = String(allDefines[idx]?.defined_name || '').trim().toLowerCase();
             if (!alias) return;
@@ -246,24 +164,6 @@
             renderStatements();
           });
         });
-      }
-
-      function renderDefineDetails(row) {
-        if (!row) {
-          defineDetailsEl.innerHTML = `<h4>Define Details</h4><div class="small">Click a define row to see details.</div>`;
-          return;
-        }
-        defineDetailsEl.innerHTML = `
-          <h4>Define Details</h4>
-          <div class="details-grid">
-            <div class="k">Policy Name</div><div>${esc(row.policy_name)}</div>
-            <div class="k">Defined Type</div><div>${esc(row.defined_type)}</div>
-            <div class="k">Defined Name</div><div>${esc(row.defined_name)}</div>
-            <div class="k">OCID Alias</div><div>${ocidWithBreaks(row.ocid_alias)}</div>
-            <div class="k">Statement Text</div><div>${esc(row.statement_text || '')}</div>
-            <div class="k">Created</div><div>${esc(row.creation_time || '')}</div>
-          </div>
-        `;
       }
 
       function renderStatementRows(body, rows, selectedStableKey) {
@@ -400,6 +300,15 @@
         selectedAliases = new Set();
         renderDefines();
         renderStatements();
+      });
+
+      document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+        const title = node.getAttribute('data-help-title') || '';
+        const body = node.getAttribute('data-help-body') || '';
+        node.addEventListener('mouseenter', () => setContextHelp(title, body));
+        node.addEventListener('focusin', () => setContextHelp(title, body));
+        node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
       });
 
       closeInspectorBtn.addEventListener('click', () => {
