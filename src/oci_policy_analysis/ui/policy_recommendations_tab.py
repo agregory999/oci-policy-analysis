@@ -13,7 +13,9 @@
 # coding: utf-8
 ##########################################################################
 
+import csv
 import tkinter as tk
+import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox
 from datetime import UTC
 from tkinter import ttk
@@ -916,6 +918,8 @@ class PolicyRecommendationsTab(BaseUITab):
 
         ttk.Label(filter_frame, text='(Only statements with overlaps appear)').pack(side='left', padx=10)
 
+        ttk.Button(filter_frame, text='Export to CSV', command=self._export_overlap_to_csv).pack(side='right', padx=4)
+
         # Table
         def on_overlap_select(selected_rows: list[dict]) -> None:
             if selected_rows:
@@ -1001,6 +1005,58 @@ class PolicyRecommendationsTab(BaseUITab):
         self.overlap_detail_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         self.add_context_help(self.overlap_detail_tree, 'Details of all overlapping/conflicting policy relationships.')
+
+    def _export_overlap_to_csv(self):
+        if not self.policy_repo.regular_statements:
+            tkinter.messagebox.showinfo('Export', 'No overlap data to export.')
+            return
+
+        # Build the same filtered set that the overlap table displays
+        from oci_policy_analysis.common.models import PolicySearch
+        filters: PolicySearch = {}
+        if self.overlap_compartment_filter != 'ALL':
+            filters['effective_path'] = [self.overlap_compartment_filter]
+        if self.overlap_resource_filter != 'ALL':
+            filters['resource'] = [self.overlap_resource_filter]
+
+        statements_with_overlaps = [
+            st for st in self.policy_repo.filter_policy_statements(filters=filters)
+            if self.app.policy_intelligence.get_policy_overlaps_by_internal_id(st.get('internal_id'))
+        ]
+
+        if not statements_with_overlaps:
+            tkinter.messagebox.showinfo('Export', 'No overlap data to export.')
+            return
+
+        filepath = tkfiledialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV Files', '*.csv')])
+        if not filepath:
+            return
+
+        export_columns = [
+            'Policy Name', 'Policy Compartment', 'Effective Path', 'Action', 'Statement Text', 'Valid',
+            'Overlap Count', 'Overlapping Policies', 'Overlapping Statements', 'Overlapping Permissions', 'Confidence Levels', 'Reasons',
+        ]
+        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(export_columns)
+            for st in statements_with_overlaps:
+                overlaps = self.app.policy_intelligence.get_policy_overlaps_by_internal_id(st.get('internal_id'))
+                writer.writerow([
+                    st.get('policy_name', ''),
+                    st.get('compartment_path', ''),
+                    st.get('effective_path', ''),
+                    st.get('action', ''),
+                    st.get('statement_text', ''),
+                    st.get('valid', ''),
+                    len(overlaps),
+                    ' | '.join(o.get('superseded_by', '') for o in overlaps),
+                    ' | '.join(o.get('statement_text', '') for o in overlaps),
+                    ' | '.join(', '.join(p.upper() for p in o.get('permission_overlap', [])) for o in overlaps),
+                    ' | '.join(str(o.get('confidence', '')) for o in overlaps),
+                    ' | '.join(o.get('reason', '') for o in overlaps),
+                ])
+        logger.info(f'Exported {len(statements_with_overlaps)} overlap statements to {filepath}')
+        tkinter.messagebox.showinfo('Export Complete', f'Exported {len(statements_with_overlaps)} overlap statements to {filepath}')
 
     # ==== Data/Logic Methods ====
     def _update_reload_all_button_state(self):
