@@ -1,3 +1,10 @@
+# [5.0.0-beta.7](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.6...v5.0.0-beta.7) (2026-05-07)
+
+
+### Features
+
+* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
+
 # [5.0.0-beta.6](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.5...v5.0.0-beta.6) (2026-05-06)
 
 
