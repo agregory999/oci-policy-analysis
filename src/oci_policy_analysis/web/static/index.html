@@ -29,33 +29,54 @@
       </div>
     </div>
 
-    <!-- Main workspace: left = operations, right = progress + navigation cards -->
+    <!-- Main workspace: left = operations, right = navigation cards -->
     <main class="layout-two-column layout-two-column-equal">
+      <!-- Shared load progress widget (spans both columns within main layout) -->
+      <section class="card compact-card" id="sharedProgressWidget" data-help-title="Data Load Status" data-help-body="Tracks each stage from data loading through intelligence and permissions report generation, with dataset details." style="grid-column: 1 / -1; margin-bottom: 0.15rem;">
+        <p class="card-title" style="margin-bottom: 0.45rem;">Data Load Status</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; align-items: start;">
+          <div>
+            <div class="tenancy-options-row" style="align-items: baseline; gap: 0.4rem; margin-top: 0;">
+              <span class="section-kicker" style="margin: 0; font-weight: 700;">Summary</span>
+              <span id="sharedProgressSummary" class="progress-widget-detail">Waiting to start a load.</span>
+              <span id="sharedProgressPercent" class="progress-widget-percent">0%</span>
+            </div>
+            <div class="tenancy-options-row" style="align-items: center; gap: 0.4rem; margin-top: 0.25rem;">
+              <span class="section-kicker" style="margin: 0; font-weight: 700;">Progress</span>
+              <div class="progress-widget-track" style="margin: 0; flex: 1;"><div id="sharedProgressFill" class="progress-widget-fill"></div></div>
+            </div>
+            <div class="tenancy-options-row" style="align-items: baseline; gap: 0.4rem; margin-top: 0.25rem;">
+              <span class="section-kicker" style="margin: 0; font-weight: 700;">Detail</span>
+              <span id="sharedProgressDetail" class="progress-widget-detail">No active load.</span>
+            </div>
+          </div>
+          <div>
+            <div class="tenancy-options-row" style="align-items: baseline; gap: 0.4rem; margin-top: 0;">
+              <span class="section-kicker" style="margin: 0; font-weight: 700;">Dataset</span>
+              <span id="sharedDatasetDetail" class="progress-widget-detail">No dataset loaded yet.</span>
+            </div>
+            <div class="tenancy-options-row" style="align-items: baseline; gap: 0.4rem; margin-top: 0.25rem;">
+              <span class="section-kicker" style="margin: 0; font-weight: 700;">Stages</span>
+              <span id="sharedProgressStages" class="progress-widget-detail">Stages: none yet.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Left column: unified data load operations -->
       <div class="card compact-card" data-help-title="Data Operations" data-help-body="Pick one source path (tenancy, compliance output, cache, or export), then run the matching load action. The shared status widget tracks progress across these paths.">
         <p class="card-title">Data Operations</p>
-        <p>Choose a source below, then run a load. Progress is shared across all load options.</p>
+        <p>Choose a source below, then run a load. Progress is shared across all load options. Before loading, please review the Settings page. </p>
 
         <!-- Form sections: common options + 4 data source entry points -->
         <div class="form-grid form-grid-spacious">
-          <!-- Common toggles used by multiple load paths -->
-          <div>
-            <h3 class="section-heading">Common Options</h3>
-            <div class="common-options-compact">
-              <label class="checkbox-label"><input type="checkbox" id="commonLoadAllUsers" checked /> Load All Users</label>
-              <label class="checkbox-label"><input type="checkbox" id="runIntelligenceAfterLoad" checked /> Create Intelligence</label>
-            </div>
-          </div>
-
-          <hr class="section-separator" />
 
           <!-- Tenancy load: profile/instance principal + recursive options -->
           <div>
-            <h3 class="section-heading">From Profile (Tenancy)</h3>
-            <div class="section-kicker">Options</div>
+            <div class="section-kicker">From Profile (Tenancy)</div>
             <div class="tenancy-options-row">
               <label for="compartmentDepth" class="no-margin-label">Compartment Depth (Identity Domains):</label>
-              <select id="compartmentDepth" class="select-compact">
+              <select id="compartmentDepth" class="select-compact" data-help-title="Compartment Depth" data-help-body="Controls how deeply identity domain compartments are searched during tenancy load.">
                 <option value="1">1 (Root Only)</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
@@ -65,8 +86,9 @@
               </select>
             </div>
             <div class="tenancy-options-row">
-              <label class="checkbox-label"><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
-              <label class="checkbox-label"><input type="checkbox" id="recursiveLoad" checked /> Recursive</label>
+              <label class="checkbox-label" data-help-title="Instance Principal" data-help-body="Use OCI instance principal auth instead of a local profile."><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
+              <label class="checkbox-label" data-help-title="Recursive Load" data-help-body="When enabled, traverses nested compartments during tenancy load."><input type="checkbox" id="recursiveLoad" checked /> Recursive</label>
+              <label class="checkbox-label" data-help-title="Load All Users" data-help-body="Include all users in loaded identity data (applies to tenancy and compliance load flows)."><input type="checkbox" id="commonLoadAllUsers" checked /> Load All Users</label>
             </div>
             <div class="tenancy-profile-row mt-compact">
               <label for="profileSelect">Profile:</label>
@@ -79,7 +101,7 @@
 
           <!-- Compliance import: load artifacts from compliance output directory -->
           <div>
-            <h3 class="section-heading">From Compliance</h3>
+            <div class="section-kicker">From Compliance</div>
             <div class="inline-field">
               <label for="compliancePath">Compliance Output Directory:</label>
               <input id="compliancePath" placeholder="/path/to/compliance/output" data-help-title="Compliance Path" data-help-body="Set the folder that contains compliance output artifacts to import." />
@@ -92,7 +114,7 @@
           <!-- Cache reload: restore previously cached dataset -->
           <div class="cache-row">
             <div>
-              <h3 class="section-heading">From Cache</h3>
+              <div class="section-kicker">From Cache</div>
               <div class="inline-field">
                 <label for="cacheSelect">Cache:</label>
                 <select id="cacheSelect" data-help-title="Cache Selector" data-help-body="Choose a previously saved cache dataset to reload quickly."></select>
@@ -105,7 +127,7 @@
 
           <!-- Export import: load dataset directly from exported JSON -->
           <div>
-            <h3 class="section-heading">From Export</h3>
+            <div class="section-kicker">From Export</div>
             <div class="inline-field">
               <label for="exportPath">Export File:</label>
               <input id="exportPath" placeholder="/path/to/export.json" data-help-title="Export File Path" data-help-body="Point to an exported JSON file to import directly as the active dataset." />
@@ -118,33 +140,33 @@
           <div id="complianceStatus" class="status"></div>
           <div id="loadStatus" class="status"></div>
         </div>
+        </div>
       </div>
       <!-- Right rail: progress/status + analysis/utilities navigation -->
       <aside class="side-stack">
-        <!-- Shared load progress widget (all load flows write here) -->
-        <div class="progress-widget" id="sharedProgressWidget" data-help-title="Data Load Status" data-help-body="Tracks the active load flow across tenancy, compliance, cache, and export paths, including percent complete, current stage, and loaded dataset details.">
-          <p class="card-title progress-widget-title">Data Load Status</p>
-          <div class="progress-widget-head">
-            <span id="sharedProgressSummary" class="progress-widget-detail">Waiting to start a load.</span>
-            <span id="sharedProgressPercent" class="progress-widget-percent">0%</span>
-          </div>
-          <div class="progress-widget-track"><div id="sharedProgressFill" class="progress-widget-fill"></div></div>
-          <div id="sharedProgressDetail" class="progress-widget-detail">No active load.</div>
-          <div id="sharedDatasetDetail" class="progress-widget-detail">No dataset loaded yet.</div>
-        </div>
-
         <!-- Analysis page entry points -->
         <section class="card compact-card" data-help-title="Analysis Navigation" data-help-body="Use these links to open core policy analysis workflows after data has been loaded.">
           <p class="card-title">Analysis</p>
           <p>Run initial policy filtering queries.</p>
           <div class="icon-button-grid">
             <a href="/policy-analysis.html" class="icon-button"><span class="icon-button-mark">PA</span><span class="icon-button-label">Policy Analysis</span></a>
-            <a href="/simulation.html" class="icon-button icon-button-primary"><span class="icon-button-mark">SIM</span><span class="icon-button-label">Policy Simulation</span></a>
             <a href="/cross-tenancy-analysis.html" class="icon-button"><span class="icon-button-mark">XT</span><span class="icon-button-label">Cross-Tenancy Analysis</span></a>
             <a href="/historical-analysis.html" class="icon-button"><span class="icon-button-mark">HI</span><span class="icon-button-label">Historical Analysis</span></a>
             <a href="/users-groups-analysis.html" class="icon-button"><span class="icon-button-mark">UG</span><span class="icon-button-label">User/Group Analysis</span></a>
             <a href="/dynamic-group-analysis.html" class="icon-button"><span class="icon-button-mark">DG</span><span class="icon-button-label">Dynamic Group Analysis</span></a>
             <a href="/resource-principals-analysis.html" class="icon-button"><span class="icon-button-mark">RP</span><span class="icon-button-label">Resource Principals Analysis</span></a>
+          </div>
+        </section>
+
+        <!-- Advanced tooling entry points -->
+        <section class="card compact-card" data-help-title="Advanced Tools Navigation" data-help-body="Use these tools for scenario simulation, consolidation workflows, and recommendations review.">
+          <p class="card-title">Advanced Tools</p>
+          <p>Simulation, consolidation planning, and recommendation analytics.</p>
+          <div class="icon-button-grid">
+            <a href="/simulation.html" class="icon-button icon-button"><span class="icon-button-mark">SIM</span><span class="icon-button-label">Policy Simulation</span></a>
+            <a href="/consolidation-workbench.html" class="icon-button"><span class="icon-button-mark">CW</span><span class="icon-button-label">Consolidation Workbench</span></a>
+            <a href="/recommendations.html" class="icon-button"><span class="icon-button-mark">REC</span><span class="icon-button-label">Recommendations / Limits</span></a>
+            <a href="/permissions-report.html" class="icon-button"><span class="icon-button-mark">PR</span><span class="icon-button-label">Permissions Report</span></a>
           </div>
         </section>
         <!-- Utility page entry points -->
@@ -190,13 +212,14 @@
       const loadComplianceBtn = document.getElementById('loadComplianceBtn');
       const exportPath = document.getElementById('exportPath');
       const loadExportBtn = document.getElementById('loadExportBtn');
-      const runIntelligenceAfterLoad = document.getElementById('runIntelligenceAfterLoad');
       const sharedProgressSummary = document.getElementById('sharedProgressSummary');
       const sharedProgressPercent = document.getElementById('sharedProgressPercent');
       const sharedProgressFill = document.getElementById('sharedProgressFill');
       const sharedProgressDetail = document.getElementById('sharedProgressDetail');
+      const sharedProgressStages = document.getElementById('sharedProgressStages');
       const contextHelpTitle = document.getElementById('contextHelpTitle');
       const contextHelpBody = document.getElementById('contextHelpBody');
+      const sharedStageHistory = [];
       let appSettings = {};
       const defaultContextHelp = {
         title: 'How To Use This Page',
@@ -262,6 +285,25 @@
         if (sharedProgressDetail) sharedProgressDetail.textContent = detail || sharedProgressDetail.textContent;
       }
 
+      function updateStageHistory(stages = []) {
+        if (!Array.isArray(stages) || !stages.length) {
+          if (sharedProgressStages) sharedProgressStages.textContent = 'Stages: none yet.';
+          return;
+        }
+        stages.forEach((entry) => {
+          const stage = String(entry.stage || '').trim();
+          const detail = String(entry.detail || '').trim();
+          const line = detail ? `${stage} — ${detail}` : stage;
+          if (line && !sharedStageHistory.includes(line)) {
+            sharedStageHistory.push(line);
+          }
+        });
+        if (sharedProgressStages) {
+          const lastLines = sharedStageHistory.slice(-4);
+          sharedProgressStages.textContent = `Stages: ${lastLines.join(' • ') || 'none yet.'}`;
+        }
+      }
+
       // Render currently loaded dataset metadata summary.
       function updateDatasetDetail(summary = {}) {
         const datasetDetail = document.getElementById('sharedDatasetDetail');
@@ -276,6 +318,16 @@
         const parts = [];
         if (source) parts.push(`Source: ${source}`);
         if (summary.tenancy_ocid) parts.push(`Tenancy OCID: ${summary.tenancy_ocid}`);
+        if (summary.load_all_users !== null && summary.load_all_users !== undefined) {
+          parts.push(`Load All Users: ${summary.load_all_users ? 'Yes' : 'No'}`);
+        }
+        const counts = summary.entity_counts || {};
+        const countParts = [];
+        if (counts.policies !== undefined) countParts.push(`Policies: ${counts.policies}`);
+        if (counts.statements !== undefined) countParts.push(`Statements: ${counts.statements}`);
+        if (counts.groups !== undefined) countParts.push(`Groups: ${counts.groups}`);
+        if (counts.users !== undefined) countParts.push(`Users: ${counts.users}`);
+        if (countParts.length) parts.push(countParts.join(', '));
         if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
         if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
         datasetDetail.textContent = parts.length ? parts.join(' • ') : 'No dataset loaded yet.';
@@ -288,6 +340,9 @@
           if (!response.ok) return;
           const payload = await response.json();
           updateDatasetDetail(payload.summary || {});
+          if (payload.stage || payload.detail) {
+            updateStageHistory([{ stage: payload.stage, detail: payload.detail }]);
+          }
         } catch (err) {
           // ignore status polling errors
         }
@@ -366,6 +421,8 @@
         if (loadCacheStandaloneBtn) loadCacheStandaloneBtn.disabled = true;
         loadStatus.textContent = 'Loading cache...';
         loadStatus.className = 'status';
+        sharedStageHistory.length = 0;
+        updateStageHistory([]);
         updateProgressWidget({
           percent: 8,
           summary: 'Starting cache load',
@@ -375,12 +432,13 @@
           const response = await fetch(`/load/cache/${cacheName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ run_post_load_intelligence: runIntelligenceAfterLoad.checked }),
+            body: JSON.stringify({}),
           });
           const payload = await response.json();
           loadStatus.textContent = payload.message || 'Cache loaded.';
           loadStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('cache', payload.stages || []));
+          updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
           if (payload.success) await loadCaches();
         } catch (err) {
@@ -448,6 +506,8 @@
       async function loadTenancy() {
         tenancyStatus.textContent = '';
         tenancyStatus.className = 'status';
+        sharedStageHistory.length = 0;
+        updateStageHistory([]);
         updateProgressWidget({ percent: 8, summary: 'Starting tenancy load', detail: 'Submitting tenancy load request...' });
         loadTenancyBtn.disabled = true;
         try {
@@ -466,6 +526,7 @@
           tenancyStatus.textContent = payload.message || 'Load complete.';
           tenancyStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('tenancy', payload.stages || []));
+          updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
           if (payload.success) await loadCaches();
         } catch (err) {
@@ -482,6 +543,8 @@
         complianceStatus.textContent = '';
         complianceStatus.className = 'status';
         loadComplianceBtn.disabled = true;
+        sharedStageHistory.length = 0;
+        updateStageHistory([]);
         updateProgressWidget({
           percent: 8,
           summary: 'Starting compliance load',
@@ -494,13 +557,13 @@
             body: JSON.stringify({
               dir_path: compliancePath.value.trim(),
               load_all_users: commonLoadAllUsers.checked,
-              run_post_load_intelligence: runIntelligenceAfterLoad.checked,
             }),
           });
           const payload = await response.json();
           complianceStatus.textContent = payload.message || 'Compliance load complete.';
           complianceStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('compliance', payload.stages || []));
+          updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
           if (payload.success) await loadCaches();
         } catch (err) {
@@ -526,6 +589,8 @@
         }
         loadStatus.textContent = '';
         if (loadExportBtn) loadExportBtn.disabled = true;
+        sharedStageHistory.length = 0;
+        updateStageHistory([]);
         updateProgressWidget({
           percent: 8,
           summary: 'Starting export load',
@@ -537,13 +602,13 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               file_path: filePath,
-              run_post_load_intelligence: runIntelligenceAfterLoad.checked,
             }),
           });
           const payload = await response.json();
           loadStatus.textContent = payload.message || 'Export loaded.';
           loadStatus.className = payload.success ? 'status success' : 'status error';
           updateProgressWidget(progressFromStages('export', payload.stages || []));
+          updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
           if (payload.success) await loadCaches();
         } catch (err) {

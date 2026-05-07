@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Document metadata + shared stylesheet -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Recommendations</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      /* Keep default shared 3-column grid behavior; only constrain overflow-heavy content. */
+      .layout-row.layout-row-3 .card,
+      .layout-row.layout-row-3 .table-shell,
+      .layout-row.layout-row-3 .table-scroll {
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .layout-row.layout-row-3 .table-scroll {
+        overflow: auto;
+      }
+
+      .card-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+
+      .card-title-row .card-title {
+        margin-bottom: 0;
+      }
+
+      .back-to-top-btn {
+        margin-top: 0;
+        padding: 0.32rem 0.6rem;
+        font-size: 0.78rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Top row: page identity + persistent context help -->
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Recommendations" data-help-body="Read-only recommendations view. This page mirrors TK recommendation sections except workbench/actions.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Policy Recommendations</h1>
+            <p>Risk • Overlap • Consolidation • Cleanup • Limits</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Review recommendations and analytics in read-only mode. Use table row clicks to inspect full row details.</p>
+      </div>
+    </div>
+
+    <!-- Main layout: top summary row + data sections -->
+    <main class="layout-single">
+      <section class="layout-row layout-row-2">
+        <section class="card compact-card">
+          <p class="card-title">Summary</p>
+          <div class="workflow-summary-grid">
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Recommendations</p><p id="sumRecommendations" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">High/Critical</p><p id="sumHighCritical" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Policy Risk Rows</p><p id="sumPolicyRisk" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Statement Risk Rows</p><p id="sumStatementRisk" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Cleanup Rows</p><p id="sumCleanup" class="workflow-summary-value">0</p></div>
+            <div class="workflow-summary-tile"><p class="workflow-summary-label">Limit Alerts</p><p id="sumLimitAlerts" class="workflow-summary-value">0</p></div>
+          </div>
+          <hr class="section-separator" />
+          <div class="section-jump-nav" aria-label="Jump to section">
+            <p class="card-title">Jump to Section</p>
+            <nav class="section-jump-links" id="sectionJumpLinks">
+              <a class="section-jump-link" data-target="cardSummary" href="#cardSummary">Summary</a>
+              <a class="section-jump-link" data-target="cardRiskPolicy" href="#cardRiskPolicy">Risk (Policy)</a>
+              <a class="section-jump-link" data-target="cardRiskStatement" href="#cardRiskStatement">Risk (Statement)</a>
+              <a class="section-jump-link" data-target="cardOverlap" href="#cardOverlap">Overlap</a>
+              <a class="section-jump-link" data-target="cardConsolidation" href="#cardConsolidation">Consolidation</a>
+              <a class="section-jump-link" data-target="cardCleanup" href="#cardCleanup">Cleanup</a>
+              <a class="section-jump-link" data-target="cardLimits" href="#cardLimits">Limits</a>
+            </nav>
+          </div>
+        </section>
+
+        <section class="card compact-card">
+          <p class="card-title">Dataset + Enabled Checks</p>
+          <div id="metaInfo" class="progress-widget-detail">No metadata available yet.</div>
+          <div class="table-shell mt-compact">
+            <table class="analysis-table" id="enabledChecksTable">
+              <thead>
+                <tr><th>Check</th><th>Status / Findings</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="analysis-layout side-stack">
+        <!-- Overall recommendation summary section -->
+        <article id="cardSummary" class="card compact-card" data-help-title="Overall Recommendation Summary" data-help-body="Top recommendation rows from intelligence overlay.">
+          <div class="card-title-row"><p class="card-title">Overall Recommendation Summary</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 280px"><table class="analysis-table" id="summaryTable"><thead><tr><th>Recommendation</th><th>Priority</th><th>Category</th><th>Notes</th><th>Action</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Policy risk section -->
+        <article id="cardRiskPolicy" class="card compact-card" data-help-title="Risk Overview - Policy" data-help-body="Aggregated risk and score summary per policy.">
+          <div class="card-title-row"><p class="card-title">Risk Overview - Policy</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="inline-field">
+            <label for="policyRiskFilter" class="no-margin-label">Filter rows</label>
+            <input id="policyRiskFilter" type="search" placeholder="Type to filter risk policy rows" data-help-title="Risk Policy Filter" data-help-body="Filters policy risk rows by text across visible columns." />
+          </div>
+          <p id="policyRiskFilterCount" class="helper-text">Showing 0 of 0</p>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 260px"><table class="analysis-table" id="policyRiskTable"><thead><tr><th>Policy Path</th><th>Max Risk %</th><th>Total Statements</th><th>Total Raw Risk</th><th>Example Statement</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Statement risk section -->
+        <article id="cardRiskStatement" class="card compact-card" data-help-title="Risk Overview - Statement" data-help-body="Statement-level risk, relative risk, and notes.">
+          <div class="card-title-row"><p class="card-title">Risk Overview - Statement</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="inline-field">
+            <label for="statementRiskFilter" class="no-margin-label">Filter rows</label>
+            <input id="statementRiskFilter" type="search" placeholder="Type to filter statement risk rows" data-help-title="Risk Statement Filter" data-help-body="Filters statement risk rows by text across visible columns." />
+          </div>
+          <p id="statementRiskFilterCount" class="helper-text">Showing 0 of 0</p>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 260px"><table class="analysis-table" id="statementRiskTable"><thead><tr><th>Policy Path</th><th>Effective Path</th><th>Score</th><th>Relative Risk</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Overlap section -->
+        <article id="cardOverlap" class="card compact-card" data-help-title="Overlap Analysis" data-help-body="Statements with one or more detected overlap entries.">
+          <div class="card-title-row"><p class="card-title">Overlap Analysis</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="overlapTable"><thead><tr><th>Policy Name</th><th>Effective Path</th><th>Action</th><th>Overlap Count</th><th>Policy Overlap</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Consolidation section -->
+        <article id="cardConsolidation" class="card compact-card" data-help-title="Policy Consolidation" data-help-body="Consolidation opportunities from intelligence overlay.">
+          <div class="card-title-row"><p class="card-title">Policy Consolidation</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="consolidationTable"><thead><tr><th>Policy Name(s)</th><th>Compartment</th><th>Principal</th><th>Service/Resource</th><th>Consolidation Reason</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Cleanup section -->
+        <article id="cardCleanup" class="card compact-card" data-help-title="Cleanup / Fix" data-help-body="Read-only cleanup issue listing. Workbench/actions are intentionally excluded.">
+          <div class="card-title-row"><p class="card-title">Cleanup / Fix</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 220px"><table class="analysis-table" id="cleanupTable"><thead><tr><th>Type</th><th>Name</th><th>Reason</th><th>Action</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+
+        <!-- Limits section -->
+        <article id="cardLimits" class="card compact-card" data-help-title="Limits" data-help-body="Compartment policy statement limits across hierarchy paths.">
+          <div class="card-title-row"><p class="card-title">Limits</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 220px"><table class="analysis-table" id="limitsTable"><thead><tr><th>Compartment Hierarchy Path</th><th>Direct</th><th>Cumulative</th><th>Status</th><th>Recommendation</th></tr></thead><tbody></tbody></table></div></div>
+        </article>
+      </section>
+
+      <aside id="rowDetailInspector" class="inspector-panel" aria-live="polite" aria-label="Row detail inspector">
+        <div class="inspector-header">
+          <strong>Row Detail</strong>
+          <button id="closeRowDetailInspector" class="ghost" type="button" data-help-title="Close row detail" data-help-body="Close the right-side row detail fly-in panel.">×</button>
+        </div>
+        <div class="inspector-body custom-scrollbar">
+          <pre id="rowDetail" class="workflow-mini-log" style="max-height:none;height:100%;border:0;">Select a table row to inspect full JSON detail.</pre>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      // Page state + shared refs.
+      const state = { payload: null };
+      const filterState = {
+        policyRisk: '',
+        statementRisk: '',
+      };
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const rowDetail = document.getElementById('rowDetail');
+      const rowDetailInspector = document.getElementById('rowDetailInspector');
+      const closeRowDetailInspector = document.getElementById('closeRowDetailInspector');
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Review recommendations and analytics in read-only mode. Use table row clicks to inspect full row details.',
+      };
+
+      const esc = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+      function normalizeDetailValue(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') {
+          const raw = value.trim();
+          if (!raw) return '';
+          // Decode JSON-encoded display fragments (for example quoted risk notes)
+          // so details read naturally instead of showing escaped/quoted payloads.
+          try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') return parsed;
+            if (Array.isArray(parsed)) return parsed.join('\n');
+            if (parsed && typeof parsed === 'object') return JSON.stringify(parsed, null, 2);
+          } catch (_err) {
+            // Not JSON text; use raw string as-is.
+          }
+          return raw;
+        }
+        if (Array.isArray(value)) return value.map((item) => normalizeDetailValue(item)).join('\n');
+        if (typeof value === 'object') return JSON.stringify(value, null, 2);
+        return String(value);
+      }
+
+      function formatRowDetail(row) {
+        const entries = Object.entries(row || {});
+        if (!entries.length) return 'No detail available for this row.';
+        return entries
+          .map(([key, value]) => `${key}:\n${normalizeDetailValue(value)}`)
+          .join('\n\n');
+      }
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        const nodes = document.querySelectorAll('[data-help-title], [data-help-body]');
+        nodes.forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function bindBackToTopButtons() {
+        document.querySelectorAll('[data-back-to-top]').forEach((node) => {
+          node.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        });
+      }
+
+      function attachRowDetailClicks(tableId, rows) {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        [...tbody.querySelectorAll('tr')].forEach((tr) => {
+          tr.addEventListener('click', () => {
+            const idx = Number(tr.dataset.idx);
+            const row = rows[idx] || {};
+            rowDetail.textContent = formatRowDetail(row);
+            rowDetailInspector?.classList.add('open');
+          });
+        });
+      }
+
+      function clearRowDetailInspector() {
+        if (rowDetail) rowDetail.textContent = 'Select a table row to inspect full JSON detail.';
+        rowDetailInspector?.classList.remove('open');
+      }
+
+      function renderTable(tableId, rows, columns) {
+        const tbody = document.querySelector(`#${tableId} tbody`);
+        tbody.innerHTML = (rows || [])
+          .map((row, idx) => `<tr data-idx="${idx}">${columns.map((col) => `<td>${esc(row[col] ?? '')}</td>`).join('')}</tr>`)
+          .join('');
+        attachRowDetailClicks(tableId, rows || []);
+      }
+
+      function filterRowsByText(rows, columns, query) {
+        const normalized = String(query || '').trim().toLowerCase();
+        if (!normalized) return rows || [];
+        return (rows || []).filter((row) => columns
+          .some((col) => String(row?.[col] ?? '').toLowerCase().includes(normalized)));
+      }
+
+      function updateFilterCount(nodeId, shown, total) {
+        const node = document.getElementById(nodeId);
+        if (!node) return;
+        node.textContent = `Showing ${shown} of ${total}`;
+      }
+
+      function renderRiskTables(payload) {
+        const policyColumns = ['Policy Path', 'Max Statement Risk (Global %)', 'Total Statements', 'Total Raw Risk', 'Example Statement'];
+        const statementColumns = ['Policy Path', 'Effective Path', 'Score', 'Relative Risk', 'Statement Text'];
+
+        const allPolicyRows = payload.risk_policy || [];
+        const allStatementRows = payload.risk_statement || [];
+
+        const filteredPolicyRows = filterRowsByText(allPolicyRows, policyColumns, filterState.policyRisk);
+        const filteredStatementRows = filterRowsByText(allStatementRows, statementColumns, filterState.statementRisk);
+
+        renderTable('policyRiskTable', filteredPolicyRows, policyColumns);
+        renderTable('statementRiskTable', filteredStatementRows, statementColumns);
+
+        updateFilterCount('policyRiskFilterCount', filteredPolicyRows.length, allPolicyRows.length);
+        updateFilterCount('statementRiskFilterCount', filteredStatementRows.length, allStatementRows.length);
+      }
+
+      function bindTableFilters() {
+        const policyInput = document.getElementById('policyRiskFilter');
+        const statementInput = document.getElementById('statementRiskFilter');
+
+        if (policyInput) {
+          policyInput.addEventListener('input', (event) => {
+            filterState.policyRisk = event.target.value || '';
+            if (state.payload) renderRiskTables(state.payload);
+          });
+        }
+
+        if (statementInput) {
+          statementInput.addEventListener('input', (event) => {
+            filterState.statementRisk = event.target.value || '';
+            if (state.payload) renderRiskTables(state.payload);
+          });
+        }
+      }
+
+      function renderSummary(payload) {
+        const summary = payload.summary || [];
+        const highCritical = summary.filter((r) => {
+          const p = String(r.Priority || '').toUpperCase();
+          return p === 'HIGH' || p === 'CRITICAL';
+        }).length;
+        const limitAlerts = (payload.limits || []).filter((r) => ['Nearing Limit', 'Over Limit'].includes(String(r.Status || ''))).length;
+
+        document.getElementById('sumRecommendations').textContent = String(summary.length);
+        document.getElementById('sumHighCritical').textContent = String(highCritical);
+        document.getElementById('sumPolicyRisk').textContent = String((payload.risk_policy || []).length);
+        document.getElementById('sumStatementRisk').textContent = String((payload.risk_statement || []).length);
+        document.getElementById('sumCleanup').textContent = String((payload.cleanup || []).length);
+        document.getElementById('sumLimitAlerts').textContent = String(limitAlerts);
+      }
+
+      function renderMeta(payload) {
+        const meta = payload.meta || {};
+        const bits = [];
+        if (meta.tenancy_name) bits.push(`Tenancy: ${meta.tenancy_name}`);
+        if (meta.tenancy_ocid) bits.push(`OCID: ${meta.tenancy_ocid}`);
+        if (meta.data_as_of) bits.push(`Data As Of: ${meta.data_as_of}`);
+        const lines = [];
+        lines.push(bits.length ? bits.join(' • ') : 'No metadata available yet.');
+        lines.push('Enabled intelligence checks and findings are listed below.');
+        document.getElementById('metaInfo').textContent = lines.join('\n');
+      }
+
+      function findingsCountForStrategy(strategyId, payload) {
+        const p = payload || {};
+        switch (strategyId) {
+          case 'risk_scores':
+            return (p.risk_statement || []).length;
+          case 'overlap':
+            return (p.overlap || []).length;
+          case 'consolidation_suggestion':
+            return (p.consolidation || []).length;
+          case 'invalid_statements':
+          case 'unused_groups':
+          case 'unused_dynamic_groups':
+          case 'statements_too_open':
+          case 'anyuser_no_where': {
+            const cleanupRows = p.cleanup || [];
+            const typeMap = {
+              invalid_statements: 'Invalid Statement',
+              unused_groups: 'Group w/ No Users',
+              unused_dynamic_groups: 'Unused Dynamic Group',
+              statements_too_open: 'Overly Broad Statement',
+              anyuser_no_where: 'Any-user Without Where',
+            };
+            return cleanupRows.filter((r) => String(r.Type || '') === typeMap[strategyId]).length;
+          }
+          case 'recommendations':
+            return (p.summary || []).length;
+          default:
+            return null;
+        }
+      }
+
+      function applyEnabledSectionVisibility(enabledIds) {
+        const enabled = new Set(enabledIds || []);
+        const show = (id, visible) => {
+          const node = document.getElementById(id);
+          if (!node) return;
+          node.style.display = visible ? '' : 'none';
+        };
+
+        const riskEnabled = enabled.has('risk_scores');
+        show('cardRiskPolicy', riskEnabled);
+        show('cardRiskStatement', riskEnabled);
+        show('cardOverlap', enabled.has('overlap'));
+        show('cardConsolidation', enabled.has('consolidation_suggestion'));
+
+        const cleanupEnabled = ['invalid_statements', 'unused_groups', 'unused_dynamic_groups', 'statements_too_open', 'anyuser_no_where']
+          .some((sid) => enabled.has(sid));
+        show('cardCleanup', cleanupEnabled);
+        show('cardSummary', enabled.has('recommendations'));
+        // Keep Limits visible; it's operational context and useful regardless of enabled checks.
+
+        syncJumpLinks();
+      }
+
+      function syncJumpLinks() {
+        const jumpLinks = document.querySelectorAll('#sectionJumpLinks [data-target]');
+        jumpLinks.forEach((link) => {
+          const targetId = link.getAttribute('data-target');
+          const target = targetId ? document.getElementById(targetId) : null;
+          const visible = !!target && target.style.display !== 'none';
+          link.style.display = visible ? '' : 'none';
+        });
+      }
+
+      function renderEnabledChecksTable(strategies, enabledIds, payload) {
+        const tbody = document.querySelector('#enabledChecksTable tbody');
+        if (!tbody) return;
+        tbody.innerHTML = (strategies || [])
+          .map((strategy) => {
+            const sid = String(strategy.strategy_id || '');
+            const name = String(strategy.display_name || sid);
+            const isEnabled = enabledIds.includes(sid);
+            const findings = findingsCountForStrategy(sid, payload);
+            const statusText = isEnabled
+              ? `Enabled${findings === null ? '' : ` • Findings: ${findings}`}`
+              : 'Disabled';
+            return `<tr><td>${esc(name)}</td><td>${esc(statusText)}</td></tr>`;
+          })
+          .join('');
+      }
+
+      async function renderEnabledChecksSummary() {
+        const metaNode = document.getElementById('metaInfo');
+        if (!metaNode) return;
+        try {
+          const [settingsResp, strategiesResp] = await Promise.all([
+            fetch('/settings', { cache: 'no-store' }),
+            fetch('/intelligence/strategies', { cache: 'no-store' }),
+          ]);
+          if (!settingsResp.ok || !strategiesResp.ok) return;
+          const settingsPayload = await settingsResp.json();
+          const strategiesPayload = await strategiesResp.json();
+          const allStrategies = Array.isArray(strategiesPayload.strategies) ? strategiesPayload.strategies : [];
+          const enabled = (settingsPayload.settings || {}).enabled_intelligence_checks;
+          const enabledIds = Array.isArray(enabled) && enabled.length
+            ? enabled
+            : allStrategies.map((s) => s.strategy_id);
+          renderEnabledChecksTable(allStrategies, enabledIds, state.payload || {});
+          applyEnabledSectionVisibility(enabledIds);
+          metaNode.textContent = `${metaNode.textContent}\nChecks enabled: ${enabledIds.length}/${allStrategies.length || enabledIds.length}`;
+        } catch (_err) {
+          const tbody = document.querySelector('#enabledChecksTable tbody');
+          if (tbody) tbody.innerHTML = '<tr><td colspan="2">Unable to load enabled checks.</td></tr>';
+          metaNode.textContent = `${metaNode.textContent}\nEnabled intelligence checks: unavailable`;
+        }
+      }
+
+      async function loadDashboard() {
+        const resp = await fetch('/analysis/recommendations/dashboard', { cache: 'no-store' });
+        const payload = await resp.json();
+        state.payload = payload;
+
+        renderTable('summaryTable', payload.summary || [], ['Recommendation', 'Priority', 'Category', 'Notes', 'Action']);
+        renderRiskTables(payload);
+        renderTable('overlapTable', payload.overlap || [], ['Policy Name', 'Effective Path', 'Action', 'Overlap Count', 'Policy Overlap']);
+        renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason']);
+        renderTable('cleanupTable', payload.cleanup || [], ['Type', 'Name', 'Reason', 'Action']);
+        renderTable('limitsTable', payload.limits || [], ['Compartment Hierarchy Path', 'Direct Statements', 'Cumulative Statements', 'Status', 'Recommendation']);
+
+        renderSummary(payload);
+        renderMeta(payload);
+      }
+
+      async function initPage() {
+        bindTableFilters();
+        bindContextHelp();
+        bindBackToTopButtons();
+        closeRowDetailInspector?.addEventListener('click', clearRowDetailInspector);
+        setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+        syncJumpLinks();
+        await loadDashboard();
+        await renderEnabledChecksSummary();
+      }
+
+      initPage();
+    </script>
+  </body>
+</html>

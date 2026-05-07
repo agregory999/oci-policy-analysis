@@ -64,6 +64,10 @@ CONTEXT_HELP = {
         'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
         'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
     ),
+    'RISK_REDUCTION_SETTINGS': (
+        'Set default risk scoring reductions used during intelligence calculations. '
+        'These are persisted settings shared by desktop and web flows.'
+    ),
     # 'DOMAIN_COMPARTMENTS': Removed; replaced by compartment depth selector.
 }
 
@@ -112,6 +116,11 @@ class SettingsTab(BaseUITab):
         self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
         self.mcp_port_var = tk.StringVar(value=str(self.settings.get('mcp_port', '8765')))
         self.mcp_host_var = tk.StringVar(value=self.settings.get('mcp_host', '127.0.0.1'))
+        allowed_pct = {0, 25, 50, 75, 90}
+        where_pct = int(self.settings.get('risk_where_clause_reduction_pct', 50) or 50)
+        service_pct = int(self.settings.get('risk_service_principal_reduction_pct', 50) or 50)
+        self.risk_where_reduction_var = tk.StringVar(value=f'{where_pct if where_pct in allowed_pct else 50}%')
+        self.risk_service_reduction_var = tk.StringVar(value=f'{service_pct if service_pct in allowed_pct else 50}%')
 
         # Load profiles from ~/.oci/config
         self.profile_list = ['DEFAULT']
@@ -628,6 +637,45 @@ class SettingsTab(BaseUITab):
         checks_inner = ttk.Frame(label_frm_rec_cons)
         checks_inner.pack(fill='x', padx=8, pady=6)
         self.add_context_help(checks_inner, CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+
+        risk_defaults_row = ttk.Frame(label_frm_rec_cons)
+        risk_defaults_row.pack(fill='x', padx=8, pady=(0, 4))
+        self.add_context_help(risk_defaults_row, CONTEXT_HELP['RISK_REDUCTION_SETTINGS'])
+        ttk.Label(risk_defaults_row, text='Risk defaults: WHERE reduction').pack(side='left', padx=(0, 4))
+        risk_options = ['0%', '25%', '50%', '75%', '90%']
+        risk_where_combo = ttk.Combobox(
+            risk_defaults_row,
+            textvariable=self.risk_where_reduction_var,
+            state='readonly',
+            values=risk_options,
+            width=7,
+        )
+        risk_where_combo.pack(side='left', padx=(0, 12))
+        ttk.Label(risk_defaults_row, text='Service principal reduction').pack(side='left', padx=(0, 4))
+        risk_service_combo = ttk.Combobox(
+            risk_defaults_row,
+            textvariable=self.risk_service_reduction_var,
+            state='readonly',
+            values=risk_options,
+            width=7,
+        )
+        risk_service_combo.pack(side='left', padx=(0, 12))
+
+        def _save_risk_reduction_defaults(*_args):
+            try:
+                self.settings['risk_where_clause_reduction_pct'] = int(
+                    str(self.risk_where_reduction_var.get() or '50').replace('%', '')
+                )
+                self.settings['risk_service_principal_reduction_pct'] = int(
+                    str(self.risk_service_reduction_var.get() or '50').replace('%', '')
+                )
+            except ValueError:
+                return
+            self.app.settings_service.save()
+
+        risk_where_combo.bind('<<ComboboxSelected>>', _save_risk_reduction_defaults)
+        risk_service_combo.bind('<<ComboboxSelected>>', _save_risk_reduction_defaults)
+
         for sid, display_name, _category in strategy_list:
             if sid not in self.enabled_intelligence_check_vars:
                 continue

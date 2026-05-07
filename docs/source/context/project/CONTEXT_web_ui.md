@@ -547,6 +547,61 @@ Use these classes for status/progress displays:
 - `.refresh-log`, `.refresh-log-line`, `.refresh-log-warning`,
   `.refresh-log-error` for log output surfaces.
 
+### 9.4.1 Reusable Client-Side Table Filter Pattern (Large Result Sets)
+
+For tables with high row counts (for example 500-2000 rows), use a lightweight
+client-side text filter before introducing server-side filtering.
+
+Standard UX:
+
+- Add a search input directly above the target table.
+- Apply case-insensitive substring matching across configured display columns.
+- Re-render the table with only matching rows.
+- Show a helper line in the format: `Showing X of Y`.
+- Keep filtering independent of sorting (filter-only is acceptable when sort is
+  unavailable or intentionally disabled).
+
+Recommended markup pattern:
+
+```html
+<div class="inline-field">
+  <label for="riskPolicyFilter" class="no-margin-label">Filter rows</label>
+  <input
+    id="riskPolicyFilter"
+    type="search"
+    placeholder="Type to filter rows"
+    data-help-title="Risk Policy Filter"
+    data-help-body="Filters rows by text across visible columns."
+  />
+</div>
+<p id="riskPolicyFilterCount" class="helper-text">Showing 0 of 0</p>
+```
+
+Recommended JavaScript pattern:
+
+```js
+function filterRowsByText(rows, columns, query) {
+  const normalized = String(query || '').trim().toLowerCase();
+  if (!normalized) return rows || [];
+  return (rows || []).filter((row) =>
+    columns.some((col) => String(row?.[col] ?? '').toLowerCase().includes(normalized))
+  );
+}
+
+function updateFilterCount(nodeId, shown, total) {
+  const node = document.getElementById(nodeId);
+  if (node) node.textContent = `Showing ${shown} of ${total}`;
+}
+```
+
+Implementation guidance:
+
+- Keep original row arrays in memory and derive filtered arrays on input events.
+- Reuse existing table-render helpers so row-click inspectors continue to work.
+- If filtering becomes expensive at higher row counts, debounce key input
+  (e.g., 100-150ms) rather than changing UX semantics.
+- Apply this pattern consistently across pages with table-first workflows.
+
 ### 9.5 Context Help Rules
 
 Interactive controls should declare help text with attributes:

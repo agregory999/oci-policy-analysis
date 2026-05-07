@@ -188,12 +188,30 @@ class PolicyIntelligenceEngine:
             return
 
         run_ids = set(enabled_strategy_ids) if enabled_strategy_ids else set(self._strategies)
+        logger.info(
+            'Policy intelligence run_all starting: enabled_strategy_ids=%s',
+            sorted(run_ids),
+        )
         for strategy_id in self._run_order:
-            if strategy_id not in run_ids or strategy_id not in self._strategies:
+            if strategy_id not in self._strategies:
+                logger.info('Policy intelligence strategy skipped (not registered): %s', strategy_id)
+                continue
+            if strategy_id not in run_ids:
+                logger.info('Policy intelligence strategy skipped (disabled): %s', strategy_id)
                 continue
             strategy = self._strategies[strategy_id]
+            logger.info(
+                'Policy intelligence strategy running: %s (%s)',
+                strategy.strategy_id,
+                strategy.display_name,
+            )
             try:
                 strategy.run(repo, overlay, params)  # pyright: ignore[reportArgumentType]
+                logger.info(
+                    'Policy intelligence strategy completed: %s (%s)',
+                    strategy.strategy_id,
+                    strategy.display_name,
+                )
             except Exception as e:
                 logger.warning('Intelligence strategy %s failed: %s', strategy_id, e)
 

@@ -13,13 +13,18 @@ from fastapi.responses import FileResponse
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
+from oci_policy_analysis.application.services.consolidation_workbench_service import (
+    ConsolidationWorkbenchService,
+)
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.application.services.intelligence_service import IntelligenceService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.logging_service import LoggingService
+from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
+from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
 from oci_policy_analysis.common import config
@@ -329,6 +334,22 @@ def run_intelligence() -> dict[str, object]:
     return {'overlay': result.overlay}
 
 
+@router.get('/intelligence/strategies')
+def list_intelligence_strategies() -> dict[str, object]:
+    """Return intelligence strategy metadata for settings pages.
+
+    Returns:
+        dict[str, object]: List of configured strategy IDs and display metadata.
+    """
+    logger.info('GET /intelligence/strategies')
+    ctx = get_context()
+    engine = ctx.intelligence
+    strategies = []
+    for sid, display_name, category in engine.get_strategies_for_settings():
+        strategies.append({'strategy_id': sid, 'display_name': display_name, 'category': category})
+    return {'strategies': strategies}
+
+
 @router.post('/analysis/historical-compare')
 def historical_compare(payload: dict[str, object]) -> dict[str, object]:
     """Compare two named caches and return normalized sectioned diff results."""
@@ -431,7 +452,15 @@ def list_users(search: str = '') -> dict[str, object]:
     repo = ctx.policy_repo
     user_filter: UserSearch = UserSearch(search=_split_pipe(search))
     users: list[User] = repo.filter_users(user_filter=user_filter)
-    output = [for_display_user(u) for u in users]
+    output = []
+    for u in users:
+        row = for_display_user(u)
+        # Expose raw membership/details so web pages can reliably derive
+        # selected-user -> deduped-group filters without parsing display strings.
+        row['groups'] = list(u.get('groups') or [])
+        row['domain_name'] = str(u.get('domain_name') or 'Default')
+        row['user_name'] = str(u.get('user_name') or '')
+        output.append(row)
     return {
         'total': len(getattr(repo, 'users', []) or []),
         'matched': len(output),
@@ -523,6 +552,22 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
                         }
                     )
 
+    logger.debug(
+        '[by-subjects] payload summary: exact_groups=%d exact_users=%d exact_dynamic_groups=%d include_any_subjects=%s subject_type_terms=%d subject_terms=%d principal_terms=%d',
+        len(exact_groups),
+        len(exact_users),
+        len(exact_dynamic_groups),
+        include_any_subjects,
+        len(subject_type_filter),
+        len(subject_filter_terms),
+        len(principal_filter_terms),
+    )
+    logger.debug('[by-subjects] exact_groups=%s', exact_groups)
+    if exact_users:
+        logger.debug('[by-subjects] exact_users=%s', exact_users)
+    if exact_dynamic_groups:
+        logger.debug('[by-subjects] exact_dynamic_groups=%s', exact_dynamic_groups)
+
     policy_filter: PolicySearch = {}
     if exact_groups:
         policy_filter['exact_groups'] = exact_groups
@@ -530,16 +575,22 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         policy_filter['exact_users'] = exact_users
     if exact_dynamic_groups:
         policy_filter['exact_dynamic_groups'] = exact_dynamic_groups
+
+    logger.debug('[by-subjects] derived policy_filter=%s', policy_filter)
+
     statements = repo.filter_policy_statements(filters=policy_filter)
+    logger.debug('[by-subjects] base matched count=%d', len(statements))
 
     if include_any_subjects:
         extra = repo.filter_policy_statements(filters=PolicySearch(subject=['any-user', 'any-group']))
+        logger.debug('[by-subjects] include_any_subjects extra candidates=%d', len(extra))
         seen = {st.get('internal_id') or st.get('statement_text') for st in statements}
         for st in extra:
             key = st.get('internal_id') or st.get('statement_text')
             if key not in seen:
                 statements.append(st)
                 seen.add(key)
+        logger.debug('[by-subjects] count after include_any_subjects merge=%d', len(statements))
 
     # Optional secondary narrowing by subject_type/subject/principal details.
     if subject_type_filter or subject_filter_terms or principal_filter_terms:
@@ -587,6 +638,7 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
             filtered_statements.append(st)
 
         statements = filtered_statements
+        logger.debug('[by-subjects] count after subject/principal narrowing=%d', len(statements))
 
     selected_groups: list[dict[str, str]] = []
     if exact_groups:
@@ -611,6 +663,14 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         if key not in seen_groups:
             seen_groups.add(key)
             selected_groups_unique.append(g)
+
+    logger.debug(
+        '[by-subjects] selected_groups_unique=%d final_matched=%d total_regular=%d',
+        len(selected_groups_unique),
+        len(statements),
+        len(getattr(repo, 'regular_statements', []) or []),
+    )
+    logger.debug('[by-subjects] selected_groups_unique=%s', selected_groups_unique)
 
     return {
         'total': len(getattr(repo, 'regular_statements', []) or []),
@@ -691,6 +751,99 @@ def get_cross_tenancy_basic() -> dict[str, object]:
             'unknown': len(unknown_rows),
         },
     }
+
+
+@router.get('/analysis/permissions-report/tree')
+def get_permissions_report_tree(
+    show_inherited_principals: bool = False,
+    principal_query: str = '',
+) -> dict[str, object]:
+    """Return permissions report tree rows grouped by effective path.
+
+    Args:
+        show_inherited_principals: Include ancestor-path principals not explicitly
+            present in the selected path.
+        principal_query: Optional principal-key free-text query.
+
+    Returns:
+        dict[str, object]: Tree payload with sorted path and subject rows.
+    """
+    logger.info('GET /analysis/permissions-report/tree')
+    ctx = get_context()
+    service = PermissionsReportService(ctx)
+    return service.get_tree(
+        show_inherited_principals=show_inherited_principals,
+        principal_query=principal_query,
+    )
+
+
+@router.get('/analysis/permissions-report/details')
+def get_permissions_report_details(
+    path: str = '',
+    subject_key: str = '',
+    permission_query: str = '',
+    principal_query: str = '',
+) -> dict[str, object]:
+    """Return allow/deny detail rows for one path and principal key.
+
+    Args:
+        path: Effective compartment path.
+        subject_key: Principal key for the selected subject row.
+        permission_query: Optional permission free-text query.
+        principal_query: Optional principal-key query (validation guard).
+
+    Returns:
+        dict[str, object]: Details payload with allow and deny row lists.
+
+    Raises:
+        HTTPException: When path or subject_key is missing, or principal query does
+            not match the selected subject.
+    """
+    logger.info('GET /analysis/permissions-report/details')
+    path_key = str(path or '').strip()
+    selected_subject_key = str(subject_key or '').strip()
+    if not path_key or not selected_subject_key:
+        raise HTTPException(status_code=400, detail='path and subject_key are required.')
+
+    principal_terms = [term.casefold() for term in str(principal_query or '').split() if term.strip()]
+    if principal_terms:
+        selected_cf = selected_subject_key.casefold()
+        if not all(term in selected_cf for term in principal_terms):
+            raise HTTPException(status_code=400, detail='subject_key does not match principal_query.')
+
+    ctx = get_context()
+    service = PermissionsReportService(ctx)
+    return service.get_details(
+        path_key=path_key,
+        subject_key=selected_subject_key,
+        permission_query=permission_query,
+    )
+
+
+@router.get('/analysis/permissions-report/export')
+def get_permissions_report_export() -> dict[str, object]:
+    """Return raw permissions report payload for export workflows.
+
+    Returns:
+        dict[str, object]: Current permissions report payload.
+    """
+    logger.info('GET /analysis/permissions-report/export')
+    ctx = get_context()
+    service = PermissionsReportService(ctx)
+    return service.get_export_payload()
+
+
+@router.get('/analysis/recommendations/dashboard')
+def get_recommendations_dashboard() -> dict[str, object]:
+    """Return recommendations dashboard payload for web display.
+
+    Returns:
+        dict[str, object]: Read-only recommendations data sections.
+    """
+    logger.info('GET /analysis/recommendations/dashboard')
+    ctx = get_context()
+    service = RecommendationsService(ctx)
+    return service.get_dashboard_payload()
 
 
 @router.get('/reference/resources')
@@ -935,6 +1088,14 @@ def get_status() -> dict[str, object]:
         'loaded_from_compliance_output': getattr(repo, 'loaded_from_compliance_output', False),
         'policies_loaded_from_tenancy': getattr(repo, 'policies_loaded_from_tenancy', False),
         'policy_data_reloaded': getattr(repo, 'policy_data_reloaded', None),
+        'load_all_users': getattr(repo, 'load_all_users', None),
+        'entity_counts': {
+            'compartments': len(getattr(repo, 'compartments', []) or []),
+            'policies': len(getattr(repo, 'policies', []) or []),
+            'statements': len(getattr(repo, 'regular_statements', []) or []),
+            'groups': len(getattr(repo, 'groups', []) or []),
+            'users': len(getattr(repo, 'users', []) or []),
+        },
     }
     return {
         'stage': ctx.status.get('stage', 'Idle'),
@@ -1228,6 +1389,183 @@ def get_simulation_history_entry(idx: int) -> dict[str, object]:
     if trace is None:
         raise HTTPException(status_code=404, detail='Simulation history entry not found')
     return {'trace': trace}
+
+
+@router.get('/consolidation/status')
+def get_consolidation_status() -> dict[str, object]:
+    """Return consolidation workbench status metadata for the active dataset."""
+
+    logger.info('GET /consolidation/status')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    return {'status': svc.get_status()}
+
+
+@router.get('/consolidation/strategies')
+def get_consolidation_strategies() -> dict[str, object]:
+    """Return available consolidation strategy display names."""
+
+    logger.info('GET /consolidation/strategies')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    return {'strategies': svc.get_status().get('strategy_names', [])}
+
+
+@router.get('/consolidation/protection/statements')
+def get_consolidation_protection_statements() -> dict[str, object]:
+    """Return protection tab statement rows."""
+
+    logger.info('GET /consolidation/protection/statements')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    return {'rows': svc.get_protection_rows()}
+
+
+@router.get('/consolidation/protection/set')
+def get_consolidation_protected_set() -> dict[str, object]:
+    """Return protected statement set for active tenancy."""
+
+    logger.info('GET /consolidation/protection/set')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    return {'protected_set': svc.get_protected_set()}
+
+
+@router.post('/consolidation/protection/set')
+def set_consolidation_protected_set(payload: dict[str, object]) -> dict[str, object]:
+    """Persist protected statement IDs for active tenancy."""
+
+    logger.info('POST /consolidation/protection/set')
+    internal_ids_raw = payload.get('internal_ids') if isinstance(payload, dict) else []
+    internal_ids = [str(x).strip() for x in internal_ids_raw] if isinstance(internal_ids_raw, list) else []
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    try:
+        protected_set = svc.set_protected_set(internal_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'success': True, 'protected_set': protected_set}
+
+
+@router.get('/consolidation/candidates')
+def get_consolidation_candidates(search: str = '') -> dict[str, object]:
+    """Return candidate rows and exclusion counts for consolidation step."""
+
+    logger.info('GET /consolidation/candidates')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    data = svc.get_candidate_rows(search=search)
+    return {'rows': data.get('rows', []), 'counts': data.get('counts', {})}
+
+
+@router.post('/consolidation/proposals')
+def create_consolidation_proposal(payload: dict[str, object]) -> dict[str, object]:
+    """Generate and persist a consolidation proposal."""
+
+    logger.info('POST /consolidation/proposals')
+    strategy_display_name = str(payload.get('strategy_display_name') or '').strip()
+    candidate_ids_raw = payload.get('candidate_internal_ids') if isinstance(payload, dict) else []
+    candidate_internal_ids = [str(x).strip() for x in candidate_ids_raw] if isinstance(candidate_ids_raw, list) else []
+    if not strategy_display_name:
+        raise HTTPException(status_code=400, detail='strategy_display_name is required')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    try:
+        result = svc.create_proposal(
+            candidate_internal_ids=candidate_internal_ids, strategy_display_name=strategy_display_name
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
+
+
+@router.get('/consolidation/history')
+def get_consolidation_history() -> dict[str, object]:
+    """Return consolidation plan history rows for active tenancy."""
+
+    logger.info('GET /consolidation/history')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    return {'history': svc.get_history()}
+
+
+@router.get('/consolidation/history/{effort_id}')
+def get_consolidation_history_run(effort_id: str) -> dict[str, object]:
+    """Return one consolidation history run record by effort ID."""
+
+    logger.info('GET /consolidation/history/%s', effort_id)
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    detail = svc.get_history_run_detail(effort_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail='Consolidation run not found')
+    return detail
+
+
+@router.delete('/consolidation/history/{effort_id}')
+def delete_consolidation_history_run(effort_id: str) -> dict[str, object]:
+    """Delete one consolidation run from history for active tenancy."""
+
+    logger.info('DELETE /consolidation/history/%s', effort_id)
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    ok = svc.delete_history_run(effort_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Consolidation run not found or could not be deleted')
+    return {'success': True, 'deleted_effort_id': effort_id}
+
+
+@router.post('/consolidation/history/{effort_id}/notes')
+def save_consolidation_notes(effort_id: str, payload: dict[str, object]) -> dict[str, object]:
+    """Save notes for a consolidation run plan."""
+
+    logger.info('POST /consolidation/history/%s/notes', effort_id)
+    notes = str(payload.get('notes') or '').strip()
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    ok = svc.save_plan_notes(effort_id=effort_id, notes=notes)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Consolidation run not found or not writable')
+    return {'success': True}
+
+
+@router.get('/consolidation/history/{effort_id}/script')
+def get_consolidation_script(effort_id: str, fmt: str = 'cli', section: str = 'execution') -> dict[str, object]:
+    """Render consolidation script text for a specific run."""
+
+    logger.info('GET /consolidation/history/%s/script', effort_id)
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    txt = svc.render_script(effort_id=effort_id, fmt=fmt.strip().lower(), section=section.strip().lower())
+    return {'script': txt}
+
+
+@router.post('/consolidation/history/{effort_id}/check-progress')
+def check_consolidation_progress(effort_id: str) -> dict[str, object]:
+    """Check execution progress for a consolidation run."""
+
+    logger.info('POST /consolidation/history/%s/check-progress', effort_id)
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    try:
+        result = svc.check_progress(effort_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
+
+
+@router.post('/consolidation/reset')
+def reset_consolidation_for_tenancy() -> dict[str, object]:
+    """Reset consolidation state (protection set + history) for active tenancy."""
+
+    logger.info('POST /consolidation/reset')
+    ctx = get_context()
+    svc = ConsolidationWorkbenchService(ctx)
+    try:
+        result = svc.reset_for_tenancy()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'success': True, **result}
 
 
 @router.post('/load/compliance')

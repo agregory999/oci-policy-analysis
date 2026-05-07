@@ -82,7 +82,7 @@ class LoadService:
         repo = self.context.policy_repo
         success = self.context.cache.load_combined_cache(repo, named_cache=cache_name)
         if success and run_post_load_intelligence:
-            self._post_load_create_intelligence()
+            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
         elif not success:
             self.logger.error('Cache load failed: cache_name=%s', cache_name)
         summary = self._build_summary(repo)
@@ -126,12 +126,7 @@ class LoadService:
 
         success = bool(self.context.cache_service.import_from_json(loaded_json=loaded_json, policy_repo=repo))
         if success and run_post_load_intelligence:
-            self._emit_stage(
-                stage='Running Intelligence',
-                detail='Calculating effective compartments and overlays',
-                on_stage=on_stage,
-            )
-            self._post_load_create_intelligence()
+            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
         elif not success:
             self.logger.error('Export JSON import failed: file_path=%s', file_path)
         summary = self._build_summary(repo)
@@ -168,7 +163,7 @@ class LoadService:
         repo = self.context.policy_repo
         success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
         if success and run_post_load_intelligence:
-            self._post_load_create_intelligence()
+            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
             try:
                 self.context.cache_service.save_cache(repo)
             except Exception as exc:
@@ -259,12 +254,7 @@ class LoadService:
             return LoadResult(success=False, message='Failed to load policies')
 
         if run_post_load_intelligence:
-            self._emit_stage(
-                stage='Running Intelligence',
-                detail='Calculating effective compartments and overlays',
-                on_stage=on_stage,
-            )
-            self._post_load_create_intelligence()
+            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
 
         # Persist a fresh cache entry for web/API-driven tenancy loads.
         try:
@@ -293,6 +283,21 @@ class LoadService:
             None
         """
         run_post_load_pipeline(self.context)
+
+    def _post_load_create_intelligence_with_stage(
+        self,
+        *,
+        on_stage: Callable[[str, str, str], None] | None = None,
+    ) -> None:
+        """Run post-load orchestration while emitting stage updates.
+
+        Args:
+            on_stage: Optional callback for stage notifications.
+
+        Returns:
+            None
+        """
+        run_post_load_pipeline(self.context, on_stage=on_stage)
 
     @staticmethod
     def _build_summary(repo: Any) -> dict[str, int]:

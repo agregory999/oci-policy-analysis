@@ -214,6 +214,10 @@ class PermissionsReportTab(BaseUITab):
                 )
 
     def _get_subjects_for_path(self, path: str, report_data: dict) -> list[tuple[str, str, str | None]]:
+        # NOTE (service-alignment): The web UI now uses
+        # application.services.permissions_report_service.PermissionsReportService
+        # for this inherited-subject expansion logic. A future Tk refactor can
+        # delegate here as well to keep behavior and filtering semantics aligned.
         subjects = report_data.get(path, {})
         subject_map: dict[str, tuple[str, str | None]] = {}
         for subject_key, data in subjects.items():
@@ -257,6 +261,10 @@ class PermissionsReportTab(BaseUITab):
         path_key: str,
         subject_key: str,
     ) -> list[dict[str, str]]:
+        # NOTE (service-alignment): The web UI now uses
+        # application.services.permissions_report_service.PermissionsReportService
+        # for permission-row shaping. A follow-up Tk refactor can replace this
+        # helper with service calls to avoid duplicate transformation logic.
         rows = []
         for perm in sorted(permissions):
             rows.append(

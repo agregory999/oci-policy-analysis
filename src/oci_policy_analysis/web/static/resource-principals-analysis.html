@@ -81,6 +81,7 @@
       </div>
     </main>
     <script src="/shared-formatters.js"></script>
+    <script src="/policy-statement-inspector.js"></script>
     <script>
       const principalsStyleEl = document.getElementById('principalsStyle');
       const resourceTypeEl = document.getElementById('resourceType');
@@ -143,61 +144,18 @@
         return row?.[key] ?? row?.[titleKey] ?? '';
       }
 
-      function formatInspectorValue(key, value){
-        if (value === null || value === undefined || value === '') return '-';
-
-        if (key === 'principals' && Array.isArray(value)) {
-          if (!value.length) return '-';
-          return value.map((principal) => {
-            if (!principal || typeof principal !== 'object') return String(principal);
-            const principalType = principal.principal_type || 'principal';
-            const principalDisplay =
-              principal.display_name ||
-              [principal.domain_name, principal.name].filter(Boolean).join('/') ||
-              principal.ocid ||
-              principal.principal_key ||
-              JSON.stringify(principal);
-            return `${principalType}: ${principalDisplay}`;
-          }).join('\n');
-        }
-
-        if (Array.isArray(value)) {
-          return value
-            .map((item) => {
-              if (item === null || item === undefined) return '';
-              if (typeof item === 'object') return JSON.stringify(item);
-              return String(item);
-            })
-            .filter(Boolean)
-            .join('\n');
-        }
-
-        if (typeof value === 'object') return JSON.stringify(value, null, 2);
-        return String(value);
-      }
-
-      function setInspector(row){
-        [...resultsBody.querySelectorAll('tr')].forEach((tr) => tr.classList.toggle('active-row', tr.dataset.rowId === String(row?._row_id || '')));
-        if (!row){ policyInspector.classList.remove('open'); policyLayout.classList.remove('has-selection'); inspectorEmpty.style.display='block'; inspectorTable.style.display='none'; return; }
-        policyInspector.classList.add('open'); policyLayout.classList.add('has-selection'); inspectorTitle.textContent = 'Statement Details';
-        const primaryFieldOrder = ['compartment_path','policy_name','policy_ocid','effective_path','statement_text'];
-        const parsedFieldOrder = ['action','subject_type','subject','principals','verb','resource','permission','location','conditions','valid','invalid_reasons','parsed','comments'];
-        const excluded = new Set(['_row_id','internal_id','effective_compartment_ocid']);
-        const keySet = new Set([...primaryFieldOrder, ...parsedFieldOrder]);
-        Object.keys(row || {}).forEach((k) => { if (!excluded.has(k)) keySet.add(k); });
-        const orderedPrimary = primaryFieldOrder.filter((k) => keySet.has(k));
-        const orderedParsed = parsedFieldOrder.filter((k) => keySet.has(k));
-        const orderedOther = Array.from(keySet).filter((k) => !primaryFieldOrder.includes(k) && !parsedFieldOrder.includes(k)).sort((a,b) => a.localeCompare(b));
-        const orderedKeys = [...orderedPrimary, '__separator_parsed__', ...orderedParsed, ...orderedOther];
-        const labelForKey = (k) => String(k || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        inspectorTableBody.innerHTML = orderedKeys
-          .map((k)=>{
-            if (k === '__separator_parsed__') return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
-            return `<tr><th>${esc(labelForKey(k))}</th><td>${esc(formatInspectorValue(k, getRowValue(row, k)))}</td></tr>`;
-          })
-          .join('');
-        inspectorEmpty.style.display='none'; inspectorTable.style.display='table';
-      }
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: { titleWhenSelected: 'Statement Details' },
+      });
 
       function renderEntities(){
         entitiesHead.innerHTML = '<tr><th>Select</th>' + dgCols().map((c)=>`<th>${esc(c)}</th>`).join('') + '</tr>';
@@ -214,7 +172,7 @@
 
       function renderPolicies(){
         resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Valid'])}</td></tr>`).join('');
-        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
       }
 
       function selectedDynamicGroupsPayload(){
@@ -322,7 +280,7 @@
         const rows = (data.statements || []).map((r, idx) => ({...r, _row_id: idx + 1}));
         currentPolicies = isDynamicGroupMode() ? rows : applyTextAndResourceFilters(rows);
         summary.textContent = `Policy Statements (Filtered): ${currentPolicies.length}`;
-        setInspector(null);
+        inspector.clear();
         renderPolicies();
       }
 
@@ -340,7 +298,7 @@
         showAllDataEl.checked=false;
         runAnalysis();
       });
-      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> setInspector(null));
+      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
       principalsStyleEl.addEventListener('change', runAnalysis);
       resourceTypeEl.addEventListener('change', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
       showAllDataEl.addEventListener('change', ()=>{ if (isDynamicGroupMode()) renderEntities(); });

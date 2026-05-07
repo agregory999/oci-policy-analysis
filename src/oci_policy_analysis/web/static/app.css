@@ -1724,6 +1724,46 @@ html {
   word-break: break-word;
 }
 
+/* Compact in-page section jump strip (used by recommendations and similar dashboards). */
+.section-jump-nav {
+  gap: 0.55rem;
+}
+
+.section-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.section-jump-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  background: #fff;
+  color: var(--oci-steel);
+  border: 1px solid var(--oci-line);
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  transition: all 0.15s ease;
+}
+
+.section-jump-link:hover,
+.section-jump-link:focus-visible {
+  border-color: #efc6be;
+  color: var(--oci-red);
+  background: var(--oci-red-soft);
+  box-shadow: 0 4px 10px rgba(159, 48, 34, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 /* Optional bottom-drawer inspector variant for workflow pages.
    Use with .analysis-layout + .inspector-panel. */
 .inspector-panel-bottom {

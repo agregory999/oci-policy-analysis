@@ -32,7 +32,7 @@
       <section class="side-stack">
         <article class="card" data-help-title="Application Settings" data-help-body="Set global defaults used by the web and desktop workflows.">
           <p class="card-title">Settings</p>
-          <h2>Privacy & Usage</h2>
+          <div class="section-kicker">Privacy</div>
           <div class="field mt-compact">
             <label class="checkbox-label">
               <input id="usageTracking" type="checkbox" />
@@ -41,23 +41,58 @@
             <div class="helper-text">Helps prioritize features; no policy text or sensitive data is stored.</div>
           </div>
 
+          <div class="section-kicker">Profile Load</div>
           <div class="field">
-            <label for="defaultProfile">Default OCI Profile</label>
-            <input id="defaultProfile" type="text" placeholder="e.g. DEFAULT" />
+            <div class="tenancy-options-row" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: nowrap;">
+              <label for="defaultProfile" class="no-margin-label">Default OCI Profile</label>
+              <input id="defaultProfile" type="text" placeholder="e.g. DEFAULT" style="margin: 0; min-width: 10rem; max-width: 10rem;" />
+            </div>
             <div class="helper-text">Used as the default profile on the home page load form.</div>
           </div>
 
           <div class="field">
-            <label for="defaultCompartmentDepth">Default Compartment Depth</label>
-            <select id="defaultCompartmentDepth">
-              <option value="1">1 (Root Only)</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-            </select>
+            <div class="tenancy-options-row" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: nowrap;">
+              <label for="defaultCompartmentDepth" class="no-margin-label">Default Compartment Depth</label>
+              <select id="defaultCompartmentDepth" style="margin: 0; min-width: 6rem; max-width: 6rem;">
+                <option value="1">1 (Root Only)</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
             <div class="helper-text">Used as the default compartment depth on the home page load form.</div>
+          </div>
+
+          <div class="section-kicker">Recommendations</div>
+          <div class="field" data-help-title="Recommendation / Consolidation" data-help-body="Enable or disable intelligence strategies. This uses the same enabled_intelligence_checks setting as TK settings.">
+            <div id="intelligenceStrategyChecks" class="form-grid">
+              <div class="helper-text">Loading intelligence strategies...</div>
+            </div>
+            <div class="helper-text">Unchecked strategies will be skipped during post-load intelligence runs.</div>
+          </div>
+
+          <div class="field" data-help-title="Risk Scoring Defaults" data-help-body="Persisted defaults for risk scoring reductions used by recommendations intelligence runs.">
+            <div class="tenancy-options-row" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: nowrap;">
+              <label for="riskWhereReductionPct" class="no-margin-label">Where clause statement risk reduction</label>
+              <select id="riskWhereReductionPct" style="margin: 0; min-width: 5rem; max-width: 5rem;">
+                <option value="0">0%</option>
+                <option value="25">25%</option>
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="90">90%</option>
+              </select>
+              <label for="riskServiceReductionPct" class="no-margin-label">Service principal risk reduction</label>
+              <select id="riskServiceReductionPct" style="margin: 0; min-width: 5rem; max-width: 5rem;">
+                <option value="0">0%</option>
+                <option value="25">25%</option>
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="90">90%</option>
+              </select>
+            </div>
+            <div class="helper-text">Applied during risk score calculations after load/intelligence runs.</div>
           </div>
 
           <button id="saveBtn" type="button">Save settings</button>
@@ -102,8 +137,11 @@
       const usageTracking = document.getElementById('usageTracking');
       const defaultProfile = document.getElementById('defaultProfile');
       const defaultCompartmentDepth = document.getElementById('defaultCompartmentDepth');
+      const riskWhereReductionPct = document.getElementById('riskWhereReductionPct');
+      const riskServiceReductionPct = document.getElementById('riskServiceReductionPct');
       const saveBtn = document.getElementById('saveBtn');
       const status = document.getElementById('status');
+      const intelligenceStrategyChecks = document.getElementById('intelligenceStrategyChecks');
 
       const cacheList = document.getElementById('cacheList');
       const cacheStatus = document.getElementById('cacheStatus');
@@ -115,6 +153,7 @@
         title: 'How To Use This Page',
         body: 'Use the left column for shared defaults and references. Use the right column to refresh, download, rename, and delete saved cache snapshots.',
       };
+      let strategyCatalog = [];
 
       function setContextHelp(title, body) {
         if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
@@ -158,6 +197,56 @@
         usageTracking.checked = Boolean(settings.usage_tracking_enabled ?? true);
         defaultProfile.value = String(settings.named_profile || '');
         defaultCompartmentDepth.value = String(settings.domain_compartment_depth || '1');
+        riskWhereReductionPct.value = String(settings.risk_where_clause_reduction_pct ?? 50);
+        riskServiceReductionPct.value = String(settings.risk_service_principal_reduction_pct ?? 50);
+        renderStrategyChecks(settings);
+      }
+
+      function renderStrategyChecks(settings) {
+        if (!Array.isArray(strategyCatalog) || !strategyCatalog.length) {
+          intelligenceStrategyChecks.innerHTML = '<div class="helper-text">No strategies discovered yet.</div>';
+          return;
+        }
+
+        const saved = settings.enabled_intelligence_checks;
+        const allEnabled = !Array.isArray(saved) || saved.length === 0 || saved.length >= strategyCatalog.length;
+
+        const rows = strategyCatalog
+          .map((strategy) => {
+            const sid = String(strategy.strategy_id || '');
+            const display = String(strategy.display_name || sid);
+            const checked = allEnabled || (Array.isArray(saved) && saved.includes(sid));
+            return `<label class="checkbox-label"><input type="checkbox" class="strategy-check" data-strategy-id="${sanitize(
+              sid
+            )}" ${checked ? 'checked' : ''} /> ${sanitize(display)}</label>`;
+          })
+          .join('');
+        intelligenceStrategyChecks.innerHTML = `<div class="layout-row layout-row-2">${rows}</div>`;
+      }
+
+      function collectEnabledStrategies() {
+        const checks = [...document.querySelectorAll('.strategy-check')];
+        const enabled = checks.filter((c) => c.checked).map((c) => String(c.dataset.strategyId || ''));
+        if (!strategyCatalog.length || enabled.length >= strategyCatalog.length) {
+          return [];
+        }
+        return enabled;
+      }
+
+      async function loadStrategyCatalog() {
+        try {
+          const response = await fetch('/intelligence/strategies', { cache: 'no-store' });
+          if (!response.ok) {
+            strategyCatalog = [];
+            intelligenceStrategyChecks.innerHTML = '<div class="helper-text">Unable to load strategy catalog.</div>';
+            return;
+          }
+          const payload = await response.json();
+          strategyCatalog = Array.isArray(payload.strategies) ? payload.strategies : [];
+        } catch (_err) {
+          strategyCatalog = [];
+          intelligenceStrategyChecks.innerHTML = '<div class="helper-text">Unable to load strategy catalog.</div>';
+        }
       }
 
       async function saveSettings() {
@@ -173,6 +262,9 @@
                 usage_tracking_enabled: usageTracking.checked,
                 named_profile: String(defaultProfile.value || '').trim(),
                 domain_compartment_depth: Number(defaultCompartmentDepth.value || 1),
+                risk_where_clause_reduction_pct: Number(riskWhereReductionPct.value || 50),
+                risk_service_principal_reduction_pct: Number(riskServiceReductionPct.value || 50),
+                enabled_intelligence_checks: collectEnabledStrategies(),
               },
             }),
           });
@@ -297,7 +389,7 @@
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
-      loadSettings();
+      loadStrategyCatalog().then(loadSettings);
       fetchCaches();
     </script>
   </body>

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Consolidation Workbench</title>
+    <link rel="stylesheet" href="/app.css?v=consolidation-workbench-v1" />
+    <style>
+      .cw-left-stack { display: grid; gap: 0.9rem; }
+      .cw-table-shell { min-height: 48vh; }
+      .cw-table-scroll { max-height: none; height: 100%; overflow: auto; }
+      .statement-cell { white-space: pre-wrap; word-break: break-word; max-width: 600px; }
+      .cw-selected-shell { margin-top: 0.65rem; border-top: 1px solid var(--oci-line); padding-top: 0.6rem; }
+      .cw-selected-title { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.35rem 0; }
+      .cw-selected-scroll { max-height: 180px; overflow: auto; border: 1px solid var(--oci-line); border-radius: 8px; }
+      .cw-selected-empty { padding: 0.55rem; color: #6b7280; font-size: 0.82rem; }
+      .cw-rail-table th, .cw-rail-table td { font-size: 0.78rem; }
+    </style>
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead">
+        <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Consolidation Workbench</h1><p>Protection → Candidates → Proposal → History</p></div></div>
+        <div class="masthead-meta"><a href="/" class="card-link secondary">← Back to home</a></div>
+      </header>
+      <div id="contextHelpCard" class="context-help-card context-help-fixed"><p class="context-help-kicker">Context Help</p><h3 id="contextHelpTitle" class="context-help-title">Consolidation Flow</h3><p id="contextHelpBody" class="context-help-body">Protect statements, pick candidates, generate plan, review and track progress.</p></div>
+    </div>
+
+    <main class="layout-two-column workflow-workbench">
+      <div class="cw-left-stack workflow-main">
+        <section class="card compact-card workflow-main">
+          <div class="workflow-panel-header" style="margin-bottom:.45rem;"><p class="card-title" style="margin:0;">Consolidation Steps</p><div class="workflow-actions"><button id="resetConsolidation" class="ghost" type="button">Reset Consolidations for Tenancy</button></div></div>
+          <div class="workflow-steps">
+            <button class="workflow-step workflow-step-active" data-step="1">1 • Protection</button>
+            <button class="workflow-step" data-step="2">2 • Candidates</button>
+            <button class="workflow-step" data-step="3">3 • Proposal</button>
+            <button class="workflow-step" data-step="4">4 • History</button>
+          </div>
+
+          <article class="workflow-panel workflow-panel-active" data-panel="1">
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Protection</h2><div class="workflow-actions"><button id="saveProtection" type="button">Save Protected</button><button data-next-step="2" type="button">Continue</button></div></div>
+            <div class="inline-field"><label for="protectionSearch">Search</label><input id="protectionSearch" placeholder="policy or statement" /></div>
+            <div class="table-shell cw-table-shell"><div class="cw-table-scroll custom-scrollbar"><table id="protectionTable" class="analysis-table"><thead><tr><th>Select</th><th>Policy</th><th>Statement</th><th>Path</th></tr></thead><tbody></tbody></table></div></div>
+          </article>
+
+          <article class="workflow-panel" data-panel="2">
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Candidates & Strategy</h2><div class="workflow-actions"><button class="ghost" data-prev-step="1" type="button">Back</button><button id="generateProposal" type="button">Create Proposal</button><button data-next-step="3" type="button">Continue</button></div></div>
+            <div class="form-grid">
+              <div class="inline-field"><label for="strategySelect">Strategy</label><select id="strategySelect"></select></div>
+              <div class="inline-field"><label for="candidateSearch">Search</label><input id="candidateSearch" placeholder="policy or statement" /></div>
+            </div>
+            <div class="table-shell cw-table-shell"><div class="cw-table-scroll custom-scrollbar"><table id="candidateTable" class="analysis-table"><thead><tr><th>Select</th><th>Policy</th><th>Statement</th><th>Effective Path</th></tr></thead><tbody></tbody></table></div></div>
+          </article>
+
+          <article class="workflow-panel" data-panel="3">
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Proposal</h2><div class="workflow-actions"><button class="ghost" data-prev-step="2" type="button">Back</button><button id="refreshProgress" class="ghost" type="button">Reload and Check Progress</button></div></div>
+            <div class="inline-field"><label for="historySelect">Plan</label><select id="historySelect"></select></div>
+            <div class="inline-field"><label for="scriptFormat">Format</label><select id="scriptFormat"><option value="cli">OCI CLI</option><option value="ui">UI-based Steps</option></select></div>
+            <div class="inline-field"><label for="scriptSection">Show</label><select id="scriptSection"><option value="execution">Execution</option><option value="rollback">Rollback</option><option value="both">Both</option></select></div>
+            <div class="table-shell"><div class="table-scroll custom-scrollbar"><table id="proposalTable" class="analysis-table"><thead><tr><th>#</th><th>Action</th><th>Policy</th><th>Details</th><th>Status</th></tr></thead><tbody></tbody></table></div></div>
+            <pre id="scriptBox" class="workflow-mini-log" style="max-height:240px;"></pre>
+          </article>
+
+          <article class="workflow-panel" data-panel="4">
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">History</h2><div class="workflow-actions"><button class="ghost" data-prev-step="3" type="button">Back</button><button id="refreshHistory" class="ghost" type="button">Refresh</button></div></div>
+            <div class="table-shell"><div class="table-scroll custom-scrollbar"><table id="historyTable" class="analysis-table"><thead><tr><th>Effort</th><th>Created</th><th>Strategy</th><th>Status</th><th>Steps</th><th>Validity</th></tr></thead><tbody></tbody></table></div></div>
+          </article>
+        </section>
+      </div>
+
+      <aside class="workflow-rail side-stack">
+        <section class="card compact-card" data-help-title="Current Summary" data-help-body="High-level counts for protection and candidate selection. Excluded shows protected/invalid/system counts returned by candidate filtering."><p class="card-title">Current Summary</p><div class="workflow-summary-grid">
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Protected</p><p id="sumProtected" class="workflow-summary-value">0</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Candidates</p><p id="sumCandidates" class="workflow-summary-value">0</p></div>
+          <div class="workflow-summary-tile" data-help-title="Excluded" data-help-body="Format: protected/invalid/system. Protected are in protection set, invalid failed parse/validation, system are locked policy statements."><p class="workflow-summary-label">Excluded</p><p id="sumExcluded" class="workflow-summary-value">0/0/0</p></div>
+          <div class="workflow-summary-tile"><p class="workflow-summary-label">Current Plan</p><p id="sumPlan" class="workflow-summary-value">-</p></div>
+        </div></section>
+        <section class="card compact-card" data-help-title="Protected Set" data-help-body="All currently selected protected statements, preserved even when hidden by search filter.">
+          <p class="card-title">Protected Set</p>
+          <div class="cw-selected-scroll custom-scrollbar"><table id="protectedSelectedTable" class="analysis-table cw-rail-table"><thead><tr><th>Policy</th><th>Statement</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <section class="card compact-card" data-help-title="Selected Candidates" data-help-body="All currently selected candidate statements, preserved across candidate searches.">
+          <p class="card-title">Selected Candidates</p>
+          <div class="cw-selected-scroll custom-scrollbar"><table id="candidateSelectedTable" class="analysis-table cw-rail-table"><thead><tr><th>Policy</th><th>Statement</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <section class="card compact-card"><p class="card-title">Mini Event Log</p><pre id="miniLog" class="workflow-mini-log">[init] Consolidation workbench ready.</pre></section>
+      </aside>
+    </main>
+
+    <section class="analysis-layout">
+      <aside id="detailInspector" class="inspector-panel" aria-live="polite"><div class="inspector-header"><strong>Detail</strong><button id="closeInspector" class="ghost" style="margin-top:0;">×</button></div><div class="inspector-body custom-scrollbar"><table class="inspector-table"><tbody id="inspectorBody"></tbody></table></div></aside>
+      <aside id="proposalDrawer" class="inspector-panel inspector-panel-bottom" aria-live="polite"><div class="inspector-header"><strong>Proposal Step Detail</strong><button id="closeProposalDrawer" class="ghost" style="margin-top:0;">×</button></div><div class="inspector-body custom-scrollbar"><pre id="proposalDetail" class="workflow-mini-log" style="max-height:none;height:100%;border:0;"></pre></div></aside>
+      <aside id="historyDrawer" class="inspector-panel inspector-panel-bottom" aria-live="polite"><div class="inspector-header"><strong>Consolidation History Detail</strong><button id="closeHistoryDrawer" class="ghost" style="margin-top:0;">×</button></div><div class="inspector-body custom-scrollbar"><pre id="historyDetail" class="workflow-mini-log" style="max-height:none;height:100%;border:0;"></pre></div></aside>
+    </section>
+    <div id="historyContextMenu" style="display:none;position:fixed;z-index:2000;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 10px 24px rgba(0,0,0,.18);min-width:220px;">
+      <button id="historyDeletePlan" type="button" class="ghost" style="display:block;width:100%;text-align:left;border:0;border-radius:8px;padding:.55rem .7rem;">Delete selected plan</button>
+    </div>
+
+    <script>
+      const state = {
+        protectionRows: [],
+        protectionById: new Map(),
+        candidateRows: [],
+        candidateById: new Map(),
+        protectedIds: new Set(),
+        candidateIds: new Set(),
+        history: [],
+        selectedEffortId: '',
+        counts: {protected:0,invalid:0,system:0},
+        status: {},
+      };
+      const $ = (id) => document.getElementById(id);
+      const contextHelpTitle = $('contextHelpTitle');
+      const contextHelpBody = $('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'Consolidation Flow',
+        body: 'Protect statements, pick candidates, generate plan, review and track progress.',
+      };
+      const stepBtns=[...document.querySelectorAll('.workflow-step')], panels=[...document.querySelectorAll('.workflow-panel')];
+      function esc(v){ return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+      function log(msg){ const p=$('miniLog'); p.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`; p.scrollTop=p.scrollHeight; }
+      function setContextHelp(title, body){ if(contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title; if(contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body; }
+      function bindContextHelp(){ document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node)=>{ const title=node.getAttribute('data-help-title')||''; const body=node.getAttribute('data-help-body')||''; node.addEventListener('mouseenter',()=>setContextHelp(title, body)); node.addEventListener('focusin',()=>setContextHelp(title, body)); node.addEventListener('mouseleave',()=>setContextHelp(defaultContextHelp.title, defaultContextHelp.body)); node.addEventListener('focusout',()=>setContextHelp(defaultContextHelp.title, defaultContextHelp.body)); }); }
+      function prettyJson(v){ try { return JSON.stringify(v ?? {}, null, 2); } catch { return String(v ?? ''); } }
+      function hideHistoryContextMenu(){ $('historyContextMenu').style.display='none'; }
+      function formatStatementList(items){
+        if(!Array.isArray(items) || !items.length) return '(none)';
+        return items.map((s, i)=>`${i+1}. ${String(s||'').trim() || '(blank)'}`).join('\n');
+      }
+      function openProposalDetail(row){
+        const text = [
+          `Step: ${row['#'] ?? '-'}`,
+          `Action: ${row.action || row.action_key || '-'}`,
+          `Policy: ${row.policy_name || '-'}`,
+          `Policy OCID: ${row.policy_ocid || '-'}`,
+          `Compartment OCID: ${row.compartment_ocid || '-'}`,
+          `Status: ${row.status || '-'}`,
+          `Details: ${row.details || '-'}`,
+          '',
+          'Before Statements',
+          '-----------------',
+          formatStatementList(row.before_statements),
+          '',
+          'After Statements',
+          '----------------',
+          formatStatementList(row.after_statements),
+        ].join('\n');
+        $('proposalDetail').textContent = text;
+        $('proposalDrawer').classList.add('open');
+      }
+      function activateStep(s){ s=String(s); stepBtns.forEach((b)=>b.classList.toggle('workflow-step-active', b.dataset.step===s)); panels.forEach((p)=>p.classList.toggle('workflow-panel-active', p.dataset.panel===s)); }
+      stepBtns.forEach((b)=>b.addEventListener('click',()=>activateStep(b.dataset.step))); document.querySelectorAll('[data-next-step]').forEach((b)=>b.addEventListener('click',()=>activateStep(b.getAttribute('data-next-step')))); document.querySelectorAll('[data-prev-step]').forEach((b)=>b.addEventListener('click',()=>activateStep(b.getAttribute('data-prev-step'))));
+
+      function updateSummary(){ $('sumProtected').textContent = String(state.protectedIds.size); $('sumCandidates').textContent = String(state.candidateIds.size); $('sumExcluded').textContent = `${state.counts.protected||0}/${state.counts.invalid||0}/${state.counts.system||0}`; $('sumPlan').textContent = state.selectedEffortId || '-'; }
+      function formatPolicyHybrid(r){
+        const cp = r.statement_compartment_path || r.compartment_path || r.compartment || r['Policy Compartment'] || '';
+        const pn = r.policy_name || r['Policy Name'] || '';
+        if(cp && pn) return `${cp} :: ${pn}`;
+        return pn || cp || '-';
+      }
+      function openInspector(obj){
+        const ordered = ['statement_compartment_path','compartment_path','policy_name','policy_ocid','statement_effective_path','effective_path','action','subject_type','subject','principals','verb','resource','permission','location','conditions','valid','invalid_reasons','statement_text','details','status','step_id'];
+        const keys = [...new Set([...ordered.filter((k)=>obj && Object.prototype.hasOwnProperty.call(obj,k)), ...Object.keys(obj||{}).sort()])];
+        $('inspectorBody').innerHTML = keys.map((k)=>`<tr><th>${esc(k.replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase()))}</th><td>${esc(typeof obj[k]==='object'?JSON.stringify(obj[k],null,2):String(obj[k]??''))}</td></tr>`).join('');
+        $('detailInspector').classList.add('open');
+      }
+
+      async function loadStatus(){ const r=await fetch('/consolidation/status'); const d=await r.json(); state.status=d.status||{}; const can=Boolean(state.status.can_check_progress); $('refreshProgress').disabled=!can; }
+      async function loadStrategies(){ const r=await fetch('/consolidation/strategies'); const d=await r.json(); $('strategySelect').innerHTML=(d.strategies||[]).map((s)=>`<option value="${esc(s)}">${esc(s)}</option>`).join(''); }
+      async function loadProtection(){
+        const [r1,r2]=await Promise.all([fetch('/consolidation/protection/statements'),fetch('/consolidation/protection/set')]);
+        const d1=await r1.json();
+        const d2=await r2.json();
+        state.protectionRows=d1.rows||[];
+        state.protectionById = new Map(state.protectionRows.filter((r)=>r.internal_id).map((r)=>[r.internal_id,r]));
+        state.protectedIds=new Set(((d2.protected_set||{}).protected||[]).map((x)=>x.internal_id));
+        renderProtection();
+        renderProtectedSelected();
+        updateSummary();
+      }
+      function renderProtection(){
+        const q=String($('protectionSearch').value||'').toLowerCase().trim();
+        const tb=document.querySelector('#protectionTable tbody');
+        tb.innerHTML='';
+        state.protectionRows
+          .filter((r)=>!q||String(r.policy_name||'').toLowerCase().includes(q)||String(r.statement_text||'').toLowerCase().includes(q))
+          .forEach((r)=>{
+            const tr=document.createElement('tr');
+            tr.innerHTML=`<td><input type="checkbox" data-id="${esc(r.internal_id)}" ${state.protectedIds.has(r.internal_id)?'checked':''}/></td><td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td><td>${esc(r.compartment||r.statement_effective_path||'')}</td>`;
+            tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(r); });
+            tb.appendChild(tr);
+          });
+        tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{
+          const id=e.target.dataset.id;
+          if(e.target.checked) state.protectedIds.add(id); else state.protectedIds.delete(id);
+          renderProtectedSelected();
+          updateSummary();
+        }));
+      }
+      function renderProtectedSelected(){
+        const tb=document.querySelector('#protectedSelectedTable tbody');
+        tb.innerHTML='';
+        const selected=[...state.protectedIds].map((id)=>state.protectionById.get(id)).filter(Boolean);
+        if(!selected.length){ tb.innerHTML = `<tr><td colspan="3" class="cw-selected-empty">No protected statements selected.</td></tr>`; return; }
+        selected
+          .sort((a,b)=>String(a.policy_name||'').localeCompare(String(b.policy_name||'')))
+          .forEach((r)=>{
+            const tr=document.createElement('tr');
+            tr.innerHTML=`<td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td>`;
+            tr.addEventListener('click',()=>openInspector(r));
+            tb.appendChild(tr);
+          });
+      }
+      async function saveProtection(){ await fetch('/consolidation/protection/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({internal_ids:[...state.protectedIds]})}); log(`Saved ${state.protectedIds.size} protected statements.`); await loadCandidates(); }
+
+      async function loadCandidates(){
+        const q=encodeURIComponent(String($('candidateSearch').value||''));
+        const r=await fetch(`/consolidation/candidates?search=${q}`);
+        const d=await r.json();
+        state.candidateRows=d.rows||[];
+        state.counts=d.counts||{protected:0,invalid:0,system:0};
+        state.candidateRows.forEach((row)=>{ if(row.internal_id) state.candidateById.set(row.internal_id,row); });
+        renderCandidates();
+        renderCandidateSelected();
+        updateSummary();
+      }
+      function renderCandidates(){
+        const tb=document.querySelector('#candidateTable tbody');
+        tb.innerHTML='';
+        state.candidateRows.forEach((r)=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td><input type="checkbox" data-id="${esc(r.internal_id)}" ${state.candidateIds.has(r.internal_id)?'checked':''}/></td><td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td><td>${esc(r.statement_effective_path||r.effective_path||'')}</td>`;
+          tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(r); });
+          tb.appendChild(tr);
+        });
+        tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{
+          const id=e.target.dataset.id;
+          if(e.target.checked) state.candidateIds.add(id); else state.candidateIds.delete(id);
+          renderCandidateSelected();
+          updateSummary();
+        }));
+      }
+      function renderCandidateSelected(){
+        const tb=document.querySelector('#candidateSelectedTable tbody');
+        tb.innerHTML='';
+        const selected=[...state.candidateIds].map((id)=>state.candidateById.get(id)).filter(Boolean);
+        if(!selected.length){ tb.innerHTML = `<tr><td colspan="3" class="cw-selected-empty">No candidate statements selected.</td></tr>`; return; }
+        selected
+          .sort((a,b)=>String(a.policy_name||'').localeCompare(String(b.policy_name||'')))
+          .forEach((r)=>{
+            const tr=document.createElement('tr');
+            tr.innerHTML=`<td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td>`;
+            tr.addEventListener('click',()=>openInspector(r));
+            tb.appendChild(tr);
+          });
+      }
+      async function generateProposal(){ const strategy_display_name=$('strategySelect').value; const r=await fetch('/consolidation/proposals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({strategy_display_name,candidate_internal_ids:[...state.candidateIds]})}); if(!r.ok){ const e=await r.json(); throw new Error(e.detail||'proposal failed'); } const d=await r.json(); renderProposalRows(d.rows||[]); state.selectedEffortId = (d.plan||{}).plan_id || state.selectedEffortId; updateSummary(); log(`Generated proposal ${state.selectedEffortId || ''}`); await loadHistory(); await loadScript(); activateStep(3); }
+      function renderProposalRows(rows){ const tb=document.querySelector('#proposalTable tbody'); tb.innerHTML=''; rows.forEach((r)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${esc(r['#'])}</td><td>${esc(r.action)}</td><td>${esc(r.policy_name)}</td><td>${esc(r.details)}</td><td>${esc(r.status)}</td>`; tr.addEventListener('click',()=>openProposalDetail(r)); tb.appendChild(tr); }); }
+
+      async function loadHistory(){ const r=await fetch('/consolidation/history'); const d=await r.json(); state.history=d.history||[]; const sel=$('historySelect'); sel.innerHTML=state.history.map((h)=>`<option value="${esc(h.effort_id)}">${esc(h.effort_id)} (${esc((h.created_at||'').slice(0,19))})</option>`).join(''); if(!state.selectedEffortId && state.history.length) state.selectedEffortId=state.history[0].effort_id; if(state.selectedEffortId) sel.value=state.selectedEffortId; renderHistoryTable(); updateSummary(); }
+      function renderHistoryTable(){ const tb=document.querySelector('#historyTable tbody'); tb.innerHTML=''; state.history.forEach((h)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${esc(h.effort_id)}</td><td>${esc((h.created_at||'').slice(0,19))}</td><td>${esc(h.strategy)}</td><td>${esc(h.status)}</td><td>${esc(`${h.executed_steps}/${h.steps}`)}</td><td>${esc(h.validity)}</td>`; tr.addEventListener('click',()=>{ state.selectedEffortId=h.effort_id; $('historySelect').value=h.effort_id; loadRun(); openHistoryDetailByEffort(h.effort_id); }); tr.addEventListener('contextmenu',(e)=>{ e.preventDefault(); state.selectedEffortId=h.effort_id; $('historySelect').value=h.effort_id; const m=$('historyContextMenu'); m.style.left=`${e.clientX}px`; m.style.top=`${e.clientY}px`; m.style.display='block'; }); tb.appendChild(tr); }); }
+      async function openHistoryDetailByEffort(effortId){ if(!effortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(effortId)}`); if(!r.ok) return; const d=await r.json(); const detail = { run: d.run||{}, conflict_analysis: d.conflict_analysis||{} }; $('historyDetail').textContent = prettyJson(detail); $('historyDrawer').classList.add('open'); }
+      async function deleteSelectedHistoryPlan(){
+        if(!state.selectedEffortId) return;
+        const ok = window.confirm(`Delete consolidation plan ${state.selectedEffortId}? This only removes it from history.`);
+        if(!ok) return;
+        const r = await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}`, { method: 'DELETE' });
+        const d = await r.json();
+        if(!r.ok || !d.success) throw new Error(d.detail || 'delete failed');
+        log(`Deleted plan ${state.selectedEffortId}`);
+        hideHistoryContextMenu();
+        $('historyDrawer').classList.remove('open');
+        state.selectedEffortId = '';
+        await loadHistory();
+        await loadRun();
+      }
+      async function loadRun(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}`); if(!r.ok) return; const d=await r.json(); const run=d.run||{}; const rows=(run.results||[]).map((x,i)=>({'#':x['#']||i+1,action:x.Action||x.action||'',policy_name:x['Policy Name']||x.policy_name||'',details:x.Details||x.details||'',status:x.Status||x.status||'', ...x})); renderProposalRows(rows); await loadScript(); updateSummary(); }
+      async function loadScript(){ if(!state.selectedEffortId){ $('scriptBox').textContent='(no plan selected)'; return; } const fmt=$('scriptFormat').value; const section=$('scriptSection').value; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/script?fmt=${encodeURIComponent(fmt)}&section=${encodeURIComponent(section)}`); const d=await r.json(); $('scriptBox').textContent=d.script||'(no script)'; }
+      async function checkProgress(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/check-progress`,{method:'POST'}); const d=await r.json(); log(`Progress checked: ${d.executed||0}/${d.total||0}`); await loadHistory(); await loadRun(); }
+      async function resetConsolidation(){
+        const ok = window.confirm('Reset all consolidation data for this tenancy? This removes protected set and plan history.');
+        if(!ok) return;
+        const r = await fetch('/consolidation/reset', { method: 'POST' });
+        const d = await r.json();
+        if(!r.ok || !d.success){ throw new Error(d.detail || 'reset failed'); }
+        state.protectedIds = new Set();
+        state.candidateIds = new Set();
+        state.candidateById = new Map();
+        state.history = [];
+        state.selectedEffortId = '';
+        renderProtection();
+        renderProtectedSelected();
+        renderCandidates();
+        renderCandidateSelected();
+        renderProposalRows([]);
+        $('scriptBox').textContent='(no plan selected)';
+        await loadHistory();
+        updateSummary();
+        $('detailInspector').classList.remove('open');
+        $('historyDrawer').classList.remove('open');
+        log(`Reset complete for tenancy ${d.tenancy_ocid || ''}. Cleared ${d.cleared_history_records || 0} history record(s).`);
+      }
+
+      $('protectionSearch').addEventListener('input',renderProtection);
+      $('candidateSearch').addEventListener('input',loadCandidates);
+      $('saveProtection').addEventListener('click',saveProtection);
+      $('generateProposal').addEventListener('click',()=>generateProposal().catch((e)=>log(`Error: ${e.message}`)));
+      $('historySelect').addEventListener('change',(e)=>{ state.selectedEffortId=e.target.value; loadRun(); });
+      $('scriptFormat').addEventListener('change',loadScript);
+      $('scriptSection').addEventListener('change',loadScript);
+      $('refreshHistory').addEventListener('click',loadHistory);
+      $('refreshProgress').addEventListener('click',()=>checkProgress().catch((e)=>log(`Error: ${e.message}`)));
+      $('closeInspector').addEventListener('click',()=>$('detailInspector').classList.remove('open'));
+      $('closeProposalDrawer').addEventListener('click',()=>$('proposalDrawer').classList.remove('open'));
+      $('closeHistoryDrawer').addEventListener('click',()=>$('historyDrawer').classList.remove('open'));
+      $('resetConsolidation').addEventListener('click',()=>resetConsolidation().catch((e)=>log(`Error: ${e.message}`)));
+      $('historyDeletePlan').addEventListener('click',()=>deleteSelectedHistoryPlan().catch((e)=>log(`Error: ${e.message}`)));
+      document.addEventListener('click', hideHistoryContextMenu);
+      document.addEventListener('scroll', hideHistoryContextMenu, true);
+
+      bindContextHelp();
+      $('detailInspector').classList.remove('open');
+      $('proposalDrawer').classList.remove('open');
+      $('historyDrawer').classList.remove('open');
+      hideHistoryContextMenu();
+      Promise.resolve().then(loadStatus).then(loadStrategies).then(loadProtection).then(loadCandidates).then(loadHistory).then(loadRun).then(()=>log('Initial data loaded.')).catch((e)=>log(`Startup error: ${e.message}`));
+    </script>
+  </body>
+  </html>

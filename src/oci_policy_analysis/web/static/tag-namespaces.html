@@ -5,49 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Tag Namespaces</title>
     <link rel="stylesheet" href="/app.css" />
-    <style>
-      .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-        align-items: center;
-      }
-      .toolbar input {
-        min-width: 260px;
-        flex: 1;
-      }
-      .table-shell {
-        border: 1px solid var(--oci-line);
-        border-radius: 12px;
-        overflow: hidden;
-      }
-      .table-scroll {
-        max-height: 68vh;
-        overflow: auto;
-      }
-      .muted {
-        color: #6b7280;
-        font-size: 0.85rem;
-      }
-    </style>
   </head>
   <body>
-    <header>
-      <h1>Tag Namespaces</h1>
-      <a href="/">← Back to home</a>
-    </header>
-
-    <main>
-      <div class="card">
-        <p>Browse loaded defined tag namespaces, keys, and any discovered value options.</p>
-        <div class="toolbar">
-          <input id="searchInput" placeholder="Search namespace, path, key, or value" />
-          <button id="refreshBtn">Refresh</button>
+    <!-- Standard top-row shell: branded masthead + contextual help panel -->
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Tag Namespaces" data-help-body="Browse defined tag namespaces, tag keys, and enumerated value options discovered in loaded tenancy or cache data.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Tag Namespaces</h1>
+            <p>Defined Tags + Keys + Value Options</p>
+          </div>
         </div>
-        <div id="summary" class="muted">No data loaded yet.</div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
 
-        <div class="table-shell">
-          <div class="table-scroll">
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Search by namespace, compartment path, tag key, or value option. Refresh reloads the latest tag namespace data from the active dataset.</p>
+      </div>
+    </div>
+
+    <!-- Single-column utility page content using shared card/table layout classes. -->
+    <main class="layout-single compartment-layout-main">
+      <section class="card compartment-card-fill" data-help-title="Tag namespace inventory" data-help-body="This table lists loaded defined tag namespaces, the compartment path where each namespace exists, tag keys, and allowed values when available.">
+        <p>Browse loaded defined tag namespaces, keys, and any discovered value options.</p>
+        <div class="compartment-toolbar">
+          <input id="searchInput" placeholder="Search namespace, path, key, or value" data-help-title="Search tag namespaces" data-help-body="Filter rows by namespace, compartment path, tag key, or discovered value option." />
+          <button id="refreshBtn" type="button" data-help-title="Refresh tag namespaces" data-help-body="Reload tag namespace rows from /utilities/tag-namespaces without using the browser cache.">Refresh</button>
+        </div>
+        <div id="summary" class="compartment-summary">No data loaded yet.</div>
+
+        <div class="table-shell compartment-table-shell-fill">
+          <div class="table-scroll compartment-table-scroll custom-scrollbar">
             <table id="rowsTable">
               <thead>
                 <tr>
@@ -61,16 +54,41 @@
             </table>
           </div>
         </div>
-      </div>
+      </section>
     </main>
 
     <script>
+      // Page controls.
       const searchInput = document.getElementById('searchInput');
       const refreshBtn = document.getElementById('refreshBtn');
       const summary = document.getElementById('summary');
       const tableBody = document.querySelector('#rowsTable tbody');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Search by namespace, compartment path, tag key, or value option. Refresh reloads the latest tag namespace data from the active dataset.',
+      };
 
       let allRows = [];
+
+      // Shared hover/focus context help behavior used across migrated pages.
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
 
       function rowMatches(row, needle) {
         const values = Array.isArray(row.values) ? row.values.join(' | ') : '';
@@ -78,6 +96,16 @@
         return hay.includes(needle);
       }
 
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      // Render uses client-side filtering only; Refresh is responsible for reloading source data.
       function renderRows() {
         const needle = String(searchInput.value || '').trim().toLowerCase();
         const rows = needle ? allRows.filter((row) => rowMatches(row, needle)) : allRows;
@@ -91,10 +119,10 @@
             const values = Array.isArray(row.values) && row.values.length ? row.values.join(', ') : 'User-Supplied';
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td>${row.namespace || ''}</td>
-              <td>${row.compartment_path || ''}</td>
-              <td>${row.key_name || ''}</td>
-              <td>${values}</td>
+              <td>${escapeHtml(row.namespace)}</td>
+              <td>${escapeHtml(row.compartment_path)}</td>
+              <td>${escapeHtml(row.key_name)}</td>
+              <td>${escapeHtml(values)}</td>
             `;
             tableBody.appendChild(tr);
           });
@@ -118,6 +146,8 @@
 
       searchInput.addEventListener('input', renderRows);
       refreshBtn.addEventListener('click', loadRows);
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
       loadRows();
     </script>
   </body>

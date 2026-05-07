@@ -8,6 +8,19 @@ from typing import Any
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.logger import get_logger
 
+DEFAULT_WHERE_CLAUSE_REDUCTION_PCT = 50
+DEFAULT_SERVICE_PRINCIPAL_REDUCTION_PCT = 50
+
+
+def _coerce_pct(value: Any, default: int) -> int:
+    """Normalize percentage-like values to supported risk reduction options."""
+    allowed = {0, 25, 50, 75, 90}
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return parsed if parsed in allowed else default
+
 
 @dataclass
 class SettingsService:
@@ -93,3 +106,18 @@ class SettingsService:
             dict[str, Any]: In-memory settings dictionary.
         """
         return self.settings
+
+    def get_risk_reduction_settings(self) -> dict[str, int]:
+        """Return normalized risk reduction settings used by intelligence runs."""
+        where_pct = _coerce_pct(
+            self.settings.get('risk_where_clause_reduction_pct'),
+            DEFAULT_WHERE_CLAUSE_REDUCTION_PCT,
+        )
+        service_pct = _coerce_pct(
+            self.settings.get('risk_service_principal_reduction_pct'),
+            DEFAULT_SERVICE_PRINCIPAL_REDUCTION_PCT,
+        )
+        return {
+            'where_clause_reduction_pct': where_pct,
+            'service_principal_reduction_pct': service_pct,
+        }

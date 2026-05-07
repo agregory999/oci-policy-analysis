@@ -326,87 +326,17 @@
         </aside>
       </div>
 
-      <aside id="prospectiveEditor" class="prospective-editor" aria-live="polite">
-        <div class="prospective-editor-header">
-          <strong>Prospective Statement Editor</strong>
-          <button id="closeProspectiveBtn" class="ghost" style="margin-top:0;">×</button>
-        </div>
-        <div class="prospective-editor-body">
-          <div class="prospective-grid">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
-              <strong>Statements</strong>
-              <button id="addProspectiveRowBtn" class="ghost" style="margin-top:0;">Add Free-Form Statement</button>
-            </div>
-            <table id="prospectiveRowsTable">
-              <thead class="prospective-rows-head"><tr><th>Location</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div>
-            <strong>Builder</strong>
-            <div class="prospective-builder-grid" style="margin-top:.5rem;">
-              <div class="prospective-builder-row">
-                <div class="prospective-field"><label for="pbAction">Action</label><select id="pbAction"></select></div>
-                <div class="prospective-field"><label for="pbPrincipal">Principal</label><select id="pbPrincipal"></select></div>
-                <div class="prospective-field">
-                  <label for="pbIncludeDefault">Include Default</label>
-                  <div class="prospective-inline-check">
-                    <input id="pbIncludeDefault" type="checkbox" />
-                    <span class="prospective-note">Checking the box adds Default domain if not specified.</span>
-                  </div>
-                </div>
-              </div>
-              <div class="prospective-builder-row">
-                <div class="prospective-field"><label for="pbVerb">Verb</label><select id="pbVerb"></select></div>
-                <div class="prospective-field"><label for="pbResource">Resource</label><select id="pbResource"></select></div>
-                <div class="prospective-field">
-                  <label for="pbUseAllResources">All Possible Resources</label>
-                  <div class="prospective-inline-check">
-                    <input id="pbUseAllResources" type="checkbox" />
-                    <span class="prospective-note">Loads all known resources and families instead of those in use by tenancy.</span>
-                  </div>
-                </div>
-              </div>
-              <div class="prospective-builder-row two">
-                <div class="prospective-field"><label for="pbLocation">Location / Compartment</label><select id="pbLocation"></select></div>
-                <div class="prospective-field"><label for="pbEffectivePath">Effective Path</label><select id="pbEffectivePath"></select></div>
-              </div>
-              <div class="prospective-builder-row">
-                <div class="prospective-field"><label for="pbWhereMode">Where Clause Mode</label><select id="pbWhereMode"></select></div>
-              </div>
-              <div id="pbOtherWhereRow" class="prospective-builder-row" style="display:none;">
-                <div id="pbOtherWhereField" class="prospective-field"><label for="pbOtherWhereText">Other Where Clause Text (no 'where')</label><textarea id="pbOtherWhereText"></textarea></div>
-              </div>
-              <div id="pbTagWhereRow1" class="prospective-builder-row">
-                <div class="prospective-field"><label for="pbAccessType">Access Type</label><select id="pbAccessType"></select></div>
-                <div class="prospective-field"><label for="pbNamespace">Tag Namespace</label><input id="pbNamespace" /></div>
-                <div class="prospective-field"><label for="pbTagKey">Tag Key</label><input id="pbTagKey" /></div>
-              </div>
-              <div id="pbTagWhereRow2" class="prospective-builder-row two">
-                <div class="prospective-field"><label for="pbOperator">Operator</label><select id="pbOperator"></select></div>
-                <div class="prospective-field"><label for="pbValue">Value(s)</label><input id="pbValue" /></div>
-              </div>
-            </div>
-            <div style="display:flex;gap:.5rem;margin-top:.5rem;">
-              <button id="previewProspectiveBtn" class="ghost" style="margin-top:0;">Preview</button>
-              <button id="clearBuilderBtn" class="ghost" style="margin-top:0;">Clear Builder</button>
-              <button id="addBuilderToRowsBtn" class="ghost" style="margin-top:0;">Add to Statements</button>
-            </div>
-            <div id="pbPreview" class="prospective-preview" style="margin-top:.5rem;">No preview yet.</div>
-          </div>
-        </div>
-        <div class="prospective-editor-footer">
-          <button id="saveProspectiveBtn">Save and Close</button>
-        </div>
-      </aside>
-
       <div id="policyContextMenu" class="policy-context-menu" hidden>
         <button id="sendConditionToTesterBtn" type="button">Send condition to Condition Tester</button>
       </div>
-      <div id="prospectiveEditorHost"></div>
     </main>
 
+    <section class="analysis-layout">
+      <div id="prospectiveEditorHost"></div>
+    </section>
+
     <script src="/prospective-editor.js"></script>
+    <script src="/policy-statement-inspector.js"></script>
     <script>
       const runBtn = document.getElementById('runBtn');
       const contextHelpTitle = document.getElementById('contextHelpTitle');
@@ -449,21 +379,6 @@
       const copyStatementBtn = document.getElementById('copyStatementBtn');
       const copySummaryBtn = document.getElementById('copySummaryBtn');
       const policyLayout = document.querySelector('.policy-layout');
-      const prospectiveEditor = document.getElementById('prospectiveEditor');
-      const closeProspectiveBtn = document.getElementById('closeProspectiveBtn');
-      const addProspectiveRowBtn = document.getElementById('addProspectiveRowBtn');
-      const saveProspectiveBtn = document.getElementById('saveProspectiveBtn');
-      const prospectiveRowsBody = document.querySelector('#prospectiveRowsTable tbody');
-      const previewProspectiveBtn = document.getElementById('previewProspectiveBtn');
-      const addBuilderToRowsBtn = document.getElementById('addBuilderToRowsBtn');
-      const pbPreview = document.getElementById('pbPreview');
-      const pbUseAllResources = document.getElementById('pbUseAllResources');
-      const clearBuilderBtn = document.getElementById('clearBuilderBtn');
-      const pbWhereMode = document.getElementById('pbWhereMode');
-      const pbTagWhereRow1 = document.getElementById('pbTagWhereRow1');
-      const pbTagWhereRow2 = document.getElementById('pbTagWhereRow2');
-      const pbOtherWhereRow = document.getElementById('pbOtherWhereRow');
-      const pbOtherWhereField = document.getElementById('pbOtherWhereField');
       const policyContextMenu = document.getElementById('policyContextMenu');
       const sendConditionToTesterBtn = document.getElementById('sendConditionToTesterBtn');
 
@@ -490,13 +405,32 @@
       let selectedRow = null;
       let sortState = { key: 'policy_name', dir: 'asc' };
       let appSettings = {};
-      let prospectiveRows = [];
-      let prospectiveMetadata = null;
       const sharedProspectiveEditor = window.createProspectiveEditor({
         host: document.getElementById('prospectiveEditorHost'),
         mode: 'drawer',
         onSaved: async () => {
           await runFilter();
+        },
+      });
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        subtitleEl: inspectorSubtitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: {
+          titleWhenSelected: 'Statement Details',
+          subtitleWhenSelected: 'Inspecting selected statement',
+        },
+        onSelectionChange: (row) => {
+          selectedRow = row || null;
+          copyStatementBtn.disabled = !selectedRow;
+          copySummaryBtn.disabled = !selectedRow;
         },
       });
 
@@ -527,304 +461,12 @@
         return row?.[key] ?? row?.[titleKey] ?? '';
       }
 
-      function formatInspectorValue(key, value) {
-        if (value === null || value === undefined || value === '') return '-';
-
-        if (key === 'principals' && Array.isArray(value)) {
-          if (!value.length) return '-';
-          return value
-            .map((principal) => {
-              if (!principal || typeof principal !== 'object') return String(principal);
-              const principalType = principal.principal_type || 'principal';
-              const principalDisplay =
-                principal.display_name ||
-                [principal.domain_name, principal.name].filter(Boolean).join('/') ||
-                principal.ocid ||
-                principal.principal_key ||
-                JSON.stringify(principal);
-              return `${principalType}: ${principalDisplay}`;
-            })
-            .join('\n');
-        }
-
-        if (Array.isArray(value)) {
-          return value
-            .map((item) => {
-              if (item === null || item === undefined) return '';
-              if (typeof item === 'object') return JSON.stringify(item);
-              return String(item);
-            })
-            .filter((item) => item !== '')
-            .join('\n');
-        }
-
-        if (typeof value === 'object') {
-          return JSON.stringify(value, null, 2);
-        }
-
-        return String(value);
-      }
-
       function updateSortIndicators() {
         headerCells.forEach((th) => {
           const indicator = th.querySelector('.sort-indicator');
           const key = th.dataset.sortKey;
           indicator.textContent = key === sortState.key ? (sortState.dir === 'asc' ? '▲' : '▼') : '';
         });
-      }
-
-      function escAttr(value) {
-        return escapeHtml(value).replaceAll('"', '&quot;');
-      }
-
-      function prospectiveStatus(row) {
-        if (row.parsed && row.valid) return 'Parsed';
-        if (Array.isArray(row.invalid_reasons) && row.invalid_reasons.length) return 'Invalid';
-        return 'Not parsed';
-      }
-
-      function renderProspectiveRows() {
-        prospectiveRowsBody.innerHTML = '';
-        prospectiveRows.forEach((row, idx) => {
-          const trTop = document.createElement('tr');
-          trTop.innerHTML = `
-            <td><input data-k="compartment_path" data-i="${idx}" value="${escAttr(row.compartment_path || 'ROOT')}" /></td>
-            <td><input data-k="description" data-i="${idx}" value="${escAttr(row.description || '')}" /></td>
-            <td>${escapeHtml(prospectiveStatus(row))}</td>
-            <td>
-              <button data-action="parse" data-i="${idx}" class="ghost" style="margin-top:0;">Parse</button>
-              <button data-action="delete" data-i="${idx}" class="ghost" style="margin-top:0;">Delete</button>
-            </td>
-          `;
-
-          const trBottom = document.createElement('tr');
-          trBottom.innerHTML = `
-            <td colspan="4" class="prospective-line2-cell">
-              <textarea data-k="statement_text" data-i="${idx}">${escapeHtml(row.statement_text || '')}</textarea>
-              <div style="color:#b45309;font-size:.75rem;">${escapeHtml((row.invalid_reasons || []).join('; '))}</div>
-            </td>
-          `;
-
-          const trSep = document.createElement('tr');
-          trSep.className = 'prospective-sep';
-          trSep.innerHTML = '<td colspan="4"><div class="prospective-sep-line"></div></td>';
-
-          prospectiveRowsBody.appendChild(trTop);
-          prospectiveRowsBody.appendChild(trBottom);
-          prospectiveRowsBody.appendChild(trSep);
-        });
-      }
-
-      async function loadProspectiveEditor() {
-        const [rowsResp, metaResp] = await Promise.all([
-          fetch('/prospective/statements'),
-          fetch('/prospective/builder/metadata'),
-        ]);
-        const rowsPayload = await rowsResp.json();
-        prospectiveMetadata = await metaResp.json();
-        prospectiveRows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
-        if (!prospectiveRows.length) prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
-
-        const setOpts = (id, vals) => {
-          const el = document.getElementById(id);
-          el.innerHTML = (vals || []).map((v) => `<option value="${escAttr(v)}">${escapeHtml(v)}</option>`).join('');
-        };
-        setOpts('pbAction', prospectiveMetadata.actions || ['Allow', 'Deny']);
-        setOpts('pbVerb', prospectiveMetadata.verbs || ['inspect', 'read', 'use', 'manage']);
-        setOpts('pbWhereMode', prospectiveMetadata.where_modes || ['No Where Clause', 'Tag-based Where Clause', 'Other Where Clause']);
-        setOpts('pbAccessType', prospectiveMetadata.access_types || []);
-        setOpts('pbOperator', prospectiveMetadata.operators || ['=', '!=', 'IN', 'NOT IN']);
-        setOpts('pbPrincipal', prospectiveMetadata.principals || []);
-        setOpts('pbResource', prospectiveMetadata.resources_in_use || []);
-        setOpts('pbLocation', prospectiveMetadata.locations || ['ROOT']);
-        setOpts('pbEffectivePath', prospectiveMetadata.effective_paths || ['ROOT']);
-
-        document.getElementById('pbAction').value = 'Allow';
-        document.getElementById('pbVerb').value = 'use';
-        document.getElementById('pbWhereMode').value = 'No Where Clause';
-        if ((prospectiveMetadata.access_types || []).length) {
-          document.getElementById('pbAccessType').value = prospectiveMetadata.access_types[0];
-        }
-        document.getElementById('pbOperator').value = '=';
-
-        updateWhereModeVisibility();
-        renderProspectiveRows();
-      }
-
-      function refreshResourceDropdownFromMode() {
-        if (!prospectiveMetadata) return;
-        const source = pbUseAllResources.checked
-          ? (prospectiveMetadata.resources_all_possible || [])
-          : (prospectiveMetadata.resources_in_use || []);
-        const pbResource = document.getElementById('pbResource');
-        const prior = pbResource.value;
-        pbResource.innerHTML = (source || []).map((v) => `<option value="${escAttr(v)}">${escapeHtml(v)}</option>`).join('');
-        if (source.includes(prior)) pbResource.value = prior;
-        else if ((source || []).length) pbResource.value = source[0];
-      }
-
-      function updateWhereModeVisibility() {
-        const mode = String(pbWhereMode?.value || 'No Where Clause');
-        if (pbTagWhereRow1) pbTagWhereRow1.style.display = mode === 'Tag-based Where Clause' ? 'grid' : 'none';
-        if (pbTagWhereRow2) pbTagWhereRow2.style.display = mode === 'Tag-based Where Clause' ? 'grid' : 'none';
-        if (pbOtherWhereRow) pbOtherWhereRow.style.display = mode === 'Other Where Clause' ? 'grid' : 'none';
-        if (pbOtherWhereField) {
-          pbOtherWhereField.style.display = mode === 'Other Where Clause' ? 'grid' : 'none';
-        }
-      }
-
-      function clearBuilderDraft() {
-        document.getElementById('pbAction').value = 'Allow';
-        document.getElementById('pbIncludeDefault').checked = false;
-        document.getElementById('pbVerb').value = 'use';
-        pbUseAllResources.checked = false;
-        refreshResourceDropdownFromMode();
-        const loc = document.getElementById('pbLocation');
-        const eff = document.getElementById('pbEffectivePath');
-        if (loc?.options?.length) loc.value = loc.options[0].value;
-        if (eff?.options?.length) eff.value = eff.options[0].value;
-        pbWhereMode.value = 'No Where Clause';
-        document.getElementById('pbNamespace').value = '';
-        document.getElementById('pbTagKey').value = '';
-        document.getElementById('pbValue').value = '';
-        document.getElementById('pbOtherWhereText').value = '';
-        document.getElementById('pbOperator').value = '=';
-        if ((prospectiveMetadata?.access_types || []).length) {
-          document.getElementById('pbAccessType').value = prospectiveMetadata.access_types[0];
-        }
-        pbPreview.textContent = 'No preview yet.';
-        updateWhereModeVisibility();
-      }
-
-      async function parseProspectiveRow(index) {
-        const row = prospectiveRows[index];
-        const resp = await fetch('/prospective/statements/validate', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row),
-        });
-        const payload = await resp.json();
-        prospectiveRows[index] = payload.row;
-        renderProspectiveRows();
-      }
-
-      async function previewBuilder() {
-        const payload = {
-          action: document.getElementById('pbAction').value,
-          principal_key: document.getElementById('pbPrincipal').value,
-          include_default: document.getElementById('pbIncludeDefault').checked,
-          verb: document.getElementById('pbVerb').value,
-          resource: document.getElementById('pbResource').value,
-          location: document.getElementById('pbLocation').value,
-          effective_path: document.getElementById('pbEffectivePath').value,
-          where_mode: document.getElementById('pbWhereMode').value,
-          access_type: document.getElementById('pbAccessType').value,
-          namespace: document.getElementById('pbNamespace').value,
-          tag_key: document.getElementById('pbTagKey').value,
-          operator: document.getElementById('pbOperator').value,
-          value: document.getElementById('pbValue').value,
-          other_where_text: document.getElementById('pbOtherWhereText').value,
-        };
-        const resp = await fetch('/prospective/builder/preview', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-        });
-        const p = await resp.json();
-        pbPreview.textContent = p.statement_text || 'No preview.';
-        return p;
-      }
-
-      async function saveProspectiveRows() {
-        await fetch('/prospective/statements/replace', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: prospectiveRows }),
-        });
-        prospectiveEditor.classList.remove('open');
-        await runFilter();
-      }
-
-      function setInspector(row) {
-        selectedRow = row || null;
-        document.querySelectorAll('#resultsTable tbody tr').forEach((tr) => {
-          tr.classList.toggle('active-row', tr.dataset.rowId === String(row?._row_id || ''));
-        });
-
-        if (!row) {
-          policyInspector.classList.remove('open');
-          policyLayout.classList.remove('has-selection');
-          inspectorEmpty.style.display = 'block';
-          inspectorTable.style.display = 'none';
-          copyStatementBtn.disabled = true;
-          copySummaryBtn.disabled = true;
-          return;
-        }
-
-        policyInspector.classList.add('open');
-        policyLayout.classList.add('has-selection');
-        inspectorTitle.textContent = 'Statement Details';
-        inspectorSubtitle.textContent = 'Inspecting selected statement';
-
-        const primaryFieldOrder = [
-          'compartment_path',
-          'policy_name',
-          'policy_ocid',
-          'effective_path',
-          'statement_text',
-        ];
-
-        const parsedFieldOrder = [
-          'action',
-          'subject_type',
-          'subject',
-          'principals',
-          'verb',
-          'resource',
-          'permission',
-          'location',
-          'conditions',
-          'valid',
-          'invalid_reasons',
-          'parsed',
-          'comments',
-        ];
-
-        const excludedFields = new Set(['_row_id', 'internal_id', 'effective_compartment_ocid']);
-        const keySet = new Set([...primaryFieldOrder, ...parsedFieldOrder]);
-        Object.keys(row || {}).forEach((key) => {
-          if (!excludedFields.has(key)) keySet.add(key);
-        });
-
-        const orderedPrimary = primaryFieldOrder.filter((key) => keySet.has(key));
-        const orderedParsed = parsedFieldOrder.filter((key) => keySet.has(key));
-        const orderedOther = [
-          ...Array.from(keySet)
-            .filter((key) => !primaryFieldOrder.includes(key) && !parsedFieldOrder.includes(key))
-            .sort((a, b) => a.localeCompare(b)),
-        ];
-
-        const orderedKeys = [
-          ...orderedPrimary,
-          '__separator_parsed__',
-          ...orderedParsed,
-          ...orderedOther,
-        ];
-
-        const labelForKey = (key) =>
-          String(key || '')
-            .replaceAll('_', ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-
-        inspectorTableBody.innerHTML = orderedKeys
-          .map((key) => {
-            if (key === '__separator_parsed__') {
-              return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
-            }
-            const label = labelForKey(key);
-            const value = getRowValue(row, key);
-            return `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(formatInspectorValue(key, value))}</td></tr>`;
-          })
-          .join('');
-
-        inspectorEmpty.style.display = 'none';
-        inspectorTable.style.display = 'table';
-        copyStatementBtn.disabled = false;
-        copySummaryBtn.disabled = false;
       }
 
       function renderRows(rows) {
@@ -841,7 +483,7 @@
             <td>${escapeHtml(getRowValue(row, 'verb'))}</td>
             <td>${escapeHtml(getRowValue(row, 'resource'))}</td>
           `;
-          tr.addEventListener('click', () => setInspector(row));
+          tr.addEventListener('click', () => inspector.setInspector(row));
           tr.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             openRowContextMenu(event, row);
@@ -1113,7 +755,7 @@
           const prospectiveCount = currentRows.filter((r) => r.is_prospective).length;
           summary.textContent = `Showing ${currentRows.length} of ${matched} (total ${total})${prospectiveCount ? ` + ${prospectiveCount} prospective` : ''}`;
           renderRows(currentRows);
-          setInspector(null);
+          inspector.clear();
           status.textContent = '';
         } catch (err) {
           status.textContent = `Filter failed: ${err}`;
@@ -1138,7 +780,7 @@
         });
       });
 
-      closeInspectorBtn.addEventListener('click', () => setInspector(null));
+      closeInspectorBtn.addEventListener('click', () => inspector.clear());
 
       clearFiltersBtn.addEventListener('click', () => {
         subjectFilter.value = '';
@@ -1165,55 +807,9 @@
         status.className = 'status';
       });
 
-      prospectiveRowsBody.addEventListener('input', (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
-        const i = Number(target.dataset.i);
-        const k = target.dataset.k;
-        if (!Number.isFinite(i) || !k || !prospectiveRows[i]) return;
-        prospectiveRows[i][k] = target.value;
-      });
-
-      prospectiveRowsBody.addEventListener('click', async (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
-        const action = target.dataset.action;
-        const i = Number(target.dataset.i);
-        if (!Number.isFinite(i)) return;
-        if (action === 'delete') {
-          prospectiveRows.splice(i, 1);
-          if (!prospectiveRows.length) prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
-          renderProspectiveRows();
-          return;
-        }
-        if (action === 'parse') {
-          await parseProspectiveRow(i);
-        }
-      });
-
       manageProspectiveBtn.addEventListener('click', async () => {
         await sharedProspectiveEditor.open();
       });
-      closeProspectiveBtn.addEventListener('click', () => prospectiveEditor.classList.remove('open'));
-      addProspectiveRowBtn.addEventListener('click', () => {
-        prospectiveRows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
-        renderProspectiveRows();
-      });
-      previewProspectiveBtn.addEventListener('click', previewBuilder);
-      addBuilderToRowsBtn.addEventListener('click', async () => {
-        const p = await previewBuilder();
-        prospectiveRows.push({
-          compartment_path: document.getElementById('pbLocation').value || 'ROOT',
-          description: p.description_suggestion || '',
-          statement_text: p.statement_text || '',
-          invalid_reasons: [],
-        });
-        renderProspectiveRows();
-      });
-      saveProspectiveBtn.addEventListener('click', saveProspectiveRows);
-      pbUseAllResources.addEventListener('change', refreshResourceDropdownFromMode);
-      pbWhereMode.addEventListener('change', updateWhereModeVisibility);
-      clearBuilderBtn.addEventListener('click', clearBuilderDraft);
 
       copyStatementBtn.addEventListener('click', async () => {
         if (!selectedRow) return;

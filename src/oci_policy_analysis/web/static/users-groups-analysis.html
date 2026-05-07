@@ -30,27 +30,24 @@
 
     <main>
       <!-- Top analysis area: Filters (left 1/3) + Entities (right 2/3) -->
-      <div class="users-groups-top-grid" style="grid-template-columns: 1fr 2fr; align-items: start;">
+      <div class="users-groups-top-grid" style="grid-template-columns: minmax(340px, 34%) minmax(0, 66%); align-items: start;">
         <div class="card">
           <h3 class="section-heading">Filters</h3>
-          <div class="users-groups-filter-grid">
-            <label class="filter-field" for="mode" data-help-title="Analysis mode" data-help-body="Choose whether to analyze GROUPS or USERS as the source entities.">Mode
+          <div class="dynamic-group-filter-grid">
+            <div class="dynamic-group-filter-row" data-help-title="Analysis mode" data-help-body="Choose whether to analyze GROUPS or USERS as the source entities.">
+              <label for="mode">Mode</label>
               <select id="mode"><option>GROUPS</option><option>USERS</option></select>
-            </label>
-            <label class="filter-field" for="search" data-help-title="Entity search" data-help-body="Search users/groups by name. Use | to match multiple values.">Entity Search
+            </div>
+            <div class="dynamic-group-filter-row" data-help-title="Entity search" data-help-body="Search users/groups by name. Use | to match multiple values.">
+              <label for="search">Entity Search</label>
               <input id="search" placeholder="use | for OR" />
-            </label>
-            <label class="checkbox-label" data-help-title="Show all data columns" data-help-body="Toggle between summary columns and expanded entity metadata."><input type="checkbox" id="showAllData" /> Show all Data</label>
-            <label class="checkbox-label" data-help-title="Include any-group and any-user" data-help-body="Include generic any-group / any-user policy subjects in the policy filter results."><input type="checkbox" id="includeAny" /> Show any-group / any-user</label>
-            <label class="filter-field" for="subjectTypeFilter" data-help-title="Subject type filter" data-help-body="Limit policies by subject type, such as group or user.">Subject Type
-              <input id="subjectTypeFilter" placeholder="group / user" />
-            </label>
-            <label class="filter-field" for="subjectFilter" data-help-title="Subject filter" data-help-body="Filter policy results by subject text value.">Subject Contains
-              <input id="subjectFilter" placeholder="subject text" />
-            </label>
-            <label class="filter-field" for="principalFilter" data-help-title="Principal filter" data-help-body="Filter policy results by principal text.">Principal Contains
-              <input id="principalFilter" placeholder="principal text" />
-            </label>
+            </div>
+            <div class="dynamic-group-filter-row checkbox-row">
+              <label class="checkbox-label" data-help-title="Show all data columns" data-help-body="Toggle between summary columns and expanded entity metadata."><input type="checkbox" id="showAllData" /> Show all Data</label>
+            </div>
+            <div class="dynamic-group-filter-row checkbox-row">
+              <label class="checkbox-label" data-help-title="Include any-group and any-user" data-help-body="Include generic any-group / any-user policy subjects in the policy filter results."><input type="checkbox" id="includeAny" /> Show any-group / any-user</label>
+            </div>
           </div>
           <div class="dynamic-group-actions"><button id="runBtn" data-help-title="Apply filters" data-help-body="Load entities and policy results using current filter settings.">Apply</button><button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset filters and reload default data.">Clear</button></div>
           <div class="helper-text" style="margin-top: 10px;" data-help-title="Selected Groups" data-help-body="Shows the groups selected or groups that selected users are members of. Policies below are filtered down to these specific groups.">Selected Groups</div>
@@ -77,18 +74,20 @@
         <aside id="policyInspector" class="inspector-panel" aria-live="polite">
           <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
           <div class="inspector-body custom-scrollbar" data-help-title="Statement details inspector" data-help-body="Shows all details for the selected policy row."><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table></div>
+          <div class="policy-inspector-footer">
+            <button id="copyStatementBtn" class="ghost" disabled>Copy Statement</button>
+            <button id="copySummaryBtn" class="ghost" disabled>Copy Summary</button>
+          </div>
         </aside>
       </div>
     </main>
+    <script src="/policy-statement-inspector.js"></script>
     <script>
       // Core filter/entity/policy elements used throughout this page script.
       const modeEl = document.getElementById('mode');
       const searchEl = document.getElementById('search');
       const showAllDataEl = document.getElementById('showAllData');
       const includeAnyEl = document.getElementById('includeAny');
-      const subjectTypeFilterEl = document.getElementById('subjectTypeFilter');
-      const subjectFilterEl = document.getElementById('subjectFilter');
-      const principalFilterEl = document.getElementById('principalFilter');
       const selectedGroupsWidget = document.getElementById('selectedGroupsWidget');
       const entityCounts = document.getElementById('entityCounts');
       const entitiesHead = document.querySelector('#entitiesTable thead');
@@ -101,6 +100,8 @@
       const inspectorEmpty = document.getElementById('inspectorEmpty');
       const inspectorTable = document.getElementById('inspectorTable');
       const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const copyStatementBtn = document.getElementById('copyStatementBtn');
+      const copySummaryBtn = document.getElementById('copySummaryBtn');
       const contextHelpTitle = document.getElementById('contextHelpTitle');
       const contextHelpBody = document.getElementById('contextHelpBody');
 
@@ -114,6 +115,7 @@
       const USER_COLS = ['Domain Name','Username','Display Name','Primary Email'];
       const USER_COLS_ALL = ['Domain Name','Username','Display Name','Primary Email','User ID','User OCID'];
       let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = []; let selectedPolicy = null;
+      let allGroupsRows = [];
       const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
       const cols = () => modeEl.value === 'GROUPS' ? (showAllDataEl.checked ? GROUP_COLS_ALL : GROUP_COLS) : (showAllDataEl.checked ? USER_COLS_ALL : USER_COLS);
 
@@ -177,64 +179,24 @@
         return row?.[key] ?? row?.[titleKey] ?? '';
       }
 
-      function formatInspectorValue(key, value){
-        if (value === null || value === undefined || value === '') return '-';
-
-        if (key === 'principals' && Array.isArray(value)) {
-          if (!value.length) return '-';
-          return value.map((principal) => {
-            if (!principal || typeof principal !== 'object') return String(principal);
-            const principalType = principal.principal_type || 'principal';
-            const principalDisplay =
-              principal.display_name ||
-              [principal.domain_name, principal.name].filter(Boolean).join('/') ||
-              principal.ocid ||
-              principal.principal_key ||
-              JSON.stringify(principal);
-            return `${principalType}: ${principalDisplay}`;
-          }).join('\n');
-        }
-
-        if (Array.isArray(value)) {
-          return value
-            .map((item) => {
-              if (item === null || item === undefined) return '';
-              if (typeof item === 'object') return JSON.stringify(item);
-              return String(item);
-            })
-            .filter(Boolean)
-            .join('\n');
-        }
-
-        if (typeof value === 'object') return JSON.stringify(value, null, 2);
-        return String(value);
-      }
-
-      function setInspector(row){
-        selectedPolicy = row || null;
-        [...resultsBody.querySelectorAll('tr')].forEach((tr) => tr.classList.toggle('active-row', tr.dataset.rowId === String(row?._row_id || '')));
-        if (!row){ policyInspector.classList.remove('open'); policyLayout.classList.remove('has-selection'); inspectorEmpty.style.display='block'; inspectorTable.style.display='none'; return; }
-        policyInspector.classList.add('open'); policyLayout.classList.add('has-selection'); inspectorTitle.textContent = 'Statement Details';
-
-        const primaryFieldOrder = ['compartment_path','policy_name','policy_ocid','effective_path','statement_text'];
-        const parsedFieldOrder = ['action','subject_type','subject','principals','verb','resource','permission','location','conditions','valid','invalid_reasons','parsed','comments'];
-        const excluded = new Set(['_row_id','internal_id','effective_compartment_ocid']);
-        const keySet = new Set([...primaryFieldOrder, ...parsedFieldOrder]);
-        Object.keys(row || {}).forEach((k) => { if (!excluded.has(k)) keySet.add(k); });
-        const orderedPrimary = primaryFieldOrder.filter((k) => keySet.has(k));
-        const orderedParsed = parsedFieldOrder.filter((k) => keySet.has(k));
-        const orderedOther = Array.from(keySet).filter((k) => !primaryFieldOrder.includes(k) && !parsedFieldOrder.includes(k)).sort((a,b) => a.localeCompare(b));
-        const orderedKeys = [...orderedPrimary, '__separator_parsed__', ...orderedParsed, ...orderedOther];
-        const labelForKey = (k) => String(k || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
-        inspectorTableBody.innerHTML = orderedKeys
-          .map((k) => {
-            if (k === '__separator_parsed__') return '<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>';
-            return `<tr><th>${esc(labelForKey(k))}</th><td>${esc(formatInspectorValue(k, getRowValue(row, k)))}</td></tr>`;
-          })
-          .join('');
-        inspectorEmpty.style.display='none'; inspectorTable.style.display='table';
-      }
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: { titleWhenSelected: 'Statement Details' },
+        onSelectionChange: (row) => {
+          selectedPolicy = row || null;
+          const hasSelection = Boolean(row);
+          copyStatementBtn.disabled = !hasSelection;
+          copySummaryBtn.disabled = !hasSelection;
+        },
+      });
 
       function renderEntities(){
         entitiesHead.innerHTML = '<tr><th>Select</th>' + cols().map((c)=>`<th>${esc(c)}</th>`).join('') + '</tr>';
@@ -246,13 +208,70 @@
 
       function renderPolicies(){
         resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Subject Type'])}</td><td>${esc(p['Subject'])}</td></tr>`).join('');
-        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+      }
+
+      function getSelectedGroupsFromUsers() {
+        if (modeEl.value !== 'USERS') return [];
+        const byOcid = new Map();
+        (allGroupsRows || []).forEach((g) => {
+          const ocid = String(g.group_ocid || g['Group OCID'] || '').trim();
+          if (!ocid) return;
+          byOcid.set(ocid, g);
+        });
+
+        const dedup = new Map();
+        [...selectedEntityIndexes]
+          .map((i) => entityRows[i])
+          .filter(Boolean)
+          .forEach((userRow) => {
+            const rawUserGroups = userRow.groups ?? userRow['groups'] ?? userRow['User Groups'] ?? [];
+            let userGroups = [];
+            if (Array.isArray(rawUserGroups)) {
+              userGroups = rawUserGroups;
+            } else if (typeof rawUserGroups === 'string') {
+              userGroups = rawUserGroups
+                .split(',')
+                .map((s) => s.trim())
+                .filter((s) => s && s.toUpperCase() !== 'N/A');
+            }
+            userGroups.forEach((groupOcidRaw) => {
+              const groupOcid = String(groupOcidRaw || '').trim();
+              if (!groupOcid) return;
+              const resolved = byOcid.get(groupOcid);
+              if (!resolved) return;
+              const domainName = String(resolved.domain_name || resolved['Domain Name'] || 'Default');
+              const groupName = String(resolved.group_name || resolved['Group Name'] || '').trim();
+              if (!groupName) return;
+              const key = `${domainName.casefold()}::${groupName.casefold()}`;
+              if (!dedup.has(key)) {
+                dedup.set(key, {
+                  domain_name: domainName,
+                  group_name: groupName,
+                  group_ocid: String(resolved.group_ocid || resolved['Group OCID'] || groupOcid),
+                });
+              }
+            });
+          });
+        console.debug('[users-groups] selected user count:', selectedEntityIndexes.size, 'derived groups:', [...dedup.values()]);
+        return [...dedup.values()];
       }
 
       function selectedPayload(){
         const chosen = [...selectedEntityIndexes].map(i => entityRows[i]).filter(Boolean);
         if (modeEl.value === 'GROUPS') return { exact_groups: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', group_name: r['Group Name'] })) };
-        return { exact_users: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', user_name: r['Username'] || r['user_name'] })) };
+        const selectedGroups = getSelectedGroupsFromUsers();
+        if (selectedGroups.length) {
+          return { exact_groups: selectedGroups };
+        }
+        // Fallback: if user->group resolution is empty, send exact users so backend can resolve memberships.
+        const exactUsers = chosen
+          .map((u) => ({
+            domain_name: String(u['Domain Name'] || u.domain_name || 'Default'),
+            user_name: String(u['Username'] || u.user_name || '').trim(),
+          }))
+          .filter((u) => u.user_name);
+        return { exact_users: exactUsers };
       }
 
       function updateSelectedGroupsWidget(){
@@ -275,14 +294,15 @@
           });
         }
 
-        // For USERS mode, infer a de-duped group list from policy subjects filtered by selected users.
+        // For USERS mode, derive the de-duped group list directly from selected users' group memberships.
         if (modeEl.value === 'USERS') {
-          currentPolicies.forEach((p) => {
-            const subjectType = String(p['Subject Type'] ?? p.subject_type ?? '').toLowerCase();
-            if (!subjectType.includes('group')) return;
-            const subject = String(p['Subject'] ?? p.subject ?? '').trim();
-            if (subject) groups.add(subject);
+          const derived = getSelectedGroupsFromUsers();
+          derived.forEach((g) => {
+            groups.add(`${g.domain_name}/${g.group_name}`);
           });
+          if (!derived.length && chosen.length) {
+            groups.add('(No groups resolved from selected users)');
+          }
         }
 
         const sorted = [...groups].sort((a, b) => a.localeCompare(b));
@@ -296,6 +316,7 @@
         const q = encodeURIComponent(searchEl.value || '');
         const [g,u,m] = await Promise.all([fetch('/entities/groups?search='+q), fetch('/entities/users?search='+q), fetch((modeEl.value==='GROUPS'?'/entities/groups':'/entities/users')+'?search='+q)]);
         const groups = await g.json(); const users = await u.json(); const main = await m.json();
+        allGroupsRows = Array.isArray(groups.groups) ? groups.groups : [];
         entityCounts.textContent = `Total Groups: ${groups.total || 0} • Total Users: ${users.total || 0}`;
         entityRows = modeEl.value === 'GROUPS' ? (main.groups || []) : (main.users || []);
         renderEntities();
@@ -303,19 +324,22 @@
       }
 
       async function loadPolicies(){
-        const payload = { ...selectedPayload(), include_any_subjects: includeAnyEl.checked, subject_type: subjectTypeFilterEl.value, subject: subjectFilterEl.value, principal: principalFilterEl.value };
+        const payload = { ...selectedPayload(), include_any_subjects: includeAnyEl.checked };
+        console.debug('[users-groups] POST /filter/policies/by-subjects payload:', payload);
         const resp = await fetch('/filter/policies/by-subjects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         const data = await resp.json();
         currentPolicies = (data.statements || []).map((r, idx) => ({...r, _row_id: idx + 1}));
         updateSelectedGroupsWidget();
         summary.textContent = `Policy Statements (Filtered): ${currentPolicies.length}`;
-        setInspector(null);
+        inspector.clear();
         renderPolicies();
       }
 
       document.getElementById('runBtn').addEventListener('click', loadEntities);
-      document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; subjectTypeFilterEl.value=''; subjectFilterEl.value=''; principalFilterEl.value=''; includeAnyEl.checked=false; loadEntities(); });
-      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> setInspector(null));
+      document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; includeAnyEl.checked=false; loadEntities(); });
+      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
+      copyStatementBtn.addEventListener('click', async () => { await inspector.copyStatement(); });
+      copySummaryBtn.addEventListener('click', async () => { await inspector.copySummary(); });
       // Mode change needs a fresh entity fetch so table data matches selected type immediately.
       modeEl.addEventListener('change', loadEntities);
       // Show-all-data only affects visible columns for the currently loaded entity rows.
