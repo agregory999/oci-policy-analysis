@@ -23,17 +23,17 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
-from oci_policy_analysis.application.services.prospective_statements_service import (
-    ProspectiveStatementsService,
-)
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.ui.builder_helpers import (
+from oci_policy_analysis.application.core.common.builder_helpers import (
     build_full_statement,
     build_location_clause,
     build_subject_phrase,
     build_tag_variable_and_snippet,
 )
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.services.prospective_statements_service import (
+    ProspectiveStatementsService,
+)
+from oci_policy_analysis.common.logger import get_logger
 
 logger = get_logger(component='prospective_editor_window')
 

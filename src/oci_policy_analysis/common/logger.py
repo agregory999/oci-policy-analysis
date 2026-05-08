@@ -19,6 +19,32 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 
+def _resolve_logger_name(component: str) -> str:
+    """Resolve configured component keys to concrete logger names.
+
+    Supports both legacy short names (e.g. ``settings_tab``) and the newer
+    taxonomy namespaces (e.g. ``core.engine.policy_intelligence_engine``)
+    while still allowing explicit third-party logger names such as
+    ``uvicorn.access``.
+    """
+
+    name = (component or '').strip()
+    if not name:
+        return 'oci-policy-analysis'
+
+    if name.startswith('oci-policy-analysis.'):
+        return name
+
+    # Known third-party/runtime logger roots that should remain unprefixed.
+    third_party_roots = {'uvicorn', 'fastapi', 'asyncio', 'urllib3', 'httpx', 'sqlalchemy'}
+    if name in third_party_roots:
+        return name
+    if '.' in name and name.split('.', 1)[0] in third_party_roots:
+        return name
+
+    return f'oci-policy-analysis.{name}'
+
+
 class ForceFlushStreamHandler(logging.StreamHandler):
     """A stream handler that flushes after every emit, ensuring logs always show up immediately—even from threads."""
 
@@ -151,9 +177,11 @@ def set_component_level(component: str, level: str | int) -> None:
     """
     root = logging.getLogger()
     # If root is DEBUG, --verbose is active, override any request to set lower level.
+    logger_name = _resolve_logger_name(component)
+
     if root.level == logging.DEBUG:
         level_value = logging.DEBUG
-        lgr = logging.getLogger(component) if '.' in component else get_logger(component)
+        lgr = logging.getLogger(logger_name)
         lgr.setLevel(level_value)
         logging.getLogger().info(f"Component log level for '{component}' forced to DEBUG due to root/verbose override")
         return
@@ -161,7 +189,7 @@ def set_component_level(component: str, level: str | int) -> None:
         level_value = logging._nameToLevel.get(level.upper(), logging.INFO)
     else:
         level_value = int(level)
-    lgr = logging.getLogger(component) if '.' in component else get_logger(component)
+    lgr = logging.getLogger(logger_name)
     lgr.setLevel(level_value)
     logging.getLogger().critical(f"Component log level for '{component}' set to {logging.getLevelName(level_value)}")
 
