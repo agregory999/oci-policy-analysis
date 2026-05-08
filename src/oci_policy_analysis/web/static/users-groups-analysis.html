@@ -51,7 +51,7 @@
           </div>
           <div class="dynamic-group-actions"><button id="runBtn" data-help-title="Apply filters" data-help-body="Load entities and policy results using current filter settings.">Apply</button><button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset filters and reload default data.">Clear</button></div>
           <div class="helper-text" style="margin-top: 10px;" data-help-title="Selected Groups" data-help-body="Shows the groups selected or groups that selected users are members of. Policies below are filtered down to these specific groups.">Selected Groups</div>
-          <div id="selectedGroupsWidget" class="pill" style="margin-top: 6px; white-space: pre-wrap; user-select: none;">(All Groups)</div>
+          <div id="selectedGroupsWidget" class="pill" style="margin-top: 6px; white-space: pre-wrap; user-select: none; border-radius: 10px; display: block; max-height: 180px; overflow: auto; line-height: 1.35;">(All Groups)</div>
         </div>
 
         <div class="card">
@@ -214,10 +214,17 @@
       function getSelectedGroupsFromUsers() {
         if (modeEl.value !== 'USERS') return [];
         const byOcid = new Map();
+        const byName = new Map();
         (allGroupsRows || []).forEach((g) => {
           const ocid = String(g.group_ocid || g['Group OCID'] || '').trim();
+          const domainName = String(g.domain_name || g['Domain Name'] || 'Default').trim() || 'Default';
+          const groupName = String(g.group_name || g['Group Name'] || '').trim();
           if (!ocid) return;
           byOcid.set(ocid, g);
+          if (groupName) {
+            byName.set(`${domainName.toLowerCase()}::${groupName.toLowerCase()}`, g);
+            byName.set(`default::${groupName.toLowerCase()}`, g);
+          }
         });
 
         const dedup = new Map();
@@ -235,20 +242,25 @@
                 .map((s) => s.trim())
                 .filter((s) => s && s.toUpperCase() !== 'N/A');
             }
-            userGroups.forEach((groupOcidRaw) => {
-              const groupOcid = String(groupOcidRaw || '').trim();
-              if (!groupOcid) return;
-              const resolved = byOcid.get(groupOcid);
+            userGroups.forEach((groupRefRaw) => {
+              const groupRef = String(groupRefRaw || '').trim();
+              if (!groupRef) return;
+
+              const userDomain = String(userRow['Domain Name'] || userRow.domain_name || 'Default').trim() || 'Default';
+              let resolved = byOcid.get(groupRef);
+              if (!resolved) {
+                resolved = byName.get(`${userDomain.toLowerCase()}::${groupRef.toLowerCase()}`) || byName.get(`default::${groupRef.toLowerCase()}`);
+              }
               if (!resolved) return;
               const domainName = String(resolved.domain_name || resolved['Domain Name'] || 'Default');
               const groupName = String(resolved.group_name || resolved['Group Name'] || '').trim();
               if (!groupName) return;
-              const key = `${domainName.casefold()}::${groupName.casefold()}`;
+              const key = `${domainName.toLowerCase()}::${groupName.toLowerCase()}`;
               if (!dedup.has(key)) {
                 dedup.set(key, {
                   domain_name: domainName,
                   group_name: groupName,
-                  group_ocid: String(resolved.group_ocid || resolved['Group OCID'] || groupOcid),
+                  group_ocid: String(resolved.group_ocid || resolved['Group OCID'] || groupRef),
                 });
               }
             });
@@ -349,5 +361,6 @@
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
       loadEntities();
     </script>
-  </body>
+      <script src="/auth-gate.js"></script>
+</body>
 </html>

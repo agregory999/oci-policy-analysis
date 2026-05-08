@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
@@ -45,11 +45,44 @@ from oci_policy_analysis.common.models import (
     UserSearch,
 )
 from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
+from oci_policy_analysis.web.auth import current_key_fingerprint, verify_access_key
 from oci_policy_analysis.web.dependencies import get_context, get_settings
 
 logger = get_logger(component='web_routes')
 router = APIRouter()
 condition_tester_service = ConditionTesterService()
+
+
+def _is_authenticated(request: Request) -> bool:
+    """Return whether this browser session is authenticated for current runtime key."""
+    session = request.session
+    return bool(session.get('authenticated')) and session.get('auth_key_fp') == current_key_fingerprint()
+
+
+@router.get('/auth/status')
+def auth_status(request: Request) -> dict[str, bool]:
+    """Return lightweight auth status for current browser session."""
+    return {'authenticated': _is_authenticated(request)}
+
+
+@router.post('/auth/login')
+def auth_login(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Validate startup access key and mark browser session authenticated."""
+    submitted_key = str(payload.get('key') or '').strip()
+    if not verify_access_key(submitted_key):
+        request.session.clear()
+        return {'success': False, 'authenticated': False, 'message': 'Invalid access key.'}
+
+    request.session['authenticated'] = True
+    request.session['auth_key_fp'] = current_key_fingerprint()
+    return {'success': True, 'authenticated': True}
+
+
+@router.post('/auth/logout')
+def auth_logout(request: Request) -> dict[str, bool]:
+    """Clear lightweight auth state for current browser session."""
+    request.session.clear()
+    return {'success': True, 'authenticated': False}
 
 
 def _get_or_init_prospective_service(ctx) -> ProspectiveStatementsService:
@@ -862,6 +895,61 @@ def list_reference_families() -> dict[str, list[str]]:
     ctx = get_context()
     service = ReferenceDataService(ctx.reference_data)
     return {'families': service.list_families()}
+
+
+@router.get('/reference/resource-helper-options')
+def get_reference_resource_helper_options() -> dict[str, object]:
+    """Return resource/family option sets used by policy filter helper dropdowns."""
+    logger.info('GET /reference/resource-helper-options')
+    ctx = get_context()
+    service = ReferenceDataService(ctx.reference_data)
+    return {
+        'resources': service.list_resources_with_family(),
+        'families': service.list_families_with_resources(),
+    }
+
+
+@router.get('/reference/permission-helper-options')
+def get_reference_permission_helper_options() -> dict[str, object]:
+    """Return option data for permission lookup helper UI."""
+    logger.info('GET /reference/permission-helper-options')
+    ctx = get_context()
+    service = ReferenceDataService(ctx.reference_data)
+    return {
+        'operations': service.list_operations_with_permissions(),
+        'resources': service.list_resources(),
+        'families': service.list_families(),
+        'verbs': ['inspect', 'read', 'use', 'manage'],
+        'actions': ['allow', 'deny'],
+    }
+
+
+@router.post('/reference/build-resource-filter')
+def build_reference_resource_filter(payload: dict[str, object]) -> dict[str, object]:
+    """Build a canonical resource filter string from selected resource/family helper inputs."""
+    logger.info('POST /reference/build-resource-filter')
+    ctx = get_context()
+    service = ReferenceDataService(ctx.reference_data)
+    include_all_resources = bool(payload.get('include_all_resources')) if isinstance(payload, dict) else False
+
+    mode = str(payload.get('mode', '') if isinstance(payload, dict) else '').strip()
+    if mode == 'from_resource':
+        resource = str(payload.get('resource', '') if isinstance(payload, dict) else '').strip()
+        expanded, warnings = service.build_resource_filter_from_resource(
+            resource,
+            include_all_resources=include_all_resources,
+        )
+        return {'expanded_resource_filter': expanded, 'warnings': warnings}
+
+    if mode == 'from_family':
+        family = str(payload.get('family', '') if isinstance(payload, dict) else '').strip()
+        expanded, warnings = service.build_resource_filter_from_family(
+            family,
+            include_all_resources=include_all_resources,
+        )
+        return {'expanded_resource_filter': expanded, 'warnings': warnings}
+
+    raise HTTPException(status_code=400, detail='mode must be from_resource or from_family')
 
 
 @router.post('/reference/permissions')

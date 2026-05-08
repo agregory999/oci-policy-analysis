@@ -46,9 +46,51 @@ class ConsolidationWorkbenchService:
             reference_data_repo=context.reference_data,
             policy_repo=context.policy_repo,
         )
-        self.logger.info(
+        self.logger.debug(
             'Initialized ConsolidationWorkbenchService for tenancy=%s', getattr(self.repo, 'tenancy_ocid', None)
         )
+
+    def _reload_live_policy_data_if_allowed(self) -> dict[str, Any]:
+        """Reload only policy/compartment data when source is a live tenancy.
+
+        Returns:
+            dict[str, Any]: Reload result metadata with status and message.
+                status is one of: success, failure, noop.
+        """
+        if not (
+            getattr(self.repo, 'policies_loaded_from_tenancy', False)
+            and not getattr(self.repo, 'loaded_from_compliance_output', False)
+        ):
+            return {
+                'reload_status': 'noop',
+                'message': 'Reload skipped: dataset was not loaded live from tenancy.',
+            }
+
+        if not hasattr(self.repo, 'reload_compartment_policy_data'):
+            return {
+                'reload_status': 'failure',
+                'message': 'Reload failed: repository does not support policy-only reload.',
+            }
+
+        try:
+            reload_ok = bool(self.repo.reload_compartment_policy_data())
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.error('Live policy reload failed before progress check: %s', exc, exc_info=True)
+            return {
+                'reload_status': 'failure',
+                'message': f'Reload failed: {exc}',
+            }
+
+        if not reload_ok:
+            return {
+                'reload_status': 'failure',
+                'message': 'Reload failed: policy/compartment refresh did not complete successfully.',
+            }
+
+        return {
+            'reload_status': 'success',
+            'message': 'Reload succeeded: live tenancy policy data refreshed.',
+        }
 
     def get_status(self) -> dict[str, Any]:
         """Return consolidation status and capability flags for the current dataset.
@@ -85,12 +127,15 @@ class ConsolidationWorkbenchService:
             rows.append(
                 {
                     'policy_name': st.get('policy_name', ''),
+                    'policy_ocid': st.get('policy_ocid', ''),
+                    'compartment_ocid': st.get('compartment_ocid', ''),
+                    'compartment_path': st.get('compartment_path', ''),
                     'statement_text': st.get('statement_text', ''),
                     'location': st.get('location', ''),
-                    'compartment': st.get('effective_path', ''),
+                    'effective_path': st.get('effective_path', ''),
+                    'statement_effective_path': st.get('effective_path', ''),
                     'principal': st.get('subject_type', ''),
                     'internal_id': st.get('internal_id', ''),
-                    'policy_ocid': st.get('policy_ocid', ''),
                 }
             )
         return rows
@@ -383,18 +428,37 @@ class ConsolidationWorkbenchService:
         if not run or not run.get('plan'):
             self.logger.warning('check_progress requested for unknown plan: effort_id=%s', effort_id)
             raise ValueError('Plan not found.')
-        if not (
-            getattr(self.repo, 'policies_loaded_from_tenancy', False)
-            and not getattr(self.repo, 'loaded_from_compliance_output', False)
-        ):
-            self.logger.warning('check_progress rejected for non-live dataset: effort_id=%s', effort_id)
-            raise ValueError('Progress checks are only available for live tenancy data loads.')
+        reload_result = self._reload_live_policy_data_if_allowed()
+        reload_status = str(reload_result.get('reload_status') or 'noop')
+        reload_message = str(reload_result.get('message') or '')
+
+        if reload_status == 'failure':
+            self.logger.warning('check_progress reload failed for effort_id=%s: %s', effort_id, reload_message)
+            raise ValueError(reload_message or 'Policy data reload failed before progress check.')
+
+        if reload_status == 'noop':
+            self.logger.info('check_progress no-op for non-live dataset: effort_id=%s', effort_id)
+            return {
+                'progress': {},
+                'executed': 0,
+                'total': 0,
+                'reload_status': 'noop',
+                'message': reload_message or 'No-op: progress check requires live tenancy load.',
+            }
+
         progress = self.engine.check_plan_progress(run['plan'])
         total = len(progress)
         executed = sum(1 for p in progress.values() if p.get('executed'))
         tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
         if tenancy_ocid:
-            updates: dict[str, Any] = {'step_status': {**(run.get('step_status') or {}), 'progress': progress}}
+            updates: dict[str, Any] = {
+                'step_status': {**(run.get('step_status') or {}), 'progress': progress},
+                # Keep proposal-table source rows in sync so the web Proposal view
+                # reflects latest executed/pending status immediately after reload.
+                'results': self._build_proposal_rows(
+                    plan=cast(ConsolidationPlan, run.get('plan') or {}), progress=progress
+                ),
+            }
             if total > 0 and executed >= total:
                 updates['status'] = 'completed'
                 updates['completed_at'] = datetime.now(UTC).isoformat()
@@ -402,7 +466,13 @@ class ConsolidationWorkbenchService:
         self.logger.info(
             'Checked consolidation progress: effort_id=%s executed=%s total=%s', effort_id, executed, total
         )
-        return {'progress': progress, 'executed': executed, 'total': total}
+        return {
+            'progress': progress,
+            'executed': executed,
+            'total': total,
+            'reload_status': 'success',
+            'message': reload_message or 'Reload and progress check completed successfully.',
+        }
 
     def reset_for_tenancy(self) -> dict[str, Any]:
         """Reset consolidation state (protection + history) for active tenancy.

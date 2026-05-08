@@ -111,7 +111,7 @@
         <div class="inspector-body custom-scrollbar"><table class="inspector-table"><tbody id="inspectorBody"></tbody></table></div>
       </aside>
 
-      <div id="prospectiveEditorHost"></div>
+      <div id="prospectiveEditorHost" class="prospective-editor-host"></div>
 
       <aside id="historyDrawer" class="inspector-panel inspector-panel-bottom" aria-live="polite">
         <div class="inspector-header"><strong>Simulation History Detail</strong><button id="closeHistoryDrawer" class="ghost" style="margin-top:0;">×</button></div>
@@ -183,5 +183,6 @@
 
       loadOptions().then(()=>{ refreshHistory(); updateSummary(); updateReadiness(); });
     </script>
-  </body>
+      <script src="/auth-gate.js"></script>
+</body>
 </html>

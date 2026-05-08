@@ -108,3 +108,109 @@ class ReferenceDataService:
             str | None: Family name when available.
         """
         return self.reference_data.get_containing_family(resource_name)
+
+    @staticmethod
+    def _dedupe_keep_order(tokens: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for token in tokens:
+            key = token.strip().casefold()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(token.strip())
+        return out
+
+    def list_resources_with_family(self) -> list[dict[str, str]]:
+        """List known non-family resources with resolved family names when available."""
+
+        resources = self.list_resources()
+        rows: list[dict[str, str]] = []
+        for resource in resources:
+            family = self.get_family(resource) or ''
+            rows.append({'resource': resource, 'family': family})
+        return rows
+
+    def list_families_with_resources(self) -> list[dict[str, object]]:
+        """List known families and their member resources."""
+
+        families = self.reference_data.data.get('families', {})
+        rows: list[dict[str, object]] = []
+        for family in sorted(families.keys()):
+            family_data = families.get(family, {})
+            resources = sorted(str(r).strip() for r in family_data.get('resources', []) if str(r).strip())
+            rows.append({'family': family, 'resources': resources})
+        return rows
+
+    def list_operations_with_permissions(self) -> list[dict[str, object]]:
+        """List API operations grouped metadata for permission lookup helpers."""
+
+        operations_by_api = self.reference_data.data.get('operations_by_api', {})
+        rows: list[dict[str, object]] = []
+        for api_name in sorted(operations_by_api.keys()):
+            ops = operations_by_api.get(api_name, {})
+            if not isinstance(ops, dict):
+                continue
+            for operation_name in sorted(ops.keys()):
+                meta = ops.get(operation_name, {})
+                permissions = [
+                    str(p).strip().upper()
+                    for p in (meta.get('permissions', []) if isinstance(meta, dict) else [])
+                    if str(p).strip()
+                ]
+                rows.append(
+                    {
+                        'api_name': str(api_name),
+                        'operation_name': str(operation_name),
+                        'label': f'{api_name}:{operation_name}',
+                        'permissions': permissions,
+                    }
+                )
+        return rows
+
+    def build_resource_filter_from_resource(
+        self, resource: str, *, include_all_resources: bool = False
+    ) -> tuple[str, list[str]]:
+        """Build `resource|family|all-resources` string for a resource selection."""
+
+        resource_clean = str(resource or '').strip()
+        if not resource_clean:
+            return '', ['resource is required']
+
+        family = self.get_family(resource_clean)
+        warnings: list[str] = []
+        if not family:
+            warnings.append(f'No containing family found for resource "{resource_clean}".')
+
+        ordered = [resource_clean]
+        if family:
+            ordered.append(family)
+        if include_all_resources:
+            ordered.append('all-resources')
+        return '|'.join(self._dedupe_keep_order(ordered)), warnings
+
+    def build_resource_filter_from_family(
+        self, family: str, *, include_all_resources: bool = False
+    ) -> tuple[str, list[str]]:
+        """Build `family|resource1|...|all-resources` string for a family selection."""
+
+        family_clean = str(family or '').strip()
+        if not family_clean:
+            return '', ['family is required']
+
+        family_map = self.reference_data.family_name_map or {}
+        canonical_family = family_map.get(family_clean.casefold(), family_clean)
+        families = self.reference_data.data.get('families', {})
+        family_data = families.get(canonical_family)
+        warnings: list[str] = []
+        member_resources: list[str] = []
+
+        if isinstance(family_data, dict):
+            member_resources = [str(r).strip() for r in family_data.get('resources', []) if str(r).strip()]
+        else:
+            warnings.append(f'Family "{family_clean}" was not found in reference data.')
+
+        ordered = [canonical_family, *member_resources]
+        if include_all_resources:
+            ordered.append('all-resources')
+        return '|'.join(self._dedupe_keep_order(ordered)), warnings

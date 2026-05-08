@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OCI Policy Analysis - Consolidation Workbench</title>
+    <title>OCI Policy Analysis - Consolidation Workbench (Preview)</title>
     <link rel="stylesheet" href="/app.css?v=consolidation-workbench-v1" />
     <style>
       .cw-left-stack { display: grid; gap: 0.9rem; }
@@ -15,12 +15,27 @@
       .cw-selected-scroll { max-height: 180px; overflow: auto; border: 1px solid var(--oci-line); border-radius: 8px; }
       .cw-selected-empty { padding: 0.55rem; color: #6b7280; font-size: 0.82rem; }
       .cw-rail-table th, .cw-rail-table td { font-size: 0.78rem; }
+      .workflow-reload-btn {
+        background: #b91c1c;
+        color: #fff;
+        border-color: #991b1b;
+      }
+      .workflow-reload-btn:hover {
+        background: #991b1b;
+      }
+      .workflow-reload-btn:disabled {
+        background: #b91c1c;
+        color: #fff;
+        border-color: #991b1b;
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
       <header class="app-masthead">
-        <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Consolidation Workbench</h1><p>Protection → Candidates → Proposal → History</p></div></div>
+        <div class="masthead-brand"><span class="masthead-badge">OCI</span><div><h1>Consolidation Workbench (Preview)</h1><p>Protection → Candidates → Proposal → History</p></div></div>
         <div class="masthead-meta"><a href="/" class="card-link secondary">← Back to home</a></div>
       </header>
       <div id="contextHelpCard" class="context-help-card context-help-fixed"><p class="context-help-kicker">Context Help</p><h3 id="contextHelpTitle" class="context-help-title">Consolidation Flow</h3><p id="contextHelpBody" class="context-help-body">Protect statements, pick candidates, generate plan, review and track progress.</p></div>
@@ -38,9 +53,9 @@
           </div>
 
           <article class="workflow-panel workflow-panel-active" data-panel="1">
-            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Protection</h2><div class="workflow-actions"><button id="saveProtection" type="button">Save Protected</button><button data-next-step="2" type="button">Continue</button></div></div>
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Protection</h2><div class="workflow-actions"><button id="saveProtection" type="button">Save Protected</button><button id="continueToCandidates" type="button">Continue</button></div></div>
             <div class="inline-field"><label for="protectionSearch">Search</label><input id="protectionSearch" placeholder="policy or statement" /></div>
-            <div class="table-shell cw-table-shell"><div class="cw-table-scroll custom-scrollbar"><table id="protectionTable" class="analysis-table"><thead><tr><th>Select</th><th>Policy</th><th>Statement</th><th>Path</th></tr></thead><tbody></tbody></table></div></div>
+            <div class="table-shell cw-table-shell"><div class="cw-table-scroll custom-scrollbar"><table id="protectionTable" class="analysis-table"><thead><tr><th>Select</th><th>Compartment / Policy</th><th>Statement Text</th></tr></thead><tbody></tbody></table></div></div>
           </article>
 
           <article class="workflow-panel" data-panel="2">
@@ -53,7 +68,7 @@
           </article>
 
           <article class="workflow-panel" data-panel="3">
-            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Proposal</h2><div class="workflow-actions"><button class="ghost" data-prev-step="2" type="button">Back</button><button id="refreshProgress" class="ghost" type="button">Reload and Check Progress</button></div></div>
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">Proposal</h2><div class="workflow-actions"><button class="ghost" data-prev-step="2" type="button">Back</button><button id="refreshProgress" class="workflow-reload-btn" type="button" data-help-title="Reload and Check Progress" data-help-body="Only valid if the tenancy was loaded live. Once steps have been taken by an administrator per the plan, this reload operation will pull new policy data from the live tenancy, check for tags that correspond to the consolidation proposal, and update the status. Completion is determined as each step is performed." title="Only valid if the tenancy was loaded live. Once steps have been taken by an administrator per the plan, this reload operation will pull new policy data from the live tenancy, check for tags that correspond to the consolidation proposal, and update the status. Completion is determined as each step is performed.">Reload and Check Progress</button></div></div>
             <div class="inline-field"><label for="historySelect">Plan</label><select id="historySelect"></select></div>
             <div class="inline-field"><label for="scriptFormat">Format</label><select id="scriptFormat"><option value="cli">OCI CLI</option><option value="ui">UI-based Steps</option></select></div>
             <div class="inline-field"><label for="scriptSection">Show</label><select id="scriptSection"><option value="execution">Execution</option><option value="rollback">Rollback</option><option value="both">Both</option></select></div>
@@ -62,7 +77,7 @@
           </article>
 
           <article class="workflow-panel" data-panel="4">
-            <div class="workflow-panel-header"><h2 class="workflow-panel-title">History</h2><div class="workflow-actions"><button class="ghost" data-prev-step="3" type="button">Back</button><button id="refreshHistory" class="ghost" type="button">Refresh</button></div></div>
+            <div class="workflow-panel-header"><h2 class="workflow-panel-title">History</h2><div class="workflow-actions"><button class="ghost" data-prev-step="3" type="button">Back</button><button id="refreshHistory" class="workflow-reload-btn" type="button" data-help-title="Reload and Check Progress" data-help-body="Only valid if the tenancy was loaded live. Once steps have been taken by an administrator per the plan, this reload operation will pull new policy data from the live tenancy, check for tags that correspond to the consolidation proposal, and update the status. Completion is determined as each step is performed." title="Only valid if the tenancy was loaded live. Once steps have been taken by an administrator per the plan, this reload operation will pull new policy data from the live tenancy, check for tags that correspond to the consolidation proposal, and update the status. Completion is determined as each step is performed.">Reload and Check Progress</button></div></div>
             <div class="table-shell"><div class="table-scroll custom-scrollbar"><table id="historyTable" class="analysis-table"><thead><tr><th>Effort</th><th>Created</th><th>Strategy</th><th>Status</th><th>Steps</th><th>Validity</th></tr></thead><tbody></tbody></table></div></div>
           </article>
         </section>
@@ -108,6 +123,7 @@
         selectedEffortId: '',
         counts: {protected:0,invalid:0,system:0},
         status: {},
+        progressCheckRunning: false,
       };
       const $ = (id) => document.getElementById(id);
       const contextHelpTitle = $('contextHelpTitle');
@@ -115,6 +131,10 @@
       const defaultContextHelp = {
         title: 'Consolidation Flow',
         body: 'Protect statements, pick candidates, generate plan, review and track progress.',
+      };
+      const reloadProgressHelp = {
+        title: 'Reload and Check Progress',
+        body: 'Only valid if the tenancy was loaded live. Once steps have been taken by an administrator per the plan, this reload operation will pull new policy data from the live tenancy, check for tags that correspond to the consolidation proposal, and update the status. Completion is determined as each step is performed.',
       };
       const stepBtns=[...document.querySelectorAll('.workflow-step')], panels=[...document.querySelectorAll('.workflow-panel')];
       function esc(v){ return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
@@ -165,7 +185,32 @@
         $('detailInspector').classList.add('open');
       }
 
-      async function loadStatus(){ const r=await fetch('/consolidation/status'); const d=await r.json(); state.status=d.status||{}; const can=Boolean(state.status.can_check_progress); $('refreshProgress').disabled=!can; }
+      function syncReloadButtons(){
+        const can = Boolean(state.status.can_check_progress);
+        const proposalBtn = $('refreshProgress');
+        const historyBtn = $('refreshHistory');
+        const enabledLabel = 'Reload and Check Progress';
+        const disabledLabel = 'Reload and Check Progress (Disabled)';
+        const runningLabel = 'Reload and Check Progress (Running...)';
+        [proposalBtn, historyBtn].forEach((btn)=>{
+          if(!btn) return;
+          if(state.progressCheckRunning){
+            btn.disabled = true;
+            btn.textContent = runningLabel;
+          } else {
+            btn.disabled = !can;
+            btn.textContent = can ? enabledLabel : disabledLabel;
+          }
+          btn.title = reloadProgressHelp.body;
+          btn.setAttribute('aria-label', btn.textContent);
+        });
+      }
+      async function loadStatus(){
+        const r=await fetch('/consolidation/status');
+        const d=await r.json();
+        state.status=d.status||{};
+        syncReloadButtons();
+      }
       async function loadStrategies(){ const r=await fetch('/consolidation/strategies'); const d=await r.json(); $('strategySelect').innerHTML=(d.strategies||[]).map((s)=>`<option value="${esc(s)}">${esc(s)}</option>`).join(''); }
       async function loadProtection(){
         const [r1,r2]=await Promise.all([fetch('/consolidation/protection/statements'),fetch('/consolidation/protection/set')]);
@@ -186,7 +231,7 @@
           .filter((r)=>!q||String(r.policy_name||'').toLowerCase().includes(q)||String(r.statement_text||'').toLowerCase().includes(q))
           .forEach((r)=>{
             const tr=document.createElement('tr');
-            tr.innerHTML=`<td><input type="checkbox" data-id="${esc(r.internal_id)}" ${state.protectedIds.has(r.internal_id)?'checked':''}/></td><td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td><td>${esc(r.compartment||r.statement_effective_path||'')}</td>`;
+            tr.innerHTML=`<td><input type="checkbox" data-id="${esc(r.internal_id)}" ${state.protectedIds.has(r.internal_id)?'checked':''}/></td><td>${esc(formatPolicyHybrid(r))}</td><td class="statement-cell">${esc(r.statement_text)}</td>`;
             tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(r); });
             tb.appendChild(tr);
           });
@@ -212,6 +257,7 @@
           });
       }
       async function saveProtection(){ await fetch('/consolidation/protection/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({internal_ids:[...state.protectedIds]})}); log(`Saved ${state.protectedIds.size} protected statements.`); await loadCandidates(); }
+      async function continueToCandidates(){ await saveProtection(); activateStep(2); }
 
       async function loadCandidates(){
         const q=encodeURIComponent(String($('candidateSearch').value||''));
@@ -276,7 +322,7 @@
       }
       async function loadRun(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}`); if(!r.ok) return; const d=await r.json(); const run=d.run||{}; const rows=(run.results||[]).map((x,i)=>({'#':x['#']||i+1,action:x.Action||x.action||'',policy_name:x['Policy Name']||x.policy_name||'',details:x.Details||x.details||'',status:x.Status||x.status||'', ...x})); renderProposalRows(rows); await loadScript(); updateSummary(); }
       async function loadScript(){ if(!state.selectedEffortId){ $('scriptBox').textContent='(no plan selected)'; return; } const fmt=$('scriptFormat').value; const section=$('scriptSection').value; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/script?fmt=${encodeURIComponent(fmt)}&section=${encodeURIComponent(section)}`); const d=await r.json(); $('scriptBox').textContent=d.script||'(no script)'; }
-      async function checkProgress(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/check-progress`,{method:'POST'}); const d=await r.json(); log(`Progress checked: ${d.executed||0}/${d.total||0}`); await loadHistory(); await loadRun(); }
+      async function checkProgress(){ if(!state.selectedEffortId) return; state.progressCheckRunning = true; syncReloadButtons(); log('Reload and Check Progress running...'); try { const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/check-progress`,{method:'POST'}); const d=await r.json(); if(!r.ok){ throw new Error(d.detail||'progress check failed'); } const status=String(d.reload_status||''); const executed=Number(d.executed||0); const total=Number(d.total||0); const msg=String(d.message||'').trim(); if(status==='success'){ log(`Reload and Check Progress succeeded: ${executed}/${total}${msg?` - ${msg}`:''}`); } else if(status==='noop'){ log(`Reload and Check Progress no-op: ${msg||'Dataset was not loaded live from tenancy.'}`); } else { log(`Reload and Check Progress result: ${executed}/${total}${msg?` - ${msg}`:''}`); } await loadStatus(); await loadHistory(); await loadRun(); } finally { state.progressCheckRunning = false; syncReloadButtons(); } }
       async function resetConsolidation(){
         const ok = window.confirm('Reset all consolidation data for this tenancy? This removes protected set and plan history.');
         if(!ok) return;
@@ -304,11 +350,12 @@
       $('protectionSearch').addEventListener('input',renderProtection);
       $('candidateSearch').addEventListener('input',loadCandidates);
       $('saveProtection').addEventListener('click',saveProtection);
+      $('continueToCandidates').addEventListener('click',()=>continueToCandidates().catch((e)=>log(`Error: ${e.message}`)));
       $('generateProposal').addEventListener('click',()=>generateProposal().catch((e)=>log(`Error: ${e.message}`)));
       $('historySelect').addEventListener('change',(e)=>{ state.selectedEffortId=e.target.value; loadRun(); });
       $('scriptFormat').addEventListener('change',loadScript);
       $('scriptSection').addEventListener('change',loadScript);
-      $('refreshHistory').addEventListener('click',loadHistory);
+      $('refreshHistory').addEventListener('click',()=>checkProgress().catch((e)=>log(`Error: ${e.message}`)));
       $('refreshProgress').addEventListener('click',()=>checkProgress().catch((e)=>log(`Error: ${e.message}`)));
       $('closeInspector').addEventListener('click',()=>$('detailInspector').classList.remove('open'));
       $('closeProposalDrawer').addEventListener('click',()=>$('proposalDrawer').classList.remove('open'));
@@ -325,5 +372,6 @@
       hideHistoryContextMenu();
       Promise.resolve().then(loadStatus).then(loadStrategies).then(loadProtection).then(loadCandidates).then(loadHistory).then(loadRun).then(()=>log('Initial data loaded.')).catch((e)=>log(`Startup error: ${e.message}`));
     </script>
-  </body>
+      <script src="/auth-gate.js"></script>
+</body>
   </html>

@@ -22,6 +22,7 @@ from tkinter import ttk
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
+from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_filters
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.logger import get_logger
@@ -460,63 +461,57 @@ class PoliciesTab(BaseUITab):
             self.update_policy_output()
 
     def _handle_add_hierarchy_to_resource_filter(self) -> None:
-        """Expand the Resource filter with hierarchy tokens.
+        """Expand Resource filter using shared ReferenceDataService helpers.
 
-        Always includes `all-resources` and, for each resource token, attempts to
-        include the containing family from reference data.
+        For resource tokens, applies `resource|family|all-resources` semantics.
+        For family tokens, applies `family|resource1|...|all-resources` semantics.
         """
 
         current = self.resource_filter_var.get().strip()
         raw_tokens = [t.strip() for t in current.split('|') if t.strip()]
 
-        # Always include all-resources at the beginning per UX requirement.
-        ordered_tokens: list[str] = ['all-resources']
-        missing_family_for: list[str] = []
-
         ref_repo = getattr(self.app, 'reference_data_repo', None)
-        family_map = getattr(ref_repo, 'family_name_map', {}) if ref_repo is not None else {}
+        if ref_repo is None:
+            tkmessagebox.showwarning(
+                'Reference Data Unavailable',
+                'Reference data is not loaded yet; unable to expand Resource hierarchy.',
+            )
+            return
 
-        # If no input resource token exists, still apply all-resources.
+        ref_service = ReferenceDataService(ref_repo)
+        family_map = getattr(ref_repo, 'family_name_map', {}) or {}
+
         if not raw_tokens:
             self.resource_filter_var.set('all-resources')
             self.update_policy_output()
             return
 
-        for token in raw_tokens:
-            token_lc = token.lower()
+        ordered_tokens: list[str] = []
+        warnings: list[str] = []
 
-            # Skip duplicates of all-resources from input.
+        for token in raw_tokens:
+            token_lc = token.casefold()
             if token_lc == 'all-resources':
                 continue
 
-            # If user already entered a family token, preserve it as canonical.
             if token_lc in family_map:
-                ordered_tokens.append(family_map[token_lc])
-                continue
-
-            family_name = None
-            if ref_repo is not None and hasattr(ref_repo, 'get_containing_family'):
-                family_name = ref_repo.get_containing_family(token)
-
-            if family_name:
-                ordered_tokens.append(family_name)
+                expanded, token_warnings = ref_service.build_resource_filter_from_family(token)
             else:
-                missing_family_for.append(token)
+                expanded, token_warnings = ref_service.build_resource_filter_from_resource(token)
 
-            ordered_tokens.append(token)
+            if expanded:
+                ordered_tokens.extend([p.strip() for p in expanded.split('|') if p.strip()])
+            warnings.extend(token_warnings)
 
-        # De-duplicate while preserving order.
-        deduped_tokens = list(dict.fromkeys(ordered_tokens))
+        # Ensure all-resources is present and appears at end for consistency.
+        ordered_no_all = [t for t in ordered_tokens if t.casefold() != 'all-resources']
+        deduped_tokens = list(dict.fromkeys(ordered_no_all + ['all-resources']))
+
         self.resource_filter_var.set('|'.join(deduped_tokens))
         self.update_policy_output()
 
-        if missing_family_for:
-            tkmessagebox.showwarning(
-                'No Family Type Found',
-                'No family types found for: '
-                + ', '.join(missing_family_for)
-                + '. Added all-resources and kept the provided resource values.',
-            )
+        if warnings:
+            tkmessagebox.showwarning('Resource Hierarchy Warnings', '\n'.join(dict.fromkeys(warnings)))
 
     def _merge_permissions_into_filter(self, permissions: list[str], *, refresh: bool = True) -> None:
         """Merge permissions into Permission filter using `|` delimiters.

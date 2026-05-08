@@ -23,18 +23,103 @@
         <div class="inspector-body custom-scrollbar" style="padding:.8rem; display:grid; gap:.8rem;">
           <div class="prospective-grid">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;"><strong>Statements</strong><button data-role="add-row" class="ghost" style="margin-top:0;" type="button">Add Free-Form Statement</button></div>
-            <table><thead class="prospective-rows-head"><tr><th>Location</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead><tbody data-role="rows"></tbody></table>
+            <table class="prospective-statements-table"><tbody data-role="rows"></tbody></table>
           </div>
           <div>
             <strong>Builder</strong>
             <div class="prospective-builder-grid" style="margin-top:.5rem;">
-              <div class="prospective-builder-row"><div class="prospective-field"><label>Action</label><select data-role="pbAction"></select></div><div class="prospective-field"><label>Principal</label><select data-role="pbPrincipal"></select></div><div class="prospective-field"><label>Include Default</label><div class="prospective-inline-check"><input data-role="pbIncludeDefault" type="checkbox" /><span class="prospective-note">Adds Default domain where applicable.</span></div></div></div>
-              <div class="prospective-builder-row"><div class="prospective-field"><label>Verb</label><select data-role="pbVerb"></select></div><div class="prospective-field"><label>Resource</label><select data-role="pbResource"></select></div><div class="prospective-field"><label>All Resources</label><div class="prospective-inline-check"><input data-role="pbUseAllResources" type="checkbox" /><span class="prospective-note">Use all known resources/families.</span></div></div></div>
-              <div class="prospective-builder-row two"><div class="prospective-field"><label>Location</label><select data-role="pbLocation"></select></div><div class="prospective-field"><label>Effective Path</label><select data-role="pbEffectivePath"></select></div></div>
-              <div class="prospective-builder-row"><div class="prospective-field"><label>Where Mode</label><select data-role="pbWhereMode"></select></div></div>
-              <div data-role="pbOtherWhereRow" class="prospective-builder-row" style="display:none;"><div class="prospective-field"><label>Other Where Text (no 'where')</label><textarea data-role="pbOtherWhereText"></textarea></div></div>
-              <div data-role="pbTagWhereRow1" class="prospective-builder-row"><div class="prospective-field"><label>Access Type</label><select data-role="pbAccessType"></select></div><div class="prospective-field"><label>Tag Namespace</label><input data-role="pbNamespace" /></div><div class="prospective-field"><label>Tag Key</label><input data-role="pbTagKey" /></div></div>
-              <div data-role="pbTagWhereRow2" class="prospective-builder-row two"><div class="prospective-field"><label>Operator</label><select data-role="pbOperator"></select></div><div class="prospective-field"><label>Value(s)</label><input data-role="pbValue" /></div></div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbAction" class="no-margin-label">Action</label><select id="pbAction" data-role="pbAction" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Allow or Deny for the generated statement.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbPrincipal" class="no-margin-label">Principal</label><select id="pbPrincipal" data-role="pbPrincipal" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Principal template used in the statement subject.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbVerb" class="no-margin-label">Verb</label><select id="pbVerb" data-role="pbVerb" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">IAM verb to apply.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbResource" class="no-margin-label">Resource</label><select id="pbResource" data-role="pbResource" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Resource or resource family.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbLocation" class="no-margin-label">Location</label><select id="pbLocation" data-role="pbLocation" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Compartment/location path for the statement.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbEffectivePath" class="no-margin-label">Effective Path</label><select id="pbEffectivePath" data-role="pbEffectivePath" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Effective path used for simulation context.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <label class="checkbox-label"><input id="pbIncludeDefault" data-role="pbIncludeDefault" type="checkbox" /> Include Default</label>
+                  <div class="helper-text">Adds Default domain even if not required.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <label class="checkbox-label"><input id="pbUseAllResources" data-role="pbUseAllResources" type="checkbox" /> All Resources</label>
+                  <div class="helper-text">Show all known resources/families instead of resources in tenancy.</div>
+                </div>
+              </div>
+              <div class="prospective-builder-cell">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbWhereMode" class="no-margin-label">Where Mode</label><select id="pbWhereMode" data-role="pbWhereMode" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Choose no clause, tag-based clause, or custom text clause.</div>
+                </div>
+              </div>
+
+              <div data-role="pbTagWhereAccess" class="prospective-builder-cell prospective-builder-tag-row-start" style="display:none;">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbAccessType" class="no-margin-label">Access Type</label><select id="pbAccessType" data-role="pbAccessType" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Define the access attribute family.</div>
+                </div>
+              </div>
+              <div data-role="pbTagWhereNamespace" class="prospective-builder-cell" style="display:none;">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbNamespace" class="no-margin-label">Tag Namespace</label><input id="pbNamespace" data-role="pbNamespace" class="prospective-builder-control" /></div>
+                  <div class="helper-text">Namespace containing the tag key.</div>
+                </div>
+              </div>
+              <div data-role="pbTagWhereTagKey" class="prospective-builder-cell" style="display:none;">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbTagKey" class="no-margin-label">Tag Key</label><input id="pbTagKey" data-role="pbTagKey" class="prospective-builder-control" /></div>
+                  <div class="helper-text">Specific tag key to evaluate.</div>
+                </div>
+              </div>
+              <div data-role="pbTagWhereOperator" class="prospective-builder-cell" style="display:none;">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbOperator" class="no-margin-label">Operator</label><select id="pbOperator" data-role="pbOperator" class="prospective-builder-control"></select></div>
+                  <div class="helper-text">Comparison operator for the tag condition.</div>
+                </div>
+              </div>
+              <div data-role="pbTagWhereValue" class="prospective-builder-cell prospective-builder-span-2" style="display:none;">
+                <div class="field">
+                  <div class="tenancy-options-row prospective-builder-inline-row"><label for="pbValue" class="no-margin-label">Value(s)</label><input id="pbValue" data-role="pbValue" class="prospective-builder-control" /></div>
+                  <div class="helper-text">For IN/NOT IN, provide a comma-separated list of values.</div>
+                </div>
+              </div>
+              <div data-role="pbOtherWhereRow" class="prospective-builder-cell prospective-builder-span-4" style="display:none;">
+                <div class="field">
+                  <label for="pbOtherWhereText" class="no-margin-label">Other Where Text (no 'where')</label>
+                  <textarea id="pbOtherWhereText" data-role="pbOtherWhereText"></textarea>
+                  <div class="helper-text">Enter the clause text only, without the leading where keyword.</div>
+                </div>
+              </div>
             </div>
             <div style="display:flex;gap:.5rem;margin-top:.5rem;"><button data-role="preview" class="ghost" style="margin-top:0;" type="button">Preview</button><button data-role="clear" class="ghost" style="margin-top:0;" type="button">Clear Builder</button><button data-role="add-builder" class="ghost" style="margin-top:0;" type="button">Add to Statements</button><button data-role="save" type="button" style="margin-top:0;">Save and Close</button></div>
             <div data-role="previewBox" class="prospective-preview" style="margin-top:.5rem;">No preview yet.</div>
@@ -64,23 +149,43 @@
 
     function renderRows() {
       rowsBody.innerHTML = '';
+      if (!rows.length) {
+        const trEmpty = document.createElement('tr');
+        trEmpty.className = 'prospective-empty-row';
+        trEmpty.innerHTML = '<td colspan="4" class="prospective-empty-state">No prospective statement - Use the builder or add a free form statement</td>';
+        rowsBody.appendChild(trEmpty);
+        return;
+      }
       rows.forEach((row, idx) => {
-        const trTop = document.createElement('tr');
-        trTop.innerHTML = `<td><input data-k="compartment_path" data-i="${idx}" value="${esc(row.compartment_path || 'ROOT')}" /></td><td><input data-k="description" data-i="${idx}" value="${esc(row.description || '')}" /></td><td>${esc(rowStatus(row))}</td><td><button class="ghost" data-action="parse" data-i="${idx}" type="button" style="margin-top:0;">Parse</button> <button class="ghost" data-action="delete" data-i="${idx}" type="button" style="margin-top:0;">Delete</button></td>`;
-        const trBottom = document.createElement('tr');
-        trBottom.innerHTML = `<td colspan="4" class="prospective-line2-cell"><textarea data-k="statement_text" data-i="${idx}">${esc(row.statement_text || '')}</textarea><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons || []).join('; '))}</div></td>`;
-        const trSep = document.createElement('tr');
-        trSep.className = 'prospective-sep';
-        trSep.innerHTML = '<td colspan="4"><div class="prospective-sep-line"></div></td>';
-        rowsBody.append(trTop, trBottom, trSep);
+        const trHeader = document.createElement('tr');
+        trHeader.className = 'prospective-block-header-row';
+        trHeader.innerHTML = '<th scope="col" style="width:40%;">Location</th><th scope="col" style="width:40%;">Description</th><th scope="col" style="width:5%;">Status</th><th scope="col" style="width:15%;">Actions</th>';
+
+        const trValues = document.createElement('tr');
+        trValues.className = 'prospective-block-values-row';
+        trValues.innerHTML = `<td style="width:40%;"><input data-k="compartment_path" data-i="${idx}" value="${esc(row.compartment_path || 'ROOT')}" /></td><td style="width:40%;"><input data-k="description" data-i="${idx}" value="${esc(row.description || '')}" /></td><td style="width:5%;">${esc(rowStatus(row))}</td><td style="width:15%;"><button class="ghost" data-action="parse" data-i="${idx}" type="button" style="margin-top:0;">Parse</button> <button class="ghost" data-action="delete" data-i="${idx}" type="button" style="margin-top:0;">Delete</button></td>`;
+
+        const trStatementHeader = document.createElement('tr');
+        trStatementHeader.className = 'prospective-block-statement-header-row';
+        trStatementHeader.innerHTML = '<th colspan="4" scope="col">Statement Text</th>';
+
+        const trStatementValue = document.createElement('tr');
+        trStatementValue.className = 'prospective-block-bottom prospective-block-statement-value-row';
+        trStatementValue.innerHTML = `<td colspan="4" class="prospective-line2-cell"><textarea data-k="statement_text" data-i="${idx}">${esc(row.statement_text || '')}</textarea><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons || []).join('; '))}</div></td>`;
+
+        rowsBody.append(trHeader, trValues, trStatementHeader, trStatementValue);
       });
     }
 
     function updateWhereModeVisibility() {
       const modeVal = String(q('pbWhereMode').value || 'No Where Clause');
-      q('pbTagWhereRow1').style.display = modeVal === 'Tag-based Where Clause' ? 'grid' : 'none';
-      q('pbTagWhereRow2').style.display = modeVal === 'Tag-based Where Clause' ? 'grid' : 'none';
-      q('pbOtherWhereRow').style.display = modeVal === 'Other Where Clause' ? 'grid' : 'none';
+      const showTagMode = modeVal === 'Tag-based Where Clause';
+      q('pbTagWhereAccess').style.display = showTagMode ? 'block' : 'none';
+      q('pbTagWhereNamespace').style.display = showTagMode ? 'block' : 'none';
+      q('pbTagWhereTagKey').style.display = showTagMode ? 'block' : 'none';
+      q('pbTagWhereOperator').style.display = showTagMode ? 'block' : 'none';
+      q('pbTagWhereValue').style.display = showTagMode ? 'block' : 'none';
+      q('pbOtherWhereRow').style.display = modeVal === 'Other Where Clause' ? 'block' : 'none';
     }
 
     function refreshResourceDropdownFromMode() {
@@ -119,7 +224,6 @@
       const rowsPayload = await rowsResp.json();
       meta = await metaResp.json();
       rows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
-      if (!rows.length) rows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
       setOpts('pbAction', meta.actions || ['Allow', 'Deny']);
       setOpts('pbPrincipal', meta.principals || []);
       setOpts('pbVerb', meta.verbs || ['inspect', 'read', 'use', 'manage']);
@@ -173,7 +277,6 @@
       if (!Number.isFinite(i)) return;
       if (action === 'delete') {
         rows.splice(i, 1);
-        if (!rows.length) rows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
         renderRows();
         return;
       }

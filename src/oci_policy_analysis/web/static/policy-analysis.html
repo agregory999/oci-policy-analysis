@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Policy Filter</title>
-    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/app.css?v=simulation-v2" />
     <style>
       textarea {
         margin-top: 0.5rem;
@@ -12,9 +12,51 @@
 
       .filter-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 0.6rem;
         margin-top: 0.75rem;
+      }
+
+      .filter-field {
+        min-width: 0;
+      }
+
+      .filter-field label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #4b5563;
+        margin-bottom: 0.22rem;
+      }
+
+      .filter-field input,
+      .filter-field select {
+        width: 100%;
+      }
+
+      .filter-field .helper-text {
+        font-size: 0.72rem;
+        color: #6b7280;
+        margin-top: 0.22rem;
+        line-height: 1.25;
+      }
+
+      @media (max-width: 1300px) {
+        .filter-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 820px) {
+        .filter-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 560px) {
+        .filter-grid {
+          grid-template-columns: 1fr;
+        }
       }
 
       .filter-actions {
@@ -207,6 +249,128 @@
         color: #9ca3af;
         cursor: not-allowed;
       }
+
+      .advanced-helper-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.7rem;
+        margin-top: 0.6rem;
+      }
+
+      .advanced-helper-card {
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        background: #fffdfa;
+        padding: 0.6rem;
+      }
+
+      .advanced-helper-card h4 {
+        margin: 0 0 0.35rem;
+        font-size: 0.86rem;
+      }
+
+      .advanced-helper-card .helper-text {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.3rem;
+      }
+
+      .advanced-helper-card .helper-actions {
+        display: flex;
+        gap: 0.45rem;
+        margin-top: 0.45rem;
+        flex-wrap: wrap;
+      }
+
+      .permission-flyin-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 1300;
+      }
+
+      .permission-flyin-backdrop[hidden] {
+        display: none;
+      }
+
+      .permission-flyin-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: min(760px, 96vw);
+        height: 100vh;
+        background: #fff;
+        border-left: 1px solid var(--oci-line);
+        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
+        z-index: 1301;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .permission-flyin-panel[hidden] {
+        display: none;
+      }
+
+      .permission-flyin-header,
+      .permission-flyin-footer {
+        padding: 0.7rem;
+        border-bottom: 1px solid var(--oci-line);
+        background: #fffdfa;
+      }
+
+      .permission-flyin-footer {
+        border-bottom: 0;
+        border-top: 1px solid var(--oci-line);
+      }
+
+      .permission-flyin-body {
+        overflow: auto;
+        padding: 0.8rem;
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .permission-flyin-section {
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        padding: 0.6rem;
+        background: #fffdfa;
+      }
+
+      .permission-flyin-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+      }
+
+      .permission-flyin-list {
+        min-height: 7rem;
+      }
+
+      .filter-label-row {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .filter-mode-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        padding: 0.08rem 0.42rem;
+        border: 1px solid #d9d4cf;
+        color: #6b7280;
+        background: #f8f7f6;
+      }
+
+      .filter-mode-badge.active {
+        border-color: #c2410c;
+        color: #9a3412;
+        background: #fff7ed;
+      }
     </style>
   </head>
   <body>
@@ -216,7 +380,7 @@
           <span class="masthead-badge">OCI</span>
           <div>
             <h1>Policy Analysis</h1>
-            <p>Single Column • Filter + Inspector + Prospective Editor</p>
+            <p>Basic Filter • Advanced Filter • Inspector • Prospective Editor</p>
           </div>
         </div>
         <div class="policy-toolbar">
@@ -235,27 +399,113 @@
       <div class="card">
         <label for="subjectFilter">Policy Filters (use | for OR values)</label>
         <div class="filter-grid">
-          <input id="subjectFilter" placeholder="Subject (e.g. any-user|group-id)" data-help-title="Subject filter" data-help-body="Filter by principal subject. Use | to match multiple values (for example: any-user|group-id)." />
-          <select id="actionFilter" data-help-title="Action filter" data-help-body="Limit results to Allow, Deny, or show both action types.">
-            <option value="Both">Action: Both</option>
-            <option value="Allow">Action: Allow</option>
-            <option value="Deny">Action: Deny</option>
-          </select>
-          <input id="verbFilter" placeholder="Verb (inspect|read|use|manage)" data-help-title="Verb filter" data-help-body="Filter statements by IAM verb. Use | to search for multiple verbs." />
-          <input id="resourceFilter" placeholder="Resource" data-help-title="Resource filter" data-help-body="Filter by resource or resource family used in the statement." />
-          <input id="permissionFilter" placeholder="Permission" data-help-title="Permission filter" data-help-body="Filter by normalized permission extracted from policy text." />
-          <input id="locationFilter" placeholder="Location" data-help-title="Location filter" data-help-body="Match statement location text, such as tenancy or compartment references." />
-          <input id="compartmentPathFilter" placeholder="Compartment Path" data-help-title="Compartment path filter" data-help-body="Filter by the compartment path where the statement is defined." />
-          <input id="statementTextFilter" placeholder="Statement Text" data-help-title="Statement text filter" data-help-body="Search raw statement text. Use this when you want exact wording matches." />
-          <input id="policyNameFilter" placeholder="Policy Name" data-help-title="Policy name filter" data-help-body="Filter by policy name containing the entered text." />
-          <input id="effectivePathFilter" placeholder="Effective Path" data-help-title="Effective path filter" data-help-body="Filter by effective evaluation path after inheritance/placement." />
-          <input id="conditionsFilter" placeholder="Conditions" data-help-title="Conditions filter" data-help-body="Search the parsed where/condition clause text." />
-          <select id="validFilter" data-help-title="Validity filter" data-help-body="Show only valid or invalid parsed statements, or include all.">
-            <option value="">Valid: Any</option>
-            <option value="true">Valid: True</option>
-            <option value="false">Valid: False</option>
-          </select>
+          <div class="filter-field" data-help-title="Subject filter" data-help-body="Filter by principal subject. Use | to match multiple values (for example: any-user|group-id).">
+            <label for="subjectFilter">Subject</label>
+            <input id="subjectFilter" placeholder="any-user|group-id" />
+            <div class="helper-text">Principal subject matcher; supports | for OR.</div>
+          </div>
+          <div class="filter-field" data-help-title="Action filter" data-help-body="Limit results to Allow, Deny, or show both action types.">
+            <label for="actionFilter">Action</label>
+            <select id="actionFilter">
+              <option value="Both">Both</option>
+              <option value="Allow">Allow</option>
+              <option value="Deny">Deny</option>
+            </select>
+            <div class="helper-text">Restrict by action type or include both.</div>
+          </div>
+          <div class="filter-field" data-help-title="Verb filter" data-help-body="Filter statements by IAM verb. Use | to search for multiple verbs.">
+            <label for="verbFilter">Verb</label>
+            <input id="verbFilter" placeholder="inspect|read|use|manage" />
+            <div class="helper-text">IAM verb matcher; supports | for OR.</div>
+          </div>
+          <div class="filter-field" data-help-title="Resource filter" data-help-body="Filter by resource or resource family used in the statement.">
+            <div class="filter-label-row">
+              <label for="resourceFilter">Resource</label>
+              <span id="resourceModeBadge" class="filter-mode-badge" data-help-title="Resource/Permission mode" data-help-body="Resource and Permission filters are mutually exclusive. Using one clears the other.">Inactive</span>
+            </div>
+            <input id="resourceFilter" placeholder="instance|database" />
+            <div class="helper-text">Resource or family matcher.</div>
+          </div>
+          <div class="filter-field" data-help-title="Permission filter" data-help-body="Filter by normalized permission extracted from policy text.">
+            <div class="filter-label-row">
+              <label for="permissionFilter">Permission</label>
+              <span id="permissionModeBadge" class="filter-mode-badge" data-help-title="Resource/Permission mode" data-help-body="Resource and Permission filters are mutually exclusive. Using one clears the other.">Inactive</span>
+            </div>
+            <input id="permissionFilter" placeholder="OBJECT_CREATE" />
+            <div class="helper-text">Matches normalized permission text.</div>
+          </div>
+          <div class="filter-field" data-help-title="Location filter" data-help-body="Match statement location text, such as tenancy or compartment references.">
+            <label for="locationFilter">Statement Location</label>
+            <input id="locationFilter" placeholder="tenancy|compartment" />
+            <div class="helper-text">Location clause matcher. "tenancy" or name of compartment.</div>
+          </div>
+          <div class="filter-field" data-help-title="Compartment path filter" data-help-body="Filter by the compartment path where the statement is defined.">
+            <label for="compartmentPathFilter">Compartment Path</label>
+            <input id="compartmentPathFilter" placeholder="ROOT/Shared/Prod" />
+            <div class="helper-text">Path where the policy is defined.</div>
+          </div>
+          <div class="filter-field" data-help-title="Statement text filter" data-help-body="Search raw statement text. Use this when you want exact wording matches.">
+            <label for="statementTextFilter">Statement Text</label>
+            <input id="statementTextFilter" placeholder="Allow group ..." />
+            <div class="helper-text">Raw statement text contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Policy name filter" data-help-body="Filter by policy name containing the entered text.">
+            <label for="policyNameFilter">Policy Name</label>
+            <input id="policyNameFilter" placeholder="Network Admin" />
+            <div class="helper-text">Policy name contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Effective path filter" data-help-body="Filter by effective evaluation path after inheritance/placement.">
+            <label for="effectivePathFilter">Effective Path</label>
+            <input id="effectivePathFilter" placeholder="ROOT/Shared" />
+            <div class="helper-text">Final effective evaluation path.</div>
+          </div>
+          <div class="filter-field" data-help-title="Conditions filter" data-help-body="Search the parsed where/condition clause text.">
+            <label for="conditionsFilter">Conditions</label>
+            <input id="conditionsFilter" placeholder="request.principal.type" />
+            <div class="helper-text">Condition clause contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Validity filter" data-help-body="Show only valid or invalid parsed statements, or include all.">
+            <label for="validFilter">Validity</label>
+            <select id="validFilter">
+              <option value="">Any</option>
+              <option value="true">True</option>
+              <option value="false">False</option>
+            </select>
+            <div class="helper-text">Filter by parser validity state.</div>
+          </div>
         </div>
+        <details style="margin-top:0.7rem;">
+          <summary style="cursor:pointer; font-weight:600;">Advanced: filter helper actions</summary>
+          <div class="advanced-helper-grid">
+            <div class="advanced-helper-card">
+              <h4>Resource → Family + all-resources</h4>
+              <select id="resourceHelperSelect" data-help-title="Resource helper" data-help-body="Choose a known resource. Apply writes Resource filter as resource|family|all-resources.">
+                <option value="">Select resource...</option>
+              </select>
+              <div class="helper-actions">
+                <button id="applyResourceHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Resource Expansion</button>
+              </div>
+              <div class="helper-text">Builds <code>resource|family|all-resources</code> in Resource filter.</div>
+            </div>
+            <div class="advanced-helper-card">
+              <h4>Family → members + all-resources</h4>
+              <select id="familyHelperSelect" data-help-title="Family helper" data-help-body="Choose a family. Apply writes Resource filter as family|resource1|...|all-resources.">
+                <option value="">Select family...</option>
+              </select>
+              <div class="helper-actions">
+                <button id="applyFamilyHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Family Expansion</button>
+              </div>
+              <div class="helper-text">Builds <code>family|resource1|resource2|...|all-resources</code> in Resource filter.</div>
+            </div>
+            <div class="advanced-helper-card">
+              <h4>Permission Lookup</h4>
+              <div class="helper-actions">
+                <button id="openPermissionFlyinBtn" class="ghost" style="margin-top:0;" type="button">Open Permission Lookup</button>
+              </div>
+              <div class="helper-text">Add individual <code>PERMISSION</code> elements to the Permission filter using the lookup fly-in. Searching for permissions clears the Resource filter because they are mutually exclusive and cannot exist together in the same policy statement.</div>
+            </div>
+          </div>
+        </details>
         <details style="margin-top:0.7rem;">
           <summary style="cursor:pointer; font-weight:600;">Advanced: raw JSON payload override</summary>
           <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
@@ -332,8 +582,62 @@
     </main>
 
     <section class="analysis-layout">
-      <div id="prospectiveEditorHost"></div>
+      <div id="prospectiveEditorHost" class="prospective-editor-host"></div>
     </section>
+
+    <div id="permissionFlyinBackdrop" class="permission-flyin-backdrop" hidden></div>
+    <aside id="permissionFlyinPanel" class="permission-flyin-panel" hidden aria-live="polite">
+      <div class="permission-flyin-header" style="display:flex; justify-content:space-between; align-items:center; gap:.5rem;">
+        <div>
+          <strong>Permission Lookup</strong>
+          <div class="helper-text">Build a permission list from API operation or resource/family + verb.</div>
+        </div>
+        <button id="closePermissionFlyinBtn" class="ghost" style="margin-top:0;" type="button">×</button>
+      </div>
+      <div class="permission-flyin-body custom-scrollbar">
+        <section class="permission-flyin-section">
+          <strong>Lookup by API Operation</strong>
+          <div class="permission-flyin-grid" style="margin-top:.5rem;">
+            <div>
+              <label for="permissionOperationSearch">Search</label>
+              <input id="permissionOperationSearch" placeholder="compute|list|create" />
+            </div>
+            <div>
+              <label for="permissionOperationSelect">API:Operation</label>
+              <select id="permissionOperationSelect"></select>
+            </div>
+          </div>
+          <div style="margin-top:.5rem;"><button id="permissionAddFromOperationBtn" class="ghost" style="margin-top:0;" type="button">Add from API Operation</button></div>
+        </section>
+
+        <section class="permission-flyin-section">
+          <strong>Lookup by Resource/Family + Verb</strong>
+          <div class="permission-flyin-grid" style="margin-top:.5rem;">
+            <div>
+              <label for="permissionEntitySelect">Resource/Family</label>
+              <select id="permissionEntitySelect"></select>
+            </div>
+            <div>
+              <label for="permissionVerbSelect">Verb</label>
+              <select id="permissionVerbSelect"></select>
+            </div>
+          </div>
+          <div style="margin-top:.5rem;"><button id="permissionAddFromEntityBtn" class="ghost" style="margin-top:0;" type="button">Add from Resource/Family</button></div>
+        </section>
+
+        <section class="permission-flyin-section">
+          <strong>Pending Permission List</strong>
+          <textarea id="permissionPendingList" class="permission-flyin-list" placeholder="No permissions added yet" readonly></textarea>
+          <div style="display:flex; gap:.5rem; margin-top:.5rem;">
+            <button id="permissionClearPendingBtn" class="ghost" style="margin-top:0;" type="button">Clear Pending</button>
+          </div>
+          <div class="helper-text">Applying permission list clears Resource filter because these are mutually exclusive.</div>
+        </section>
+      </div>
+      <div class="permission-flyin-footer" style="display:flex; gap:.5rem; justify-content:flex-end;">
+        <button id="permissionApplyBtn" type="button" style="margin-top:0;">Apply to Permission Filter</button>
+      </div>
+    </aside>
 
     <script src="/prospective-editor.js"></script>
     <script src="/policy-statement-inspector.js"></script>
@@ -351,6 +655,27 @@
       const savedSearchSelect = document.getElementById('savedSearchSelect');
       const loadJsonExampleBtn = document.getElementById('loadJsonExampleBtn');
       const manageProspectiveBtn = document.getElementById('manageProspectiveBtn');
+      const resourceHelperSelect = document.getElementById('resourceHelperSelect');
+      const familyHelperSelect = document.getElementById('familyHelperSelect');
+      const applyResourceHelperBtn = document.getElementById('applyResourceHelperBtn');
+      const applyFamilyHelperBtn = document.getElementById('applyFamilyHelperBtn');
+      const includeAllResourcesFromResource = document.getElementById('includeAllResourcesFromResource');
+      const includeAllResourcesFromFamily = document.getElementById('includeAllResourcesFromFamily');
+      const openPermissionFlyinBtn = document.getElementById('openPermissionFlyinBtn');
+      const permissionFlyinBackdrop = document.getElementById('permissionFlyinBackdrop');
+      const permissionFlyinPanel = document.getElementById('permissionFlyinPanel');
+      const closePermissionFlyinBtn = document.getElementById('closePermissionFlyinBtn');
+      const permissionOperationSearch = document.getElementById('permissionOperationSearch');
+      const permissionOperationSelect = document.getElementById('permissionOperationSelect');
+      const permissionAddFromOperationBtn = document.getElementById('permissionAddFromOperationBtn');
+      const permissionEntitySelect = document.getElementById('permissionEntitySelect');
+      const permissionVerbSelect = document.getElementById('permissionVerbSelect');
+      const permissionAddFromEntityBtn = document.getElementById('permissionAddFromEntityBtn');
+      const permissionPendingList = document.getElementById('permissionPendingList');
+      const permissionClearPendingBtn = document.getElementById('permissionClearPendingBtn');
+      const permissionApplyBtn = document.getElementById('permissionApplyBtn');
+      const resourceModeBadge = document.getElementById('resourceModeBadge');
+      const permissionModeBadge = document.getElementById('permissionModeBadge');
       const showProspectiveFilter = document.getElementById('showProspectiveFilter');
       const status = document.getElementById('status');
       const filters = document.getElementById('filters');
@@ -405,6 +730,10 @@
       let selectedRow = null;
       let sortState = { key: 'policy_name', dir: 'asc' };
       let appSettings = {};
+      let permissionHelperOptions = { operations: [], resources: [], families: [], verbs: [], actions: [] };
+      let permissionPending = [];
+      let jsonOverrideArmed = false;
+      let suppressJsonInputTracking = false;
       const sharedProspectiveEditor = window.createProspectiveEditor({
         host: document.getElementById('prospectiveEditorHost'),
         mode: 'drawer',
@@ -543,6 +872,20 @@
         return payload;
       }
 
+      function prettyJson(value) {
+        try {
+          return JSON.stringify(value ?? {}, null, 2);
+        } catch {
+          return '{}';
+        }
+      }
+
+      function setFiltersJsonValue(value) {
+        suppressJsonInputTracking = true;
+        filters.value = String(value ?? '');
+        suppressJsonInputTracking = false;
+      }
+
       function getCurrentSearchSnapshot() {
         return {
           subject: String(subjectFilter.value || '').trim(),
@@ -579,6 +922,167 @@
       function getSavedSearches() {
         const searches = appSettings.saved_policy_searches;
         return Array.isArray(searches) ? searches : [];
+      }
+
+      function setStatusInfo(message) {
+        status.textContent = String(message || '');
+        status.className = 'status';
+      }
+
+      function setStatusError(message) {
+        status.textContent = String(message || '');
+        status.className = 'status error';
+      }
+
+      function populateResourceHelperOptions(payload) {
+        if (!resourceHelperSelect || !familyHelperSelect) return;
+        const resources = Array.isArray(payload?.resources) ? payload.resources : [];
+        const families = Array.isArray(payload?.families) ? payload.families : [];
+
+        resourceHelperSelect.innerHTML = '<option value="">Select resource...</option>';
+        resources.forEach((entry) => {
+          const resource = String(entry?.resource || '').trim();
+          if (!resource) return;
+          const family = String(entry?.family || '').trim();
+          const option = document.createElement('option');
+          option.value = resource;
+          option.textContent = family ? `${resource} (${family})` : resource;
+          resourceHelperSelect.appendChild(option);
+        });
+
+        familyHelperSelect.innerHTML = '<option value="">Select family...</option>';
+        families.forEach((entry) => {
+          const family = String(entry?.family || '').trim();
+          if (!family) return;
+          const members = Array.isArray(entry?.resources) ? entry.resources.length : 0;
+          const option = document.createElement('option');
+          option.value = family;
+          option.textContent = `${family}${members ? ` (${members})` : ''}`;
+          familyHelperSelect.appendChild(option);
+        });
+      }
+
+      function updatePermissionPendingView() {
+        if (!permissionPendingList) return;
+        permissionPendingList.value = permissionPending.join('|');
+      }
+
+      function updateMutualExclusionBadges() {
+        const hasResource = String(resourceFilter.value || '').trim().length > 0;
+        const hasPermission = String(permissionFilter.value || '').trim().length > 0;
+
+        if (resourceModeBadge) {
+          resourceModeBadge.classList.toggle('active', hasResource && !hasPermission);
+          resourceModeBadge.textContent = hasResource ? 'Active' : 'Inactive';
+        }
+
+        if (permissionModeBadge) {
+          permissionModeBadge.classList.toggle('active', hasPermission && !hasResource);
+          permissionModeBadge.textContent = hasPermission ? 'Active' : 'Inactive';
+        }
+      }
+
+      function addPermissionsToPending(values) {
+        const clean = (Array.isArray(values) ? values : [])
+          .map((v) => String(v || '').trim().toUpperCase())
+          .filter(Boolean);
+        permissionPending = [...new Set([...permissionPending, ...clean])];
+        updatePermissionPendingView();
+      }
+
+      function populatePermissionHelperOptions() {
+        const operations = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const resources = Array.isArray(permissionHelperOptions.resources) ? permissionHelperOptions.resources : [];
+        const families = Array.isArray(permissionHelperOptions.families) ? permissionHelperOptions.families : [];
+        const verbs = Array.isArray(permissionHelperOptions.verbs) ? permissionHelperOptions.verbs : ['inspect', 'read', 'use', 'manage'];
+
+        permissionOperationSelect.innerHTML = operations.map((op) => `<option value="${escapeHtml(op.label)}">${escapeHtml(op.label)}</option>`).join('');
+        const entities = [
+          ...resources.map((r) => ({ label: String(r), value: String(r) })),
+          ...families.map((f) => ({ label: `Family: ${String(f)}`, value: String(f) })),
+        ];
+        permissionEntitySelect.innerHTML = entities.map((e) => `<option value="${escapeHtml(e.value)}">${escapeHtml(e.label)}</option>`).join('');
+        permissionVerbSelect.innerHTML = verbs.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        if (verbs.includes('read')) permissionVerbSelect.value = 'read';
+      }
+
+      async function loadPermissionHelperOptions() {
+        try {
+          const resp = await fetch('/reference/permission-helper-options');
+          if (!resp.ok) throw new Error(`Failed to load permission helper options (${resp.status})`);
+          permissionHelperOptions = await resp.json();
+          populatePermissionHelperOptions();
+        } catch (err) {
+          setStatusError(`Failed to load permission helper options: ${err}`);
+        }
+      }
+
+      function openPermissionFlyin() {
+        permissionFlyinBackdrop.hidden = false;
+        permissionFlyinPanel.hidden = false;
+      }
+
+      function closePermissionFlyin() {
+        permissionFlyinBackdrop.hidden = true;
+        permissionFlyinPanel.hidden = true;
+      }
+
+      function filterPermissionOperationOptions() {
+        const term = String(permissionOperationSearch.value || '').trim().toLowerCase();
+        const operations = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const filtered = operations.filter((op) => String(op.label || '').toLowerCase().includes(term));
+        permissionOperationSelect.innerHTML = filtered.map((op) => `<option value="${escapeHtml(op.label)}">${escapeHtml(op.label)}</option>`).join('');
+      }
+
+      async function loadResourceHelperOptions() {
+        try {
+          const resp = await fetch('/reference/resource-helper-options');
+          if (!resp.ok) throw new Error(`Failed to load helper options (${resp.status})`);
+          const payload = await resp.json();
+          populateResourceHelperOptions(payload || {});
+        } catch (err) {
+          setStatusError(`Failed to load advanced helper options: ${err}`);
+        }
+      }
+
+      async function applyResourceHelper(mode, value) {
+        if (!String(value || '').trim()) {
+          setStatusError(mode === 'from_resource' ? 'Choose a resource helper item first.' : 'Choose a family helper item first.');
+          return;
+        }
+        try {
+          const includeAllResources = mode === 'from_resource'
+            ? !!includeAllResourcesFromResource?.checked
+            : !!includeAllResourcesFromFamily?.checked;
+          const payload = mode === 'from_resource' ? { mode, resource: value } : { mode, family: value };
+          payload.include_all_resources = includeAllResources;
+          const resp = await fetch('/reference/build-resource-filter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.ok) {
+            const detail = await resp.text();
+            throw new Error(`Failed to build resource filter (${resp.status}) ${detail}`);
+          }
+          const data = await resp.json();
+          const next = String(data?.expanded_resource_filter || '').trim();
+          if (!next) {
+            setStatusError('Helper returned an empty filter string.');
+            return;
+          }
+          resourceFilter.value = next;
+          permissionFilter.value = '';
+          updateMutualExclusionBadges();
+          const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
+          if (warnings.length) {
+            setStatusInfo(`Resource helper applied and Permission cleared (mutually exclusive). Warning: ${warnings.join(' ')}`);
+          } else {
+            setStatusInfo(`Resource helper applied and Permission cleared (mutually exclusive): ${next}`);
+          }
+        } catch (err) {
+          setStatusError(`Failed to apply resource helper: ${err}`);
+        }
       }
 
       function refreshSavedSearchDropdown(selected = '') {
@@ -661,7 +1165,8 @@
           return;
         }
         applySearchSnapshot(found.search || {});
-        filters.value = String(found.raw_json || '');
+        setFiltersJsonValue(String(found.raw_json || ''));
+        jsonOverrideArmed = String(found.raw_json || '').trim().length > 0;
         savedSearchName.value = selected;
         status.textContent = `Loaded saved search "${selected}".`;
         status.className = 'status success';
@@ -671,19 +1176,27 @@
       async function runFilter() {
         status.textContent = '';
         status.className = 'status';
-        let payload = buildPayloadFromFields();
+        const fieldPayload = buildPayloadFromFields();
+        let payload = fieldPayload;
+        let usingRawOverride = false;
         const rawJson = String(filters.value || '').trim();
-        if (rawJson) {
+        if (jsonOverrideArmed && rawJson) {
           try {
             payload = JSON.parse(rawJson);
+            usingRawOverride = true;
           } catch (err) {
             status.textContent = `Invalid JSON override: ${err}`;
             status.className = 'status error';
             return;
           }
         }
+        const usedPayloadPretty = prettyJson(payload);
+        setFiltersJsonValue(usedPayloadPretty);
+        if (!usingRawOverride) {
+          jsonOverrideArmed = false;
+        }
         runBtn.disabled = true;
-        status.textContent = 'Running...';
+        status.textContent = usingRawOverride ? 'Running with JSON override...' : 'Running...';
         try {
           const response = await fetch('/filter/policies', {
             method: 'POST',
@@ -795,16 +1308,83 @@
         effectivePathFilter.value = '';
         conditionsFilter.value = '';
         validFilter.value = '';
-        filters.value = '';
+        setFiltersJsonValue('');
+        jsonOverrideArmed = false;
         status.textContent = '';
       });
 
       saveSearchBtn.addEventListener('click', saveCurrentSearch);
       savedSearchSelect.addEventListener('change', restoreSavedSearch);
       loadJsonExampleBtn.addEventListener('click', () => {
-        filters.value = JSON.stringify(JSON_OVERRIDE_EXAMPLE, null, 2);
+        setFiltersJsonValue(JSON.stringify(JSON_OVERRIDE_EXAMPLE, null, 2));
+        jsonOverrideArmed = true;
         status.textContent = 'Loaded JSON example. Run Filter to apply it.';
         status.className = 'status';
+      });
+
+      applyResourceHelperBtn.addEventListener('click', () => applyResourceHelper('from_resource', resourceHelperSelect.value));
+      applyFamilyHelperBtn.addEventListener('click', () => applyResourceHelper('from_family', familyHelperSelect.value));
+      openPermissionFlyinBtn.addEventListener('click', openPermissionFlyin);
+      closePermissionFlyinBtn.addEventListener('click', closePermissionFlyin);
+      permissionFlyinBackdrop.addEventListener('click', closePermissionFlyin);
+
+      permissionOperationSearch.addEventListener('input', filterPermissionOperationOptions);
+      permissionAddFromOperationBtn.addEventListener('click', () => {
+        const selected = String(permissionOperationSelect.value || '').trim();
+        if (!selected) return;
+        const ops = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const op = ops.find((item) => String(item?.label || '') === selected);
+        addPermissionsToPending(op?.permissions || []);
+      });
+
+      permissionAddFromEntityBtn.addEventListener('click', async () => {
+        const entity = String(permissionEntitySelect.value || '').trim();
+        const verb = String(permissionVerbSelect.value || '').trim();
+        if (!entity || !verb) return;
+        const resp = await fetch('/reference/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity, verb, action: 'allow' }),
+        });
+        if (!resp.ok) {
+          setStatusError(`Permission lookup failed (${resp.status})`);
+          return;
+        }
+        const payload = await resp.json();
+        addPermissionsToPending(payload?.permissions || []);
+      });
+
+      permissionClearPendingBtn.addEventListener('click', () => {
+        permissionPending = [];
+        updatePermissionPendingView();
+      });
+
+      permissionApplyBtn.addEventListener('click', () => {
+        const merged = [...new Set([...String(permissionFilter.value || '').split('|').map((v) => v.trim()).filter(Boolean), ...permissionPending])];
+        permissionFilter.value = merged.join('|');
+        resourceFilter.value = '';
+        updateMutualExclusionBadges();
+        setStatusInfo('Permission filter applied and Resource cleared (mutually exclusive).');
+        closePermissionFlyin();
+      });
+
+      resourceFilter.addEventListener('input', () => {
+        if (String(resourceFilter.value || '').trim()) {
+          permissionFilter.value = '';
+        }
+        updateMutualExclusionBadges();
+      });
+
+      permissionFilter.addEventListener('input', () => {
+        if (String(permissionFilter.value || '').trim()) {
+          resourceFilter.value = '';
+        }
+        updateMutualExclusionBadges();
+      });
+
+      filters.addEventListener('input', () => {
+        if (suppressJsonInputTracking) return;
+        jsonOverrideArmed = String(filters.value || '').trim().length > 0;
       });
 
       manageProspectiveBtn.addEventListener('click', async () => {
@@ -858,6 +1438,9 @@
         try {
           bindContextHelp();
           await loadSettings();
+          await loadResourceHelperOptions();
+          await loadPermissionHelperOptions();
+          updateMutualExclusionBadges();
         } catch (err) {
           status.textContent = `Failed to load settings: ${err}`;
           status.className = 'status error';
@@ -867,5 +1450,6 @@
 
       initializePage();
     </script>
-  </body>
+      <script src="/auth-gate.js"></script>
+</body>
 </html>

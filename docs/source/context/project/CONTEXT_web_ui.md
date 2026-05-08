@@ -547,6 +547,43 @@ Use these classes for status/progress displays:
 - `.refresh-log`, `.refresh-log-line`, `.refresh-log-warning`,
   `.refresh-log-error` for log output surfaces.
 
+### 9.4.2 Mini Event Log Pattern (Reusable)
+
+For workflow-oriented pages, include a compact, always-visible **Mini Event Log**
+to provide immediate user feedback for key operations.
+
+Purpose:
+
+- Show a lightweight operational trace without opening browser dev tools.
+- Confirm action outcomes in user language.
+- Improve confidence during multi-step workflows.
+
+Recommended placement:
+
+- In the right rail (`.side-stack`) or near workflow action controls.
+- Inside a standard card container, with a compact log surface.
+
+Behavior standard:
+
+- Append-only timestamped entries.
+- Auto-scroll to newest entry.
+- Keep messages concise and action-focused.
+
+Required event coverage:
+
+- Action start (optional when operation is near-instant).
+- Action result **success**.
+- Action result **failure**.
+- Action result **no-op** (for intentionally skipped operations, e.g. non-live dataset reload attempts).
+
+Implementation guidance:
+
+- Use a shared helper function (for example `log(message)`) that appends:
+  `"[HH:MM:SS] <message>"`.
+- Prefer clear user-facing text over raw exception traces.
+- Keep stack traces and deep diagnostics in server/app logs, not mini-log lines.
+- Reuse this pattern across pages that execute refresh/reload/check workflows.
+
 ### 9.4.1 Reusable Client-Side Table Filter Pattern (Large Result Sets)
 
 For tables with high row counts (for example 500-2000 rows), use a lightweight
@@ -643,6 +680,125 @@ All templates demonstrate:
 - shared `app.css` class usage,
 - context-help data attributes (`data-help-title`, `data-help-body`),
 - and table/card structures that avoid page-local style duplication.
+
+
+## 10) Lightweight Web Session Access Gate (Runtime Key)
+
+The web UI now supports a lightweight runtime session gate intended as a
+low-friction access control layer for local/server-hosted web usage.
+
+Scope and intent:
+
+- This is **not** full IAM/OIDC user identity authentication.
+- It is a process-local access gate that requires a startup key before using
+  web pages.
+- The key rotates automatically on server restart.
+
+### 10.1 Runtime Key Lifecycle
+
+Backend runtime key behavior is implemented in:
+
+- `src/oci_policy_analysis/web/auth.py`
+
+On process startup:
+
+1. A UUID key is generated.
+2. Key fingerprint (SHA-256) is generated for runtime/version binding.
+3. Startup key is emitted to logs at **CRITICAL**:
+   - `WEB_UI_RUNTIME_ACCESS_KEY=<uuid>`
+
+Operational expectation:
+
+- Operator retrieves the key from startup logs and shares with intended web
+  users.
+- Any restart rotates the key and invalidates prior authenticated sessions.
+
+### 10.2 Session and Route Integration
+
+Session middleware is enabled in:
+
+- `src/oci_policy_analysis/web/main.py`
+
+Using Starlette `SessionMiddleware`, browser session state is persisted in a
+session cookie.
+
+Auth API routes are implemented in:
+
+- `src/oci_policy_analysis/web/api/routes_core.py`
+
+Endpoints:
+
+- `GET /auth/status`
+  - Returns `{ authenticated: bool }` for current browser session.
+- `POST /auth/login`
+  - Request body: `{ "key": "<runtime key>" }`
+  - On success: sets session fields
+    - `authenticated = true`
+    - `auth_key_fp = <current runtime fingerprint>`
+  - On failure: clears session and returns invalid message.
+- `POST /auth/logout`
+  - Clears session and returns unauthenticated state.
+
+Session validity rule:
+
+- Session is considered authenticated only when both conditions are true:
+  - `authenticated` flag is set
+  - session fingerprint equals current runtime fingerprint
+
+This ensures session invalidation when the server restarts and a new runtime key
+is generated.
+
+### 10.3 Frontend Gate Component
+
+Shared frontend gate is implemented in:
+
+- `src/oci_policy_analysis/web/static/auth-gate.js`
+
+Behavior:
+
+1. Runs on page load.
+2. Calls `GET /auth/status`.
+3. If unauthenticated, renders a blocking modal overlay.
+4. Submits entered key to `POST /auth/login`.
+5. Removes overlay only after successful authentication.
+
+Shared styles are provided in:
+
+- `src/oci_policy_analysis/web/static/app.css`
+
+Relevant classes:
+
+- `.modal-overlay`
+- `.animate-fade`
+- `.auth-modal-card`
+- `.auth-modal-actions`
+- `.auth-modal-error`
+
+### 10.4 Page Integration Standard
+
+For all non-template static pages, include:
+
+```html
+<script src="/auth-gate.js"></script>
+```
+
+Placement:
+
+- Include near the end of `<body>` so page DOM is available.
+- Existing page scripts may run before/after; auth gate still enforces access by
+  showing a blocking modal until authenticated.
+
+Current integration:
+
+- Auth gate script is wired into all current non-template pages under
+  `src/oci_policy_analysis/web/static/*.html`.
+
+### 10.5 Security and Usage Notes
+
+- Treat this as a practical, lightweight gate for controlled environments.
+- Do not expose startup logs publicly, as they contain the active runtime key.
+- For stronger security requirements, implement full user authn/authz (OIDC,
+  reverse-proxy auth, etc.) in front of this app.
 
 
 ## References

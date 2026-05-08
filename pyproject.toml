@@ -27,7 +27,8 @@ core = []
 ui = []
 web = [
     "fastapi>=0.110",
-    "uvicorn>=0.29"
+    "uvicorn>=0.29",
+    "itsdangerous>=2.2"
 ]
 mcp = [
     "fastmcp==2.12.5"
@@ -35,6 +36,7 @@ mcp = [
 all = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    "itsdangerous>=2.2",
     "fastmcp==2.12.5"
 ]
 docs = [

@@ -20,10 +20,15 @@ import tkinter as tk
 import tkinter.messagebox as tkmessagebox
 from datetime import UTC, datetime
 from tkinter import ttk
+from typing import Any, cast
 
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models_consolidation import ProtectedStatementReference, ProtectedStatementSet
+from oci_policy_analysis.common.models_consolidation import (
+    ConsolidationPlan,
+    ProtectedStatementReference,
+    ProtectedStatementSet,
+)
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
@@ -69,7 +74,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             app (Any): Application-wide context; required for policy repo, tenancy OCID, and event hooks.
         """
         self.logger = get_module_logger()
-        self.logger.info('Initializing ConsolidationWorkbenchTab')
+        self.logger.debug('Initializing ConsolidationWorkbenchTab')
         super().__init__(
             parent,
             default_help_text=(
@@ -85,8 +90,8 @@ class ConsolidationWorkbenchTab(BaseUITab):
         else:
             self.engine = ConsolidationEngine(
                 cache_mgr=CacheManager(),
-                reference_data_repo=getattr(self.app, 'reference_data_repo', None),
-                policy_repo=getattr(self.app, 'policy_compartment_analysis', None),
+                reference_data_repo=cast(Any, getattr(self.app, 'reference_data_repo', None)),
+                policy_repo=cast(Any, getattr(self.app, 'policy_compartment_analysis', None)),
             )
         self.protected_statement_ids = set()
         self.candidate_statement_ids = set()
@@ -764,7 +769,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             validity = '—'
             if status != 'completed' and plan and steps_list and hasattr(self, 'engine') and self.engine:
                 try:
-                    conflicts = self.engine.get_plan_tag_conflicts(plan)
+                    conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
                     validity = f'Conflicted ({len(conflicts)})' if conflicts else 'OK'
                 except Exception:
                     validity = '—'
@@ -835,7 +840,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         lines.append('-' * 40)
         if plan and steps and hasattr(self, 'engine') and self.engine:
             try:
-                conflicts = self.engine.get_plan_tag_conflicts(plan)
+                conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
                 if conflicts:
                     for c in conflicts:
                         lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
@@ -1504,7 +1509,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 'tenancy_ocid': tenancy_ocid,
                 'protected': protected_list,
             }
-            cache_mgr.set_protected_set(tenancy_ocid, protected_set)
+            cache_mgr.set_protected_set(tenancy_ocid, cast(dict[str, Any], protected_set))
             self.logger.info('Saved ProtectedStatementSet to canonical state file for tenancy %s.', tenancy_ocid)
 
         self._update_protected_display()
@@ -1914,6 +1919,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
             )
             return
 
+        # Visible running state to indicate synchronous/long-running work.
+        if hasattr(self, 'btn_check_progress'):
+            self.btn_check_progress.config(state=tk.DISABLED, text='Reload and Check Progress (Running...)')
+
         # Guard: only allow reload for live-tenancy policy loads (same constraints as Policies tab)
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         if (
@@ -1921,21 +1930,30 @@ class ConsolidationWorkbenchTab(BaseUITab):
             or not getattr(repo, 'policies_loaded_from_tenancy', False)
             or getattr(repo, 'loaded_from_compliance_output', False)
         ):
+            self.plan_status_label.config(text='Reload skipped (no-op): dataset not loaded live from tenancy.')
             tkmessagebox.showwarning(
                 'Not allowed',
                 'Execution progress can only be checked for tenancies loaded directly from OCI (not cache/compliance). '
                 'Please load from tenancy first.',
             )
+            if hasattr(self, 'btn_check_progress'):
+                self.btn_check_progress.config(text='Reload and Check Progress')
+                self.btn_check_progress['state'] = tk.NORMAL
             return
 
         # Reload policies/compartments (App coordinates cache update and UI refresh)
         if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
 
             def _after_reload_complete(success: bool, message: str, is_error: bool):
-                if not success:
-                    tkmessagebox.showerror('Reload Failed', message)
-                    return
-                self._continue_check_progress_after_reload(run=run, plan=plan)
+                try:
+                    if not success:
+                        tkmessagebox.showerror('Reload Failed', message)
+                        return
+                    self._continue_check_progress_after_reload(run=run, plan=plan)
+                finally:
+                    if hasattr(self, 'btn_check_progress'):
+                        self.btn_check_progress.config(text='Reload and Check Progress')
+                        self.btn_check_progress['state'] = tk.NORMAL
 
             self.app.reload_policies_and_compartments_and_update_cache_async(
                 callback={'complete': _after_reload_complete},
@@ -1961,9 +1979,17 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.configure(cursor='')
             self.logger.warning('Exception during reload before progress check: %s', e)
             tkmessagebox.showerror('Reload Failed', f'Reload failed due to error: {str(e)}')
+            if hasattr(self, 'btn_check_progress'):
+                self.btn_check_progress.config(text='Reload and Check Progress')
+                self.btn_check_progress['state'] = tk.NORMAL
             return
 
-        self._continue_check_progress_after_reload(run=run, plan=plan)
+        try:
+            self._continue_check_progress_after_reload(run=run, plan=plan)
+        finally:
+            if hasattr(self, 'btn_check_progress'):
+                self.btn_check_progress.config(text='Reload and Check Progress')
+                self.btn_check_progress['state'] = tk.NORMAL
 
     def _continue_check_progress_after_reload(self, run, plan):
         """Continue plan progress checks once policy reload has completed."""
@@ -1987,24 +2013,29 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
         # If all steps executed, persist plan as completed
         effort_id = run.get('consolidation_effort_id', '')
-        if total > 0 and executed >= total and effort_id:
+        if effort_id:
             tenancy_ocid = self._get_tenancy_ocid()
             if tenancy_ocid:
                 try:
                     cache_mgr = CacheManager()
+                    updated_rows = self._build_proposal_rows(plan=plan, progress=progress)
+                    updates = {
+                        'step_status': {**run.get('step_status', {}), 'progress': progress},
+                        'results': updated_rows,
+                    }
+                    if total > 0 and executed >= total:
+                        updates['status'] = 'completed'
+                        updates['completed_at'] = datetime.now(UTC).isoformat()
                     cache_mgr.update_run_record(
                         tenancy_ocid,
                         effort_id,
-                        {
-                            'status': 'completed',
-                            'step_status': {**run.get('step_status', {}), 'progress': progress},
-                            'completed_at': datetime.now(UTC).isoformat(),
-                        },
+                        updates,
                     )
                     self._refresh_plan_history_dropdown()
                     if hasattr(self, 'plan_history_table') and self.plan_history_table:
                         self._refresh_plan_history_table()
-                    self.logger.info('Plan marked as completed: %s', effort_id)
+                    if total > 0 and executed >= total:
+                        self.logger.info('Plan marked as completed: %s', effort_id)
                 except Exception as e:
                     self.logger.warning('Failed to mark plan as completed: %s', e)
 

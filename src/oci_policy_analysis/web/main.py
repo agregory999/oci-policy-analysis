@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import secrets
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from oci_policy_analysis.web.api.routes_core import router as core_router
 
@@ -20,6 +22,7 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+app.add_middleware(SessionMiddleware, secret_key=secrets.token_urlsafe(32), same_site='lax', https_only=False)
 
 app.include_router(core_router)
 app.mount('/', StaticFiles(directory='src/oci_policy_analysis/web/static', html=True), name='static')
