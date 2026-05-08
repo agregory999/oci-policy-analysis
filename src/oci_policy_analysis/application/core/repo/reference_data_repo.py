@@ -16,6 +16,7 @@
 import glob
 import json
 import os
+from pathlib import Path
 
 from oci_policy_analysis.common.logger import get_logger
 
@@ -52,8 +53,13 @@ class ReferenceDataRepo:
     Once all files are loaded, provides methods to query permissions and check overlaps.
     """
 
-    def __init__(self, json_dir='../../../logic/permissions'):
-        self.json_dir = os.path.join(os.path.dirname(__file__), json_dir)
+    def __init__(self, json_dir: str | None = None):
+        if json_dir:
+            self.json_dir = str(Path(json_dir).expanduser().resolve())
+        else:
+            # Resolve from package root, independent of this module location.
+            package_root = Path(__file__).resolve().parents[3]
+            self.json_dir = str(package_root / 'logic' / 'permissions')
         # Always define keys needed by consumers, even if load_data hasn't run yet
         self.data = {'resources': {}, 'families': {}}
         self.resource_name_map = {}

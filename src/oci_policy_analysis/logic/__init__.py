@@ -1,13 +1,8 @@
-"""Top level package for OCI Policy Analysis logic components."""
+"""Top level package for OCI Policy Analysis logic components.
 
-from .ai_repo import AI
-
-# from .consolidation_engine import ConsolidationEngine  # Removed to prevent circular import
-from .data_repo import PolicyAnalysisRepository
-from .policy_intelligence import PolicyIntelligenceEngine
-from .policy_statement_normalizer import PolicyStatementNormalizer
-from .reference_data_repo import ReferenceDataRepo
-from .simulation_engine import PolicySimulationEngine
+This module intentionally avoids eager submodule imports to prevent circular
+dependencies during the ongoing application-core migration.
+"""
 
 __all__ = [
     'PolicyAnalysisRepository',
