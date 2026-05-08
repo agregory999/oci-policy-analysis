@@ -23,11 +23,11 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.prospective_statements_service import (
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.services.prospective_statements_service import (
     ProspectiveStatementsService,
 )
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.ui.builder_helpers import (
     build_full_statement,
     build_location_clause,

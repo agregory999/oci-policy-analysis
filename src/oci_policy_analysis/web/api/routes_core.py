@@ -24,6 +24,7 @@ from oci_policy_analysis.application.services.permissions_report_service import 
 from oci_policy_analysis.application.services.policy_browser_service import PolicyBrowserService
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.application.services.prospective_builder_service import ProspectiveBuilderService
+from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
@@ -44,7 +45,6 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
-from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.web.auth import current_key_fingerprint, verify_access_key
 from oci_policy_analysis.web.dependencies import get_context, get_settings
 

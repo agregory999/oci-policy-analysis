@@ -38,6 +38,8 @@ from oci.resource_search import ResourceSearchClient
 from oci.resource_search.models import StructuredSearchDetails
 from oci.signer import load_private_key_from_file
 
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import (
     AdmitStatement,
@@ -56,8 +58,6 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
 # Global logger for this module
 logger = get_logger(component='data_repo')

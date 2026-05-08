@@ -4,7 +4,7 @@ This keeps service/engine imports on ``application.core.parser`` while the
 ANTLR-tree traversal implementation remains in the legacy logic parser package.
 """
 
-from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import (
+from oci_policy_analysis.application.core.parser.generated.condition_parser.tag_condition_collector import (
     TagCondition,
     collect_tag_conditions,
 )

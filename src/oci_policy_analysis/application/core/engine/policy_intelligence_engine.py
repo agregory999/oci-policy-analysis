@@ -16,14 +16,14 @@
 import time
 from typing import TYPE_CHECKING
 
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
 from oci_policy_analysis.application.core.parser import collect_tag_conditions
 from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import PolicyIntelligence, PolicyOverlap
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
 
 if TYPE_CHECKING:
-    from oci_policy_analysis.logic.intelligence_strategies.base import IntelligenceStrategy
+    from oci_policy_analysis.application.core.engine.intelligence_strategies.base import IntelligenceStrategy
 
 logger = get_logger(component='core.engine.policy_intelligence_engine')
 
@@ -120,7 +120,9 @@ class PolicyIntelligenceEngine:
 
     def _get_default_strategies(self) -> list['IntelligenceStrategy']:
         """Lazy import to avoid circular import at module load."""
-        from oci_policy_analysis.logic.intelligence_strategies import get_default_intelligence_strategies
+        from oci_policy_analysis.application.core.engine.intelligence_strategies import (
+            get_default_intelligence_strategies,
+        )
 
         return get_default_intelligence_strategies()
 

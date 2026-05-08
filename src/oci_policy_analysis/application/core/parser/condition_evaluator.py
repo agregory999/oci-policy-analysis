@@ -11,11 +11,15 @@ from typing import Any, cast
 
 from antlr4 import CommonTokenStream, InputStream
 
+from oci_policy_analysis.application.core.parser.generated.condition_parser import (
+    OciIamPolicyConditionLexer,
+    OciIamPolicyConditionParser,
+    OciIamPolicyConditionVisitor,
+)
+from oci_policy_analysis.application.core.parser.generated.condition_parser.where_clause_evaluator import (
+    evaluate_where_clause,
+)
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
-from oci_policy_analysis.logic.parsers.condition_parser.WhereClauseEvaluator import evaluate_where_clause
 
 logger = get_logger(component='condition_evaluator')
 

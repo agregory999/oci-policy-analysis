@@ -35,6 +35,9 @@ from antlr4 import CommonTokenStream, InputStream
 from antlr4.error.ErrorListener import ErrorListener
 from antlr4.tree.Tree import TerminalNode
 
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.parser.generated.policy_parser import PolicyLexer, PolicyParser, PolicyVisitor
+from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import (
     AdmitStatement,
@@ -42,11 +45,6 @@ from oci_policy_analysis.common.models import (
     EndorseStatement,
     RegularPolicyStatement,
 )
-from oci_policy_analysis.logic.parsers.policy_parser.PolicyLexer import PolicyLexer
-from oci_policy_analysis.logic.parsers.policy_parser.PolicyParser import PolicyParser
-from oci_policy_analysis.logic.parsers.policy_parser.PolicyVisitor import PolicyVisitor
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_subject_parser import parse_policy_subjects
 
 logger = get_logger(component='policy_parser')
 

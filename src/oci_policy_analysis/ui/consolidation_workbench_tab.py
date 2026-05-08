@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from tkinter import ttk
 from typing import Any, cast
 
+from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models_consolidation import (
@@ -30,7 +31,6 @@ from oci_policy_analysis.common.models_consolidation import (
     ProtectedStatementSet,
 )
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
-from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
