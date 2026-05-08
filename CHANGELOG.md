@@ -1,3 +1,10 @@
+# [5.0.0-beta.8](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.7...v5.0.0-beta.8) (2026-05-08)
+
+
+### Features
+
+* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
+
 # [5.0.0-beta.7](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.6...v5.0.0-beta.7) (2026-05-07)
 
 
