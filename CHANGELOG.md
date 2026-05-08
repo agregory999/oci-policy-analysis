@@ -1,3 +1,10 @@
+# [5.0.0-beta.9](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.8...v5.0.0-beta.9) (2026-05-08)
+
+
+### Bug Fixes
+
+* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
+
 # [5.0.0-beta.8](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.7...v5.0.0-beta.8) (2026-05-08)
 
 
