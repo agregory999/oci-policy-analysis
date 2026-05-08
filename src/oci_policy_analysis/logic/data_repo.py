@@ -19,6 +19,7 @@ import csv
 import hashlib
 import json
 import os
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
@@ -2533,6 +2534,7 @@ class PolicyAnalysisRepository:
 
         # Explicit: always clear reload time before compliance/CSV load.
         self.policy_data_reloaded = None
+        csv.field_size_limit(sys.maxsize)
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
 

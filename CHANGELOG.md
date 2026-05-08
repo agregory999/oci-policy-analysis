@@ -72,6 +72,21 @@
 
 * web UI/service architecture changed; incompatible with 4.x behavior
 
+# [4.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.1...v4.7.0) (2026-05-06)
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
+## [4.6.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v4.6.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* Merge pull request [#44](https://github.com/agregory999/oci-policy-analysis/issues/44) from kiranthakkar/fix/csv-field-size-limit ([6573c2e](https://github.com/agregory999/oci-policy-analysis/commit/6573c2e75473a76e2f1999b4a719a9afc6904fc5))
+* raise csv field size limit to support large compliance output files ([b9bd640](https://github.com/agregory999/oci-policy-analysis/commit/b9bd64061b3d81a6efc0ba8104f5937d93162ffe))
+
 # [4.6.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.2...v4.6.0) (2026-04-20)
 
 
