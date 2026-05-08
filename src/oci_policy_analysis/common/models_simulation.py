@@ -54,6 +54,8 @@ class SimulationScenario(TypedDict):
     """
 
     compartment_path: Annotated[str, 'Effective compartment path']
+    scenario_internal_id: NotRequired[Annotated[str, 'Optional scenario identifier for grouping related simulations']]
+    scenario_name: NotRequired[Annotated[str, 'Optional human-readable scenario name']]
     principal_key: Annotated[str, 'Principal key, must be from preparation stage']
     api_operation: Annotated[str, 'API operation to simulate, e.g., "oci:ListBuckets"']
     where_context: Annotated[dict[str, str], 'Variable input mapping for required where fields']
@@ -89,6 +91,9 @@ class SimulationResult(TypedDict):
     required_permissions_for_api_operation: Annotated[list[str], 'Permissions required for op']
     missing_permissions: Annotated[list[str], 'Any permissions missing for full allow']
     failure_reason: Annotated[str, 'Reason for denial or error, empty if successful']
+    scenario_internal_id: NotRequired[Annotated[str, 'Scenario identifier associated with this result']]
+    scenario_name: NotRequired[Annotated[str, 'Scenario name associated with this result']]
+    simulation_name: NotRequired[Annotated[str, 'Simulation name associated with this result']]
     trace_statements: NotRequired[Annotated[list[dict], 'Statement-by-statement trace, if trace=True']]
 
 

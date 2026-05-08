@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Reference Data</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <!-- Standard top-row shell: branded masthead + contextual help panel -->
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Reference Data" data-help-body="Use this page to map resource + verb + action combinations to permissions and to find source documentation links.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Reference Data Lookup</h1>
+            <p>Permission and source mapping utilities</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Pick a resource, verb, and action to list effective permissions. Use Source Lookup to find the reference URL for a resource or family keyword.</p>
+      </div>
+    </div>
+
+    <!-- Two-column content area using shared layout utilities -->
+    <main class="layout-two-column layout-two-column-equal">
+      <section class="side-stack">
+        <article class="card" data-help-title="Permissions Lookup" data-help-body="Select a target resource, verb, and allow/deny action to return matched OCI permissions.">
+          <p class="card-title">Reference Mapping</p>
+          <h2>Lookup Permissions</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="resourceSelect">Resource</label>
+              <select id="resourceSelect"></select>
+            </div>
+
+            <div class="inline-field">
+              <label for="verbSelect">Verb</label>
+              <select id="verbSelect">
+                <option value="inspect">inspect</option>
+                <option value="read">read</option>
+                <option value="use">use</option>
+                <option value="manage">manage</option>
+              </select>
+            </div>
+
+            <div class="inline-field">
+              <label for="actionSelect">Action</label>
+              <select id="actionSelect">
+                <option value="allow">allow</option>
+                <option value="deny">deny</option>
+              </select>
+            </div>
+          </div>
+          <button id="lookupBtn" type="button">Lookup Permissions</button>
+          <div id="lookupStatus" class="status"></div>
+          <pre id="permissionsResult" class="code-sample">No lookup yet.</pre>
+        </article>
+
+        <article class="card" data-help-title="Source Lookup" data-help-body="Enter a resource or family term to locate the reference-data source URL used by this tool.">
+          <p class="card-title">API Operations Tester</p>
+          <h2>Check API Operation Permissions</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="apiOperationSelect">API Operation</label>
+              <select id="apiOperationSelect"></select>
+            </div>
+            <div class="form-grid">
+              <label for="apiPermsSelect">Known Permissions (Ctrl/Cmd multi-select)</label>
+              <select id="apiPermsSelect" multiple size="8"></select>
+            </div>
+            <div id="apiSelectedPerms" class="helper-text">Selected permissions: (none)</div>
+          </div>
+          <button id="apiCheckBtn" type="button">Check API</button>
+          <div id="apiCheckStatus" class="status"></div>
+          <pre id="apiCheckResult" class="code-sample">No API operation check yet.</pre>
+        </article>
+      </section>
+
+      <section class="side-stack">
+        <article class="card" data-help-title="Overlap Check" data-help-body="Compare two statement-style selectors and return overlapping permissions using reference-data overlap logic.">
+          <p class="card-title">Overlap Utility</p>
+          <h2>Check Overlap</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="overlapEntity1">Statement 1</label>
+              <select id="overlapEntity1"></select>
+            </div>
+            <div class="inline-field">
+              <label for="overlapVerb1">Verb</label>
+              <select id="overlapVerb1">
+                <option value="inspect">inspect</option>
+                <option value="read">read</option>
+                <option value="use">use</option>
+                <option value="manage">manage</option>
+              </select>
+            </div>
+            <div class="inline-field">
+              <label for="overlapAction1">Action</label>
+              <select id="overlapAction1">
+                <option value="allow">allow</option>
+                <option value="deny">deny</option>
+              </select>
+            </div>
+
+            <hr class="section-separator" />
+
+            <div class="inline-field">
+              <label for="overlapEntity2">Statement 2</label>
+              <select id="overlapEntity2"></select>
+            </div>
+            <div class="inline-field">
+              <label for="overlapVerb2">Verb</label>
+              <select id="overlapVerb2">
+                <option value="inspect">inspect</option>
+                <option value="read">read</option>
+                <option value="use">use</option>
+                <option value="manage">manage</option>
+              </select>
+            </div>
+            <div class="inline-field">
+              <label for="overlapAction2">Action</label>
+              <select id="overlapAction2">
+                <option value="allow">allow</option>
+                <option value="deny">deny</option>
+              </select>
+            </div>
+          </div>
+          <button id="overlapBtn" type="button">Check Overlap</button>
+          <div id="overlapStatus" class="status"></div>
+          <pre id="overlapResult" class="code-sample">No overlap check yet.</pre>
+        </article>
+
+        <article class="card" data-help-title="Source Lookup" data-help-body="Enter a resource or family term to locate the reference-data source URL used by this tool.">
+          <p class="card-title">Reference Source</p>
+          <h2>Find Source URL</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="sourceEntity">Resource or Family</label>
+              <input id="sourceEntity" placeholder="resource or family" />
+            </div>
+          </div>
+          <button id="sourceBtn" type="button">Lookup Source</button>
+          <pre id="sourceResult" class="code-sample">No source lookup yet.</pre>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      // Page controls.
+      const resourceSelect = document.getElementById('resourceSelect');
+      const verbSelect = document.getElementById('verbSelect');
+      const actionSelect = document.getElementById('actionSelect');
+      const lookupBtn = document.getElementById('lookupBtn');
+      const lookupStatus = document.getElementById('lookupStatus');
+      const permissionsResult = document.getElementById('permissionsResult');
+      const sourceEntity = document.getElementById('sourceEntity');
+      const sourceBtn = document.getElementById('sourceBtn');
+      const sourceResult = document.getElementById('sourceResult');
+      const apiOperationSelect = document.getElementById('apiOperationSelect');
+      const apiPermsSelect = document.getElementById('apiPermsSelect');
+      const apiSelectedPerms = document.getElementById('apiSelectedPerms');
+      const apiCheckBtn = document.getElementById('apiCheckBtn');
+      const apiCheckStatus = document.getElementById('apiCheckStatus');
+      const apiCheckResult = document.getElementById('apiCheckResult');
+      const overlapEntity1 = document.getElementById('overlapEntity1');
+      const overlapVerb1 = document.getElementById('overlapVerb1');
+      const overlapAction1 = document.getElementById('overlapAction1');
+      const overlapEntity2 = document.getElementById('overlapEntity2');
+      const overlapVerb2 = document.getElementById('overlapVerb2');
+      const overlapAction2 = document.getElementById('overlapAction2');
+      const overlapBtn = document.getElementById('overlapBtn');
+      const overlapStatus = document.getElementById('overlapStatus');
+      const overlapResult = document.getElementById('overlapResult');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Pick a resource, verb, and action to list effective permissions. Use Source Lookup to find the reference URL for a resource or family keyword.',
+      };
+
+      let apiOperations = [];
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        const helpNodes = document.querySelectorAll('[data-help-title], [data-help-body]');
+        helpNodes.forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      async function loadResources() {
+        const response = await fetch('/reference/resources');
+        const payload = await response.json();
+        const resources = payload.resources || [];
+        resourceSelect.innerHTML = '';
+        resources.forEach((resource) => {
+          const option = document.createElement('option');
+          option.value = resource;
+          option.textContent = resource;
+          resourceSelect.appendChild(option);
+        });
+        if (!resources.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No resources found';
+          resourceSelect.appendChild(option);
+        }
+
+        function populateEntitySelect(selectEl) {
+          if (!selectEl) return;
+          selectEl.innerHTML = '';
+          resources.forEach((resource) => {
+            const option = document.createElement('option');
+            option.value = resource;
+            option.textContent = resource;
+            selectEl.appendChild(option);
+          });
+          if (!resources.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No resources found';
+            selectEl.appendChild(option);
+          }
+        }
+
+        populateEntitySelect(overlapEntity1);
+        populateEntitySelect(overlapEntity2);
+      }
+
+      async function lookupPermissions() {
+        lookupStatus.textContent = '';
+        lookupStatus.className = 'status';
+        permissionsResult.textContent = 'Loading...';
+        try {
+          const response = await fetch('/reference/permissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entity: resourceSelect.value,
+              verb: verbSelect.value,
+              action: actionSelect.value,
+            }),
+          });
+          const payload = await response.json();
+          permissionsResult.textContent = (payload.permissions || []).join('\n') || 'No permissions found.';
+        } catch (err) {
+          lookupStatus.textContent = `Lookup failed: ${err}`;
+          lookupStatus.className = 'status error';
+          permissionsResult.textContent = 'No results.';
+        }
+      }
+
+      async function lookupSource() {
+        sourceResult.textContent = 'Loading...';
+        try {
+          const response = await fetch('/reference/source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entity: sourceEntity.value }),
+          });
+          const payload = await response.json();
+          sourceResult.textContent = payload.source || 'No source found.';
+        } catch (err) {
+          sourceResult.textContent = `Lookup failed: ${err}`;
+        }
+      }
+
+      function getSelectedApiPermissions() {
+        return Array.from(apiPermsSelect.selectedOptions).map((opt) => String(opt.value || '').toUpperCase());
+      }
+
+      function refreshSelectedApiPermissionsPreview() {
+        const selected = getSelectedApiPermissions();
+        apiSelectedPerms.textContent = `Selected permissions: ${selected.length ? selected.join(', ') : '(none)'}`;
+      }
+
+      async function loadApiTesterOptions() {
+        const response = await fetch('/reference/permission-helper-options');
+        const payload = await response.json();
+        apiOperations = Array.isArray(payload.operations) ? payload.operations : [];
+        const operationLabels = apiOperations.map((row) => String(row.label || '')).filter(Boolean).sort();
+
+        apiOperationSelect.innerHTML = '';
+        operationLabels.forEach((label) => {
+          const option = document.createElement('option');
+          option.value = label;
+          option.textContent = label;
+          apiOperationSelect.appendChild(option);
+        });
+
+        const knownPerms = new Set();
+        apiOperations.forEach((row) => {
+          (row.permissions || []).forEach((perm) => {
+            const normalized = String(perm || '').toUpperCase().trim();
+            if (normalized) knownPerms.add(normalized);
+          });
+        });
+
+        apiPermsSelect.innerHTML = '';
+        Array.from(knownPerms)
+          .sort()
+          .forEach((perm) => {
+            const option = document.createElement('option');
+            option.value = perm;
+            option.textContent = perm;
+            apiPermsSelect.appendChild(option);
+          });
+
+        refreshSelectedApiPermissionsPreview();
+      }
+
+      function checkApiOperationPermissions() {
+        apiCheckStatus.textContent = '';
+        apiCheckStatus.className = 'status';
+
+        const selectedOperation = String(apiOperationSelect.value || '');
+        if (!selectedOperation) {
+          apiCheckStatus.textContent = 'Select an API operation.';
+          apiCheckStatus.className = 'status error';
+          apiCheckResult.textContent = 'No API operation selected.';
+          return;
+        }
+
+        const opMeta = apiOperations.find((row) => String(row.label || '') === selectedOperation);
+        const requiredPerms = Array.isArray(opMeta?.permissions)
+          ? opMeta.permissions.map((p) => String(p || '').toUpperCase()).filter(Boolean)
+          : [];
+        const selectedPerms = new Set(getSelectedApiPermissions());
+
+        const missing = requiredPerms.filter((perm) => !selectedPerms.has(perm));
+        const passed = missing.length === 0;
+        apiCheckStatus.textContent = passed ? 'Result: True' : 'Result: False';
+        apiCheckStatus.className = passed ? 'status success' : 'status error';
+        apiCheckResult.textContent = [
+          `Operation: ${selectedOperation}`,
+          '',
+          `Required permissions (${requiredPerms.length}):`,
+          requiredPerms.length ? requiredPerms.join('\n') : '(none)',
+          '',
+          `Missing permissions (${missing.length}):`,
+          missing.length ? missing.join('\n') : '(none)',
+        ].join('\n');
+      }
+
+      async function checkOverlap() {
+        overlapStatus.textContent = '';
+        overlapStatus.className = 'status';
+        overlapResult.textContent = 'Loading...';
+        try {
+          const response = await fetch('/reference/overlap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entity1: overlapEntity1.value,
+              verb1: overlapVerb1.value,
+              action1: overlapAction1.value,
+              entity2: overlapEntity2.value,
+              verb2: overlapVerb2.value,
+              action2: overlapAction2.value,
+            }),
+          });
+          const payload = await response.json();
+          overlapResult.textContent = (payload.overlap || []).join('\n') || 'No overlapping permissions.';
+        } catch (err) {
+          overlapStatus.textContent = `Overlap check failed: ${err}`;
+          overlapStatus.className = 'status error';
+          overlapResult.textContent = 'No results.';
+        }
+      }
+
+      lookupBtn.addEventListener('click', lookupPermissions);
+      sourceBtn.addEventListener('click', lookupSource);
+      overlapBtn.addEventListener('click', checkOverlap);
+      apiCheckBtn.addEventListener('click', checkApiOperationPermissions);
+      apiPermsSelect.addEventListener('change', refreshSelectedApiPermissionsPreview);
+      bindContextHelp();
+      loadResources();
+      loadApiTesterOptions().catch((err) => {
+        apiCheckStatus.textContent = `Failed to load API operation options: ${err}`;
+        apiCheckStatus.className = 'status error';
+      });
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

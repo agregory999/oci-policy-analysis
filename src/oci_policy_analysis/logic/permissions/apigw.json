@@ -413,15 +413,15 @@
         },
         "UpdateSubscriber": {
             "permissions": [
-                "API_SUBSCRIBER_UPDATEAPI_USAGE_PLAN_READ"
+                "API_SUBSCRIBER_UPDATE"
             ],
-            "notes": "is necessary to update subscribed usage plans during subscriber update."
+            "notes": "API_USAGE_PLAN_READ is necessary to update subscribed usage plans during subscriber update."
         },
         "CreateSubscriber": {
             "permissions": [
-                "API_SUBSCRIBER_CREATEAPI_USAGE_PLAN_READ"
+                "API_SUBSCRIBER_CREATE"
             ],
-            "notes": "is necessary to add subscribed usage plans during subscriber creation."
+            "notes": "API_USAGE_PLAN_READ is necessary to add subscribed usage plans during subscriber creation."
         },
         "DeleteSubscriber": {
             "permissions": [
@@ -449,17 +449,15 @@
         },
         "UpdateUsagePlan": {
             "permissions": [
-                "API_USAGE_PLAN_UPDATEAPI_DEPLOYMENT_READ",
-                "API"
+                "API_USAGE_PLAN_UPDATE"
             ],
-            "notes": "is necessary to update target deployments in entitlements during usage plan update."
+            "notes": "API_DEPLOYMENT_READ is necessary to update target API deployments in entitlements during usage plan update."
         },
         "CreateUsagePlan": {
             "permissions": [
-                "API_USAGE_PLAN_CREATEAPI_DEPLOYMENT_READ",
-                "API"
+                "API_USAGE_PLAN_CREATE"
             ],
-            "notes": "is necessary to add target deployments to entitlements during usage plan creation."
+            "notes": "API_DEPLOYMENT_READ is necessary to add target API deployments to entitlements during usage plan creation."
         },
         "DeleteUsagePlan": {
             "permissions": [

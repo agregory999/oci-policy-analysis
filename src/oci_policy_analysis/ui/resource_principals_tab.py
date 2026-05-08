@@ -15,10 +15,11 @@
 import tkinter as tk
 from tkinter import ttk
 
-from oci_policy_analysis.common.helpers import for_display_dynamic_group, for_display_policy
+from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, PolicySearch, RegularPolicyStatement
+from oci_policy_analysis.common.models import DynamicGroup, RegularPolicyStatement
 from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.presentation import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -121,6 +122,7 @@ class ResourcePrincipalsTab(BaseUITab):
         )
         self.app = app
         self.policy_repo: PolicyAnalysisRepository = app.policy_compartment_analysis
+        self.principal_analysis = PrincipalAnalysisService(app.app_context)
 
         self._build_ui()
 
@@ -155,26 +157,17 @@ class ResourcePrincipalsTab(BaseUITab):
 
         # Resource Type dropdown
         ttk.Label(filters_labelframe, text='Resource Type:').grid(row=0, column=2, padx=5, pady=2, sticky='w')
-        self.resource_type_var = tk.StringVar(value='Any')
-        self.resource_type_list = [
-            'Any',
-            'autonomousdatabase',
-            'function',
-            'apigateway',
-            'disworkspace',
-            'dataflow',
-            'dbmgmt',
-            'serviceconnector',
-            'stackmon',
-            'cluster',
-            'workloadprotectionagent',
-            'aidataplatform',
-        ]
+        self.resource_type_list = self.principal_analysis.get_resource_types()
+        self.resource_type_var = tk.StringVar(value=self.resource_type_list[0] if self.resource_type_list else 'Any')
         self.resource_type_dropdown = ttk.OptionMenu(
             filters_labelframe, self.resource_type_var, self.resource_type_var.get(), *self.resource_type_list
         )
         self.resource_type_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky='ew')
-        self.add_context_help(self.resource_type_dropdown, 'Filter policies by major OCI resource type.')
+        self.add_context_help(
+            self.resource_type_dropdown,
+            'Filter by request.principal.type in where clauses. This commonly maps to the named type in OCIDs '
+            '(for example: ocid1.autonomousdatabase.xx.yy.zz).',
+        )
 
         # Text Filter and Clear
         ttk.Label(filters_labelframe, text='Text Filter:').grid(row=0, column=4, padx=(14, 2), pady=2, sticky='w')
@@ -231,8 +224,7 @@ class ResourcePrincipalsTab(BaseUITab):
             logger.info(f'DGs for filter: {dgs_for_filter}')
             # Call the filter
             # TODO: fix this filter
-            filters: PolicySearch = PolicySearch(exact_dynamic_groups=dgs_for_filter)
-            filtered = self.policy_repo.filter_policy_statements(filters)
+            filtered = self.principal_analysis.by_exact_dynamic_groups(dgs_for_filter).statements
 
             logger.debug(f'type: {type(filtered)} len: {len(filtered)}')
             # SNormalize the data
@@ -256,7 +248,7 @@ class ResourcePrincipalsTab(BaseUITab):
 
             # Create a policy search filter by policy name from selected row
             def switch_tab_policy_analysis():
-                self.app.notebook.select(tab_id=1)  # Policy Analysis tab
+                self.app.notebook.select(tab_id=2)  # Policy Analysis tab
                 # Set the policy name entry
                 logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
                 # Check the dynamic groups box and set the filter for policy name
@@ -337,6 +329,7 @@ class ResourcePrincipalsTab(BaseUITab):
         - Text filter field applies to Matching Rule (DG) or Policy Statement (any-user modes).
         """
         principals_style = self.principals_style_var.get()
+        self._refresh_resource_type_options()
         resource_type = self.resource_type_var.get()
         search_text = (self.text_filter_var.get() or '').strip().lower()
 
@@ -362,11 +355,14 @@ class ResourcePrincipalsTab(BaseUITab):
                 subjects = ['any-user', 'any-group']
 
             if resource_type == 'Any':
-                filters: PolicySearch = PolicySearch(subject=subjects)
-                policies: list[RegularPolicyStatement] = self.policy_repo.filter_policy_statements(filters=filters)
+                policies: list[RegularPolicyStatement] = self.principal_analysis.by_subject_types(
+                    subject_types=subjects  # type: ignore[arg-type]
+                ).statements
             else:
-                filters: PolicySearch = PolicySearch(subject=subjects, statement_text=[resource_type])
-                policies = self.policy_repo.filter_policy_statements(filters=filters)
+                policies = self.principal_analysis.by_subject_types(
+                    subject_types=subjects,  # type: ignore[arg-type]
+                    resource_type=resource_type,
+                ).statements
 
             display_data = [for_display_policy(statement) for statement in policies]
             # Apply text filter to "Statement Text"
@@ -399,3 +395,16 @@ class ResourcePrincipalsTab(BaseUITab):
         Update help area and style on global context help and font size change (from main.py).
         """
         BaseUITab.apply_settings(self, context_help=context_help, font_size=font_size)
+
+    def _refresh_resource_type_options(self) -> None:
+        """Refresh Resource Type dropdown values from current statement conditions."""
+        new_values = self.principal_analysis.get_resource_types()
+        if new_values == self.resource_type_list:
+            return
+        current = self.resource_type_var.get() or 'Any'
+        self.resource_type_list = new_values
+        menu = self.resource_type_dropdown['menu']
+        menu.delete(0, 'end')
+        for value in self.resource_type_list:
+            menu.add_command(label=value, command=tk._setit(self.resource_type_var, value))
+        self.resource_type_var.set(current if current in self.resource_type_list else 'Any')

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Document metadata + shared styles -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Permissions Report</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <!-- Top row: standard masthead + persistent context help panel -->
+    <div class="top-row has-fixed-help">
+      <header
+        class="app-masthead"
+        data-help-title="Permissions Report"
+        data-help-body="Browse effective compartment paths and principal keys, then inspect allow/deny permissions including inherited details."
+      >
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Permissions Report</h1>
+            <p>Effective Path + Principal Key + Permission Details</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a
+            href="/"
+            class="card-link secondary"
+            data-help-title="Back to home"
+            data-help-body="Return to the application home page."
+            >← Back to home</a
+          >
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">
+          Use filters, select a principal key in the left tree, then review allow/deny rows on the right.
+        </p>
+      </div>
+    </div>
+
+    <!-- Main two-column layout: left tree/filters and right details tables -->
+    <main class="layout-two-column layout-two-column-equal">
+      <!-- Left column: filters + effective path/principal tree list -->
+      <section class="card compact-card">
+        <p class="card-title">Tree Controls</p>
+        <p>Filter principal keys and choose a path/subject pair for details.</p>
+
+        <div class="form-grid form-grid-spacious">
+          <div class="inline-field">
+            <label for="principalQuery">Principal Key Search</label>
+            <input
+              id="principalQuery"
+              placeholder="group default admins"
+              data-help-title="Principal key search"
+              data-help-body="Free-text search against principal keys (type/domain/name segments)."
+            />
+          </div>
+          <div class="inline-field">
+            <label for="permissionQuery">Permission Search</label>
+            <input
+              id="permissionQuery"
+              placeholder="inspect"
+              data-help-title="Permission search"
+              data-help-body="Filter selected allow/deny rows by permission text."
+            />
+          </div>
+          <label
+            class="checkbox-label"
+            data-help-title="Show inherited principals"
+            data-help-body="Include principals inherited from ancestor paths in each path node."
+            ><input type="checkbox" id="showInheritedPrincipals" /> Show inherited principals in tree</label
+          >
+          <div class="dynamic-group-actions">
+            <button id="applyBtn" data-help-title="Apply filters" data-help-body="Reload tree data with current filters.">Apply</button>
+            <button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Clear search text and reload default tree.">Clear</button>
+            <button id="exportBtn" class="ghost" data-help-title="Export JSON" data-help-body="Export raw permissions report JSON payload.">Export JSON</button>
+          </div>
+        </div>
+
+        <div id="treeSummary" class="pill" style="margin-top: 8px">Paths: 0 • Subjects: 0</div>
+        <div class="table-shell analysis-table-offset" style="margin-top: 8px">
+          <div class="table-scroll custom-scrollbar" style="max-height: 560px">
+            <table
+              id="treeTable"
+              class="analysis-table"
+              data-help-title="Effective path and principal tree"
+              data-help-body="Select a subject row to load allow/deny permission details."
+            >
+              <thead>
+                <tr>
+                  <th>Effective Path</th>
+                  <th>Principal Key</th>
+                  <th>Type</th>
+                  <th>Inherited From</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right column: selected subject details split into allow and deny tables -->
+      <section class="card compact-card">
+        <p class="card-title">Selected Permissions</p>
+        <p id="selectionSummary">No subject selected.</p>
+
+        <div class="analysis-meta">
+          <div id="allowSummary" class="pill">Allow: 0</div>
+          <div id="denySummary" class="pill">Deny: 0</div>
+        </div>
+
+        <h3 class="section-heading" style="margin-top: 10px">Allow Permissions</h3>
+        <div class="table-shell analysis-table-offset">
+          <div class="table-scroll custom-scrollbar" style="max-height: 240px">
+            <table id="allowTable" class="analysis-table">
+              <thead>
+                <tr>
+                  <th>Permission</th>
+                  <th>Conditional</th>
+                  <th>Inherited From</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <h3 class="section-heading" style="margin-top: 12px">Deny Permissions</h3>
+        <div class="table-shell analysis-table-offset">
+          <div class="table-scroll custom-scrollbar" style="max-height: 240px">
+            <table id="denyTable" class="analysis-table">
+              <thead>
+                <tr>
+                  <th>Permission</th>
+                  <th>Conditional</th>
+                  <th>Inherited From</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Core page state and element references.
+      const principalQueryEl = document.getElementById('principalQuery');
+      const permissionQueryEl = document.getElementById('permissionQuery');
+      const showInheritedPrincipalsEl = document.getElementById('showInheritedPrincipals');
+      const treeSummaryEl = document.getElementById('treeSummary');
+      const treeBody = document.querySelector('#treeTable tbody');
+      const selectionSummaryEl = document.getElementById('selectionSummary');
+      const allowSummaryEl = document.getElementById('allowSummary');
+      const denySummaryEl = document.getElementById('denySummary');
+      const allowBody = document.querySelector('#allowTable tbody');
+      const denyBody = document.querySelector('#denyTable tbody');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Use filters, select a principal key in the left tree, then review allow/deny rows on the right.',
+      };
+
+      let treeRows = [];
+      let selectedNode = null;
+
+      const esc = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function flattenTreePaths(paths) {
+        const rows = [];
+        (paths || []).forEach((pathRow) => {
+          const path = pathRow.path || '';
+          (pathRow.subjects || []).forEach((subjectRow) => {
+            rows.push({
+              path,
+              subject_key: subjectRow.subject_key || '',
+              subject_type: subjectRow.subject_type || '',
+              inherited_from: subjectRow.inherited_from || '',
+              display_name: subjectRow.display_name || subjectRow.subject_key || '',
+            });
+          });
+        });
+        return rows;
+      }
+
+      function renderTree() {
+        treeBody.innerHTML = treeRows
+          .map((row, idx) => {
+            const active = selectedNode && selectedNode.path === row.path && selectedNode.subject_key === row.subject_key;
+            return `<tr data-row-id="${idx}" class="${active ? 'active-row' : ''}"><td>${esc(row.path)}</td><td>${esc(row.display_name)}</td><td>${esc(
+              row.subject_type
+            )}</td><td>${esc(row.inherited_from || '—')}</td></tr>`;
+          })
+          .join('');
+
+        [...treeBody.querySelectorAll('tr')].forEach((tr) => {
+          tr.addEventListener('click', async () => {
+            const idx = Number(tr.dataset.rowId);
+            selectedNode = treeRows[idx] || null;
+            renderTree();
+            await loadDetails();
+          });
+        });
+      }
+
+      function renderPermissionRows(targetBody, rows) {
+        targetBody.innerHTML = (rows || [])
+          .map(
+            (row) =>
+              `<tr><td>${esc(row.permission || '')}</td><td>${esc(String(Boolean(row.conditional)))}</td><td>${esc(
+                row.inherited_from || '—'
+              )}</td></tr>`
+          )
+          .join('');
+      }
+
+      async function loadTree() {
+        const params = new URLSearchParams({
+          show_inherited_principals: String(showInheritedPrincipalsEl.checked),
+          principal_query: principalQueryEl.value.trim(),
+        });
+        const resp = await fetch('/analysis/permissions-report/tree?' + params.toString());
+        const data = await resp.json();
+        treeRows = flattenTreePaths(data.paths || []);
+
+        const totalPaths = Array.isArray(data.paths) ? data.paths.length : 0;
+        treeSummaryEl.textContent = `Paths: ${totalPaths} • Subjects: ${treeRows.length}`;
+        selectedNode = null;
+        renderTree();
+        renderPermissionRows(allowBody, []);
+        renderPermissionRows(denyBody, []);
+        selectionSummaryEl.textContent = 'No subject selected.';
+        allowSummaryEl.textContent = 'Allow: 0';
+        denySummaryEl.textContent = 'Deny: 0';
+      }
+
+      async function loadDetails() {
+        if (!selectedNode) return;
+        const params = new URLSearchParams({
+          path: selectedNode.path,
+          subject_key: selectedNode.subject_key,
+          principal_query: principalQueryEl.value.trim(),
+          permission_query: permissionQueryEl.value.trim(),
+        });
+        const resp = await fetch('/analysis/permissions-report/details?' + params.toString());
+        if (!resp.ok) {
+          selectionSummaryEl.textContent = 'Unable to load details for selected subject.';
+          renderPermissionRows(allowBody, []);
+          renderPermissionRows(denyBody, []);
+          allowSummaryEl.textContent = 'Allow: 0';
+          denySummaryEl.textContent = 'Deny: 0';
+          return;
+        }
+        const data = await resp.json();
+        const allowRows = data.allow_rows || [];
+        const denyRows = data.deny_rows || [];
+        selectionSummaryEl.textContent = `Selected: ${selectedNode.path} • ${selectedNode.subject_key}`;
+        allowSummaryEl.textContent = `Allow: ${allowRows.length}`;
+        denySummaryEl.textContent = `Deny: ${denyRows.length}`;
+        renderPermissionRows(allowBody, allowRows);
+        renderPermissionRows(denyBody, denyRows);
+      }
+
+      async function exportJson() {
+        const resp = await fetch('/analysis/permissions-report/export');
+        const payload = await resp.json();
+        const blob = new Blob([JSON.stringify(payload.report || {}, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'permissions_report.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      document.getElementById('applyBtn').addEventListener('click', loadTree);
+      document.getElementById('clearBtn').addEventListener('click', async () => {
+        principalQueryEl.value = '';
+        permissionQueryEl.value = '';
+        showInheritedPrincipalsEl.checked = false;
+        await loadTree();
+      });
+      document.getElementById('exportBtn').addEventListener('click', exportJson);
+      permissionQueryEl.addEventListener('change', loadDetails);
+
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      loadTree();
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

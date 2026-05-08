@@ -102,35 +102,15 @@ class SimulationTab(BaseUITab):
         prospective_service = getattr(self.app, 'prospective_service', None)
         if prospective_service is not None:
             try:
-                prospective_service.persist_and_push_to_engine()
+                engine = getattr(self, 'simulation_engine', None)
+                if engine is not None and hasattr(engine, 'set_prospective_statements'):
+                    engine.set_prospective_statements(prospective_service.to_simple_list())
             except Exception as ex:  # defensive; do not break UI if settings malformed
                 logger.warning(
                     'SimulationTab.populate_data: failed to propagate prospective statements via service: %s',
                     ex,
                     exc_info=True,
                 )
-        else:
-            # Backwards-compatible fallback: preserve the prior
-            # behavior when the service is not yet wired.
-            engine = getattr(self, 'simulation_engine', None)
-            tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
-            if engine and tenancy_key:
-                try:
-                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-                    initial_list = all_sim_settings.get(str(tenancy_key)) or []
-                    if initial_list:
-                        engine.set_prospective_statements(initial_list)
-                        logger.info(
-                            'SimulationTab.populate_data: hydrated %d prospective statements from settings for tenancy %s',
-                            len(initial_list),
-                            tenancy_key,
-                        )
-                except Exception as ex:  # defensive; do not break UI if settings malformed
-                    logger.warning(
-                        'SimulationTab.populate_data: failed to hydrate prospective statements: %s',
-                        ex,
-                        exc_info=True,
-                    )
 
         # Refresh dropdowns after any prospective/tenancy changes
         self.refresh_dropdowns()
@@ -783,13 +763,15 @@ class SimulationTab(BaseUITab):
         service = getattr(self.app, 'prospective_service', None)
         if service is not None:
             try:
-                service.persist_and_push_to_engine()
+                engine = getattr(self, 'simulation_engine', None)
+                if engine is not None and hasattr(engine, 'set_prospective_statements'):
+                    engine.set_prospective_statements(service.to_simple_list())
                 logger.info(
-                    'Environment summary sync: prospective_service records=%d pushed to engine',
+                    'Environment summary sync: prospective_service records=%d pulled into engine',
                     len(service.list_all()),
                 )
             except Exception:
-                logger.warning('Environment summary sync: persist_and_push_to_engine failed', exc_info=True)
+                logger.warning('Environment summary sync: service->engine pull failed', exc_info=True)
 
         # Append a short prospective statement preview, if available.
         engine = self._get_simulation_engine()
@@ -1047,13 +1029,15 @@ class SimulationTab(BaseUITab):
             service = getattr(self.app, 'prospective_service', None)
             if service is not None:
                 try:
-                    service.persist_and_push_to_engine()
+                    engine = self._get_simulation_engine()
+                    if engine is not None and hasattr(engine, 'set_prospective_statements'):
+                        engine.set_prospective_statements(service.to_simple_list())
                     logger.info(
-                        'load_statements sync: prospective_service records=%d pushed to engine',
+                        'load_statements sync: prospective_service records=%d pulled into engine',
                         len(service.list_all()),
                     )
                 except Exception:
-                    logger.warning('load_statements sync: persist_and_push_to_engine failed', exc_info=True)
+                    logger.warning('load_statements sync: service->engine pull failed', exc_info=True)
 
             # Normalize principal into the exact shape expected by the engine.
             effective_principal = self._build_engine_principal_value(ptype, pname_display)
@@ -1205,10 +1189,8 @@ class SimulationTab(BaseUITab):
             if service is not None and hasattr(service, 'append_from_simple_dict'):
                 service.append_from_simple_dict(record)  # type: ignore[attr-defined]
                 service.persist_and_push_to_engine()
-            elif engine is not None and hasattr(engine, 'get_prospective_statements'):
-                current = engine.get_prospective_statements() or []
-                current.append(record)
-                engine.set_prospective_statements(current)
+                if engine is not None and hasattr(engine, 'set_prospective_statements'):
+                    engine.set_prospective_statements(service.to_simple_list())
         except Exception:
             logger.warning('SimulationTab: failed to add prospective statement from builder', exc_info=True)
             return
@@ -1399,21 +1381,14 @@ class SimulationTab(BaseUITab):
                 )
 
             try:
-                engine.set_prospective_statements(new_list)
+                service = getattr(self.app, 'prospective_service', None)
+                if service is not None:
+                    service.replace_all_from_simple_list(new_list)
+                    service.persist_and_push_to_engine()
+                    engine.set_prospective_statements(service.to_simple_list())
+                else:
+                    engine.set_prospective_statements(new_list)
                 logger.info('Saved %d prospective statements via editor', len(new_list))
-                # Persist to settings per-tenancy so prospective list is restored on restart
-                tenancy_key = getattr(self.policy_repo, 'tenancy_ocid', None)
-                if tenancy_key:
-                    all_sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-                    all_sim_settings[str(tenancy_key)] = new_list
-                    self.settings['simulation_prospective_statements_by_tenancy'] = all_sim_settings
-                    try:
-                        from oci_policy_analysis.common import config as _cfg
-
-                        _cfg.save_settings(self.settings)
-                    except Exception:
-                        # Non-fatal; UI/engine already have in-memory copy
-                        logger.warning('Unable to persist prospective statements to settings.json', exc_info=True)
             except Exception as ex:  # defensive UI guard
                 import tkinter.messagebox as mb
 

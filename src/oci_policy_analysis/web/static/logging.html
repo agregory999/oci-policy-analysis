@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Logging</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <!-- Standard top-row shell: app masthead + persistent context help -->
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Logging Configuration" data-help-body="Configure global/component log levels and monitor the live application log stream.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Logging Configuration</h1>
+            <p>Global options, component overrides, and live collector log</p>
+          </div>
+        </div>
+        <div class="masthead-meta">
+          <a href="/" class="card-link">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">Logging Page Layout</h3>
+        <p id="contextHelpBody" class="context-help-body">Configure global and component log levels and monitor the live application log stream.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <!-- 3-column layout utility: left card = 1/3, right card spans 2/3 -->
+      <section class="layout-row layout-row-3 logging-layout-row">
+        <div class="side-stack">
+          <article class="card">
+            <div class="form-grid">
+              <p class="card-title">Global Options</p>
+              <label for="globalLevel">Global Log Level</label>
+              <select id="globalLevel">
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
+              <div class="logging-options-grid">
+                <label class="checkbox-label"><input type="checkbox" id="alwaysTimings" /> Always log timings (CRITICAL)</label>
+                <label class="checkbox-label"><input type="checkbox" id="alwaysApiCalls" /> Always log API calls (CRITICAL)</label>
+              </div>
+              <button id="saveGlobal">Save Global Settings</button>
+              <div id="globalStatus" class="status"></div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="form-grid">
+              <p class="card-title">Component Overrides</p>
+              <div class="layout-row layout-row-2">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th>Level</th>
+                    </tr>
+                  </thead>
+                  <tbody id="componentTableLeft"></tbody>
+                </table>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th>Level</th>
+                    </tr>
+                  </thead>
+                  <tbody id="componentTableRight"></tbody>
+                </table>
+              </div>
+              <button id="saveComponents">Save Component Overrides</button>
+              <div id="componentStatus" class="status"></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="card layout-col-span-2">
+          <div class="log-toolbar">
+            <div>
+              <p class="card-title logging-tight-title">Live Log</p>
+              <h2 class="logging-main-heading">Combined Collector Log</h2>
+              <p class="status-meta">Streaming the latest application log from <code>~/.oci-policy-analysis/logs/app.log</code>.</p>
+            </div>
+            <span id="logStatus" class="status-badge refresh-status-running">Idle</span>
+          </div>
+          <div class="log-actions">
+            <button id="logToggle" class="ghost" type="button">Start Live</button>
+            <button id="logRefresh" class="ghost" type="button">Refresh Log</button>
+            <button id="logCopy" class="ghost" type="button">Copy Log</button>
+          </div>
+          <pre id="logOutput" class="refresh-log">Loading log stream...</pre>
+          <div id="logError" class="status error"></div>
+        </article>
+      </section>
+    </main>
+
+    <div class="status-footer">
+      <span id="statusFooterStage">Status: Idle</span>
+      <span id="statusFooterDetail" class="status-muted">No tenancy load active.</span>
+      <span id="statusFooterMeta" class="status-muted"></span>
+    </div>
+
+    <script>
+      const statusFooterStage = document.getElementById('statusFooterStage');
+      const statusFooterDetail = document.getElementById('statusFooterDetail');
+      const statusFooterMeta = document.getElementById('statusFooterMeta');
+      const globalLevel = document.getElementById('globalLevel');
+      const alwaysTimings = document.getElementById('alwaysTimings');
+      const alwaysApiCalls = document.getElementById('alwaysApiCalls');
+      const globalStatus = document.getElementById('globalStatus');
+      const componentTableLeft = document.getElementById('componentTableLeft');
+      const componentTableRight = document.getElementById('componentTableRight');
+      const componentStatus = document.getElementById('componentStatus');
+      const saveGlobal = document.getElementById('saveGlobal');
+      const saveComponents = document.getElementById('saveComponents');
+      const logOutput = document.getElementById('logOutput');
+      const logStatus = document.getElementById('logStatus');
+      const logError = document.getElementById('logError');
+      const logRefresh = document.getElementById('logRefresh');
+      const logCopy = document.getElementById('logCopy');
+      const logToggle = document.getElementById('logToggle');
+      let logStreamHandle = null;
+      let currentGlobalLevel = 'WARNING';
+      let currentComponentOverrides = {};
+
+      const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
+
+      const GROUPS = {
+        Common: [
+          'cli',
+          'main',
+          'config',
+          'logger',
+          'usage_tracking',
+          'caching',
+          'mcp_server',
+          'web_routes',
+        ],
+        Services: [
+          'analysis_service',
+          'cache_service',
+          'consolidation_workbench_service',
+          'condition_tester_service',
+          'intelligence_service',
+          'load_service',
+          'logging_service',
+          'recommendations_service',
+          'reference_data_service',
+          'settings_service',
+          'simulation_service',
+        ],
+        Engines: [
+          'policy_intelligence',
+          'policy_simulation_engine',
+          'consolidation_engine',
+        ],
+        Internal: [
+          'post_load',
+          'condition_evaluator',
+          'data_repo',
+          'policy_parser',
+          'policy_subject_parser',
+          'reference_data_repo',
+        ],
+        Presentation: ['presentation.formatters', 'presentation.policy_builder', 'presentation.conditions'],
+      };
+
+      function buildLevelSelect(component, level) {
+        return `
+          <select data-component="${component}">
+            ${LEVELS.map((lvl) => `<option value="${lvl}" ${lvl === level ? 'selected' : ''}>${lvl}</option>`).join('')}
+          </select>
+        `;
+      }
+
+      function renderComponentTable(logLevels, globalLevelValue) {
+        componentTableLeft.innerHTML = '';
+        componentTableRight.innerHTML = '';
+        const groupedComponents = new Set();
+        const groupEntries = Object.entries(GROUPS);
+        const leftGroups = groupEntries.filter((_, idx) => idx % 2 === 0);
+        const rightGroups = groupEntries.filter((_, idx) => idx % 2 === 1);
+
+        function renderGroupColumn(target, entries) {
+          entries.forEach(([groupName, components]) => {
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `<td colspan="2" class="logging-group-header-cell">${groupName}</td>`;
+            target.appendChild(headerRow);
+            components.forEach((component) => {
+              groupedComponents.add(component);
+              const level = logLevels[component] || globalLevelValue;
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td>${component}</td>
+                <td>${buildLevelSelect(component, level)}</td>
+              `;
+              target.appendChild(row);
+            });
+          });
+        }
+
+        renderGroupColumn(componentTableLeft, leftGroups);
+        renderGroupColumn(componentTableRight, rightGroups);
+
+        const ungrouped = Object.keys(logLevels)
+          .filter((component) => !groupedComponents.has(component))
+          .sort();
+        if (ungrouped.length) {
+          const headerRow = document.createElement('tr');
+          headerRow.innerHTML = `<td colspan="2" class="logging-group-header-cell">Other</td>`;
+          componentTableRight.appendChild(headerRow);
+          ungrouped.forEach((component) => {
+            const level = logLevels[component] || globalLevelValue;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${component}</td>
+              <td>${buildLevelSelect(component, level)}</td>
+            `;
+            componentTableRight.appendChild(row);
+          });
+        }
+      }
+
+      async function loadLogging() {
+        const response = await fetch('/logging');
+        const payload = await response.json();
+        const logging = payload.logging || {};
+        currentGlobalLevel = logging.global_log_level || 'WARNING';
+        globalLevel.value = currentGlobalLevel;
+        alwaysTimings.checked = Boolean(logging.always_log_timings);
+        alwaysApiCalls.checked = Boolean(logging.always_log_api_calls);
+
+        currentComponentOverrides = logging.log_levels || {};
+        renderComponentTable(currentComponentOverrides, currentGlobalLevel);
+      }
+
+      function classifyLogLine(line) {
+        const lower = String(line).toLowerCase();
+        if (
+          lower.includes('error') ||
+          lower.includes('exception') ||
+          lower.includes('traceback')
+        ) {
+          return 'refresh-log-error';
+        }
+        if (lower.includes('warning')) {
+          return 'refresh-log-warning';
+        }
+        return '';
+      }
+
+      async function loadLogStream() {
+        logError.textContent = '';
+        logStatus.textContent = 'Loading';
+        logStatus.className = 'status-badge refresh-status-running';
+        try {
+          const response = await fetch('/logging/logs');
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const payload = await response.json();
+          const lines = payload.lines || [];
+          logOutput.innerHTML = lines
+            .map((line) => {
+              const className = classifyLogLine(line);
+              return `<span class="refresh-log-line ${className}">${line}</span>`;
+            })
+            .join('');
+          logStatus.textContent = 'Ready';
+          logStatus.className = 'status-badge refresh-status-success';
+        } catch (err) {
+          logStatus.textContent = 'Error';
+          logStatus.className = 'status-badge refresh-status-error';
+          logError.textContent = `Unable to load log: ${err}`;
+          logOutput.textContent = 'Log stream unavailable.';
+        }
+      }
+
+      async function copyLog() {
+        const text = logOutput.textContent || '';
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          logError.textContent = 'Log copied to clipboard.';
+          logError.className = 'status success';
+        } catch (err) {
+          logError.textContent = `Copy failed: ${err}`;
+          logError.className = 'status error';
+        }
+      }
+
+      function stopLogStream() {
+        if (logStreamHandle) {
+          window.clearInterval(logStreamHandle);
+          logStreamHandle = null;
+        }
+        logToggle.textContent = 'Start Live';
+        logStatus.textContent = 'Paused';
+        logStatus.className = 'status-badge refresh-status-partial';
+      }
+
+      function startLogStream() {
+        if (logStreamHandle) return;
+        logToggle.textContent = 'Pause Live';
+        logStatus.textContent = 'Live';
+        logStatus.className = 'status-badge refresh-status-running';
+        loadLogStream();
+        logStreamHandle = window.setInterval(loadLogStream, 3000);
+      }
+
+      async function saveGlobalSettings() {
+        globalStatus.textContent = 'Saving...';
+        try {
+          const response = await fetch('/logging', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logging: {
+                global_log_level: globalLevel.value,
+                always_log_timings: alwaysTimings.checked,
+                always_log_api_calls: alwaysApiCalls.checked,
+                clear_log_levels: true,
+              },
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          globalStatus.textContent = 'Saved.';
+          globalStatus.className = 'status';
+          await loadLogging();
+        } catch (err) {
+          globalStatus.textContent = `Save failed: ${err}`;
+          globalStatus.className = 'status error';
+        }
+      }
+
+      async function saveComponentSettings() {
+        componentStatus.textContent = 'Saving...';
+        const updates = {};
+        document.querySelectorAll('select[data-component]').forEach((select) => {
+          const comp = select.getAttribute('data-component');
+          if (select.value !== currentGlobalLevel) {
+            updates[comp] = select.value;
+          }
+        });
+        try {
+          const response = await fetch('/logging', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ logging: { log_levels: updates } }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          componentStatus.textContent = 'Saved.';
+          componentStatus.className = 'status';
+          await loadLogging();
+        } catch (err) {
+          componentStatus.textContent = `Save failed: ${err}`;
+          componentStatus.className = 'status error';
+        }
+      }
+
+      async function refreshStatusFooter() {
+        if (!statusFooterStage) return;
+        try {
+          const response = await fetch('/status', { cache: 'no-store' });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const stage = payload.stage || 'Idle';
+          const detail = payload.detail || '';
+          const summary = payload.summary || {};
+          statusFooterStage.textContent = `Status: ${stage}`;
+          statusFooterDetail.textContent = detail || 'No tenancy load active.';
+          const source = summary.loaded_from_compliance_output
+            ? 'CIS Compliance'
+            : summary.policies_loaded_from_tenancy
+              ? `Tenancy ${summary.tenancy_name || ''}`.trim()
+              : summary.data_as_of
+                ? 'Cache'
+                : '';
+          const parts = [];
+          if (source) parts.push(`Source: ${source}`);
+          if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
+          if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
+          statusFooterMeta.textContent = parts.join(' • ');
+        } catch (err) {
+          // Ignore status errors.
+        }
+      }
+
+      saveGlobal.addEventListener('click', saveGlobalSettings);
+      saveComponents.addEventListener('click', saveComponentSettings);
+      logRefresh.addEventListener('click', loadLogStream);
+      logCopy.addEventListener('click', copyLog);
+      logToggle.addEventListener('click', () => {
+        if (logStreamHandle) {
+          stopLogStream();
+        } else {
+          startLogStream();
+        }
+      });
+      loadLogging();
+      loadLogStream();
+      refreshStatusFooter();
+      setInterval(refreshStatusFooter, 2000);
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

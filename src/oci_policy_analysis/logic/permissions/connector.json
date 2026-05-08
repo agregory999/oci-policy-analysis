@@ -62,7 +62,6 @@
         },
         "GetConnectorPlugin": {
             "permissions": [
-                "N"
             ],
             "notes": "No permissions required"
         },
@@ -80,7 +79,6 @@
         },
         "ListConnectorPlugins": {
             "permissions": [
-                "N"
             ],
             "notes": "No permissions required"
         },

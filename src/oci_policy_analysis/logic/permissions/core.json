@@ -2258,14 +2258,9 @@
         },
         "UpdateIpv6": {
             "permissions": [
-                "IPV6_UPDATE",
-                "VNIC_UNASSIGN",
-                "VNIC_ASSIGN",
-                "IP",
-                "6",
-                "VNIC"
+                "IPV6_UPDATE"
             ],
-            "notes": "and and (if moving IPv6 to a different )"
+            "notes": "VNIC_UNASSIGN and VNIC_ASSIGN (if moving IPv6 to a different VNIC)"
         },
         "CreateIpv6": {
             "permissions": [
@@ -2590,10 +2585,8 @@
         },
         "ChangePublicIpCompartment": {
             "permissions": [
-                "PUBLIC_IP_MOVE",
-                "N",
-                "T",
-                "IP"
+                "PUBLIC_IP_MOVE"
+
             ],
             "notes": "Note: This operation applies only to reserved public IPs."
         },
@@ -3177,13 +3170,9 @@
         "GetVolumeAttachment": {
             "permissions": [
                 "VOLUME_ATTACHMENT_INSPECT",
-                "INSTANCE_INSPECT",
-                "N",
-                "T",
-                "CHAP",
-                "VOLUME_ATTACHMENT_READ"
+                "INSTANCE_INSPECT"
             ],
-            "notes": "and Note: To also get the secret for the volume, then is required instead of"
+            "notes": "Note: To also get the CHAP secret for the volume, then VOLUME_ATTACHMENT_READ is required instead of VOLUME_ATTACHMENT_INSPECT"
         },
         "AttachVolume": {
             "permissions": [
@@ -3465,13 +3454,11 @@
         },
         "ListDedicatedVmHostInstanceShapes": {
             "permissions": [
-                "N"
             ],
             "notes": "None"
         },
         "ListDedicatedVmHostShapes": {
             "permissions": [
-                "N"
             ],
             "notes": "None"
         },

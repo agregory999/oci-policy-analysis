@@ -103,6 +103,24 @@ This flow allows users not only to reason about trust boundaries and cross-tenan
 
 Further context: for UI style, see [CONTEXT_ui.md](CONTEXT_ui.md); for general logic conventions, see [CONTEXT_logic.md](CONTEXT_logic.md).
 
+### External OCI Reference: Cross-Tenancy Association Policies
+
+For OCI Database Tools cross-tenancy **associate** statement patterns and
+constraints, see Oracle documentation:
+
+- https://docs.oracle.com/en-us/iaas/database-tools/doc/cross-tenancy-association-policies.html
+
+This is useful when validating or expanding parser support for statements like:
+
+- `admit ... to associate <resource A> in tenancy <X> with <resource B> in compartment/tenancy <Y>`
+- `endorse ... to associate <resource A> in compartment/tenancy <X> with <resource B> in tenancy <Y>`
+
+Implementation note:
+
+- The parser currently preserves associate-oriented fields (`*_associate_*` and
+  `associate_clause_raw`) and can be enhanced further by aligning additional
+  edge-case rules with Oracle's documented association patterns.
+
 ---
 
 ## 7. Known Limitations and Roadmap

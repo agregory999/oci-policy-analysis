@@ -22,14 +22,9 @@
 from datetime import datetime
 from typing import Any
 
-from antlr4 import CommonTokenStream, InputStream
-
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, Group, User
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
-from oci_policy_analysis.logic.parsers.condition_parser.WhereClauseEvaluator import evaluate_where_clause
+from oci_policy_analysis.logic.condition_evaluator import evaluate_condition_clause, extract_variable_names
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
@@ -147,30 +142,7 @@ class PolicySimulationEngine:
         Returns:
             set[str]: A set of variable names (as strings) present in the condition clause.
         """
-        input_stream = InputStream(cond_str + '\n')
-        lexer = OciIamPolicyConditionLexer(input_stream)
-        stream = CommonTokenStream(lexer)
-        parser = OciIamPolicyConditionParser(stream)
-        tree = parser.condition_clause()
-
-        class VarCollector(OciIamPolicyConditionVisitor):
-            def __init__(self):
-                self.vars = set()
-                self.logger = get_logger('VarCollector')
-
-            def visitVariable_name(self, ctx):
-                self.vars.add(ctx.getText())
-
-            def visitTerminal(self, node):
-                if hasattr(node, 'symbol') and hasattr(node.symbol, 'type'):
-                    if node.symbol.type == OciIamPolicyConditionLexer.IDENTIFIER and '.' in node.getText():
-                        self.vars.add(node.getText())
-                        self.logger.info(f'Extracted variable: {node.getText()}')
-                return None
-
-        collector = VarCollector()
-        collector.visit(tree)
-        return collector.vars
+        return extract_variable_names(str(cond_str or ''))
 
     def __init__(self, policy_repo=None, ref_data_repo=None):
         """
@@ -425,6 +397,9 @@ class PolicySimulationEngine:
         where_context: dict,
         checked_statement_ids: list[str] | None = None,
         trace_name: str | None = None,
+        scenario_internal_id: str | None = None,
+        scenario_name: str | None = None,
+        simulation_name: str | None = None,
         trace: bool = False,
     ) -> dict[str, Any]:
         """
@@ -708,6 +683,9 @@ class PolicySimulationEngine:
                 'missing_permissions': sorted(missing),
                 'required_permissions_for_api_operation': trace_obj['required_permissions_for_api_operation'],
                 'failure_reason': '' if has_permission else f'Missing required permissions: {sorted(missing)}',
+                'scenario_internal_id': scenario_internal_id or '',
+                'scenario_name': scenario_name or '',
+                'simulation_name': simulation_name or '',
                 # New summary counters: how many ALLOW vs DENY statements were
                 # actually considered for this simulation (after filtering by
                 # principal/path/checked_statement_ids). These are useful for
@@ -730,6 +708,11 @@ class PolicySimulationEngine:
             entry = {
                 'name': trace_name or f"Simulation {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 'timestamp': datetime.now().isoformat(timespec='seconds'),
+                'scenario_internal_id': scenario_internal_id or '',
+                'scenario_name': scenario_name or '',
+                'simulation_name': simulation_name or '',
+                'api_operation': api_operation,
+                'api_call_allowed': bool(sim_result.get('api_call_allowed')),
                 'trace': history_entry_payload,
             }
             self.simulation_history.append(entry)
@@ -738,7 +721,7 @@ class PolicySimulationEngine:
             logger.exception(f'Error during simulate_and_record: {e}')
             raise
 
-    def get_simulation_trace_list(self) -> list[dict[str, str]]:
+    def get_simulation_trace_list(self) -> list[dict[str, str | bool]]:
         """
         Get the list of names and timestamps for all recorded simulation traces.
 
@@ -749,7 +732,18 @@ class PolicySimulationEngine:
         Example:
             [{'name': 'Simulation 1', 'timestamp': '2026-01-05T14:00:01'}, ...]
         """
-        return [{'name': entry['name'], 'timestamp': entry['timestamp']} for entry in self.simulation_history]
+        return [
+            {
+                'name': entry['name'],
+                'timestamp': entry['timestamp'],
+                'scenario_internal_id': entry.get('scenario_internal_id', ''),
+                'scenario_name': entry.get('scenario_name', ''),
+                'simulation_name': entry.get('simulation_name', ''),
+                'api_operation': entry.get('api_operation', ''),
+                'api_call_allowed': bool(entry.get('api_call_allowed')),
+            }
+            for entry in self.simulation_history
+        ]
 
     def get_simulation_trace_by_index(self, idx: int) -> dict[str, Any] | None:
         """
@@ -1141,7 +1135,7 @@ class PolicySimulationEngine:
         where_context: dict,
         *,
         return_structured: bool = False,
-    ) -> tuple[bool, str] | tuple[bool, dict]:  # noqa: C901
+    ) -> tuple[bool, str] | tuple[bool, dict]:
         """
         Evaluate 'where' clause (condition) string or dict against a context of variables (where_context).
         Uses reusable WhereClauseEvaluator visitor, with extended logging.
@@ -1154,88 +1148,4 @@ class PolicySimulationEngine:
 
         logger.info('Starting _evaluate_conditions.')
         logger.debug(f'Input: cond={cond}, where_context={where_context}')
-        # Defensive: Normalize ISO times for all where_context entries before evaluating
-        where_context = self._normalize_where_context_times(where_context)
-        # Normalize/extract the clause string
-        if isinstance(cond, dict):
-            # Try to find a clause string field
-            condition_str = None
-            for k in ('where_clause', 'condition_string', 'clause', 'string'):
-                if k in cond:
-                    condition_str = cond[k]
-                    break
-            # Fallback: first string value, else to str(cond)
-            if not condition_str:
-                for v in cond.values():
-                    if isinstance(v, str):
-                        condition_str = v
-                        break
-            if not condition_str:
-                condition_str = str(cond)
-        elif isinstance(cond, str):
-            condition_str = cond
-        else:
-            condition_str = str(cond)
-
-        logger.info(f'Parsed condition string for evaluation: {condition_str}')
-        try:
-            result_bool, log = evaluate_where_clause(condition_str, where_context)
-            # Defensive: ensure result_bool is a proper bool for type-checkers and callers
-            result_bool = bool(result_bool)
-            logger.info(f'Where clause evaluated to: {result_bool}')
-        except Exception as ex:
-            logger.error(f'Exception during where clause evaluation: {ex}')
-            result_bool, log = (
-                False,
-                [
-                    {
-                        'type': 'Exception',
-                        'result': False,
-                        'variable': '?',
-                        'operator': '?',
-                        'sim_value': '?',
-                        'expected': '?',
-                        'info': str(ex),
-                    }
-                ],
-            )
-
-        # When requested, return a structured payload suitable for UI
-        # components (e.g., ConditionTesterTab). This is backwards-
-        # compatible: existing callers that rely on the textual reason
-        # string can omit the flag and keep the original behavior.
-        if return_structured:
-            status = 'GRANTED' if result_bool else 'DENIED'
-            structured = {
-                'Condition String': condition_str,
-                'Policy Result': status,
-                'Log': log if isinstance(log, list) else [{'type': 'Summary', 'info': str(log), 'result': result_bool}],
-            }
-            logger.info('Returning structured evaluation result for UI consumer: %s', status)
-            return result_bool, structured
-
-        # Compose reason string from log or result (legacy behavior)
-        reason_lines = []
-        if log:
-            if isinstance(log, str):
-                reason_lines.append(log)
-            elif isinstance(log, list):
-                # Try to extract interesting info from structured log objects
-                for entry in log:
-                    if isinstance(entry, dict):
-                        msg = entry.get('info') or entry.get('result') or str(entry)
-                        reason_lines.append(str(msg))
-                    else:
-                        reason_lines.append(str(entry))
-        reason = '; '.join([line for line in reason_lines if line])
-        # Include status
-        if result_bool is True:
-            status = 'GRANTED'
-        else:
-            status = 'DENIED'
-        if not reason:
-            reason = f'Policy Result: {status}'
-        else:
-            reason = f'Policy Result: {status}. Details: {reason}'
-        logger.info(f'Returning evaluation result: {status} with reason: {reason}')
-        return result_bool, reason
+        return evaluate_condition_clause(cond, where_context, return_structured=return_structured)

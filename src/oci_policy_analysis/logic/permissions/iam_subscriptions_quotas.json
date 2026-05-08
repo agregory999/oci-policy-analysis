@@ -514,9 +514,6 @@
         },
         "MoveCompartment": {
             "permissions": [
-                "T",
-                "M",
-                "C"
             ],
             "notes": "There is not a single permission associated with the MoveCompartment operation. This operation requires manage all-resources permissions on the lowest shared parent compartment of the current compartment and the destination compartment."
         },

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Two Column Template</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Masthead classes" data-help-body="Use .top-row for masthead/context-help placement and .app-masthead for the title card.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Two Column Template</h1>
+            <p>Class Reference • Main Column + Right Rail</p>
+          </div>
+        </div>
+        <div class="masthead-meta">Updated just now</div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Template</h3>
+        <p id="contextHelpBody" class="context-help-body">Hover or focus on a component to see the standard classes and data-help attributes used for the pattern.</p>
+      </div>
+    </div>
+
+    <main class="layout-two-column">
+      <section class="card compact-card" data-help-title="Main column" data-help-body="Use .layout-two-column for a primary work area and a right rail. The left column usually contains filters, forms, tables, or workflow cards.">
+        <p class="card-title">Primary Work Area</p>
+        <h2>Main card in .layout-two-column</h2>
+        <p>The two-column pattern matches the home page: primary content on the left, supporting widgets and navigation in a <strong>.side-stack</strong> on the right.</p>
+        <code class="code-sample">&lt;main class=&quot;layout-two-column&quot;&gt;
+  &lt;section class=&quot;card compact-card&quot;&gt;...&lt;/section&gt;
+  &lt;aside class=&quot;side-stack&quot;&gt;...&lt;/aside&gt;
+&lt;/main&gt;</code>
+        <hr class="section-separator" />
+        <div class="form-grid form-grid-spacious">
+          <div>
+            <h3 class="section-heading">Common Controls</h3>
+            <div class="section-kicker">Options</div>
+            <div class="options-row">
+              <label class="checkbox-label"><input type="checkbox" checked /> Include related records</label>
+              <label class="checkbox-label"><input type="checkbox" /> Show diagnostics</label>
+            </div>
+          </div>
+          <div class="inline-field">
+            <label for="templateSelect">Selector</label>
+            <select id="templateSelect" class="select-compact">
+              <option>.select-compact</option>
+            </select>
+            <button type="button" class="ops-button" data-help-title="Run Action (.ops-button)" data-help-body="Use this for the primary operation in a row-based form workflow, such as loading data or applying a filter. It is intentionally prominent so users know which action advances the task.">Run Action</button>
+          </div>
+        </div>
+
+        <hr class="section-separator" />
+        <p class="card-title">Data Table + Fly-in (Two-Column)</p>
+        <div class="table-shell">
+          <div class="table-scroll table-container custom-scrollbar">
+            <table id="twoColSampleResultsTable">
+              <thead>
+                <tr><th>Policy</th><th>Statement</th><th>Verb</th></tr>
+              </thead>
+              <tbody>
+                <tr data-row-id="1" data-policy="Platform-Admins" data-region="us-ashburn-1" data-ocid="ocid1.policy.oc1..twocol1" data-state="ACTIVE" data-compartment="root"><td>Platform-Admins</td><td>Allow group Admins to manage all-resources in tenancy</td><td>manage</td></tr>
+                <tr data-row-id="2" data-policy="Audit-Readers" data-region="us-phoenix-1" data-ocid="ocid1.policy.oc1..twocol2" data-state="ACTIVE" data-compartment="security"><td>Audit-Readers</td><td>Allow group Auditors to read audit-events in tenancy</td><td>read</td></tr>
+                <tr data-row-id="3" data-policy="NetOps" data-region="eu-frankfurt-1" data-ocid="ocid1.policy.oc1..twocol3" data-state="ACTIVE" data-compartment="network"><td>NetOps</td><td>Allow group NetOps to use virtual-network-family in compartment network</td><td>use</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="progress-widget" data-help-title="Right rail progress" data-help-body="Progress or status widgets belong in the right rail using .side-stack and .progress-widget.">
+          <p class="card-title progress-widget-title">Status Widget</p>
+          <div class="progress-widget-head">
+            <span class="progress-widget-detail">Ready</span>
+            <span class="progress-widget-percent">100%</span>
+          </div>
+          <div class="progress-widget-track"><div class="progress-widget-fill progress-fill-100"></div></div>
+          <div class="progress-widget-detail">Right rail widgets should stay compact.</div>
+        </section>
+
+        <section class="card" data-help-title="Navigation card" data-help-body="Use .card and .card-link-row for navigation groups and related page links.">
+          <p class="card-title">Navigation Card</p>
+          <p>Grouped links use <strong>.card-link-row</strong>.</p>
+          <div class="card-link-row">
+            <a href="#">Primary Link</a>
+            <a href="#" class="secondary">Secondary Link</a>
+          </div>
+        </section>
+
+        <section class="card" data-help-title="Status classes" data-help-body="Use .status, .status.success, .status.error, .status-badge, and .refresh-status-* classes for status feedback.">
+          <p class="card-title">Status Examples</p>
+          <div class="status success">.status.success message</div>
+          <div class="status error">.status.error message</div>
+          <div class="status-badge refresh-status-running">.status-badge.refresh-status-running</div>
+        </section>
+
+        <section class="card" data-help-title="Tab and chip classes" data-help-body="Use .portal-tab/.portal-tab-active, .opportunity-subtab/.opportunity-subtab-active, .regional-chip and .opportunity-filter-pill for nav/filter controls.">
+          <p class="card-title">Tabs + Chips</p>
+          <div class="panel-actions">
+            <button type="button" class="portal-tab" data-help-title="Portal Tab (.portal-tab)" data-help-body="Use this for inactive top-level navigation tabs. It indicates an available view without taking visual priority over the active tab.">.portal-tab</button>
+            <button type="button" class="portal-tab portal-tab-active" data-help-title="Active Portal Tab (.portal-tab-active)" data-help-body="Use this for the currently selected top-level page or workspace. It gives users immediate orientation about where they are in the app.">.portal-tab-active</button>
+          </div>
+          <div class="panel-actions">
+            <button type="button" class="opportunity-subtab" data-help-title="Subtab (.opportunity-subtab)" data-help-body="Use this for secondary navigation inside a major page section (for example, switching between overview and detail subviews).">.opportunity-subtab</button>
+            <button type="button" class="opportunity-subtab opportunity-subtab-active" data-help-title="Active Subtab (.opportunity-subtab-active)" data-help-body="Use this to show the selected section-level view. It helps users understand local context when a page has multiple panes or modes.">.opportunity-subtab-active</button>
+          </div>
+          <div class="panel-actions">
+            <span class="regional-chip">.regional-chip</span>
+            <span class="opportunity-filter-pill opportunity-filter-pill-active">.opportunity-filter-pill-active</span>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="analysis-layout" data-help-title="Fly-in inspector classes" data-help-body="Use .analysis-layout, .inspector-panel, .inspector-header, .inspector-body, .inspector-table, and .inspector-separator for fixed right detail inspectors.">
+      <aside id="twoColSampleInspector" class="inspector-panel" aria-label="Inspector panel demo">
+        <div class="inspector-header">
+          <strong id="twoColSampleInspectorTitle">Fly-in Detail Sample</strong>
+          <button type="button" class="ghost" data-help-title="Close / Secondary (.ghost)" data-help-body="Use ghost buttons for low-risk or secondary actions such as closing a panel, canceling, or dismissing a fly-in. They should never compete with the primary action.">.ghost</button>
+        </div>
+        <div class="inspector-body custom-scrollbar">
+          <div id="twoColSampleInspectorEmpty" class="inspector-empty">Click a row in the sample table to open this fly-in panel.</div>
+          <table id="twoColSampleInspectorTable" class="inspector-table" style="display:none;">
+            <tbody id="twoColSampleInspectorBody"></tbody>
+          </table>
+        </div>
+      </aside>
+    </section>
+
+    <script>
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Template',
+        body: 'Hover or focus on a component to see the standard classes and data-help attributes used for the pattern.',
+      };
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+        const title = node.getAttribute('data-help-title') || '';
+        const body = node.getAttribute('data-help-body') || '';
+        node.addEventListener('mouseenter', () => setContextHelp(title, body));
+        node.addEventListener('focusin', () => setContextHelp(title, body));
+        node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+      });
+
+      const twoColSampleResultsTable = document.getElementById('twoColSampleResultsTable');
+      const twoColSampleInspector = document.getElementById('twoColSampleInspector');
+      const twoColSampleInspectorTitle = document.getElementById('twoColSampleInspectorTitle');
+      const twoColSampleInspectorEmpty = document.getElementById('twoColSampleInspectorEmpty');
+      const twoColSampleInspectorTable = document.getElementById('twoColSampleInspectorTable');
+      const twoColSampleInspectorBody = document.getElementById('twoColSampleInspectorBody');
+      let selectedTwoColSampleRowId = null;
+
+      function setTwoColSampleInspector(row) {
+        const rows = twoColSampleResultsTable?.querySelectorAll('tbody tr') || [];
+        rows.forEach((tr) => {
+          tr.classList.toggle('active-row', tr.dataset.rowId === String(row?.dataset?.rowId || ''));
+        });
+
+        if (!row) {
+          selectedTwoColSampleRowId = null;
+          twoColSampleInspector?.classList.remove('open');
+          if (twoColSampleInspectorEmpty) twoColSampleInspectorEmpty.style.display = 'block';
+          if (twoColSampleInspectorTable) twoColSampleInspectorTable.style.display = 'none';
+          return;
+        }
+
+        selectedTwoColSampleRowId = row.dataset.rowId;
+        twoColSampleInspector?.classList.add('open');
+        if (twoColSampleInspectorTitle) twoColSampleInspectorTitle.textContent = `Statement Details • ${row.dataset.policy || 'Sample'}`;
+
+        const detailRows = [
+          ['Policy', row.dataset.policy || '-'],
+          ['Statement', row.cells?.[1]?.textContent || '-'],
+          ['Verb', row.cells?.[2]?.textContent || '-'],
+          ['Region', row.dataset.region || '-'],
+          ['OCID', `<span class="ocid-chip">${row.dataset.ocid || '-'}</span>`, true],
+          ['__separator__', 'Parsed Details'],
+          ['State', row.dataset.state || '-'],
+          ['Compartment', row.dataset.compartment || '-'],
+        ];
+
+        twoColSampleInspectorBody.innerHTML = detailRows.map(([k, v, isHtml]) => {
+          if (k === '__separator__') return '<tr class="inspector-separator"><th colspan="2">Parsed Details</th></tr>';
+          return `<tr><th>${k}</th><td>${isHtml ? v : v}</td></tr>`;
+        }).join('');
+
+        if (twoColSampleInspectorEmpty) twoColSampleInspectorEmpty.style.display = 'none';
+        if (twoColSampleInspectorTable) twoColSampleInspectorTable.style.display = 'table';
+      }
+
+      twoColSampleResultsTable?.querySelectorAll('tbody tr').forEach((row) => {
+        row.addEventListener('click', () => {
+          if (selectedTwoColSampleRowId === row.dataset.rowId) {
+            setTwoColSampleInspector(null);
+          } else {
+            setTwoColSampleInspector(row);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

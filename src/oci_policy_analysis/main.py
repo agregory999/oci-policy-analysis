@@ -36,20 +36,18 @@ import oci
 from dateutil import parser as dtparser
 
 # Application imports
+from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.common import config
-from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level  # noqa: E402
 from oci_policy_analysis.common.usage_tracking import (  # noqa: E402
     get_usage_tracker,
     init_usage_tracker,
 )
-from oci_policy_analysis.logic.ai_repo import AI  # noqa: E402
 
 # REMOVED: ConsolidationEngine import (consolidation feature disabled)
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
 from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
@@ -132,14 +130,6 @@ class App(tk.Tk):
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
 
-        # If settings didn't define tracking at all, default to enabled on first run
-        if 'usage_tracking_enabled' not in self.settings:
-            self.settings['usage_tracking_enabled'] = True
-            try:
-                config.save_settings(self.settings)
-            except Exception:
-                pass
-
         # Configure basic window geometry
         self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1440x900')
@@ -192,32 +182,28 @@ class App(tk.Tk):
         self.notebook.pack(fill='both', expand=True)
 
         # Repository / Data / Simulation Engine
-        self.reference_data_repo = ReferenceDataRepo()
-        self.reference_data_repo.load_data()
-        self.policy_compartment_analysis = PolicyAnalysisRepository()
-        self.policy_compartment_analysis.settings = self.settings  # Inject settings for advanced logging
-        self.policy_compartment_analysis.permission_reference_repo = (
-            self.reference_data_repo
-        )  # Inject reference data repo into main repo for access during loading and analysis
-        self.ai = AI()
-        self.simulation_engine = PolicySimulationEngine(
-            policy_repo=self.policy_compartment_analysis,
-            ref_data_repo=self.reference_data_repo,
-        )
-        # Initialize prospective statements from settings (per-tenancy, if known)
-        try:
-            sim_settings = self.settings.get('simulation_prospective_statements_by_tenancy', {}) or {}
-            tenancy_key = getattr(self.policy_compartment_analysis, 'tenancy_ocid', None)
-            if tenancy_key and tenancy_key in sim_settings:
-                self.simulation_engine.set_prospective_statements(sim_settings.get(tenancy_key) or [])
-        except Exception:
-            # Non-fatal; prospective list will simply start empty
-            pass
-        self.policy_intelligence = PolicyIntelligenceEngine(self.policy_compartment_analysis)
+        self.app_context = AppContext.from_settings(self.settings)
+        self.load_service = LoadService(self.app_context)
+        self.cache_service = self.app_context.cache_service
+        self.settings_service = self.app_context.settings_service
+
+        # If settings didn't define tracking at all, default to enabled on first run
+        if 'usage_tracking_enabled' not in self.settings:
+            self.settings['usage_tracking_enabled'] = True
+            try:
+                self.settings_service.save()
+            except Exception:
+                pass
+
+        self.reference_data_repo = self.app_context.reference_data
+        self.policy_compartment_analysis = self.app_context.policy_repo
+        self.ai = self.app_context.ai
+        self.simulation_engine = self.app_context.simulation
+        self.policy_intelligence = self.app_context.intelligence
         # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
 
         # Caching Manager (policy caching only, no AI result caching)
-        self.caching = CacheManager()
+        self.caching = self.app_context.cache
 
         # Guard: prevent overlapping tenancy loads
         self._tenancy_load_in_progress = False
@@ -560,8 +546,8 @@ class App(tk.Tk):
         treeview_font = size * 2
         self.style.configure('Treeview', rowheight=treeview_font)
 
-        self.settings['font_size'] = self.settings_tab.font_var.get()
-        config.save_settings(self.settings)
+        self.settings_service.set('font_size', self.settings_tab.font_var.get())
+        self.settings_service.save()
         logger.info(f'Font size set to {self.settings_tab.font_var.get()} ({size}px)')
 
         # Refresh all tab settings (context help & font) after applying font size
@@ -579,10 +565,10 @@ class App(tk.Tk):
             except Exception:
                 pass
             self.pw.forget(self.bottom_frame)
-            config.save_settings(self.settings)
+            self.settings_service.save()
         else:
             self.pw.add(self.bottom_frame, weight=1)
-            config.save_settings(self.settings)
+            self.settings_service.save()
             self.after(120, self._restore_sash)
 
     def _restore_sash(self):
@@ -598,9 +584,9 @@ class App(tk.Tk):
                 pass
 
     def _apply_log_level(self, *args):
-        self.settings['log_level'] = self.log_level_var.get()
+        self.settings_service.set('log_level', self.log_level_var.get())
         set_log_level(self.log_level_var.get())
-        config.save_settings(settings=self.settings)
+        self.settings_service.save()
         logger.info(
             f'Log level set to {self.log_level_var.get()}. To use DEBUG, you must start from shell using --verbose'
         )
@@ -629,8 +615,8 @@ class App(tk.Tk):
         if tenancy_key:
             try:
                 self.prospective_service = ProspectiveStatementsService(
-                    settings=self.settings,
-                    simulation_engine=self.simulation_engine,
+                    cache_manager=self.caching,
+                    policy_repo=self.policy_compartment_analysis,
                     tenancy_ocid=str(tenancy_key),
                 )
                 logger.info(
@@ -640,7 +626,7 @@ class App(tk.Tk):
                 )
                 # Ensure the simulation engine has the latest
                 # prospective statements for this tenancy.
-                self.prospective_service.persist_and_push_to_engine()
+                self.simulation_engine.set_prospective_statements(self.prospective_service.to_simple_list())
             except Exception:
                 logger.warning(
                     'Post-load: unable to initialize ProspectiveStatementsService; '
@@ -743,9 +729,7 @@ class App(tk.Tk):
 
         # Now update the cache for just these sections
         try:
-            from oci_policy_analysis.common.caching import CacheManager
-
-            CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+            self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
         except Exception as e:
             logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
@@ -961,7 +945,7 @@ class App(tk.Tk):
 
                 publish_progress('Updating cached policy section...')
                 try:
-                    CacheManager().update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+                    self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
                 except Exception as cache_error:
                     logger.error('Policy/compartment cache update failed after reload: %s', cache_error)
 
@@ -1042,9 +1026,11 @@ class App(tk.Tk):
 
                 if named_cache:
                     logger.info(f'Using named cache: {named_cache}')
-                    success = self.caching.load_combined_cache(
-                        self.policy_compartment_analysis, named_cache=named_cache
+                    cache_result = self.load_service.load_from_cache(
+                        cache_name=named_cache,
+                        run_post_load_intelligence=False,
                     )
+                    success = bool(cache_result.success)
                     # Patch: Ensure tenancy_name is set so all downstream UI consumers work
                     repo = self.policy_compartment_analysis
                     if not hasattr(repo, 'tenancy_name') or repo.tenancy_name is None:
@@ -1073,70 +1059,23 @@ class App(tk.Tk):
                     else:
                         logger.info(f'Using named profile: {named_profile}')
 
-                    success = self.policy_compartment_analysis.initialize_client(
+                    tenancy_result = self.load_service.load_from_tenancy(
                         use_instance_principal=instance_principal,
+                        profile=(named_profile or ''),
                         session_token=named_session,
                         recursive=recursive,
-                        profile=(named_profile or ''),
-                    )
-                    if not success:
-                        raise RuntimeError('Failed to initialize PolicyAnalysisRepository client')
-
-                    # Start polling the repo's progress per second
-                    def poll_policy_repo_identity_progress():
-                        domain_count = len(self.policy_compartment_analysis.identity_domains)
-                        dynamic_group_count = len(self.policy_compartment_analysis.dynamic_groups)
-                        group_count = len(self.policy_compartment_analysis.groups)
-                        user_count = len(self.policy_compartment_analysis.users)
-                        msg = f'Loaded {domain_count} domains, {dynamic_group_count} DGs, {group_count} groups, {user_count} users...'
-                        self._publish_operation_progress(msg, callback=callback, show_popup=show_popup)
-                        # Continue polling every second until loading is signaled complete
-                        if not getattr(self.policy_compartment_analysis, 'identity_loaded_from_tenancy', False):
-                            self.after(200, poll_policy_repo_identity_progress)
-
-                    self.after(0, poll_policy_repo_identity_progress)
-
-                    if callback:
-                        cb = callback.get('progress')
-                        if cb is not None and callable(cb):
-                            self._publish_operation_progress(
-                                'Loading Identity Domains', callback=callback, show_popup=show_popup
-                            )
-
-                    # Always load compartments (required for correct domain enumeration)
-                    success = self.policy_compartment_analysis.load_compartments_only()
-                    if not success:
-                        raise RuntimeError('Failed to load compartments (required for domain discovery)')
-                    # Now run identity domain discovery on loaded compartments
-                    success = self.policy_compartment_analysis.load_complete_identity_domains(
                         load_all_users=load_all_users,
                         compartment_domain_search_depth=compartment_domain_search_depth,
+                        run_post_load_intelligence=False,
+                        on_stage=lambda stage, detail, state: self._publish_operation_progress(
+                            f'{stage}: {detail}' if detail else stage,
+                            callback=callback,
+                            show_popup=show_popup,
+                        ),
                     )
+                    success = bool(tenancy_result.success)
                     if not success:
-                        raise RuntimeError('Failed to load identity domains')
-                    if callback:
-                        cb = callback.get('progress')
-                        if cb is not None and callable(cb):
-                            self._publish_operation_progress(
-                                'Loading Policies', callback=callback, show_popup=show_popup
-                            )
-
-                    # Start polling the repo's progress per second
-                    def poll_policy_repo_progress():
-                        p_count = len(self.policy_compartment_analysis.policies)
-                        s_count = len(self.policy_compartment_analysis.regular_statements)
-                        msg = f'Loaded {p_count} policies, {s_count} statements...'
-                        self._publish_operation_progress(msg, callback=callback, show_popup=show_popup)
-                        # Continue polling every second until loading is signaled complete
-                        if not getattr(self.policy_compartment_analysis, 'policies_loaded_from_tenancy', False):
-                            self.after(200, poll_policy_repo_progress)
-
-                    self.after(0, poll_policy_repo_progress)
-
-                    # Now make the call to load policies only (compartments already done)
-                    success = self.policy_compartment_analysis.load_policies_only()
-                    if not success:
-                        raise RuntimeError('Failed to load policies after compartment/domain load')
+                        raise RuntimeError(tenancy_result.message)
 
                     # Update usage tracking tenancy suffix for live-tenancy loads
                     try:
@@ -1160,7 +1099,7 @@ class App(tk.Tk):
                     self.after(0, self.update_status_bar)
 
                     # Save cache after loading from tenancy
-                    self.caching.save_combined_cache(self.policy_compartment_analysis)
+                    self.cache_service.save_cache(self.policy_compartment_analysis)
             except Exception as e:
                 logger.error(f'Error occurred while Loading Data: {e}')
                 popup_final_message = f'Load failed: {e}'
@@ -1256,9 +1195,12 @@ class App(tk.Tk):
                 self._publish_operation_progress(
                     'Loading compliance output data', callback=callback, show_popup=show_popup
                 )
-                success = self.policy_compartment_analysis.load_from_compliance_output_dir(
-                    dir_path, load_all_users=load_all_users
+                result = self.load_service.load_from_compliance_output(
+                    dir_path,
+                    load_all_users=load_all_users,
+                    run_post_load_intelligence=False,
                 )
+                success = bool(result.success)
                 # Update usage tracking tenancy suffix for compliance-output loads
                 try:
                     tracker = get_usage_tracker()
@@ -1338,8 +1280,8 @@ class App(tk.Tk):
                 with open(filepath, encoding='utf-8') as jsonfile:
                     loaded_json = json.load(jsonfile)
                     logger.debug(f'JSON Data: {loaded_json}')
-                success = self.caching.load_cache_from_json(
-                    loaded_json=loaded_json, policy_analysis=self.policy_compartment_analysis
+                success = self.cache_service.import_from_json(
+                    loaded_json=loaded_json, policy_repo=self.policy_compartment_analysis
                 )
                 # Patch: Ensure tenancy_name is set so all downstream UI consumers work
                 repo = self.policy_compartment_analysis
@@ -1402,7 +1344,7 @@ class App(tk.Tk):
         filepath = tkfiledialog.asksaveasfile(filetypes=[('JSON Files', '*.json')])
         if filepath:
             logger.info(f'Writing file: {type(filepath)} {filepath.name}')
-            self.caching.save_combined_cache(self.policy_compartment_analysis, export_file=filepath)
+            self.cache_service.save_cache(self.policy_compartment_analysis, export_file=filepath)
             logger.info(f'Wrote file {filepath.name}')
         else:
             logger.info('Export cancelled by user')

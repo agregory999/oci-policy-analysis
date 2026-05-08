@@ -11,12 +11,15 @@ Contents
 
    overview
    setup
+   setup_desktop
+   setup_web
    usage
    architecture
    simulation
    recommendations
    mcp
    cli
+   web_ui_styling
    logging_and_troubleshooting
 
 .. toctree::

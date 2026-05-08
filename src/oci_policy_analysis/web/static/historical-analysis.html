@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Historical Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Historical Analysis" data-help-body="Compare two cache snapshots to view added, removed, and modified policy and identity entities across sections.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Historical Analysis</h1>
+            <p>Cache Snapshot Compare • Policy + Identity Diffs</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Select a baseline and target cache snapshot, run compare, then expand section items to inspect exact field-level differences.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <div class="card" data-help-title="Compare cache snapshots" data-help-body="Choose left and right snapshots, then run a diff to analyze changes over time.">
+        <label for="leftCache">Compare two cache snapshots</label>
+        <div class="historical-compare-row">
+          <select id="leftCache"></select>
+          <select id="rightCache"></select>
+          <button id="compareBtn">Compare</button>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+
+      <div class="historical-sections">
+        <div class="card" data-help-title="Policy sections" data-help-body="Displays section-by-section policy-related differences between snapshots."><h2>Policy Sections</h2><div id="policySections"></div></div>
+        <div class="card" data-help-title="Identity sections" data-help-body="Displays section-by-section identity-related differences between snapshots."><h2>Identity Sections</h2><div id="identitySections"></div></div>
+      </div>
+    </main>
+
+    <script>
+      const leftCache = document.getElementById('leftCache');
+      const rightCache = document.getElementById('rightCache');
+      const compareBtn = document.getElementById('compareBtn');
+      const statusEl = document.getElementById('status');
+      const policySectionsEl = document.getElementById('policySections');
+      const identitySectionsEl = document.getElementById('identitySections');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Select a baseline and target cache snapshot, run compare, then expand section items to inspect exact field-level differences.',
+      };
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp(root = document) {
+        root.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          if (node.dataset.helpBound === 'true') return;
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.dataset.helpBound = 'true';
+        });
+      }
+
+      function renderSection(container, section) {
+        const card = document.createElement('div');
+        card.className = 'diff-section-card';
+        card.setAttribute('data-help-title', `${section.section} differences`);
+        card.setAttribute('data-help-body', 'Review added, removed, and modified items for this section. Expand rows for details.');
+        card.innerHTML = `
+          <div class="diff-section-title">${section.section}</div>
+          <div class="pill-row">
+            <span class="pill">Added: ${section.added}</span>
+            <span class="pill">Removed: ${section.removed}</span>
+            <span class="pill">Modified: ${section.modified}</span>
+          </div>
+        `;
+        if (!Array.isArray(section.items) || section.items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'diff-muted';
+          empty.textContent = 'No differences.';
+          card.appendChild(empty);
+          container.appendChild(card);
+          bindContextHelp(card);
+          return;
+        }
+        section.items.forEach((item) => {
+          const details = document.createElement('details');
+          details.innerHTML = `<summary>${item.title} (${item.action})</summary>`;
+          const keyEl = document.createElement('div');
+          keyEl.className = 'diff-muted';
+          keyEl.textContent = `Stable key: ${item.stable_key}`;
+          details.appendChild(keyEl);
+          if (item.action === 'Modified' && Array.isArray(item.changed_fields) && item.changed_fields.length) {
+            const pre = document.createElement('pre');
+            pre.className = 'diff-value-block';
+            const lines = item.changed_fields.map((change) => {
+              const field = String(change.field || '');
+              const oldVal = JSON.stringify(change.old);
+              const newVal = JSON.stringify(change.new);
+              return `${field}: ${oldVal} -> ${newVal}`;
+            });
+            pre.textContent = `Changed fields:\n${lines.join('\n')}`;
+            details.appendChild(pre);
+          } else {
+          if (item.old_value) {
+            const pre = document.createElement('pre');
+            pre.className = 'diff-value-block';
+            pre.textContent = `Old:\n${JSON.stringify(item.old_value, null, 2)}`;
+            details.appendChild(pre);
+          }
+          if (item.new_value) {
+            const pre = document.createElement('pre');
+            pre.className = 'diff-value-block';
+            pre.textContent = `New:\n${JSON.stringify(item.new_value, null, 2)}`;
+            details.appendChild(pre);
+          }
+          }
+          card.appendChild(details);
+        });
+        container.appendChild(card);
+        bindContextHelp(card);
+      }
+
+      async function loadCaches() {
+        const res = await fetch('/caches');
+        const payload = await res.json();
+        const caches = payload.caches || [];
+        leftCache.innerHTML = '';
+        rightCache.innerHTML = '';
+        caches.forEach((cache) => {
+          const l = document.createElement('option');
+          l.value = cache; l.textContent = cache;
+          leftCache.appendChild(l);
+          const r = document.createElement('option');
+          r.value = cache; r.textContent = cache;
+          rightCache.appendChild(r);
+        });
+        if (caches.length) {
+          leftCache.value = caches[0];
+          rightCache.value = caches[caches.length - 1];
+        }
+      }
+
+      async function refreshCachesKeepSelection() {
+        const prevLeft = leftCache.value;
+        const prevRight = rightCache.value;
+        await loadCaches();
+        const leftExists = Array.from(leftCache.options).some((o) => o.value === prevLeft);
+        const rightExists = Array.from(rightCache.options).some((o) => o.value === prevRight);
+        if (leftExists) leftCache.value = prevLeft;
+        if (rightExists) rightCache.value = prevRight;
+      }
+
+      async function runCompare() {
+        statusEl.textContent = 'Comparing...';
+        statusEl.className = 'status';
+        policySectionsEl.innerHTML = '';
+        identitySectionsEl.innerHTML = '';
+        try {
+          const res = await fetch('/analysis/historical-compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ left_cache: leftCache.value, right_cache: rightCache.value }),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Historical compare failed');
+          }
+          const payload = await res.json();
+          (payload.policy_sections || []).forEach((section) => renderSection(policySectionsEl, section));
+          (payload.identity_sections || []).forEach((section) => renderSection(identitySectionsEl, section));
+          statusEl.textContent = 'Comparison complete.';
+          statusEl.className = 'status success';
+        } catch (err) {
+          statusEl.textContent = `Failed: ${err}`;
+          statusEl.className = 'status error';
+        }
+      }
+
+      compareBtn.addEventListener('click', runCompare);
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      loadCaches().catch((err) => {
+        statusEl.textContent = `Failed to load caches: ${err}`;
+        statusEl.className = 'status error';
+      });
+      setInterval(() => {
+        refreshCachesKeepSelection().catch(() => {});
+      }, 10000);
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

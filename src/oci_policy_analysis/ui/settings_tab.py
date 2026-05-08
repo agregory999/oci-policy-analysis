@@ -19,7 +19,6 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from oci_policy_analysis.common import config
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.ai_repo import AI
@@ -64,6 +63,10 @@ CONTEXT_HELP = {
     'RECOMMENDATION_CONSOLIDATION': (
         'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
         'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
+    ),
+    'RISK_REDUCTION_SETTINGS': (
+        'Set default risk scoring reductions used during intelligence calculations. '
+        'These are persisted settings shared by desktop and web flows.'
     ),
     # 'DOMAIN_COMPARTMENTS': Removed; replaced by compartment depth selector.
 }
@@ -113,6 +116,11 @@ class SettingsTab(BaseUITab):
         self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
         self.mcp_port_var = tk.StringVar(value=str(self.settings.get('mcp_port', '8765')))
         self.mcp_host_var = tk.StringVar(value=self.settings.get('mcp_host', '127.0.0.1'))
+        allowed_pct = {0, 25, 50, 75, 90}
+        where_pct = int(self.settings.get('risk_where_clause_reduction_pct', 50) or 50)
+        service_pct = int(self.settings.get('risk_service_principal_reduction_pct', 50) or 50)
+        self.risk_where_reduction_var = tk.StringVar(value=f'{where_pct if where_pct in allowed_pct else 50}%')
+        self.risk_service_reduction_var = tk.StringVar(value=f'{service_pct if service_pct in allowed_pct else 50}%')
 
         # Load profiles from ~/.oci/config
         self.profile_list = ['DEFAULT']
@@ -176,7 +184,7 @@ class SettingsTab(BaseUITab):
         def _dismiss() -> None:
             try:
                 self.settings['intro_unofficial_tracking_shown'] = True
-                config.save_settings(self.settings)
+                self.app.settings_service.save()
             except Exception:
                 logger.debug('Failed to persist intro_unofficial_tracking_shown flag', exc_info=True)
             try:
@@ -289,7 +297,7 @@ class SettingsTab(BaseUITab):
                 return
             self.settings['mcp_port'] = port_val
             self.settings['mcp_host'] = self.mcp_host_var.get().strip() or '127.0.0.1'
-            config.save_settings(self.settings)
+            self.app.settings_service.save()
             logger.info('MCP configuration AUTOSAVED.')
 
         self.mcp_host_var.trace_add('write', autosave_mcp_var)
@@ -428,7 +436,7 @@ class SettingsTab(BaseUITab):
             selected_val = self.depth_value_map.get(selected_label, 1)
             # Save globally in settings (not per-tenancy)
             self.settings['domain_compartment_depth'] = selected_val
-            config.save_settings(self.settings)
+            self.app.settings_service.save()
             self.compartment_depth_var.set(selected_val)
 
         # Bind update logic on dropdown selection
@@ -466,9 +474,9 @@ class SettingsTab(BaseUITab):
         self.label_cache = ttk.Label(label_frm_tenancy_config, text='Cache:')
         self.label_cache.grid(row=1, column=1, padx=5, pady=3)
         self.add_context_help(self.label_cache, CONTEXT_HELP['CACHE_LABEL'])
-        self.cache_list = self.caching.get_available_cache(None)
+        self.cache_list = self.app.cache_service.list_caches(None)
         # Use preserved_caches set from CacheManager for cache list display
-        preserved_caches = self.caching.get_preserved_cache_set()
+        preserved_caches = self.app.cache_service.get_preserved_cache_set()
         self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
         # Mapping: display -> actual cache key
         self.display_to_cache_key = {
@@ -620,7 +628,7 @@ class SettingsTab(BaseUITab):
             self.settings['enabled_intelligence_checks'] = (
                 enabled if len(enabled) < len(self.enabled_intelligence_check_vars) else []
             )
-            config.save_settings(self.settings)
+            self.app.settings_service.save()
             if hasattr(self.app, 'policy_recommendations_tab') and hasattr(
                 self.app.policy_recommendations_tab, 'on_enabled_cleanup_checks_changed'
             ):
@@ -629,6 +637,45 @@ class SettingsTab(BaseUITab):
         checks_inner = ttk.Frame(label_frm_rec_cons)
         checks_inner.pack(fill='x', padx=8, pady=6)
         self.add_context_help(checks_inner, CONTEXT_HELP['RECOMMENDATION_CONSOLIDATION'])
+
+        risk_defaults_row = ttk.Frame(label_frm_rec_cons)
+        risk_defaults_row.pack(fill='x', padx=8, pady=(0, 4))
+        self.add_context_help(risk_defaults_row, CONTEXT_HELP['RISK_REDUCTION_SETTINGS'])
+        ttk.Label(risk_defaults_row, text='Risk defaults: WHERE reduction').pack(side='left', padx=(0, 4))
+        risk_options = ['0%', '25%', '50%', '75%', '90%']
+        risk_where_combo = ttk.Combobox(
+            risk_defaults_row,
+            textvariable=self.risk_where_reduction_var,
+            state='readonly',
+            values=risk_options,
+            width=7,
+        )
+        risk_where_combo.pack(side='left', padx=(0, 12))
+        ttk.Label(risk_defaults_row, text='Service principal reduction').pack(side='left', padx=(0, 4))
+        risk_service_combo = ttk.Combobox(
+            risk_defaults_row,
+            textvariable=self.risk_service_reduction_var,
+            state='readonly',
+            values=risk_options,
+            width=7,
+        )
+        risk_service_combo.pack(side='left', padx=(0, 12))
+
+        def _save_risk_reduction_defaults(*_args):
+            try:
+                self.settings['risk_where_clause_reduction_pct'] = int(
+                    str(self.risk_where_reduction_var.get() or '50').replace('%', '')
+                )
+                self.settings['risk_service_principal_reduction_pct'] = int(
+                    str(self.risk_service_reduction_var.get() or '50').replace('%', '')
+                )
+            except ValueError:
+                return
+            self.app.settings_service.save()
+
+        risk_where_combo.bind('<<ComboboxSelected>>', _save_risk_reduction_defaults)
+        risk_service_combo.bind('<<ComboboxSelected>>', _save_risk_reduction_defaults)
+
         for sid, display_name, _category in strategy_list:
             if sid not in self.enabled_intelligence_check_vars:
                 continue
@@ -743,7 +790,7 @@ class SettingsTab(BaseUITab):
         Notifies main.py to globally propagate the update to all tabs using App.refresh_all_tabs_settings.
         """
         self.settings['context_help'] = self.context_help_var.get()
-        config.save_settings(self.settings)
+        self.app.settings_service.save()
         logger.info(f'Context Help setting changed to: {self.context_help_var.get()}')
         if hasattr(self.app, 'refresh_all_tabs_settings'):
             self.app.refresh_all_tabs_settings()
@@ -751,7 +798,7 @@ class SettingsTab(BaseUITab):
     def _on_usage_tracking_changed(self):
         """Callback when Anonymous Usage Tracking checkbox is toggled."""
         self.settings['usage_tracking_enabled'] = self.usage_tracking_var.get()
-        config.save_settings(self.settings)
+        self.app.settings_service.save()
         logger.info('Anonymous usage tracking setting changed to: %s', self.usage_tracking_var.get())
         # Update status bar indicator immediately if available
         if hasattr(self.app, 'update_status_bar'):
@@ -778,7 +825,7 @@ class SettingsTab(BaseUITab):
 
         self.settings['mcp_port'] = port_val
         self.settings['mcp_host'] = self.mcp_host_var.get().strip() or '127.0.0.1'
-        config.save_settings(self.settings)
+        self.app.settings_service.save()
         logger.info('MCP configuration saved to settings.')
 
     def _on_load_clicked(self, use_cache: bool):
@@ -826,7 +873,7 @@ class SettingsTab(BaseUITab):
         # (Entire block deleted.)
         # Save compartment depth globally
         self.settings['domain_compartment_depth'] = self.compartment_depth_var.get()
-        config.save_settings(self.settings)
+        self.app.settings_service.save()
         self.app.load_tenancy_async(
             tenancy_id=tenancy_ocid,
             recursive=self.recursive_var.get(),
@@ -859,8 +906,8 @@ class SettingsTab(BaseUITab):
         # Save the currently selected value (user's selection)
         previous_selection = self.cache_var.get()
 
-        self.cache_list = self.caching.get_available_cache(None)
-        preserved_caches = self.caching.get_preserved_cache_set()
+        self.cache_list = self.app.cache_service.list_caches(None)
+        preserved_caches = self.app.cache_service.get_preserved_cache_set()
         self.cache_list_display = [f'(P) {name}' if name in preserved_caches else name for name in self.cache_list]
         self.display_to_cache_key = {
             f'(P) {name}' if name in preserved_caches else name: name for name in self.cache_list
@@ -880,7 +927,7 @@ class SettingsTab(BaseUITab):
     def _on_load_all_users_changed(self):
         """Callback when Load All Users checkbox is toggled; saves to settings."""
         self.settings['load_all_users'] = self.load_all_users_var.get()
-        config.save_settings(self.settings)
+        self.app.settings_service.save()
         # Optionally: Trigger UI hide/show of user info on tabs if implemented
         if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'on_load_all_users_setting_changed'):
             self.app.users_tab.on_load_all_users_setting_changed(self.load_all_users_var.get())

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Resource Principals Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Resource Principals Analysis" data-help-body="Analyze resource principal policy coverage by dynamic group or any-user/any-group subjects and inspect matching statements.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Resource Principals Analysis</h1>
+            <p>Mode Filters + Subject Mapping + Policy Inspector</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Choose a principals mode, set filters, run analysis, and inspect matching policy statements below.</p>
+      </div>
+    </div>
+
+    <main>
+      <div id="topAnalysisRow" class="layout-row layout-row-4">
+        <div class="card">
+          <h3 class="section-heading">Filters</h3>
+          <div class="dynamic-group-filter-grid">
+            <div class="dynamic-group-filter-row">
+              <label for="principalsStyle">Resource Principal Type</label>
+              <select id="principalsStyle" data-help-title="Resource Principal Type" data-help-body="Switch between Dynamic Group and any-user/any-group subject analysis modes.">
+                <option>Dynamic Group</option>
+                <option>any-user</option>
+                <option>any-group</option>
+                <option>any-user / any-group</option>
+              </select>
+            </div>
+            <div class="dynamic-group-filter-row">
+              <label for="resourceType">Resource Type</label>
+              <select id="resourceType" data-help-title="Resource Type" data-help-body="In non-Dynamic Group mode, restrict statements using request.principal.type values from where clauses (for example type autonomousdatabase in ocid1.autonomousdatabase.xx.yy.zz).">
+                <option>Any</option>
+              </select>
+            </div>
+            <div class="dynamic-group-filter-row">
+              <label for="textFilter">Text Filter</label>
+              <input id="textFilter" placeholder="Text Filter" data-help-title="Text Filter" data-help-body="Filter by matching rule (Dynamic Group mode) or statement text (non-Dynamic Group mode)." />
+            </div>
+            <label class="checkbox-label" data-help-title="Show all data columns" data-help-body="Show expanded dynamic group metadata columns in Dynamic Group mode."><input type="checkbox" id="showAllData" /> Show all Data</label>
+          </div>
+          <div class="dynamic-group-actions"><button id="runBtn" data-help-title="Run analysis" data-help-body="Load entities and policy statements using the selected mode and filters.">Apply</button><button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset all filters to defaults and rerun analysis.">Clear</button></div>
+        </div>
+
+        <div id="entitiesCard" class="card layout-col-span-3">
+          <div class="analysis-meta">
+            <div id="entityCount" class="pill">Dynamic Groups (Filtered): 0</div>
+            <div class="helper-text" data-help-title="Dynamic group table" data-help-body="Select one or more dynamic groups to scope policy matching in Dynamic Group mode.">Dynamic Groups Found (select one or more)</div>
+          </div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="entitiesTable" class="analysis-table" data-help-title="Dynamic group results" data-help-body="Rows show filtered dynamic groups. Check one or more rows to include those subjects."><thead></thead><tbody></tbody></table></div></div>
+        </div>
+      </div>
+
+      <div class="analysis-layout analysis-section-offset" id="policyLayout">
+        <div class="card">
+          <div class="analysis-meta">
+            <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
+            <div class="helper-text" data-help-title="Policy statements table" data-help-body="Matched policy statements for the selected mode and filters. Click a row to inspect details.">Tip: click a row to inspect details.</div>
+          </div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Includes policy name, compartment, statement text, effective path, and validity."><thead><tr><th>Policy Name</th><th>Policy Compartment</th><th>Statement</th><th>Effective Path</th><th>Valid</th></tr></thead><tbody></tbody></table></div></div>
+        </div>
+        <aside id="policyInspector" class="inspector-panel" aria-live="polite">
+          <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
+          <div class="inspector-body custom-scrollbar" data-help-title="Statement details inspector" data-help-body="Displays normalized and parsed fields for the selected policy row."><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table></div>
+        </aside>
+      </div>
+    </main>
+    <script src="/shared-formatters.js"></script>
+    <script src="/policy-statement-inspector.js"></script>
+    <script>
+      const principalsStyleEl = document.getElementById('principalsStyle');
+      const resourceTypeEl = document.getElementById('resourceType');
+      const textFilterEl = document.getElementById('textFilter');
+      const showAllDataEl = document.getElementById('showAllData');
+      const entitiesCard = document.getElementById('entitiesCard');
+      const entityCount = document.getElementById('entityCount');
+      const entitiesHead = document.querySelector('#entitiesTable thead');
+      const entitiesBody = document.querySelector('#entitiesTable tbody');
+      const resultsBody = document.querySelector('#resultsTable tbody');
+      const summary = document.getElementById('summary');
+      const policyLayout = document.getElementById('policyLayout');
+      const topAnalysisRow = document.getElementById('topAnalysisRow');
+      const policyInspector = document.getElementById('policyInspector');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Choose a principals mode, set filters, run analysis, and inspect matching policy statements below.',
+      };
+
+      const DG_BASIC = ['Domain','DG Name','Matching Rule','In Use'];
+      const DG_ALL = ['Domain','DG Name','Description','Matching Rule','In Use','DG OCID','DG ID','Creation Time','Created By','Created By OCID'];
+      let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = [];
+      let resourceTypeOptions = ['Any'];
+      const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      const dgCols = () => showAllDataEl.checked ? DG_ALL : DG_BASIC;
+      const isDynamicGroupMode = () => principalsStyleEl.value === 'Dynamic Group';
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function getRowValue(row, key){
+        if (key === 'invalid_reasons') {
+          const reasons = row?.invalid_reasons;
+          if (Array.isArray(reasons) && reasons.length) return reasons;
+          const legacy = row?.invalid_reason;
+          if (Array.isArray(legacy)) return legacy;
+          if (legacy !== undefined && legacy !== null && String(legacy).trim() !== '') return [String(legacy)];
+        }
+        const titleKey = String(key || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: { titleWhenSelected: 'Statement Details' },
+      });
+
+      function renderEntities(){
+        entitiesHead.innerHTML = '<tr><th>Select</th>' + dgCols().map((c)=>`<th>${esc(c)}</th>`).join('') + '</tr>';
+        entitiesBody.innerHTML = entityRows.map((r,i)=>`<tr data-row-id="${i}" class="${selectedEntityIndexes.has(i)?'active-row':''}"><td><input type="checkbox" ${selectedEntityIndexes.has(i)?'checked':''}></td>${dgCols().map((c)=> c === 'Matching Rule' ? `<td class="matching-rule-cell">${esc(formatMatchingRule(r[c]))}</td>` : `<td>${esc(r[c])}</td>`).join('')}</tr>`).join('');
+        [...entitiesBody.querySelectorAll('tr')].forEach((tr)=>{
+          tr.querySelector('input').addEventListener('change', async (e)=>{
+            const i = Number(tr.dataset.rowId);
+            if(e.target.checked) selectedEntityIndexes.add(i); else selectedEntityIndexes.delete(i);
+            renderEntities();
+            await loadPolicies();
+          });
+        });
+      }
+
+      function renderPolicies(){
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Valid'])}</td></tr>`).join('');
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+      }
+
+      function selectedDynamicGroupsPayload(){
+        return [...selectedEntityIndexes]
+          .map((i)=>entityRows[i])
+          .filter(Boolean)
+          .map((r)=>({ domain_name: r['Domain'] || 'Default', dynamic_group_name: r['DG Name'] || '', dynamic_group_ocid: r['DG OCID'] || '' }));
+      }
+
+      function modeSubjectValue(){
+        if (principalsStyleEl.value === 'any-user') return 'any-user';
+        if (principalsStyleEl.value === 'any-group') return 'any-group';
+        if (principalsStyleEl.value === 'any-user / any-group') return 'any-user|any-group';
+        return '';
+      }
+
+      function formatMatchingRule(value){
+        if (window.SharedFormatters?.formatMatchingRuleByComma) {
+          return window.SharedFormatters.formatMatchingRuleByComma(value);
+        }
+        return String(value ?? '').trim();
+      }
+
+      function normalizeModeUi(){
+        const dgMode = isDynamicGroupMode();
+        resourceTypeEl.disabled = dgMode;
+        entitiesCard.style.display = dgMode ? '' : 'none';
+        topAnalysisRow?.classList.toggle('layout-row-4', dgMode);
+        topAnalysisRow?.classList.toggle('layout-row-1', !dgMode);
+        policyLayout.classList.toggle('non-dg-mode', !dgMode);
+      }
+
+      function extractConditionResourceTypes(row){
+        const cond = String(row?.conditions || row?.Conditions || '').trim();
+        if (!cond || !cond.toLowerCase().includes('request.principal.type')) return [];
+        const regex = /request\.principal\.type\s*=\s*(['"])([^'"\s{}]+)\1/ig;
+        const vals = [];
+        let match;
+        while ((match = regex.exec(cond)) !== null) {
+          vals.push(String(match[2] || '').toLowerCase());
+        }
+        return vals;
+      }
+
+      function applyTextAndResourceFilters(rows){
+        const search = (textFilterEl.value || '').trim().toLowerCase();
+        const resourceType = resourceTypeEl.value;
+        return rows.filter((row) => {
+          const statement = String(row['Statement Text'] || '').toLowerCase();
+          if (resourceType !== 'Any') {
+            const condTypes = extractConditionResourceTypes(row);
+            if (!condTypes.includes(resourceType.toLowerCase())) return false;
+          }
+          if (search && !statement.includes(search)) return false;
+          return true;
+        });
+      }
+
+      function populateResourceTypes(options){
+        const unique = Array.from(new Set((options || []).map((v)=>String(v || '').trim()).filter(Boolean)));
+        resourceTypeOptions = unique.includes('Any') ? unique : ['Any', ...unique];
+        const current = resourceTypeEl.value || 'Any';
+        resourceTypeEl.innerHTML = resourceTypeOptions.map((v)=>`<option>${esc(v)}</option>`).join('');
+        resourceTypeEl.value = resourceTypeOptions.includes(current) ? current : 'Any';
+      }
+
+      async function loadResourceTypes(){
+        try {
+          const resp = await fetch('/metadata/resource-types');
+          const data = await resp.json();
+          populateResourceTypes(data.resource_types || ['Any']);
+        } catch (_err) {
+          populateResourceTypes(['Any']);
+        }
+      }
+
+      async function loadEntities(){
+        selectedEntityIndexes.clear();
+        entityRows = [];
+        if (!isDynamicGroupMode()) {
+          entityCount.textContent = 'Dynamic Groups (Filtered): 0';
+          return;
+        }
+
+        const params = new URLSearchParams();
+        const search = (textFilterEl.value || '').trim();
+        if (search) params.set('matching_rule', search);
+        const resp = await fetch('/entities/dynamic-groups?' + params.toString());
+        const data = await resp.json();
+        entityRows = data.dynamic_groups || [];
+        entityCount.textContent = `Dynamic Groups (Filtered): ${entityRows.length}`;
+        renderEntities();
+      }
+
+      async function loadPolicies(){
+        let payload = {};
+        if (isDynamicGroupMode()) {
+          payload = { exact_dynamic_groups: selectedDynamicGroupsPayload() };
+        } else {
+          payload = { subject: modeSubjectValue() };
+        }
+
+        const resp = await fetch('/filter/policies/by-subjects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await resp.json();
+        const rows = (data.statements || []).map((r, idx) => ({...r, _row_id: idx + 1}));
+        currentPolicies = isDynamicGroupMode() ? rows : applyTextAndResourceFilters(rows);
+        summary.textContent = `Policy Statements (Filtered): ${currentPolicies.length}`;
+        inspector.clear();
+        renderPolicies();
+      }
+
+      async function runAnalysis(){
+        normalizeModeUi();
+        await loadEntities();
+        await loadPolicies();
+      }
+
+      document.getElementById('runBtn').addEventListener('click', runAnalysis);
+      document.getElementById('clearBtn').addEventListener('click', ()=>{
+        principalsStyleEl.value='Dynamic Group';
+        resourceTypeEl.value='Any';
+        textFilterEl.value='';
+        showAllDataEl.checked=false;
+        runAnalysis();
+      });
+      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
+      principalsStyleEl.addEventListener('change', runAnalysis);
+      resourceTypeEl.addEventListener('change', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
+      showAllDataEl.addEventListener('change', ()=>{ if (isDynamicGroupMode()) renderEntities(); });
+      textFilterEl.addEventListener('input', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
+
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      loadResourceTypes().then(runAnalysis);
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Compartment Hierarchy</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Compartment Hierarchy" data-help-body="Review compartment paths and policy statement counts, then quickly identify warning or over-limit compartments.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Compartment Hierarchy</h1>
+            <p>Hierarchy Paths + Policy Counts + Statement Limit Status</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Use search to filter compartments by path, name, description, counts, or limit state. Refresh reloads the latest hierarchy snapshot.</p>
+      </div>
+    </div>
+
+    <main class="layout-single compartment-layout-main">
+      <div class="card compartment-card-fill">
+        <p>Review compartment paths and policy statement counts against OCI statement limits.</p>
+        <div class="compartment-toolbar">
+          <input id="searchInput" placeholder="Search path, name, counts, limit state, or tags" data-help-title="Search compartments" data-help-body="Filter by path, name, description, counts, limit state, and tag names or values." />
+          <button id="refreshBtn" data-help-title="Refresh hierarchy" data-help-body="Re-runs the compartment hierarchy API call and replaces table data with the latest snapshot from loaded tenancy/cache data.">Refresh</button>
+        </div>
+        <div id="summary" class="compartment-summary">No data loaded yet.</div>
+
+        <div class="table-shell compartment-table-shell-fill">
+          <div class="table-scroll compartment-table-scroll custom-scrollbar">
+            <table id="rowsTable">
+              <thead>
+                <tr>
+                  <th>Compartment Path / Name</th>
+                  <th>Description</th>
+                  <th>Tags</th>
+                  <th>Policy Count</th>
+                  <th>Direct Statements</th>
+                  <th>Cumulative from ROOT</th>
+                  <th>Limit</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const searchInput = document.getElementById('searchInput');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const summary = document.getElementById('summary');
+      const tableBody = document.querySelector('#rowsTable tbody');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Use search to filter compartments by path, name, description, counts, limit state, and tags. Refresh re-runs the hierarchy API call and reloads the latest snapshot.',
+      };
+
+      let allRows = [];
+
+      // Shared hover/focus context help behavior used across analysis pages.
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      function rowMatches(row, needle) {
+        const tagsText = formatTagsText(row.tags || []);
+        const hay = [
+          row.compartment_name,
+          row.hierarchy_path,
+          row.compartment_path,
+          row.description,
+          tagsText,
+          row.policy_count,
+          row.statement_count_direct,
+          row.statement_count_cumulative,
+          row.limit_state,
+        ]
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(needle);
+      }
+
+      function limitPill(limitState) {
+        const state = String(limitState || 'ok').toLowerCase();
+        const cls = state === 'over' ? 'limit-over' : state === 'warning' ? 'limit-warning' : 'limit-ok';
+        return `<span class="limit-pill ${cls}">${state}</span>`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function normalizeTags(rawTags) {
+        if (!Array.isArray(rawTags)) return [];
+        return rawTags
+          .map((tag) => {
+            if (!tag || typeof tag !== 'object') return null;
+            const source = String(tag.source || 'tag').trim().toLowerCase();
+            const name = String(tag.name || '').trim();
+            const value = String(tag.value || '').trim();
+            if (!name) return null;
+            return { source, name, value };
+          })
+          .filter(Boolean);
+      }
+
+      function formatTagsText(rawTags) {
+        const tags = normalizeTags(rawTags);
+        return tags.map((tag) => `${tag.name} ${tag.value}`).join(' ');
+      }
+
+      function renderTags(rawTags) {
+        const tags = normalizeTags(rawTags);
+        if (!tags.length) {
+          return '<span class="tag-list-empty">(No tags)</span>';
+        }
+        return `<div class="tag-list">${tags
+          .map((tag) => `<span class="tag-chip"><strong>${escapeHtml(tag.name)}</strong>${tag.value ? `: ${escapeHtml(tag.value)}` : ''}</span>`)
+          .join('')}</div>`;
+      }
+
+      // Render uses client-side filtering only; there is no column sorting behavior here yet.
+      function renderRows() {
+        const needle = String(searchInput.value || '').trim().toLowerCase();
+        const rows = needle ? allRows.filter((row) => rowMatches(row, needle)) : allRows;
+        tableBody.innerHTML = '';
+        if (!rows.length) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td colspan="7">No matching rows.</td>';
+          tableBody.appendChild(tr);
+        } else {
+          rows.forEach((row) => {
+            const hierarchyPath = row.hierarchy_path || row.compartment_path || '';
+            const pathWithName = row.compartment_name ? `${hierarchyPath} (${row.compartment_name})` : hierarchyPath;
+            const description = row.description || '(No description)';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${pathWithName}</td>
+              <td>${description}</td>
+              <td>${renderTags(row.tags)}</td>
+              <td>${row.policy_count ?? 0}</td>
+              <td>${row.statement_count_direct ?? 0}</td>
+              <td>${row.statement_count_cumulative ?? 0}</td>
+              <td>${limitPill(row.limit_state)}</td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        }
+        const overCount = rows.filter((row) => String(row.limit_state || '').toLowerCase() === 'over').length;
+        const warningCount = rows.filter((row) => String(row.limit_state || '').toLowerCase() === 'warning').length;
+        summary.textContent = `Showing ${rows.length} row(s)${needle ? ` (filtered from ${allRows.length})` : ''}. Warning: ${warningCount}, Over: ${overCount}.`;
+      }
+
+      async function loadRows() {
+        summary.textContent = 'Loading...';
+        try {
+          const response = await fetch('/utilities/compartment-hierarchy', { cache: 'no-store' });
+          const payload = await response.json();
+          allRows = Array.isArray(payload.rows) ? payload.rows : [];
+          renderRows();
+        } catch (err) {
+          allRows = [];
+          tableBody.innerHTML = '<tr><td colspan="7">Failed to load compartment hierarchy data.</td></tr>';
+          summary.textContent = `Load failed: ${err}`;
+        }
+      }
+
+      searchInput.addEventListener('input', renderRows);
+      refreshBtn.addEventListener('click', loadRows);
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      loadRows();
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

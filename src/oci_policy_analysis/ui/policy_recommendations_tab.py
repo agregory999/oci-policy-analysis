@@ -136,6 +136,11 @@ class PolicyRecommendationsTab(BaseUITab):
         )
         self.app = app
         self.policy_repo = app.policy_compartment_analysis
+        allowed_pct = {0, 25, 50, 75, 90}
+        where_pct = int(self.app.settings.get('risk_where_clause_reduction_pct', 50) or 50)
+        service_pct = int(self.app.settings.get('risk_service_principal_reduction_pct', 50) or 50)
+        self._default_where_reduction_label = f'{where_pct if where_pct in allowed_pct else 50}%'
+        self._default_service_reduction_label = f'{service_pct if service_pct in allowed_pct else 50}%'
         # Do NOT cache self.intelligence_engine here; always use self.app.policy_intelligence at use-time!
 
         # Configure tab grid layout
@@ -539,7 +544,7 @@ class PolicyRecommendationsTab(BaseUITab):
         )
 
         ttk.Label(filter_frame, text='WHERE clause risk reduction:').pack(side='left', padx=(0, 2))
-        self.where_reduction_pct_var = tk.StringVar(value='50%')
+        self.where_reduction_pct_var = tk.StringVar(value=self._default_where_reduction_label)
         self.where_reduction_options = ['0%', '25%', '50%', '75%', '90%']
         where_pct_combo = ttk.Combobox(
             filter_frame,
@@ -553,7 +558,7 @@ class PolicyRecommendationsTab(BaseUITab):
         self.add_context_help(where_pct_combo, 'Adjust how much WHERE clauses reduce statement risk.')
 
         ttk.Label(filter_frame, text='Service Principal risk reduction:').pack(side='left', padx=(15, 2))
-        self.service_reduction_pct_var = tk.StringVar(value='50%')
+        self.service_reduction_pct_var = tk.StringVar(value=self._default_service_reduction_label)
         service_pct_combo = ttk.Combobox(
             filter_frame,
             textvariable=self.service_reduction_pct_var,
@@ -708,7 +713,7 @@ class PolicyRecommendationsTab(BaseUITab):
             'Tune risk scoring: WHERE clause and Service Principal reduction percentages, and relative risk threshold filter (policy view).',
         )
 
-        self.where_reduction_pct_var_policy = tk.StringVar(value='50%')
+        self.where_reduction_pct_var_policy = tk.StringVar(value=self._default_where_reduction_label)
         self.where_reduction_options = ['0%', '25%', '50%', '75%', '90%']
         ttk.Label(filter_frame, text='WHERE clause risk reduction:').pack(side='left', padx=(0, 2))
         where_pct_combo = ttk.Combobox(
@@ -723,7 +728,7 @@ class PolicyRecommendationsTab(BaseUITab):
         self.add_context_help(where_pct_combo, 'Adjust how much WHERE clauses reduce statement risk for policy tab.')
 
         ttk.Label(filter_frame, text='Service Principal risk reduction:').pack(side='left', padx=(15, 2))
-        self.service_reduction_pct_var_policy = tk.StringVar(value='50%')
+        self.service_reduction_pct_var_policy = tk.StringVar(value=self._default_service_reduction_label)
         service_pct_combo = ttk.Combobox(
             filter_frame,
             textvariable=self.service_reduction_pct_var_policy,

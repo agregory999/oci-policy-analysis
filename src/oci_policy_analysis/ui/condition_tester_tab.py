@@ -16,14 +16,9 @@ from datetime import datetime
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-# ANTLR + condition parser imports inlined and used in place of condition_tester.run_condition_test
-from antlr4 import CommonTokenStream, InputStream
-
+from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionLexer import OciIamPolicyConditionLexer
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionParser import OciIamPolicyConditionParser
-from oci_policy_analysis.logic.parsers.condition_parser.OciIamPolicyConditionVisitor import OciIamPolicyConditionVisitor
 from oci_policy_analysis.ui.base_tab import BaseUITab
 
 logger = get_logger('condition_tester_tab')
@@ -46,6 +41,7 @@ class ConditionTesterTab(BaseUITab):
             ),
         )
         self.app = app
+        self.condition_service = ConditionTesterService()
         self._build_ui()
 
     def apply_settings(self, context_help: bool, font_size: str):
@@ -128,7 +124,7 @@ class ConditionTesterTab(BaseUITab):
     def _generate_inputs(self):
         clause = self.clause_text.get('1.0', tk.END).strip()
         self.clause_var.set(clause)
-        var_names = self._extract_variable_names(clause)
+        var_names = self.condition_service.extract_variables(clause)
         logger.info(f'Generating inputs for clause: {clause}')
         logger.info(f'Extracted variables ({len(var_names)}): {sorted(var_names)}')
         for widget in self.vars_frame.winfo_children():
@@ -163,46 +159,11 @@ class ConditionTesterTab(BaseUITab):
         frame_height = max(40, len(var_names) * 34)  # Rough estimate ~34px per row
         self.vars_frame.config(height=frame_height)
 
-    def _format_clause(self):  # noqa: C901
-        """Formats the where clause for readability (adds newlines/indents for { } blocks, preserves syntax)."""
+    def _format_clause(self):
+        """Format the where-clause text using shared condition service logic."""
         raw = self.clause_text.get('1.0', tk.END).strip()
-
-        def beautify_policy_clause(txt):
-            out = []
-            indent = 0
-            in_quote = False
-            i = 0
-            while i < len(txt):
-                c = txt[i]
-                # Handle quoted/pattern literals
-                if in_quote:
-                    if c == in_quote:
-                        in_quote = False
-                    out.append(c)
-                elif c in ("'", '"', '/'):
-                    in_quote = c
-                    out.append(c)
-                elif c == '{':
-                    out.append(' {\n')
-                    indent += 1
-                    out.append('  ' * indent)
-                elif c == '}':
-                    out.append('\n')
-                    indent = max(0, indent - 1)
-                    out.append('  ' * indent)
-                    out.append('}')
-                elif c == ',':
-                    out.append(',\n')
-                    out.append('  ' * indent)
-                elif c == '\n':
-                    out.append('\n' + '  ' * indent)
-                else:
-                    out.append(c)
-                i += 1
-            return ''.join(out).strip()
-
         try:
-            pretty = beautify_policy_clause(raw)
+            pretty = self.condition_service.format_clause(raw)
             if pretty and pretty != raw:
                 self.clause_text.delete('1.0', tk.END)
                 self.clause_text.insert(tk.END, pretty)
@@ -210,41 +171,6 @@ class ConditionTesterTab(BaseUITab):
                 logger.info('Condition clause formatted with beautifier.')
         except Exception as ex:
             logger.warning(f'Clause formatting failed: {ex}')
-
-    def _extract_variable_names(self, cond_str):
-        # Use ANTLR parse: collect all variable names via tree walker or simple visitor
-        input_stream = InputStream(cond_str + '\n')
-        lexer = OciIamPolicyConditionLexer(input_stream)
-        stream = CommonTokenStream(lexer)
-        parser = OciIamPolicyConditionParser(stream)
-        tree = parser.condition_clause()
-
-        class VarCollector(OciIamPolicyConditionVisitor):
-            def __init__(self):
-                self.vars = set()
-
-            def visitVariable_name(self, ctx):
-                # Always add variable names found anywhere (including right side)
-                self.vars.add(ctx.getText())
-
-            def visitTerminal(self, node):
-                # Also collect any token that is of type IDENTIFIER, including right-hand side
-                if hasattr(node, 'symbol') and hasattr(node.symbol, 'type'):
-                    # OciIamPolicyConditionLexer.IDENTIFIER == 39 (may vary, get from lexer directly if possible)
-                    # We'll try to match by name for clarity
-                    if node.symbol.type == OciIamPolicyConditionLexer.IDENTIFIER and '.' in node.getText():
-                        # Exclude identifiers from string or pattern literals implicitly (handled by parse)
-                        self.vars.add(node.getText())
-                return None
-
-        collector = VarCollector()
-        collector.visit(tree)
-        extracted = collector.vars
-        # Diagnostic: If the clause is the one we care about, log prominently
-        TEST_CLAUSE = 'all { request.principal.id=target.bucket.system-tag.orcl-aidp.governingaidpid }'
-        if cond_str.strip() == TEST_CLAUSE:
-            logger.info(f'[TEST_DIAGNOSTIC] Extracted vars for disputed clause: {sorted(extracted)}')
-        return extracted
 
     # === Evaluate Logic Embedded ===
     def _evaluate_condition(self):
@@ -265,44 +191,12 @@ class ConditionTesterTab(BaseUITab):
             logger.debug('Usage tracking for condition_test failed', exc_info=True)
         # We should get this from the main in __init__ and not try to initialize it here
         try:
-            # Use only the simulation engine for condition evaluation.
-            # Try to obtain a shared/reusable engine instance on self or fallback to direct import/class.
-            engine = getattr(self.app, 'simulation_engine', None)
-            if engine is None:
-                # TODO: Make a result saying that the engine couldn't be found
-                raise Exception('Could not instantiate simulation engine for condition evaluation.')
-            # Pass the textual clause and simulated variable dict.
-            # Request structured output so we can render detailed comparison
-            # logs in the Condition Tester UI without affecting other
-            # callers that rely on the legacy (bool, reason_str) tuple.
-            passed, structured = engine._evaluate_conditions(clause, sim_vars, return_structured=True)
-            # Normalize into the dict shape expected by _show_result.
-            # structured should already contain 'Condition String',
-            # 'Policy Result', and 'Log', but we defensively fill
-            # Policy Result from the boolean if missing.
-            if isinstance(structured, dict):
-                result = dict(structured)
-                result.setdefault('Condition String', clause)
-                if 'Policy Result' not in result:
-                    result['Policy Result'] = 'GRANTED' if passed else 'DENIED'
-            else:
-                # Fallback: wrap non-dict payload into a minimal dict so
-                # _show_result can still render something meaningful.
-                result = {
-                    'Condition String': clause,
-                    'Policy Result': 'GRANTED' if passed else 'DENIED',
-                    'Log': [
-                        {
-                            'type': 'Summary',
-                            'result': passed,
-                            'variable': '?',
-                            'operator': '?',
-                            'sim_value': '?',
-                            'expected': '?',
-                            'info': str(structured),
-                        }
-                    ],
-                }
+            evaluated = self.condition_service.evaluate(clause, sim_vars)
+            result = {
+                'Condition String': evaluated.condition_string,
+                'Policy Result': evaluated.policy_result,
+                'Log': evaluated.log,
+            }
         except Exception as ex:
             logger.error(f'Evaluation error: {ex}')
             result = {

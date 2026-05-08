@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Single Column Template</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Masthead classes" data-help-body="Use .top-row, .app-masthead, .masthead-brand, and .masthead-badge for the standard page title masthead.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Single Column Template</h1>
+            <p>Class Reference • Masthead + Context Help</p>
+          </div>
+        </div>
+        <div class="masthead-meta">.masthead-meta</div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Template</h3>
+        <p id="contextHelpBody" class="context-help-body">Hover or focus on a component to see the standard classes and data-help attributes used for the pattern.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <section class="card" data-help-title="Token classes" data-help-body="These examples reference shared app.css utility classes extracted from the explorer style system.">
+        <p class="card-title">Token + Utility Preview</p>
+        <p>Use these class names for consistent behavior across pages:</p>
+        <div class="card-link-row">
+          <span class="pill">.pill</span>
+          <span class="status-badge refresh-status-success">.status-badge.refresh-status-success</span>
+          <span class="status-badge refresh-status-running">.status-badge.refresh-status-running</span>
+        </div>
+        <code class="code-sample">.custom-scrollbar  .table-container  .copy-icon-btn  .ocid-chip  .modal-overlay  .animate-fade</code>
+      </section>
+
+      <section class="card compact-card" data-help-title="Single column layout" data-help-body="Use .layout-single for pages that should present one primary vertical content stream below the masthead and context help row.">
+        <p class="card-title">Layout</p>
+        <h2>Single-column content card</h2>
+        <p>This card uses <strong>.card</strong> and <strong>.compact-card</strong> inside <strong>.layout-single</strong>.</p>
+        <code class="code-sample">&lt;main class=&quot;layout-single&quot;&gt;
+  &lt;section class=&quot;card compact-card&quot;&gt;...&lt;/section&gt;
+&lt;/main&gt;</code>
+      </section>
+
+      <section class="card" data-help-title="Card actions and links" data-help-body="Use .card-title for uppercase labels, button/ button.ghost for actions, and .card-link-row for grouped card links.">
+        <p class="card-title">Actions + Links</p>
+        <p>Standard buttons inherit from <strong>button</strong>; secondary neutral actions use <strong>button.ghost</strong>.</p>
+        <div class="panel-actions">
+          <button type="button" data-help-title="Primary Button" data-help-body="Use this for the main action in a card or workflow step, such as run, save, or load. It should represent the single most important next action.">Primary Button</button>
+          <button type="button" class="ghost" data-help-title="Ghost Button" data-help-body="Use this for low-emphasis actions like close, cancel, or secondary utility actions that should not compete with the primary button.">Ghost Button</button>
+          <button type="button" class="secondary" data-help-title="Secondary Button" data-help-body="Use this for alternative actions that are important but not primary, such as reset, back, or optional supporting operations.">Secondary Button</button>
+          <button id="openWideFlyinBtn" type="button" class="ghost" data-help-title="Open Wide Fly-in (.prospective-editor.open)" data-help-body="Use this when a workflow needs a larger side panel for editing multi-step inputs, similar to the Prospective Statement Editor pattern in policy-analysis.">Open Wide Fly-in</button>
+        </div>
+        <div class="card-link-row">
+          <a href="#">.card a</a>
+          <a href="#" class="secondary">.card a.secondary</a>
+        </div>
+      </section>
+
+      <section class="card" data-help-title="Forms" data-help-body="Use .form-grid, .form-grid-spacious, .inline-field, .options-row, .checkbox-label, .section-heading, and .section-kicker for forms.">
+        <p class="card-title">Form Patterns</p>
+        <div class="form-grid form-grid-spacious">
+          <div>
+            <h3 class="section-heading">Section Heading (.section-heading)</h3>
+            <div class="section-kicker">Options (.section-kicker)</div>
+            <div class="options-row">
+              <label class="checkbox-label"><input type="checkbox" checked /> .checkbox-label</label>
+              <label class="checkbox-label"><input type="checkbox" /> Another option</label>
+            </div>
+          </div>
+          <hr class="section-separator" />
+          <div class="inline-field">
+            <label for="templateInput">Inline Field</label>
+            <input id="templateInput" placeholder=".inline-field input" />
+            <button type="button" class="ops-button">.ops-button</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card progress-widget" data-help-title="Progress widget" data-help-body="Use .progress-widget as a standard card with running state badge and active fill classes.">
+        <p class="card-title progress-widget-title">Progress Widget</p>
+        <div class="progress-widget-head">
+          <span class="progress-widget-detail">Example operation</span>
+          <span class="status-badge refresh-status-running">In Progress</span>
+        </div>
+        <div class="progress-widget-track"><div class="progress-widget-fill progress-fill-65"></div></div>
+        <div class="progress-widget-head">
+          <span class="progress-widget-detail">Loading policies and statements...</span>
+          <span class="progress-widget-percent">65%</span>
+        </div>
+        <div class="progress-widget-detail">Use JS to update the fill width, detail text, and running/success/error badge state.</div>
+      </section>
+
+      <section class="card" data-help-title="Table shell classes" data-help-body="Use .table-shell + .table-scroll + .inspector-panel.open to pair a data grid with fly-in detail behavior.">
+        <p class="card-title">Data Table Shell</p>
+        <div class="table-shell">
+          <div class="table-scroll table-container custom-scrollbar">
+            <table id="sampleResultsTable">
+              <thead>
+                <tr><th>Policy</th><th>Statement</th><th>Verb</th></tr>
+              </thead>
+              <tbody>
+                <tr data-row-id="1" data-policy="Platform-Admins" data-region="us-ashburn-1" data-ocid="ocid1.policy.oc1..example1" data-state="ACTIVE" data-compartment="root"><td>Platform-Admins</td><td>Allow group Admins to manage all-resources in tenancy</td><td>manage</td></tr>
+                <tr data-row-id="2" data-policy="Audit-Readers" data-region="us-phoenix-1" data-ocid="ocid1.policy.oc1..example2" data-state="ACTIVE" data-compartment="security"><td>Audit-Readers</td><td>Allow group Auditors to read audit-events in tenancy</td><td>read</td></tr>
+                <tr data-row-id="3" data-policy="NetOps" data-region="eu-frankfurt-1" data-ocid="ocid1.policy.oc1..example3" data-state="ACTIVE" data-compartment="network"><td>NetOps</td><td>Allow group NetOps to use virtual-network-family in compartment network</td><td>use</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <aside id="sampleInspector" class="inspector-panel" aria-label="Fly-in detail sample">
+          <div class="inspector-header">
+            <strong id="sampleInspectorTitle">Fly-in Detail Sample</strong>
+            <button id="closeSampleInspectorBtn" type="button" class="ghost">Close</button>
+          </div>
+          <div class="inspector-body custom-scrollbar">
+            <div id="sampleInspectorEmpty" class="inspector-empty">Click a table row to open this fly-in detail panel.</div>
+            <table id="sampleInspectorTable" class="inspector-table" style="display:none;">
+              <tbody id="sampleInspectorBody"></tbody>
+            </table>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <aside id="wideFlyinPanel" class="prospective-editor" aria-label="Wide fly-in demo">
+      <div class="prospective-editor-header">
+        <strong>Wide Fly-in Demo (.prospective-editor)</strong>
+        <button id="closeWideFlyinBtn" type="button" class="ghost" data-help-title="Close Wide Fly-in" data-help-body="Closes the large side editor panel and returns focus to the primary page workflow.">×</button>
+      </div>
+      <div class="prospective-editor-body custom-scrollbar">
+        <section class="card compact-card">
+          <p class="card-title">When to Use</p>
+          <p>Use this wider fly-in for editor-style flows with many fields, preview text, and save/cancel actions.</p>
+          <code class="code-sample">.prospective-editor
+.prospective-editor.open
+.prospective-editor-header
+.prospective-editor-body</code>
+        </section>
+      </div>
+    </aside>
+
+    <script>
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Template',
+        body: 'Hover or focus on a component to see the standard classes and data-help attributes used for the pattern.',
+      };
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+        const title = node.getAttribute('data-help-title') || '';
+        const body = node.getAttribute('data-help-body') || '';
+        node.addEventListener('mouseenter', () => setContextHelp(title, body));
+        node.addEventListener('focusin', () => setContextHelp(title, body));
+        node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+      });
+
+      const sampleResultsTable = document.getElementById('sampleResultsTable');
+      const sampleInspector = document.getElementById('sampleInspector');
+      const sampleInspectorTitle = document.getElementById('sampleInspectorTitle');
+      const sampleInspectorEmpty = document.getElementById('sampleInspectorEmpty');
+      const sampleInspectorTable = document.getElementById('sampleInspectorTable');
+      const sampleInspectorBody = document.getElementById('sampleInspectorBody');
+      const closeSampleInspectorBtn = document.getElementById('closeSampleInspectorBtn');
+      const openWideFlyinBtn = document.getElementById('openWideFlyinBtn');
+      const closeWideFlyinBtn = document.getElementById('closeWideFlyinBtn');
+      const wideFlyinPanel = document.getElementById('wideFlyinPanel');
+      let selectedSampleRowId = null;
+
+      function setSampleInspector(row) {
+        const rows = sampleResultsTable?.querySelectorAll('tbody tr') || [];
+        rows.forEach((tr) => {
+          tr.classList.toggle('active-row', tr.dataset.rowId === String(row?.dataset?.rowId || ''));
+        });
+
+        if (!row) {
+          selectedSampleRowId = null;
+          sampleInspector?.classList.remove('open');
+          if (sampleInspectorEmpty) sampleInspectorEmpty.style.display = 'block';
+          if (sampleInspectorTable) sampleInspectorTable.style.display = 'none';
+          return;
+        }
+
+        selectedSampleRowId = row.dataset.rowId;
+        sampleInspector?.classList.add('open');
+        if (sampleInspectorTitle) sampleInspectorTitle.textContent = `Statement Details • ${row.dataset.policy || 'Sample'}`;
+
+        const detailRows = [
+          ['Policy', row.dataset.policy || '-'],
+          ['Statement', row.cells?.[1]?.textContent || '-'],
+          ['Verb', row.cells?.[2]?.textContent || '-'],
+          ['Region', row.dataset.region || '-'],
+          ['OCID', `<span class="ocid-chip">${row.dataset.ocid || '-'}</span>`, true],
+          ['__separator__', 'Parsed Details'],
+          ['State', row.dataset.state || '-'],
+          ['Compartment', row.dataset.compartment || '-'],
+        ];
+
+        sampleInspectorBody.innerHTML = detailRows.map(([k, v, isHtml]) => {
+          if (k === '__separator__') return '<tr class="inspector-separator"><th colspan="2">Parsed Details</th></tr>';
+          return `<tr><th>${k}</th><td>${isHtml ? v : v}</td></tr>`;
+        }).join('');
+
+        if (sampleInspectorEmpty) sampleInspectorEmpty.style.display = 'none';
+        if (sampleInspectorTable) sampleInspectorTable.style.display = 'table';
+      }
+
+      sampleResultsTable?.querySelectorAll('tbody tr').forEach((row) => {
+        row.addEventListener('click', () => {
+          if (selectedSampleRowId === row.dataset.rowId) {
+            setSampleInspector(null);
+          } else {
+            setSampleInspector(row);
+          }
+        });
+      });
+
+      closeSampleInspectorBtn?.addEventListener('click', () => setSampleInspector(null));
+      openWideFlyinBtn?.addEventListener('click', () => wideFlyinPanel?.classList.add('open'));
+      closeWideFlyinBtn?.addEventListener('click', () => wideFlyinPanel?.classList.remove('open'));
+    </script>
+  </body>
+</html>

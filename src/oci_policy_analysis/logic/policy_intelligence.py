@@ -27,6 +27,13 @@ if TYPE_CHECKING:
 
 logger = get_logger(component='policy_intelligence')
 
+
+def _append_unique(items: list, value) -> None:
+    """Append value only if not already present (preserve order)."""
+    if value not in items:
+        items.append(value)
+
+
 # OCI Identity Domains system group that cannot be deleted and may have zero members; exclude from cleanup.
 ALL_DOMAIN_USERS_GROUP_NAME = 'All Domain Users'
 
@@ -161,6 +168,7 @@ class PolicyIntelligenceEngine:
         # Prerequisites used by one or more strategies
         if not getattr(self, 'compartments_by_path', None) and repo.compartments:
             self.build_compartment_index()
+        self.resolve_cross_tenancy_aliases()
         self.find_invalid_statements()
         self.run_dg_in_use_analysis()
 
@@ -180,14 +188,77 @@ class PolicyIntelligenceEngine:
             return
 
         run_ids = set(enabled_strategy_ids) if enabled_strategy_ids else set(self._strategies)
+        logger.info(
+            'Policy intelligence run_all starting: enabled_strategy_ids=%s',
+            sorted(run_ids),
+        )
         for strategy_id in self._run_order:
-            if strategy_id not in run_ids or strategy_id not in self._strategies:
+            if strategy_id not in self._strategies:
+                logger.info('Policy intelligence strategy skipped (not registered): %s', strategy_id)
+                continue
+            if strategy_id not in run_ids:
+                logger.info('Policy intelligence strategy skipped (disabled): %s', strategy_id)
                 continue
             strategy = self._strategies[strategy_id]
+            logger.info(
+                'Policy intelligence strategy running: %s (%s)',
+                strategy.strategy_id,
+                strategy.display_name,
+            )
             try:
-                strategy.run(repo, overlay, params)
+                strategy.run(repo, overlay, params)  # pyright: ignore[reportArgumentType]
+                logger.info(
+                    'Policy intelligence strategy completed: %s (%s)',
+                    strategy.strategy_id,
+                    strategy.display_name,
+                )
             except Exception as e:
                 logger.warning('Intelligence strategy %s failed: %s', strategy_id, e)
+
+    def resolve_cross_tenancy_aliases(self) -> None:
+        """Resolve referenced cross-tenancy aliases to define OCIDs.
+
+        Parse-time sets alias placeholders as unresolved. This step resolves them
+        after all define/admit/endorse parsing is complete.
+        """
+        repo = self.policy_repo
+        defined_aliases = list(getattr(repo, 'defined_aliases', []) or [])
+        ct_statements = list(getattr(repo, 'cross_tenancy_statements', []) or [])
+
+        alias_map: dict[str, str] = {}
+        for define in defined_aliases:
+            alias_name = str(define.get('defined_name') or '').strip()
+            alias_ocid = str(define.get('ocid_alias') or '').strip()
+            if alias_name:
+                alias_map[alias_name.casefold()] = alias_ocid
+
+        for st in ct_statements:
+            aliases = st.get('tenancy_aliases')
+            if not isinstance(aliases, list):
+                aliases = []
+            aliases = [str(a).strip() for a in aliases if str(a).strip()]
+            st['tenancy_aliases'] = aliases
+
+            resolved_aliases: dict[str, dict[str, str | bool]] = {}
+            unresolved: list[str] = []
+            for alias in aliases:
+                ocid = alias_map.get(alias.casefold(), '')
+                resolved = bool(ocid)
+                resolved_aliases[alias] = {'alias': alias, 'ocid': ocid, 'resolved': resolved}
+                if not resolved:
+                    unresolved.append(alias)
+
+            st['resolved_aliases'] = resolved_aliases
+            st['aliases_resolved'] = len(unresolved) == 0
+
+            if unresolved:
+                st['valid'] = False
+                reasons = list(st.get('invalid_reasons') or [])
+                for alias in unresolved:
+                    reason = f'Unresolved tenancy alias: {alias}'
+                    if reason not in reasons:
+                        reasons.append(reason)
+                st['invalid_reasons'] = reasons
 
     def build_permissions_report(self):  # noqa: C901
         """
@@ -540,7 +611,7 @@ class PolicyIntelligenceEngine:
                     )
                     if not dg_found:
                         st['valid'] = False
-                        invalid_reasons.append(f'Dynamic Group {dg_name} not found in tenancy')
+                        _append_unique(invalid_reasons, f'Dynamic Group {dg_name} not found in tenancy')
                         logger.debug(f'Dynamic Group {dg_name} not found for statement: {st.get("statement_text")}')
             # Group check
             elif st.get('subject_type') == 'group':
@@ -555,7 +626,7 @@ class PolicyIntelligenceEngine:
                     )
                     if not group_found:
                         st['valid'] = False
-                        invalid_reasons.append(f'Group {group_name} not found in tenancy')
+                        _append_unique(invalid_reasons, f'Group {group_name} not found in tenancy')
                         logger.debug(f'Group {group_name} not found for statement: {st.get("statement_text")}')
             # Location check
             # location_invalid_reason = repo.check_statement_location_validity(st)
@@ -567,7 +638,7 @@ class PolicyIntelligenceEngine:
             if st.get('verb') and st.get('verb', '').casefold() not in {'inspect', 'read', 'use', 'manage'}:
                 logger.debug(f'Invalid Verb found: {st.get("verb")}')
                 st['valid'] = False
-                invalid_reasons.append(f'Invalid Verb ({st.get("verb")}) found')
+                _append_unique(invalid_reasons, f'Invalid Verb ({st.get("verb")}) found')
 
             # Tag where-clause namespace/key check
             conditions_text = str(st.get('conditions') or '').strip()
@@ -575,8 +646,7 @@ class PolicyIntelligenceEngine:
                 if not tag_catalog_available:
                     note = 'Tag namespace catalog unavailable; tag existence validation skipped.'
                     parsing_notes = st.setdefault('parsing_notes', [])
-                    if note not in parsing_notes:
-                        parsing_notes.append(note)
+                    _append_unique(parsing_notes, note)
                 else:
                     _structure, tag_conditions = collect_tag_conditions(conditions_text)
                     for cond in tag_conditions:
@@ -588,8 +658,7 @@ class PolicyIntelligenceEngine:
                         ns_entry = tag_catalog_index.get(ns_name.casefold())
                         if not ns_entry:
                             reason = f"Tag namespace '{ns_name}' not found in tenancy defined tags"
-                            if reason not in invalid_reasons:
-                                invalid_reasons.append(reason)
+                            _append_unique(invalid_reasons, reason)
                             st['valid'] = False
                             continue
 
@@ -598,8 +667,7 @@ class PolicyIntelligenceEngine:
                             if isinstance(ns_keys, dict) and key_name.casefold() not in ns_keys:
                                 normalized_ns_name = str(ns_entry.get('name') or ns_name)
                                 reason = f"Tag key '{key_name}' not found in tag namespace '{normalized_ns_name}'"
-                                if reason not in invalid_reasons:
-                                    invalid_reasons.append(reason)
+                                _append_unique(invalid_reasons, reason)
                                 st['valid'] = False
 
             if len(invalid_reasons) > 0:
@@ -639,7 +707,7 @@ class PolicyIntelligenceEngine:
             st['effective_path'] = self._name_path_from_ocid(st.get('location'))
             if st['effective_path']:
                 st['effective_path'] = st['effective_path'].lower()
-            st.setdefault('parsing_notes', []).append('Compartment ID used for location')
+            _append_unique(st.setdefault('parsing_notes', []), 'Compartment ID used for location')
             logger.debug(f'Effective (id) path for {st.get("statement_text")}: {st.get("effective_path")}')
         # Case 3 - Compartment Name (with or without full path)
         else:
@@ -658,7 +726,7 @@ class PolicyIntelligenceEngine:
                     abs_eff_path = norm_loc.lower()
                     st['effective_path'] = abs_eff_path
                     st['effective_compartment_ocid'] = self.compartments_by_path.get(abs_eff_path, {}).get('id')
-                    st.setdefault('parsing_notes', []).append('Absolute compartment path used for location')
+                    _append_unique(st.setdefault('parsing_notes', []), 'Absolute compartment path used for location')
                     logger.debug(
                         'Effective (abs-loc) path for %s: %s',
                         st.get('statement_text'),
@@ -690,7 +758,7 @@ class PolicyIntelligenceEngine:
                 comp_name = pparts[-1] if pparts else None
             logger.debug(f'Compartment name for compare: {comp_name}')
             if parts and parts[0].casefold() == (comp_name.casefold() if comp_name else ''):
-                st.setdefault('parsing_notes', []).append('Deleted compartment from effective location')
+                _append_unique(st.setdefault('parsing_notes', []), 'Deleted compartment from effective location')
                 del parts[0]
             for p in parts:
                 if eff_path is None:

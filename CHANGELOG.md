@@ -1,3 +1,90 @@
+# [5.0.0-beta.10](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.9...v5.0.0-beta.10) (2026-05-08)
+
+
+### Bug Fixes
+
+* Merge pull request [#44](https://github.com/agregory999/oci-policy-analysis/issues/44) from kiranthakkar/fix/csv-field-size-limit ([6573c2e](https://github.com/agregory999/oci-policy-analysis/commit/6573c2e75473a76e2f1999b4a719a9afc6904fc5))
+* raise csv field size limit to support large compliance output files ([b9bd640](https://github.com/agregory999/oci-policy-analysis/commit/b9bd64061b3d81a6efc0ba8104f5937d93162ffe))
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
+# [5.0.0-beta.9](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.8...v5.0.0-beta.9) (2026-05-08)
+
+
+### Bug Fixes
+
+* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
+
+# [5.0.0-beta.8](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.7...v5.0.0-beta.8) (2026-05-08)
+
+
+### Features
+
+* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
+
+# [5.0.0-beta.7](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.6...v5.0.0-beta.7) (2026-05-07)
+
+
+### Features
+
+* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
+
+# [5.0.0-beta.6](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.5...v5.0.0-beta.6) (2026-05-06)
+
+
+### Features
+
+* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
+
+# [5.0.0-beta.5](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.4...v5.0.0-beta.5) (2026-05-04)
+
+
+### Bug Fixes
+
+* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
+
+# [5.0.0-beta.4](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.3...v5.0.0-beta.4) (2026-04-22)
+
+
+### Bug Fixes
+
+* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
+* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
+
+# [5.0.0-beta.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.2...v5.0.0-beta.3) (2026-04-22)
+
+
+### Features
+
+* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
+
+# [5.0.0-beta.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.1...v5.0.0-beta.2) (2026-04-22)
+
+
+### Features
+
+* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
+
+
+### BREAKING CHANGES
+
+* web UI/service architecture changed; incompatible with 4.x behavior
+
+# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-04-21)
+
+
+### Features
+
+* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
+
+
+### BREAKING CHANGES
+
+* web UI/service architecture changed; incompatible with 4.x behavior
+
 # [4.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.1...v4.7.0) (2026-05-06)
 
 

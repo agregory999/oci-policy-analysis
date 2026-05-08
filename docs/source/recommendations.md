@@ -21,6 +21,8 @@ If you're interested in all the fine details—how the engine works, how plug-in
 
 The Recommendations tab is organized into several subtabs and panels, each focused on a major area of IAM analytic findings:
 
+> **Web flow note:** In web mode, this experience is available through the Recommendations page and related workbench pages. Some actions are intentionally simplified compared to desktop, but the core analytics model (risk, overlap, consolidation, cleanup/fix, limits, and workbench tracking) is shared.
+
 ### 1. **Summary Table**
 - **Purpose**: The first thing you see—a high-level list of the most important, prioritized recommendations (critical risks, urgent cleanups, consolidation opportunities, and policy statement limit alerts).
 - **Tips**: Each row summarizes an actionable item. Clicking "Reload All" at the top will refresh these based on current data.
@@ -60,6 +62,8 @@ The Recommendations tab is organized into several subtabs and panels, each focus
   - Checkbox selection to review candidates.
   - (Actions require manual follow-up in current version.)
 
+**Web parity update:** A dedicated **Consolidation Workbench** flow is available in web mode and can be used to review consolidation candidates and stage follow-up actions.
+
 ---
 
 ### 5. **Cleanup / Fix**
@@ -91,6 +95,8 @@ The Recommendations tab is organized into several subtabs and panels, each focus
   - Click to see CLI script, rollback instructions, UI workflow.
   - "Clear" removes all workbench items for a fresh state.
   - When you "Reload All" or update policy data, resolved issues disappear; history per action is retained.
+
+**Web parity update:** The web UI includes equivalent workbench behavior (including consolidation-oriented flows), with the same core objective: track actionable items and retain operator-friendly remediation context.
 
 ---
 

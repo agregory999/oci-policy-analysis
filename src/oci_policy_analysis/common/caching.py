@@ -13,10 +13,13 @@
 # coding: utf-8
 ##########################################################################
 
+import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from oci.identity.models import Domain
 
@@ -30,6 +33,8 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 # Global logger for this module
 logger = get_logger(component='caching')
 
+CACHE_SCHEMA_VERSION = 3
+
 
 class CacheManager:
     """
@@ -39,6 +44,94 @@ class CacheManager:
     The cache directory is ~/.oci-policy-analysis/cache by default, but can be overridden.
     Caches have the concept of being "preserved" to avoid automatic deletion during culling.
     """
+
+    @staticmethod
+    def _policy_statement_identity(item: Mapping[str, Any]) -> str:
+        """Return identity key for policy statements, excluding mutable permission/action fields.
+
+        This is used so updates like verb/resource/action changes compare as
+        "Modified" rather than Added+Removed across snapshots.
+        """
+        subject = item.get('subject')
+        if isinstance(subject, list):
+            subject_value = '|'.join(sorted(str(v) for v in subject))
+        else:
+            subject_value = str(subject or '')
+
+        return (
+            f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
+            f"{item.get('compartment_ocid') or item.get('compartment_path') or ''}|"
+            f"{item.get('subject_type') or ''}|{subject_value}|"
+            f"{item.get('location_type') or ''}|{item.get('location') or ''}|"
+            f"{item.get('conditions') or ''}|{item.get('comments') or ''}"
+        )
+
+    @staticmethod
+    def _stable_key_for_item(section: str, item: Mapping[str, Any]) -> str:
+        """Return stable key used for historical diff normalization."""
+        if not isinstance(item, dict):
+            return ''
+
+        if section == 'policies':
+            return str(item.get('policy_ocid') or item.get('policy_name') or '')
+        if section == 'policy_statements':
+            identity = CacheManager._policy_statement_identity(item)
+            return hashlib.sha256(identity.encode('utf-8')).hexdigest()
+        if section == 'defined_aliases':
+            return (
+                f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
+                f"{item.get('defined_type') or ''}|{item.get('defined_name') or ''}|{item.get('ocid_alias') or ''}"
+            )
+        if section == 'cross_tenancy_statements':
+            return (
+                str(item.get('internal_id') or '')
+                or hashlib.sha256(
+                    (
+                        f"{item.get('policy_ocid') or item.get('policy_name') or ''}|"
+                        f"{item.get('statement_text') or ''}"
+                    ).encode()
+                ).hexdigest()
+            )
+        if section == 'identity_domains':
+            return str(item.get('id') or item.get('display_name') or item.get('name') or '')
+        if section == 'groups':
+            return str(item.get('group_ocid') or item.get('group_id') or '') or (
+                f"{item.get('domain_name') or ''}/{item.get('group_name') or ''}"
+            )
+        if section == 'dynamic_groups':
+            return str(item.get('dynamic_group_ocid') or item.get('dynamic_group_id') or '') or (
+                f"{item.get('domain_name') or ''}/{item.get('dynamic_group_name') or ''}"
+            )
+        if section == 'users':
+            return str(item.get('user_ocid') or item.get('user_id') or '') or (
+                f"{item.get('domain_name') or ''}/{item.get('user_name') or ''}"
+            )
+        return ''
+
+    def _annotate_stable_keys(self, section: str, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        """Annotate each row with stable_key (non-breaking additive field)."""
+        output: list[dict[str, Any]] = []
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            row_copy = dict(row)
+            stable_key = self._stable_key_for_item(section, row_copy)
+            if stable_key:
+                row_copy['stable_key'] = stable_key
+            output.append(row_copy)
+        return output
+
+    @staticmethod
+    def _build_by_key(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Build stable-key map representation for diff-friendly reads."""
+        by_key: dict[str, dict[str, Any]] = {}
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get('stable_key') or '')
+            if key:
+                by_key[key] = row
+        return by_key
 
     # ----
     # Canonical per-tenancy consolidation session file with protected_set & history
@@ -193,7 +286,7 @@ class CacheManager:
 
     def __init__(
         self,
-        cache_dir: Path = None,
+        cache_dir: Path | None = None,
     ):
         # logger = get_logger(component="caching")
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir else CACHE_DIR
@@ -201,11 +294,43 @@ class CacheManager:
         logger.info(f'Initialized Caching at {self.cache_dir}')
 
     # ----
+    # Prospective statements (standalone per-tenancy storage)
+    # ----
+
+    def _prospects_path(self, tenancy_ocid: str) -> Path:
+        if not tenancy_ocid or str(tenancy_ocid).lower() in {'unknown', '', 'none'}:
+            raise ValueError('tenancy_ocid required for prospects persistence.')
+        outdir = self.cache_dir / 'prospects'
+        outdir.mkdir(parents=True, exist_ok=True)
+        return outdir / f'prospects_{tenancy_ocid}.json'
+
+    def load_prospects(self, tenancy_ocid: str) -> list[dict[str, Any]]:
+        """Load standalone prospective statements for a tenancy from cache/prospects."""
+        path = self._prospects_path(tenancy_ocid)
+        if not path.exists():
+            return []
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return [x for x in data if isinstance(x, dict)]
+        except Exception:
+            logger.warning('Failed loading prospects file %s', path, exc_info=True)
+        return []
+
+    def save_prospects(self, tenancy_ocid: str, rows: list[dict[str, Any]]) -> None:
+        """Persist standalone prospective statements for a tenancy to cache/prospects."""
+        path = self._prospects_path(tenancy_ocid)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(rows, f, ensure_ascii=False, indent=2, default=str)
+        logger.info('Saved %d prospective statements to %s', len(rows or []), path)
+
+    # ----
     # Consolidation Session Save/Load
     # ----
 
     def save_consolidation_session(
-        self, session_data: dict, plan_id: str = None, tenancy_ocid: str = None, preserved: bool = False
+        self, session_data: dict, plan_id: str | None = None, tenancy_ocid: str | None = None, preserved: bool = False
     ) -> str:
         """
         Save a consolidation session (see models_consolidation.ConsolidationSession) to disk as JSON.
@@ -245,7 +370,7 @@ class CacheManager:
         logger.info(f'Saved consolidation session to {file_path}')
         return str(file_path)
 
-    def load_consolidation_session(self, plan_id: str, tenancy_ocid: str = None) -> dict | None:
+    def load_consolidation_session(self, plan_id: str, tenancy_ocid: str | None = None) -> dict | None:
         """
         Load a consolidation session from cache.
         Args:
@@ -284,20 +409,46 @@ class CacheManager:
         CACHE_DATE = datetime.now(UTC).strftime('%Y-%m-%d-%H-%M-%S-%Z')
 
         # BREAKING: Only support new structure: "policies" (BasePolicy objects), "policy_statements" (statements list)
+        policies = self._annotate_stable_keys('policies', policy_analysis.policies)
+        policy_statements = self._annotate_stable_keys('policy_statements', policy_analysis.regular_statements)
+        dynamic_groups = self._annotate_stable_keys('dynamic_groups', policy_analysis.dynamic_groups)
+        defined_aliases = self._annotate_stable_keys('defined_aliases', policy_analysis.defined_aliases)
+        cross_tenancy_statements = self._annotate_stable_keys(
+            'cross_tenancy_statements', policy_analysis.cross_tenancy_statements
+        )
+        identity_domains = self._annotate_stable_keys('identity_domains', policy_analysis._get_domains())
+        groups = self._annotate_stable_keys('groups', policy_analysis.groups)
+        users = self._annotate_stable_keys('users', policy_analysis.users)
+
         combined_data = {
             'version': 2,
+            'schema_version': CACHE_SCHEMA_VERSION,
+            'snapshot_id': hashlib.sha256(
+                f'{policy_analysis.tenancy_ocid}|{CACHE_DATE}|{policy_analysis.data_as_of}'.encode()
+            ).hexdigest(),
+            'captured_at': datetime.now(UTC).isoformat(),
+            'generator_version': 'historical-schema-v3',
             'tenancy_name': policy_analysis.tenancy_name,
             'tenancy_ocid': policy_analysis.tenancy_ocid,
-            'policies': policy_analysis.policies,  # BasePolicy objects only!
-            'policy_statements': policy_analysis.regular_statements,  # List of statements
+            'policies': policies,  # TODO(v4-removal): prefer policies_by_key consumers for diffing.
+            'policy_statements': policy_statements,  # TODO(v4-removal): prefer policy_statements_by_key.
             'defined_tag_namespace_keys': getattr(policy_analysis, 'defined_tag_namespace_keys', {}),
-            'dynamic_groups': policy_analysis.dynamic_groups,
-            'defined_aliases': policy_analysis.defined_aliases,
-            'cross_tenancy_statements': policy_analysis.cross_tenancy_statements,
+            'dynamic_groups': dynamic_groups,
+            'defined_aliases': defined_aliases,
+            'cross_tenancy_statements': cross_tenancy_statements,
             'compartments': policy_analysis.compartments,
-            'identity_domains': policy_analysis._get_domains(),
-            'groups': policy_analysis.groups,
-            'users': policy_analysis.users,
+            'identity_domains': identity_domains,
+            'groups': groups,
+            'users': users,
+            # New, additive map forms for stable keyed diffing.
+            'policies_by_key': self._build_by_key(policies),
+            'policy_statements_by_key': self._build_by_key(policy_statements),
+            'defined_aliases_by_key': self._build_by_key(defined_aliases),
+            'cross_tenancy_statements_by_key': self._build_by_key(cross_tenancy_statements),
+            'identity_domains_by_key': self._build_by_key(identity_domains),
+            'groups_by_key': self._build_by_key(groups),
+            'dynamic_groups_by_key': self._build_by_key(dynamic_groups),
+            'users_by_key': self._build_by_key(users),
             'data_as_of': policy_analysis.data_as_of,
             'load_all_users': getattr(policy_analysis, 'load_all_users', True),
         }
@@ -479,7 +630,9 @@ class CacheManager:
                         f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                         f'{len(cross_tenancy_data)} cross-tenancy policies, '
                         f'{len(policy_analysis.identity_domains)} identity domains, '
-                        f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache.'
+                        f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache. '
+                        f'Policy statements: {len(policy_analysis.regular_statements)}. '
+                        f'Defined tag namespaces: {len(getattr(policy_analysis, "defined_tag_namespace_keys", {}) or {})}.'
                     )
 
             except json.JSONDecodeError as e:
@@ -542,7 +695,9 @@ class CacheManager:
                 f'Loaded {len(policy_analysis.policies)} BasePolicy objects, {len(dynamic_groups)} dynamic groups, '
                 f'{len(cross_tenancy_data)} cross-tenancy policies, '
                 f'{len(policy_analysis.identity_domains)} identity domains, '
-                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache (JSON input).'
+                f'{len(policy_analysis.groups)} groups, and {len(policy_analysis.users)} users from cache (JSON input). '
+                f'Policy statements: {len(policy_analysis.regular_statements)}. '
+                f'Defined tag namespaces: {len(getattr(policy_analysis, "defined_tag_namespace_keys", {}) or {})}.'
             )
             return True
         except json.JSONDecodeError as e:

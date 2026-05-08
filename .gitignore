@@ -42,8 +42,9 @@ Thumbs.db
 .mypy_cache/
 
 # --- Local artifacts ---
-src/sample/
+# src/sample/
 old/
+private/
 
 # --- GitHub & CI ---
 # Keep workflow files

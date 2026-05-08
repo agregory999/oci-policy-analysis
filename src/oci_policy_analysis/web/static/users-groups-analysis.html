@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - User/Group Analysis</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="User and Group Analysis" data-help-body="Filter users or groups, select entities, and inspect matching policy statements in the fly-in details panel.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>User/Group Analysis</h1>
+            <p>Entity Filter + Subject Mapping + Policy Inspector</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary" data-help-title="Back to home" data-help-body="Return to the application home page.">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Select GROUPS or USERS, run a search, choose one or more entities, then inspect matching policy statements below.</p>
+      </div>
+    </div>
+
+    <main>
+      <!-- Top analysis area: Filters (left 1/3) + Entities (right 2/3) -->
+      <div class="users-groups-top-grid" style="grid-template-columns: minmax(340px, 34%) minmax(0, 66%); align-items: start;">
+        <div class="card">
+          <h3 class="section-heading">Filters</h3>
+          <div class="dynamic-group-filter-grid">
+            <div class="dynamic-group-filter-row" data-help-title="Analysis mode" data-help-body="Choose whether to analyze GROUPS or USERS as the source entities.">
+              <label for="mode">Mode</label>
+              <select id="mode"><option>GROUPS</option><option>USERS</option></select>
+            </div>
+            <div class="dynamic-group-filter-row" data-help-title="Entity search" data-help-body="Search users/groups by name. Use | to match multiple values.">
+              <label for="search">Entity Search</label>
+              <input id="search" placeholder="use | for OR" />
+            </div>
+            <div class="dynamic-group-filter-row checkbox-row">
+              <label class="checkbox-label" data-help-title="Show all data columns" data-help-body="Toggle between summary columns and expanded entity metadata."><input type="checkbox" id="showAllData" /> Show all Data</label>
+            </div>
+            <div class="dynamic-group-filter-row checkbox-row">
+              <label class="checkbox-label" data-help-title="Include any-group and any-user" data-help-body="Include generic any-group / any-user policy subjects in the policy filter results."><input type="checkbox" id="includeAny" /> Show any-group / any-user</label>
+            </div>
+          </div>
+          <div class="dynamic-group-actions"><button id="runBtn" data-help-title="Apply filters" data-help-body="Load entities and policy results using current filter settings.">Apply</button><button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset filters and reload default data.">Clear</button></div>
+          <div class="helper-text" style="margin-top: 10px;" data-help-title="Selected Groups" data-help-body="Shows the groups selected or groups that selected users are members of. Policies below are filtered down to these specific groups.">Selected Groups</div>
+          <div id="selectedGroupsWidget" class="pill" style="margin-top: 6px; white-space: pre-wrap; user-select: none; border-radius: 10px; display: block; max-height: 180px; overflow: auto; line-height: 1.35;">(All Groups)</div>
+        </div>
+
+        <div class="card">
+          <div class="analysis-meta">
+            <div id="entityCounts" class="pill">Total Groups: 0 • Total Users: 0</div>
+            <div class="helper-text" data-help-title="Entities table" data-help-body="Select one or more entities to load related policy statements.">Entities Found (select one or more)</div>
+          </div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="entitiesTable" class="analysis-table" data-help-title="Entity results" data-help-body="Entity rows are based on mode and search input. Use checkboxes to include entities."><thead></thead><tbody></tbody></table></div></div>
+        </div>
+      </div>
+
+      <div class="analysis-layout analysis-section-offset" id="policyLayout">
+        <div class="card">
+          <div class="analysis-meta">
+            <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
+            <div class="helper-text" data-help-title="Policy statements table" data-help-body="Click a policy row to inspect normalized and parsed fields in the fly-in.">Tip: click a row to inspect details.</div>
+          </div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Policy statements matched to selected entities and subject filters."><thead><tr><th>Policy Name</th><th>Policy Compartment</th><th>Effective Path</th><th>Statement</th><th>Subject Type</th><th>Subject</th></tr></thead><tbody></tbody></table></div></div>
+        </div>
+        <aside id="policyInspector" class="inspector-panel" aria-live="polite">
+          <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
+          <div class="inspector-body custom-scrollbar" data-help-title="Statement details inspector" data-help-body="Shows all details for the selected policy row."><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table></div>
+          <div class="policy-inspector-footer">
+            <button id="copyStatementBtn" class="ghost" disabled>Copy Statement</button>
+            <button id="copySummaryBtn" class="ghost" disabled>Copy Summary</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <script src="/policy-statement-inspector.js"></script>
+    <script>
+      // Core filter/entity/policy elements used throughout this page script.
+      const modeEl = document.getElementById('mode');
+      const searchEl = document.getElementById('search');
+      const showAllDataEl = document.getElementById('showAllData');
+      const includeAnyEl = document.getElementById('includeAny');
+      const selectedGroupsWidget = document.getElementById('selectedGroupsWidget');
+      const entityCounts = document.getElementById('entityCounts');
+      const entitiesHead = document.querySelector('#entitiesTable thead');
+      const entitiesBody = document.querySelector('#entitiesTable tbody');
+      const resultsBody = document.querySelector('#resultsTable tbody');
+      const summary = document.getElementById('summary');
+      const policyLayout = document.getElementById('policyLayout');
+      const policyInspector = document.getElementById('policyInspector');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const copyStatementBtn = document.getElementById('copyStatementBtn');
+      const copySummaryBtn = document.getElementById('copySummaryBtn');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Select GROUPS or USERS, run a search, choose one or more entities, then inspect matching policy statements below.',
+      };
+
+      const GROUP_COLS = ['Domain Name','Group Name','User Count'];
+      const GROUP_COLS_ALL = ['Domain Name','Group Name','User Count','Group ID','Group OCID'];
+      const USER_COLS = ['Domain Name','Username','Display Name','Primary Email'];
+      const USER_COLS_ALL = ['Domain Name','Username','Display Name','Primary Email','User ID','User OCID'];
+      let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = []; let selectedPolicy = null;
+      let allGroupsRows = [];
+      const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      const cols = () => modeEl.value === 'GROUPS' ? (showAllDataEl.checked ? GROUP_COLS_ALL : GROUP_COLS) : (showAllDataEl.checked ? USER_COLS_ALL : USER_COLS);
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        // Hover/focus-driven help text updates for any annotated control.
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+      function val(r, c){
+        if (!r) return '';
+        const direct = r[c];
+        if (direct !== undefined && direct !== null) return direct;
+
+        const aliases = {
+          'Domain Name': ['domain_name', 'Domain', 'domain'],
+          'Group Name': ['group_name', 'name'],
+          'Username': ['user_name', 'username', 'name'],
+          'Display Name': ['display_name', 'displayName'],
+          'Primary Email': ['email', 'primary_email', 'primaryEmail'],
+          'User ID': ['user_id', 'id'],
+          'User OCID': ['user_ocid', 'ocid'],
+          'Group ID': ['group_id', 'id'],
+          'Group OCID': ['group_ocid', 'ocid'],
+          'User Count': ['user_count', 'UserCount'],
+        };
+
+        for (const k of aliases[c] || []) {
+          const v = r[k];
+          if (v !== undefined && v !== null) return v;
+        }
+
+        // Last-resort case-insensitive lookup for header-compatible keys.
+        const normalized = String(c || '').toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+        for (const [k, v] of Object.entries(r)) {
+          const nk = String(k || '').toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+          if (nk === normalized && v !== undefined && v !== null) return v;
+        }
+        return '';
+      }
+
+      function getRowValue(row, key){
+        if (key === 'invalid_reasons') {
+          const reasons = row?.invalid_reasons;
+          if (Array.isArray(reasons) && reasons.length) return reasons;
+          const legacy = row?.invalid_reason;
+          if (Array.isArray(legacy)) return legacy;
+          if (legacy !== undefined && legacy !== null && String(legacy).trim() !== '') return [String(legacy)];
+        }
+        const titleKey = String(key || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: { titleWhenSelected: 'Statement Details' },
+        onSelectionChange: (row) => {
+          selectedPolicy = row || null;
+          const hasSelection = Boolean(row);
+          copyStatementBtn.disabled = !hasSelection;
+          copySummaryBtn.disabled = !hasSelection;
+        },
+      });
+
+      function renderEntities(){
+        entitiesHead.innerHTML = '<tr><th>Select</th>' + cols().map((c)=>`<th>${esc(c)}</th>`).join('') + '</tr>';
+        entitiesBody.innerHTML = entityRows.map((r,i)=>`<tr data-row-id="${i}" class="${selectedEntityIndexes.has(i)?'active-row':''}"><td><input type="checkbox" ${selectedEntityIndexes.has(i)?'checked':''}></td>${cols().map((c)=>`<td>${esc(val(r,c))}</td>`).join('')}</tr>`).join('');
+        [...entitiesBody.querySelectorAll('tr')].forEach((tr)=>{
+          tr.querySelector('input').addEventListener('change', async (e)=>{ const i = Number(tr.dataset.rowId); if(e.target.checked) selectedEntityIndexes.add(i); else selectedEntityIndexes.delete(i); renderEntities(); await loadPolicies(); });
+        });
+      }
+
+      function renderPolicies(){
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Subject Type'])}</td><td>${esc(p['Subject'])}</td></tr>`).join('');
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
+      }
+
+      function getSelectedGroupsFromUsers() {
+        if (modeEl.value !== 'USERS') return [];
+        const byOcid = new Map();
+        const byName = new Map();
+        (allGroupsRows || []).forEach((g) => {
+          const ocid = String(g.group_ocid || g['Group OCID'] || '').trim();
+          const domainName = String(g.domain_name || g['Domain Name'] || 'Default').trim() || 'Default';
+          const groupName = String(g.group_name || g['Group Name'] || '').trim();
+          if (!ocid) return;
+          byOcid.set(ocid, g);
+          if (groupName) {
+            byName.set(`${domainName.toLowerCase()}::${groupName.toLowerCase()}`, g);
+            byName.set(`default::${groupName.toLowerCase()}`, g);
+          }
+        });
+
+        const dedup = new Map();
+        [...selectedEntityIndexes]
+          .map((i) => entityRows[i])
+          .filter(Boolean)
+          .forEach((userRow) => {
+            const rawUserGroups = userRow.groups ?? userRow['groups'] ?? userRow['User Groups'] ?? [];
+            let userGroups = [];
+            if (Array.isArray(rawUserGroups)) {
+              userGroups = rawUserGroups;
+            } else if (typeof rawUserGroups === 'string') {
+              userGroups = rawUserGroups
+                .split(',')
+                .map((s) => s.trim())
+                .filter((s) => s && s.toUpperCase() !== 'N/A');
+            }
+            userGroups.forEach((groupRefRaw) => {
+              const groupRef = String(groupRefRaw || '').trim();
+              if (!groupRef) return;
+
+              const userDomain = String(userRow['Domain Name'] || userRow.domain_name || 'Default').trim() || 'Default';
+              let resolved = byOcid.get(groupRef);
+              if (!resolved) {
+                resolved = byName.get(`${userDomain.toLowerCase()}::${groupRef.toLowerCase()}`) || byName.get(`default::${groupRef.toLowerCase()}`);
+              }
+              if (!resolved) return;
+              const domainName = String(resolved.domain_name || resolved['Domain Name'] || 'Default');
+              const groupName = String(resolved.group_name || resolved['Group Name'] || '').trim();
+              if (!groupName) return;
+              const key = `${domainName.toLowerCase()}::${groupName.toLowerCase()}`;
+              if (!dedup.has(key)) {
+                dedup.set(key, {
+                  domain_name: domainName,
+                  group_name: groupName,
+                  group_ocid: String(resolved.group_ocid || resolved['Group OCID'] || groupRef),
+                });
+              }
+            });
+          });
+        console.debug('[users-groups] selected user count:', selectedEntityIndexes.size, 'derived groups:', [...dedup.values()]);
+        return [...dedup.values()];
+      }
+
+      function selectedPayload(){
+        const chosen = [...selectedEntityIndexes].map(i => entityRows[i]).filter(Boolean);
+        if (modeEl.value === 'GROUPS') return { exact_groups: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', group_name: r['Group Name'] })) };
+        const selectedGroups = getSelectedGroupsFromUsers();
+        if (selectedGroups.length) {
+          return { exact_groups: selectedGroups };
+        }
+        // Fallback: if user->group resolution is empty, send exact users so backend can resolve memberships.
+        const exactUsers = chosen
+          .map((u) => ({
+            domain_name: String(u['Domain Name'] || u.domain_name || 'Default'),
+            user_name: String(u['Username'] || u.user_name || '').trim(),
+          }))
+          .filter((u) => u.user_name);
+        return { exact_users: exactUsers };
+      }
+
+      function updateSelectedGroupsWidget(){
+        if (!selectedGroupsWidget) return;
+
+        const groups = new Set();
+        const chosen = [...selectedEntityIndexes].map((i) => entityRows[i]).filter(Boolean);
+
+        // With no explicit entity selections, policy filtering is effectively across all groups.
+        if (!chosen.length) {
+          selectedGroupsWidget.textContent = '(All Groups)';
+          return;
+        }
+
+        if (modeEl.value === 'GROUPS') {
+          chosen.forEach((r) => {
+            const domain = r['Domain Name'] || r.domain_name || 'Default';
+            const name = r['Group Name'] || r.group_name || r.name;
+            if (name) groups.add(`${domain}/${name}`);
+          });
+        }
+
+        // For USERS mode, derive the de-duped group list directly from selected users' group memberships.
+        if (modeEl.value === 'USERS') {
+          const derived = getSelectedGroupsFromUsers();
+          derived.forEach((g) => {
+            groups.add(`${g.domain_name}/${g.group_name}`);
+          });
+          if (!derived.length && chosen.length) {
+            groups.add('(No groups resolved from selected users)');
+          }
+        }
+
+        const sorted = [...groups].sort((a, b) => a.localeCompare(b));
+        selectedGroupsWidget.textContent = sorted.length ? sorted.join('\n') : '(All Groups)';
+      }
+
+      async function loadEntities(){
+        // Fetch totals and current mode-specific entities in parallel.
+        selectedEntityIndexes.clear();
+        updateSelectedGroupsWidget();
+        const q = encodeURIComponent(searchEl.value || '');
+        const [g,u,m] = await Promise.all([fetch('/entities/groups?search='+q), fetch('/entities/users?search='+q), fetch((modeEl.value==='GROUPS'?'/entities/groups':'/entities/users')+'?search='+q)]);
+        const groups = await g.json(); const users = await u.json(); const main = await m.json();
+        allGroupsRows = Array.isArray(groups.groups) ? groups.groups : [];
+        entityCounts.textContent = `Total Groups: ${groups.total || 0} • Total Users: ${users.total || 0}`;
+        entityRows = modeEl.value === 'GROUPS' ? (main.groups || []) : (main.users || []);
+        renderEntities();
+        await loadPolicies();
+      }
+
+      async function loadPolicies(){
+        const payload = { ...selectedPayload(), include_any_subjects: includeAnyEl.checked };
+        console.debug('[users-groups] POST /filter/policies/by-subjects payload:', payload);
+        const resp = await fetch('/filter/policies/by-subjects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await resp.json();
+        currentPolicies = (data.statements || []).map((r, idx) => ({...r, _row_id: idx + 1}));
+        updateSelectedGroupsWidget();
+        summary.textContent = `Policy Statements (Filtered): ${currentPolicies.length}`;
+        inspector.clear();
+        renderPolicies();
+      }
+
+      document.getElementById('runBtn').addEventListener('click', loadEntities);
+      document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; includeAnyEl.checked=false; loadEntities(); });
+      document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
+      copyStatementBtn.addEventListener('click', async () => { await inspector.copyStatement(); });
+      copySummaryBtn.addEventListener('click', async () => { await inspector.copySummary(); });
+      // Mode change needs a fresh entity fetch so table data matches selected type immediately.
+      modeEl.addEventListener('change', loadEntities);
+      // Show-all-data only affects visible columns for the currently loaded entity rows.
+      showAllDataEl.addEventListener('change', renderEntities);
+
+      bindContextHelp();
+      setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      loadEntities();
+    </script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

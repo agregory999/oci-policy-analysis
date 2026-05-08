@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -58,7 +59,54 @@ jobs:
             echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-  build:
+  package:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Skip package if docs-only commit
+        id: skip_package
+        shell: bash
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping package for docs commit."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.skip_package.outputs.skip != 'true'
+        with: { fetch-depth: 0 }
+
+      - name: Set up Python
+        if: steps.skip_package.outputs.skip != 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: Build Python package (wheel + sdist)
+        if: steps.skip_package.outputs.skip != 'true'
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          ls -lh dist
+
+      - name: Upload Python package artifacts
+        if: steps.skip_package.outputs.skip != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: python-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          retention-days: 30
+
+  build_desktop:
     needs: release
     strategy:
       matrix:
@@ -131,21 +179,10 @@ jobs:
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
 
-          echo "📦 Installing your project..."
-          pip install -e .
+          echo "📦 Installing your project (+mcp extra for PyInstaller metadata copy)..."
+          pip install -e ".[mcp]"
                 
 
-
-      - name: Build package
-        if: steps.skip_build.outputs.skip != 'true'
-        shell: bash
-        env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
-        run: |
-          echo "🏗️ Building wheel/sdist..."
-          mkdir -p src/oci_policy_analysis
-          python -m build
-          pip install -e .
 
       - name: Run Ruff check
         if: steps.skip_build.outputs.skip != 'true'
@@ -293,9 +330,9 @@ jobs:
             dist/oci-policy-analysis-*.zip
           retention-days: 30
 
-  publish:
-    needs: [release, build]
-    if: github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'feature/')
+  publish_github_release:
+    needs: [release, build_desktop]
+    if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
     steps:
       - name: Skip publish if docs-only commit
@@ -338,3 +375,34 @@ jobs:
           overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish_pypi:
+    needs: [release, package]
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip PyPI publish if docs-only commit
+        id: skip_pypi
+        shell: bash
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == docs:* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping PyPI publish for docs commit."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download Python package artifacts
+        if: steps.skip_pypi.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - name: Show package artifacts
+        if: steps.skip_pypi.outputs.skip != 'true'
+        run: ls -lh dist
+
+      - name: Publish to PyPI
+        if: steps.skip_pypi.outputs.skip != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1

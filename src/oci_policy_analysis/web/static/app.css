@@ -1,0 +1,2062 @@
+/* ============================================================================
+   OCI Policy Analysis - Shared Web Stylesheet
+   ----------------------------------------------------------------------------
+   Purpose
+   - Shared, reusable styling for static web pages in /web/static/*.html.
+   - Source of truth for layout, card, form, status, and analysis inspector UI.
+
+   Documentation conventions in this file
+   - Large banner comments mark major sections.
+   - Short contract comments describe reusable components and expected usage.
+   - Keep page-specific style fragments out unless they are intentionally reusable.
+   ============================================================================ */
+
+/* --------------------------------------------------------------------------
+   Design tokens (brand + semantic surface/text colors)
+   -------------------------------------------------------------------------- */
+:root {
+  --oci-red: #c74634;
+  --oci-red-deep: #9f3022;
+  --oci-red-soft: #fdf1ef;
+  --oci-ink: #1f1b1a;
+  --oci-steel: #5f5956;
+  --oci-line: #e7dfdb;
+  --oci-panel: #fffdfa;
+  --oci-bg: #f7f4f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Global page base: typography, background treatment, and default text color. */
+body {
+  font-family: "Oracle Sans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(199, 70, 52, 0.08), transparent 22%),
+    linear-gradient(180deg, #fbf9f8 0%, var(--oci-bg) 100%);
+  color: var(--oci-ink);
+}
+
+/* Legacy/simple header styling for pages not yet migrated to .app-masthead. */
+header:not(.app-masthead) {
+  background: #111827;
+  color: #f9fafb;
+  padding: 1.5rem 2rem;
+}
+
+header:not(.app-masthead) h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+header:not(.app-masthead) p {
+  margin: 0.4rem 0 0;
+  color: #d1d5db;
+}
+
+header:not(.app-masthead) a {
+  color: #93c5fd;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+main {
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* Core card container shared across pages (base panel surface). */
+.card {
+  background: var(--oci-panel);
+  border-radius: 14px;
+  padding: 1.5rem;
+  border: 1px solid var(--oci-line);
+  box-shadow: 0 10px 24px rgba(38, 30, 26, 0.06);
+}
+
+.compact-card {
+  padding: 1.1rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(38, 30, 26, 0.05);
+}
+
+/* Form layout primitives used in operation panels and filter sections. */
+.form-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.form-row > * {
+  flex: 1 1 160px;
+}
+
+.helper-text {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+label {
+  font-weight: 600;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* Form control baseline for consistent input/select/textarea rendering. */
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--oci-line);
+  background: #fff;
+  font-family: inherit;
+}
+
+textarea {
+  min-height: 140px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+/* Primary and variant action buttons. Prefer classes over inline styles. */
+button {
+  margin-top: 0.75rem;
+  background: var(--oci-red);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+button.secondary {
+  background: #6b7280;
+}
+
+button.ghost {
+  background: #fff;
+  color: var(--oci-steel);
+  border: 1px solid var(--oci-line);
+}
+
+button:disabled {
+  background: #c5c7d0;
+  cursor: not-allowed;
+}
+
+.status {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.status.success {
+  color: #0f7b0f;
+}
+
+.status.error {
+  color: #b00020;
+}
+
+/* Data table baseline: compact monospace scan-first presentation. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+th {
+  background: #f3f4f6;
+}
+
+.pill {
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  display: inline-block;
+}
+
+/* Refresh/log surfaces and status badge colors used by load workflows. */
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.log-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(420px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.left-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Logging page layout helpers: 3-column row utility + shared spacing primitives. */
+.layout-row.layout-row-3.logging-layout-row {
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.logging-layout-row > .layout-col-span-2 {
+  grid-column: auto;
+}
+
+.logging-options-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.logging-section-separator {
+  margin: 1.1rem 0;
+}
+
+.logging-tight-title {
+  margin-bottom: 0.2rem;
+}
+
+.logging-main-heading {
+  margin: 0;
+}
+
+.logging-group-header-cell {
+  font-weight: 700;
+  background: #f9fafb;
+}
+
+.log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+#logOutput {
+  padding: 1.5rem;
+  max-height: 68vh;
+  overflow: auto;
+}
+
+.refresh-log {
+  background: #1b1715;
+  color: #f7f4f2;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 16px;
+  border: 1px solid #3a302c;
+  margin: 0;
+}
+
+.refresh-log-line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.refresh-log-warning {
+  color: #fde68a;
+}
+
+.refresh-log-error {
+  color: #fca5a5;
+}
+
+.refresh-status-running {
+  background: var(--oci-red-soft);
+  color: var(--oci-red);
+  border: 1px solid #efc6be;
+}
+
+.refresh-status-success {
+  background: #ecfdf3;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.refresh-status-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.refresh-status-partial {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.status-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-meta {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.page-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #9ca3af;
+}
+
+.card-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  color: #9ca3af;
+}
+
+/* --------------------------------------------------------------------------
+   Standard page layout + reusable component styles
+   Used by home page and analysis pages as the default structural system.
+   -------------------------------------------------------------------------- */
+/* Top opening row for masthead + context help panel. */
+.top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.5rem 2rem 0;
+  align-items: stretch;
+}
+
+/* Main branded masthead shell. */
+.app-masthead {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--oci-line);
+  border-top: 2px solid var(--oci-red);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--oci-ink);
+  box-shadow: 0 1px 2px rgba(22, 20, 18, 0.05), 0 16px 34px rgba(22, 20, 18, 0.06);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.masthead-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+/* Small brand badge (OCI) shown in masthead left cluster. */
+.masthead-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: var(--oci-red-soft, #fdf1ef);
+  border: 1px solid #efc6be;
+  color: var(--oci-red);
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-masthead h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  color: #1f1b1a;
+  font-weight: 800;
+}
+
+.app-masthead p {
+  margin: 0.08rem 0 0;
+  color: #6b7280;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.masthead-meta {
+  text-align: right;
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.masthead-meta .card-link {
+  white-space: nowrap;
+  display: inline-block;
+}
+
+/* Card body typography + action link variants. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.card p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.card a,
+.card-link {
+  align-self: flex-start;
+  background: var(--oci-red);
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.card a.secondary,
+.card-link.secondary {
+  background: var(--oci-red);
+}
+
+.card-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.icon-button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.icon-button {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.1rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #efc6be;
+  background: #fff;
+  color: var(--oci-red);
+  text-decoration: none;
+  font-weight: 800;
+  transition: all 0.15s ease;
+}
+
+.icon-button:hover {
+  border-color: #e8a9a0;
+  background: #fff8f6;
+  box-shadow: 0 8px 16px rgba(159, 48, 34, 0.1);
+  transform: translateY(-1px);
+}
+
+.icon-button-primary {
+  background: linear-gradient(180deg, var(--oci-red) 0%, var(--oci-red-deep) 100%);
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(159, 48, 34, 0.14);
+}
+
+.icon-button-primary:hover {
+  background: linear-gradient(180deg, #d55342 0%, #aa3526 100%);
+}
+
+.icon-button-mark {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--oci-red-soft);
+  color: var(--oci-red);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.icon-button-primary .icon-button-mark {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.icon-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Footer typography shared by standard pages. */
+footer,
+.app-footer {
+  padding: 1rem 2rem 2rem;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+/* Utility rows for grouped actions/toolbars and aligned label-control pairs. */
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.panel-actions .card-link {
+  align-self: center;
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.panel-actions button {
+  margin-top: 0;
+}
+
+.policy-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Compartment hierarchy page: search toolbar, summary line, scroll shell, and limit-state badges. */
+.compartment-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.compartment-toolbar input {
+  min-width: 280px;
+  flex: 1;
+}
+
+.compartment-summary {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.compartment-layout-main {
+  min-height: calc(100vh - 190px);
+}
+
+.compartment-card-fill {
+  min-height: calc(100vh - 210px);
+}
+
+.compartment-table-shell-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.compartment-table-scroll {
+  height: 100%;
+  max-height: none !important;
+  overflow: auto;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  gap: 0.22rem;
+  align-items: baseline;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.tag-chip strong {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.tag-list-empty {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.limit-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.limit-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.limit-warning {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.limit-over {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.inline-field > label {
+  min-width: 190px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.inline-field > input,
+.inline-field > select {
+  flex: 1;
+}
+
+.tenancy-options-row,
+.options-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tenancy-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.tenancy-profile-row label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.tenancy-profile-row select {
+  flex: 0 1 220px;
+  max-width: 220px;
+}
+
+.ops-button {
+  min-width: 190px;
+  justify-content: center;
+}
+
+.inline-field .ops-button,
+.tenancy-profile-row .ops-button {
+  margin-left: auto;
+}
+
+.context-help-card {
+  border: 1px solid var(--oci-line);
+  border-top: 2px solid var(--oci-red);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0.55rem 0.8rem;
+  box-shadow: 0 1px 2px rgba(22, 20, 18, 0.04), 0 10px 24px rgba(22, 20, 18, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Optional fixed-help variant used by index-style top row layouts. */
+.top-row.has-fixed-help {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.top-row.has-fixed-help > * {
+  min-height: 102px;
+}
+
+.context-help-fixed {
+  position: static;
+  width: 100%;
+  height: 100%;
+}
+
+.context-help-kicker {
+  margin: 0;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  color: #6b7280;
+}
+
+.context-help-title {
+  margin: 0.18rem 0 0;
+  font-size: 0.86rem;
+  color: #1f1b1a;
+}
+
+.context-help-body {
+  margin: 0.18rem 0 0;
+  color: #4b5563;
+  line-height: 1.28;
+  font-size: 0.8rem;
+}
+
+.progress-widget {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 0.75rem;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(30, 24, 21, 0.04);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.progress-widget-title {
+  margin: 0;
+}
+
+.progress-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.progress-widget-percent {
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.progress-widget-track {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-widget-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--oci-red);
+  transition: width 0.25s ease;
+}
+
+.progress-fill-65 {
+  width: 65%;
+}
+
+.progress-fill-100 {
+  width: 100%;
+}
+
+.progress-widget-detail {
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.common-progress-row {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(280px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.common-options-compact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+/* Generic two-column shell (main + right rail) and single-column shell. */
+main.layout-main,
+main.layout-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 1rem;
+  padding: 1rem 2rem;
+  align-items: start;
+}
+
+main.layout-two-column.layout-two-column-equal {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+main.layout-single {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 2rem;
+}
+
+.side-stack {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.section-separator {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Row utility system for composing 1/2/3/4-column content sections. */
+.layout-row {
+  display: grid;
+  gap: 1rem;
+}
+
+.layout-row-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.layout-row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.layout-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.layout-row-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.layout-col-span-2 {
+  grid-column: span 2;
+}
+
+.layout-col-span-3 {
+  grid-column: span 3;
+}
+
+.layout-col-span-4 {
+  grid-column: span 4;
+}
+
+.cache-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.form-grid-spacious {
+  gap: 1rem;
+}
+
+.section-heading {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.section-kicker {
+  font-size: 0.82rem;
+  color: #6b7280;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.no-margin-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.select-compact {
+  min-width: 170px;
+  max-width: 220px;
+}
+
+.mt-compact {
+  margin-top: 0.45rem;
+}
+
+.code-sample {
+  display: block;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #1b1715;
+  color: #f7f4f2;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --------------------------------------------------------------------------
+   Extracted Explorer utility classes (reusable shared patterns)
+   Keep as utility layer; these support controls/chips/tabs/scroll wrappers.
+   -------------------------------------------------------------------------- */
+html {
+  font-family: "Oracle Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f3eeeb;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d0c3bc;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #b29f95;
+}
+
+.table-container {
+  overflow-x: auto;
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+}
+
+/* Small icon-only copy affordance used near OCID and diagnostic fields. */
+.copy-icon-btn {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0.1rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  background: transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.copy-icon-btn:hover {
+  color: var(--oci-red);
+  background: var(--oci-red-soft);
+  border-color: #efc6be;
+  transform: translateY(-1px);
+}
+
+.ocid-chip {
+  border: 1px solid #d6d2cd;
+  background: #f3f2f0;
+  color: #5d5753;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.ocid-chip:hover {
+  border-color: #c9c3bd;
+  background: #ece9e6;
+  color: #322d2a;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(24, 22, 20, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.auth-modal-card {
+  width: min(460px, 96vw);
+  background: #fffdfa;
+  border: 1px solid var(--oci-line);
+  border-top: 2px solid var(--oci-red);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  padding: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.auth-modal-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.auth-modal-card p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.auth-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.auth-modal-error {
+  min-height: 1.1rem;
+  color: #b00020;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade {
+  animation: fadeIn 0.18s ease-out forwards;
+}
+
+.portal-tab,
+.opportunity-subtab {
+  border: 1px solid var(--oci-line);
+  background: #fff;
+  color: var(--oci-steel);
+  transition: all 0.15s ease;
+}
+
+.portal-tab:hover,
+.opportunity-subtab:hover {
+  border-color: #efc6be;
+  color: var(--oci-red);
+  background: var(--oci-red-soft);
+}
+
+.portal-tab-active,
+.opportunity-subtab-active {
+  border-color: #efc6be;
+  color: #fff;
+  background: linear-gradient(180deg, var(--oci-red) 0%, var(--oci-red-deep) 100%);
+  box-shadow: 0 10px 18px rgba(159, 48, 34, 0.14);
+}
+
+.regional-chip,
+.opportunity-filter-pill {
+  border: 1px solid #e7dfdb;
+  background: #fff;
+  color: #5f5956;
+  transition: all 0.15s ease;
+}
+
+.regional-chip-button,
+.opportunity-filter-pill-button {
+  cursor: pointer;
+}
+
+.regional-chip-button:hover,
+.opportunity-filter-pill:hover {
+  border-color: #efc6be;
+  color: var(--oci-red);
+  background: #fff8f6;
+}
+
+.regional-chip-active,
+.opportunity-filter-pill-active {
+  border-color: #efc6be;
+  background: var(--oci-red-soft);
+  color: var(--oci-red);
+}
+
+/* --------------------------------------------------------------------------
+   Standardized inspector and analysis layout classes
+   Shared by analysis pages for table + details-pane workflow.
+   -------------------------------------------------------------------------- */
+.analysis-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+}
+
+.prospective-editor-host {
+  position: relative;
+  width: 100%;
+}
+
+.analysis-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f1ef;
+}
+
+.analysis-table tbody tr:nth-child(odd) {
+  background: #fff;
+}
+
+.analysis-table tbody tr:nth-child(even) {
+  background: #f7f7f7;
+}
+
+.analysis-table tbody tr:hover {
+  background: #fdf1ef;
+}
+
+.table-shell {
+  border: 1px solid var(--oci-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.table-scroll {
+  max-height: 34vh;
+  overflow: auto;
+}
+
+.active-row {
+  background: #fbe4e0 !important;
+}
+
+.matching-rule-cell {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hidden by default; opened by toggling .open in page JS. */
+.inspector-panel {
+  display: none;
+  border: 1px solid var(--oci-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.inspector-panel.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector-panel.demo-static,
+.inspector-panel.demo-static.open {
+  position: relative;
+  display: flex;
+  transform: none;
+  pointer-events: auto;
+  width: 100%;
+  max-height: 320px;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(38, 30, 26, 0.08);
+}
+
+.inspector-header {
+  padding: 0.9rem 1rem;
+  background: #1f1b1a;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inspector-body {
+  max-height: 58vh;
+  overflow: auto;
+}
+
+.inspector-empty {
+  padding: 1rem;
+  color: #6b7280;
+}
+
+.inspector-separator th {
+  width: 100%;
+  background: #f1ede9;
+  color: #6c625d;
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.5rem;
+}
+
+.inspector-table th {
+  width: 34%;
+  background: #faf8f6;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.prospective-editor {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(1100px, 66vw);
+  background: #fff;
+  border-left: 1px solid var(--oci-line);
+  box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
+  transform: translateX(105%);
+  transition: transform 180ms ease;
+  z-index: 60;
+}
+
+.prospective-editor.open {
+  transform: translateX(0);
+}
+
+.prospective-editor-header {
+  padding: 0.9rem 1rem;
+  background: #1f1b1a;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prospective-editor-body {
+  padding: 0.8rem;
+  overflow: auto;
+  display: grid;
+  gap: 0.8rem;
+}
+
+/* Reusable prospective statement widgets (policy analysis + future pages) */
+.prospective-grid table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.prospective-statements-table th,
+.prospective-statements-table td {
+  width: 25%;
+}
+
+.prospective-block-statement-header-row th,
+.prospective-block-statement-value-row td {
+  width: 100%;
+}
+
+.prospective-grid textarea {
+  min-height: 44px;
+  width: 100%;
+  resize: vertical;
+}
+
+.prospective-block-header-row th {
+  background: #faf8f6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6c625d;
+  font-weight: 700;
+}
+
+.prospective-line2-cell {
+  padding-top: 0.35rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.prospective-block-top td {
+  border-bottom: 0;
+}
+
+.prospective-block-bottom td {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.prospective-block-statement-header-row th {
+  background: #faf8f6;
+  text-align: left;
+  border-bottom: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6c625d;
+  font-weight: 700;
+  padding-top: 0.4rem;
+  padding-bottom: 0.35rem;
+}
+
+.prospective-empty-state {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.85rem;
+  padding: 0.8rem 0.6rem;
+  background: #fffdfa;
+}
+
+.prospective-statement-text-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6c625d;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+
+.prospective-sep td {
+  padding: 0;
+  border: 0;
+}
+
+.prospective-sep-line {
+  height: 1px;
+  background: #e9e3de;
+  margin: 0.2rem 0;
+}
+
+.prospective-builder-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prospective-builder-cell {
+  min-width: 0;
+}
+
+.prospective-builder-span-2 {
+  grid-column: span 2;
+}
+
+.prospective-builder-tag-row-start {
+  grid-column: 1;
+}
+
+.prospective-builder-span-4 {
+  grid-column: 1 / -1;
+}
+
+.prospective-builder-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
+}
+
+.prospective-builder-inline-row label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.prospective-builder-control {
+  margin: 0;
+  min-width: 0;
+}
+
+.prospective-field {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.prospective-field label {
+  font-size: 0.78rem;
+  color: #5f5956;
+  font-weight: 600;
+}
+
+.prospective-note {
+  font-size: 0.74rem;
+  color: #6b7280;
+}
+
+.prospective-inline-check {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+}
+
+.prospective-inline-check .helper-text {
+  margin-top: 0;
+  font-size: 0.78rem;
+}
+
+#pbIncludeDefault,
+#pbUseAllResources {
+  justify-self: start;
+}
+
+#pbOtherWhereField {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1300px) {
+  .prospective-builder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prospective-builder-span-2,
+  .prospective-builder-span-4 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .prospective-builder-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prospective-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  background: #faf8f6;
+  border: 1px solid var(--oci-line);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+/* Dynamic Group/User analysis page layout helpers */
+.dynamic-group-top-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 25fr) minmax(0, 75fr);
+  gap: 1rem;
+}
+
+.users-groups-top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.users-groups-top-grid.single-column {
+  grid-template-columns: 1fr;
+}
+
+.dynamic-group-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+/* Condition Tester page layout components */
+.condition-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.condition-clause-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.condition-actions-vertical {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.condition-vars-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.condition-var-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.condition-var-row > label {
+  margin: 0;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.condition-var-row > input {
+  width: 240px;
+  min-width: 180px;
+  max-width: 240px;
+  flex: 0 0 240px;
+}
+
+.condition-var-row > .hint {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hint {
+  color: #6b7280;
+  font-size: 0.84rem;
+}
+
+.result-log {
+  min-height: 320px;
+  max-height: 55vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: #161210;
+  color: #f8f7f6;
+  border-radius: 12px;
+  border: 1px solid #372d29;
+  padding: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.result-log.refresh-log {
+  background: #1b1715;
+  color: #f7f4f2;
+}
+
+.result-pass {
+  color: #7ef0a0;
+}
+
+.result-fail {
+  color: #ff9fa8;
+}
+
+.result-head {
+  color: #9ad6ff;
+  font-weight: 700;
+}
+
+.users-groups-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.dynamic-group-filter-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dynamic-group-filter-row > label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.dynamic-group-filter-row.checkbox-row {
+  grid-template-columns: 1fr;
+}
+
+.dynamic-group-actions {
+  margin-top: 0.7rem;
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.analysis-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.analysis-table-offset {
+  margin-top: 0.8rem;
+}
+
+.analysis-section-offset {
+  margin-top: 1rem;
+}
+
+.analysis-layout.non-dg-mode .table-scroll {
+  max-height: 62vh;
+}
+
+/* Historical Analysis page (shared diff section components) */
+.historical-compare-row {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1fr 1fr auto;
+}
+
+.historical-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.diff-section-card {
+  border: 1px solid var(--oci-line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: #fff;
+}
+
+.diff-section-title {
+  margin: 0 0 0.4rem;
+  font-weight: 700;
+}
+
+.pill-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+
+.diff-muted {
+  color: #6b7280;
+  font-size: 0.86rem;
+}
+
+.diff-section-card details {
+  border-top: 1px solid #eee;
+  padding-top: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.diff-section-card summary {
+  cursor: pointer;
+}
+
+.diff-value-block {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 0.55rem;
+}
+
+/* --------------------------------------------------------------------------
+   Workflow Workbench Template Utilities
+   -------------------------------------------------------------------------- */
+
+/*
+  Use this pattern for complex workflows that move through ordered steps,
+  while keeping a persistent right-rail summary/status area visible.
+*/
+.workflow-workbench {
+  align-items: start;
+}
+
+.workflow-main {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.workflow-rail {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.2rem;
+}
+
+.workflow-step {
+  margin-top: 0;
+  background: #fff;
+  color: var(--oci-steel);
+  border: 1px solid var(--oci-line);
+  border-radius: 999px;
+  padding: 0.42rem 0.86rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.workflow-step:hover {
+  border-color: var(--oci-red);
+  color: var(--oci-red-deep);
+}
+
+.workflow-step-active {
+  background: var(--oci-red-soft);
+  color: var(--oci-red-deep);
+  border-color: #f1c2bb;
+}
+
+.workflow-panel {
+  display: none;
+  border: 1px solid var(--oci-line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.workflow-panel-active {
+  display: block;
+}
+
+.workflow-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.workflow-panel-title {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+.workflow-panel-kicker {
+  margin: 0;
+  color: var(--oci-steel);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.workflow-summary-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workflow-summary-tile {
+  border: 1px solid var(--oci-line);
+  border-radius: 10px;
+  padding: 0.6rem;
+  background: #fff;
+}
+
+.workflow-summary-label {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workflow-summary-value {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.workflow-metric-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.workflow-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-metric strong {
+  font-size: 0.98rem;
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--oci-line);
+  padding: 0.18rem 0.56rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.result-badge.allowed {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.result-badge.denied {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.workflow-mini-log {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding: 0.6rem;
+  border: 1px solid var(--oci-line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.83rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Compact in-page section jump strip (used by recommendations and similar dashboards). */
+.section-jump-nav {
+  gap: 0.55rem;
+}
+
+.section-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.section-jump-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  background: #fff;
+  color: var(--oci-steel);
+  border: 1px solid var(--oci-line);
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  transition: all 0.15s ease;
+}
+
+.section-jump-link:hover,
+.section-jump-link:focus-visible {
+  border-color: #efc6be;
+  color: var(--oci-red);
+  background: var(--oci-red-soft);
+  box-shadow: 0 4px 10px rgba(159, 48, 34, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Optional bottom-drawer inspector variant for workflow pages.
+   Use with .analysis-layout + .inspector-panel. */
+.inspector-panel-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 78vh;
+  max-height: 78vh;
+  border-radius: 16px 16px 0 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  transform: translateY(105%);
+  transition: transform 180ms ease;
+  z-index: 55;
+  pointer-events: none;
+  background: #fff;
+}
+
+.inspector-panel-bottom.open {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.prospective-editor-host > .inspector-panel.inspector-panel-bottom {
+  z-index: 92;
+}
+
+/* Responsive collapse rules for multi-column row utilities and top grids. */
+@media (max-width: 1000px) {
+  .layout-row-2,
+  .layout-row-3,
+  .layout-row-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-col-span-2,
+  .layout-col-span-3,
+  .layout-col-span-4 {
+    grid-column: auto;
+  }
+
+  .dynamic-group-top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-groups-top-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prospective-editor-footer {
+  padding: 0.7rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid var(--oci-line);
+}
+
+/* Inspector becomes fixed right-side fly-in on larger desktops. */
+@media (min-width: 1200px) {
+  .inspector-panel:not(.inspector-panel-bottom) {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(460px, 40vw);
+    border-radius: 0;
+    z-index: 40;
+    box-shadow: -16px 0 32px rgba(0, 0, 0, 0.22);
+    transform: translateX(105%);
+    transition: transform 180ms ease;
+    pointer-events: none;
+  }
+
+  .inspector-panel:not(.inspector-panel-bottom).open {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  .inspector-body {
+    max-height: none;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* Tablet/mobile adjustments for masthead, content shells, and help pane flow. */
+@media (max-width: 980px) {
+  .top-row {
+    grid-template-columns: 1fr;
+    padding: 0.75rem 1rem 0;
+  }
+
+  .app-masthead {
+    padding: 0.9rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .masthead-meta {
+    text-align: left;
+  }
+
+  .common-progress-row,
+  .cache-row,
+  main.layout-main,
+  main.layout-two-column,
+  .workflow-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .top-row.has-fixed-help {
+    grid-template-columns: 1fr;
+  }
+
+  .context-help-fixed {
+    position: static;
+    width: 100%;
+    height: auto;
+  }
+
+  .historical-sections,
+  .historical-compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .icon-button-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .log-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
