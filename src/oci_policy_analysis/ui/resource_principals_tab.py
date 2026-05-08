@@ -15,10 +15,10 @@
 import tkinter as tk
 from tkinter import ttk
 
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, RegularPolicyStatement
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 from oci_policy_analysis.presentation import for_display_dynamic_group, for_display_policy
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable

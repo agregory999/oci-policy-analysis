@@ -21,6 +21,7 @@ import json
 from datetime import UTC, datetime
 from typing import Literal
 
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
@@ -31,8 +32,6 @@ from oci_policy_analysis.logic.consolidation_strategies.move_closer_to_target im
 from oci_policy_analysis.logic.consolidation_strategies.move_into_target import MoveIntoTargetCompartment
 from oci_policy_analysis.logic.consolidation_strategies.move_to_root import MoveToRootCompartment
 from oci_policy_analysis.logic.consolidation_strategies.statement_density import PackPoliciesByStatementDensity
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 logger = get_logger(component='consolidation_engine')
 

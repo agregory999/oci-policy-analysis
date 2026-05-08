@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep, SkippedStatement
@@ -29,7 +30,6 @@ from oci_policy_analysis.logic.consolidation_helpers import (
     policy_tag_maps,
     rewritten_location_for_target,
 )
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 logger = get_logger(component='consolidation_strategies')
 

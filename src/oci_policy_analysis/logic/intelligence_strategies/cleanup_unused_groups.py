@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 
 # OCI Identity Domains system group that cannot be deleted; exclude from cleanup.
 ALL_DOMAIN_USERS_GROUP_NAME = 'All Domain Users'

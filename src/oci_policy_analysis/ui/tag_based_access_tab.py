@@ -44,12 +44,12 @@ import tkinter as tk
 from dataclasses import dataclass
 from tkinter import messagebox, ttk
 
-from oci_policy_analysis.common.helpers import for_display_tag_based_policy_row
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import (
+from oci_policy_analysis.application.core.parser import (
     TagCondition,
     collect_tag_conditions,
 )
+from oci_policy_analysis.common.helpers import for_display_tag_based_policy_row
+from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 

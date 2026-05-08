@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 
 # Categories for grouping in Settings and run order.
 IntelligenceCategory = str  # 'risk' | 'overlap' | 'cleanup' | 'consolidation_suggestion' | 'recommendation'

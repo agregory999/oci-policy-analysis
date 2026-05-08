@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 
 
 @dataclass(frozen=True)

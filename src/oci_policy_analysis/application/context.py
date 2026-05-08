@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
+from oci_policy_analysis.application.core.engine import (
+    PolicyIntelligenceEngine,
+    PolicySimulationEngine,
+)
+from oci_policy_analysis.application.core.repo import AI, PolicyAnalysisRepository, ReferenceDataRepo
 from oci_policy_analysis.application.services.cache_service import CacheService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.settings_service import SettingsService
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import set_component_level, set_log_level
-from oci_policy_analysis.logic.ai_repo import AI
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 
 
 @dataclass
@@ -73,8 +73,8 @@ class AppContext:
         policy_repo = PolicyAnalysisRepository()
         # Inject settings and reference data for existing repo behavior.
         # These attributes are currently attached dynamically in main.py.
-        policy_repo.settings = settings
-        policy_repo.permission_reference_repo = reference_data
+        cast(Any, policy_repo).settings = settings
+        cast(Any, policy_repo).permission_reference_repo = reference_data
 
         ai = AI()
         simulation = PolicySimulationEngine(policy_repo=policy_repo, ref_data_repo=reference_data)

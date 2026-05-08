@@ -30,6 +30,49 @@ python -m pip install --upgrade pip
 pip install -e ".[web]"
 ```
 
+## Install via Local Build Scripts (non-Tk web-only)
+
+If you want to use the repository's local build helpers and explicitly avoid desktop/Tk paths, run build in **web mode**:
+
+macOS/Linux:
+
+```bash
+./local-build.sh --mode web
+```
+
+Windows PowerShell:
+
+```powershell
+./local-build.ps1 --mode web
+```
+
+What this does:
+
+- Creates/reuses `.venv`
+- Installs package extras as `.[web]` (FastAPI/uvicorn/itsdangerous)
+- Skips `mcp` extras unless you choose `--mode all` or `--mode mcp`
+- Avoids any desktop/Tk run path (you will run `web` mode only)
+
+Run web mode with local run scripts:
+
+macOS/Linux:
+
+```bash
+./local-run.sh --mode web --host 0.0.0.0 --port 8080
+```
+
+Windows PowerShell:
+
+```powershell
+./local-run.ps1 --mode web --host 0.0.0.0 --port 8080
+```
+
+Optional local dev hot reload:
+
+```bash
+./local-run.sh --mode web --host 127.0.0.1 --port 8000 --reload
+```
+
 Windows PowerShell:
 
 ```powershell

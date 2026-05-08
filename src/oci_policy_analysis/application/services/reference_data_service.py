@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from oci_policy_analysis.application.core.repo import ReferenceDataRepo
+from oci_policy_analysis.application.models.reference_data_models import (
+    FamilyResourcesRow,
+    OperationPermissionsRow,
+    ResourceFamilyRow,
+)
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 
 
 @dataclass
@@ -121,32 +126,32 @@ class ReferenceDataService:
             out.append(token.strip())
         return out
 
-    def list_resources_with_family(self) -> list[dict[str, str]]:
+    def list_resources_with_family(self) -> list[ResourceFamilyRow]:
         """List known non-family resources with resolved family names when available."""
 
         resources = self.list_resources()
-        rows: list[dict[str, str]] = []
+        rows: list[ResourceFamilyRow] = []
         for resource in resources:
             family = self.get_family(resource) or ''
             rows.append({'resource': resource, 'family': family})
         return rows
 
-    def list_families_with_resources(self) -> list[dict[str, object]]:
+    def list_families_with_resources(self) -> list[FamilyResourcesRow]:
         """List known families and their member resources."""
 
         families = self.reference_data.data.get('families', {})
-        rows: list[dict[str, object]] = []
+        rows: list[FamilyResourcesRow] = []
         for family in sorted(families.keys()):
             family_data = families.get(family, {})
             resources = sorted(str(r).strip() for r in family_data.get('resources', []) if str(r).strip())
             rows.append({'family': family, 'resources': resources})
         return rows
 
-    def list_operations_with_permissions(self) -> list[dict[str, object]]:
+    def list_operations_with_permissions(self) -> list[OperationPermissionsRow]:
         """List API operations grouped metadata for permission lookup helpers."""
 
         operations_by_api = self.reference_data.data.get('operations_by_api', {})
-        rows: list[dict[str, object]] = []
+        rows: list[OperationPermissionsRow] = []
         for api_name in sorted(operations_by_api.keys()):
             ops = operations_by_api.get(api_name, {})
             if not isinstance(ops, dict):

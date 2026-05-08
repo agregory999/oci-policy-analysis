@@ -31,7 +31,7 @@ responsible for:
 * Providing a simple CRUD API over a normalized in-memory representation
   (:class:`ProspectiveStatementRecord`).
 * Delegating validation of statement text to the
-  :class:`~oci_policy_analysis.logic.simulation_engine.PolicySimulationEngine`
+  :class:`~oci_policy_analysis.application.core.engine.policy_simulation_engine.PolicySimulationEngine`
   via its ``validate_prospective_statement`` helper.
 * Pushing the current list into the simulation engine using
   ``set_prospective_statements`` so that prospective statements are
@@ -50,9 +50,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer
 
 logger = get_logger(component='prospective_statements_service')

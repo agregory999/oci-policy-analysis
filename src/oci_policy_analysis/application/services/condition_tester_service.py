@@ -9,12 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.condition_evaluator import (
+from oci_policy_analysis.application.core.parser import (
     evaluate_condition_clause,
     extract_variable_names,
     format_policy_clause,
 )
+from oci_policy_analysis.common.logger import get_logger
 
 
 @dataclass
