@@ -36,21 +36,76 @@ The application supports **Instance Principal**, **OCI profile/config**, and **S
 
 | Capability | Desktop UI | Web UI | CLI | MCP |
 |---|---|---|---|---|
-| Load tenancy data from OCI | ✅ | ✅ | ✅ | ✅ |
+| Load live tenancy data from OCI | ✅ | ✅ | ✅ | ✅ |
 | Load/use local combined cache | ✅ | ✅ | ✅ | ✅ |
-| Rich tabbed interactive UI | ✅ | ⚠️ Partial | ❌ | ❌ |
-| Policy filtering/search from command line | ❌ | ❌ | ✅ | ✅ (tool calls) |
-| Historical comparison workflows | ✅ | ⚠️ Partial | ⚠️ Limited | ⚠️ Limited |
-| Prospective statements editor/workbench | ✅ | ⚠️ Partial | ❌ | ⚠️ Via tools |
-| Recommendations UX/workbench | ✅ | ⚠️ Partial | ❌ | ❌ |
-| API simulation | ✅ | ⚠️ Partial | ❌ | ✅ |
+| Load/use CIS Compliance Data | ✅ | ✅ | ❌ | ❌ |
+| Interactive UI | ✅ | ✅ | ❌ | ❌ |
+| Rich Policy filtering/search | ✅ | ✅ | ⚠️ Limited | ✅ (tool calls) |
+| Historical comparison | ✅ | ✅ | ❌ | ⚠️ Limited |
+| Consolidation workflows/workbench | ✅ | ✅ | ❌ | ❌ |
+| Prospective statements editor/workbench | ✅ | ✅ | ❌ | ⚠️ Via tools |
+| Recommendations Calculation/Display | ✅ | ✅ | ❌ | ❌ |
+| API simulation | ✅ | ✅ | ❌ | ✅ (tool calls) |
 | AI assistant integration | ✅ (embedded MCP tab) | ⚠️ Indirect | ⚠️ Indirect | ✅ Native purpose |
 | Best fit: human exploratory analysis | ✅ Best | ✅ Good | ❌ | ❌ |
+| Best fit: Admin Team Analysis | ✅ Best | ✅ Good | ⚠️ Limited | ⚠️ Tool-driven |
 | Best fit: automation/scripting | ⚠️ | ⚠️ | ✅ Best | ✅ Best |
 
 **Legend**
 - ✅ Fully supported
 - ⚠️ Partial/in progress
 - ❌ Not intended for that mode
+
+## Run Modes (Architecture-at-a-Glance)
+
+The following simplified diagrams show common deployment/run patterns.
+
+### 1) Desktop Mode (Local Tkinter)
+
+```mermaid
+flowchart LR
+    U[Operator]
+    D[OCI Policy Analysis\nDesktop UI]
+    C[Local Cache]
+    OCI[OCI IAM APIs]
+
+    U --> D
+    D --> C
+    D -.-> OCI
+```
+
+### 2) Web Mode (Local)
+
+```mermaid
+flowchart LR
+    B[Browser]
+    W[OCI Policy Analysis\nWeb Server\nFastAPI + Static UI]
+    C[Local Cache]
+    OCI[OCI IAM APIs]
+
+    B -->|HTTP localhost| W
+    W --> C
+    W -.-> OCI
+```
+
+### 3) Web Mode (Server + Load Balancer)
+
+```mermaid
+flowchart LR
+    B[Browser Users]
+    LB[Load Balancer\nHTTPS 443]
+    W[OCI Policy Analysis\nWeb Server]
+    C[Cache / Storage]
+    OCI[OCI IAM APIs]
+
+    B --> LB
+    LB -->|HTTP backend| W
+    W --> C
+    W -.-> OCI
+```
+
+### 4) MCP Mode
+
+MCP usage patterns (STDIO, HTTP, embedded vs standalone) are documented in detail on the dedicated [MCP Server](mcp.md) page.
 
 

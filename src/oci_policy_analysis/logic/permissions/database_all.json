@@ -1182,13 +1182,9 @@
                 "DATABASE_DELETE",
                 "VNIC_DETACH",
                 "VNIC_DELETE",
-                "SUBNET_DETACH",
-                "I",
-                "DB",
-                "S",
-                "DB_BACKUP_DELETE"
+                "SUBNET_DETACH"
             ],
-            "notes": "and and and and and If automatic backups are enabled for any database in the System, also need"
+            "notes": "If automatic backups are enabled for any database in the DB System, also need DB_BACKUP_DELETE"
         },
         "GetDbNode": {
             "permissions": [
@@ -1399,24 +1395,16 @@
             "permissions": [
                 "DATABASE_INSPECT",
                 "DATABASE_UPDATE",
-                "PLUGGABLE_DATABASE_CREATE",
-                "A",
-                "CDB",
-                "PDB",
-                "PLUGGABLE_DATABASE_CONTENT_READ"
+                "PLUGGABLE_DATABASE_CREATE"
             ],
-            "notes": "* * Additional permissions required if auto-backups are enabled on the and includes this :"
+            "notes": "Additional permissions required if auto-backups are enabled on the CDB and includes this PDB: PLUGGABLE_DATABASE_CONTENT_READ"
         },
         "UpdatePluggableDatabase": {
             "permissions": [
                 "PLUGGABLE_DATABASE_INSPECT",
-                "PLUGGABLE_DATABASE_UPDATE",
-                "A",
-                "CDB",
-                "PDB",
-                "PLUGGABLE_DATABASE_CONTENT_READ"
+                "PLUGGABLE_DATABASE_UPDATE"
             ],
-            "notes": "and Additional permissions required if auto-backups are enabled on the and includes this :"
+            "notes": "Additional permissions required if auto-backups are enabled on the CDB and includes this PDB: PLUGGABLE_DATABASE_CONTENT_READ"
         },
         "StartPluggableDatabase": {
             "permissions": [

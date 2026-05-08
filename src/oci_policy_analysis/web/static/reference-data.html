@@ -63,22 +63,28 @@
           <div id="lookupStatus" class="status"></div>
           <pre id="permissionsResult" class="code-sample">No lookup yet.</pre>
         </article>
+
+        <article class="card" data-help-title="Source Lookup" data-help-body="Enter a resource or family term to locate the reference-data source URL used by this tool.">
+          <p class="card-title">API Operations Tester</p>
+          <h2>Check API Operation Permissions</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="apiOperationSelect">API Operation</label>
+              <select id="apiOperationSelect"></select>
+            </div>
+            <div class="form-grid">
+              <label for="apiPermsSelect">Known Permissions (Ctrl/Cmd multi-select)</label>
+              <select id="apiPermsSelect" multiple size="8"></select>
+            </div>
+            <div id="apiSelectedPerms" class="helper-text">Selected permissions: (none)</div>
+          </div>
+          <button id="apiCheckBtn" type="button">Check API</button>
+          <div id="apiCheckStatus" class="status"></div>
+          <pre id="apiCheckResult" class="code-sample">No API operation check yet.</pre>
+        </article>
       </section>
 
       <section class="side-stack">
-        <article class="card" data-help-title="Source Lookup" data-help-body="Enter a resource or family term to locate the reference-data source URL used by this tool.">
-          <p class="card-title">Reference Source</p>
-          <h2>Find Source URL</h2>
-          <div class="form-grid">
-            <div class="inline-field">
-              <label for="sourceEntity">Resource or Family</label>
-              <input id="sourceEntity" placeholder="resource or family" />
-            </div>
-          </div>
-          <button id="sourceBtn" type="button">Lookup Source</button>
-          <pre id="sourceResult" class="code-sample">No source lookup yet.</pre>
-        </article>
-
         <article class="card" data-help-title="Overlap Check" data-help-body="Compare two statement-style selectors and return overlapping permissions using reference-data overlap logic.">
           <p class="card-title">Overlap Utility</p>
           <h2>Check Overlap</h2>
@@ -131,6 +137,19 @@
           <div id="overlapStatus" class="status"></div>
           <pre id="overlapResult" class="code-sample">No overlap check yet.</pre>
         </article>
+
+        <article class="card" data-help-title="Source Lookup" data-help-body="Enter a resource or family term to locate the reference-data source URL used by this tool.">
+          <p class="card-title">Reference Source</p>
+          <h2>Find Source URL</h2>
+          <div class="form-grid">
+            <div class="inline-field">
+              <label for="sourceEntity">Resource or Family</label>
+              <input id="sourceEntity" placeholder="resource or family" />
+            </div>
+          </div>
+          <button id="sourceBtn" type="button">Lookup Source</button>
+          <pre id="sourceResult" class="code-sample">No source lookup yet.</pre>
+        </article>
       </section>
     </main>
 
@@ -145,6 +164,12 @@
       const sourceEntity = document.getElementById('sourceEntity');
       const sourceBtn = document.getElementById('sourceBtn');
       const sourceResult = document.getElementById('sourceResult');
+      const apiOperationSelect = document.getElementById('apiOperationSelect');
+      const apiPermsSelect = document.getElementById('apiPermsSelect');
+      const apiSelectedPerms = document.getElementById('apiSelectedPerms');
+      const apiCheckBtn = document.getElementById('apiCheckBtn');
+      const apiCheckStatus = document.getElementById('apiCheckStatus');
+      const apiCheckResult = document.getElementById('apiCheckResult');
       const overlapEntity1 = document.getElementById('overlapEntity1');
       const overlapVerb1 = document.getElementById('overlapVerb1');
       const overlapAction1 = document.getElementById('overlapAction1');
@@ -161,6 +186,8 @@
         title: 'How To Use This Page',
         body: 'Pick a resource, verb, and action to list effective permissions. Use Source Lookup to find the reference URL for a resource or family keyword.',
       };
+
+      let apiOperations = [];
 
       function setContextHelp(title, body) {
         if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
@@ -256,6 +283,83 @@
         }
       }
 
+      function getSelectedApiPermissions() {
+        return Array.from(apiPermsSelect.selectedOptions).map((opt) => String(opt.value || '').toUpperCase());
+      }
+
+      function refreshSelectedApiPermissionsPreview() {
+        const selected = getSelectedApiPermissions();
+        apiSelectedPerms.textContent = `Selected permissions: ${selected.length ? selected.join(', ') : '(none)'}`;
+      }
+
+      async function loadApiTesterOptions() {
+        const response = await fetch('/reference/permission-helper-options');
+        const payload = await response.json();
+        apiOperations = Array.isArray(payload.operations) ? payload.operations : [];
+        const operationLabels = apiOperations.map((row) => String(row.label || '')).filter(Boolean).sort();
+
+        apiOperationSelect.innerHTML = '';
+        operationLabels.forEach((label) => {
+          const option = document.createElement('option');
+          option.value = label;
+          option.textContent = label;
+          apiOperationSelect.appendChild(option);
+        });
+
+        const knownPerms = new Set();
+        apiOperations.forEach((row) => {
+          (row.permissions || []).forEach((perm) => {
+            const normalized = String(perm || '').toUpperCase().trim();
+            if (normalized) knownPerms.add(normalized);
+          });
+        });
+
+        apiPermsSelect.innerHTML = '';
+        Array.from(knownPerms)
+          .sort()
+          .forEach((perm) => {
+            const option = document.createElement('option');
+            option.value = perm;
+            option.textContent = perm;
+            apiPermsSelect.appendChild(option);
+          });
+
+        refreshSelectedApiPermissionsPreview();
+      }
+
+      function checkApiOperationPermissions() {
+        apiCheckStatus.textContent = '';
+        apiCheckStatus.className = 'status';
+
+        const selectedOperation = String(apiOperationSelect.value || '');
+        if (!selectedOperation) {
+          apiCheckStatus.textContent = 'Select an API operation.';
+          apiCheckStatus.className = 'status error';
+          apiCheckResult.textContent = 'No API operation selected.';
+          return;
+        }
+
+        const opMeta = apiOperations.find((row) => String(row.label || '') === selectedOperation);
+        const requiredPerms = Array.isArray(opMeta?.permissions)
+          ? opMeta.permissions.map((p) => String(p || '').toUpperCase()).filter(Boolean)
+          : [];
+        const selectedPerms = new Set(getSelectedApiPermissions());
+
+        const missing = requiredPerms.filter((perm) => !selectedPerms.has(perm));
+        const passed = missing.length === 0;
+        apiCheckStatus.textContent = passed ? 'Result: True' : 'Result: False';
+        apiCheckStatus.className = passed ? 'status success' : 'status error';
+        apiCheckResult.textContent = [
+          `Operation: ${selectedOperation}`,
+          '',
+          `Required permissions (${requiredPerms.length}):`,
+          requiredPerms.length ? requiredPerms.join('\n') : '(none)',
+          '',
+          `Missing permissions (${missing.length}):`,
+          missing.length ? missing.join('\n') : '(none)',
+        ].join('\n');
+      }
+
       async function checkOverlap() {
         overlapStatus.textContent = '';
         overlapStatus.className = 'status';
@@ -285,8 +389,14 @@
       lookupBtn.addEventListener('click', lookupPermissions);
       sourceBtn.addEventListener('click', lookupSource);
       overlapBtn.addEventListener('click', checkOverlap);
+      apiCheckBtn.addEventListener('click', checkApiOperationPermissions);
+      apiPermsSelect.addEventListener('change', refreshSelectedApiPermissionsPreview);
       bindContextHelp();
       loadResources();
+      loadApiTesterOptions().catch((err) => {
+        apiCheckStatus.textContent = `Failed to load API operation options: ${err}`;
+        apiCheckStatus.className = 'status error';
+      });
     </script>
       <script src="/auth-gate.js"></script>
 </body>

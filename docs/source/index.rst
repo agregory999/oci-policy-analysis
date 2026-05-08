@@ -11,6 +11,8 @@ Contents
 
    overview
    setup
+   setup_desktop
+   setup_web
    usage
    architecture
    simulation

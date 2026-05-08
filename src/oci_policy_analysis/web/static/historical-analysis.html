@@ -32,11 +32,11 @@
       <div class="card" data-help-title="Compare cache snapshots" data-help-body="Choose left and right snapshots, then run a diff to analyze changes over time.">
         <label for="leftCache">Compare two cache snapshots</label>
         <div class="historical-compare-row">
-          <select id="leftCache" data-help-title="Left cache snapshot" data-help-body="Baseline cache snapshot used as the 'before' state for comparison."></select>
-          <select id="rightCache" data-help-title="Right cache snapshot" data-help-body="Target cache snapshot used as the 'after' state for comparison."></select>
-          <button id="compareBtn" data-help-title="Run historical compare" data-help-body="Compute differences between the selected baseline and target snapshots.">Compare</button>
+          <select id="leftCache"></select>
+          <select id="rightCache"></select>
+          <button id="compareBtn">Compare</button>
         </div>
-        <div id="status" class="status" data-help-title="Compare status" data-help-body="Shows progress and success or failure status for the comparison run."></div>
+        <div id="status" class="status"></div>
       </div>
 
       <div class="historical-sections">
@@ -102,8 +102,6 @@
         }
         section.items.forEach((item) => {
           const details = document.createElement('details');
-          details.setAttribute('data-help-title', `${item.title} (${item.action})`);
-          details.setAttribute('data-help-body', 'Expand this item to inspect stable keys and old/new values or changed fields.');
           details.innerHTML = `<summary>${item.title} (${item.action})</summary>`;
           const keyEl = document.createElement('div');
           keyEl.className = 'diff-muted';

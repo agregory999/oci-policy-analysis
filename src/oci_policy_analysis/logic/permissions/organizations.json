@@ -414,18 +414,9 @@
         },
         "CreateChildTenancy": {
             "permissions": [
-                "ORGANIZATIONS_TENANCY_CREATE",
-                "N",
-                "W",
-                "I",
-                "ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE",
-                "F",
-                "C",
-                "T",
-                "D",
-                "R"
+                "ORGANIZATIONS_TENANCY_CREATE"
             ],
-            "notes": "Note: When the subscriptionId attribute is specified for a created child tenancy, then is also required. For more information see CreateChildTenancyDetails Reference."
+            "notes": "Note: When the subscriptionId attribute is specified for a created child tenancy, then ORGANIZATIONS_SUBSCRIPTION_MAPPING_CREATE is also required. For more information see CreateChildTenancyDetails Reference."
         },
         "DeleteOrganizationTenancy": {
             "permissions": [

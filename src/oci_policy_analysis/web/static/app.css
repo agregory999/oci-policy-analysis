@@ -232,8 +232,13 @@ th {
 }
 
 /* Logging page layout helpers: 3-column row utility + shared spacing primitives. */
-.logging-layout-row {
+.layout-row.layout-row-3.logging-layout-row {
   align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.logging-layout-row > .layout-col-span-2 {
+  grid-column: auto;
 }
 
 .logging-options-grid {
@@ -267,7 +272,7 @@ th {
 
 #logOutput {
   padding: 1.5rem;
-  max-height: 480px;
+  max-height: 68vh;
   overflow: auto;
 }
 
@@ -715,6 +720,7 @@ footer,
 
 .context-help-card {
   border: 1px solid var(--oci-line);
+  border-top: 2px solid var(--oci-red);
   border-radius: 14px;
   background: #fff;
   padding: 0.55rem 0.8rem;
