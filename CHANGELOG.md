@@ -1,3 +1,16 @@
+# [5.0.0-beta.10](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.9...v5.0.0-beta.10) (2026-05-08)
+
+
+### Bug Fixes
+
+* Merge pull request [#44](https://github.com/agregory999/oci-policy-analysis/issues/44) from kiranthakkar/fix/csv-field-size-limit ([6573c2e](https://github.com/agregory999/oci-policy-analysis/commit/6573c2e75473a76e2f1999b4a719a9afc6904fc5))
+* raise csv field size limit to support large compliance output files ([b9bd640](https://github.com/agregory999/oci-policy-analysis/commit/b9bd64061b3d81a6efc0ba8104f5937d93162ffe))
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
 # [5.0.0-beta.9](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.8...v5.0.0-beta.9) (2026-05-08)
 
 
