@@ -1,5 +1,5 @@
 from antlr4 import InputStream
-from oci_policy_analysis.logic.parsers.policy_parser.PolicyLexer import PolicyLexer
+from oci_policy_analysis.application.core.parser.policy_parser.PolicyLexer import PolicyLexer
 
 
 def debug_tokens_for_policy(policy_text):

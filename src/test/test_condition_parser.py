@@ -7,8 +7,8 @@ These tests check the parsing and evaluation of OCI IAM policy conditions.
 import logging
 
 import pytest
-from oci_policy_analysis.logic.parsers.condition_parser.condition_parser import ConditionParser
-from oci_policy_analysis.logic.parsers.condition_parser.TagConditionCollector import (
+from oci_policy_analysis.application.core.parser.condition_parser.condition_parser import ConditionParser
+from oci_policy_analysis.application.core.parser.condition_parser.TagConditionCollector import (
     collect_tag_conditions,
 )
 
