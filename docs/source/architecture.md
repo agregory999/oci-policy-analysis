@@ -148,6 +148,7 @@ Each path ultimately converges on shared repository and engine components, with 
 flowchart TB
     %% Consumers
     subgraph C[Consumer Paths]
+        direction TB
         UI["Desktop UI<br/>main.py"]
         WEB["Web API<br/>routes_core.py"]
         CLI["CLI<br/>cli.py"]
@@ -156,6 +157,7 @@ flowchart TB
 
     %% Application orchestration
     subgraph A[Application and Service Orchestration]
+        direction TB
         CTX["AppContext<br/>shared runtime context"]
         SVC["Application Services<br/>Load, Analysis, Recommendations"]
         SETTINGS["Settings Services<br/>config load, save, propagation"]
@@ -163,6 +165,7 @@ flowchart TB
 
     %% Core domain layer
     subgraph D[Core Domain Layer]
+        direction TB
         REPO["PolicyAnalysisRepository<br/>canonical in-memory policy and IAM model"]
         REF["ReferenceDataRepo<br/>resource and permission reference data"]
         INTEL["PolicyIntelligenceEngine<br/>analytics and overlays"]
@@ -173,31 +176,41 @@ flowchart TB
 
     %% Canonical models
     subgraph M[Models Tier]
+        direction TB
         MODEL_POLICY["Policy Models<br/>BasePolicy, Regular and Cross Tenancy Statements"]
         MODEL_IAM["IAM Models<br/>User, Group, Dynamic Group, Compartment"]
         MODEL_SIM["Simulation Models<br/>Scenario, Result, Prospective Statement"]
         MODEL_RESP["Response Models<br/>Filter, Summary, Diff, API payloads"]
+
+        MODEL_POLICY --> MODEL_IAM --> MODEL_SIM --> MODEL_RESP
     end
 
     %% Platform services below domain
     subgraph P[Platform Services]
+        direction TB
         CFG["Settings and Config<br/>runtime configuration"]
         CACHE["CacheManager<br/>cache snapshots and persisted state"]
         LOG["Logging System<br/>global and per-component logging"]
         TRACK["Usage Tracking<br/>anonymous operation metrics"]
+
+        CFG --> CACHE --> LOG --> TRACK
     end
 
     %% External/data sources
     subgraph X[External and Persistence]
+        direction TB
         OCI["OCI Python SDK<br/>Identity, Resource Search, other clients"]
         CIS["CIS Compliance Output<br/>CSV import source"]
         OBJ["Object Storage Bucket<br/>usage tracking artifacts"]
+
+        OCI --> CIS --> OBJ
     end
 
-    %% High-level tier flow (keeps layout cleaner)
+    %% High-level tier flow (narrow/tall layout)
     C --> A
     A --> D
-    D --> P
+    D --> M
+    M --> P
     P --> X
 
     %% Key runtime paths
