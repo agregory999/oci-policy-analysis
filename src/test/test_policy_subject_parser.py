@@ -23,7 +23,7 @@ Expand and maintain this table as new policy subject forms are found in the wild
 """
 
 import pytest
-from oci_policy_analysis.logic.policy_subject_parser import parse_policy_subjects
+from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
 
 
 @pytest.mark.parametrize(

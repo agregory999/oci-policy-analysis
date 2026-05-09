@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
+from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
 
 
 def test_get_domain_name_from_ocid_handles_dict_and_object_domains():

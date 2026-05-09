@@ -6,7 +6,7 @@ changes from OCI. They rely on the real permissions data shipped with
 the project.
 """
 
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo
 
 
 def _load_repo():

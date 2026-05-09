@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from oci_policy_analysis.logic.prospective_statements_service import (
+from oci_policy_analysis.application.services.prospective_statements_service import (
     SETTINGS_KEY_PROSPECTIVE_BY_TENANCY,
     ProspectiveStatementsService,
 )

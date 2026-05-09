@@ -1,10 +1,13 @@
 from typing import cast
 
 import pytest
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.parser.policy_statement_normalizer import (
+    PolicyStatementNormalizer,
+    PolicyStatementParser,
+)
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.models import RegularPolicyStatement
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_statement_normalizer import PolicyStatementNormalizer, PolicyStatementParser
 
 
 @pytest.fixture

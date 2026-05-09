@@ -8,7 +8,7 @@ Run directly as a script for quick testing/development.
 Author: Cline AI
 """
 
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
+from oci_policy_analysis.application.core.engine.policy_simulation_engine import PolicySimulationEngine
 
 # --- Minimal dummy policy and ref data for testing ---
 

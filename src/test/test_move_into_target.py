@@ -1,5 +1,5 @@
 import pytest
-from oci_policy_analysis.logic.consolidation_strategies.move_into_target import MoveIntoTargetCompartment
+from oci_policy_analysis.application.core.engine.strategies.move_into_target import MoveIntoTargetCompartment
 
 
 @pytest.fixture
