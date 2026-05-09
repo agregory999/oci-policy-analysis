@@ -7,7 +7,10 @@
   "branches": [
     "main",
     { "name": "develop", "prerelease": "dev" },
-    { "name": "feature/*", "prerelease": "beta" }
+    {
+      "name": "feature/*",
+      "prerelease": "${name.replace(/^feature\\//, '').replace(/[^a-zA-Z0-9-]/g, '-') }"
+    }
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
