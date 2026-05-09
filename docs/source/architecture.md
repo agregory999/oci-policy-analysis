@@ -148,31 +148,31 @@ Each path ultimately converges on shared repository and engine components, with 
 flowchart TB
     %% Consumers
     subgraph C[Consumer Paths]
-        UI[Desktop UI\nmain.py]
-        CLI[CLI\ncli.py]
-        WEB[Web API\nFastAPI routes_core.py]
-        MCP[MCP Server\nmcp_server.py]
+        UI["Desktop UI<br/>main.py"]
+        CLI["CLI<br/>cli.py"]
+        WEB["Web API<br/>routes_core.py"]
+        MCP["MCP Server<br/>mcp_server.py"]
     end
 
     %% Application orchestration
-    subgraph A[Application / Service Orchestration]
-        CTX[AppContext\n(application/context.py)]
-        SVC[Application Services\nLoad/Analysis/Recommendations/etc.]
+    subgraph A[Application and Service Orchestration]
+        CTX["AppContext<br/>application context"]
+        SVC["Application Services<br/>Load, Analysis, Recommendations"]
     end
 
     %% Core domain layer
     subgraph D[Core Domain Layer]
-        REPO[PolicyAnalysisRepository\ncanonical in-memory policy + IAM model]
-        REF[ReferenceDataRepo\nresource/permission reference data]
-        INTEL[PolicyIntelligenceEngine\nanalytics + overlays]
-        SIM[PolicySimulationEngine\npermission simulation]
-        PARSER[ANTLR Policy Parser + Normalizer\nparsing/validation/derived fields]
+        REPO["PolicyAnalysisRepository<br/>canonical in-memory policy and IAM model"]
+        REF["ReferenceDataRepo<br/>resource and permission reference data"]
+        INTEL["PolicyIntelligenceEngine<br/>analytics and overlays"]
+        SIM["PolicySimulationEngine<br/>permission simulation"]
+        PARSER["ANTLR Parser and Normalizer<br/>parsing, validation, derived fields"]
     end
 
     %% External/data sources
-    subgraph X[External & Persistence]
-        OCI[OCI Python SDK\nIdentity / Resource Search / etc.]
-        CACHE[CacheManager\ncombined cache JSON]
+    subgraph X[External and Persistence]
+        OCI["OCI Python SDK<br/>Identity, Resource Search, other clients"]
+        CACHE["CacheManager<br/>combined cache JSON"]
     end
 
     UI --> CTX
