@@ -178,3 +178,10 @@ After login, validate a few core pages:
 - 502/503 behind LB: verify backend target and `GET /health` response.
 - Login blocked: use current startup runtime key from server logs.
 - Dependency errors: confirm virtualenv active and `pip install -e ".[web]"` succeeded.
+
+## Related Core-Only Setups
+
+If you do **not** need web hosting and want a lighter install profile:
+
+- CLI-only/core-only setup: [CLI docs](cli.md#install-profiles-core-vs-webdesktop)
+- MCP-only/core-only setup: [MCP docs](mcp.md#core-only-install-for-mcp-no-webdesktop-extras)

@@ -81,6 +81,25 @@ flowchart LR
 
 ## Running MCP from OCI Policy Analysis
 
+## Core-Only Install for MCP (No Web/Desktop Extras)
+
+For standalone MCP usage where you only need core + MCP runtime (and not the
+desktop UI or web server), install from source using the base package:
+
+```bash
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+Then run MCP directly:
+
+```bash
+python -m oci_policy_analysis.mcp_server --help
+```
+
+This keeps installation minimal while still enabling STDIO and streamable-HTTP
+MCP modes documented below.
+
 MCP Servers have 2 basic modes: STDIO and Streamable-HTTP.  STDIO mode is good for embedding in an AI Desktop client such as Claude, Oracle Code Assist, or VSCode.  More details on setups later on in the document.
 
 Streamable HTTP is good for a server, where MCP is not local to the client, or in the OCI Policy Analysis Embedded MCP tab, the clients connect to the app over HTTP on the configured port.
