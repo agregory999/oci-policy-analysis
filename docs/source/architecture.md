@@ -149,15 +149,16 @@ flowchart TB
     %% Consumers
     subgraph C[Consumer Paths]
         UI["Desktop UI<br/>main.py"]
-        CLI["CLI<br/>cli.py"]
         WEB["Web API<br/>routes_core.py"]
+        CLI["CLI<br/>cli.py"]
         MCP["MCP Server<br/>mcp_server.py"]
     end
 
     %% Application orchestration
     subgraph A[Application and Service Orchestration]
-        CTX["AppContext<br/>application context"]
+        CTX["AppContext<br/>shared runtime context"]
         SVC["Application Services<br/>Load, Analysis, Recommendations"]
+        SETTINGS["Settings Services<br/>config load, save, propagation"]
     end
 
     %% Core domain layer
@@ -166,39 +167,72 @@ flowchart TB
         REF["ReferenceDataRepo<br/>resource and permission reference data"]
         INTEL["PolicyIntelligenceEngine<br/>analytics and overlays"]
         SIM["PolicySimulationEngine<br/>permission simulation"]
+        CONS["ConsolidationEngine<br/>statement merge and consolidation analysis"]
         PARSER["ANTLR Parser and Normalizer<br/>parsing, validation, derived fields"]
+    end
+
+    %% Canonical models
+    subgraph M[Models Tier]
+        MODEL_POLICY["Policy Models<br/>BasePolicy, Regular and Cross Tenancy Statements"]
+        MODEL_IAM["IAM Models<br/>User, Group, Dynamic Group, Compartment"]
+        MODEL_SIM["Simulation Models<br/>Scenario, Result, Prospective Statement"]
+        MODEL_RESP["Response Models<br/>Filter, Summary, Diff, API payloads"]
+    end
+
+    %% Platform services below domain
+    subgraph P[Platform Services]
+        CFG["Settings and Config<br/>runtime configuration"]
+        CACHE["CacheManager<br/>cache snapshots and persisted state"]
+        LOG["Logging System<br/>global and per-component logging"]
+        TRACK["Usage Tracking<br/>anonymous operation metrics"]
     end
 
     %% External/data sources
     subgraph X[External and Persistence]
         OCI["OCI Python SDK<br/>Identity, Resource Search, other clients"]
-        CACHE["CacheManager<br/>combined cache JSON"]
+        CIS["CIS Compliance Output<br/>CSV import source"]
+        OBJ["Object Storage Bucket<br/>usage tracking artifacts"]
     end
 
+    %% High-level tier flow (keeps layout cleaner)
+    C --> A
+    A --> D
+    D --> P
+    P --> X
+
+    %% Key runtime paths
     UI --> CTX
     WEB --> CTX
-    CLI --> REPO
-    CLI --> INTEL
-    MCP --> REPO
-    MCP --> SIM
-    MCP --> INTEL
-    MCP --> REF
+    CLI --> SVC
+    MCP --> SVC
 
     CTX --> SVC
-    CTX --> REPO
-    CTX --> REF
-    CTX --> INTEL
-    CTX --> SIM
+    CTX --> SETTINGS
 
     SVC --> REPO
     SVC --> INTEL
     SVC --> SIM
+    SVC --> CONS
 
     REPO --> PARSER
+    REPO --> REF
     REPO --> OCI
-    REPO --> CACHE
-    INTEL --> REPO
-    INTEL --> REF
-    SIM --> REPO
-    SIM --> REF
+    REPO --> CIS
+
+    %% Model ownership / outputs
+    REPO --> MODEL_POLICY
+    REPO --> MODEL_IAM
+    SIM --> MODEL_SIM
+    INTEL --> MODEL_RESP
+    SVC --> MODEL_RESP
+
+    %% Platform relationships
+    SETTINGS --> CFG
+    CFG --> CACHE
+    CFG --> LOG
+    UI --> TRACK
+    WEB --> TRACK
+    CLI --> TRACK
+    MCP --> TRACK
+    TRACK --> OBJ
 ```
