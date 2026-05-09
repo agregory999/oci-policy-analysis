@@ -131,3 +131,74 @@ The following context files document the architecture, design patterns, and hist
 For any new feature or major tab, start by documenting its rationale and conventions in a new or updated context file below `docs/context/project/`.
 
 For detailed table of contents and links to all supporting context files, see above and the [CONTEXT_INDEX.md](context/CONTEXT_INDEX.md).
+
+---
+
+## Core Runtime Architecture (4 Consumer Paths)
+
+The codebase exposes a shared core through four primary consumer paths:
+- **Desktop UI** (`main.py` / Tkinter tabs)
+- **CLI** (`cli.py`)
+- **Web API** (`web/api/routes_core.py` via FastAPI dependencies)
+- **MCP Server** (`mcp_server.py` via FastMCP)
+
+Each path ultimately converges on shared repository and engine components, with OCI SDK and cache systems as underlying data sources.
+
+```mermaid
+flowchart TB
+    %% Consumers
+    subgraph C[Consumer Paths]
+        UI[Desktop UI\nmain.py]
+        CLI[CLI\ncli.py]
+        WEB[Web API\nFastAPI routes_core.py]
+        MCP[MCP Server\nmcp_server.py]
+    end
+
+    %% Application orchestration
+    subgraph A[Application / Service Orchestration]
+        CTX[AppContext\n(application/context.py)]
+        SVC[Application Services\nLoad/Analysis/Recommendations/etc.]
+    end
+
+    %% Core domain layer
+    subgraph D[Core Domain Layer]
+        REPO[PolicyAnalysisRepository\ncanonical in-memory policy + IAM model]
+        REF[ReferenceDataRepo\nresource/permission reference data]
+        INTEL[PolicyIntelligenceEngine\nanalytics + overlays]
+        SIM[PolicySimulationEngine\npermission simulation]
+        PARSER[ANTLR Policy Parser + Normalizer\nparsing/validation/derived fields]
+    end
+
+    %% External/data sources
+    subgraph X[External & Persistence]
+        OCI[OCI Python SDK\nIdentity / Resource Search / etc.]
+        CACHE[CacheManager\ncombined cache JSON]
+    end
+
+    UI --> CTX
+    WEB --> CTX
+    CLI --> REPO
+    CLI --> INTEL
+    MCP --> REPO
+    MCP --> SIM
+    MCP --> INTEL
+    MCP --> REF
+
+    CTX --> SVC
+    CTX --> REPO
+    CTX --> REF
+    CTX --> INTEL
+    CTX --> SIM
+
+    SVC --> REPO
+    SVC --> INTEL
+    SVC --> SIM
+
+    REPO --> PARSER
+    REPO --> OCI
+    REPO --> CACHE
+    INTEL --> REPO
+    INTEL --> REF
+    SIM --> REPO
+    SIM --> REF
+```
