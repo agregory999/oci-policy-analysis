@@ -6,11 +6,7 @@ authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
 dynamic = []
-<<<<<<< HEAD
-version = "5.0.0.dev"
-=======
 version = "5.0.0rc1"
->>>>>>> 8d79cc5b (fix(release): normalize semantic-release prerelease version to PEP 440 for pyproject)
 
 dependencies = [
     "oci==2.168.0",
