@@ -19,9 +19,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import tkinter as tk
 from datetime import UTC, date, datetime, timedelta
-from tkinter import ttk
+from tkinter import messagebox, simpledialog, ttk
 
 from oci_policy_analysis.common.logger import get_logger
 
@@ -35,6 +36,8 @@ from .aggregator import (
     compute_subtab_usage_metrics,
     compute_tab_usage_metrics,
     compute_tenancy_metrics,
+    compute_tenancy_source_metrics,
+    compute_web_traffic_summary,
 )
 from .loader import load_usage_docs_from_par
 from .model import AnalyticsState
@@ -46,6 +49,7 @@ from .ui import (
     SubtabUsageTab,
     TabUsageTab,
     TenancyTab,
+    WebTrafficTab,
 )
 
 logger = get_logger(component='analytics.main')
@@ -61,6 +65,25 @@ class AnalyticsApp(tk.Tk):
         self.geometry('1200x800')
 
         self.state_model = AnalyticsState()
+
+        # Require runtime PAR URL entry (unless already provided via env var)
+        # so analytics access is explicitly authorized by the operator.
+        existing_par = os.environ.get('OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL', '').strip()
+        if not existing_par:
+            par_url = simpledialog.askstring(
+                'Analytics PAR URL',
+                'Enter Analytics PAR base URL to load usage data:\n' '(example: https://.../b/<bucket>/o/)',
+                parent=self,
+            )
+            if not par_url or not par_url.strip():
+                messagebox.showinfo(
+                    'Analytics PAR URL Required',
+                    'No PAR URL was provided. Analytics UI will close without loading data.',
+                    parent=self,
+                )
+                self.after(100, self.destroy)
+                return
+            os.environ['OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL'] = par_url.strip()
         # Internal representation of the date-range selection. Historically
         # this was just an integer day window; we now support a small set of
         # predefined options exposed via a dropdown in the toolbar.
@@ -134,6 +157,7 @@ class AnalyticsApp(tk.Tk):
         self.operations_tab = OperationsTab(notebook)
         self.ai_operations_tab = AiOperationsTab(notebook)
         self.mcp_operations_tab = McpOperationsTab(notebook)
+        self.web_traffic_tab = WebTrafficTab(notebook)
 
         notebook.add(self.overview_tab, text='Overview')
         notebook.add(self.tenancy_tab, text='Tenancies')
@@ -142,6 +166,7 @@ class AnalyticsApp(tk.Tk):
         notebook.add(self.operations_tab, text='Operations')
         notebook.add(self.ai_operations_tab, text='AI operations')
         notebook.add(self.mcp_operations_tab, text='MCP operations')
+        notebook.add(self.web_traffic_tab, text='Web traffic')
 
         # Trigger an initial load.
         self.after(100, self.refresh_from_par)
@@ -212,7 +237,9 @@ class AnalyticsApp(tk.Tk):
         mcp_tool_usage = compute_mcp_tool_usage(visible_docs)
         ai_summary = compute_ai_assist_summary(visible_docs)
         mcp_summary = compute_mcp_tool_summary(visible_docs)
+        web_summary = compute_web_traffic_summary(visible_docs)
         load_sources = compute_data_load_sources(visible_docs)
+        tenancy_source_metrics = compute_tenancy_source_metrics(visible_docs)
 
         logger.info(
             'Analytics refresh complete: runs=%d, tenancies=%d, tabs=%d, op_types=%d',
@@ -224,12 +251,13 @@ class AnalyticsApp(tk.Tk):
 
         # Update tabs.
         self.overview_tab.refresh(overview_metrics, visible_docs, load_sources)
-        self.tenancy_tab.refresh(tenancy_metrics)
+        self.tenancy_tab.refresh(tenancy_metrics, tenancy_source_metrics)
         self.tab_usage_tab.refresh(tab_metrics)
         self.subtab_usage_tab.refresh(subtab_metrics)
         self.operations_tab.refresh(op_summaries, mcp_tool_usage)
         self.ai_operations_tab.refresh(ai_summary)
         self.mcp_operations_tab.refresh(mcp_summary)
+        self.web_traffic_tab.refresh(web_summary)
 
         self.status_var.set(
             f"Loaded {overview_metrics.get('total_runs', 0)} runs "

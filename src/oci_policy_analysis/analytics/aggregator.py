@@ -255,6 +255,26 @@ def compute_data_load_sources(docs: Iterable[UsageDoc]) -> dict[str, int]:
     return dict(counter)
 
 
+def compute_tenancy_source_metrics(docs: Iterable[UsageDoc]) -> dict[tuple[str, str], int]:
+    """Summarize web operation counts by (tenancy_suffix, source).
+
+    This supports a tenancy tab view where source is part of the composite key.
+    Only ``web_operation`` records are considered.
+    """
+
+    counter: Counter[tuple[str, str]] = Counter()
+    for doc in docs:
+        tenancy = str(getattr(doc, 'tenancy_suffix', '') or '').strip() or 'unknown'
+        for op in doc.operations:
+            if op.op_type != 'web_operation':
+                continue
+            source = str(op.payload.get('source', '')).strip() or 'n/a'
+            counter[(tenancy, source)] += 1
+
+    logger.debug('Computed tenancy/source metrics for %d composite keys', len(counter))
+    return dict(counter)
+
+
 @dataclass
 class AiAssistSummary:
     """Aggregated AI assist metrics across all runs.
@@ -351,6 +371,21 @@ class McpToolSummary:
     failure_by_tool: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class WebTrafficSummary:
+    """Aggregated web traffic metrics from ``web_operation`` events."""
+
+    total_ops: int = 0
+    by_route: dict[str, int] = field(default_factory=dict)
+    by_status: dict[str, int] = field(default_factory=dict)
+    by_source: dict[str, int] = field(default_factory=dict)
+    by_tenancy_suffix: dict[str, int] = field(default_factory=dict)
+    by_route_status: dict[tuple[str, str], int] = field(default_factory=dict)
+    avg_duration_ms_by_route_status: dict[tuple[str, str], float] = field(default_factory=dict)
+    by_tenancy_route_status: dict[tuple[str, str, str], int] = field(default_factory=dict)
+    by_page: dict[str, int] = field(default_factory=dict)
+
+
 def compute_mcp_tool_summary(docs: Iterable[UsageDoc]) -> McpToolSummary:
     """Compute high-level metrics for ``mcp_tool`` operations.
 
@@ -396,12 +431,82 @@ def compute_mcp_tool_summary(docs: Iterable[UsageDoc]) -> McpToolSummary:
     return summary
 
 
+def compute_web_traffic_summary(docs: Iterable[UsageDoc]) -> WebTrafficSummary:
+    """Compute high-level metrics for web traffic operations.
+
+    Looks for ``op_type == 'web_operation'`` records and summarizes route,
+    status, source, and tenancy hash counts.
+    """
+
+    by_route: Counter[str] = Counter()
+    by_status: Counter[str] = Counter()
+    by_source: Counter[str] = Counter()
+    by_tenancy_suffix: Counter[str] = Counter()
+    by_route_status: Counter[tuple[str, str]] = Counter()
+    by_tenancy_route_status: Counter[tuple[str, str, str]] = Counter()
+    by_page: Counter[str] = Counter()
+    duration_sum_by_route_status: dict[tuple[str, str], float] = {}
+    duration_count_by_route_status: Counter[tuple[str, str]] = Counter()
+    total_ops = 0
+
+    for doc in docs:
+        for op in doc.operations:
+            if op.op_type != 'web_operation':
+                continue
+            total_ops += 1
+            route = str(op.payload.get('route', 'unknown'))
+            status = str(op.payload.get('status', 'unknown'))
+            source = str(op.payload.get('source', '')).strip()
+            tenancy_suffix = str(getattr(doc, 'tenancy_suffix', '') or '').strip() or 'unknown'
+            route_status = (route, status)
+            page = str(op.payload.get('page', '')).strip() or 'other'
+
+            by_route[route] += 1
+            by_status[status] += 1
+            by_route_status[route_status] += 1
+            by_tenancy_route_status[(tenancy_suffix, route, status)] += 1
+            by_tenancy_suffix[tenancy_suffix] += 1
+            by_page[page] += 1
+            if source:
+                by_source[source] += 1
+            duration_val = op.payload.get('duration_ms')
+            try:
+                if duration_val is not None:
+                    duration_ms = float(duration_val)
+                    if duration_ms >= 0:
+                        duration_sum_by_route_status[route_status] = (
+                            duration_sum_by_route_status.get(route_status, 0.0) + duration_ms
+                        )
+                        duration_count_by_route_status[route_status] += 1
+            except (TypeError, ValueError):
+                pass
+
+    avg_duration_ms_by_route_status: dict[tuple[str, str], float] = {}
+    for key, total_ms in duration_sum_by_route_status.items():
+        cnt = int(duration_count_by_route_status.get(key, 0))
+        if cnt > 0:
+            avg_duration_ms_by_route_status[key] = total_ms / cnt
+
+    return WebTrafficSummary(
+        total_ops=total_ops,
+        by_route=dict(by_route),
+        by_status=dict(by_status),
+        by_source=dict(by_source),
+        by_tenancy_suffix=dict(by_tenancy_suffix),
+        by_route_status=dict(by_route_status),
+        avg_duration_ms_by_route_status=avg_duration_ms_by_route_status,
+        by_tenancy_route_status=dict(by_tenancy_route_status),
+        by_page=dict(by_page),
+    )
+
+
 __all__ = [
     'TenancyMetrics',
     'TabUsageMetrics',
     'SubtabUsageMetrics',
     'AiAssistSummary',
     'McpToolSummary',
+    'WebTrafficSummary',
     'compute_overview_metrics',
     'compute_tenancy_metrics',
     'compute_tab_usage_metrics',
@@ -409,6 +514,8 @@ __all__ = [
     'compute_operation_summaries',
     'compute_mcp_tool_usage',
     'compute_data_load_sources',
+    'compute_tenancy_source_metrics',
     'compute_ai_assist_summary',
     'compute_mcp_tool_summary',
+    'compute_web_traffic_summary',
 ]

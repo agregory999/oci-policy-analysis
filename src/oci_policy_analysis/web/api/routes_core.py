@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from datetime import UTC, datetime
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, cast
 
@@ -45,6 +47,7 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
+from oci_policy_analysis.common.usage_tracking import get_usage_tracker, init_usage_tracker
 from oci_policy_analysis.web.auth import current_key_fingerprint, verify_access_key
 from oci_policy_analysis.web.dependencies import get_context, get_settings
 
@@ -71,10 +74,12 @@ def auth_login(request: Request, payload: dict[str, object]) -> dict[str, object
     submitted_key = str(payload.get('key') or '').strip()
     if not verify_access_key(submitted_key):
         request.session.clear()
+        _track_web_operation('/auth/login', status='error')
         return {'success': False, 'authenticated': False, 'message': 'Invalid access key.'}
 
     request.session['authenticated'] = True
     request.session['auth_key_fp'] = current_key_fingerprint()
+    _track_web_operation('/auth/login', status='success')
     return {'success': True, 'authenticated': True}
 
 
@@ -125,6 +130,128 @@ def _build_stage_collector() -> tuple[list[dict[str, str]], Any]:
         )
 
     return stages, on_stage
+
+
+def _get_tenancy_ocid_hash(ctx: object | None) -> str | None:
+    """Return a SHA-256 hash of active tenancy OCID, if available.
+
+    Privacy note: this helper never returns the raw tenancy OCID.
+    """
+
+    if ctx is None:
+        return None
+    try:
+        repo = getattr(ctx, 'policy_repo', None)
+        tenancy_ocid = str(getattr(repo, 'tenancy_ocid', '') or '').strip()
+        if not tenancy_ocid:
+            return None
+        return hashlib.sha256(tenancy_ocid.encode('utf-8')).hexdigest()
+    except Exception:
+        return None
+
+
+def _get_tenancy_suffix(ctx: object | None) -> str | None:
+    """Return last-6 tenancy OCID suffix for tracker object partitioning."""
+
+    if ctx is None:
+        return None
+    try:
+        repo = getattr(ctx, 'policy_repo', None)
+        tenancy_ocid = str(getattr(repo, 'tenancy_ocid', '') or '').strip()
+        if not tenancy_ocid:
+            return None
+        return tenancy_ocid[-6:]
+    except Exception:
+        return None
+
+
+def _infer_page_from_route(route: str) -> str:
+    """Map API route to a coarse web page/feature bucket for analytics."""
+
+    r = (route or '').strip().lower()
+    if r.startswith('/filter/policies'):
+        return 'policy_analysis'
+    if r.startswith('/entities/'):
+        return 'user_group_analysis'
+    if r.startswith('/analysis/permissions-report'):
+        return 'permissions_report'
+    if r.startswith('/analysis/recommendations'):
+        return 'recommendations'
+    if r.startswith('/simulation/'):
+        return 'simulation'
+    if r.startswith('/consolidation/'):
+        return 'consolidation'
+    if r.startswith('/prospective/'):
+        return 'prospective'
+    if r.startswith('/load/'):
+        return 'load'
+    if r.startswith('/auth/'):
+        return 'auth'
+    if r.startswith('/reference/'):
+        return 'reference'
+    if r.startswith('/utilities/'):
+        return 'utilities'
+    return 'other'
+
+
+def _track_web_operation(
+    route: str,
+    *,
+    status: str,
+    ctx: object | None = None,
+    source: str | None = None,
+    count: int | None = None,
+    duration_ms: float | None = None,
+) -> None:
+    """Best-effort anonymous tracking for high-value web operations.
+
+    Records only non-personal metadata. No usernames, no client/IP values,
+    and no raw tenancy OCID are ever recorded.
+    """
+
+    try:
+        tracker = get_usage_tracker()
+        if tracker is None:
+            logger.info('Web usage tracking skipped: tracker not initialized route=%s status=%s', route, status)
+            return
+        tenancy_suffix = _get_tenancy_suffix(ctx)
+        if tenancy_suffix:
+            tracker.set_tenancy_suffix(tenancy_suffix)
+        payload: dict[str, object] = {
+            'channel': 'web',
+            'route': route,
+            'status': status,
+            'page': _infer_page_from_route(route),
+        }
+        tenancy_ocid_hash = _get_tenancy_ocid_hash(ctx)
+        if tenancy_ocid_hash:
+            payload['tenancy_ocid_hash'] = tenancy_ocid_hash
+        if source:
+            payload['source'] = source
+        if count is not None:
+            payload['count'] = int(count)
+        if duration_ms is not None:
+            payload['duration_ms'] = float(duration_ms)
+        logger.info(
+            'Web usage tracking: route=%s status=%s source=%s has_tenancy_hash=%s count=%s',
+            route,
+            status,
+            source or '',
+            bool(payload.get('tenancy_ocid_hash')),
+            payload.get('count', ''),
+        )
+        tracker.track_operation('web_operation', **payload)
+        # Flush web operations promptly so analytics PAR refresh can see them
+        # without waiting for process exit, then rotate tracker for next op.
+        tracker.flush()
+        try:
+            raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
+            app_version = raw_version.lstrip('\ufeff').strip() or 'dev'
+        except Exception:
+            app_version = 'dev'
+        init_usage_tracker(get_settings(), app_version)
+    except Exception:
+        logger.debug('Usage tracking failed for web route %s', route, exc_info=True)
 
 
 def _normalize_statement_text_for_key(statement_text: str) -> str:
@@ -342,12 +469,20 @@ def load_cache(cache_name: str, payload: dict[str, object] | None = None) -> dic
     stages, on_stage = _build_stage_collector()
     body = payload or {}
     run_post_load_intelligence = body.get('run_post_load_intelligence')
+    started = time.perf_counter()
     result = service.load_from_cache(
         cache_name=cache_name,
         run_post_load_intelligence=(
             bool(run_post_load_intelligence) if run_post_load_intelligence is not None else True
         ),
         on_stage=on_stage,
+    )
+    _track_web_operation(
+        '/load/cache',
+        status='success' if bool(result.success) else 'error',
+        ctx=ctx,
+        source='cache',
+        duration_ms=(time.perf_counter() - started) * 1000.0,
     )
     return {
         'success': result.success,
@@ -363,7 +498,14 @@ def run_intelligence() -> dict[str, object]:
     logger.info('POST /intelligence/run')
     ctx = get_context()
     service = IntelligenceService(ctx)
+    started = time.perf_counter()
     result = service.run_all()
+    _track_web_operation(
+        '/intelligence/run',
+        status='success',
+        ctx=ctx,
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
     return {'overlay': result.overlay}
 
 
@@ -430,6 +572,7 @@ def filter_policies(payload: dict[str, object]) -> dict[str, object]:
     logger.info('POST /filter/policies')
     ctx = get_context()
     service = AnalysisService(ctx)
+    started = time.perf_counter()
     raw_filters = payload.get('filters') or {}
     sort_by = str(payload.get('sort_by') or '').strip()
     sort_dir = str(payload.get('sort_dir') or 'asc').strip().lower()
@@ -449,6 +592,14 @@ def filter_policies(payload: dict[str, object]) -> dict[str, object]:
     if sort_by:
         reverse = sort_dir == 'desc'
         statements.sort(key=lambda row: _lookup(cast(dict[str, Any], row), sort_by).casefold(), reverse=reverse)
+
+    _track_web_operation(
+        '/filter/policies',
+        status='success',
+        ctx=ctx,
+        count=int(result.matched or 0),
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
 
     return {
         'total': result.total,
@@ -541,6 +692,7 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
     """Filter policies by exact selected groups/users/dynamic groups and optional any-user/group expansion."""
     logger.info('POST /filter/policies/by-subjects')
     ctx = get_context()
+    started = time.perf_counter()
     repo = ctx.policy_repo
 
     exact_groups_payload = payload.get('exact_groups')
@@ -704,6 +856,14 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         len(getattr(repo, 'regular_statements', []) or []),
     )
     logger.debug('[by-subjects] selected_groups_unique=%s', selected_groups_unique)
+
+    _track_web_operation(
+        '/filter/policies/by-subjects',
+        status='success',
+        ctx=ctx,
+        count=len(statements),
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
 
     return {
         'total': len(getattr(repo, 'regular_statements', []) or []),
@@ -1146,6 +1306,7 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
         depth = 1
 
     stages, on_stage = _build_stage_collector()
+    started = time.perf_counter()
     result = service.load_from_tenancy(
         use_instance_principal=use_instance_principal,
         profile=profile,
@@ -1154,6 +1315,13 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
         load_all_users=bool(load_all_users) if load_all_users is not None else True,
         compartment_domain_search_depth=depth,
         on_stage=on_stage,
+    )
+    _track_web_operation(
+        '/load/tenancy',
+        status='success' if bool(result.success) else 'error',
+        ctx=ctx,
+        source='live',
+        duration_ms=(time.perf_counter() - started) * 1000.0,
     )
     return {
         'success': result.success,
@@ -1270,6 +1438,7 @@ def replace_prospective_statements(payload: dict[str, object]) -> dict[str, obje
 
     rows = payload.get('rows')
     if not isinstance(rows, list):
+        _track_web_operation('/prospective/statements/replace', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail='rows must be a list')
 
     simple_rows: list[dict[str, Any]] = []
@@ -1290,6 +1459,7 @@ def replace_prospective_statements(payload: dict[str, object]) -> dict[str, obje
 
     service.replace_all_from_simple_list(simple_rows)
     service.persist_and_push_to_engine()
+    _track_web_operation('/prospective/statements/replace', status='success', ctx=ctx, count=len(simple_rows))
     return {'success': True, 'count': len(simple_rows)}
 
 
@@ -1423,10 +1593,13 @@ def run_simulation(payload: dict[str, object]) -> dict[str, object]:
         api_operations = [one] if one else []
 
     if not principal_key:
+        _track_web_operation('/simulation/run', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail='principal_key is required')
     if not api_operations:
+        _track_web_operation('/simulation/run', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail='At least one api_operation is required')
 
+    started = time.perf_counter()
     results: list[dict[str, Any]] = []
     for op in api_operations:
         if scenario_name and simulation_name:
@@ -1451,6 +1624,14 @@ def run_simulation(payload: dict[str, object]) -> dict[str, object]:
         row = dict(result)
         row['api_operation'] = op
         results.append(row)
+
+    _track_web_operation(
+        '/simulation/run',
+        status='success',
+        ctx=ctx,
+        count=len(results),
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
 
     return {
         'results': results,
@@ -1555,15 +1736,25 @@ def create_consolidation_proposal(payload: dict[str, object]) -> dict[str, objec
     candidate_ids_raw = payload.get('candidate_internal_ids') if isinstance(payload, dict) else []
     candidate_internal_ids = [str(x).strip() for x in candidate_ids_raw] if isinstance(candidate_ids_raw, list) else []
     if not strategy_display_name:
+        _track_web_operation('/consolidation/proposals', status='error')
         raise HTTPException(status_code=400, detail='strategy_display_name is required')
     ctx = get_context()
     svc = ConsolidationWorkbenchService(ctx)
+    started = time.perf_counter()
     try:
         result = svc.create_proposal(
             candidate_internal_ids=candidate_internal_ids, strategy_display_name=strategy_display_name
         )
     except (ValueError, RuntimeError) as exc:
+        _track_web_operation('/consolidation/proposals', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _track_web_operation(
+        '/consolidation/proposals',
+        status='success',
+        ctx=ctx,
+        count=len(candidate_internal_ids),
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
     return result
 
 
@@ -1666,9 +1857,11 @@ def load_compliance(payload: dict[str, object]) -> dict[str, object]:
     load_all_users = payload.get('load_all_users')
     run_post_load_intelligence = payload.get('run_post_load_intelligence')
     if not dir_path:
+        _track_web_operation('/load/compliance', status='error', ctx=ctx, source='compliance')
         return {'success': False, 'message': 'Directory path is required.', 'summary': {}}
 
     stages, on_stage = _build_stage_collector()
+    started = time.perf_counter()
     result = service.load_from_compliance_output(
         dir_path,
         load_all_users=bool(load_all_users) if load_all_users is not None else True,
@@ -1676,6 +1869,13 @@ def load_compliance(payload: dict[str, object]) -> dict[str, object]:
             bool(run_post_load_intelligence) if run_post_load_intelligence is not None else True
         ),
         on_stage=on_stage,
+    )
+    _track_web_operation(
+        '/load/compliance',
+        status='success' if bool(result.success) else 'error',
+        ctx=ctx,
+        source='compliance',
+        duration_ms=(time.perf_counter() - started) * 1000.0,
     )
     return {
         'success': result.success,
@@ -1695,15 +1895,24 @@ def load_export(payload: dict[str, object]) -> dict[str, object]:
     file_path = file_path_raw if isinstance(file_path_raw, str) else ''
     run_post_load_intelligence = payload.get('run_post_load_intelligence')
     if not file_path:
+        _track_web_operation('/load/export', status='error', ctx=ctx, source='json_file')
         return {'success': False, 'message': 'Export file path is required.', 'summary': {}}
 
     stages, on_stage = _build_stage_collector()
+    started = time.perf_counter()
     result = service.load_from_export_json(
         file_path,
         run_post_load_intelligence=(
             bool(run_post_load_intelligence) if run_post_load_intelligence is not None else True
         ),
         on_stage=on_stage,
+    )
+    _track_web_operation(
+        '/load/export',
+        status='success' if bool(result.success) else 'error',
+        ctx=ctx,
+        source='json_file',
+        duration_ms=(time.perf_counter() - started) * 1000.0,
     )
     return {
         'success': result.success,

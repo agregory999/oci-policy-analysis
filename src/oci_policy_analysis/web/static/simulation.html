@@ -26,6 +26,14 @@
         height: 100%;
         overflow: auto;
       }
+
+      /* Reduce table text size by ~2pt while keeping existing font family. */
+      #statementTable th,
+      #statementTable td,
+      #historyRows td,
+      .workflow-panel[data-panel="5"] table thead th {
+        font-size: 0.75rem;
+      }
     </style>
   </head>
   <body>
@@ -125,6 +133,7 @@
     </section>
 
     <script src="/prospective-editor.js"></script>
+    <script src="/shared-formatters.js"></script>
     <script>
       const state = { options:null, principalKey:'', statements:[], selectedStatementIds:new Set(), variables:[], variableValues:{}, apis:[], rows:[], historyMeta:[], lastRun:[] };
       const $ = (id)=>document.getElementById(id);
@@ -142,7 +151,7 @@
       function renderPrincipalList(){ const t=$('ctxPrincipalType').value; const arr=(state.options?.principals_by_type?.[t])||[]; $('ctxPrincipal').innerHTML=arr.map((x)=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''); updateSummary(); updateReadiness(); }
       function renderApiOptions(filter=''){ const f=String(filter).toLowerCase(); $('apiSelect').innerHTML=state.apis.filter((a)=>a.toLowerCase().includes(f)).map((a)=>`<option value="${esc(a)}">${esc(a)}</option>`).join(''); }
 
-      function renderStatementTable(){ const tb=document.querySelector('#statementTable tbody'); tb.innerHTML=''; state.statements.forEach((s)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td><input type="checkbox" data-id="${esc(s.internal_id)}" checked/></td><td>${esc(String(s.action||'').toUpperCase())}</td><td>${s.is_prospective?'[Prospective] ':''}${esc(s.policy_name||'')}</td><td class="statement-cell">${esc(s.statement_text||'')}</td><td>${esc(s.policy_path||'')}</td>`; tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(s); }); tb.appendChild(tr); }); tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{ const id=e.target.dataset.id; if(e.target.checked) state.selectedStatementIds.add(id); else state.selectedStatementIds.delete(id); state.variables=[]; state.variableValues={}; $('variablesArea').innerHTML='<p class="helper-text">Statement selection changed. Regenerate variables.</p>'; $('apiSelect').selectedIndex=-1; log('Statement selection changed; variables/API reset.'); updateSummary(); updateReadiness(); })); }
+      function renderStatementTable(){ const tb=document.querySelector('#statementTable tbody'); tb.innerHTML=''; state.statements.forEach((s)=>{ const tr=document.createElement('tr'); const shared=window.SharedFormatters; const policyLabelBase=shared?.formatPolicyCompartmentName?shared.formatPolicyCompartmentName(s,{separator:' :: ',empty:(s.policy_name||s.policy_path||'-')}):String(s.policy_name||''); const policyLabel=s.is_prospective?`[Prospective] ${policyLabelBase}`:policyLabelBase; tr.innerHTML=`<td><input type="checkbox" data-id="${esc(s.internal_id)}" checked/></td><td>${esc(String(s.action||'').toUpperCase())}</td><td>${esc(policyLabel)}</td><td class="statement-cell">${esc(s.statement_text||'')}</td><td>${esc(s.policy_path||s.compartment_path||'')}</td>`; tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(s); }); tb.appendChild(tr); }); tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{ const id=e.target.dataset.id; if(e.target.checked) state.selectedStatementIds.add(id); else state.selectedStatementIds.delete(id); state.variables=[]; state.variableValues={}; $('variablesArea').innerHTML='<p class="helper-text">Statement selection changed. Regenerate variables.</p>'; $('apiSelect').selectedIndex=-1; log('Statement selection changed; variables/API reset.'); updateSummary(); updateReadiness(); })); }
 
       function formatInspectorValue(key,value){ if(value===null||value===undefined||value==='')return '-'; if(Array.isArray(value)) return value.map((x)=>typeof x==='object'?JSON.stringify(x):String(x)).join('\n'); if(typeof value==='object') return JSON.stringify(value,null,2); return String(value); }
       function openInspector(row){ const primary=['policy_path','policy_name','effective_path','statement_text']; const parsed=['action','subject_type','subject','principals','verb','resource','permission','conditions','valid','parsed']; const all=[...new Set([...primary,...parsed,...Object.keys(row||{})])].filter((k)=>!['_row_id'].includes(k)); const ordered=[...primary,'__parsed__',...parsed,...all.filter((k)=>!primary.includes(k)&&!parsed.includes(k)).sort()]; $('inspectorBody').innerHTML=ordered.map((k)=>k==='__parsed__'?'<tr class="inspector-separator"><th colspan="2">- Parsed Details -</th></tr>':`<tr><th>${esc(k.replaceAll('_',' ').replace(/\b\w/g,(c)=>c.toUpperCase()))}</th><td>${esc(formatInspectorValue(k,row[k]))}</td></tr>`).join(''); $('stmtInspector').classList.add('open'); }

@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Resource Principals Analysis</title>
     <link rel="stylesheet" href="/app.css" />
+    <style>
+      #entitiesTable th,
+      #entitiesTable td,
+      #resultsTable th,
+      #resultsTable td {
+        font-size: 0.75rem;
+      }
+    </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
@@ -72,7 +80,7 @@
             <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
             <div class="helper-text" data-help-title="Policy statements table" data-help-body="Matched policy statements for the selected mode and filters. Click a row to inspect details.">Tip: click a row to inspect details.</div>
           </div>
-          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Includes policy name, compartment, statement text, effective path, and validity."><thead><tr><th>Policy Name</th><th>Policy Compartment</th><th>Statement</th><th>Effective Path</th><th>Valid</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Includes policy name, compartment, statement text, effective path, and validity."><thead><tr><th>Compartment / Policy</th><th>Statement</th><th>Effective Path</th><th>Verb + Resource / Permission</th><th>Valid</th></tr></thead><tbody></tbody></table></div></div>
         </div>
         <aside id="policyInspector" class="inspector-panel" aria-live="polite">
           <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
@@ -171,7 +179,7 @@
       }
 
       function renderPolicies(){
-        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Valid'])}</td></tr>`).join('');
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(formatPolicyHybrid(p))}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(formatVerbResourcePermission(p))}</td><td>${esc(p['Valid'])}</td></tr>`).join('');
         [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
       }
 
@@ -194,6 +202,27 @@
           return window.SharedFormatters.formatMatchingRuleByComma(value);
         }
         return String(value ?? '').trim();
+      }
+
+      function formatPolicyHybrid(row){
+        if (window.SharedFormatters?.formatPolicyCompartmentName) {
+          return window.SharedFormatters.formatPolicyCompartmentName(row, { separator: ' :: ', empty: '-' });
+        }
+        const cp = String(row?.['Policy Compartment'] ?? row?.compartment_path ?? '').trim();
+        const pn = String(row?.['Policy Name'] ?? row?.policy_name ?? '').trim();
+        if (cp && pn) return `${cp} :: ${pn}`;
+        return pn || cp || '-';
+      }
+
+      function formatVerbResourcePermission(row){
+        if (window.SharedFormatters?.formatVerbResourcePermission) {
+          return window.SharedFormatters.formatVerbResourcePermission(row, { empty: '-' });
+        }
+        const verb = String(row?.verb ?? row?.['Verb'] ?? '').trim();
+        const resource = String(row?.resource ?? row?.['Resource'] ?? '').trim();
+        const permission = String(row?.permission ?? row?.['Permission'] ?? '').trim();
+        if (verb && resource && permission) return `${verb} ${resource} / ${permission}`;
+        return `${verb} ${resource}`.trim() || permission || '-';
       }
 
       function normalizeModeUi(){

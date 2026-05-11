@@ -19,7 +19,11 @@ from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.application.services.principal_analysis_service import PrincipalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import DynamicGroup, RegularPolicyStatement
-from oci_policy_analysis.presentation import for_display_dynamic_group, for_display_policy
+from oci_policy_analysis.presentation import (
+    for_display_dynamic_group,
+    for_display_policy,
+    format_compartment_policy_name,
+)
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
@@ -245,19 +249,23 @@ class ResourcePrincipalsTab(BaseUITab):
             menu = tk.Menu(self, tearoff=0)
             row_data = self.rp_policy_table.data[row_index]
             logger.info(f'Creating more details menu for row {row_index}: {row_data}')
+            policy_label = format_compartment_policy_name(
+                row_data.get('Policy Compartment', ''),
+                row_data.get('Policy Name', ''),
+                separator='/',
+                empty=row_data.get('Policy Name', '') or '[policy]',
+            )
 
             # Create a policy search filter by policy name from selected row
             def switch_tab_policy_analysis():
                 self.app.notebook.select(tab_id=2)  # Policy Analysis tab
                 # Set the policy name entry
-                logger.info(f'Switching to Policy Analysis tab for policy: {row_data.get("Policy Name", "")}')
+                logger.info(f'Switching to Policy Analysis tab for policy: {policy_label}')
                 # Check the dynamic groups box and set the filter for policy name
                 self.app.policies_tab.chk_show_dynamic.set(True)
                 self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
 
-            menu.add_command(
-                label=f'View Full Policy ({row_data.get("Policy Name", "")})', command=switch_tab_policy_analysis
-            )
+            menu.add_command(label=f'View Full Policy ({policy_label})', command=switch_tab_policy_analysis)
             return menu
 
         # --- Main area: Labeled Frames for each table area ---

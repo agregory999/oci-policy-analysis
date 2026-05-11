@@ -235,6 +235,12 @@ class UsageTracker:
             op = UsageOperation(op_type=op_type, ts=_utc_now_iso(), payload=payload or {})
             with self._lock:
                 self._operations.append(op)
+            logger.info(
+                'Usage tracking operation recorded: op_type=%s run_id=%s payload_keys=%s',
+                op_type,
+                self.run_id,
+                sorted((payload or {}).keys()),
+            )
         except Exception:
             logger.debug('UsageTracker.track_operation failed', exc_info=True)
 
@@ -285,19 +291,27 @@ class UsageTracker:
             body = json.dumps(asdict(doc), ensure_ascii=False).encode('utf-8')
             req = request.Request(full_url, data=body, method='PUT')
             req.add_header('Content-Type', 'application/json')
+            logger.info(
+                'Usage tracking flush: uploading run_id=%s events=%d operations=%d object_key=%s',
+                self.run_id,
+                len(events_copy),
+                len(operations_copy),
+                object_key,
+            )
             # Use a fairly short timeout so app shutdown never feels slow
             # if the tracking endpoint is unreachable (e.g., offline).
             with request.urlopen(req, timeout=3) as resp:  # noqa: S310
-                # Log success at DEBUG so it is available when needed but
-                # does not clutter normal logs.
-                logger.debug('Usage tracking upload succeeded: %s', getattr(resp, 'status', 'unknown'))
+                logger.info(
+                    'Usage tracking upload succeeded: status=%s run_id=%s',
+                    getattr(resp, 'status', 'unknown'),
+                    self.run_id,
+                )
         except (urlerror.URLError, OSError, ValueError) as e:
             # Swallow all network/serialization errors; this must never impact
-            # the main app experience. Log at DEBUG so we only see this when
-            # explicitly troubleshooting.
-            logger.debug('Usage tracking upload failed: %s', e)
+            # the main app experience.
+            logger.info('Usage tracking upload failed: run_id=%s error=%s', self.run_id, e)
         except Exception as e:  # pragma: no cover - defensive catch-all
-            logger.debug('Unexpected error during usage tracking upload: %s', e)
+            logger.info('Unexpected error during usage tracking upload: run_id=%s error=%s', self.run_id, e)
 
 
 # Global singleton, initialized from main.App using init_usage_tracker.
@@ -311,11 +325,12 @@ def init_usage_tracker(settings: dict, app_version: str) -> UsageTracker | None:
     """
 
     enabled = bool(settings.get('usage_tracking_enabled', False))
+    global _tracker
     if not enabled:
         logger.info('Usage tracking is disabled in settings.')
+        _tracker = None
         return None
 
-    global _tracker
     _tracker = UsageTracker(enabled=True, app_version=app_version)
     logger.info('Usage tracking initialized (run_id=%s)', _tracker.run_id)
     return _tracker

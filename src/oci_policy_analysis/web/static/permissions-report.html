@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Permissions Report</title>
     <link rel="stylesheet" href="/app.css" />
+    <style>
+      /* Reduce table text size by ~2pt while preserving existing font family. */
+      #treeTable th,
+      #treeTable td,
+      #allowTable th,
+      #allowTable td,
+      #denyTable th,
+      #denyTable td {
+        font-size: 0.75rem;
+      }
+    </style>
   </head>
   <body>
     <!-- Top row: standard masthead + persistent context help panel -->

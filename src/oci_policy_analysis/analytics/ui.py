@@ -33,6 +33,7 @@ from .aggregator import (
     SubtabUsageMetrics,
     TabUsageMetrics,
     TenancyMetrics,
+    WebTrafficSummary,
 )
 from .model import UsageDoc
 
@@ -137,8 +138,10 @@ class OverviewTab(BaseUITab):
             started = doc.started_at.isoformat(sep=' ') if doc.started_at else ''
             # Derive a simple duration string when possible.
             duration = '(unknown)'
-            if getattr(doc, 'ended_at', None) is not None and getattr(doc, 'started_at', None) is not None:
-                delta = doc.ended_at - doc.started_at
+            started_at = getattr(doc, 'started_at', None)
+            ended_at = getattr(doc, 'ended_at', None)
+            if started_at is not None and ended_at is not None:
+                delta = ended_at - started_at
                 total_seconds = int(delta.total_seconds())
                 if total_seconds < 0:
                     duration = '(invalid)'
@@ -170,15 +173,17 @@ class TenancyTab(BaseUITab):
 
         body = self
 
-        columns = ('tenancy', 'runs', 'first', 'last', 'versions')
+        columns = ('tenancy', 'source', 'runs', 'first', 'last', 'versions')
         tree = ttk.Treeview(body, columns=columns, show='headings', height=20)
         tree.heading('tenancy', text='Tenancy suffix')
+        tree.heading('source', text='Source')
         tree.heading('runs', text='Run count')
         tree.heading('first', text='First seen')
         tree.heading('last', text='Last seen')
         tree.heading('versions', text='App versions')
 
         tree.column('tenancy', width=160, anchor='w')
+        tree.column('source', width=120, anchor='w')
         tree.column('runs', width=80, anchor='e')
         tree.column('first', width=120, anchor='w')
         tree.column('last', width=120, anchor='w')
@@ -192,23 +197,33 @@ class TenancyTab(BaseUITab):
 
         self.tree = tree
 
-    def refresh(self, tenancy_metrics: dict[str, TenancyMetrics]) -> None:
+    def refresh(
+        self,
+        tenancy_metrics: dict[str, TenancyMetrics],
+        tenancy_source_metrics: dict[tuple[str, str], int] | None = None,
+    ) -> None:
         """Refresh the tenancy metrics table."""
 
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        # Sort by run_count descending.
+        if tenancy_source_metrics:
+            rows = sorted(
+                tenancy_source_metrics.items(),
+                key=lambda kv: (-int(kv[1]), kv[0][0], kv[0][1]),
+            )
+            for (tenancy, source), count in rows:
+                tm = tenancy_metrics.get(tenancy)
+                versions_str = ', '.join(f'{ver} ({c})' for ver, c in tm.app_versions.most_common()) if tm else ''
+                first_seen = tm.first_seen if tm else ''
+                last_seen = tm.last_seen if tm else ''
+                self.tree.insert('', 'end', values=(tenancy, source, count, first_seen, last_seen, versions_str))
+            return
+
         rows = sorted(tenancy_metrics.values(), key=lambda tm: int(tm.run_count), reverse=True)
         for tm in rows:
             versions_str = ', '.join(f'{ver} ({count})' for ver, count in tm.app_versions.most_common())
-            values = (
-                tm.tenancy_suffix,
-                tm.run_count,
-                tm.first_seen or '',
-                tm.last_seen or '',
-                versions_str,
-            )
+            values = (tm.tenancy_suffix, 'n/a', tm.run_count, tm.first_seen or '', tm.last_seen or '', versions_str)
             self.tree.insert('', 'end', values=values)
 
 
@@ -219,7 +234,6 @@ class TabUsageTab(BaseUITab):
         super().__init__(parent, default_help_text='Tab change counts by tab name.')
 
         body = self
-
         columns = ('tab', 'count', 'first', 'last')
         tree = ttk.Treeview(body, columns=columns, show='headings', height=20)
         tree.heading('tab', text='Tab name')
@@ -551,6 +565,68 @@ class McpOperationsTab(BaseUITab):
             self.tree.insert('', 'end', values=(tool, total, succ, fail))
 
 
+class WebTrafficTab(BaseUITab):
+    """Web traffic metrics based on ``web_operation`` operations."""
+
+    def __init__(self, parent: tk.Widget):
+        super().__init__(
+            parent,
+            default_help_text=(
+                'Web traffic summary from tracked high-value operations only '
+                '(auth/load/simulation/intelligence/prospective/consolidation).'
+            ),
+        )
+
+        body = self
+        self.summary_var = tk.StringVar(value='Web operations: 0 | Tenancy suffixes: 0')
+        summary_frame = ttk.Frame(body)
+        summary_frame.pack(side=tk.TOP, fill=tk.X, padx=4, pady=4)
+        ttk.Label(summary_frame, textvariable=self.summary_var).pack(side=tk.LEFT, padx=4)
+
+        bottom = ttk.Frame(body)
+        bottom.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
+
+        # Left: tenancy + operation + status with avg duration
+        left = ttk.LabelFrame(bottom, text='Tenancy / Operation / Status')
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 2))
+
+        cols = ('tenancy', 'operation', 'status', 'count', 'avg_duration_ms')
+        self.left_tree = ttk.Treeview(left, columns=cols, show='headings', height=16)
+        self.left_tree.heading('tenancy', text='Tenancy suffix')
+        self.left_tree.heading('operation', text='Operation')
+        self.left_tree.heading('status', text='Status')
+        self.left_tree.heading('count', text='Count')
+        self.left_tree.heading('avg_duration_ms', text='Avg duration (ms)')
+        self.left_tree.column('tenancy', width=130, anchor='w')
+        self.left_tree.column('operation', width=220, anchor='w')
+        self.left_tree.column('status', width=90, anchor='w')
+        self.left_tree.column('count', width=90, anchor='e')
+        self.left_tree.column('avg_duration_ms', width=130, anchor='e')
+        lscroll = ttk.Scrollbar(left, orient='vertical', command=self.left_tree.yview)
+        self.left_tree.configure(yscrollcommand=lscroll.set)
+        self.left_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 2), pady=2)
+        lscroll.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 4), pady=2)
+
+        # Removed secondary distribution pane; tenancy/source rollup now lives on Tenancies tab.
+
+    def refresh(self, summary: WebTrafficSummary) -> None:
+        self.summary_var.set(
+            f'Web operations: {summary.total_ops} | Tenancy suffixes: {len(summary.by_tenancy_suffix)}'
+        )
+
+        for item in self.left_tree.get_children():
+            self.left_tree.delete(item)
+        for (tenancy, route, status), count in sorted(
+            summary.by_tenancy_route_status.items(),
+            key=lambda kv: (-kv[1], kv[0][0], kv[0][1], kv[0][2]),
+        ):
+            avg_duration = summary.avg_duration_ms_by_route_status.get((route, status))
+            avg_display = f'{avg_duration:.1f}' if avg_duration is not None else 'n/a'
+            self.left_tree.insert('', 'end', values=(tenancy, route, status, count, avg_display))
+
+        # No secondary distribution table by design.
+
+
 __all__ = [
     'OverviewTab',
     'TenancyTab',
@@ -559,4 +635,5 @@ __all__ = [
     'OperationsTab',
     'AiOperationsTab',
     'McpOperationsTab',
+    'WebTrafficTab',
 ]

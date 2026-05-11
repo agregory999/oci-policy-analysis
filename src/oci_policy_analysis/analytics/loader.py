@@ -48,28 +48,17 @@ from .model import UsageDoc
 logger = get_logger(component='analytics.loader')
 
 
-# Base PAR URL (read/list) provided by project owner. Object keys are
-# appended directly to this base path.
-
-ANALYTICS_PAR_BASE_URL_DEFAULT = (
-    'https://objectstorage.us-ashburn-1.oraclecloud.com/p/'
-    'PSeHhXAl4SS24frWNdDLzEFmFNoUnuZt1QzKfHx_K1c5G6BNl4cjS-jSmv0o7QwP/'
-    'n/idxhxzdpc23m/b/policy-analysis-tracking/o/'
-)
-
-
 def get_analytics_par_base_url() -> str | None:
     """Return the base PAR URL for analytics, or ``None`` if disabled.
 
-    Environment variable ``OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL`` takes
-    precedence over the built-in default so the project owner can
-    rotate/change buckets without a code change.
+    Environment variable ``OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL`` controls
+    the endpoint. No default is bundled in code.
     """
 
     override = os.environ.get('OCI_POLICY_ANALYSIS_ANALYTICS_PAR_URL', '').strip()
     if override:
         return override
-    return ANALYTICS_PAR_BASE_URL_DEFAULT or None
+    return None
 
 
 @dataclass
@@ -290,7 +279,6 @@ def load_usage_docs_from_par(
 
 
 __all__ = [
-    'ANALYTICS_PAR_BASE_URL_DEFAULT',
     'get_analytics_par_base_url',
     'list_usage_objects_for_dates',
     'load_usage_docs_from_par',
