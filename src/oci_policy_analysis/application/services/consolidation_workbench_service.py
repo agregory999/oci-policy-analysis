@@ -40,7 +40,7 @@ class ConsolidationWorkbenchService:
         self.context = context
         self.repo = context.policy_repo
         self.cache = context.cache
-        self.logger = get_logger(component='consolidation_workbench_service')
+        self.logger = get_logger(component='application.services.consolidation_workbench')
         self.engine = ConsolidationEngine(
             cache_mgr=context.cache,
             reference_data_repo=context.reference_data,
@@ -401,16 +401,18 @@ class ConsolidationWorkbenchService:
         if not run or not run.get('plan'):
             return '(no plan selected)'
         plan = run['plan']
+        summary = self._render_plan_summary_block(cast(ConsolidationPlan, plan), effort_id)
         if fmt == 'ui':
             sec = 'execution' if section == 'execution' else ('rollback' if section == 'rollback' else 'all')
-            return self.engine.render_plan_ui_instructions(plan, section=sec)
+            body = self.engine.render_plan_ui_instructions(plan, section=sec)
+            return f'{summary}\n\n{body}'.strip()
         cmd_txt = self.engine.render_plan_commands(plan)
         rollback_txt = self.engine.render_plan_rollback_commands(plan)
         if section == 'execution':
-            return cmd_txt
+            return f'{summary}\n\n{cmd_txt}'.strip()
         if section == 'rollback':
-            return rollback_txt
-        return cmd_txt + '\n\n' + rollback_txt
+            return f'{summary}\n\n{rollback_txt}'.strip()
+        return f'{summary}\n\n{cmd_txt}\n\n{rollback_txt}'.strip()
 
     def check_progress(self, effort_id: str) -> dict[str, Any]:
         """Check plan progress using current repository state and marker tags.
@@ -437,13 +439,23 @@ class ConsolidationWorkbenchService:
             raise ValueError(reload_message or 'Policy data reload failed before progress check.')
 
         if reload_status == 'noop':
+            plan_steps = (run.get('plan') or {}).get('plan_steps') or []
+            total = len(plan_steps)
+            stored_progress = ((run.get('step_status') or {}).get('progress') or {}) if isinstance(run, dict) else {}
+            executed = (
+                sum(1 for p in stored_progress.values() if isinstance(p, dict) and p.get('executed'))
+                if isinstance(stored_progress, dict)
+                else 0
+            )
             self.logger.info('check_progress no-op for non-live dataset: effort_id=%s', effort_id)
             return {
-                'progress': {},
-                'executed': 0,
-                'total': 0,
+                'progress': stored_progress if isinstance(stored_progress, dict) else {},
+                'executed': executed,
+                'total': total,
                 'reload_status': 'noop',
-                'message': reload_message or 'No-op: progress check requires live tenancy load.',
+                'message': reload_message
+                or 'No-op: progress check requires live tenancy load; showing last known persisted progress.',
+                'completed': bool(total > 0 and executed >= total),
             }
 
         progress = self.engine.check_plan_progress(run['plan'])
@@ -472,7 +484,27 @@ class ConsolidationWorkbenchService:
             'total': total,
             'reload_status': 'success',
             'message': reload_message or 'Reload and progress check completed successfully.',
+            'completed': bool(total > 0 and executed >= total),
         }
+
+    def _render_plan_summary_block(self, plan: ConsolidationPlan, effort_id: str) -> str:
+        """Build a compact summary block for script/instructions output."""
+        steps = plan.get('plan_steps') or []
+        rows = self._build_proposal_rows(plan=plan, progress=None)
+        lines = [
+            '# Consolidation Plan Summary',
+            f'# Effort ID: {effort_id}',
+            f"# Plan ID: {plan.get('plan_id', effort_id)}",
+            f"# Strategy: {(plan.get('plan_tags') or {}).get('strategy_id', '')}",
+            f'# Steps: {len(steps)}',
+            '#',
+            '# Step Outline:',
+        ]
+        for r in rows:
+            lines.append(
+                f"#   {r.get('index', '?')}. {r.get('action', '')} | {r.get('policy_name', '')} | {r.get('details', '')}"
+            )
+        return '\n'.join(lines)
 
     def reset_for_tenancy(self) -> dict[str, Any]:
         """Reset consolidation state (protection + history) for active tenancy.
@@ -536,20 +568,30 @@ class ConsolidationWorkbenchService:
             if isinstance(progress, dict):
                 info = progress.get(step.get('step_id'), {})
                 status = 'Executed' if info.get('executed') else 'Pending'
+            action_display = (action_key or '').upper()
+            # Canonical proposal-row schema (snake_case) used by service/web/Tk.
+            # Keep legacy display keys for backward compatibility with historical runs.
             rows.append(
                 {
-                    '#': i,
-                    'action': (action_key or '').upper(),
+                    'index': i,
+                    'action_key': action_key,
+                    'action': action_display,
                     'policy_compartment': policy_compartment,
                     'policy_name': pol_name,
                     'details': details,
                     'status': status,
                     'step_id': step.get('step_id', ''),
                     'policy_ocid': step.get('policy_ocid', ''),
-                    'action_key': action_key,
                     'before_statements': step.get('before_statements', []) or [],
                     'after_statements': step.get('after_statements', []) or [],
                     'compartment_ocid': step.get('compartment_ocid', ''),
+                    # Back-compat aliases (legacy UI/web/Tk history payloads)
+                    '#': i,
+                    'Action': action_display,
+                    'Policy Compartment': policy_compartment,
+                    'Policy Name': pol_name,
+                    'Details': details,
+                    'Status': status,
                 }
             )
         return rows

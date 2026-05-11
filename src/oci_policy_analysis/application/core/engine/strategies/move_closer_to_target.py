@@ -10,28 +10,25 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from dataclasses import dataclass
 
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
-    effective_path_segments_for_rewrite,
     find_compartment_by_hierarchy_path,
     flatten_defined_tags,
     internal_id_to_statement,
     lca_path,
-    normalize_compartment_path_segments,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
-    rewritten_location_for_target,
+    trace_and_rewrite_candidate_statement_location,
 )
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep, SkippedStatement
 
-logger = get_logger(component='consolidation_strategies')
+logger = get_logger(component='core.engine.strategies.consolidation')
 
 
 # lca_path is now imported from consolidation_helpers
@@ -247,26 +244,24 @@ class MoveCloserToTargetCompartment:
                 raw = (st.get('statement_text', '') or '').strip()
                 if not raw:
                     continue
-                # Build new location based only on effective path and target compartment, per requirements.
-                eff_segments = effective_path_segments_for_rewrite(st, st.get('location', ''))
-                tgt_segments = normalize_compartment_path_segments(lca_comp_path)
-                new_location = rewritten_location_for_target(eff_segments, tgt_segments)
-                # Replace the "in compartment" clause in the statement text to use the new location string.
-                # We re-use the old location clause's prefix and suffix.
-                match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
-                if match:
-                    prefix = raw[: match.start(1)]
-                    suffix = raw[match.end(1) :]
-                    rewritten = f'{prefix}{new_location}{suffix}'
-                else:
-                    rewritten = raw
+                (
+                    rewritten,
+                    note,
+                    eff_segments,
+                    tgt_segments,
+                    new_location,
+                ) = trace_and_rewrite_candidate_statement_location(
+                    strategy_id=self.strategy_id,
+                    internal_id=iid,
+                    statement=st,
+                    statement_text=raw,
+                    target_policy_path=lca_comp_path,
+                )
                 logger.info(
                     f'    Statement {iid}: effective_segments={eff_segments}, target_segments={tgt_segments}, new_location={new_location}'
                 )
                 if rewritten and rewritten not in rewritten_texts:
                     rewritten_texts.append(rewritten)
-                # For traceability, add a note on location rewrite
-                note = f'NOTE: location changed to {new_location} when moved to policy at {lca_comp_path}.'
                 logger.info(f'      Location rewrite note: {note}')
                 location_change_notes.append(note)
 

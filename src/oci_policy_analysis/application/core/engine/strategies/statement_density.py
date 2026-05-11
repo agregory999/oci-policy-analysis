@@ -10,28 +10,25 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     compartment_ancestors_including_self,
-    effective_path_segments_for_rewrite,
     flatten_defined_tags,
     internal_id_to_statement,
-    normalize_compartment_path_segments,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
     required_policy_compartment_for_candidates,
     resolve_policy_compartment_path,
-    rewritten_location_for_target,
+    trace_and_rewrite_candidate_statement_location,
 )
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep
 
-logger = get_logger(component='consolidation_strategies')
+logger = get_logger(component='core.engine.strategies.consolidation')
 
 
 @dataclass(frozen=True)
@@ -150,18 +147,14 @@ class PackPoliciesByStatementDensity:
                 raw = (st.get('statement_text') or '').strip()
                 if not raw:
                     continue
-                eff_segments = effective_path_segments_for_rewrite(st, st.get('location', ''))
-                tgt_segments = normalize_compartment_path_segments(target_comp_path)
-                new_location = rewritten_location_for_target(eff_segments, tgt_segments)
-                match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
-                if match:
-                    prefix = raw[: match.start(1)]
-                    suffix = raw[match.end(1) :]
-                    rewritten = f'{prefix}{new_location}{suffix}'
-                else:
-                    rewritten = raw
+                rewritten, note, _eff, _tgt, _new_location = trace_and_rewrite_candidate_statement_location(
+                    strategy_id=self.strategy_id,
+                    internal_id=iid,
+                    statement=st,
+                    statement_text=raw,
+                    target_policy_path=target_comp_path,
+                )
                 moved_texts.append(rewritten)
-                note = f'NOTE: location changed to {new_location} when moved to policy at {target_comp_path}.'
                 location_change_notes.append(note)
         seen = set()
         moved_texts_dedup: list[str] = []

@@ -10,13 +10,14 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy, RegularPolicyStatement
 
-logger = get_logger(component='consolidation_engine')
+logger = get_logger(component='core.engine.consolidation_helpers')
 
 
 def now_iso() -> str:
@@ -202,18 +203,43 @@ def effective_path_segments_for_rewrite(st: RegularPolicyStatement, old_location
     eff_path = (st.get('effective_path') or '').strip()
     comp_path = (st.get('compartment_path') or '').strip()
     loc = (st.get('location') or '').strip() or old_location
+    comp_segments = normalize_compartment_path_segments(comp_path)
+
+    def _merge_compartment_and_location_segments(comp: list[str], location: str) -> list[str]:
+        if not location:
+            return list(comp)
+        loc_segments = [p.strip() for p in location.split(':') if p.strip()]
+        if not loc_segments:
+            return list(comp)
+        # Avoid duplicated boundary segments: ROOT/X/Y + location Y:Z -> ROOT/X/Y/Z
+        max_overlap = min(len(comp), len(loc_segments))
+        overlap = 0
+        for k in range(max_overlap, 0, -1):
+            if comp[-k:] == loc_segments[:k]:
+                overlap = k
+                break
+        return list(comp) + loc_segments[overlap:]
+
     if eff_path:
         segs = normalize_compartment_path_segments(eff_path)
         logger.debug('[location rewrite] effective_path from st: %r -> segments %s', eff_path, segs)
+        # If effective_path is less specific than compartment_path + location,
+        # prefer derived segments so move-to-root keeps full location detail.
+        derived = _merge_compartment_and_location_segments(comp_segments, loc)
+        if len(derived) > len(segs) and (not segs or derived[: len(segs)] == segs):
+            logger.info(
+                '[location rewrite] effective_path=%r was less specific; using derived path from compartment_path=%r + location=%r -> %s',
+                eff_path,
+                comp_path or '(empty)',
+                loc or '(empty)',
+                derived,
+            )
+            return derived
         return segs
-    comp_segments = normalize_compartment_path_segments(comp_path)
     if not comp_segments and not loc:
         logger.debug('[location rewrite] no effective_path, compartment_path, or location on statement')
         return []
-    if ':' in loc:
-        segs = comp_segments + [p.strip() for p in loc.split(':') if p.strip()]
-    else:
-        segs = comp_segments + [loc] if loc else comp_segments
+    segs = _merge_compartment_and_location_segments(comp_segments, loc)
     logger.debug(
         '[location rewrite] effective_path derived from st.compartment_path=%r + location=%r -> segments %s',
         comp_path or '(empty)',
@@ -241,19 +267,93 @@ def rewritten_location_for_target(effective_path: list[str], target_comp_path: l
     logger.info(
         'rewritten_location_for_target: effective_path=%r, target_comp_path=%r', effective_path, target_comp_path
     )
-    if effective_path == target_comp_path:
+    eff_norm = [s.casefold() for s in effective_path]
+    tgt_norm = [s.casefold() for s in target_comp_path]
+    if eff_norm == tgt_norm:
         # If the only segment is ROOT or the path is empty, return ""
         if not effective_path or (len(effective_path) == 1 and effective_path[0].upper() == 'ROOT'):
             logger.info('  Paths exactly match ROOT or empty; returning empty string.')
             return ''
         logger.info('  Paths are an exact match (not ROOT); returning last segment: %r', effective_path[-1])
         return effective_path[-1]
-    elif len(target_comp_path) <= len(effective_path) and effective_path[: len(target_comp_path)] == target_comp_path:
+    elif len(target_comp_path) <= len(effective_path) and eff_norm[: len(target_comp_path)] == tgt_norm:
         remainder = effective_path[len(target_comp_path) :]
         logger.info('  Remainder segments after stripping target prefix: %r', remainder)
         return ':'.join(remainder)
     logger.info('  Target compartment path does not match prefix; returning empty string.')
     return ''
+
+
+def rewrite_statement_location_clause(
+    statement_text: str,
+    new_location: str,
+    *,
+    target_policy_path: str,
+) -> tuple[str, str]:
+    """Rewrite `in compartment <...>` clause and return rewritten text + audit note.
+
+    If no location clause is found, the original text is returned unchanged while the
+    note still documents the intended location rewrite.
+    """
+    raw = (statement_text or '').strip()
+    if not raw:
+        note = f'NOTE: location changed to {new_location} when moved to policy at {target_policy_path}.'
+        return '', note
+
+    match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
+    if match:
+        prefix = raw[: match.start(1)]
+        suffix = raw[match.end(1) :]
+        rewritten = f'{prefix}{new_location}{suffix}'
+    else:
+        rewritten = raw
+
+    note = f'NOTE: location changed to {new_location} when moved to policy at {target_policy_path}.'
+    return rewritten, note
+
+
+def trace_and_rewrite_candidate_statement_location(
+    *,
+    strategy_id: str,
+    internal_id: str,
+    statement: RegularPolicyStatement,
+    statement_text: str,
+    target_policy_path: str,
+) -> tuple[str, str, list[str], list[str], str]:
+    """Trace location derivation for one candidate and return rewrite artifacts.
+
+    Returns:
+        tuple: (rewritten_text, note, effective_segments, target_segments, new_location)
+    """
+    raw = (statement_text or '').strip()
+    eff_segments = effective_path_segments_for_rewrite(statement, statement.get('location', ''))
+    tgt_segments = normalize_compartment_path_segments(target_policy_path)
+    new_location = rewritten_location_for_target(eff_segments, tgt_segments)
+    rewritten, note = rewrite_statement_location_clause(
+        raw,
+        new_location,
+        target_policy_path=target_policy_path,
+    )
+    logger.info(
+        '[%s] candidate=%s | policy_compartment=%r | location=%r | effective_path=%r | target_policy_path=%r | new_location=%r',
+        strategy_id,
+        internal_id,
+        statement.get('compartment_path', ''),
+        statement.get('location', ''),
+        statement.get('effective_path', ''),
+        target_policy_path,
+        new_location,
+    )
+    logger.debug(
+        '[%s] candidate=%s details: effective_segments=%s target_segments=%s rewritten=%r note=%r',
+        strategy_id,
+        internal_id,
+        eff_segments,
+        tgt_segments,
+        rewritten,
+        note,
+    )
+    return rewritten, note, eff_segments, tgt_segments, new_location
 
 
 # For maximum clarity, callers should compose/replace the location in the statement using this function.
