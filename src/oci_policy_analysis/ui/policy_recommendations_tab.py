@@ -23,6 +23,7 @@ from tkinter import ttk
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
+from oci_policy_analysis.presentation import format_compartment_policy_name
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
@@ -520,8 +521,7 @@ class PolicyRecommendationsTab(BaseUITab):
         if policy_obj is not None:
             comp_path = policy_obj.get('compartment_path') or ''
             name = policy_obj.get('policy_name') or ''
-            # Remove duplicate slashes and trim
-            return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+            return format_compartment_policy_name(comp_path, name, separator='/', empty='[Unknown Policy Path]')
         if policy_ocid:
             pol = None
             for p in self.policy_repo.policies:
@@ -531,7 +531,7 @@ class PolicyRecommendationsTab(BaseUITab):
             if pol:
                 comp_path = pol.get('compartment_path') or ''
                 name = pol.get('policy_name') or ''
-                return f"{comp_path.strip('/')}/{name}".replace('//', '/')
+                return format_compartment_policy_name(comp_path, name, separator='/', empty='[Unknown Policy Path]')
         return '[Unknown Policy Path]'
 
     def _build_statement_risk_tab(self, parent):

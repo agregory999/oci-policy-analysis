@@ -21,6 +21,21 @@ from oci_policy_analysis.common.models_iam import DynamicGroup, Group, User
 from oci_policy_analysis.common.models_policy import DefineStatement, RegularPolicyStatement
 
 
+def format_compartment_policy_name(
+    compartment_path: str | None,
+    policy_name: str | None,
+    *,
+    separator: str = ' :: ',
+    empty: str = '-',
+) -> str:
+    """Format a reusable "compartment path + policy name" display label."""
+    comp = str(compartment_path or '').strip()
+    name = str(policy_name or '').strip()
+    if comp and name:
+        return f'{comp}{separator}{name}'
+    return name or comp or empty
+
+
 def for_display_policy(statement: RegularPolicyStatement) -> dict:
     """Return a dictionary suitable for display purposes for policy statements."""
     principals_display = ''

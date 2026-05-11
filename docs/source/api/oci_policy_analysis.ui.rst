@@ -4,6 +4,12 @@ OCI Policy Analysis UI
 .. automodule:: oci_policy_analysis.ui
    :no-members:
 
+.. automodule:: oci_policy_analysis.ui.dynamic_group_tab
+   :no-members:
+
+.. automodule:: oci_policy_analysis.ui.resource_principals_tab
+   :no-members:
+
 .. currentmodule:: oci_policy_analysis.ui
 
 SettingsTab

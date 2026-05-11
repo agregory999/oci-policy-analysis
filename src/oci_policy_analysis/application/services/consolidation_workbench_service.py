@@ -10,13 +10,13 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models_consolidation import (
     ConsolidationPlan,
     ProtectedStatementReference,
     ProtectedStatementSet,
 )
-from oci_policy_analysis.logic.consolidation_engine import ConsolidationEngine
 
 LOCKED_POLICY_NAME = 'Tenant Admin Policy'
 

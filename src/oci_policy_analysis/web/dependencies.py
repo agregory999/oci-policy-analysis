@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from importlib.resources import files
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.common import config
+from oci_policy_analysis.common.usage_tracking import init_usage_tracker
+
+
+def _resolve_app_version() -> str:
+    """Resolve package version for usage tracking documents."""
+
+    try:
+        raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
+        return raw_version.lstrip('\ufeff').strip()
+    except Exception:
+        return 'dev'
 
 
 @lru_cache(maxsize=1)
@@ -29,5 +41,8 @@ def get_settings() -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def get_context() -> AppContext:
     """Singleton AppContext for FastAPI routes."""
-
-    return AppContext.from_settings(get_settings())
+    settings = get_settings()
+    # Ensure usage tracker is initialized in web runtime when enabled.
+    # Desktop initializes this in main.App, but web has separate startup wiring.
+    init_usage_tracker(settings, _resolve_app_version())
+    return AppContext.from_settings(settings)

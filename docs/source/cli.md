@@ -16,6 +16,32 @@ or directly (if installed as a script):
 oci-policy-analysis [OPTIONS]
 ```
 
+## Install Profiles (Core vs Web/Desktop)
+
+For **CLI-only/core-only** usage (no Tk desktop UI and no web server runtime),
+install the base package:
+
+```bash
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+This core install provides:
+
+- `oci-policy-analysis` (CLI entrypoint)
+- `python -m oci_policy_analysis.cli`
+
+Use extras only when needed:
+
+- `pip install -e ".[web]"` for FastAPI web mode
+- desktop UI runs from the base install but requires local Tk availability
+
+See also:
+
+- [Desktop Setup](setup_desktop.md)
+- [Web Setup](setup_web.md)
+- [MCP Server](mcp.md)
+
 ## CLI Options
 
 | Option                       | Description                                                                                                    |

@@ -5,6 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - Two Column Template</title>
     <link rel="stylesheet" href="/app.css" />
+    <style>
+      .table-demo-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.9rem;
+      }
+      .table-demo-col {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        padding: 0.65rem;
+        background: #fff;
+      }
+      .table-demo-title {
+        margin: 0 0 0.45rem;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #6b7280;
+      }
+      .table-demo-stack {
+        display: grid;
+        gap: 0.65rem;
+      }
+      .table-scroll-demo-constrained {
+        max-height: 180px;
+      }
+      .table-scroll-demo-unconstrained {
+        max-height: none;
+      }
+      @media (max-width: 1100px) {
+        .table-demo-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
@@ -70,6 +105,70 @@
             </table>
           </div>
         </div>
+
+        <hr class="section-separator" />
+        <p class="card-title">A/B Table Resizing Demo (Additive)</p>
+        <p class="helper-text" style="margin:0;">
+          <strong>How to resize:</strong> in the right-side tables only, hover near the <strong>right edge</strong> of any header cell until the cursor changes,
+          then click-drag left/right. Double-click the edge handle to reset that column.
+        </p>
+        <div class="table-demo-grid" data-help-title="A/B table resize demo" data-help-body="Left = baseline tables. Right = same layouts with SharedTable column resize enabled. Container sizing behavior is unchanged.">
+          <section class="table-demo-col">
+            <p class="table-demo-title">Baseline (current behavior)</p>
+            <div class="table-demo-stack">
+              <div>
+                <div class="helper-text">Top table: constrained container</div>
+                <div class="table-shell">
+                  <div class="table-scroll table-scroll-demo-constrained custom-scrollbar">
+                    <table id="abBaselineConstrained" class="analysis-table">
+                      <thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Valid</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="helper-text">Bottom table: unconstrained container</div>
+                <div class="table-shell">
+                  <div class="table-scroll table-scroll-demo-unconstrained custom-scrollbar">
+                    <table id="abBaselineUnconstrained" class="analysis-table">
+                      <thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Valid</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="table-demo-col">
+            <p class="table-demo-title">SharedTable (column drag resize)</p>
+            <div class="table-demo-stack">
+              <div>
+                <div class="helper-text">Top table: constrained container + resizable columns</div>
+                <div class="table-shell">
+                  <div class="table-scroll table-scroll-demo-constrained custom-scrollbar">
+                    <table id="abResizableConstrained" class="analysis-table">
+                      <thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Valid</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="helper-text">Bottom table: unconstrained container + resizable columns</div>
+                <div class="table-shell">
+                  <div class="table-scroll table-scroll-demo-unconstrained custom-scrollbar">
+                    <table id="abResizableUnconstrained" class="analysis-table">
+                      <thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Valid</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
 
       <aside class="side-stack">
@@ -132,6 +231,7 @@
       </aside>
     </section>
 
+    <script src="/shared-table.js"></script>
     <script>
       const contextHelpTitle = document.getElementById('contextHelpTitle');
       const contextHelpBody = document.getElementById('contextHelpBody');
@@ -208,6 +308,29 @@
             setTwoColSampleInspector(row);
           }
         });
+      });
+
+      function fillDemoTable(tableId) {
+        const tb = document.querySelector(`#${tableId} tbody`);
+        if (!tb) return;
+        const rows = [
+          ['ROOT/Shared :: Platform-Admins', 'ROOT/Shared', 'Allow group PlatformAdmins to manage all-resources in tenancy', 'true'],
+          ['ROOT/Security :: Audit-Readers', 'ROOT/Security', 'Allow group Auditors to read audit-events in tenancy', 'true'],
+          ['ROOT/Network :: NetOps', 'ROOT/Network', 'Allow group NetOps to use virtual-network-family in compartment Network', 'true'],
+          ['ROOT/Apps :: App-Operators', 'ROOT/Apps', 'Allow dynamic-group app-ops to use functions-family in compartment Apps', 'false'],
+        ];
+        tb.innerHTML = rows.map((r)=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+      }
+
+      ['abBaselineConstrained','abBaselineUnconstrained','abResizableConstrained','abResizableUnconstrained'].forEach(fillDemoTable);
+
+      window.SharedTable?.enableResizableColumns(document.getElementById('abResizableConstrained'), {
+        storageKey: 'template-two-column:abResizableConstrained',
+        minWidth: 90,
+      });
+      window.SharedTable?.enableResizableColumns(document.getElementById('abResizableUnconstrained'), {
+        storageKey: 'template-two-column:abResizableUnconstrained',
+        minWidth: 90,
       });
     </script>
   </body>

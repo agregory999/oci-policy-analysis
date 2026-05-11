@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OCI Policy Analysis - User/Group Analysis</title>
     <link rel="stylesheet" href="/app.css" />
+    <style>
+      #entitiesTable th,
+      #entitiesTable td,
+      #resultsTable th,
+      #resultsTable td {
+        font-size: 0.75rem;
+      }
+    </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
@@ -69,7 +77,7 @@
             <div id="summary" class="pill">Policy Statements (Filtered): 0</div>
             <div class="helper-text" data-help-title="Policy statements table" data-help-body="Click a policy row to inspect normalized and parsed fields in the fly-in.">Tip: click a row to inspect details.</div>
           </div>
-          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Policy statements matched to selected entities and subject filters."><thead><tr><th>Policy Name</th><th>Policy Compartment</th><th>Effective Path</th><th>Statement</th><th>Subject Type</th><th>Subject</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="resultsTable" class="analysis-table" data-help-title="Policy results" data-help-body="Policy statements matched to selected entities and subject filters."><thead><tr><th>Compartment / Policy</th><th>Effective Path</th><th>Statement</th><th>Verb + Resource / Permission</th></tr></thead><tbody></tbody></table></div></div>
         </div>
         <aside id="policyInspector" class="inspector-panel" aria-live="polite">
           <div class="inspector-header"><strong id="inspectorTitle">Statement Details</strong><button id="closeInspectorBtn" class="ghost" data-help-title="Close inspector" data-help-body="Close the statement details fly-in panel.">×</button></div>
@@ -81,6 +89,7 @@
         </aside>
       </div>
     </main>
+    <script src="/shared-formatters.js"></script>
     <script src="/policy-statement-inspector.js"></script>
     <script>
       // Core filter/entity/policy elements used throughout this page script.
@@ -207,7 +216,15 @@
       }
 
       function renderPolicies(){
-        resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(p['Policy Name'])}</td><td>${esc(p['Policy Compartment'])}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Subject Type'])}</td><td>${esc(p['Subject'])}</td></tr>`).join('');
+        resultsBody.innerHTML = currentPolicies.map((p,i)=>{
+          const policyHybrid = window.SharedFormatters?.formatPolicyCompartmentName
+            ? window.SharedFormatters.formatPolicyCompartmentName(p, { separator: ' :: ', empty: '-' })
+            : `${p['Policy Compartment'] || '-'} :: ${p['Policy Name'] || '-'}`;
+          const vrp = window.SharedFormatters?.formatVerbResourcePermission
+            ? window.SharedFormatters.formatVerbResourcePermission(p, { empty: '-' })
+            : `${String(p['Verb'] || '').trim()} ${String(p['Resource'] || '').trim()}`.trim() || String(p['Permission'] || '-');
+          return `<tr data-row-id="${i+1}"><td>${esc(policyHybrid)}</td><td>${esc(p['Effective Path'])}</td><td>${esc(p['Statement Text'])}</td><td>${esc(vrp)}</td></tr>`;
+        }).join('');
         [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=> inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1])));
       }
 
@@ -351,7 +368,25 @@
       document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; includeAnyEl.checked=false; loadEntities(); });
       document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
       copyStatementBtn.addEventListener('click', async () => { await inspector.copyStatement(); });
-      copySummaryBtn.addEventListener('click', async () => { await inspector.copySummary(); });
+      copySummaryBtn.addEventListener('click', async () => {
+        if (!selectedPolicy) {
+          await inspector.copySummary();
+          return;
+        }
+        const policyCompartment = window.SharedFormatters?.formatPolicyCompartmentName
+          ? window.SharedFormatters.formatPolicyCompartmentName(selectedPolicy, { separator: ' :: ', empty: '-' })
+          : `${getRowValue(selectedPolicy, 'policy_compartment') || '-'} :: ${getRowValue(selectedPolicy, 'policy_name') || '-'}`;
+        const text = [
+          `Policy / Compartment: ${policyCompartment}`,
+          `Verb + Resource / Permission: ${window.SharedFormatters?.formatVerbResourcePermission ? window.SharedFormatters.formatVerbResourcePermission(selectedPolicy, { empty: '-' }) : '-'}`,
+          `Policy: ${getRowValue(selectedPolicy, 'policy_name') || '-'}`,
+          `Subject Type: ${getRowValue(selectedPolicy, 'subject_type') || '-'}`,
+          `Subject: ${getRowValue(selectedPolicy, 'subject') || '-'}`,
+          `Effective Path: ${getRowValue(selectedPolicy, 'effective_path') || '-'}`,
+          `Statement: ${getRowValue(selectedPolicy, 'statement_text') || '-'}`,
+        ].join('\n');
+        await navigator.clipboard.writeText(text);
+      });
       // Mode change needs a fresh entity fetch so table data matches selected type immediately.
       modeEl.addEventListener('change', loadEntities);
       // Show-all-data only affects visible columns for the currently loaded entity rows.

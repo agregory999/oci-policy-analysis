@@ -22,10 +22,10 @@ from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 import oci_policy_analysis.mcp_server as mcp_server
+from oci_policy_analysis.application.core.engine import PolicySimulationEngine
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.mcp_server import (
     mcp_server_status,
     start_mcp_server_in_thread,

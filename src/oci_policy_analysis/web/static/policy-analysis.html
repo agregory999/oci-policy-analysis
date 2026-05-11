@@ -125,6 +125,12 @@
         background: #fbe4e0;
       }
 
+      /* Keep same monospace face but reduce table text roughly by ~2pt for denser scanability. */
+      #resultsTable th,
+      #resultsTable td {
+        font-size: 0.75rem;
+      }
+
       .sort-indicator {
         font-size: 0.8rem;
         margin-left: 0.3rem;
@@ -540,13 +546,11 @@
               <table id="resultsTable">
                 <thead>
                   <tr>
-                    <th data-sort-key="compartment_path">Compartment <span class="sort-indicator"></span></th>
-                    <th data-sort-key="policy_name">Policy Name <span class="sort-indicator"></span></th>
+                    <th data-sort-key="policy_name">Compartment / Policy <span class="sort-indicator"></span></th>
                     <th data-sort-key="effective_path">Effective Path <span class="sort-indicator"></span></th>
                     <th data-sort-key="statement_text">Statement <span class="sort-indicator"></span></th>
                     <th data-sort-key="conditions">Conditions <span class="sort-indicator"></span></th>
-                    <th data-sort-key="verb">Verb <span class="sort-indicator"></span></th>
-                    <th data-sort-key="resource">Resource <span class="sort-indicator"></span></th>
+                    <th data-sort-key="verb">Verb + Resource / Permission <span class="sort-indicator"></span></th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -640,6 +644,8 @@
     </aside>
 
     <script src="/prospective-editor.js"></script>
+    <script src="/shared-formatters.js"></script>
+    <script src="/shared-table.js"></script>
     <script src="/policy-statement-inspector.js"></script>
     <script>
       const runBtn = document.getElementById('runBtn');
@@ -803,14 +809,18 @@
         rows.forEach((row) => {
           const tr = document.createElement('tr');
           tr.dataset.rowId = String(row._row_id);
+          const policyHybrid = window.SharedFormatters?.formatPolicyCompartmentName
+            ? window.SharedFormatters.formatPolicyCompartmentName(row, { separator: ' :: ', empty: '-' })
+            : `${getRowValue(row, 'compartment_path') || '-'} :: ${getRowValue(row, 'policy_name') || '-'}`;
+          const vrpHybrid = window.SharedFormatters?.formatVerbResourcePermission
+            ? window.SharedFormatters.formatVerbResourcePermission(row, { empty: '-' })
+            : `${getRowValue(row, 'verb') || '-'} ${getRowValue(row, 'resource') || ''}`.trim();
           tr.innerHTML = `
-            <td>${escapeHtml(getRowValue(row, 'compartment_path'))}</td>
-            <td>${escapeHtml(getRowValue(row, 'policy_name'))}</td>
+            <td>${escapeHtml(policyHybrid)}</td>
             <td>${escapeHtml(getRowValue(row, 'effective_path'))}</td>
             <td>${escapeHtml(getRowValue(row, 'statement_text'))}</td>
             <td>${escapeHtml(getRowValue(row, 'conditions'))}</td>
-            <td>${escapeHtml(getRowValue(row, 'verb'))}</td>
-            <td>${escapeHtml(getRowValue(row, 'resource'))}</td>
+            <td>${escapeHtml(vrpHybrid)}</td>
           `;
           tr.addEventListener('click', () => inspector.setInspector(row));
           tr.addEventListener('contextmenu', (event) => {
@@ -1398,7 +1408,12 @@
 
       copySummaryBtn.addEventListener('click', async () => {
         if (!selectedRow) return;
+        const policyCompartment = window.SharedFormatters?.formatPolicyCompartmentName
+          ? window.SharedFormatters.formatPolicyCompartmentName(selectedRow, { separator: ' :: ', empty: '-' })
+          : `${getRowValue(selectedRow, 'compartment_path') || '-'} :: ${getRowValue(selectedRow, 'policy_name') || '-'}`;
         const text = [
+          `Policy / Compartment: ${policyCompartment}`,
+          `Verb + Resource / Permission: ${window.SharedFormatters?.formatVerbResourcePermission ? window.SharedFormatters.formatVerbResourcePermission(selectedRow, { empty: '-' }) : '-'}`,
           `Policy: ${getRowValue(selectedRow, 'policy_name') || '-'}`,
           `Verb: ${getRowValue(selectedRow, 'verb') || '-'}`,
           `Resource: ${getRowValue(selectedRow, 'resource') || '-'}`,
@@ -1431,6 +1446,11 @@
       });
 
       updateSortIndicators();
+      window.SharedTable?.enableResizableColumns(document.getElementById('resultsTable'), {
+        storageKey: 'policy-analysis:resultsTable',
+        minWidth: 90,
+        maxWidth: 1400,
+      });
       runBtn.addEventListener('click', runFilter);
       showProspectiveFilter.addEventListener('change', runFilter);
 

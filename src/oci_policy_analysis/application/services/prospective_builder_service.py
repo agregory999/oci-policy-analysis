@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from oci_policy_analysis.logic.builder_helpers import (
+from oci_policy_analysis.application.core.common.builder_helpers import (
     build_full_statement,
     build_location_clause,
     build_subject_phrase,
     build_tag_variable_and_snippet,
 )
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
 
 
 @dataclass

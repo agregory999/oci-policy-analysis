@@ -22,9 +22,9 @@ import json
 import tkinter as tk
 from tkinter import ttk
 
+from oci_policy_analysis.application.core.engine import PolicySimulationEngine
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import CheckboxTable
 

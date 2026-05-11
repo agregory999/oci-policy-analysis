@@ -21,6 +21,7 @@ from tkinter import ttk
 from oci_policy_analysis.application.services.historical_analysis_service import HistoricalAnalysisService
 from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.presentation.formatters import (
+    format_compartment_policy_name,
     format_historical_changed_fields,
     format_historical_diff_detail,
 )
@@ -357,7 +358,12 @@ class HistoricalTab(BaseUITab):
                 'Dynamic Groups': lambda o: o.get('dynamic_group_name', ''),
                 'Policies': lambda o: o.get('policy_name', ''),
                 'Defined Aliases': lambda o: f"{o.get('policy_name','')}/{o.get('defined_type','')}/{o.get('defined_name','')}",
-                'Regular Statements': lambda o: f"{o.get('compartment_path','')}/{o.get('policy_name','')}",
+                'Regular Statements': lambda o: format_compartment_policy_name(
+                    o.get('compartment_path', ''),
+                    o.get('policy_name', ''),
+                    separator='/',
+                    empty='',
+                ),
                 # Add more as needed:
                 'Identity Domains': lambda o: o.get('name', ''),
                 'Cross-Tenancy Statements': lambda o: o.get('policy_name', ''),  # fallback

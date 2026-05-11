@@ -23,8 +23,8 @@ from typing import Any
 
 from oci.identity.models import Domain
 
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'

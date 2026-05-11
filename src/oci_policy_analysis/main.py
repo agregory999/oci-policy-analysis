@@ -37,18 +37,15 @@ from dateutil import parser as dtparser
 
 # Application imports
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
 from oci_policy_analysis.application.services.load_service import LoadService
+from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level  # noqa: E402
 from oci_policy_analysis.common.usage_tracking import (  # noqa: E402
     get_usage_tracker,
     init_usage_tracker,
 )
-
-# REMOVED: ConsolidationEngine import (consolidation feature disabled)
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
-from oci_policy_analysis.logic.prospective_statements_service import ProspectiveStatementsService
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab

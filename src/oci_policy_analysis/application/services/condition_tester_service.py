@@ -1,7 +1,7 @@
 """Application service facade for condition tester workflows.
 
 This service exposes a stable API for UI/API consumers while delegating core
-parsing and evaluation behavior to ``oci_policy_analysis.logic.condition_evaluator``.
+parsing and evaluation behavior to ``oci_policy_analysis.application.core.parser``.
 """
 
 from __future__ import annotations
@@ -9,12 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.condition_evaluator import (
+from oci_policy_analysis.application.core.parser import (
     evaluate_condition_clause,
     extract_variable_names,
     format_policy_clause,
 )
+from oci_policy_analysis.common.logger import get_logger
 
 
 @dataclass
@@ -76,6 +76,10 @@ class ConditionTesterService:
 
         Returns:
             Structured evaluation result payload.
+
+        Notes:
+            The returned ``policy_result`` is normalized to ``GRANTED``/``DENIED``
+            even when lower-level parser output omits that field.
         """
         passed, structured = evaluate_condition_clause(clause, variables or {}, return_structured=True)
         payload = structured if isinstance(structured, dict) else {}

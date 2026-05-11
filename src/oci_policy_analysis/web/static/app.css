@@ -1648,6 +1648,51 @@ html {
   max-height: 62vh;
 }
 
+/* Optional shared column-resize affordance for tables using SharedTable utility. */
+.resizable-table-enabled {
+  table-layout: fixed;
+}
+
+.resizable-table-enabled thead th.resizable-th {
+  position: relative;
+  padding-right: 0.95rem;
+}
+
+.resizable-table-enabled .table-col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.resizable-table-enabled .table-col-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  right: 7px;
+  width: 2px;
+  height: 64%;
+  background: rgba(107, 114, 128, 0.35);
+  border-radius: 1px;
+}
+
+.resizable-table-enabled thead th:hover .table-col-resize-handle::after,
+.resizable-table-enabled .table-col-resize-handle:hover::after {
+  background: rgba(76, 85, 99, 0.6);
+}
+
+.resizable-table-enabled thead th.resizable-th {
+  border-right: 1px dashed rgba(107, 114, 128, 0.28);
+}
+
+body.col-resize-active {
+  cursor: col-resize;
+}
+
 /* Historical Analysis page (shared diff section components) */
 .historical-compare-row {
   display: grid;

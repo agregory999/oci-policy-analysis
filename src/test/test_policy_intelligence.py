@@ -6,8 +6,8 @@ Focused coverage for tag namespace/key validation in where-clause conditions.
 from types import SimpleNamespace
 
 import pytest
-from oci_policy_analysis.logic.policy_helpers import calculate_principal_key
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
+from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
 
 
 def _build_engine_with_statement(statement: dict, catalog: dict):

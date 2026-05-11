@@ -17,14 +17,14 @@ import argparse
 import time
 import warnings
 
+from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.helpers import (
     for_display_policy,
 )
 from oci_policy_analysis.common.logger import get_logger, set_log_level
 from oci_policy_analysis.common.models import PolicySearch
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
 
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)

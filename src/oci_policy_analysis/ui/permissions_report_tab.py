@@ -19,12 +19,10 @@ import tkinter.filedialog as tkfiledialog
 from tkinter import ttk
 
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 
 logger = get_logger(component='permissions_report_tab')
-permission_reference_repo = ReferenceDataRepo()
 
 
 class PermissionsReportTab(BaseUITab):

@@ -19,9 +19,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from oci_policy_analysis.application.core.repo import AI
 from oci_policy_analysis.common.caching import CacheManager
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.ai_repo import AI
 from oci_policy_analysis.ui.base_tab import BaseUITab
 from oci_policy_analysis.ui.data_table import DataTable
 

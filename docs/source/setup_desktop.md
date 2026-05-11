@@ -97,3 +97,10 @@ For complete policy statements and auth details, see [setup_web.md](setup_web.md
 - Tkinter import failures: confirm OS Tk package / python.org build.
 - Python mismatch: use Python 3.12+.
 - Dependency issues: re-activate `.venv`, reinstall with `pip install -e .`.
+
+## Related Core-Only Setups
+
+If you want to run **without desktop UI** and keep pip install minimal:
+
+- CLI-only/core-only setup: [CLI docs](cli.md#install-profiles-core-vs-webdesktop)
+- MCP-only/core-only setup: [MCP docs](mcp.md#core-only-install-for-mcp-no-webdesktop-extras)

@@ -46,6 +46,9 @@ from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
+from oci_policy_analysis.application.core.common.diff_utils import canonical_filter  # noqa: E402
+from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine  # noqa: E402
+from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo  # noqa: E402
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
 from oci_policy_analysis.common.models_iam import (  # noqa: E402
@@ -93,12 +96,6 @@ except Exception:  # pragma: no cover - defensive fallback
     def get_usage_tracker():  # type: ignore[no-redef]
         return None
 
-
-from oci_policy_analysis.logic.data_repo import PolicyAnalysisRepository  # noqa: E402
-from oci_policy_analysis.logic.diff_utils import canonical_filter  # noqa: E402
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine  # noqa: E402
-from oci_policy_analysis.logic.reference_data_repo import ReferenceDataRepo  # noqa: E402
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine  # noqa: E402
 
 # Global logger for this module
 logger = get_logger(component='mcp_server')

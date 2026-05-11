@@ -131,3 +131,150 @@ The following context files document the architecture, design patterns, and hist
 For any new feature or major tab, start by documenting its rationale and conventions in a new or updated context file below `docs/context/project/`.
 
 For detailed table of contents and links to all supporting context files, see above and the [CONTEXT_INDEX.md](context/CONTEXT_INDEX.md).
+
+---
+
+## Core Runtime Architecture (4 Consumer Paths)
+
+The codebase exposes a shared core through four primary consumer paths:
+- **Desktop UI** (`main.py` / Tkinter tabs)
+- **CLI** (`cli.py`)
+- **Web API** (`web/api/routes_core.py` via FastAPI dependencies)
+- **MCP Server** (`mcp_server.py` via FastMCP)
+
+Each path ultimately converges on shared repository and engine components, with OCI SDK and supporting platform services beneath the core domain.
+
+### Runtime Flow (Consumers to Engines)
+
+```mermaid
+flowchart TB
+    subgraph C[Consumer Paths]
+        direction TB
+        UI["Desktop UI<br/>main.py"]
+        WEB["Web API<br/>routes_core.py"]
+        CLI["CLI<br/>cli.py"]
+        MCP["MCP Server<br/>mcp_server.py"]
+    end
+
+    subgraph A[Application Orchestration]
+        direction TB
+        CTX["AppContext<br/>shared runtime context"]
+        SVC["Application Services<br/>load and analysis orchestration"]
+    end
+
+    subgraph D[Core Domain Execution]
+        direction TB
+        REPO["PolicyAnalysisRepository"]
+        INTEL["PolicyIntelligenceEngine"]
+        SIM["PolicySimulationEngine"]
+        CONS["ConsolidationEngine"]
+    end
+
+    UI --> CTX
+    WEB --> CTX
+    CLI --> SVC
+    MCP --> SVC
+    CTX --> SVC
+
+    SVC --> REPO
+    SVC --> INTEL
+    SVC --> SIM
+    SVC --> CONS
+
+    INTEL --> REPO
+    SIM --> REPO
+    CONS --> REPO
+```
+
+### Logical Layering (Domain, Models, Platform, External)
+
+```mermaid
+flowchart TB
+    subgraph D[Core Domain Layer]
+        direction TB
+        REPO["PolicyAnalysisRepository<br/>canonical in-memory policy and IAM model"]
+        REF["ReferenceDataRepo<br/>permission and resource references"]
+        PARSER["ANTLR Parser and Normalizer<br/>parse, validate, derive fields"]
+    end
+
+    subgraph M[Models Tier]
+        direction TB
+        MODEL_POLICY["Policy Models<br/>BasePolicy, Regular and Cross-Tenancy statements"]
+        MODEL_IAM["IAM Models<br/>User, Group, Dynamic Group, Compartment"]
+        MODEL_SIM["Simulation Models<br/>Scenario, Result, Prospective Statement"]
+        MODEL_RESP["Response Models<br/>Filter, Summary, Diff, API payloads"]
+    end
+
+    subgraph P[Platform Services]
+        direction TB
+        CFG["Settings and Config"]
+        CACHE["CacheManager"]
+        LOG["Logging System"]
+        TRACK["Usage Tracking"]
+    end
+
+    subgraph X[External Sources and Sinks]
+        direction TB
+        OCI["OCI Python SDK"]
+        CIS["CIS Compliance CSV Output"]
+        OBJ["Object Storage Bucket<br/>usage tracking artifacts"]
+    end
+
+    D --> M
+    M --> P
+    P --> X
+
+    REPO --> PARSER
+    REPO --> REF
+    REPO --> MODEL_POLICY
+    REPO --> MODEL_IAM
+    REPO --> MODEL_SIM
+    REPO --> MODEL_RESP
+
+    REPO --> OCI
+    REPO --> CIS
+    CFG --> CACHE
+    CFG --> LOG
+    TRACK --> OBJ
+```
+
+### Cross-Cutting Operations (Settings, Logging, Usage)
+
+```mermaid
+flowchart TB
+    subgraph Consumers
+        direction TB
+        UI["Desktop UI"]
+        WEB["Web API"]
+        CLI["CLI"]
+        MCP["MCP Server"]
+    end
+
+    subgraph Platform
+        direction TB
+        CFG["Settings and Config"]
+        LOG["Logging System"]
+        TRACK["Usage Tracking"]
+        CACHE["CacheManager"]
+    end
+
+    OBJ["Object Storage Bucket"]
+
+    UI --> CFG
+    WEB --> CFG
+    CLI --> CFG
+    MCP --> CFG
+
+    UI --> LOG
+    WEB --> LOG
+    CLI --> LOG
+    MCP --> LOG
+
+    UI --> TRACK
+    WEB --> TRACK
+    CLI --> TRACK
+    MCP --> TRACK
+
+    CFG --> CACHE
+    TRACK --> OBJ
+```

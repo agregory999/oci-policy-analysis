@@ -7,7 +7,10 @@
   "branches": [
     "main",
     { "name": "develop", "prerelease": "dev" },
-    { "name": "feature/*", "prerelease": "beta" }
+    {
+      "name": "feature/*",
+      "prerelease": "${name.replace(/^feature\\//, '').replace(/[^a-zA-Z0-9-]/g, '-') }"
+    }
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
@@ -21,7 +24,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "sed -i 's/version = \".*\"/version = \"${nextRelease.version}\"/' pyproject.toml"
+        "prepareCmd": "node -e \"const fs=require('fs');const p='pyproject.toml';const raw='${nextRelease.version}';const pep440=raw.replace(/-([0-9A-Za-z.-]*)\\.(\\d+)$/, '.dev$2');const t=fs.readFileSync(p,'utf8').replace(/version = \\\".*\\\"/, 'version = \\\"'+pep440+'\\\"');fs.writeFileSync(p,t);\""
       }
     ],
     [

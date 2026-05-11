@@ -179,19 +179,37 @@ class ConsoleTab(BaseUITab):
         # --- Individual logger controls: grid layout in a separate frame ---
         # Package mapping for loggers
         self.logger_components_by_pkg = {
-            'Common': ['cli', 'caching', 'config', 'main', 'mcp_server'],
-            'Logic': [
-                'policy_simulation_engine',
-                'ai_repo',
-                'reference_data_repo',
-                'policy_parser',
-                'data_repo',
-                'policy_intelligence',
-                'where_clause_evaluator',
-                'tag_condition_collector',
-                'prospective_statements_service',
-                # 'consolidation_engine',
-                # 'consolidation_strategies',
+            'Platform': ['cli.main', 'ui.main', 'mcp.server', 'caching', 'config', 'logger', 'usage_tracking'],
+            'Core Repo': ['core.repo.policy_analysis_repository', 'core.repo.reference_data_repo', 'core.repo.ai'],
+            'Core Engine': [
+                'core.engine.policy_intelligence_engine',
+                'core.engine.policy_simulation_engine',
+                'core.engine.consolidation_engine',
+            ],
+            'Core Parser': [
+                'core.parser.policy_statement_normalizer',
+                'core.parser.policy_subject_parser',
+                'core.parser.condition_evaluator',
+                'core.parser.where_clause_evaluator',
+                'core.parser.tag_condition_collector',
+            ],
+            'Application Services': [
+                'application.services.analysis',
+                'application.services.cache',
+                'application.services.condition_tester',
+                'application.services.consolidation_workbench',
+                'application.services.historical_analysis',
+                'application.services.intelligence',
+                'application.services.load',
+                'application.services.logging',
+                'application.services.policy_browser',
+                'application.services.principal_analysis',
+                'application.services.prospective_builder',
+                'application.services.prospective_statements',
+                'application.services.recommendations',
+                'application.services.reference_data',
+                'application.services.settings',
+                'application.services.simulation',
             ],
             'UI': [
                 'settings_tab',
@@ -217,7 +235,7 @@ class ConsoleTab(BaseUITab):
         }
         # Flattened for batch logic
         self.logger_components = []
-        for group in ['Common', 'Logic', 'UI']:
+        for group in ['Platform', 'Core Repo', 'Core Engine', 'Core Parser', 'Application Services', 'UI']:
             self.logger_components.extend(self.logger_components_by_pkg[group])
 
         self.logger_level_vars = {}
@@ -249,7 +267,14 @@ class ConsoleTab(BaseUITab):
         # Add per package grouping and vertical separator
         logger_group_frames = {}
         col_offset = 0
-        col_width_by_group = {'Common': 1, 'Logic': 2, 'UI': 3}
+        col_width_by_group = {
+            'Platform': 2,
+            'Core Repo': 1,
+            'Core Engine': 1,
+            'Core Parser': 1,
+            'Application Services': 2,
+            'UI': 3,
+        }
         row_span_by_group = {}
         for group_idx, (pkg, comps) in enumerate(self.logger_components_by_pkg.items()):
             ncol = col_width_by_group.get(pkg, 2)

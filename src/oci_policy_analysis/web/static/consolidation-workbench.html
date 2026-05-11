@@ -15,6 +15,12 @@
       .cw-selected-scroll { max-height: 180px; overflow: auto; border: 1px solid var(--oci-line); border-radius: 8px; }
       .cw-selected-empty { padding: 0.55rem; color: #6b7280; font-size: 0.82rem; }
       .cw-rail-table th, .cw-rail-table td { font-size: 0.78rem; }
+      /* Reduce data table text size by ~2pt while preserving existing font family. */
+      #protectionTable th, #protectionTable td,
+      #candidateTable th, #candidateTable td,
+      #historyTable th, #historyTable td {
+        font-size: 0.75rem;
+      }
       .workflow-reload-btn {
         background: #b91c1c;
         color: #fff;
@@ -111,6 +117,7 @@
       <button id="historyDeletePlan" type="button" class="ghost" style="display:block;width:100%;text-align:left;border:0;border-radius:8px;padding:.55rem .7rem;">Delete selected plan</button>
     </div>
 
+    <script src="/shared-formatters.js"></script>
     <script>
       const state = {
         protectionRows: [],
@@ -173,6 +180,10 @@
 
       function updateSummary(){ $('sumProtected').textContent = String(state.protectedIds.size); $('sumCandidates').textContent = String(state.candidateIds.size); $('sumExcluded').textContent = `${state.counts.protected||0}/${state.counts.invalid||0}/${state.counts.system||0}`; $('sumPlan').textContent = state.selectedEffortId || '-'; }
       function formatPolicyHybrid(r){
+        const shared = window.SharedFormatters;
+        if(shared?.formatPolicyCompartmentName){
+          return shared.formatPolicyCompartmentName(r, { separator: ' :: ', empty: '-' });
+        }
         const cp = r.statement_compartment_path || r.compartment_path || r.compartment || r['Policy Compartment'] || '';
         const pn = r.policy_name || r['Policy Name'] || '';
         if(cp && pn) return `${cp} :: ${pn}`;

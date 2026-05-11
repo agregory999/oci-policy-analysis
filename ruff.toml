@@ -11,6 +11,15 @@ ignore = ["E501"]
 [lint.mccabe]
 max-complexity = 25
 
+[lint.per-file-ignores]
+# ANTLR-generated parser files intentionally rely on wildcard runtime imports.
+# Keep these ignored until we introduce a generator/post-process step that emits
+# lint-clean explicit imports.
+"src/oci_policy_analysis/application/core/parser/condition_parser/*.py" = ["F403", "F405", "UP035"]
+"src/oci_policy_analysis/application/core/parser/policy_parser/*.py" = ["F403", "F405", "UP035"]
+"src/oci_policy_analysis/logic/parsers/condition_parser/*.py" = ["F403", "F405", "UP035"]
+"src/oci_policy_analysis/logic/parsers/policy_parser/*.py" = ["F403", "F405", "UP035"]
+
 [format]
 quote-style = "single"
 indent-style = "space"
@@ -23,6 +32,10 @@ exclude = [
     "build",
     "dist",
     "src/sample",
+    "src/oci_policy_analysis/application/core/parser/policy_parser",
+    "src/oci_policy_analysis/application/core/parser/condition_parser",
+    "src/oci_policy_analysis/application/core/parser/policy_parser/*",
+    "src/oci_policy_analysis/application/core/parser/condition_parser/*",
     "src/oci_policy_analysis/logic/parsers/policy_parser",
     "src/oci_policy_analysis/logic/parsers/condition_parser",
     "src/oci_policy_analysis/logic/parsers/policy_parser/*",

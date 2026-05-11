@@ -6,13 +6,15 @@ from collections.abc import Callable
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.engine import (
+    PolicyIntelligenceEngine,
+    PolicySimulationEngine,
+)
 from oci_policy_analysis.application.services.settings_service import (
     DEFAULT_SERVICE_PRINCIPAL_REDUCTION_PCT,
     DEFAULT_WHERE_CLAUSE_REDUCTION_PCT,
 )
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.logic.policy_intelligence import PolicyIntelligenceEngine
-from oci_policy_analysis.logic.simulation_engine import PolicySimulationEngine
 
 LOGGER = get_logger(component='post_load')
 
