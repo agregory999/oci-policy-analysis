@@ -1,3 +1,22 @@
+# [5.1.0-re-factor-core.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0...v5.1.0-re-factor-core.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
+* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
+* **release:** isolate prerelease channel per feature branch ([e68a06d](https://github.com/agregory999/oci-policy-analysis/commit/e68a06d799daaa24994a679c09af9459e17651b7))
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([8622151](https://github.com/agregory999/oci-policy-analysis/commit/8622151464b9967679bbfb883a0dfdaaabfa23b1))
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([4ede1ee](https://github.com/agregory999/oci-policy-analysis/commit/4ede1ee7e0108563d630a3b8e15026b46b274e75))
+* remove old paths ([516a98d](https://github.com/agregory999/oci-policy-analysis/commit/516a98dd5bf2effda3e7b316454497ce67ed3823))
+
+
+### Features
+
+* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
+* re-factor parser import removal ([d849ef1](https://github.com/agregory999/oci-policy-analysis/commit/d849ef1ef63ec252bd0d5bae72ca91dc92d6956e))
+* Web Login, font changes, sortable table ([88a1c3e](https://github.com/agregory999/oci-policy-analysis/commit/88a1c3ebfff913841917e1faebda59135bd6efd9))
+
 # [5.0.0-re-factor-core.4](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.3...v5.0.0-re-factor-core.4) (2026-05-11)
 
 
