@@ -1,3 +1,10 @@
+# [5.0.0-re-factor-core.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.2...v5.0.0-re-factor-core.3) (2026-05-11)
+
+
+### Bug Fixes
+
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([4ede1ee](https://github.com/agregory999/oci-policy-analysis/commit/4ede1ee7e0108563d630a3b8e15026b46b274e75))
+
 # [5.0.0-re-factor-core.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.1...v5.0.0-re-factor-core.2) (2026-05-11)
 
 
