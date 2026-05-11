@@ -1,3 +1,10 @@
+# [5.0.0-re-factor-core.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.1...v5.0.0-re-factor-core.2) (2026-05-11)
+
+
+### Features
+
+* Web Login, font changes, sortable table ([88a1c3e](https://github.com/agregory999/oci-policy-analysis/commit/88a1c3ebfff913841917e1faebda59135bd6efd9))
+
 # [5.0.0-re-factor-core.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-re-factor-core.1) (2026-05-09)
 
 
