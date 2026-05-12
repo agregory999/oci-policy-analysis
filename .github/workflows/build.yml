@@ -93,6 +93,17 @@ jobs:
           SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
         run: |
           python -m pip install --upgrade pip build
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          version = "${{ needs.release.outputs.version }}"
+          pyproject = Path("pyproject.toml")
+          text = pyproject.read_text(encoding="utf-8")
+          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{version}"', text, flags=re.MULTILINE)
+          pyproject.write_text(text, encoding="utf-8")
+          print(f"Pinned pyproject.toml version to: {version}")
+          PY
           python -m build
           ls -lh dist
 
