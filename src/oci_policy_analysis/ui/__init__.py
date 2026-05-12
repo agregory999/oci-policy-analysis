@@ -8,7 +8,13 @@ from .data_table import CheckboxTable, DataTable
 from .dynamic_group_tab import DynamicGroupsTab
 from .historical_tab import HistoricalTab
 from .maintenance_tab import MaintenanceTab
-from .mcp_tab import McpTab
+
+try:
+    from .mcp_tab import McpTab
+except ModuleNotFoundError:
+    # Optional dependency path: McpTab requires fastmcp via mcp_server.
+    # Keep package importable when extras are not installed.
+    McpTab = None  # type: ignore[assignment]
 from .permissions_report_tab import PermissionsReportTab
 from .policies_tab import PoliciesTab
 from .policy_browser_tab import PolicyBrowserTab

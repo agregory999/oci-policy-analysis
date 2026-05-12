@@ -11,3 +11,56 @@ If you are not sure which to choose:
 - Use **Web Setup** for team/server-hosted browser workflows.
 
 For a high-level capability comparison by startup mode, see [Overview](overview.md).
+
+## Server-first pip installs (no git clone)
+
+If you are starting on a non-desktop server and want quick copy/paste commands,
+use one of the install profiles below.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+### CLI only (minimal)
+
+```bash
+pip install oci-policy-analysis
+oci-policy-analysis-cli --help
+```
+
+### MCP mode
+
+```bash
+pip install "oci-policy-analysis[mcp]"
+oci-policy-analysis-mcp --help
+```
+
+### Web mode
+
+```bash
+pip install "oci-policy-analysis[web]"
+oci-policy-analysis-web --host 0.0.0.0 --port 8000
+```
+
+On startup, the web server logs a runtime access key. Use that key in the
+browser login modal to unlock pages for the current server session.
+
+### All optional extras
+
+```bash
+pip install "oci-policy-analysis[all]"
+```
+
+### Pin a specific version
+
+```bash
+pip install "oci-policy-analysis[all]==5.1.1"
+```
+
+### See available versions on PyPI
+
+```bash
+pip index versions oci-policy-analysis
+```

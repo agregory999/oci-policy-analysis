@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import secrets
+from importlib.resources import files
 
 import uvicorn
 from fastapi import FastAPI
@@ -12,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from oci_policy_analysis.web.api.routes_core import router as core_router
+
+STATIC_DIR = files('oci_policy_analysis.web').joinpath('static')
 
 app = FastAPI(title='OCI Policy Analysis (POC)')
 
@@ -25,7 +28,7 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=secrets.token_urlsafe(32), same_site='lax', https_only=False)
 
 app.include_router(core_router)
-app.mount('/', StaticFiles(directory='src/oci_policy_analysis/web/static', html=True), name='static')
+app.mount('/', StaticFiles(directory=str(STATIC_DIR), html=True), name='static')
 
 
 def main() -> None:

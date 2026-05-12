@@ -56,7 +56,11 @@ from oci_policy_analysis.ui.debugger_tab import DebuggerTab
 from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
 from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
 from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
-from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
+
+try:
+    from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
+except ModuleNotFoundError:
+    McpTab = None  # type: ignore[assignment]
 from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  # noqa: E402
 from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.ui.policy_browser_tab import PolicyBrowserTab
@@ -228,7 +232,11 @@ class App(tk.Tk):
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
         self.tag_based_access_tab = TagBasedAccessTab(self.notebook, self)
         self.debugger_tab = DebuggerTab(self.notebook, self)
-        self.mcp_tab = McpTab(self.notebook, self, self.policy_compartment_analysis)
+        self.mcp_tab = (
+            McpTab(self.notebook, self, self.policy_compartment_analysis)
+            if McpTab is not None
+            else ttk.Frame(self.notebook)
+        )
         # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
         self.consolidation_tab = None
         if self.experimental_features:
@@ -246,7 +254,8 @@ class App(tk.Tk):
         self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
-        self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
+        if McpTab is not None:
+            self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
         self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
         self.notebook.add(self.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
@@ -327,7 +336,8 @@ class App(tk.Tk):
         self.maintenance_visible = False
         self.notebook.forget(self.console_tab)
         self.notebook.forget(self.debugger_tab)
-        self.notebook.forget(self.mcp_tab)
+        if McpTab is not None:
+            self.notebook.forget(self.mcp_tab)
         self.notebook.forget(self.maintenance_tab)
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.condition_tester_tab)
