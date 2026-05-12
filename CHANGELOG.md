@@ -1,3 +1,10 @@
+## [5.1.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.1...v5.1.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* make web static path package-relative ([48b5868](https://github.com/agregory999/oci-policy-analysis/commit/48b5868cd4c079572827489d684f8ab3706e9fd0))
+
 ## [5.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.0...v5.1.1) (2026-05-12)
 
 
