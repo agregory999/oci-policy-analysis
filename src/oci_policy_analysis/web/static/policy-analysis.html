@@ -288,6 +288,28 @@
         flex-wrap: wrap;
       }
 
+      .advanced-helper-inline-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin-top: 0.2rem;
+      }
+
+      .advanced-helper-inline-row select {
+        flex: 0 1 230px;
+        min-width: 170px;
+        max-width: 260px;
+      }
+
+      .advanced-helper-inline-row label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+
       .permission-flyin-backdrop {
         position: fixed;
         inset: 0;
@@ -485,9 +507,14 @@
           <div class="advanced-helper-grid">
             <div class="advanced-helper-card">
               <h4>Resource → Family + all-resources</h4>
-              <select id="resourceHelperSelect" data-help-title="Resource helper" data-help-body="Choose a known resource. Apply writes Resource filter as resource|family|all-resources.">
-                <option value="">Select resource...</option>
-              </select>
+              <div class="advanced-helper-inline-row">
+                <select id="resourceHelperSelect" data-help-title="Resource helper" data-help-body="Choose a known resource. Apply writes Resource filter as resource|family|all-resources.">
+                  <option value="">Select resource...</option>
+                </select>
+                <label>
+                  <input id="includeAllResourcesFromResource" type="checkbox" checked /> Include all-resources
+                </label>
+              </div>
               <div class="helper-actions">
                 <button id="applyResourceHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Resource Expansion</button>
               </div>
@@ -495,9 +522,14 @@
             </div>
             <div class="advanced-helper-card">
               <h4>Family → members + all-resources</h4>
-              <select id="familyHelperSelect" data-help-title="Family helper" data-help-body="Choose a family. Apply writes Resource filter as family|resource1|...|all-resources.">
-                <option value="">Select family...</option>
-              </select>
+              <div class="advanced-helper-inline-row">
+                <select id="familyHelperSelect" data-help-title="Family helper" data-help-body="Choose a family. Apply writes Resource filter as family|resource1|...|all-resources.">
+                  <option value="">Select family...</option>
+                </select>
+                <label>
+                  <input id="includeAllResourcesFromFamily" type="checkbox" checked /> Include all-resources
+                </label>
+              </div>
               <div class="helper-actions">
                 <button id="applyFamilyHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Family Expansion</button>
               </div>

@@ -37,7 +37,7 @@ from oci_policy_analysis.ui.data_table import CheckboxTable, DataTable
 
 # Each instance will have self.logger for timing and info
 def get_module_logger():
-    return get_logger('consolidation_workbench_tab')
+    return get_logger('ui.consolidation_workbench_tab')
 
 
 # Locked/system policies whose statements are omitted from consolidation (by policy name)
@@ -1167,13 +1167,13 @@ class ConsolidationWorkbenchTab(BaseUITab):
             for i, r in enumerate(results_fallback, 1):
                 rows.append(
                     {
-                        '#': i,
-                        'Action': r.get('Action', ''),
-                        'Policy Compartment': r.get('Policy Compartment', ''),
-                        'Policy Name': r.get('Policy Name', ''),
+                        '#': r.get('index', r.get('#', i)),
+                        'Action': r.get('action', r.get('Action', '')),
+                        'Policy Compartment': r.get('policy_compartment', r.get('Policy Compartment', '')),
+                        'Policy Name': r.get('policy_name', r.get('Policy Name', '')),
                         'Effective Path': r.get('Effective Path', ''),
-                        'Details': r.get('Details', ''),
-                        'Status': r.get('Status', '—'),
+                        'Details': r.get('details', r.get('Details', '')),
+                        'Status': r.get('status', r.get('Status', '—')),
                         'step_id': r.get('step_id', ''),
                     }
                 )
@@ -1275,7 +1275,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self._last_plan_for_script = None
             self.script_text.config(state='normal')
             self.script_text.delete(1.0, 'end')
-            script_out = '\n'.join([f"-- Plan step: {r.get('Policy Name','?')}" for r in data])
+            script_out = '\n'.join([f"-- Plan step: {r.get('Policy Name', r.get('policy_name', '?'))}" for r in data])
             self.script_text.insert('end', script_out if script_out else '(no statements)')
             self.script_text.config(state='disabled')
 

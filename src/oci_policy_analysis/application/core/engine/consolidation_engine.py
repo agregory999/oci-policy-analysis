@@ -39,7 +39,7 @@ from oci_policy_analysis.common.logger import get_logger
 from oci_policy_analysis.common.models import BasePolicy
 from oci_policy_analysis.common.models_consolidation import ConsolidationPlan
 
-logger = get_logger(component='consolidation_engine')
+logger = get_logger(component='core.engine.consolidation_engine')
 
 SourceType = Literal['live', 'cache', 'compliance', 'unknown']
 
@@ -124,7 +124,7 @@ class ConsolidationEngine:
         for s in strategies:
             self._strategies[s.display_name] = s
             self._strategies_by_id[s.strategy_id] = s
-        logger.info(
+        logger.debug(
             'ConsolidationEngine initialized with strategies: %s',
             list(self._strategies.keys()),
         )
