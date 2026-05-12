@@ -20,6 +20,7 @@
 
 * Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
 * Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
+* Merge pull request [#47](https://github.com/agregory999/oci-policy-analysis/issues/47) from agregory999/feature/re-factor-core ([58901a7](https://github.com/agregory999/oci-policy-analysis/commit/58901a763250a2de6563cfa2bfc7fd75b2c2547f))
 * New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
 * New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
 * Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
@@ -33,6 +34,33 @@
 
 * web UI/service architecture changed; incompatible with 4.x behavior
 * web UI/service architecture changed; incompatible with 4.x behavior
+
+# [5.1.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0...v5.1.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
+* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
+* **release:** isolate prerelease channel per feature branch ([e68a06d](https://github.com/agregory999/oci-policy-analysis/commit/e68a06d799daaa24994a679c09af9459e17651b7))
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([8622151](https://github.com/agregory999/oci-policy-analysis/commit/8622151464b9967679bbfb883a0dfdaaabfa23b1))
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([4ede1ee](https://github.com/agregory999/oci-policy-analysis/commit/4ede1ee7e0108563d630a3b8e15026b46b274e75))
+* remove old paths ([516a98d](https://github.com/agregory999/oci-policy-analysis/commit/516a98dd5bf2effda3e7b316454497ce67ed3823))
+
+
+### Features
+
+* Merge pull request [#47](https://github.com/agregory999/oci-policy-analysis/issues/47) from agregory999/feature/re-factor-core ([58901a7](https://github.com/agregory999/oci-policy-analysis/commit/58901a763250a2de6563cfa2bfc7fd75b2c2547f))
+* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
+* re-factor parser import removal ([d849ef1](https://github.com/agregory999/oci-policy-analysis/commit/d849ef1ef63ec252bd0d5bae72ca91dc92d6956e))
+* Web Login, font changes, sortable table ([88a1c3e](https://github.com/agregory999/oci-policy-analysis/commit/88a1c3ebfff913841917e1faebda59135bd6efd9))
+
+# [5.0.0-re-factor-core.4](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.3...v5.0.0-re-factor-core.4) (2026-05-11)
+
+
+### Bug Fixes
+
+* **release:** normalize semantic-release prerelease version to PEP 440 for pyproject ([8622151](https://github.com/agregory999/oci-policy-analysis/commit/8622151464b9967679bbfb883a0dfdaaabfa23b1))
 
 # [5.0.0-re-factor-core.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-re-factor-core.2...v5.0.0-re-factor-core.3) (2026-05-11)
 
@@ -80,182 +108,7 @@
 * web UI/service architecture changed; incompatible with 4.x behavior
 * web UI/service architecture changed; incompatible with 4.x behavior
 
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-09)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
-* remove old paths ([516a98d](https://github.com/agregory999/oci-policy-analysis/commit/516a98dd5bf2effda3e7b316454497ce67ed3823))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* re-factor parser import removal ([d849ef1](https://github.com/agregory999/oci-policy-analysis/commit/d849ef1ef63ec252bd0d5bae72ca91dc92d6956e))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-09)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* re-factor parser import removal ([d849ef1](https://github.com/agregory999/oci-policy-analysis/commit/d849ef1ef63ec252bd0d5bae72ca91dc92d6956e))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-09)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-08)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-* refactor(parser): move condition parser wrapper to application core and mark old parser artifacts archived ([d58250b](https://github.com/agregory999/oci-policy-analysis/commit/d58250b74cd6eca605e09b814252269c17d6eda0))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-08)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-08)
-
-
-### Bug Fixes
-
-* Cross Tenancy and Historical web pages with more parsing ([910663d](https://github.com/agregory999/oci-policy-analysis/commit/910663d681f912801f89b5d4575deb5dee6bf333))
-* Cross Tenancy and Historical web pages with more parsing ([34a3543](https://github.com/agregory999/oci-policy-analysis/commit/34a35431577bc5e5bff1b67003f76e709d465118))
-* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
-* Prospective Fly-in ([848ee21](https://github.com/agregory999/oci-policy-analysis/commit/848ee21c0cb17ad8693c4f78f020a0b1443a3d6b))
-* refactor(core-repo): harden reference-data path resolution and tighten UI import boundary ([57200c7](https://github.com/agregory999/oci-policy-analysis/commit/57200c759cb521c2890750737acfce23108a96ed))
-
-
-### Features
-
-* Consolidation, tweaks, login ([e22b5a0](https://github.com/agregory999/oci-policy-analysis/commit/e22b5a0b94d1222e32f5de2ff59e8721715ea71c))
-* Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
-* New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
-* New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
-* Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
-* Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
-
-
-### BREAKING CHANGES
-
-* web UI/service architecture changed; incompatible with 4.x behavior
-* web UI/service architecture changed; incompatible with 4.x behavior
-
-# [5.0.0-beta.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-beta.1) (2026-05-08)
+# [5.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.7.0...v5.0.0) (2026-05-08)
 
 
 ### Bug Fixes
@@ -272,7 +125,6 @@
 * Historical Analysis, some logging improvements ([f201901](https://github.com/agregory999/oci-policy-analysis/commit/f201901a5525f8e3965561040b351407ec172524))
 * New Web UI and service tier refactor ([8b7f9c2](https://github.com/agregory999/oci-policy-analysis/commit/8b7f9c2c94fa0b7e962062103e80d3ebf3a3894d))
 * New Web UI and service tier refactor ([6b65535](https://github.com/agregory999/oci-policy-analysis/commit/6b65535ad7dd1a58c018f8bd3a432e7f205a50c8))
-* Re-factor ([055fa69](https://github.com/agregory999/oci-policy-analysis/commit/055fa69659cb7b0a3dc984b300aab40a2749a0f8))
 * Recommendations and Consolidation in web ([224186a](https://github.com/agregory999/oci-policy-analysis/commit/224186a592dc27d16afe6bbc0c51504108e82a00))
 * Web-based Simulation and Condition tester ([02879a5](https://github.com/agregory999/oci-policy-analysis/commit/02879a5c05504bf9fa2d3c2fe91f13238696bc0c))
 
@@ -281,6 +133,26 @@
 
 * web UI/service architecture changed; incompatible with 4.x behavior
 * web UI/service architecture changed; incompatible with 4.x behavior
+
+# [5.0.0-beta.10](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.9...v5.0.0-beta.10) (2026-05-08)
+
+
+### Bug Fixes
+
+* Merge pull request [#44](https://github.com/agregory999/oci-policy-analysis/issues/44) from kiranthakkar/fix/csv-field-size-limit ([6573c2e](https://github.com/agregory999/oci-policy-analysis/commit/6573c2e75473a76e2f1999b4a719a9afc6904fc5))
+* raise csv field size limit to support large compliance output files ([b9bd640](https://github.com/agregory999/oci-policy-analysis/commit/b9bd64061b3d81a6efc0ba8104f5937d93162ffe))
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
+# [5.0.0-beta.9](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.8...v5.0.0-beta.9) (2026-05-08)
+
+
+### Bug Fixes
+
+* docs, tweaks to permission ref ([830cb2b](https://github.com/agregory999/oci-policy-analysis/commit/830cb2b23b473f3ebd216be090ec5400f21d5ba7))
 
 # [5.0.0-beta.8](https://github.com/agregory999/oci-policy-analysis/compare/v5.0.0-beta.7...v5.0.0-beta.8) (2026-05-08)
 
@@ -348,6 +220,21 @@
 ### BREAKING CHANGES
 
 * web UI/service architecture changed; incompatible with 4.x behavior
+
+# [4.7.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.1...v4.7.0) (2026-05-06)
+
+
+### Features
+
+* add CSV export for overlap policies and fix policy analysis export ([b029da3](https://github.com/agregory999/oci-policy-analysis/commit/b029da3309293f1e37117f8a59e73860cef9a5d9))
+
+## [4.6.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v4.6.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* Merge pull request [#44](https://github.com/agregory999/oci-policy-analysis/issues/44) from kiranthakkar/fix/csv-field-size-limit ([6573c2e](https://github.com/agregory999/oci-policy-analysis/commit/6573c2e75473a76e2f1999b4a719a9afc6904fc5))
+* raise csv field size limit to support large compliance output files ([b9bd640](https://github.com/agregory999/oci-policy-analysis/commit/b9bd64061b3d81a6efc0ba8104f5937d93162ffe))
 
 # [4.6.0](https://github.com/agregory999/oci-policy-analysis/compare/v4.5.2...v4.6.0) (2026-04-20)
 
