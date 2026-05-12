@@ -1,3 +1,11 @@
+## [5.1.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.0...v5.1.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* Merge pull request [#48](https://github.com/agregory999/oci-policy-analysis/issues/48) from agregory999/feature/consolidation-refactor ([db128c0](https://github.com/agregory999/oci-policy-analysis/commit/db128c0fc0f86b8cc03b230ea34c25de012190d4))
+* Simulation shows provenance ([cc42aa7](https://github.com/agregory999/oci-policy-analysis/commit/cc42aa7384199f285aafc52679d1743a4a9a6e0f))
+
 # [5.0.0-consolidation-refactor.1](https://github.com/agregory999/oci-policy-analysis/compare/v4.6.0...v5.0.0-consolidation-refactor.1) (2026-05-11)
 
 
