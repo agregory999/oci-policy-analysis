@@ -97,12 +97,13 @@ jobs:
           from pathlib import Path
           import re
 
-          version = "${{ needs.release.outputs.version }}"
+          raw_version = "${{ needs.release.outputs.version }}"
+          pep440_version = re.sub(r'-[0-9A-Za-z.-]*\.(\d+)$', r'.dev\1', raw_version)
           pyproject = Path("pyproject.toml")
           text = pyproject.read_text(encoding="utf-8")
-          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{version}"', text, flags=re.MULTILINE)
+          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{pep440_version}"', text, flags=re.MULTILINE)
           pyproject.write_text(text, encoding="utf-8")
-          print(f"Pinned pyproject.toml version to: {version}")
+          print(f"Pinned pyproject.toml version to: {pep440_version} (from raw: {raw_version})")
           PY
           python -m build
           ls -lh dist
