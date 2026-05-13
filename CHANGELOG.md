@@ -1,3 +1,10 @@
+# [5.2.0-limited-mode.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.2...v5.2.0-limited-mode.1) (2026-05-13)
+
+
+### Features
+
+* Limited Access Users ([01e496f](https://github.com/agregory999/oci-policy-analysis/commit/01e496fc6d5c53544e20d258c44d17e7d2b6e171))
+
 ## [5.1.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.1...v5.1.2) (2026-05-12)
 
 
