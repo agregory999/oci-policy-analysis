@@ -1,3 +1,10 @@
+# [5.2.0-limited-mode.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0-limited-mode.2...v5.2.0-limited-mode.3) (2026-05-13)
+
+
+### Bug Fixes
+
+* MCP tokens needed and UI bugs ([616466e](https://github.com/agregory999/oci-policy-analysis/commit/616466e264166d2268111a496c6c367b07100575))
+
 # [5.2.0-limited-mode.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0-limited-mode.1...v5.2.0-limited-mode.2) (2026-05-13)
 
 
