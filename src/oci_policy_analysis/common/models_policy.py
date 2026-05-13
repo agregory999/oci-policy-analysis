@@ -89,6 +89,10 @@ class PolicySearch(TypedDict, total=False):
         "Type of subject targeted by the policy. Must be one or more of 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
     ]
     subject: Annotated[list[str], 'Subject identifier(s), usually user, group, or domain/name pairs.']
+    principal_key: Annotated[
+        list[str],
+        'Canonical principal key(s) for exact principal matching (e.g., user:Default/alice, service:None/database).',
+    ]
     permission: Annotated[
         list[str], "List of specific permissions or actions (e.g., 'START_INSTANCE', 'READ_OBJECTS')."
     ]

@@ -8,7 +8,7 @@
       .replaceAll("'", '&#39;');
   }
 
-  function template(mode) {
+  function template(mode, readOnly = false) {
     const shellClass =
       mode === 'page'
         ? 'card compact-card'
@@ -21,11 +21,15 @@
       <aside data-role="root" class="${shellClass}" aria-live="polite">
         ${header}
         <div class="inspector-body custom-scrollbar" style="padding:.8rem; display:grid; gap:.8rem;">
+          <div data-role="readonlyNotice" class="card compact-card" style="display:none; margin:0; padding:.55rem .65rem;">
+            <p class="card-title" style="margin-bottom:.2rem;">Limited Mode: Prospective Statements are View-Only</p>
+            <p data-role="readonlyNoticeBody" class="helper-text" style="margin:0;">You can view scoped prospective statements. Editing and builder tools are available only to admins.</p>
+          </div>
           <div class="prospective-grid">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;"><strong>Statements</strong><button data-role="add-row" class="ghost" style="margin-top:0;" type="button">Add Free-Form Statement</button></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;"><strong>Statements</strong>${readOnly ? '' : '<button data-role="add-row" class="ghost" style="margin-top:0;" type="button">Add Free-Form Statement</button>'}</div>
             <table class="prospective-statements-table"><tbody data-role="rows"></tbody></table>
           </div>
-          <div>
+          <div data-role="builderSection" style="${readOnly ? 'display:none;' : ''}">
             <strong>Builder</strong>
             <div class="prospective-builder-grid" style="margin-top:.5rem;">
               <div class="prospective-builder-cell">
@@ -128,14 +132,15 @@
       </aside>`;
   }
 
-  window.createProspectiveEditor = function createProspectiveEditor({ host, mode = 'drawer', onSaved }) {
+  window.createProspectiveEditor = function createProspectiveEditor({ host, mode = 'drawer', onSaved, readOnly = false, readOnlyMessage = '' }) {
     if (!host) throw new Error('ProspectiveEditor host is required');
-    host.innerHTML = template(mode);
+    host.innerHTML = template(mode, readOnly);
     const root = host.querySelector('[data-role="root"]');
     const q = (r) => root.querySelector(`[data-role="${r}"]`);
     const rowsBody = q('rows');
     let rows = [];
     let meta = null;
+    let effectiveReadOnly = !!readOnly;
 
     function setOpts(role, vals) {
       q(role).innerHTML = (vals || []).map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
@@ -152,18 +157,22 @@
       if (!rows.length) {
         const trEmpty = document.createElement('tr');
         trEmpty.className = 'prospective-empty-row';
-        trEmpty.innerHTML = '<td colspan="4" class="prospective-empty-state">No prospective statement - Use the builder or add a free form statement</td>';
+        trEmpty.innerHTML = `<td colspan="4" class="prospective-empty-state">${effectiveReadOnly ? 'No scoped prospective statements available.' : 'No prospective statement - Use the builder or add a free form statement'}</td>`;
         rowsBody.appendChild(trEmpty);
         return;
       }
       rows.forEach((row, idx) => {
         const trHeader = document.createElement('tr');
         trHeader.className = 'prospective-block-header-row';
-        trHeader.innerHTML = '<th scope="col" style="width:40%;">Location</th><th scope="col" style="width:40%;">Description</th><th scope="col" style="width:5%;">Status</th><th scope="col" style="width:15%;">Actions</th>';
+        trHeader.innerHTML = effectiveReadOnly
+          ? '<th scope="col" style="width:45%;">Location</th><th scope="col" style="width:45%;">Description</th><th scope="col" style="width:10%;">Status</th>'
+          : '<th scope="col" style="width:40%;">Location</th><th scope="col" style="width:40%;">Description</th><th scope="col" style="width:5%;">Status</th><th scope="col" style="width:15%;">Actions</th>';
 
         const trValues = document.createElement('tr');
         trValues.className = 'prospective-block-values-row';
-        trValues.innerHTML = `<td style="width:40%;"><input data-k="compartment_path" data-i="${idx}" value="${esc(row.compartment_path || 'ROOT')}" /></td><td style="width:40%;"><input data-k="description" data-i="${idx}" value="${esc(row.description || '')}" /></td><td style="width:5%;">${esc(rowStatus(row))}</td><td style="width:15%;"><button class="ghost" data-action="parse" data-i="${idx}" type="button" style="margin-top:0;">Parse</button> <button class="ghost" data-action="delete" data-i="${idx}" type="button" style="margin-top:0;">Delete</button></td>`;
+        trValues.innerHTML = effectiveReadOnly
+          ? `<td style="width:45%;">${esc(row.compartment_path || 'ROOT')}</td><td style="width:45%;">${esc(row.description || '')}</td><td style="width:10%;">${esc(rowStatus(row))}</td>`
+          : `<td style="width:40%;"><input data-k="compartment_path" data-i="${idx}" value="${esc(row.compartment_path || 'ROOT')}" /></td><td style="width:40%;"><input data-k="description" data-i="${idx}" value="${esc(row.description || '')}" /></td><td style="width:5%;">${esc(rowStatus(row))}</td><td style="width:15%;"><button class="ghost" data-action="parse" data-i="${idx}" type="button" style="margin-top:0;">Parse</button> <button class="ghost" data-action="delete" data-i="${idx}" type="button" style="margin-top:0;">Delete</button></td>`;
 
         const trStatementHeader = document.createElement('tr');
         trStatementHeader.className = 'prospective-block-statement-header-row';
@@ -171,7 +180,9 @@
 
         const trStatementValue = document.createElement('tr');
         trStatementValue.className = 'prospective-block-bottom prospective-block-statement-value-row';
-        trStatementValue.innerHTML = `<td colspan="4" class="prospective-line2-cell"><textarea data-k="statement_text" data-i="${idx}">${esc(row.statement_text || '')}</textarea><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons || []).join('; '))}</div></td>`;
+        trStatementValue.innerHTML = effectiveReadOnly
+          ? `<td colspan="4" class="prospective-line2-cell"><div style="white-space:pre-wrap;word-break:break-word;">${esc(row.statement_text || '')}</div><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons || []).join('; '))}</div></td>`
+          : `<td colspan="4" class="prospective-line2-cell"><textarea data-k="statement_text" data-i="${idx}">${esc(row.statement_text || '')}</textarea><div style="color:#b45309;font-size:.75rem;">${esc((row.invalid_reasons || []).join('; '))}</div></td>`;
 
         rowsBody.append(trHeader, trValues, trStatementHeader, trStatementValue);
       });
@@ -220,10 +231,42 @@
     }
 
     async function load() {
-      const [rowsResp, metaResp] = await Promise.all([fetch('/prospective/statements'), fetch('/prospective/builder/metadata')]);
+      try {
+        const authResp = await fetch('/auth/status', { cache: 'no-store' });
+        if (authResp.ok) {
+          const auth = await authResp.json();
+          if (String(auth?.auth_mode || '').trim() === 'limited') {
+            effectiveReadOnly = true;
+          }
+        }
+      } catch (_err) {
+        // Keep caller-provided mode if auth status is not available.
+      }
+
+      if (effectiveReadOnly) {
+        const addRowBtn = q('add-row');
+        if (addRowBtn) addRowBtn.style.display = 'none';
+        const builderSection = q('builderSection');
+        if (builderSection) builderSection.style.display = 'none';
+      }
+
+      const rowsResp = await fetch('/prospective/statements');
       const rowsPayload = await rowsResp.json();
-      meta = await metaResp.json();
+      if (!effectiveReadOnly) {
+        const metaResp = await fetch('/prospective/builder/metadata');
+        meta = await metaResp.json();
+      } else {
+        meta = {};
+      }
       rows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
+      if (effectiveReadOnly) {
+        const notice = q('readonlyNotice');
+        const body = q('readonlyNoticeBody');
+        if (notice) notice.style.display = 'block';
+        if (body && String(readOnlyMessage || '').trim()) body.textContent = String(readOnlyMessage).trim();
+        renderRows();
+        return;
+      }
       setOpts('pbAction', meta.actions || ['Allow', 'Deny']);
       setOpts('pbPrincipal', meta.principals || []);
       setOpts('pbVerb', meta.verbs || ['inspect', 'read', 'use', 'manage']);
@@ -260,58 +303,61 @@
       if (mode !== 'page') root.classList.remove('open');
     }
 
-    rowsBody.addEventListener('input', (event) => {
-      const t = event.target;
-      if (!(t instanceof HTMLElement)) return;
-      const i = Number(t.dataset.i);
-      const k = t.dataset.k;
-      if (!Number.isFinite(i) || !k || !rows[i]) return;
-      rows[i][k] = t.value;
-    });
+    if (!effectiveReadOnly) {
+      rowsBody.addEventListener('input', (event) => {
+        const t = event.target;
+        if (!(t instanceof HTMLElement)) return;
+        const i = Number(t.dataset.i);
+        const k = t.dataset.k;
+        if (!Number.isFinite(i) || !k || !rows[i]) return;
+        rows[i][k] = t.value;
+      });
 
-    rowsBody.addEventListener('click', async (event) => {
-      const t = event.target;
-      if (!(t instanceof HTMLElement)) return;
-      const action = t.dataset.action;
-      const i = Number(t.dataset.i);
-      if (!Number.isFinite(i)) return;
-      if (action === 'delete') {
-        rows.splice(i, 1);
-        renderRows();
-        return;
-      }
-      if (action === 'parse') {
-        const resp = await fetch('/prospective/statements/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows[i]) });
-        const payload = await resp.json();
-        rows[i] = payload.row;
-        renderRows();
-      }
-    });
+      rowsBody.addEventListener('click', async (event) => {
+        const t = event.target;
+        if (!(t instanceof HTMLElement)) return;
+        const action = t.dataset.action;
+        const i = Number(t.dataset.i);
+        if (!Number.isFinite(i)) return;
+        if (action === 'delete') {
+          rows.splice(i, 1);
+          renderRows();
+          return;
+        }
+        if (action === 'parse') {
+          const resp = await fetch('/prospective/statements/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows[i]) });
+          const payload = await resp.json();
+          rows[i] = payload.row;
+          renderRows();
+        }
+      });
 
-    q('add-row').addEventListener('click', () => {
-      rows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
-      renderRows();
-    });
-    q('preview').addEventListener('click', previewBuilder);
-    q('add-builder').addEventListener('click', async () => {
-      const p = await previewBuilder();
-      rows.push({ compartment_path: q('pbLocation').value || 'ROOT', description: p.description_suggestion || '', statement_text: p.statement_text || '', invalid_reasons: [] });
-      renderRows();
-    });
-    q('save').addEventListener('click', save);
+      q('add-row').addEventListener('click', () => {
+        rows.push({ compartment_path: 'ROOT', description: '', statement_text: '', invalid_reasons: [] });
+        renderRows();
+      });
+      q('preview').addEventListener('click', previewBuilder);
+      q('add-builder').addEventListener('click', async () => {
+        const p = await previewBuilder();
+        rows.push({ compartment_path: q('pbLocation').value || 'ROOT', description: p.description_suggestion || '', statement_text: p.statement_text || '', invalid_reasons: [] });
+        renderRows();
+      });
+      q('save').addEventListener('click', save);
+      q('pbUseAllResources').addEventListener('change', refreshResourceDropdownFromMode);
+      q('pbWhereMode').addEventListener('change', updateWhereModeVisibility);
+      q('clear').addEventListener('click', () => {
+        q('pbIncludeDefault').checked = false;
+        q('pbWhereMode').value = 'No Where Clause';
+        q('pbNamespace').value = '';
+        q('pbTagKey').value = '';
+        q('pbValue').value = '';
+        q('pbOtherWhereText').value = '';
+        q('previewBox').textContent = 'No preview yet.';
+        updateWhereModeVisibility();
+      });
+    }
+
     q('close').addEventListener('click', close);
-    q('pbUseAllResources').addEventListener('change', refreshResourceDropdownFromMode);
-    q('pbWhereMode').addEventListener('change', updateWhereModeVisibility);
-    q('clear').addEventListener('click', () => {
-      q('pbIncludeDefault').checked = false;
-      q('pbWhereMode').value = 'No Where Clause';
-      q('pbNamespace').value = '';
-      q('pbTagKey').value = '';
-      q('pbValue').value = '';
-      q('pbOtherWhereText').value = '';
-      q('previewBox').textContent = 'No preview yet.';
-      updateWhereModeVisibility();
-    });
 
     if (mode === 'page') load();
     return { open, close, reload: load };

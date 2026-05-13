@@ -64,7 +64,7 @@
 
         <div class="card">
           <div class="analysis-meta">
-            <div id="entityCounts" class="pill">Total Groups: 0 • Total Users: 0</div>
+            <div id="entityCounts" class="pill">Groups (Scoped/Filtered): 0 / 0 total • Users (Scoped/Filtered): 0 / 0 total</div>
             <div class="helper-text" data-help-title="Entities table" data-help-body="Select one or more entities to load related policy statements.">Entities Found (select one or more)</div>
           </div>
           <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="entitiesTable" class="analysis-table" data-help-title="Entity results" data-help-body="Entity rows are based on mode and search input. Use checkboxes to include entities."><thead></thead><tbody></tbody></table></div></div>
@@ -287,20 +287,25 @@
       }
 
       function selectedPayload(){
-        const chosen = [...selectedEntityIndexes].map(i => entityRows[i]).filter(Boolean);
-        if (modeEl.value === 'GROUPS') return { exact_groups: chosen.map(r => ({ domain_name: r['Domain Name'] || 'Default', group_name: r['Group Name'] })) };
-        const selectedGroups = getSelectedGroupsFromUsers();
-        if (selectedGroups.length) {
-          return { exact_groups: selectedGroups };
+        const selectedRows = [...selectedEntityIndexes].map(i => entityRows[i]).filter(Boolean);
+        const chosen = selectedRows.length ? selectedRows : [...entityRows];
+        const principalKeys = [];
+        if (modeEl.value === 'GROUPS') {
+          chosen.forEach((r) => {
+            const domain = String(r['Domain Name'] || r.domain_name || 'Default').trim() || 'Default';
+            const group = String(r['Group Name'] || r.group_name || '').trim();
+            if (group) principalKeys.push(`group:${domain}/${group}`);
+          });
+          return { principal_keys: principalKeys };
         }
-        // Fallback: if user->group resolution is empty, send exact users so backend can resolve memberships.
-        const exactUsers = chosen
-          .map((u) => ({
-            domain_name: String(u['Domain Name'] || u.domain_name || 'Default'),
-            user_name: String(u['Username'] || u.user_name || '').trim(),
-          }))
-          .filter((u) => u.user_name);
-        return { exact_users: exactUsers };
+
+        // USERS mode: send user principal keys; backend resolves memberships into group keys.
+        chosen.forEach((u) => {
+          const domain = String(u['Domain Name'] || u.domain_name || 'Default').trim() || 'Default';
+          const name = String(u['Username'] || u.user_name || '').trim();
+          if (name) principalKeys.push(`user:${domain}/${name}`);
+        });
+        return { principal_keys: principalKeys };
       }
 
       function updateSelectedGroupsWidget(){
@@ -346,7 +351,11 @@
         const [g,u,m] = await Promise.all([fetch('/entities/groups?search='+q), fetch('/entities/users?search='+q), fetch((modeEl.value==='GROUPS'?'/entities/groups':'/entities/users')+'?search='+q)]);
         const groups = await g.json(); const users = await u.json(); const main = await m.json();
         allGroupsRows = Array.isArray(groups.groups) ? groups.groups : [];
-        entityCounts.textContent = `Total Groups: ${groups.total || 0} • Total Users: ${users.total || 0}`;
+        const groupsMatched = Number(groups.matched || 0);
+        const groupsTotal = Number(groups.total || 0);
+        const usersMatched = Number(users.matched || 0);
+        const usersTotal = Number(users.total || 0);
+        entityCounts.textContent = `Groups (Scoped/Filtered): ${groupsMatched} / ${groupsTotal} total • Users (Scoped/Filtered): ${usersMatched} / ${usersTotal} total`;
         entityRows = modeEl.value === 'GROUPS' ? (main.groups || []) : (main.users || []);
         renderEntities();
         await loadPolicies();

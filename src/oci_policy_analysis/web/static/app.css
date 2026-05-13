@@ -23,6 +23,10 @@
   --oci-line: #e7dfdb;
   --oci-panel: #fffdfa;
   --oci-bg: #f7f4f2;
+  --layout-main-padding: 1.5rem;
+  --layout-main-gap: 1rem;
+  --card-padding: 1.15rem;
+  --card-compact-padding: 0.85rem;
 }
 
 * {
@@ -63,22 +67,22 @@ header:not(.app-masthead) a {
 }
 
 main {
-  padding: 2rem;
+  padding: var(--layout-main-padding);
   display: grid;
-  gap: 1.5rem;
+  gap: var(--layout-main-gap);
 }
 
 /* Core card container shared across pages (base panel surface). */
 .card {
   background: var(--oci-panel);
   border-radius: 14px;
-  padding: 1.5rem;
+  padding: var(--card-padding);
   border: 1px solid var(--oci-line);
   box-shadow: 0 10px 24px rgba(38, 30, 26, 0.06);
 }
 
 .compact-card {
-  padding: 1.1rem;
+  padding: var(--card-compact-padding);
   border-radius: 12px;
   box-shadow: 0 6px 18px rgba(38, 30, 26, 0.05);
 }

@@ -66,6 +66,25 @@
         align-items: center;
       }
 
+      .inline-checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        gap: 0.35rem;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        white-space: nowrap;
+        color: #2f2a27;
+        margin: 0;
+      }
+
+      .inline-checkbox-label input[type='checkbox'] {
+        width: auto;
+        height: auto;
+        margin: 0;
+        flex: 0 0 auto;
+      }
+
       .toolbar-separator {
         width: 1px;
         height: 1.8rem;
@@ -555,7 +574,7 @@
           <button id="runBtn" data-help-title="Run filter" data-help-body="Run the query using field filters or the JSON override if provided.">Run Filter</button>
           <button id="clearFiltersBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset all filter inputs and the JSON override area.">Clear Filters</button>
           <span class="toolbar-separator" aria-hidden="true"></span>
-          <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;" data-help-title="Show Prospective" data-help-body="Include saved prospective statements in the results table alongside matched policy data."><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
+          <label class="inline-checkbox-label" data-help-title="Show Prospective" data-help-body="Include saved prospective statements in the results table alongside matched policy data."><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
           <button id="manageProspectiveBtn" data-help-title="Manage Prospective Statements" data-help-body="Open the prospective statement editor to add, parse, and save what-if policy statements.">Manage Prospective Statements</button>
           <span class="toolbar-separator" aria-hidden="true"></span>
           <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" data-help-title="Saved search name" data-help-body="Enter a name for the current filter set before saving it to settings." />
@@ -772,9 +791,13 @@
       let permissionPending = [];
       let jsonOverrideArmed = false;
       let suppressJsonInputTracking = false;
+      let authStatus = null;
+      const LIMITED_PROSPECTIVE_HELP = 'Limited mode: prospective statements are view-only on this page. Only statements applicable to your scoped access are shown here. Additional prospective statements may exist in the tenancy but are hidden outside your scope. Contact an admin to add or modify statements.';
       const sharedProspectiveEditor = window.createProspectiveEditor({
         host: document.getElementById('prospectiveEditorHost'),
         mode: 'drawer',
+        readOnly: false,
+        readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
         onSaved: async () => {
           await runFilter();
         },
@@ -1152,6 +1175,45 @@
         refreshSavedSearchDropdown();
       }
 
+      async function loadAuthStatus() {
+        try {
+          const response = await fetch('/auth/status', { cache: 'no-store' });
+          if (!response.ok) return null;
+          authStatus = await response.json();
+          return authStatus;
+        } catch (_err) {
+          return null;
+        }
+      }
+
+      async function ensureProspectiveEditorMode() {
+        await loadAuthStatus();
+        const isLimited = String(authStatus?.auth_mode || '') === 'limited';
+        const host = document.getElementById('prospectiveEditorHost');
+        if (!host) return;
+        host.innerHTML = '';
+        if (isLimited) {
+          if (manageProspectiveBtn) {
+            manageProspectiveBtn.style.display = 'none';
+          }
+          return;
+        }
+        if (manageProspectiveBtn) {
+          manageProspectiveBtn.style.display = '';
+        }
+        prospectiveEditor = window.createProspectiveEditor({
+          host,
+          mode: 'drawer',
+          readOnly: false,
+          readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+          onSaved: async () => {
+            await runFilter();
+          },
+        });
+        manageProspectiveBtn.textContent = 'Manage Prospective Statements';
+        manageProspectiveBtn.setAttribute('data-help-body', 'Open the prospective statement editor to add, parse, and save what-if policy statements.');
+      }
+
       async function persistSettings() {
         const response = await fetch('/settings', {
           method: 'POST',
@@ -1308,7 +1370,12 @@
           currentRows = currentRows.map((row, idx) => ({ ...row, _row_id: idx + 1 }));
 
           const prospectiveCount = currentRows.filter((r) => r.is_prospective).length;
-          summary.textContent = `Showing ${currentRows.length} of ${matched} (total ${total})${prospectiveCount ? ` + ${prospectiveCount} prospective` : ''}`;
+          const policyCountShown = Math.max(0, currentRows.length - prospectiveCount);
+          if (prospectiveCount > 0) {
+            summary.textContent = `Showing ${currentRows.length} (${policyCountShown} policy + ${prospectiveCount} prospective) of ${matched} matched policy statements (total ${total})`;
+          } else {
+            summary.textContent = `Showing ${policyCountShown} of ${matched} (total ${total})`;
+          }
           renderRows(currentRows);
           inspector.clear();
           status.textContent = '';
@@ -1429,9 +1496,17 @@
         jsonOverrideArmed = String(filters.value || '').trim().length > 0;
       });
 
-      manageProspectiveBtn.addEventListener('click', async () => {
-        await sharedProspectiveEditor.open();
-      });
+      let prospectiveEditor = sharedProspectiveEditor;
+      let prospectiveClickBound = false;
+      function bindProspectiveButton() {
+        if (prospectiveClickBound) return;
+        manageProspectiveBtn.addEventListener('click', async () => {
+          await ensureProspectiveEditorMode();
+          await prospectiveEditor.open();
+        });
+        prospectiveClickBound = true;
+      }
+      bindProspectiveButton();
 
       copyStatementBtn.addEventListener('click', async () => {
         if (!selectedRow) return;
@@ -1488,11 +1563,21 @@
 
       async function initializePage() {
         try {
+          await loadAuthStatus();
           bindContextHelp();
+          if (String(authStatus?.auth_mode || '') === 'limited') {
+            defaultContextHelp.body = 'Run filters to load statements and inspect details. Prospective statements are view-only for limited users and only scoped statements are shown; additional tenancy statements may exist outside scope.';
+            setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+          }
           await loadSettings();
           await loadResourceHelperOptions();
           await loadPermissionHelperOptions();
           updateMutualExclusionBadges();
+          if (String(authStatus?.auth_mode || '') === 'limited') {
+            if (manageProspectiveBtn) {
+              manageProspectiveBtn.style.display = 'none';
+            }
+          }
         } catch (err) {
           status.textContent = `Failed to load settings: ${err}`;
           status.className = 'status error';

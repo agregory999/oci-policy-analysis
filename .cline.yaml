@@ -47,6 +47,22 @@ custom_rules:
   prohibit_print_statements: true
   prohibit_eval: true
   require_docstrings_for_functions: true
+  python_command_policy:
+    use_project_venv_only: true
+    python_executable: "/Users/agregory/oci-policy-analysis/.venv/bin/python"
+    pip_executable: "/Users/agregory/oci-policy-analysis/.venv/bin/pip"
+    forbidden_commands:
+      - "python"
+      - "python3"
+      - "pip"
+      - "pip3"
+    required_command_prefix_examples:
+      - ".venv/bin/python -m pytest"
+      - ".venv/bin/python -m pip install -e ."
+      - ".venv/bin/pip list"
+  shell_command_policy:
+    avoid_here_docs: true
+    note: "Do not use here-docs (<<EOF / <<'EOF') in commands; they are known to break this environment."
 
 # Advanced: You may add annotation blocks for special file types
 # or override settings for test directories, etc.

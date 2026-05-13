@@ -67,7 +67,7 @@
 
         <div id="entitiesCard" class="card layout-col-span-3">
           <div class="analysis-meta">
-            <div id="entityCount" class="pill">Dynamic Groups (Filtered): 0</div>
+            <div id="entityCount" class="pill">Dynamic Groups (Scoped/Filtered): 0 / 0 total</div>
             <div class="helper-text" data-help-title="Dynamic group table" data-help-body="Select one or more dynamic groups to scope policy matching in Dynamic Group mode.">Dynamic Groups Found (select one or more)</div>
           </div>
           <div class="table-shell analysis-table-offset"><div class="table-scroll custom-scrollbar"><table id="entitiesTable" class="analysis-table" data-help-title="Dynamic group results" data-help-body="Rows show filtered dynamic groups. Check one or more rows to include those subjects."><thead></thead><tbody></tbody></table></div></div>
@@ -282,7 +282,7 @@
         selectedEntityIndexes.clear();
         entityRows = [];
         if (!isDynamicGroupMode()) {
-          entityCount.textContent = 'Dynamic Groups (Filtered): 0';
+          entityCount.textContent = 'Dynamic Groups (Scoped/Filtered): N/A in this mode';
           return;
         }
 
@@ -292,7 +292,9 @@
         const resp = await fetch('/entities/dynamic-groups?' + params.toString());
         const data = await resp.json();
         entityRows = data.dynamic_groups || [];
-        entityCount.textContent = `Dynamic Groups (Filtered): ${entityRows.length}`;
+        const matched = Number(data.matched || entityRows.length || 0);
+        const total = Number(data.total || 0);
+        entityCount.textContent = `Dynamic Groups (Scoped/Filtered): ${matched} / ${total} total`;
         renderEntities();
       }
 

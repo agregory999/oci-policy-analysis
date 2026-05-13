@@ -1,3 +1,24 @@
+# [5.2.0-limited-mode.3](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0-limited-mode.2...v5.2.0-limited-mode.3) (2026-05-13)
+
+
+### Bug Fixes
+
+* MCP tokens needed and UI bugs ([616466e](https://github.com/agregory999/oci-policy-analysis/commit/616466e264166d2268111a496c6c367b07100575))
+
+# [5.2.0-limited-mode.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0-limited-mode.1...v5.2.0-limited-mode.2) (2026-05-13)
+
+
+### Bug Fixes
+
+* build name formatting ([c0a283d](https://github.com/agregory999/oci-policy-analysis/commit/c0a283d1da4296ba083587f28a08a126811b1ec0))
+
+# [5.2.0-limited-mode.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.2...v5.2.0-limited-mode.1) (2026-05-13)
+
+
+### Features
+
+* Limited Access Users ([01e496f](https://github.com/agregory999/oci-policy-analysis/commit/01e496fc6d5c53544e20d258c44d17e7d2b6e171))
+
 ## [5.1.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.1...v5.1.2) (2026-05-12)
 
 

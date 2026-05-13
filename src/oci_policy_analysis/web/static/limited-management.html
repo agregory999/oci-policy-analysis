@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Limited Scope Management</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .limited-layout {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1rem;
+      }
+      .profile-row-clickable { cursor: pointer; }
+      .profile-row-selected { outline: 2px solid #4b7bec; outline-offset: -2px; }
+    </style>
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Limited Scope Management" data-help-body="Create and manage limited users scoped to selected compartments and identity domains.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Limited Scope Management</h1>
+            <p>Admin-only • Tenancy-scoped profiles + runtime keys</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary">← Back to home</a>
+        </div>
+      </header>
+      <div class="context-help-card context-help-fixed">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 class="context-help-title">How To Use This Page</h3>
+        <p class="context-help-body">Select one or more compartment paths and allowed domains, save profile, then activate to generate runtime key.</p>
+      </div>
+    </div>
+
+    <main class="limited-layout">
+      <section class="card compact-card">
+        <p class="card-title">Profile Editor</p>
+        <div id="tenancyGuard" class="status">Loading tenancy status...</div>
+        <input id="profileId" type="hidden" />
+        <div class="form-grid">
+          <div class="inline-field"><label for="label">Label</label><input id="label" placeholder="Finance auditors" /></div>
+          <div class="inline-field">
+            <label for="policyMode">Policy Scope Mode</label>
+            <select id="policyMode"><option value="strict_descendants">strict_descendants</option><option value="include_relevant_ancestors">include_relevant_ancestors</option></select>
+            <small class="muted">Scope evaluates statement <strong>effective path</strong> (not raw location text). <code>strict_descendants</code>: include statements whose effective path is at/under a selected root. <code>include_relevant_ancestors</code>: also include ancestor statements whose effective path is a prefix of a selected root.</small>
+          </div>
+          <label class="checkbox-label"><input type="checkbox" id="enabled" checked /> Enabled</label>
+
+          <div>
+            <label for="compartmentPaths">Compartment Scope Paths (1+ required)</label>
+            <select id="compartmentPaths" multiple size="8" style="width:100%;"></select>
+            <small class="muted">These are effective-path roots. Select one or more roots to OR them together for limited visibility.</small>
+          </div>
+          <div>
+            <label for="allowedDomains">Allowed Identity Domains (1+ required)</label>
+            <select id="allowedDomains" multiple size="8" style="width:100%;"></select>
+          </div>
+
+          <div class="tenancy-options-row">
+            <button id="saveBtn" class="ops-button" type="button">Save Profile</button>
+            <button id="newBtn" class="ghost" type="button">New</button>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+      </section>
+
+      <section class="card compact-card">
+        <p class="card-title">Limited Profiles</p>
+        <div class="table-shell">
+          <div class="table-scroll custom-scrollbar" style="max-height: 34rem;">
+            <table class="analysis-table">
+              <thead>
+                <tr>
+                  <th>Label</th><th>Scope Paths</th><th>Domains</th><th>Mode</th><th>Runtime Key</th><th>State</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="profilesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const ids = {
+        profileId: document.getElementById('profileId'),
+        label: document.getElementById('label'),
+        policyMode: document.getElementById('policyMode'),
+        enabled: document.getElementById('enabled'),
+        compartmentPaths: document.getElementById('compartmentPaths'),
+        allowedDomains: document.getElementById('allowedDomains'),
+        status: document.getElementById('status'),
+        tenancyGuard: document.getElementById('tenancyGuard'),
+        profilesBody: document.getElementById('profilesBody'),
+      };
+
+      let pageEnabled = false;
+      let profileRows = [];
+
+      function selectedValues(selectEl) {
+        return Array.from(selectEl?.selectedOptions || []).map((o) => String(o.value || '').trim()).filter(Boolean);
+      }
+
+      function setEditorEnabled(enabled) {
+        pageEnabled = enabled;
+        ['label','policyMode','enabled','compartmentPaths','allowedDomains','saveBtn','newBtn']
+          .forEach((id) => { const el = document.getElementById(id); if (el) el.disabled = !enabled; });
+      }
+
+      function fillMultiSelect(selectEl, values) {
+        selectEl.innerHTML = '';
+        (values || []).forEach((v) => {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          selectEl.appendChild(opt);
+        });
+      }
+
+      function setSelectedValues(selectEl, values) {
+        const chosen = new Set((values || []).map((v) => String(v)));
+        Array.from(selectEl.options).forEach((opt) => {
+          opt.selected = chosen.has(String(opt.value));
+        });
+      }
+
+      function clearForm() {
+        ids.profileId.value = '';
+        ids.label.value = '';
+        ids.policyMode.value = 'strict_descendants';
+        ids.enabled.checked = true;
+        setSelectedValues(ids.compartmentPaths, []);
+        setSelectedValues(ids.allowedDomains, []);
+        ids.profilesBody.querySelectorAll('tr').forEach((tr) => tr.classList.remove('profile-row-selected'));
+      }
+
+      function loadProfileIntoEditor(row) {
+        ids.profileId.value = row.profile_id || '';
+        ids.label.value = row.label || '';
+        ids.policyMode.value = row.policy_scope_mode || 'strict_descendants';
+        ids.enabled.checked = Boolean(row.enabled);
+        setSelectedValues(ids.compartmentPaths, row.compartment_root_paths || []);
+        setSelectedValues(ids.allowedDomains, row.allowed_identity_domains || []);
+      }
+
+      async function api(path, method = 'GET', body) {
+        const response = await fetch(path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+        return payload;
+      }
+
+      function renderTable() {
+        ids.profilesBody.innerHTML = (profileRows || []).map((p) => {
+          const paths = Array.isArray(p.compartment_root_paths) ? p.compartment_root_paths.join(', ') : '';
+          const domains = Array.isArray(p.allowed_identity_domains) ? p.allowed_identity_domains.join(', ') : '';
+          const state = p.active ? 'Active' : (p.enabled ? 'Inactive' : 'Disabled');
+          const runtimeKey = p.active_runtime_key || '';
+          const toggle = p.active ? 'Deactivate' : 'Activate';
+          return `<tr class="profile-row-clickable" data-profile-id="${p.profile_id}"><td>${p.label || '-'}</td><td>${paths || '-'}</td><td>${domains || '-'}</td><td>${p.policy_scope_mode || '-'}</td><td>${runtimeKey || '-'}</td><td>${state}</td><td><button data-action="edit" class="ghost" type="button">Edit</button> <button data-action="toggle" type="button">${toggle}</button> <button data-action="delete" class="ghost" type="button">Delete</button></td></tr>`;
+        }).join('');
+      }
+
+      function bindTableActions() {
+        ids.profilesBody.querySelectorAll('tr[data-profile-id]').forEach((tr) => {
+          tr.addEventListener('click', (event) => {
+            if (event.target instanceof Element && event.target.closest('button[data-action]')) return;
+            const profileId = tr.dataset?.profileId;
+            const row = profileRows.find((p) => String(p.profile_id) === String(profileId));
+            if (!row) return;
+            loadProfileIntoEditor(row);
+            ids.profilesBody.querySelectorAll('tr').forEach((el) => el.classList.remove('profile-row-selected'));
+            tr.classList.add('profile-row-selected');
+          });
+        });
+
+        ids.profilesBody.querySelectorAll('button[data-action]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const tr = btn.closest('tr');
+            const profileId = tr?.dataset?.profileId;
+            const row = profileRows.find((p) => String(p.profile_id) === String(profileId));
+            if (!row) return;
+            try {
+              if (btn.dataset.action === 'edit') {
+                loadProfileIntoEditor(row);
+                ids.profilesBody.querySelectorAll('tr').forEach((el) => el.classList.remove('profile-row-selected'));
+                tr?.classList.add('profile-row-selected');
+                return;
+              }
+              if (btn.dataset.action === 'toggle') {
+                if (row.active) {
+                  await api('/auth/limited/profiles/deactivate', 'POST', { profile_id: row.profile_id });
+                  ids.status.textContent = 'Profile deactivated.';
+                } else {
+                  const result = await api('/auth/limited/profiles/activate', 'POST', { profile_id: row.profile_id });
+                  ids.status.textContent = `Profile activated. Runtime key: ${result.runtime_key}`;
+                }
+                ids.status.className = 'status success';
+              }
+              if (btn.dataset.action === 'delete') {
+                await api('/auth/limited/profiles/delete', 'POST', { profile_id: row.profile_id });
+                ids.status.textContent = 'Profile deleted.';
+                ids.status.className = 'status success';
+              }
+              await loadProfiles();
+            } catch (err) {
+              ids.status.textContent = `Action failed: ${err}`;
+              ids.status.className = 'status error';
+            }
+          });
+        });
+      }
+
+      async function loadProfiles() {
+        profileRows = (await api('/auth/limited/profiles')).profiles || [];
+        renderTable();
+        bindTableActions();
+      }
+
+      async function initialize() {
+        try {
+          const options = await api('/auth/limited/options');
+          fillMultiSelect(ids.compartmentPaths, options.compartment_paths || []);
+          fillMultiSelect(ids.allowedDomains, options.identity_domains || []);
+          setEditorEnabled(true);
+          ids.tenancyGuard.textContent = `Active tenancy: ${options.tenancy_ocid}`;
+          ids.tenancyGuard.className = 'status success';
+          await loadProfiles();
+        } catch (err) {
+          setEditorEnabled(false);
+          ids.tenancyGuard.textContent = `Unavailable: ${err}`;
+          ids.tenancyGuard.className = 'status error';
+          ids.profilesBody.innerHTML = '<tr><td colspan="7">Load a tenancy first, then return to manage limited profiles.</td></tr>';
+        }
+      }
+
+      document.getElementById('newBtn').addEventListener('click', clearForm);
+      document.getElementById('saveBtn').addEventListener('click', async () => {
+        if (!pageEnabled) return;
+        try {
+          await api('/auth/limited/profiles/upsert', 'POST', {
+            profile_id: ids.profileId.value || undefined,
+            label: ids.label.value,
+            policy_scope_mode: ids.policyMode.value,
+            enabled: ids.enabled.checked,
+            compartment_root_paths: selectedValues(ids.compartmentPaths),
+            allowed_identity_domains: selectedValues(ids.allowedDomains),
+          });
+          ids.status.textContent = 'Profile saved.';
+          ids.status.className = 'status success';
+          clearForm();
+          await loadProfiles();
+        } catch (err) {
+          ids.status.textContent = `Save failed: ${err}`;
+          ids.status.className = 'status error';
+        }
+      });
+
+      initialize();
+    </script>
+    <script src="/auth-gate.js"></script>
+  </body>
+  </html>
