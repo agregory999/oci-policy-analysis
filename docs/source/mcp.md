@@ -511,6 +511,66 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
 
 ## Available MCP Tools
 
+### MCP v2 Authentication (Token-first)
+
+MCP tools that read or mutate tenancy-backed data now require a short-lived
+token obtained from `mcp_auth_start`.
+
+Flow:
+
+1. Call `mcp_auth_start` with your runtime UUID access key (admin key or an
+   active limited key).
+2. Receive `mcp_token` (short-lived bearer token).
+3. Pass `mcp_token` to protected tools.
+4. Optionally call `mcp_auth_whoami` to inspect token mode/scope or
+   `mcp_auth_revoke` to revoke it.
+
+Example:
+
+```json
+{
+  "access_key": "<runtime-uuid-key>",
+  "ttl_seconds": 900
+}
+```
+
+Response:
+
+```json
+{
+  "mcp_token": "<short-lived-token>",
+  "auth_mode": "admin",
+  "expires_at": "2026-05-13T18:00:00+00:00"
+}
+```
+
+Limited tokens carry enforced scope (compartment roots, scope mode,
+identity-domain allowlist), and MCP simulation/prospective behavior follows
+the same limited-mode constraints used by the web flows.
+
+### Quick Test Recipe (recommended)
+
+Use this exact order when validating MCP manually:
+
+1. Start MCP server (stdio or streamable-http).
+2. Call `mcp_auth_start` with your runtime UUID key.
+3. Copy returned `mcp_token`.
+4. Call `mcp_auth_whoami` and confirm `auth_mode` and scope.
+5. Run functional tools using `mcp_token` (examples below).
+6. Call `mcp_auth_revoke` when done.
+
+> **Important:** `mcp_auth_start` is the only bootstrap tool that does **not**
+> require `mcp_token`. All protected tools require it.
+
+### v1 -> v2 MCP Migration Notes
+
+- Old direct-access behavior is removed for protected tools.
+- Protected tools now require `mcp_token`.
+- Limited UUID sessions now enforce compartment/domain scope in MCP, matching
+  limited web behavior.
+- Prospective statement management is now token-gated (admin required for
+  mutating operations).
+
 ---
 
 ### prepare_simulation
@@ -537,6 +597,7 @@ Given a compartment path and principal (type + identifier), return all where-cla
 **Input:**  
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "compartment_path": "ROOT/Finance",
   "principal_type": "user",
   "principal": ["Default", "anita"]
@@ -545,6 +606,7 @@ Given a compartment path and principal (type + identifier), return all where-cla
 or for an "any-user" simulation:
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "compartment_path": "ROOT",
   "principal_type": "any-user",
   "principal": "any-user"
@@ -570,6 +632,7 @@ For each scenario, specifies compartment, principal, API operation, and where-va
 **Input:**  
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "simulations": [
     {
       "compartment_path": "ROOT/Finance",
@@ -644,7 +707,7 @@ List all currently active prospective statements.
 **Input:**
 
 ```json
-{}
+{"mcp_token": "<token-from-mcp_auth_start>"}
 ```
 
 **Response (array of summaries):**
@@ -670,18 +733,21 @@ Replace the **entire** set of prospective (what-if) statements used during simul
 **Input:**
 
 ```json
-[
-  {
-    "compartment_path": "ROOT/Finance",
-    "description": "What-if: open Finance bucket read",
-    "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
-  },
-  {
-    "compartment_path": "ROOT/HR",
-    "description": "What-if: restrict HR instance start",
-    "statement_text": "Deny group HR-Contractors to manage instance-family in compartment HR"
-  }
-]
+{
+  "mcp_token": "<token-from-mcp_auth_start>",
+  "statements": [
+    {
+      "compartment_path": "ROOT/Finance",
+      "description": "What-if: open Finance bucket read",
+      "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
+    },
+    {
+      "compartment_path": "ROOT/HR",
+      "description": "What-if: restrict HR instance start",
+      "statement_text": "Deny group HR-Contractors to manage instance-family in compartment HR"
+    }
+  ]
+}
 ```
 
 Each object is a `ProspectiveStatementInput` (see `oci_policy_analysis.common.models_simulation`).
@@ -698,6 +764,7 @@ Validate and add a **single** prospective statement.
 
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "compartment_path": "ROOT/Finance",
   "description": "What-if: allow Finance auditors to inspect buckets",
   "statement_text": "Allow group Finance-Auditors to inspect buckets in compartment Finance"
@@ -737,7 +804,7 @@ Remove all prospective statements.
 **Input:**
 
 ```json
-{}
+{"mcp_token": "<token-from-mcp_auth_start>"}
 ```
 
 **Response:**
@@ -773,7 +840,7 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 | "Find all groups with 'admin' in the name" | `search_groups` | `{ "group_name": ["admin"] }` |
 | "Which policies allow manage on databases?" | `filter_policy_statements` | `{ "verb": ["manage"], "resource": ["database"] }` |
 | "List all users in group 'cloud-engineering-domain-users'" | `get_users_for_group` | `{ "group_name": "cloud-engineering-domain-users", "domain_name": "cloud-engineering-domain" }` |
-| "Show cross-tenancy aliases" | `cross-tenancy-alias-list` | `None` |
+| "Show cross-tenancy aliases" | `cross-tenancy-alias-list` | `{ "mcp_token": "<token>" }` |
 | "Show me policies with use or manage that cover databases or instances" | `filter_policy_statements` | `{ "verb": ["use", "manage"], "resource": ["database", "instance-family"] }` |
 | "Find all groups in the Default domain with 'viewer' or 'admin' in the name" | `search_groups` | `{ "domain_name": ["Default"], "group_name": ["viewer", "admin"] }` |
 | "List users named Andrew or Mark in cloud-engineering-domain" | `search_users` | `{ "search": ["andrew", "mark"], "domain_name": ["cloud-engineering-domain"] }` |
@@ -791,7 +858,10 @@ Compare the previous reference data cache for this tenancy to the current in-mem
 - Returns a summary and details on what has changed (added, removed, modified), using a deep structural diff.
 - Useful for diagnosing updates to policies, dynamic groups, groups, users, etc.
 
-**Input:** None
+**Input:**
+```json
+{ "mcp_token": "<token-from-mcp_auth_start>" }
+```
 
 **Response:**
 - `response_type`: Always `"reference_data_diff"`
@@ -822,7 +892,10 @@ Reload all policy and identity data from OCI into the in-memory MCP server repos
 - Also saves a new combined cache after reload, unless `--dont-save-cache-after-load` is set.
 - Useful for refreshing the data visible to MCP clients without restarting the server process.
 
-**Input:** None
+**Input:**
+```json
+{ "mcp_token": "<token-from-mcp_auth_start>" }
+```
 
 **Response:**
 - `status`: "success" or "error"
@@ -862,16 +935,16 @@ Reload all policy and identity data from OCI into the in-memory MCP server repos
 **Examples:**
 ```json
 // Get all manage permissions
-{"verb": ["manage"]}
+{"mcp_token": "<token>", "verb": ["manage"]}
 
 // Find policies for specific group
-{"exact_groups": [{"group_name": "Administrators", "domain_name": "Default"}]}
+{"mcp_token": "<token>", "exact_groups": [{"group_name": "Administrators", "domain_name": "Default"}]}
 
 // Find database-related permissions with manage or use
-{"verb": ["manage", "use"], "resource": ["database"]}
+{"mcp_token": "<token>", "verb": ["manage", "use"], "resource": ["database"]}
 
 // Search for users by name
-{"search_users": {"search": ["andrew", "bob"]}}
+{"mcp_token": "<token>", "search_users": {"search": ["andrew", "bob"]}}
 ```
 
 **Response Types:**
@@ -891,13 +964,13 @@ Search and retrieve OCI IAM users with optional filtering.
 **Examples:**
 ```json
 // Get all users
-{}
+{"mcp_token": "<token>"}
 
 // Search by username
-{"search": ["andrew", "mark", "noah"]}
+{"mcp_token": "<token>", "search": ["andrew", "mark", "noah"]}
 
 // Find users by OCID
-{"user_ocid": ["ocid1.user.oc1..aaaaaa..."]}
+{"mcp_token": "<token>", "user_ocid": ["ocid1.user.oc1..aaaaaa..."]}
 ```
 
 **Response:**
@@ -917,16 +990,16 @@ Search and retrieve OCI IAM groups.
 **Examples:**
 ```json
 // Get all groups
-{}
+{"mcp_token": "<token>"}
 
 // Search by name
-{"group_name": ["admin", "developer"]}
+{"mcp_token": "<token>", "group_name": ["admin", "developer"]}
 
 // Find specific groups by OCID
-{"group_ocid": ["ocid1.group.oc1..aaaaaa...", "ocid1.group.oc1..bbbbbb..."]}
+{"mcp_token": "<token>", "group_ocid": ["ocid1.group.oc1..aaaaaa...", "ocid1.group.oc1..bbbbbb..."]}
 
 // Filter by domain
-{"domain_name": ["Default", "cloud-engineering-domain"]}
+{"mcp_token": "<token>", "domain_name": ["Default", "cloud-engineering-domain"]}
 ```
 
 **Response:**
@@ -946,13 +1019,13 @@ Search and retrieve OCI dynamic groups.
 **Examples:**
 ```json
 // Get all dynamic groups
-{}
+{"mcp_token": "<token>"}
 
 // Search by name
-{"dynamic_group_name": ["compute", "function"]}
+{"mcp_token": "<token>", "dynamic_group_name": ["compute", "function"]}
 
 // Find by matching rule content
-{"matching_rule": ["instance.compartment.id"]}
+{"mcp_token": "<token>", "matching_rule": ["instance.compartment.id"]}
 ```
 
 **Response:**
@@ -967,6 +1040,7 @@ Get all groups that a specific user belongs to (exact match only).
 **Input:**
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "user_name": "andrew.gregory@oracle.com",
   "domain_name": "cloud-engineering-domain"
 }
@@ -982,6 +1056,7 @@ Get all users in a specific group (exact match only).
 **Input:**
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "group_name": "Administrators",
   "domain_name": "Default"
 }
@@ -994,7 +1069,10 @@ Get all users in a specific group (exact match only).
 ### cross_tenancy_alias_list
 List all cross-tenancy aliases defined in OCI policies.
 
-**Input:** None
+**Input:**
+```json
+{ "mcp_token": "<token-from-mcp_auth_start>" }
+```
 
 **Response:** List of all DEFINE statements with tenancy OCIDs and aliases.
 
@@ -1006,6 +1084,7 @@ Filter cross-tenancy policy statements that reference a specific alias.
 **Input:**
 ```json
 {
+  "mcp_token": "<token-from-mcp_auth_start>",
   "alias": "partner-tenancy"
 }
 ```

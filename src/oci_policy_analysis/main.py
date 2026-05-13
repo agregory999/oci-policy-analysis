@@ -625,6 +625,7 @@ class App(tk.Tk):
                     cache_manager=self.caching,
                     policy_repo=self.policy_compartment_analysis,
                     tenancy_ocid=str(tenancy_key),
+                    simulation_engine=self.simulation_engine,
                 )
                 logger.info(
                     'Post-load: ProspectiveStatementsService initialized for tenancy %s with %d records',

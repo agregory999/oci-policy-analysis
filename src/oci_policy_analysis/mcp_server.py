@@ -35,10 +35,15 @@ if sys.stderr is None:
 # -------------------------------------------------------
 
 import argparse  # noqa: E402
+import hashlib  # noqa: E402
 import json  # noqa: E402
+import os  # noqa: E402
+import secrets  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
-from typing import Any  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
+from typing import Any, cast  # noqa: E402
 
 from deepdiff import DeepDiff  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
@@ -49,6 +54,9 @@ from uvicorn import Server  # noqa: E402
 from oci_policy_analysis.application.core.common.diff_utils import canonical_filter  # noqa: E402
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine  # noqa: E402
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo  # noqa: E402
+from oci_policy_analysis.application.services.prospective_statements_service import (  # noqa: E402
+    ProspectiveStatementsService,
+)
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
 from oci_policy_analysis.common.logger import get_logger  # noqa: E402
 from oci_policy_analysis.common.models_iam import (  # noqa: E402
@@ -88,6 +96,7 @@ from oci_policy_analysis.common.models_simulation import (  # noqa: E402
     SimulationPrepareResponse,
     SimulationResult,
 )
+from oci_policy_analysis.web.auth import verify_access_key  # noqa: E402
 
 try:  # usage tracking is optional when running embedded; ignore if unavailable
     from oci_policy_analysis.common.usage_tracking import get_usage_tracker  # type: ignore[import]
@@ -105,12 +114,296 @@ pca: PolicyAnalysisRepository | None = None
 
 # Initialize the simulation engine (shares policy repo with PCA)
 sim_engine: PolicySimulationEngine | None = None
+prospective_service: ProspectiveStatementsService | None = None
 
 # Decision logic: return summary if result set is too large
 POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
 
 # Decision logic: return summary if result set is too large
 IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
+
+MCP_TOKEN_TTL_SECONDS = 900
+
+
+@dataclass
+class MCPAccessContext:
+    mode: str
+    tenancy_ocid: str
+    profile_id: str | None
+    compartment_root_paths: list[str]
+    policy_scope_mode: str
+    allowed_identity_domains: list[str]
+
+
+@dataclass
+class MCPTokenRecord:
+    token: str
+    context: MCPAccessContext
+    issued_at: datetime
+    expires_at: datetime
+
+
+_MCP_ACTIVE_TOKENS: dict[str, MCPTokenRecord] = {}
+
+
+def _now_utc() -> datetime:
+    return datetime.now(UTC)
+
+
+def _hash_key_material(value: str) -> str:
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()
+
+
+def _get_current_tenancy_ocid() -> str:
+    if not pca:
+        return ''
+    return str(getattr(pca, 'tenancy_ocid', '') or '').strip()
+
+
+def _build_admin_context() -> MCPAccessContext:
+    return MCPAccessContext(
+        mode='admin',
+        tenancy_ocid=_get_current_tenancy_ocid(),
+        profile_id=None,
+        compartment_root_paths=[],
+        policy_scope_mode='include_relevant_ancestors',
+        allowed_identity_domains=[],
+    )
+
+
+def _build_limited_context(access_key: str) -> MCPAccessContext | None:
+    try:
+        from oci_policy_analysis.web.api import routes_core
+    except Exception:
+        return None
+    key_hash = _hash_key_material(access_key)
+    active = routes_core._ACTIVE_LIMITED_KEYS.get(key_hash)  # type: ignore[attr-defined]
+    if not isinstance(active, dict):
+        return None
+    current_tenancy = _get_current_tenancy_ocid()
+    tenancy_ocid = str(active.get('tenancy_ocid') or '').strip()
+    if current_tenancy and tenancy_ocid and current_tenancy != tenancy_ocid:
+        return None
+    roots_raw = active.get('compartment_root_paths')
+    roots = [str(x).strip() for x in roots_raw if str(x).strip()] if isinstance(roots_raw, list) else []
+    allowed_raw = active.get('allowed_identity_domains')
+    allowed = [str(x).strip() for x in allowed_raw if str(x).strip()] if isinstance(allowed_raw, list) else []
+    return MCPAccessContext(
+        mode='limited',
+        tenancy_ocid=tenancy_ocid,
+        profile_id=str(active.get('profile_id') or '').strip() or None,
+        compartment_root_paths=roots,
+        policy_scope_mode=str(active.get('policy_scope_mode') or 'strict_descendants').strip(),
+        allowed_identity_domains=allowed,
+    )
+
+
+def _issue_mcp_token(ctx: MCPAccessContext, *, ttl_seconds: int = MCP_TOKEN_TTL_SECONDS) -> MCPTokenRecord:
+    now = _now_utc()
+    token = secrets.token_urlsafe(32)
+    rec = MCPTokenRecord(token=token, context=ctx, issued_at=now, expires_at=now + timedelta(seconds=ttl_seconds))
+    _MCP_ACTIVE_TOKENS[token] = rec
+    return rec
+
+
+def _resolve_mcp_token(mcp_token: str) -> MCPAccessContext:
+    token = str(mcp_token or '').strip()
+    if not token:
+        raise ToolError('mcp_token is required. Call mcp_auth_start first.')
+    rec = _MCP_ACTIVE_TOKENS.get(token)
+    if rec is None:
+        raise ToolError('Invalid MCP token. Call mcp_auth_start again.')
+    if _now_utc() >= rec.expires_at:
+        _MCP_ACTIVE_TOKENS.pop(token, None)
+        raise ToolError('MCP token expired. Call mcp_auth_start again.')
+    return rec.context
+
+
+def _require_admin(ctx: MCPAccessContext) -> None:
+    if ctx.mode != 'admin':
+        raise ToolError('Admin access required for this MCP operation.')
+
+
+def _path_match(root: str, candidate: str, *, include_relevant_ancestors: bool) -> bool:
+    r = (root or '').strip().strip('/').strip(':').casefold()
+    c = (candidate or '').strip().strip('/').strip(':').casefold()
+    if not r:
+        return True
+    if not c:
+        return False
+    if c == r or c.startswith(r + '/') or c.startswith(r + ':'):
+        return True
+    return include_relevant_ancestors and (r.startswith(c + '/') or r.startswith(c + ':'))
+
+
+def _statement_effective_path(statement: dict[str, Any]) -> str:
+    for key in ('effective_path', 'Effective Path', 'effective path', 'compartment_path', 'Compartment Path'):
+        value = statement.get(key)
+        if value:
+            return str(value)
+    return ''
+
+
+def _apply_policy_scope_ctx(ctx: MCPAccessContext, statements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if ctx.mode != 'limited':
+        return statements
+    roots = [r for r in ctx.compartment_root_paths if r]
+    if not roots:
+        return []
+    include_ancestors = ctx.policy_scope_mode == 'include_relevant_ancestors'
+    return [
+        s
+        for s in statements
+        if any(
+            _path_match(root, _statement_effective_path(s), include_relevant_ancestors=include_ancestors)
+            for root in roots
+        )
+    ]
+
+
+def _domain_allowed_for_limited_ctx(ctx: MCPAccessContext, domain_name: str | None) -> bool:
+    if ctx.mode != 'limited':
+        return True
+    if not ctx.allowed_identity_domains:
+        return False
+    allowed = {d.casefold() for d in ctx.allowed_identity_domains}
+    return str(domain_name or 'Default').strip().casefold() in allowed
+
+
+def _require_simulation_access_ctx(ctx: MCPAccessContext) -> None:
+    if ctx.mode != 'limited':
+        return
+    if ctx.policy_scope_mode != 'include_relevant_ancestors':
+        raise ToolError('Limited simulation requires include_relevant_ancestors.')
+
+
+def _path_allowed_for_ctx(ctx: MCPAccessContext, compartment_path: str) -> bool:
+    if ctx.mode != 'limited':
+        return True
+    roots = [r for r in ctx.compartment_root_paths if r]
+    if not roots:
+        return False
+    include_ancestors = ctx.policy_scope_mode == 'include_relevant_ancestors'
+    return any(_path_match(root, compartment_path, include_relevant_ancestors=include_ancestors) for root in roots)
+
+
+def _principal_domain_from_key(principal_key: str) -> str:
+    if ':' not in principal_key:
+        return 'Default'
+    pval = principal_key.split(':', 1)[1]
+    return pval.split('/', 1)[0] if '/' in pval else 'Default'
+
+
+def _emit_runtime_key_hint_if_stdio() -> None:
+    """Re-emit runtime admin key to stderr for STDIO operators.
+
+    Some MCP desktop clients buffer or truncate startup logs. This helper allows
+    operators to recover the runtime key by invoking ``mcp_auth_start``.
+    """
+
+    stdio_mode = str(os.getenv('MCP_STDIO_MODE', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    if not stdio_mode:
+        return
+    try:
+        from oci_policy_analysis.web import auth as web_auth
+
+        runtime_key = str(getattr(web_auth, '_RUNTIME_ACCESS_KEY', '') or '').strip()
+        if not runtime_key:
+            return
+        sys.stderr.write('\n[MCP AUTH] Runtime admin key (re-emitted by mcp_auth_start): ' f'{runtime_key}\n')
+        sys.stderr.flush()
+    except Exception:
+        logger.debug('Unable to re-emit runtime key in stdio mode', exc_info=True)
+
+
+def _init_mcp_prospective_service(cache_manager: CacheManager) -> None:
+    """Initialize tenancy-scoped prospective service and push to simulation engine.
+
+    Mirrors the web/UI behavior so MCP sees persisted prospective statements.
+    """
+
+    global prospective_service
+    if not pca or not sim_engine:
+        return
+    tenancy_ocid = str(getattr(pca, 'tenancy_ocid', '') or '').strip()
+    if not tenancy_ocid:
+        logger.info('[MCP] No tenancy_ocid available; skipping prospective service init')
+        return
+    try:
+        prospective_service = ProspectiveStatementsService(
+            cache_manager=cache_manager,
+            policy_repo=pca,
+            tenancy_ocid=tenancy_ocid,
+            simulation_engine=sim_engine,
+        )
+        sim_engine.set_prospective_statements(prospective_service.to_simple_list())
+        logger.info(
+            '[MCP] ProspectiveStatementsService initialized for tenancy %s with %d records',
+            tenancy_ocid,
+            len(prospective_service.to_simple_list()),
+        )
+    except Exception:
+        logger.warning('[MCP] Failed to initialize prospective statements service', exc_info=True)
+
+
+@mcp.tool(
+    name='mcp_auth_start',
+    description='Exchange an admin/limited runtime UUID key for a short-lived MCP token.',
+)
+def mcp_auth_start(access_key: str, ttl_seconds: int = MCP_TOKEN_TTL_SECONDS) -> dict[str, object]:
+    _emit_runtime_key_hint_if_stdio()
+    submitted_key = str(access_key or '').strip()
+    if not submitted_key:
+        raise ToolError('access_key is required.')
+    if verify_access_key(submitted_key):
+        rec = _issue_mcp_token(_build_admin_context(), ttl_seconds=max(60, int(ttl_seconds)))
+        return {
+            'mcp_token': rec.token,
+            'auth_mode': 'admin',
+            'expires_at': rec.expires_at.isoformat(),
+            'tenancy_ocid': rec.context.tenancy_ocid,
+        }
+    limited_ctx = _build_limited_context(submitted_key)
+    if limited_ctx is None:
+        raise ToolError('Invalid access key for MCP auth bootstrap.')
+    rec = _issue_mcp_token(limited_ctx, ttl_seconds=max(60, int(ttl_seconds)))
+    return {
+        'mcp_token': rec.token,
+        'auth_mode': 'limited',
+        'expires_at': rec.expires_at.isoformat(),
+        'tenancy_ocid': limited_ctx.tenancy_ocid,
+        'scope': {
+            'profile_id': limited_ctx.profile_id,
+            'compartment_root_paths': limited_ctx.compartment_root_paths,
+            'policy_scope_mode': limited_ctx.policy_scope_mode,
+            'allowed_identity_domains': limited_ctx.allowed_identity_domains,
+        },
+    }
+
+
+@mcp.tool(name='mcp_auth_revoke', description='Revoke an active MCP token.')
+def mcp_auth_revoke(mcp_token: str) -> dict[str, object]:
+    removed = _MCP_ACTIVE_TOKENS.pop(str(mcp_token or '').strip(), None)
+    return {'revoked': removed is not None}
+
+
+@mcp.tool(name='mcp_auth_whoami', description='Inspect auth mode/scope for a short-lived MCP token.')
+def mcp_auth_whoami(mcp_token: str) -> dict[str, object]:
+    ctx = _resolve_mcp_token(mcp_token)
+    rec = _MCP_ACTIVE_TOKENS[str(mcp_token).strip()]
+    payload: dict[str, object] = {
+        'auth_mode': ctx.mode,
+        'tenancy_ocid': ctx.tenancy_ocid,
+        'expires_at': rec.expires_at.isoformat(),
+    }
+    if ctx.mode == 'limited':
+        payload['scope'] = {
+            'profile_id': ctx.profile_id,
+            'compartment_root_paths': ctx.compartment_root_paths,
+            'policy_scope_mode': ctx.policy_scope_mode,
+            'allowed_identity_domains': ctx.allowed_identity_domains,
+        }
+    return payload
 
 
 # ===========================================================
@@ -215,7 +508,7 @@ def _refresh_registered_tools_from_mcp() -> None:
     elif tools_map is None:
         tool_iter = []
     else:
-        tool_iter = list(tools_map) if hasattr(tools_map, '__iter__') else []
+        tool_iter = list(cast(Any, tools_map)) if hasattr(tools_map, '__iter__') else []
 
     if not tool_iter:
         logger.warning(
@@ -304,16 +597,24 @@ async def health_check(request):
         'See SimulationPrepareRequest for details.'
     ),
 )
-def prepare_simulation(request: SimulationPrepareRequest) -> SimulationPrepareResponse:
+def prepare_simulation(mcp_token: str, request: SimulationPrepareRequest) -> SimulationPrepareResponse:
     """Return all required where-clause variable names for the given simulation context."""
 
     tool_name = 'prepare_simulation'
     try:
         if not sim_engine:
             raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+        ctx = _resolve_mcp_token(mcp_token)
+        _require_simulation_access_ctx(ctx)
         compartment_path = request.get('compartment_path')
+        if not _path_allowed_for_ctx(ctx, str(compartment_path or '')):
+            raise ToolError('Selected compartment path is outside your limited scope.')
         principal_type = request.get('principal_type')
         principal = request.get('principal')
+        if ctx.mode == 'limited' and principal_type in {'user', 'group', 'dynamic-group'}:
+            domain_name = principal[0] if isinstance(principal, (tuple | list)) and len(principal) == 2 else 'Default'
+            if not _domain_allowed_for_limited_ctx(ctx, str(domain_name or 'Default')):
+                raise ToolError('Selected principal is outside your limited identity-domain scope.')
         logger.info(
             'Preparing simulation for compartment="%s", type=%s, principal=%s',
             compartment_path,
@@ -346,7 +647,7 @@ def prepare_simulation(request: SimulationPrepareRequest) -> SimulationPrepareRe
         "MCP never requests the trace ('trace' in SimulationBatchRequest should be omitted or false)."
     ),
 )
-def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResponse:
+def run_simulation_batch(mcp_token: str, request: SimulationBatchRequest) -> SimulationBatchResponse:
     """Batch run policy simulations per canonical MCP contract."""
 
     tool_name = 'run_simulation_batch'
@@ -357,11 +658,22 @@ def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResp
     try:
         if not sim_engine:
             raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+        ctx = _resolve_mcp_token(mcp_token)
+        _require_simulation_access_ctx(ctx)
 
         for scenario in simulations:
             try:
                 compartment_path = scenario.get('compartment_path')
                 principal_key = scenario.get('principal_key')
+                if not _path_allowed_for_ctx(ctx, str(compartment_path or '')):
+                    raise ToolError('Selected compartment path is outside your limited scope.')
+                if ctx.mode == 'limited':
+                    ptype = str(principal_key or '').split(':', 1)[0]
+                    if ptype in {'user', 'group', 'dynamic-group'} and not _domain_allowed_for_limited_ctx(
+                        ctx,
+                        _principal_domain_from_key(str(principal_key or '')),
+                    ):
+                        raise ToolError('Selected principal is outside your limited identity-domain scope.')
                 api_operation = scenario.get('api_operation')
                 where_context = scenario.get('where_context', {})
                 engine_result = sim_engine.simulate_and_record(
@@ -430,11 +742,12 @@ def run_simulation_batch(request: SimulationBatchRequest) -> SimulationBatchResp
         'Each entry includes internal_id, policy_name, compartment_path, parsed/valid flags and invalid_reasons.'
     ),
 )
-def list_prospective_statements() -> list[ProspectiveStatementSummary]:
+def list_prospective_statements(mcp_token: str) -> list[ProspectiveStatementSummary]:
     """Return a summarized view of all currently configured prospective statements."""
 
     if not sim_engine:
         raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    ctx = _resolve_mcp_token(mcp_token)
 
     try:
         raw_list = sim_engine.get_prospective_statements() or []
@@ -442,6 +755,19 @@ def list_prospective_statements() -> list[ProspectiveStatementSummary]:
         logger.error('Failed to retrieve prospective statements from engine: %s', exc)
         raise ToolError(f'Failed to retrieve prospective statements from engine: {exc}') from exc
 
+    scoped = _apply_policy_scope_ctx(ctx, [dict(x) for x in raw_list])
+    summaries = _list_prospective_statements_impl(scoped)
+    logger.info('list_prospective_statements: returning %d entries', len(summaries))
+    try:
+        tracker = get_usage_tracker()
+        if tracker is not None:
+            tracker.track_operation('mcp_tool', tool_name='list_prospective_statements', count=len(summaries))
+    except Exception:
+        logger.debug('Usage tracking for mcp_tool.list_prospective_statements failed', exc_info=True)
+    return summaries
+
+
+def _list_prospective_statements_impl(raw_list: list[dict[str, Any]]) -> list[ProspectiveStatementSummary]:
     summaries: list[ProspectiveStatementSummary] = []
     for pst in raw_list:
         summaries.append(
@@ -455,13 +781,6 @@ def list_prospective_statements() -> list[ProspectiveStatementSummary]:
                 statement_text=pst.get('statement_text'),
             )
         )
-    logger.info('list_prospective_statements: returning %d entries', len(summaries))
-    try:
-        tracker = get_usage_tracker()
-        if tracker is not None:
-            tracker.track_operation('mcp_tool', tool_name='list_prospective_statements', count=len(summaries))
-    except Exception:
-        logger.debug('Usage tracking for mcp_tool.list_prospective_statements failed', exc_info=True)
     return summaries
 
 
@@ -472,11 +791,16 @@ def list_prospective_statements() -> list[ProspectiveStatementSummary]:
         'Input is a list of ProspectiveStatementInput objects; any existing prospective statements are discarded.'
     ),
 )
-def set_prospective_statements_tool(statements: list[ProspectiveStatementInput]) -> list[ProspectiveStatementSummary]:
+def set_prospective_statements_tool(
+    statements: list[ProspectiveStatementInput],
+    mcp_token: str,
+) -> list[ProspectiveStatementSummary]:
     """Replace the engine's prospective statement list with the provided inputs and return summaries."""
 
     if not sim_engine:
         raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    ctx = _resolve_mcp_token(mcp_token)
+    _require_admin(ctx)
 
     # Convert TypedDict input directly; engine expects simple dicts with the same keys.
     cleaned: list[dict] = []
@@ -505,7 +829,8 @@ def set_prospective_statements_tool(statements: list[ProspectiveStatementInput])
         logger.debug('Usage tracking for mcp_tool.set_prospective_statements failed', exc_info=True)
 
     # Reuse list_prospective_statements for the summarized response
-    return list_prospective_statements()
+    refreshed = sim_engine.get_prospective_statements() or []
+    return _list_prospective_statements_impl(refreshed)
 
 
 @mcp.tool(
@@ -515,11 +840,13 @@ def set_prospective_statements_tool(statements: list[ProspectiveStatementInput])
         'Returns parse/valid flags, any invalid reasons, normalized payload, and the assigned internal_id if added.'
     ),
 )
-def add_prospective_statement(input_model: ProspectiveStatementInput) -> ProspectiveStatementResult:
+def add_prospective_statement(input_model: ProspectiveStatementInput, mcp_token: str) -> ProspectiveStatementResult:
     """Validate and append a single prospective statement to the engine's what-if set."""
 
     if not sim_engine:
         raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    ctx = _resolve_mcp_token(mcp_token)
+    _require_admin(ctx)
 
     stmt_text = (input_model.get('statement_text') or '').strip()
     compartment_path = (input_model.get('compartment_path') or 'ROOT').strip() or 'ROOT'
@@ -618,11 +945,13 @@ def add_prospective_statement(input_model: ProspectiveStatementInput) -> Prospec
         'Remove all prospective (what-if) statements from the simulation engine, restoring it to tenancy-only data.'
     ),
 )
-def clear_prospective_statements() -> dict:
+def clear_prospective_statements(mcp_token: str) -> dict:
     """Clear all currently configured prospective statements from the engine."""
 
     if not sim_engine:
         raise ToolError('Simulation engine not initialized. Ensure repository/init ran successfully.')
+    ctx = _resolve_mcp_token(mcp_token)
+    _require_admin(ctx)
 
     try:
         sim_engine.set_prospective_statements([])
@@ -665,14 +994,16 @@ def clear_prospective_statements() -> dict:
         '- filter by dynamic groups (fuzzy) and resource: {"search_dynamic_groups":{"dynamic_group_name":["app","web"], "matching_rule":["instance.compartment.id","instance.id"], "domain_name": ["Default","domain1"]} '
     ),
 )
-def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
+def filter_policy_statements(mcp_token: str, filters: PolicySearch) -> PolicyFilterResponse:
     tool_name = 'filter_policy_statements'
     try:
         if not pca:
             raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+        ctx = _resolve_mcp_token(mcp_token)
 
         logger.info('Tool Policy Filter with JSON filters: %s', filters)
         raw_results = pca.filter_policy_statements(filters)
+        raw_results = _apply_policy_scope_ctx(ctx, [dict(x) for x in raw_results])
 
         if len(raw_results) > POLICY_RESULT_THRESHOLD:
             # Generate summary response
@@ -739,16 +1070,17 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
             logger.debug('Raw Result: %s\n\n', st)
 
         # Normalize subjects for MCP output (e.g., any-user / any-group)
-        normalized_results = [_normalize_subject_for_mcp(st) for st in raw_results]
+        full_response: PolicyStatementFull = cast(
+            PolicyStatementFull,
+            {
+                'response_type': 'full',
+                'statements': raw_results,
+                'total_count': len(raw_results),
+            },
+        )
 
-        full_response: PolicyStatementFull = {
-            'response_type': 'full',
-            'statements': normalized_results,
-            'total_count': len(normalized_results),
-        }
-
-        logger.info('Filter returning %d full policy statements to client', len(normalized_results))
-        _track_mcp_tool(tool_name, status='success', total_statements=len(normalized_results))
+        logger.info('Filter returning %d full policy statements to client', len(raw_results))
+        _track_mcp_tool(tool_name, status='success', total_statements=len(raw_results))
         return full_response
     except ToolError:
         _track_mcp_tool(tool_name, status='error')
@@ -770,12 +1102,17 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
 )
-def get_groups_for_user(user: User) -> list[Group]:
+def get_groups_for_user(mcp_token: str, user: User) -> list[Group]:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
+        ctx = _resolve_mcp_token(mcp_token)
         logger.info(f'MCP Tool: Getting groups for user {user}')
         results = pca.get_groups_for_user(user)
+        if ctx.mode == 'limited':
+            results = [
+                g for g in results if _domain_allowed_for_limited_ctx(ctx, str(g.get('domain_name') or 'Default'))
+            ]
         logger.debug(f'Groups: {results}')
 
         logger.info(f'Returning {len(results)} groups for user {user}')
@@ -794,7 +1131,7 @@ def get_groups_for_user(user: User) -> list[Group]:
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
 )
-def get_users_for_group(group: Group) -> list[User]:
+def get_users_for_group(mcp_token: str, group: Group) -> list[User]:
     """
     Get all users for a specific group.
 
@@ -809,8 +1146,13 @@ def get_users_for_group(group: Group) -> list[User]:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
+        ctx = _resolve_mcp_token(mcp_token)
         logger.info(f'MCP Tool: Getting users for group {group}')
         results = pca.get_users_for_group(group)
+        if ctx.mode == 'limited':
+            results = [
+                u for u in results if _domain_allowed_for_limited_ctx(ctx, str(u.get('domain_name') or 'Default'))
+            ]
         logger.debug(f'Users: {results}')
 
         logger.info(f'Returning {len(results)} users for group {group}')
@@ -830,12 +1172,16 @@ def get_users_for_group(group: Group) -> list[User]:
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
 )
-def search_users(filters: UserSearch) -> UserSearchResponse:
+def search_users(mcp_token: str, filters: UserSearch) -> UserSearchResponse:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
+        ctx = _resolve_mcp_token(mcp_token)
         logger.info(f'MCP Tool: Searching users with filters {filters}')
         raw_results = pca.filter_users(filters)
+        raw_results = [
+            u for u in raw_results if _domain_allowed_for_limited_ctx(ctx, str(u.get('domain_name') or 'Default'))
+        ]
         logger.debug(f'Users: {json.dumps(raw_results, indent=4)}')
 
         if len(raw_results) > IAM_SEARCH_THRESHOLD:
@@ -885,12 +1231,16 @@ def search_users(filters: UserSearch) -> UserSearchResponse:
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
 )
-def search_groups(filters: GroupSearch) -> GroupSearchResponse:
+def search_groups(mcp_token: str, filters: GroupSearch) -> GroupSearchResponse:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
+        ctx = _resolve_mcp_token(mcp_token)
         logger.info(f'MCP Tool: Searching groups with filters {filters}')
         raw_results = pca.filter_groups(filters)
+        raw_results = [
+            g for g in raw_results if _domain_allowed_for_limited_ctx(ctx, str(g.get('domain_name') or 'Default'))
+        ]
         logger.debug(f'Groups: {json.dumps(raw_results, indent=4)}')
 
         # Decision logic: return summary if result set is too large
@@ -943,12 +1293,16 @@ def search_groups(filters: GroupSearch) -> GroupSearchResponse:
         'For policy filtering, use the main filter_policy_statements tool instead.'
     ),
 )
-def search_dynamic_groups(filters: DynamicGroupSearch) -> DynamicGroupSearchResponse:
+def search_dynamic_groups(mcp_token: str, filters: DynamicGroupSearch) -> DynamicGroupSearchResponse:
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
     try:
+        ctx = _resolve_mcp_token(mcp_token)
         logger.info(f'MCP Tool: Searching dynamic groups with filters {filters}')
         raw_results = pca.filter_dynamic_groups(filters)
+        raw_results = [
+            dg for dg in raw_results if _domain_allowed_for_limited_ctx(ctx, str(dg.get('domain_name') or 'Default'))
+        ]
         logger.debug(f'Dynamic Groups: {json.dumps(raw_results, indent=4)}')
 
         # Decision logic: return summary if result set is too large
@@ -1002,7 +1356,7 @@ def search_dynamic_groups(filters: DynamicGroupSearch) -> DynamicGroupSearchResp
 
 
 @mcp.tool('cross-tenancy-alias-list', description='List all defined aliases stored in the DataRepository.')
-def list_cross_tenancy_aliases() -> list[DefineStatement]:
+def list_cross_tenancy_aliases(mcp_token: str) -> list[DefineStatement]:
     """
     Retrieve all defined aliases as stored in the DataRepository.
 
@@ -1011,6 +1365,7 @@ def list_cross_tenancy_aliases() -> list[DefineStatement]:
     """
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    _resolve_mcp_token(mcp_token)
     try:
         raw_aliases = pca.defined_aliases
         logger.info(f'Returning {len(raw_aliases)} aliases')
@@ -1022,7 +1377,7 @@ def list_cross_tenancy_aliases() -> list[DefineStatement]:
 
 
 @mcp.tool('cross-tenancy-policies-by-alias', description='Filter cross-tenancy policy statements for a given alias.')
-def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStatement]:
+def filter_cross_tenancy_policies_by_alias(alias: str, mcp_token: str) -> list[BasePolicyStatement]:
     """
     Retrieve all cross-tenancy policy statements that reference the provided alias.
 
@@ -1034,12 +1389,13 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStateme
     """
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    _resolve_mcp_token(mcp_token)
     try:
         logger.info(f"Filtering cross-tenancy statements for alias '{alias}'")
         raw_results = pca.filter_cross_tenancy_policy_statements([alias])
         logger.info(f"Found {len(raw_results)} policy statements matching alias '{alias}'")
         logger.debug(f'Policies: {raw_results}')
-        return raw_results
+        return cast(list[BasePolicyStatement], raw_results)
     except Exception as e:
         logger.error(f'Failed to filter policies by alias: {e}')
         raise ToolError(f'Failed to filter policies by alias: {e}') from e
@@ -1054,7 +1410,7 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStateme
     name='compare_reference_data_caches',
     description='Compares the previous reference data cache for this tenancy to the current in-memory state using DeepDiff and returns a summarized result of the changes.',
 )
-def compare_reference_data_caches() -> ReferenceDataDiffResult:
+def compare_reference_data_caches(mcp_token: str) -> ReferenceDataDiffResult:
     """
     Compares the in-memory current repository state ("right") to the previous-dated cache ("left") for this tenancy.
 
@@ -1063,9 +1419,10 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
     """
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    _resolve_mcp_token(mcp_token)
 
     try:
-        cache_mgr = CacheManager(policy_analysis=pca)
+        cache_mgr = CacheManager()
         cache_names = cache_mgr.get_available_cache(getattr(pca, 'tenancy_name', None))
         if not cache_names or len(cache_names) < 1:
             raise ToolError('No cached reference data sets available for comparison.')
@@ -1156,7 +1513,7 @@ def compare_reference_data_caches() -> ReferenceDataDiffResult:
         'Use with caution as it may take time depending on tenancy size.'
     ),
 )
-def reload_mcp_data() -> dict:
+def reload_mcp_data(mcp_token: str) -> dict:
     """
     Reload all policy and identity data from OCI into the MCP server repository.
 
@@ -1169,6 +1526,8 @@ def reload_mcp_data() -> dict:
 
     if not pca:
         raise ToolError('Repository not initialized. Run with a profile or instance principal.')
+    ctx = _resolve_mcp_token(mcp_token)
+    _require_admin(ctx)
 
     try:
         if not (pca.policies_loaded_from_tenancy):
@@ -1378,6 +1737,10 @@ def main():
     # Now start Simulation Engine
     sim_engine = PolicySimulationEngine(policy_repo=pca, ref_data_repo=reference_data_repo)
     logger.info('Initialized Policy Analysis Repository and Simulation Engine.')
+
+    # Load prospective statements from standalone prospects cache for this tenancy
+    # after final simulation engine initialization.
+    _init_mcp_prospective_service(cache_manager)
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':
