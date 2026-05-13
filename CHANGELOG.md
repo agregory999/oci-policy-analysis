@@ -1,3 +1,10 @@
+# [5.2.0-limited-mode.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0-limited-mode.1...v5.2.0-limited-mode.2) (2026-05-13)
+
+
+### Bug Fixes
+
+* build name formatting ([c0a283d](https://github.com/agregory999/oci-policy-analysis/commit/c0a283d1da4296ba083587f28a08a126811b1ec0))
+
 # [5.2.0-limited-mode.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.2...v5.2.0-limited-mode.1) (2026-05-13)
 
 
