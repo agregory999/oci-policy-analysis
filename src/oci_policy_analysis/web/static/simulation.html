@@ -27,6 +27,34 @@
         overflow: auto;
       }
 
+      .prospective-scope-list {
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        background: #fffdfa;
+        padding: 0.55rem;
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .prospective-scope-list .helper-text {
+        margin: 0;
+      }
+
+      .prospective-scope-table {
+        width: 100%;
+      }
+
+      .prospective-scope-table th,
+      .prospective-scope-table td {
+        font-size: 0.74rem;
+        vertical-align: top;
+      }
+
+      .prospective-scope-table td {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
       /* Reduce table text size by ~2pt while keeping existing font family. */
       #statementTable th,
       #statementTable td,
@@ -71,6 +99,21 @@
             <div class="inline-field"><label for="ctxPrincipal">Principal</label><select id="ctxPrincipal"></select></div>
             <div class="panel-actions"><button id="loadStatements" type="button">Load Matching Statements</button></div>
           </div>
+          <section id="scopedProspectivePanel" class="prospective-scope-list" style="display:none; margin-top:.65rem;">
+            <div>
+              <strong>Scoped Prospective Statements (View Only)</strong>
+              <p class="helper-text">Only prospective statements applicable to your current context and limited scope are shown. Additional tenancy statements may exist outside your scope.</p>
+            </div>
+            <div id="scopedProspectiveSummary" class="helper-text">No scoped prospective statements for current context.</div>
+            <div class="table-shell">
+              <div class="table-scroll custom-scrollbar" style="max-height: 20vh;">
+                <table class="prospective-scope-table">
+                  <thead><tr><th>Path</th><th>Description</th><th>Statement</th></tr></thead>
+                  <tbody id="scopedProspectiveRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </article>
 
         <article class="workflow-panel" data-panel="2">
@@ -136,6 +179,8 @@
     <script src="/shared-formatters.js"></script>
     <script>
       const state = { options:null, principalKey:'', statements:[], selectedStatementIds:new Set(), variables:[], variableValues:{}, apis:[], rows:[], historyMeta:[], lastRun:[] };
+      const LIMITED_PROSPECTIVE_HELP = 'Limited mode: prospective statements are view-only in Simulation. Only scoped prospective statements are displayed; additional tenancy statements may exist outside your scope and are hidden here.';
+      let authStatus = null;
       const $ = (id)=>document.getElementById(id);
       const stepBtns=[...document.querySelectorAll('.workflow-step')], panels=[...document.querySelectorAll('.workflow-panel')];
       function log(msg){ const p=$('miniLog'); p.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`; p.scrollTop=p.scrollHeight; }
@@ -150,6 +195,8 @@
       function esc(v){ return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
       function renderPrincipalList(){ const t=$('ctxPrincipalType').value; const arr=(state.options?.principals_by_type?.[t])||[]; $('ctxPrincipal').innerHTML=arr.map((x)=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''); updateSummary(); updateReadiness(); }
       function renderApiOptions(filter=''){ const f=String(filter).toLowerCase(); $('apiSelect').innerHTML=state.apis.filter((a)=>a.toLowerCase().includes(f)).map((a)=>`<option value="${esc(a)}">${esc(a)}</option>`).join(''); }
+      function renderScopedProspective(rows){ const tb=$('scopedProspectiveRows'); const summary=$('scopedProspectiveSummary'); if(!tb||!summary) return; const list=Array.isArray(rows)?rows:[]; tb.innerHTML=''; if(!list.length){ summary.textContent='No scoped prospective statements for current context.'; tb.innerHTML='<tr><td colspan="3" class="helper-text">None</td></tr>'; return; } summary.textContent=`Showing ${list.length} scoped prospective statement(s) for current context.`; list.forEach((r)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${esc(r.effective_path||r.policy_path||'-')}</td><td>${esc(r.policy_name||'-')}</td><td>${esc(r.statement_text||'')}</td>`; tb.appendChild(tr); }); }
+      async function refreshScopedProspective(){ if(String(authStatus?.auth_mode||'')!=='limited') return; const body={compartment_path:$('ctxCompartment').value,principal_type:$('ctxPrincipalType').value,principal:$('ctxPrincipal').value}; try { const r=await fetch('/simulation/prospective-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok){ renderScopedProspective([]); return; } const d=await r.json(); renderScopedProspective(d.rows||[]); } catch(_err){ renderScopedProspective([]); } }
 
       function renderStatementTable(){ const tb=document.querySelector('#statementTable tbody'); tb.innerHTML=''; state.statements.forEach((s)=>{ const tr=document.createElement('tr'); const shared=window.SharedFormatters; const policyLabelBase=shared?.formatPolicyCompartmentName?shared.formatPolicyCompartmentName(s,{separator:' :: ',empty:(s.policy_name||s.policy_path||'-')}):String(s.policy_name||''); const policyLabel=s.is_prospective?`[Prospective] ${policyLabelBase}`:policyLabelBase; tr.innerHTML=`<td><input type="checkbox" data-id="${esc(s.internal_id)}" checked/></td><td>${esc(String(s.action||'').toUpperCase())}</td><td>${esc(policyLabel)}</td><td class="statement-cell">${esc(s.statement_text||'')}</td><td>${esc(s.policy_path||s.compartment_path||'')}</td>`; tr.addEventListener('click',(e)=>{ if(e.target?.tagName!=='INPUT') openInspector(s); }); tb.appendChild(tr); }); tb.querySelectorAll('input[type="checkbox"]').forEach((c)=>c.addEventListener('change',(e)=>{ const id=e.target.dataset.id; if(e.target.checked) state.selectedStatementIds.add(id); else state.selectedStatementIds.delete(id); state.variables=[]; state.variableValues={}; $('variablesArea').innerHTML='<p class="helper-text">Statement selection changed. Regenerate variables.</p>'; $('apiSelect').selectedIndex=-1; log('Statement selection changed; variables/API reset.'); updateSummary(); updateReadiness(); })); }
 
@@ -169,18 +216,69 @@
       function formatRequiredPermissionProvenanceHtml(trace){ const rows=buildRequiredPermissionProvenance(trace); if(!rows.length) return '<span class="helper-text">(none)</span>'; return `<div style="display:grid;gap:.6rem;">${rows.map((row)=>`<div style="border:1px solid var(--oci-line);border-radius:8px;padding:.45rem .55rem;background:#fffdfa;"><div style="font-weight:700;color:#7c2d12;margin-bottom:.25rem;">${esc(row.permission)}</div>${row.statements.length?`<ul style="margin:.25rem 0 .1rem 1.1rem;padding:0;">${row.statements.map((s)=>`<li style="margin:.16rem 0;">${esc(s)}</li>`).join('')}</ul>`:'<div class="helper-text">No contributing allow statement found in trace.</div>'}</div>`).join('')}</div>`; }
       async function openHistoryBasic(i){ const r=await fetch(`/simulation/history/${i}`); const d=await r.json(); const t=d.trace||{}; const rows=[{k:'api_call_allowed',v:t.api_call_allowed},{k:'missing_permissions',html:formatPermissionListHtml(t.missing_permissions||[])},{k:'required_permissions_for_api_operation',html:formatPermissionListHtml(t.required_permissions_for_api_operation||[])},{k:'required_permission_provenance',html:formatRequiredPermissionProvenanceHtml(t)},{k:'failure_reason',v:t.failure_reason||''},{k:'allow_statements_considered',v:t.allow_statements_considered||0},{k:'deny_statements_considered',v:t.deny_statements_considered||0}]; $('historyBasicBody').innerHTML=rows.map((row)=>`<tr><th>${esc(row.k)}</th><td>${row.html??esc(String(row.v??''))}</td></tr>`).join(''); $('historyBasicInspector').classList.add('open'); }
 
+      async function loadAuthStatus(){
+        try {
+          const response = await fetch('/auth/status', { cache: 'no-store' });
+          if (!response.ok) return null;
+          authStatus = await response.json();
+          return authStatus;
+        } catch (_err) {
+          return null;
+        }
+      }
+
+      async function ensureProspectiveEditorMode(){
+        await loadAuthStatus();
+        const isLimited = String(authStatus?.auth_mode||'') === 'limited';
+        const host = $('prospectiveEditorHost');
+        if (!host) return;
+        host.innerHTML = '';
+        if (isLimited) {
+          prospectiveEditor = window.createProspectiveEditor({
+            host,
+            mode: 'drawer',
+            readOnly: true,
+            readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+          });
+          const btn = $('manageProspectiveBtn');
+          if (btn) {
+            btn.textContent = 'View Prospective Statements';
+            btn.setAttribute('title', LIMITED_PROSPECTIVE_HELP);
+          }
+          return;
+        }
+        prospectiveEditor = window.createProspectiveEditor({
+          host,
+          mode: 'drawer',
+          readOnly: false,
+          readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+          onSaved: async () => {
+            log('Saved prospective statements.');
+            await loadStatements();
+          },
+        });
+        const btn = $('manageProspectiveBtn');
+        if (btn) {
+          btn.textContent = 'Manage Prospective Statements';
+          btn.removeAttribute('title');
+        }
+      }
+
       const sharedProspectiveEditor = window.createProspectiveEditor({
         host: $('prospectiveEditorHost'),
         mode: 'drawer',
+        readOnly: false,
+        readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
         onSaved: async () => {
           log('Saved prospective statements.');
           await loadStatements();
         },
       });
+      let prospectiveEditor = sharedProspectiveEditor;
 
-      $('ctxPrincipalType').addEventListener('change',()=>{ renderPrincipalList(); log('Principal type changed.'); });
-      $('ctxCompartment').addEventListener('change',()=>{ updateSummary(); updateReadiness(); log('Effective path changed.'); });
-      $('ctxPrincipal').addEventListener('change',()=>{ updateSummary(); updateReadiness(); });
+      $('ctxPrincipalType').addEventListener('change',()=>{ renderPrincipalList(); log('Principal type changed.'); refreshScopedProspective(); });
+      $('ctxCompartment').addEventListener('change',()=>{ updateSummary(); updateReadiness(); log('Effective path changed.'); refreshScopedProspective(); });
+      $('ctxPrincipal').addEventListener('change',()=>{ updateSummary(); updateReadiness(); refreshScopedProspective(); });
       $('loadStatements').addEventListener('click',loadStatements);
       $('generateVariables').addEventListener('click',generateVariables);
       $('apiSearch').addEventListener('input',(e)=>renderApiOptions(e.target.value));
@@ -190,10 +288,34 @@
       $('closeInspector').addEventListener('click',()=>$('stmtInspector').classList.remove('open'));
       $('closeHistoryDrawer').addEventListener('click',()=>$('historyDrawer').classList.remove('open'));
       $('closeHistoryBasic').addEventListener('click',()=>$('historyBasicInspector').classList.remove('open'));
-      $('manageProspectiveBtn').addEventListener('click',()=>sharedProspectiveEditor.open());
+      $('manageProspectiveBtn').addEventListener('click', async ()=>{ await ensureProspectiveEditorMode(); await prospectiveEditor.open(); });
       $('historyRows').addEventListener('click',(e)=>{ const btn=e.target.closest('button[data-action]'); if(!btn) return; const i=Number(btn.dataset.i); if(!Number.isFinite(i)) return; if(btn.dataset.action==='basic') openHistoryBasic(i); if(btn.dataset.action==='full') openHistoryDetail(i); });
 
-      loadOptions().then(()=>{ refreshHistory(); updateSummary(); updateReadiness(); });
+      loadAuthStatus().then(()=>{
+        if(String(authStatus?.auth_mode||'') === 'limited') {
+          const contextHelpBody = document.querySelector('.context-help-body');
+          if (contextHelpBody) {
+            contextHelpBody.textContent = 'Pick context, select statements, fill variables, run APIs, inspect results/history. Prospective statements are view-only for limited users and only scoped statements are displayed.';
+          }
+          const host = $('prospectiveEditorHost');
+          host.innerHTML = '';
+          prospectiveEditor = window.createProspectiveEditor({
+            host,
+            mode: 'drawer',
+            readOnly: true,
+            readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+          });
+          const btn = $('manageProspectiveBtn');
+          if (btn) {
+            btn.style.display = 'none';
+          }
+          const scopedPanel = $('scopedProspectivePanel');
+          if (scopedPanel) scopedPanel.style.display = 'grid';
+          refreshScopedProspective();
+        }
+      }).finally(()=>{
+        loadOptions().then(()=>{ refreshHistory(); updateSummary(); updateReadiness(); });
+      });
     </script>
       <script src="/auth-gate.js"></script>
 </body>

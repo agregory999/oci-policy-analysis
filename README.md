@@ -5,6 +5,10 @@ Analyze Oracle Cloud IAM policies and identity data.
 📘 **Full documentation:**  
 👉 [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
 
+## Limited Mode (Web)
+
+- Overview doc: [docs/source/limited_mode.md](docs/source/limited_mode.md)
+
 ## Quick Start (Desktop App)
 ```bash
 python3 -m venv .venv

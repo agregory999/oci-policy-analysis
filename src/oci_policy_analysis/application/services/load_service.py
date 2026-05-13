@@ -60,6 +60,14 @@ class LoadService:
         if callable(on_stage):
             on_stage(stage, detail, state)
 
+    def _reset_repo_state_before_load(self) -> None:
+        """Reset repository state to avoid stale cross-tenancy residue."""
+        repo = self.context.policy_repo
+        reset_fn = getattr(repo, 'reset_state', None)
+        if callable(reset_fn):
+            reset_fn()
+            self.logger.info('Reset policy repository state before load operation.')
+
     def load_from_cache(
         self,
         cache_name: str,
@@ -80,6 +88,7 @@ class LoadService:
         self.logger.info('Loading cache via LoadService: %s', cache_name)
         self._emit_stage(stage='Loading Cache', detail=f'Loading cache {cache_name}', on_stage=on_stage)
         repo = self.context.policy_repo
+        self._reset_repo_state_before_load()
         success = self.context.cache.load_combined_cache(repo, named_cache=cache_name)
         if success and run_post_load_intelligence:
             self._post_load_create_intelligence_with_stage(on_stage=on_stage)
@@ -115,6 +124,7 @@ class LoadService:
         self.logger.info('Loading export JSON via LoadService: %s', file_path)
         self._emit_stage(stage='Loading Export', detail=f'Reading {file_path}', on_stage=on_stage)
         repo = self.context.policy_repo
+        self._reset_repo_state_before_load()
         try:
             with open(file_path, encoding='utf-8') as jsonfile:
                 loaded_json = json.load(jsonfile)
@@ -161,6 +171,7 @@ class LoadService:
         self.logger.info('Loading compliance output via LoadService: %s', dir_path)
         self._emit_stage(stage='Loading Compliance', detail=f'Loading from {dir_path}', on_stage=on_stage)
         repo = self.context.policy_repo
+        self._reset_repo_state_before_load()
         success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
         if success and run_post_load_intelligence:
             self._post_load_create_intelligence_with_stage(on_stage=on_stage)
@@ -215,6 +226,7 @@ class LoadService:
         )
         self._emit_stage(stage='Initializing', detail='Configuring OCI client', on_stage=on_stage)
         repo = self.context.policy_repo
+        self._reset_repo_state_before_load()
         success = repo.initialize_client(
             use_instance_principal=use_instance_principal,
             session_token=session_token,

@@ -20,6 +20,7 @@ Contents
    mcp
    cli
    web_ui_styling
+   limited_mode
    logging_and_troubleshooting
 
 .. toctree::

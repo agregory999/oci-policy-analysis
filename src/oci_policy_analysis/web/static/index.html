@@ -180,6 +180,7 @@
             <a href="/reference-data.html" class="icon-button"><span class="icon-button-mark">RD</span><span class="icon-button-label">Reference Data</span></a>
             <a href="/logging.html" class="icon-button"><span class="icon-button-mark">LG</span><span class="icon-button-label">Logging</span></a>
             <a href="/settings.html" class="icon-button"><span class="icon-button-mark">ST</span><span class="icon-button-label">Settings / Caches</span></a>
+            <a href="/limited-management.html" class="icon-button"><span class="icon-button-mark">LM</span><span class="icon-button-label">Limited Scope Management</span></a>
           </div>
         </section>
       </aside>
@@ -221,6 +222,7 @@
       const contextHelpBody = document.getElementById('contextHelpBody');
       const sharedStageHistory = [];
       let appSettings = {};
+      let currentAuthMode = null;
       const defaultContextHelp = {
         title: 'How To Use This Page',
         body: 'Hover or focus on controls to see what each option does. Start in Data Operations to load tenancy, compliance, cache, or export data.',
@@ -501,6 +503,19 @@
         const ip = instancePrincipal.checked;
         profileSelect.disabled = ip;
       }
+      async function ensureHomeRoleBehavior() {
+        try {
+          const response = await fetch('/auth/status', { cache: 'no-store' });
+          const payload = await response.json();
+          currentAuthMode = payload.auth_mode || null;
+          if (currentAuthMode === 'limited') {
+            window.location.replace('/limited-home.html');
+            return;
+          }
+        } catch (_err) {
+          // auth-gate enforces login; ignore here
+        }
+      }
 
       // Trigger direct tenancy load flow.
       async function loadTenancy() {
@@ -634,6 +649,7 @@
 
       // Page bootstrap: bind help, load defaults, and start status polling.
       (async () => {
+        await ensureHomeRoleBehavior();
         bindContextHelp();
         await loadAppSettings();
         await loadCaches();

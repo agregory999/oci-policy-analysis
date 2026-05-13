@@ -9,9 +9,10 @@ from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
@@ -55,32 +56,220 @@ logger = get_logger(component='web_routes')
 router = APIRouter()
 condition_tester_service = ConditionTesterService()
 
+_LIMITED_ACCESS_BY_TENANCY_KEY = 'limited_access_by_tenancy'
+_ACTIVE_LIMITED_KEYS: dict[str, dict[str, object]] = {}
+
+
+def _hash_key_material(value: str) -> str:
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()
+
+
+def _get_current_tenancy_ocid() -> str:
+    ctx = get_context()
+    return str(getattr(ctx.policy_repo, 'tenancy_ocid', '') or '').strip()
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _get_limited_profiles_for_tenancy(tenancy_ocid: str) -> list[dict[str, object]]:
+    settings = get_settings()
+    by_tenancy = settings.get(_LIMITED_ACCESS_BY_TENANCY_KEY)
+    if not isinstance(by_tenancy, dict):
+        return []
+    tenant_blob = by_tenancy.get(tenancy_ocid)
+    if not isinstance(tenant_blob, dict):
+        return []
+    profiles = tenant_blob.get('profiles')
+    if not isinstance(profiles, list):
+        return []
+    return [p for p in profiles if isinstance(p, dict)]
+
+
+def _set_limited_profiles_for_tenancy(tenancy_ocid: str, profiles: list[dict[str, object]]) -> None:
+    settings = get_settings()
+    by_tenancy = settings.get(_LIMITED_ACCESS_BY_TENANCY_KEY)
+    if not isinstance(by_tenancy, dict):
+        by_tenancy = {}
+    tenant_blob = by_tenancy.get(tenancy_ocid)
+    if not isinstance(tenant_blob, dict):
+        tenant_blob = {}
+    tenant_blob['profiles'] = profiles
+    by_tenancy[tenancy_ocid] = tenant_blob
+    settings[_LIMITED_ACCESS_BY_TENANCY_KEY] = by_tenancy
+    config.save_settings(settings)
+
+
+def _get_session_auth_mode(request: Request) -> str | None:
+    mode = str(request.session.get('auth_mode') or '').strip().lower()
+    return mode if mode in {'admin', 'limited'} else None
+
 
 def _is_authenticated(request: Request) -> bool:
-    """Return whether this browser session is authenticated for current runtime key."""
+    """Return whether this browser session is authenticated for active auth mode."""
     session = request.session
-    return bool(session.get('authenticated')) and session.get('auth_key_fp') == current_key_fingerprint()
+    if not bool(session.get('authenticated')):
+        return False
+
+    auth_mode = _get_session_auth_mode(request)
+    if auth_mode == 'admin':
+        return session.get('auth_key_fp') == current_key_fingerprint()
+    if auth_mode == 'limited':
+        limited_key_hash = str(session.get('limited_key_hash') or '').strip()
+        if not limited_key_hash:
+            return False
+        active = _ACTIVE_LIMITED_KEYS.get(limited_key_hash)
+        if not isinstance(active, dict):
+            return False
+        current_tenancy_ocid = _get_current_tenancy_ocid()
+        active_tenancy_ocid = str(active.get('tenancy_ocid') or '').strip()
+        return not (current_tenancy_ocid and active_tenancy_ocid and current_tenancy_ocid != active_tenancy_ocid)
+    return False
+
+
+def _require_authenticated(request: Request) -> None:
+    if not _is_authenticated(request):
+        raise HTTPException(status_code=401, detail='Not authenticated.')
+
+
+def _is_limited_session(request: Request) -> bool:
+    return _is_authenticated(request) and _get_session_auth_mode(request) == 'limited'
+
+
+def _require_not_limited(request: Request) -> None:
+    _require_authenticated(request)
+    if _is_limited_session(request):
+        raise HTTPException(status_code=403, detail='Limited mode does not allow this operation.')
+
+
+def _require_admin(request: Request) -> None:
+    _require_authenticated(request)
+    if _get_session_auth_mode(request) != 'admin':
+        raise HTTPException(status_code=403, detail='Admin access required.')
+
+
+def _limited_scope(request: Request) -> dict[str, object]:
+    scope = request.session.get('limited_scope')
+    return dict(scope) if isinstance(scope, dict) else {}
+
+
+def _path_match(root: str, candidate: str, *, include_relevant_ancestors: bool) -> bool:
+    r = (root or '').strip().strip('/').strip(':').casefold()
+    c = (candidate or '').strip().strip('/').strip(':').casefold()
+    if not r:
+        return True
+    if not c:
+        return False
+    if c == r or c.startswith(r + '/') or c.startswith(r + ':'):
+        return True
+    if include_relevant_ancestors and (r.startswith(c + '/') or r.startswith(c + ':')):
+        return True
+    return False
+
+
+def _statement_effective_path(statement: dict[str, Any]) -> str:
+    for key in (
+        'effective_path',
+        'Effective Path',
+        'effective path',
+        'compartment_path',
+        'Compartment Path',
+        'policy_path',
+        'Policy Path',
+    ):
+        value = statement.get(key)
+        if value:
+            return str(value)
+    return ''
+
+
+def _apply_policy_scope(request: Request, statements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not _is_limited_session(request):
+        return statements
+    scope = _limited_scope(request)
+    roots_raw = scope.get('compartment_root_paths')
+    roots = [str(x).strip() for x in roots_raw if str(x).strip()] if isinstance(roots_raw, list) else []
+    include_ancestors = str(scope.get('policy_scope_mode') or '').strip() == 'include_relevant_ancestors'
+    if not roots:
+        return statements
+    return [
+        s
+        for s in statements
+        if any(
+            _path_match(root, _statement_effective_path(s), include_relevant_ancestors=include_ancestors)
+            for root in roots
+        )
+    ]
+
+
+def _domain_allowed_for_limited(request: Request, domain_name: str | None) -> bool:
+    if not _is_limited_session(request):
+        return True
+    allowed_raw = _limited_scope(request).get('allowed_identity_domains')
+    if not isinstance(allowed_raw, list) or not allowed_raw:
+        return False
+    allowed = {str(x).strip().casefold() for x in allowed_raw if str(x).strip()}
+    return str(domain_name or 'Default').strip().casefold() in allowed
+
+
+def _require_simulation_access(request: Request) -> None:
+    _require_authenticated(request)
+    if not _is_limited_session(request):
+        return
+    mode = str(_limited_scope(request).get('policy_scope_mode') or '').strip()
+    if mode != 'include_relevant_ancestors':
+        raise HTTPException(status_code=403, detail='Limited simulation requires include_relevant_ancestors.')
 
 
 @router.get('/auth/status')
-def auth_status(request: Request) -> dict[str, bool]:
+def auth_status(request: Request) -> dict[str, object]:
     """Return lightweight auth status for current browser session."""
-    return {'authenticated': _is_authenticated(request)}
+    authenticated = _is_authenticated(request)
+    mode = _get_session_auth_mode(request) if authenticated else None
+    return {'authenticated': authenticated, 'auth_mode': mode, 'limited_scope': request.session.get('limited_scope')}
 
 
 @router.post('/auth/login')
 def auth_login(request: Request, payload: dict[str, object]) -> dict[str, object]:
-    """Validate startup access key and mark browser session authenticated."""
+    """Validate startup admin key or active limited key and mark browser session authenticated."""
     submitted_key = str(payload.get('key') or '').strip()
-    if not verify_access_key(submitted_key):
+    if verify_access_key(submitted_key):
+        request.session.clear()
+        request.session['authenticated'] = True
+        request.session['auth_mode'] = 'admin'
+        request.session['auth_key_fp'] = current_key_fingerprint()
+        _track_web_operation('/auth/login', status='success')
+        return {'success': True, 'authenticated': True, 'auth_mode': 'admin'}
+
+    limited_key_hash = _hash_key_material(submitted_key)
+    active = _ACTIVE_LIMITED_KEYS.get(limited_key_hash)
+    if not active:
         request.session.clear()
         _track_web_operation('/auth/login', status='error')
         return {'success': False, 'authenticated': False, 'message': 'Invalid access key.'}
-
+    current_tenancy_ocid = _get_current_tenancy_ocid()
+    if current_tenancy_ocid and str(active.get('tenancy_ocid') or '').strip() != current_tenancy_ocid:
+        request.session.clear()
+        _track_web_operation('/auth/login', status='error')
+        return {
+            'success': False,
+            'authenticated': False,
+            'message': 'Limited key is not valid for the currently loaded tenancy.',
+        }
+    request.session.clear()
     request.session['authenticated'] = True
-    request.session['auth_key_fp'] = current_key_fingerprint()
+    request.session['auth_mode'] = 'limited'
+    request.session['limited_key_hash'] = limited_key_hash
+    request.session['limited_scope'] = {
+        'profile_id': active.get('profile_id'),
+        'tenancy_ocid': active.get('tenancy_ocid'),
+        'compartment_root_paths': active.get('compartment_root_paths') or [],
+        'policy_scope_mode': active.get('policy_scope_mode'),
+        'allowed_identity_domains': active.get('allowed_identity_domains') or [],
+    }
     _track_web_operation('/auth/login', status='success')
-    return {'success': True, 'authenticated': True}
+    return {'success': True, 'authenticated': True, 'auth_mode': 'limited'}
 
 
 @router.post('/auth/logout')
@@ -88,6 +277,190 @@ def auth_logout(request: Request) -> dict[str, bool]:
     """Clear lightweight auth state for current browser session."""
     request.session.clear()
     return {'success': True, 'authenticated': False}
+
+
+@router.get('/auth/limited/profiles')
+def list_limited_profiles(request: Request) -> dict[str, object]:
+    _require_admin(request)
+    tenancy_ocid = _get_current_tenancy_ocid()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+    profiles = _get_limited_profiles_for_tenancy(tenancy_ocid)
+    active_profile_ids = {
+        str(v.get('profile_id') or '')
+        for v in _ACTIVE_LIMITED_KEYS.values()
+        if str(v.get('tenancy_ocid') or '') == tenancy_ocid
+    }
+    response_profiles = []
+    for profile in profiles:
+        p = dict(profile)
+        p.pop('key_hash', None)
+        is_active = str(p.get('profile_id') or '') in active_profile_ids
+        p['active'] = is_active
+        if is_active:
+            for row in _ACTIVE_LIMITED_KEYS.values():
+                if str(row.get('tenancy_ocid') or '') == tenancy_ocid and str(row.get('profile_id') or '') == str(
+                    p.get('profile_id') or ''
+                ):
+                    p['active_runtime_key'] = str(row.get('runtime_key') or '')
+                    break
+        response_profiles.append(p)
+    return {'tenancy_ocid': tenancy_ocid, 'profiles': response_profiles}
+
+
+@router.get('/auth/limited/options')
+def list_limited_options(request: Request) -> dict[str, object]:
+    _require_admin(request)
+    ctx = get_context()
+    repo = ctx.policy_repo
+    tenancy_ocid = str(getattr(repo, 'tenancy_ocid', '') or '').strip()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+
+    compartment_paths: set[str] = set()
+    for comp in getattr(repo, 'compartments', []) or []:
+        if isinstance(comp, dict):
+            path = str(comp.get('hierarchy_path') or '').strip()
+        else:
+            path = str(getattr(comp, 'hierarchy_path', '') or '').strip()
+        if path:
+            compartment_paths.add(path)
+    if not compartment_paths:
+        compartment_paths.add('ROOT')
+
+    domains: set[str] = set()
+    for collection_name in ('users', 'groups', 'dynamic_groups'):
+        for entry in getattr(repo, collection_name, []) or []:
+            if isinstance(entry, dict):
+                domains.add(str(entry.get('domain_name') or 'Default').strip() or 'Default')
+    domains.add('Default')
+
+    return {
+        'tenancy_ocid': tenancy_ocid,
+        'compartment_paths': sorted(compartment_paths),
+        'identity_domains': sorted(domains),
+    }
+
+
+@router.post('/auth/limited/profiles/upsert')
+def upsert_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    _require_admin(request)
+    tenancy_ocid = _get_current_tenancy_ocid()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+
+    profile_id = str(payload.get('profile_id') or '').strip() or str(uuid4())
+    label = str(payload.get('label') or '').strip() or f'Limited Profile {profile_id[:8]}'
+    roots_raw = payload.get('compartment_root_paths')
+    if isinstance(roots_raw, list):
+        compartment_root_paths = sorted({str(x).strip() for x in roots_raw if str(x).strip()})
+    else:
+        single_root = str(payload.get('compartment_root_path') or '').strip()
+        compartment_root_paths = [single_root] if single_root else []
+    if not compartment_root_paths:
+        raise HTTPException(status_code=400, detail='At least one compartment root path is required.')
+    policy_scope_mode = str(payload.get('policy_scope_mode') or 'strict_descendants').strip()
+    if policy_scope_mode not in {'strict_descendants', 'include_relevant_ancestors'}:
+        policy_scope_mode = 'strict_descendants'
+    allowed_domains_raw = payload.get('allowed_identity_domains')
+    if isinstance(allowed_domains_raw, list):
+        allowed_identity_domains = sorted(
+            {str(x).strip() for x in allowed_domains_raw if isinstance(x, str) and str(x).strip()}
+        )
+    else:
+        allowed_identity_domains = []
+    enabled = bool(payload.get('enabled', True))
+
+    profiles = _get_limited_profiles_for_tenancy(tenancy_ocid)
+    now = _utc_now_iso()
+    existing = next((p for p in profiles if str(p.get('profile_id') or '') == profile_id), None)
+    if existing is not None:
+        existing['label'] = label
+        existing['compartment_root_paths'] = compartment_root_paths
+        existing['policy_scope_mode'] = policy_scope_mode
+        existing['allowed_identity_domains'] = allowed_identity_domains
+        existing['enabled'] = enabled
+        existing['updated_at'] = now
+    else:
+        profiles.append(
+            {
+                'profile_id': profile_id,
+                'label': label,
+                'enabled': enabled,
+                'compartment_root_paths': compartment_root_paths,
+                'policy_scope_mode': policy_scope_mode,
+                'allowed_identity_domains': allowed_identity_domains,
+                'created_at': now,
+                'updated_at': now,
+            }
+        )
+
+    _set_limited_profiles_for_tenancy(tenancy_ocid, profiles)
+    return {'success': True, 'profile_id': profile_id}
+
+
+@router.post('/auth/limited/profiles/delete')
+def delete_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    _require_admin(request)
+    tenancy_ocid = _get_current_tenancy_ocid()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+    profile_id = str(payload.get('profile_id') or '').strip()
+    if not profile_id:
+        raise HTTPException(status_code=400, detail='profile_id is required.')
+    profiles = _get_limited_profiles_for_tenancy(tenancy_ocid)
+    filtered = [p for p in profiles if str(p.get('profile_id') or '') != profile_id]
+    _set_limited_profiles_for_tenancy(tenancy_ocid, filtered)
+    for key_hash, row in list(_ACTIVE_LIMITED_KEYS.items()):
+        if str(row.get('tenancy_ocid') or '') == tenancy_ocid and str(row.get('profile_id') or '') == profile_id:
+            _ACTIVE_LIMITED_KEYS.pop(key_hash, None)
+    return {'success': True}
+
+
+@router.post('/auth/limited/profiles/activate')
+def activate_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    _require_admin(request)
+    tenancy_ocid = _get_current_tenancy_ocid()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+    profile_id = str(payload.get('profile_id') or '').strip()
+    if not profile_id:
+        raise HTTPException(status_code=400, detail='profile_id is required.')
+    profiles = _get_limited_profiles_for_tenancy(tenancy_ocid)
+    profile = next((p for p in profiles if str(p.get('profile_id') or '') == profile_id), None)
+    if profile is None:
+        raise HTTPException(status_code=404, detail='Profile not found for current tenancy.')
+    if not bool(profile.get('enabled', True)):
+        raise HTTPException(status_code=400, detail='Profile is disabled.')
+    runtime_key = str(uuid4())
+    key_hash = _hash_key_material(runtime_key)
+    _ACTIVE_LIMITED_KEYS[key_hash] = {
+        'profile_id': profile_id,
+        'tenancy_ocid': tenancy_ocid,
+        'runtime_key': runtime_key,
+        'compartment_root_paths': list(profile.get('compartment_root_paths') or []),
+        'policy_scope_mode': str(profile.get('policy_scope_mode') or 'strict_descendants'),
+        'allowed_identity_domains': list(profile.get('allowed_identity_domains') or []),
+        'activated_at': _utc_now_iso(),
+    }
+    return {'success': True, 'profile_id': profile_id, 'runtime_key': runtime_key, 'active': True}
+
+
+@router.post('/auth/limited/profiles/deactivate')
+def deactivate_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    _require_admin(request)
+    tenancy_ocid = _get_current_tenancy_ocid()
+    if not tenancy_ocid:
+        raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
+    profile_id = str(payload.get('profile_id') or '').strip()
+    if not profile_id:
+        raise HTTPException(status_code=400, detail='profile_id is required.')
+    removed = False
+    for key_hash, row in list(_ACTIVE_LIMITED_KEYS.items()):
+        if str(row.get('tenancy_ocid') or '') == tenancy_ocid and str(row.get('profile_id') or '') == profile_id:
+            _ACTIVE_LIMITED_KEYS.pop(key_hash, None)
+            removed = True
+    return {'success': True, 'active': False, 'deactivated': removed}
 
 
 def _get_or_init_prospective_service(ctx) -> ProspectiveStatementsService:
@@ -99,12 +472,16 @@ def _get_or_init_prospective_service(ctx) -> ProspectiveStatementsService:
         raise HTTPException(status_code=400, detail='No tenancy is currently loaded.')
 
     if isinstance(existing, ProspectiveStatementsService) and existing.tenancy_ocid == tenancy_ocid:
-        return existing
+        # Ensure legacy instances created without simulation_engine wiring
+        # are refreshed so Parse/Validate can use engine-backed validation.
+        if getattr(existing, '_simulation_engine', None) is not None:
+            return existing
 
     service = ProspectiveStatementsService(
         cache_manager=ctx.cache,
         policy_repo=ctx.policy_repo,
         tenancy_ocid=tenancy_ocid,
+        simulation_engine=ctx.simulation,
     )
     ctx._prospective_service = service
     return service
@@ -284,7 +661,7 @@ def _build_engine_principal_value(principal_type: str, principal_display: str) -
     return ''
 
 
-def _simulation_context_options(ctx) -> dict[str, object]:
+def _simulation_context_options(ctx, request: Request | None = None) -> dict[str, object]:
     """Build context dropdown options for simulation workbench."""
 
     repo = ctx.policy_repo
@@ -333,7 +710,21 @@ def _simulation_context_options(ctx) -> dict[str, object]:
     principal_display_map: dict[str, list[str]] = {}
     for ptype in sorted(principal_types):
         tuples = sorted(principals_by_type.get(ptype, set()), key=lambda t: ((t[0] or ''), t[1]))
+        if request is not None and _is_limited_session(request) and ptype in {'user', 'group', 'dynamic-group'}:
+            tuples = [t for t in tuples if _domain_allowed_for_limited(request, t[0] or 'Default')]
         principal_display_map[ptype] = [f'{d}/{n}' if d else n for (d, n) in tuples]
+
+    if request is not None and _is_limited_session(request):
+        scope = _limited_scope(request)
+        roots_raw = scope.get('compartment_root_paths')
+        roots = [str(x).strip() for x in roots_raw if str(x).strip()] if isinstance(roots_raw, list) else []
+        include_ancestors = str(scope.get('policy_scope_mode') or '').strip() == 'include_relevant_ancestors'
+        if roots:
+            compartments = {
+                c
+                for c in compartments
+                if any(_path_match(root, c, include_relevant_ancestors=include_ancestors) for root in roots)
+            }
 
     api_operations = sim.get_api_operations('') if sim else []
     return {
@@ -366,6 +757,27 @@ def _statement_to_web_row(stmt: dict[str, Any]) -> dict[str, Any]:
         'parsed': stmt.get('parsed'),
         'is_prospective': bool(stmt.get('is_prospective')),
     }
+
+
+def _index_html_file() -> FileResponse:
+    index_path = files('oci_policy_analysis.web').joinpath('static').joinpath('index.html')
+    return FileResponse(path=str(index_path), media_type='text/html')
+
+
+@router.get('/')
+def serve_home(request: Request):
+    """Serve public index shell; redirect authenticated limited users to limited home."""
+    if _is_authenticated(request) and _get_session_auth_mode(request) != 'admin':
+        return RedirectResponse(url='/limited-home.html', status_code=307)
+    return _index_html_file()
+
+
+@router.get('/index.html')
+def serve_index_html(request: Request):
+    """Serve public index shell; redirect authenticated limited users to limited home."""
+    if _is_authenticated(request) and _get_session_auth_mode(request) != 'admin':
+        return RedirectResponse(url='/limited-home.html', status_code=307)
+    return _index_html_file()
 
 
 @router.get('/health')
@@ -568,8 +980,9 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
 
 
 @router.post('/filter/policies')
-def filter_policies(payload: dict[str, object]) -> dict[str, object]:
+def filter_policies(request: Request, payload: dict[str, object]) -> dict[str, object]:
     logger.info('POST /filter/policies')
+    _require_authenticated(request)
     ctx = get_context()
     service = AnalysisService(ctx)
     started = time.perf_counter()
@@ -580,6 +993,7 @@ def filter_policies(payload: dict[str, object]) -> dict[str, object]:
     result = service.filter_policy_statements(filters=filters)
 
     statements = list(result.statements or [])
+    statements = _apply_policy_scope(request, statements)
 
     def _lookup(statement: dict[str, Any], key: str) -> str:
         if key in statement:
@@ -603,13 +1017,13 @@ def filter_policies(payload: dict[str, object]) -> dict[str, object]:
 
     return {
         'total': result.total,
-        'matched': result.matched,
+        'matched': len(statements),
         'statements': statements,
     }
 
 
 @router.get('/entities/groups')
-def list_groups(search: str = '') -> dict[str, object]:
+def list_groups(request: Request, search: str = '') -> dict[str, object]:
     """Return groups for User/Group analysis with optional pipe-delimited search."""
     logger.info('GET /entities/groups')
     ctx = get_context()
@@ -618,6 +1032,8 @@ def list_groups(search: str = '') -> dict[str, object]:
     groups: list[Group] = repo.filter_groups(group_filter=group_filter)
     output = []
     for g in groups:
+        if not _domain_allowed_for_limited(request, str(g.get('domain_name') or 'Default')):
+            continue
         row = for_display_group(g)
         row['User Count'] = len(repo.get_users_for_group(g))
         output.append(row)
@@ -629,7 +1045,7 @@ def list_groups(search: str = '') -> dict[str, object]:
 
 
 @router.get('/entities/users')
-def list_users(search: str = '') -> dict[str, object]:
+def list_users(request: Request, search: str = '') -> dict[str, object]:
     """Return users for User/Group analysis with optional pipe-delimited search."""
     logger.info('GET /entities/users')
     ctx = get_context()
@@ -638,6 +1054,8 @@ def list_users(search: str = '') -> dict[str, object]:
     users: list[User] = repo.filter_users(user_filter=user_filter)
     output = []
     for u in users:
+        if not _domain_allowed_for_limited(request, str(u.get('domain_name') or 'Default')):
+            continue
         row = for_display_user(u)
         # Expose raw membership/details so web pages can reliably derive
         # selected-user -> deduped-group filters without parsing display strings.
@@ -654,7 +1072,7 @@ def list_users(search: str = '') -> dict[str, object]:
 
 @router.get('/entities/dynamic-groups')
 def list_dynamic_groups(
-    domain: str = '', name: str = '', matching_rule: str = '', dynamic_group_ocid: str = ''
+    request: Request, domain: str = '', name: str = '', matching_rule: str = '', dynamic_group_ocid: str = ''
 ) -> dict[str, object]:
     """Return dynamic groups with optional filters (pipe-delimited OR semantics)."""
     logger.info('GET /entities/dynamic-groups')
@@ -670,7 +1088,11 @@ def list_dynamic_groups(
         },
     )
     dynamic_groups: list[DynamicGroup] = repo.filter_dynamic_groups(filters)
-    output = [for_display_dynamic_group(dg) for dg in dynamic_groups]
+    output = [
+        for_display_dynamic_group(dg)
+        for dg in dynamic_groups
+        if _domain_allowed_for_limited(request, str(dg.get('domain_name') or 'Default'))
+    ]
     return {
         'total': len(getattr(repo, 'dynamic_groups', []) or []),
         'matched': len(output),
@@ -698,6 +1120,7 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
     exact_groups_payload = payload.get('exact_groups')
     exact_users_payload = payload.get('exact_users')
     exact_dynamic_groups_payload = payload.get('exact_dynamic_groups')
+    principal_keys_payload = payload.get('principal_keys')
     include_any_subjects = bool(payload.get('include_any_subjects'))
     subject_type_filter = _split_pipe(str(payload.get('subject_type') or ''))
     subject_filter_terms = _split_pipe(str(payload.get('subject') or ''))
@@ -737,11 +1160,16 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
                         }
                     )
 
+    principal_keys: list[str] = []
+    if isinstance(principal_keys_payload, list):
+        principal_keys = [str(v).strip() for v in principal_keys_payload if str(v).strip()]
+
     logger.debug(
-        '[by-subjects] payload summary: exact_groups=%d exact_users=%d exact_dynamic_groups=%d include_any_subjects=%s subject_type_terms=%d subject_terms=%d principal_terms=%d',
+        '[by-subjects] payload summary: exact_groups=%d exact_users=%d exact_dynamic_groups=%d principal_keys=%d include_any_subjects=%s subject_type_terms=%d subject_terms=%d principal_terms=%d',
         len(exact_groups),
         len(exact_users),
         len(exact_dynamic_groups),
+        len(principal_keys),
         include_any_subjects,
         len(subject_type_filter),
         len(subject_filter_terms),
@@ -752,8 +1180,43 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         logger.debug('[by-subjects] exact_users=%s', exact_users)
     if exact_dynamic_groups:
         logger.debug('[by-subjects] exact_dynamic_groups=%s', exact_dynamic_groups)
+    if principal_keys:
+        logger.debug('[by-subjects] principal_keys=%s', principal_keys)
+
+    resolved_principal_keys: list[str] = list(principal_keys)
+    if principal_keys:
+        users_by_key: dict[str, User] = {}
+        for u in getattr(repo, 'users', []) or []:
+            if not isinstance(u, dict):
+                continue
+            domain = str(u.get('domain_name') or 'Default').strip() or 'Default'
+            name = str(u.get('user_name') or '').strip()
+            if name:
+                users_by_key[f'user:{domain}/{name}'] = {'domain_name': domain, 'user_name': name}
+
+        expanded_group_keys: set[str] = set()
+        passthrough_keys: set[str] = set()
+        for key in principal_keys:
+            ptype = key.split(':', 1)[0] if ':' in key else ''
+            if ptype == 'user':
+                user = users_by_key.get(key)
+                if user is None:
+                    continue
+                for group in repo.get_groups_for_user(user):
+                    domain = str(group.get('domain_name') or 'Default').strip() or 'Default'
+                    name = str(group.get('group_name') or '').strip()
+                    if name:
+                        expanded_group_keys.add(f'group:{domain}/{name}')
+            else:
+                passthrough_keys.add(key)
+        if expanded_group_keys:
+            resolved_principal_keys = sorted(passthrough_keys | expanded_group_keys)
+        else:
+            resolved_principal_keys = sorted(passthrough_keys)
 
     policy_filter: PolicySearch = {}
+    if resolved_principal_keys:
+        policy_filter['principal_key'] = resolved_principal_keys
     if exact_groups:
         policy_filter['exact_groups'] = exact_groups
     if exact_users:
@@ -762,6 +1225,23 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         policy_filter['exact_dynamic_groups'] = exact_dynamic_groups
 
     logger.debug('[by-subjects] derived policy_filter=%s', policy_filter)
+
+    has_subject_selector = bool(resolved_principal_keys or exact_groups or exact_users or exact_dynamic_groups)
+    if not has_subject_selector:
+        logger.debug('[by-subjects] empty subject selector payload; returning no statements')
+        _track_web_operation(
+            '/filter/policies/by-subjects',
+            status='success',
+            ctx=ctx,
+            count=0,
+            duration_ms=(time.perf_counter() - started) * 1000.0,
+        )
+        return {
+            'total': len(getattr(repo, 'regular_statements', []) or []),
+            'matched': 0,
+            'statements': [],
+            'selected_groups': [],
+        }
 
     statements = repo.filter_policy_statements(filters=policy_filter)
     logger.debug('[by-subjects] base matched count=%d', len(statements))
@@ -826,7 +1306,14 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         logger.debug('[by-subjects] count after subject/principal narrowing=%d', len(statements))
 
     selected_groups: list[dict[str, str]] = []
-    if exact_groups:
+    if resolved_principal_keys:
+        for key in resolved_principal_keys:
+            if not key.startswith('group:'):
+                continue
+            val = key.split(':', 1)[1] if ':' in key else ''
+            domain, group = (val.split('/', 1) + [''])[:2] if '/' in val else ('Default', val)
+            selected_groups.append({'Domain': domain or 'Default', 'Group': group})
+    elif exact_groups:
         selected_groups = [
             {'Domain': g.get('domain_name') or 'Default', 'Group': g.get('group_name') or ''} for g in exact_groups
         ]
@@ -1333,8 +1820,9 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
 
 
 @router.get('/status')
-def get_status() -> dict[str, object]:
+def get_status(request: Request) -> dict[str, object]:
     """Return latest load status summary for the web UI."""
+    _require_not_limited(request)
     ctx = get_context()
     repo = ctx.policy_repo
     summary = {
@@ -1363,13 +1851,28 @@ def get_status() -> dict[str, object]:
 
 
 @router.get('/prospective/statements')
-def get_prospective_statements() -> dict[str, object]:
+def get_prospective_statements(request: Request) -> dict[str, object]:
     """Return tenancy-scoped prospective statement records."""
     logger.info('GET /prospective/statements')
+    _require_authenticated(request)
     ctx = get_context()
     service = _get_or_init_prospective_service(ctx)
+    scope_roots: list[str] = []
+    include_ancestors = False
+    if _is_limited_session(request):
+        scope = _limited_scope(request)
+        roots_raw = scope.get('compartment_root_paths')
+        scope_roots = [str(x).strip() for x in roots_raw if str(x).strip()] if isinstance(roots_raw, list) else []
+        include_ancestors = str(scope.get('policy_scope_mode') or '').strip() == 'include_relevant_ancestors'
+
     rows = []
     for rec in service.list_all():
+        if scope_roots:
+            candidate_path = str(rec.effective_path or rec.compartment_path or '').strip()
+            if not any(
+                _path_match(root, candidate_path, include_relevant_ancestors=include_ancestors) for root in scope_roots
+            ):
+                continue
         rows.append(
             {
                 'id': rec.id,
@@ -1388,9 +1891,10 @@ def get_prospective_statements() -> dict[str, object]:
 
 
 @router.post('/prospective/statements/validate')
-def validate_prospective_statement(payload: dict[str, object]) -> dict[str, object]:
+def validate_prospective_statement(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Validate one prospective statement text for Parse action semantics."""
     logger.info('POST /prospective/statements/validate')
+    _require_admin(request)
     ctx = get_context()
     service = _get_or_init_prospective_service(ctx)
 
@@ -1430,9 +1934,10 @@ def validate_prospective_statement(payload: dict[str, object]) -> dict[str, obje
 
 
 @router.post('/prospective/statements/replace')
-def replace_prospective_statements(payload: dict[str, object]) -> dict[str, object]:
+def replace_prospective_statements(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Replace all prospective statements (deferred save-and-close semantics)."""
     logger.info('POST /prospective/statements/replace')
+    _require_admin(request)
     ctx = get_context()
     service = _get_or_init_prospective_service(ctx)
 
@@ -1464,9 +1969,10 @@ def replace_prospective_statements(payload: dict[str, object]) -> dict[str, obje
 
 
 @router.get('/prospective/builder/metadata')
-def get_prospective_builder_metadata() -> dict[str, object]:
+def get_prospective_builder_metadata(request: Request) -> dict[str, object]:
     """Return builder dropdown metadata for prospective statement authoring."""
     logger.info('GET /prospective/builder/metadata')
+    _require_admin(request)
     ctx = get_context()
     svc = ProspectiveBuilderService(
         policy_repo=ctx.policy_repo,
@@ -1477,9 +1983,10 @@ def get_prospective_builder_metadata() -> dict[str, object]:
 
 
 @router.post('/prospective/builder/preview')
-def get_prospective_builder_preview(payload: dict[str, object]) -> dict[str, object]:
+def get_prospective_builder_preview(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Return generated statement preview for current builder state."""
     logger.info('POST /prospective/builder/preview')
+    _require_admin(request)
     ctx = get_context()
     svc = ProspectiveBuilderService(
         policy_repo=ctx.policy_repo,
@@ -1499,18 +2006,18 @@ def get_prospective_builder_preview(payload: dict[str, object]) -> dict[str, obj
 
 
 @router.get('/simulation/context-options')
-def get_simulation_context_options() -> dict[str, object]:
+def get_simulation_context_options(request: Request) -> dict[str, object]:
     """Return compartments/principals/API ops for simulation context step."""
-
+    _require_simulation_access(request)
     logger.info('GET /simulation/context-options')
     ctx = get_context()
-    return _simulation_context_options(ctx)
+    return _simulation_context_options(ctx, request=request)
 
 
 @router.post('/simulation/statements')
-def get_simulation_statements(payload: dict[str, object]) -> dict[str, object]:
+def get_simulation_statements(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Return statements for selected simulation context."""
-
+    _require_simulation_access(request)
     logger.info('POST /simulation/statements')
     ctx = get_context()
     service = _get_or_init_prospective_service(ctx)
@@ -1520,22 +2027,81 @@ def get_simulation_statements(payload: dict[str, object]) -> dict[str, object]:
         logger.warning('Unable to sync prospective statements to simulation engine', exc_info=True)
 
     compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    if not _apply_policy_scope(request, [{'effective_path': compartment_path}]):
+        raise HTTPException(status_code=403, detail='Selected compartment path is outside your limited scope.')
     principal_type = str(payload.get('principal_type') or '').strip()
     principal_display = str(payload.get('principal') or '').strip()
     if not principal_type:
         raise HTTPException(status_code=400, detail='principal_type is required')
 
+    if _is_limited_session(request) and principal_type in {'user', 'group', 'dynamic-group'}:
+        domain_name = principal_display.split('/', 1)[0] if '/' in principal_display else 'Default'
+        if not _domain_allowed_for_limited(request, domain_name):
+            raise HTTPException(
+                status_code=403, detail='Selected principal is outside your limited identity-domain scope.'
+            )
+
     principal = _build_engine_principal_value(principal_type, principal_display)
-    principal_key, statements = ctx.simulation.get_statements_for_context(compartment_path, principal_type, principal)
+    principal_key, statements_raw = ctx.simulation.get_statements_for_context(
+        compartment_path, principal_type, principal
+    )
+    prospective_raw = sum(1 for s in statements_raw if bool(cast(dict[str, Any], s).get('is_prospective')))
+    statements = _apply_policy_scope(request, statements_raw)
+    prospective_scoped = sum(1 for s in statements if bool(cast(dict[str, Any], s).get('is_prospective')))
+    logger.info(
+        'simulation/statements: principal_key=%s compartment=%s total_raw=%d prospective_raw=%d total_scoped=%d prospective_scoped=%d limited=%s',
+        principal_key,
+        compartment_path,
+        len(statements_raw),
+        prospective_raw,
+        len(statements),
+        prospective_scoped,
+        _is_limited_session(request),
+    )
     return {
         'principal_key': principal_key,
         'statements': [_statement_to_web_row(s) for s in statements],
     }
 
 
+@router.post('/simulation/prospective-preview')
+def get_simulation_prospective_preview(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Return scoped prospective-only statements for current simulation context."""
+    _require_simulation_access(request)
+    ctx = get_context()
+    service = _get_or_init_prospective_service(ctx)
+    try:
+        ctx.simulation.set_prospective_statements(service.to_simple_list())
+    except Exception:
+        logger.warning('Unable to sync prospective statements to simulation engine for preview', exc_info=True)
+
+    compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    principal_type = str(payload.get('principal_type') or '').strip()
+    principal_display = str(payload.get('principal') or '').strip()
+    if not principal_type:
+        return {'principal_key': '', 'rows': []}
+
+    principal = _build_engine_principal_value(principal_type, principal_display)
+    principal_key, statements_raw = ctx.simulation.get_statements_for_context(
+        compartment_path, principal_type, principal
+    )
+    statements_scoped = _apply_policy_scope(request, statements_raw)
+    prospective_rows = [s for s in statements_scoped if bool(cast(dict[str, Any], s).get('is_prospective'))]
+    logger.info(
+        'simulation/prospective-preview: principal_key=%s compartment=%s raw=%d scoped=%d prospective=%d',
+        principal_key,
+        compartment_path,
+        len(statements_raw),
+        len(statements_scoped),
+        len(prospective_rows),
+    )
+    return {'principal_key': principal_key, 'rows': [_statement_to_web_row(s) for s in prospective_rows]}
+
+
 @router.post('/simulation/variables')
-def get_simulation_variables(payload: dict[str, object]) -> dict[str, object]:
+def get_simulation_variables(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Extract where-clause variables from selected simulation statements."""
+    _require_simulation_access(request)
 
     logger.info('POST /simulation/variables')
     ctx = get_context()
@@ -1569,13 +2135,16 @@ def get_simulation_variables(payload: dict[str, object]) -> dict[str, object]:
 
 
 @router.post('/simulation/run')
-def run_simulation(payload: dict[str, object]) -> dict[str, object]:
+def run_simulation(request: Request, payload: dict[str, object]) -> dict[str, object]:
     """Run one-or-many API operation simulations for selected context."""
-
+    _require_simulation_access(request)
     logger.info('POST /simulation/run')
     ctx = get_context()
     principal_key = str(payload.get('principal_key') or '').strip()
     compartment_path = str(payload.get('compartment_path') or 'ROOT').strip() or 'ROOT'
+    if not _apply_policy_scope(request, [{'effective_path': compartment_path}]):
+        _track_web_operation('/simulation/run', status='error', ctx=ctx)
+        raise HTTPException(status_code=403, detail='Selected compartment path is outside your limited scope.')
     scenario_internal_id = str(payload.get('scenario_internal_id') or '').strip()
     scenario_name = str(payload.get('scenario_name') or '').strip()
     simulation_name = str(payload.get('simulation_name') or '').strip()
@@ -1595,6 +2164,15 @@ def run_simulation(payload: dict[str, object]) -> dict[str, object]:
     if not principal_key:
         _track_web_operation('/simulation/run', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail='principal_key is required')
+    if _is_limited_session(request):
+        pval = principal_key.split(':', 1)[1] if ':' in principal_key else ''
+        pdomain = pval.split('/', 1)[0] if '/' in pval else 'Default'
+        ptype = principal_key.split(':', 1)[0] if ':' in principal_key else ''
+        if ptype in {'user', 'group', 'dynamic-group'} and not _domain_allowed_for_limited(request, pdomain):
+            _track_web_operation('/simulation/run', status='error', ctx=ctx)
+            raise HTTPException(
+                status_code=403, detail='Selected principal is outside your limited identity-domain scope.'
+            )
     if not api_operations:
         _track_web_operation('/simulation/run', status='error', ctx=ctx)
         raise HTTPException(status_code=400, detail='At least one api_operation is required')
@@ -1640,8 +2218,9 @@ def run_simulation(payload: dict[str, object]) -> dict[str, object]:
 
 
 @router.get('/simulation/history')
-def get_simulation_history() -> dict[str, object]:
+def get_simulation_history(request: Request) -> dict[str, object]:
     """Return simulation history list for web workbench history step."""
+    _require_simulation_access(request)
 
     logger.info('GET /simulation/history')
     ctx = get_context()
@@ -1649,8 +2228,9 @@ def get_simulation_history() -> dict[str, object]:
 
 
 @router.get('/simulation/history/{idx}')
-def get_simulation_history_entry(idx: int) -> dict[str, object]:
+def get_simulation_history_entry(request: Request, idx: int) -> dict[str, object]:
     """Return simulation history detail by index."""
+    _require_simulation_access(request)
 
     logger.info('GET /simulation/history/%s', idx)
     ctx = get_context()

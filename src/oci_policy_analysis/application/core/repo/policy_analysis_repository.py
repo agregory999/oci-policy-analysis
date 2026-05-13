@@ -1728,7 +1728,49 @@ class PolicyAnalysisRepository:
             match = True
 
             for key, values in filters.items():
-                if key == 'exact_groups':
+                if key == 'principal_key':
+                    raw_values = values if isinstance(values, list) else [values]
+                    expected_keys = {str(v).strip() for v in raw_values if str(v).strip()}
+                    if not expected_keys:
+                        continue
+
+                    statement_keys: set[str] = set()
+                    direct_keys = stmt.get('principal_keys')
+                    if isinstance(direct_keys, list):
+                        statement_keys.update(str(k).strip() for k in direct_keys if str(k).strip())
+                    direct_key = stmt.get('principal_key')
+                    if isinstance(direct_key, str) and direct_key.strip():
+                        statement_keys.add(direct_key.strip())
+                    principals = stmt.get('principals')
+                    if isinstance(principals, list):
+                        for principal in principals:
+                            if isinstance(principal, dict):
+                                pkey = principal.get('principal_key')
+                                if isinstance(pkey, str) and pkey.strip():
+                                    statement_keys.add(pkey.strip())
+
+                    if not statement_keys:
+                        # Legacy fallback for statements that predate principal key enrichment.
+                        self._build_principals_from_statement(stmt)
+                        principals = stmt.get('principals')
+                        if isinstance(principals, list):
+                            for principal in principals:
+                                if isinstance(principal, dict):
+                                    pkey = principal.get('principal_key')
+                                    if isinstance(pkey, str) and pkey.strip():
+                                        statement_keys.add(pkey.strip())
+
+                    if not (statement_keys & expected_keys):
+                        logger.debug(
+                            'Rejecting %s due to principal_key mismatch: expected=%s statement_keys=%s',
+                            stmt.get('policy_name'),
+                            sorted(expected_keys),
+                            sorted(statement_keys),
+                        )
+                        match = False
+                        break
+
+                elif key == 'exact_groups':
                     # Get the groups from the exact filter
                     logger.debug(f'Filtering on exact_groups with values: {values}')
                     groups_filter = filters.get('exact_groups', []) or []
@@ -1919,15 +1961,20 @@ class PolicyAnalysisRepository:
                         break
                 # Effective path search
                 elif key == 'effective_path':
-                    filter_eff_value = values[0].lower()
+                    raw_values = values if isinstance(values, list) else [values]
+                    filter_eff_values = [str(v).strip().lower() for v in raw_values if str(v).strip()]
+                    if not filter_eff_values:
+                        continue
                     statement_eff_value = str(stmt.get('effective_path', '')).lower()
-                    logger.debug(f'Filtering on filt/st {filter_eff_value} vs {statement_eff_value}')
+                    logger.debug(f'Filtering on filt/st {filter_eff_values} vs {statement_eff_value}')
                     # Logic here - if the effective path given contains the effective path of the statement,
                     # then it is a match.  This allows searching for all policies effective in a given compartment and its children.
-                    if not (filter_eff_value.startswith(statement_eff_value)):
+                    if not any(
+                        filter_eff_value.startswith(statement_eff_value) for filter_eff_value in filter_eff_values
+                    ):
                         logger.debug(
                             f'Rejecting {stmt.get("policy_name")} due to effective_path mismatch: '
-                            f'{statement_eff_value} not in {filter_eff_value}'
+                            f'{statement_eff_value} not in any of {filter_eff_values}'
                         )
                         match = False
                         break

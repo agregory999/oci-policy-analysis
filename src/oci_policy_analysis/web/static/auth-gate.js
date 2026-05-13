@@ -30,12 +30,75 @@
   async function checkStatus() {
     try {
       const response = await fetch('/auth/status', { cache: 'no-store' });
-      if (!response.ok) return false;
-      const payload = await response.json();
-      return Boolean(payload.authenticated);
+      if (!response.ok) return { authenticated: false };
+      return response.json();
     } catch (_err) {
-      return false;
+      return { authenticated: false };
     }
+  }
+
+  function ensureRoleBadge(statusPayload) {
+    const masthead = document.querySelector('.app-masthead');
+    if (!masthead) return;
+    let meta = masthead.querySelector('.masthead-meta');
+    if (!meta) {
+      meta = document.createElement('div');
+      meta.className = 'masthead-meta';
+      masthead.appendChild(meta);
+    }
+    const mode = String(statusPayload?.auth_mode || '').trim() || 'unknown';
+    const roleLabel = mode === 'admin' ? 'Admin' : mode === 'limited' ? 'Limited' : 'Unknown';
+    const roleId = 'authGateRoleBadge';
+    let roleEl = document.getElementById(roleId);
+    if (!roleEl) {
+      roleEl = document.createElement('span');
+      roleEl.id = roleId;
+      roleEl.className = 'pill';
+      roleEl.style.marginLeft = '0.4rem';
+      roleEl.style.display = 'inline-block';
+      meta.appendChild(roleEl);
+    }
+    roleEl.textContent = `Mode: ${roleLabel}`;
+  }
+
+  function ensureLimitedBanner(statusPayload) {
+    const isLimited = String(statusPayload?.auth_mode || '') === 'limited';
+    const existing = document.getElementById('limitedScopeBanner');
+    if (!isLimited) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing) return;
+    const scope = statusPayload?.limited_scope || {};
+    const root = Array.isArray(scope.compartment_root_paths) && scope.compartment_root_paths.length
+      ? scope.compartment_root_paths.join(', ')
+      : String(scope.compartment_root_path || '').trim() || '(unspecified scope)';
+    const domains = Array.isArray(scope.allowed_identity_domains) && scope.allowed_identity_domains.length
+      ? scope.allowed_identity_domains.join(', ')
+      : 'none';
+    const banner = document.createElement('section');
+    banner.id = 'limitedScopeBanner';
+    banner.className = 'card compact-card';
+    banner.style.margin = '0 0 0.5rem 0';
+    banner.style.maxWidth = 'none';
+    banner.style.boxSizing = 'border-box';
+    banner.style.padding = '0.5rem 0.75rem';
+    banner.style.gridColumn = '1 / -1';
+    banner.innerHTML = `
+      <p class="card-title">Showing scoped data</p>
+      <p class="helper-text"><strong>Compartment Scope:</strong> ${root} &nbsp;•&nbsp; <strong>Allowed Identity Domains:</strong> ${domains}</p>
+    `;
+    const main = document.querySelector('main');
+    if (main) {
+      main.prepend(banner);
+      return;
+    }
+    const topRow = document.querySelector('.top-row');
+    if (topRow && topRow.parentNode) {
+      topRow.parentNode.insertBefore(banner, topRow.nextSibling);
+      return;
+    }
+    document.body.prepend(banner);
   }
 
   async function submitLogin(keyValue) {
@@ -51,8 +114,16 @@
   }
 
   async function ensureAccess() {
-    const isAuthed = await checkStatus();
-    if (isAuthed) {
+    const status = await checkStatus();
+    if (status && status.authenticated) {
+      const isLimited = String(status?.auth_mode || '') === 'limited';
+      const path = String(window.location.pathname || '');
+      if (isLimited && (path === '/' || path === '/index.html')) {
+        window.location.replace('/limited-home.html');
+        return;
+      }
+      ensureRoleBadge(status);
+      ensureLimitedBanner(status);
       removeOverlay();
       return;
     }
@@ -73,6 +144,15 @@
       try {
         const payload = await submitLogin(candidate);
         if (payload && payload.authenticated) {
+          const postStatus = await checkStatus();
+          const isLimited = String(postStatus?.auth_mode || '') === 'limited';
+          const path = String(window.location.pathname || '');
+          if (isLimited && (path === '/' || path === '/index.html')) {
+            window.location.replace('/limited-home.html');
+            return;
+          }
+          ensureRoleBadge(postStatus);
+          ensureLimitedBanner(postStatus);
           removeOverlay();
           return;
         }

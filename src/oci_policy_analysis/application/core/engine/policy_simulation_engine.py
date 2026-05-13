@@ -29,7 +29,6 @@ from oci_policy_analysis.application.core.parser import (
     extract_variable_names,
 )
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, Group, User
 
 logger = get_logger(component='core.engine.policy_simulation_engine')
 
@@ -814,18 +813,18 @@ class PolicySimulationEngine:
             Dict suitable for **POLICY** repository filtering. Does not include effective_path.
         """
         # Examples:
-        #   user:Default/anita → {'exact_users': [User(domain_name='Default', user_name='anita')]}
-        #   group:Default/Admins → {'exact_groups': [Group(domain_name='Default', group_name='Admins')]}
-        #   dynamic-group:Default/MyDyn → {'exact_dynamic_groups': [DynamicGroup(domain_name='Default', dynamic_group_name='MyDyn')]}
-        #   any-user:None/any-user → {'subject': ['any-user']}
-        #   any-group:None/any-group → {'subject': ['any-group']}
-        #   service:None/some-service → {'subject': ['some-service']}
+        #   user:Default/anita → {'principal_key': ['user:Default/anita']}
+        #   group:Default/Admins → {'principal_key': ['group:Default/Admins']}
+        #   dynamic-group:Default/MyDyn → {'principal_key': ['dynamic-group:Default/MyDyn']}
+        #   any-user:None/any-user → {'principal_key': ['any-user:None/any-user']}
+        #   any-group:None/any-group → {'principal_key': ['any-group:None/any-group']}
+        #   service:None/some-service → {'principal_key': ['service:None/some-service']}
         import re
 
         m = re.match(r'(?P<ptype>[^:]+):(?P<domain>[^/]+)/(?P<name>.*)', principal_key)
         if not m:
             # fallback for odd cases
-            return {'subject': [principal_key]}
+            return {'principal_key': [principal_key]}
 
         ptype, domain, name = m['ptype'], m['domain'], m['name']
         logger.info(f'Mapping principal_key to policy search filter: ptype={ptype}, domain={domain}, name={name}')
@@ -836,29 +835,9 @@ class PolicySimulationEngine:
         elif domain.lower() == 'default':
             domain = 'Default'
 
-        # Create return type so we can return and print debug info
-        return_filter = {}
-        if ptype == 'user':
-            user = User(user_name=name)
-            if domain:
-                user['domain_name'] = domain
-            return_filter = {'exact_users': [user]}
-        elif ptype == 'group':
-            group = Group(group_name=name)
-            if domain:
-                group['domain_name'] = domain
-            return_filter = {'exact_groups': [group]}
-        elif ptype == 'dynamic-group':
-            dgroup = DynamicGroup(dynamic_group_name=name)
-            if domain:
-                dgroup['domain_name'] = domain
-            return_filter = {'exact_dynamic_groups': [dgroup]}
-        elif ptype in ('any-user', 'any-group', 'service'):
-            # For any-user/any-group/service, we match by subject field (which is a string).
-            return_filter = {'subject': [name]}
-        else:
-            # Fallback: use subject filter for unknown types
-            return_filter = {'subject': [principal_key]}
+        # Use principal_key as first-class filter to avoid fuzzy subject collisions
+        # (e.g. service "database" should not match group names containing "database").
+        return_filter = {'principal_key': [f'{ptype}:{domain if domain is not None else "None"}/{name}']}
         logger.info(f'Generated policy search filter: {return_filter}')
         return return_filter
 
@@ -982,6 +961,52 @@ class PolicySimulationEngine:
                     for s in subjects:
                         if isinstance(s, str) and s.strip().lower() in any_subjects:
                             return True
+
+                # Principal-key-first legacy matcher for name-based principals.
+                # This is required when subj_filter only carries principal_key and
+                # no exact_* fields (common in simulation context lookup).
+                try:
+                    pk_ptype, pk_tail = principal_key.split(':', 1)
+                    pk_domain, pk_name = pk_tail.split('/', 1)
+                except ValueError:
+                    pk_ptype, pk_domain, pk_name = '', '', ''
+                pk_ptype_cf = pk_ptype.strip().casefold()
+                pk_domain_cf = (
+                    'default' if pk_domain.strip().casefold() in {'', 'none', 'default'} else pk_domain.strip()
+                ).casefold()
+                pk_name_cf = pk_name.strip().casefold()
+
+                if ptype in {'user', 'group', 'dynamic-group'} and pk_ptype_cf == ptype and pk_name_cf:
+                    norm_subj: set[tuple[str, str]] = set()
+                    for s in subjects:
+                        if isinstance(s, (tuple | list)) and len(s) == 2:
+                            domain, name = s
+                            name_cf = str(name or '').strip().casefold()
+                            if not name_cf:
+                                continue
+                            dom_raw = str(domain).strip() if domain not in (None, '') else 'default'
+                            dom_cf = ('default' if dom_raw.casefold() in {'default', 'none'} else dom_raw).casefold()
+                            norm_subj.add((dom_cf, name_cf))
+                        elif isinstance(s, str):
+                            raw = s.strip()
+                            if not raw:
+                                continue
+                            if '/' in raw:
+                                dom_raw, name_raw = raw.split('/', 1)
+                                dom_cf = (
+                                    'default'
+                                    if str(dom_raw).strip().casefold() in {'', 'default', 'none'}
+                                    else str(dom_raw).strip()
+                                ).casefold()
+                                name_cf = str(name_raw or '').strip().casefold()
+                                if name_cf:
+                                    norm_subj.add((dom_cf, name_cf))
+                            else:
+                                norm_subj.add(('default', raw.casefold()))
+
+                    if (pk_domain_cf, pk_name_cf) in norm_subj:
+                        return True
+
                 # Exact users/groups/dynamic-groups
                 if ptype == 'user' and 'exact_users' in subj_filter:
                     targets = subj_filter['exact_users']
@@ -994,18 +1019,18 @@ class PolicySimulationEngine:
 
                 if targets:
                     # Normalize prospective subjects to (domain, name) tuples
-                    norm_subj: set[tuple[str | None, str]] = set()
+                    norm_subj_targets: set[tuple[str | None, str]] = set()
                     for s in subjects:
                         if isinstance(s, (tuple | list)) and len(s) == 2:
                             domain, name = s
                             dom_norm = str(domain).lower() if domain else 'default'
-                            norm_subj.add((dom_norm, str(name).lower()))
+                            norm_subj_targets.add((dom_norm, str(name).lower()))
                     for t in targets:
                         dom = str(t.get('domain_name') or 'default').lower()
                         name = str(
                             t.get('user_name') or t.get('group_name') or t.get('dynamic_group_name') or ''
                         ).lower()
-                        if (dom, name) in norm_subj:
+                        if (dom, name) in norm_subj_targets:
                             return True
                 return False
 

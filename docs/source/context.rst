@@ -57,6 +57,7 @@ The first heading of each file will appear as its title in the documentation nav
    context/project/CONTEXT_data_repo.md
    context/project/CONTEXT_historical_analysis.md
    context/project/CONTEXT_intelligence_strategies.md
+   context/project/CONTEXT_limited_mode.md
    context/project/CONTEXT_genai_policy_analysis.md
    context/project/CONTEXT_logging.md
    context/project/CONTEXT_logic.md
