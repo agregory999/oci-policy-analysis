@@ -1,3 +1,11 @@
+## [5.1.3-mcp-tooling-cleanup.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.2...v5.1.3-mcp-tooling-cleanup.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* broken MCP tool ([1cc8aee](https://github.com/agregory999/oci-policy-analysis/commit/1cc8aee489d73ed135f11785b5472a696dabaaa9))
+* correct release packaging version handling ([1c0769a](https://github.com/agregory999/oci-policy-analysis/commit/1c0769adada6338e630c680b10100b0b7cacf8a7))
+
 ## [5.1.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.1...v5.1.2) (2026-05-12)
 
 
