@@ -439,6 +439,44 @@ th {
   display: inline-block;
 }
 
+.app-version-footer {
+  margin: 0.75rem 2rem 1.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--oci-line);
+  border-bottom: 2px solid var(--oci-red);
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5563;
+  box-shadow: 0 1px 2px rgba(22, 20, 18, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.app-version-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.app-version-label {
+  color: #6b7280;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.app-version-value {
+  color: #1f1b1a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+}
+
 /* Card body typography + action link variants. */
 .card {
   display: flex;
@@ -2076,6 +2114,15 @@ html {
     text-align: left;
   }
 
+  .app-version-footer {
+    margin: 0.75rem 1rem 1rem;
+    justify-content: flex-start;
+  }
+
+  .app-version-item {
+    white-space: normal;
+  }
+
   .common-progress-row,
   .cache-row,
   main.layout-main,
@@ -2108,4 +2155,3 @@ html {
   }
 
 }
-

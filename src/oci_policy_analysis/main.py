@@ -30,12 +30,12 @@ import tkinter.ttk as ttk
 import traceback
 import warnings
 import webbrowser
-from importlib.resources import files
 
 import oci
 from dateutil import parser as dtparser
 
 # Application imports
+from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
 from oci_policy_analysis.application.services.load_service import LoadService
@@ -72,12 +72,7 @@ from oci_policy_analysis.ui.tag_based_access_tab import TagBasedAccessTab
 from oci_policy_analysis.ui.users_tab import UsersTab
 
 # ----------- POST-IMPORT SETUP ------------
-# Version extraction
-try:
-    raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
-    __version__ = raw_version.lstrip('\ufeff').strip()
-except Exception:
-    __version__ = 'dev'
+__version__ = get_app_version()
 
 # Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
 warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')

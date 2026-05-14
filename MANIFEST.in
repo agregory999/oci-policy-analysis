@@ -27,6 +27,8 @@ exclude .DS_Store
 exclude .env
 exclude Pipfile*
 exclude poetry.lock
+global-exclude .DS_Store
+global-exclude *.py[cod]
 
 # --- Exclude directories that should never be packaged ---
 prune dist

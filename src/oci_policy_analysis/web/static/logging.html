@@ -101,16 +101,7 @@
       </section>
     </main>
 
-    <div class="status-footer">
-      <span id="statusFooterStage">Status: Idle</span>
-      <span id="statusFooterDetail" class="status-muted">No tenancy load active.</span>
-      <span id="statusFooterMeta" class="status-muted"></span>
-    </div>
-
     <script>
-      const statusFooterStage = document.getElementById('statusFooterStage');
-      const statusFooterDetail = document.getElementById('statusFooterDetail');
-      const statusFooterMeta = document.getElementById('statusFooterMeta');
       const globalLevel = document.getElementById('globalLevel');
       const alwaysTimings = document.getElementById('alwaysTimings');
       const alwaysApiCalls = document.getElementById('alwaysApiCalls');
@@ -428,34 +419,6 @@
         }
       }
 
-      async function refreshStatusFooter() {
-        if (!statusFooterStage) return;
-        try {
-          const response = await fetch('/status', { cache: 'no-store' });
-          if (!response.ok) return;
-          const payload = await response.json();
-          const stage = payload.stage || 'Idle';
-          const detail = payload.detail || '';
-          const summary = payload.summary || {};
-          statusFooterStage.textContent = `Status: ${stage}`;
-          statusFooterDetail.textContent = detail || 'No tenancy load active.';
-          const source = summary.loaded_from_compliance_output
-            ? 'CIS Compliance'
-            : summary.policies_loaded_from_tenancy
-              ? `Tenancy ${summary.tenancy_name || ''}`.trim()
-              : summary.data_as_of
-                ? 'Cache'
-                : '';
-          const parts = [];
-          if (source) parts.push(`Source: ${source}`);
-          if (summary.data_as_of) parts.push(`Loaded: ${summary.data_as_of}`);
-          if (summary.policy_data_reloaded) parts.push(`Reloaded: ${summary.policy_data_reloaded}`);
-          statusFooterMeta.textContent = parts.join(' • ');
-        } catch (err) {
-          // Ignore status errors.
-        }
-      }
-
       saveGlobal.addEventListener('click', saveGlobalSettings);
       saveComponents.addEventListener('click', saveComponentSettings);
       logRefresh.addEventListener('click', loadLogStream);
@@ -469,9 +432,8 @@
       });
       loadLogging();
       loadLogStream();
-      refreshStatusFooter();
-      setInterval(refreshStatusFooter, 2000);
     </script>
+      <script src="/app-version.js"></script>
       <script src="/auth-gate.js"></script>
 </body>
 </html>

@@ -21,6 +21,7 @@ docs/build/
 frozen.txt
 uv.lock
 package*.json
+src/oci_policy_analysis/version.txt
 
 # Parser Jar
 src/oci_policy_analysis/logic/parsers/antlr-4.13.2-complete.jar

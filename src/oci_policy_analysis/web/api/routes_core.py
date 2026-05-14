@@ -14,6 +14,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
+from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.application.services.condition_tester_service import ConditionTesterService
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
@@ -55,6 +56,7 @@ from oci_policy_analysis.web.dependencies import get_context, get_settings
 logger = get_logger(component='web_routes')
 router = APIRouter()
 condition_tester_service = ConditionTesterService()
+SERVER_STARTED_AT = datetime.now(UTC).isoformat()
 
 _LIMITED_ACCESS_BY_TENANCY_KEY = 'limited_access_by_tenancy'
 _ACTIVE_LIMITED_KEYS: dict[str, dict[str, object]] = {}
@@ -228,6 +230,17 @@ def auth_status(request: Request) -> dict[str, object]:
     authenticated = _is_authenticated(request)
     mode = _get_session_auth_mode(request) if authenticated else None
     return {'authenticated': authenticated, 'auth_mode': mode, 'limited_scope': request.session.get('limited_scope')}
+
+
+@router.get('/metadata/app')
+def app_metadata() -> dict[str, str]:
+    """Return lightweight app metadata for shared web UI chrome.
+
+    Returns:
+        dict[str, str]: Application metadata including version and server start time.
+    """
+
+    return {'version': get_app_version(), 'server_started_at': SERVER_STARTED_AT}
 
 
 @router.post('/auth/login')
@@ -621,12 +634,7 @@ def _track_web_operation(
         # Flush web operations promptly so analytics PAR refresh can see them
         # without waiting for process exit, then rotate tracker for next op.
         tracker.flush()
-        try:
-            raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
-            app_version = raw_version.lstrip('\ufeff').strip() or 'dev'
-        except Exception:
-            app_version = 'dev'
-        init_usage_tracker(get_settings(), app_version)
+        init_usage_tracker(get_settings(), get_app_version())
     except Exception:
         logger.debug('Usage tracking failed for web route %s', route, exc_info=True)
 

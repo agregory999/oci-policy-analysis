@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from importlib.resources import files
 from typing import Any
 
+from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.common import config
 from oci_policy_analysis.common.usage_tracking import init_usage_tracker
@@ -14,11 +14,7 @@ from oci_policy_analysis.common.usage_tracking import init_usage_tracker
 def _resolve_app_version() -> str:
     """Resolve package version for usage tracking documents."""
 
-    try:
-        raw_version = files('oci_policy_analysis').joinpath('version.txt').read_text()
-        return raw_version.lstrip('\ufeff').strip()
-    except Exception:
-        return 'dev'
+    return get_app_version()
 
 
 @lru_cache(maxsize=1)

@@ -5,7 +5,6 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-dynamic = []
 version = "5.2.0"
 
 dependencies = [
@@ -60,8 +59,20 @@ oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["oci_policy_analysis*"]
+
 [tool.setuptools.package-data]
+"oci_policy_analysis" = [
+    "version.txt",
+    "logic/permissions/*.json",
+    "logic/mcp_tools_list/*.json",
+    "logic/parsers/*.txt",
+    "logic/parsers/*.jar",
+    "ui/*.txt",
+]
 "oci_policy_analysis.web" = ["static/*", "static/**/*"]
