@@ -118,7 +118,7 @@ jobs:
           version = to_pep440(raw_version)
           pyproject = Path("pyproject.toml")
           text = pyproject.read_text(encoding="utf-8")
-          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{pep440_version}"', text, flags=re.MULTILINE)
+          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{version}"', text, flags=re.MULTILINE)
           pyproject.write_text(text, encoding="utf-8")
           Path("src/oci_policy_analysis/version.txt").write_text(f"{version}\n", encoding="utf-8")
           print(f"Pinned pyproject.toml version to: {version} (from {raw_version})")
