@@ -45,6 +45,7 @@ Thumbs.db
 # src/sample/
 old/
 private/
+usage-par.txt
 
 # --- GitHub & CI ---
 # Keep workflow files

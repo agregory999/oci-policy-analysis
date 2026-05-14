@@ -60,7 +60,7 @@ oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]

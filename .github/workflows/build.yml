@@ -53,7 +53,7 @@ jobs:
           git fetch --tags --force
           VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          if [[ "$VERSION" == *"-rc."* ]]; then
+          if [[ "$VERSION" == *"-"* ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "prerelease=false" >> $GITHUB_OUTPUT
@@ -89,22 +89,22 @@ jobs:
 
       - name: Build Python package (wheel + sdist)
         if: steps.skip_package.outputs.skip != 'true'
-        env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python - <<'PY'
           from pathlib import Path
           import re
 
           version = "${{ needs.release.outputs.version }}"
+          pep440_version = re.sub(r"-[0-9A-Za-z.-]*\.(\d+)$", r".dev\1", version)
           pyproject = Path("pyproject.toml")
           text = pyproject.read_text(encoding="utf-8")
-          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{version}"', text, flags=re.MULTILINE)
+          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{pep440_version}"', text, flags=re.MULTILINE)
           pyproject.write_text(text, encoding="utf-8")
-          print(f"Pinned pyproject.toml version to: {version}")
+          print(f"Pinned pyproject.toml version to: {pep440_version} (from {version})")
           PY
           python -m build
+          twine check dist/*
           ls -lh dist
 
       - name: Upload Python package artifacts
@@ -164,7 +164,7 @@ jobs:
           cache-dependency-path: pyproject.toml
           architecture: 'x64' 
         
-      - name: Build wheels from source (pip)
+      - name: Lock desktop dependencies
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: |
@@ -175,17 +175,31 @@ jobs:
           pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
           echo "🔒 Locking dependencies with pip-compile..."
-          pip-compile --generate-hashes --output-file frozen.txt pyproject.toml
+          pip-compile --output-file frozen.txt pyproject.toml
 
-          echo "🧹 Removing editable + hash entries..."
+          echo "🧹 Removing editable entries..."
           grep -v '^-e .' frozen.txt > deps.txt
-          grep -v -- "--hash=" deps.txt > deps2.txt
-          mv deps2.txt frozen.txt
-          rm deps.txt
+          mv deps.txt frozen.txt
 
+      - name: Cache source-built desktop wheels
+        if: steps.skip_build.outputs.skip != 'true'
+        id: wheel_cache
+        uses: actions/cache@v4
+        with:
+          path: wheels
+          key: desktop-wheelhouse-${{ runner.os }}-py312-${{ hashFiles('frozen.txt') }}
+
+      - name: Build and install desktop wheels
+        if: steps.skip_build.outputs.skip != 'true'
+        shell: bash
+        run: |
           echo "🔨 Building wheels from source..."
           mkdir -p wheels
-          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
+          if [[ "${{ steps.wheel_cache.outputs.cache-hit }}" != "true" ]]; then
+            pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
+          else
+            echo "Using cached source-built wheels."
+          fi
 
           echo "📥 Installing local source-built wheels..."
           pip install --no-index --find-links=./wheels -r frozen.txt
@@ -378,7 +392,6 @@ jobs:
         with:
           tag_name: v${{ needs.release.outputs.version }}
           files: |
-            dist/oci-policy-analysis-linux/oci-policy-analysis-linux-${{ needs.release.outputs.version }}.tar.gz
             dist/oci-policy-analysis-macos/oci-policy-analysis-macos-${{ needs.release.outputs.version }}.app.tar.gz
             dist/oci-policy-analysis-windows/oci-policy-analysis-windows-${{ needs.release.outputs.version }}.zip
           draft: false
