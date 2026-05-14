@@ -3,6 +3,7 @@
 This package provides the main analysis, caching, and UI components.
 """
 
+from ._version import get_app_version
 from .cli import main as cli_main
 
 try:
@@ -22,6 +23,7 @@ def __getattr__(name: str):
 
 __all__ = [
     'cli_main',
+    'get_app_version',
     'mcp_main',
     'App',
 ]

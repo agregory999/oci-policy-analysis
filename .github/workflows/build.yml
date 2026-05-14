@@ -53,7 +53,7 @@ jobs:
           git fetch --tags --force
           VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          if [[ "$VERSION" == *"-rc."* ]]; then
+          if [[ "$VERSION" == *"-"* ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "prerelease=false" >> $GITHUB_OUTPUT
@@ -89,23 +89,42 @@ jobs:
 
       - name: Build Python package (wheel + sdist)
         if: steps.skip_package.outputs.skip != 'true'
-        env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.release.outputs.version }}
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python - <<'PY'
           from pathlib import Path
           import re
 
           raw_version = "${{ needs.release.outputs.version }}"
-          pep440_version = re.sub(r'-[0-9A-Za-z.-]*\.(\d+)$', r'.dev\1', raw_version)
+
+          def to_pep440(version: str) -> str:
+              version = version.strip().removeprefix("v")
+              if "-" not in version:
+                  return version
+              base, prerelease = version.split("-", 1)
+              label, _, number = prerelease.rpartition(".")
+              if not label or not number.isdigit():
+                  label = prerelease
+                  number = "0"
+              normalized_label = label.lower()
+              if normalized_label in {"a", "alpha"}:
+                  return f"{base}a{number}"
+              if normalized_label in {"b", "beta"}:
+                  return f"{base}b{number}"
+              if normalized_label in {"rc"}:
+                  return f"{base}rc{number}"
+              return f"{base}.dev{number}"
+
+          version = to_pep440(raw_version)
           pyproject = Path("pyproject.toml")
           text = pyproject.read_text(encoding="utf-8")
-          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{pep440_version}"', text, flags=re.MULTILINE)
+          text = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{version}"', text, flags=re.MULTILINE)
           pyproject.write_text(text, encoding="utf-8")
-          print(f"Pinned pyproject.toml version to: {pep440_version} (from raw: {raw_version})")
+          Path("src/oci_policy_analysis/version.txt").write_text(f"{version}\n", encoding="utf-8")
+          print(f"Pinned pyproject.toml version to: {version} (from {raw_version})")
           PY
           python -m build
+          python -m twine check dist/*
           ls -lh dist
 
       - name: Upload Python package artifacts

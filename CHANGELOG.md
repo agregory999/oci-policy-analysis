@@ -1,3 +1,17 @@
+## [5.2.1-test-prerelease-packaging.2](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.1-test-prerelease-packaging.1...v5.2.1-test-prerelease-packaging.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* Version to 5.2.x ([013bdd9](https://github.com/agregory999/oci-policy-analysis/commit/013bdd9089b223ba7abd161b9143924faa0d3afe))
+
+## [5.2.1-test-prerelease-packaging.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0...v5.2.1-test-prerelease-packaging.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* Version to 5.2.1 ([9d70395](https://github.com/agregory999/oci-policy-analysis/commit/9d70395bdce160bffe911cbc502a289c8a85de98))
+
 # [5.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.1.2...v5.2.0) (2026-05-13)
 
 

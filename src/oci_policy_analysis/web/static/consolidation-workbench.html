@@ -383,6 +383,7 @@
       hideHistoryContextMenu();
       Promise.resolve().then(loadStatus).then(loadStrategies).then(loadProtection).then(loadCandidates).then(loadHistory).then(loadRun).then(()=>log('Initial data loaded.')).catch((e)=>log(`Startup error: ${e.message}`));
     </script>
+      <script src="/app-version.js"></script>
       <script src="/auth-gate.js"></script>
 </body>
   </html>
