@@ -783,37 +783,6 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
 
-### compare_reference_data_caches
-Compare the previous reference data cache for this tenancy to the current in-memory state.
-
-**Features:**
-- Compares the saved ("previous") cache to current in-memory IAM and policy data.
-- Returns a summary and details on what has changed (added, removed, modified), using a deep structural diff.
-- Useful for diagnosing updates to policies, dynamic groups, groups, users, etc.
-
-**Input:** None
-
-**Response:**
-- `response_type`: Always `"reference_data_diff"`
-- `cache_a`: Name of previous cache used for comparison
-- `cache_b`: `"in-memory current state"`
-- `diff_summary`: Concise description of what changed (e.g., "policies: 2 changed, groups: 1 removed")
-- `diff_details`: Structured diff compatible with [DeepDiff](https://zepworks.com/deepdiff/current/) output
-- `message`: Human-readable summary
-
-**Example:**
-```json
-{
-  "response_type": "reference_data_diff",
-  "cache_a": "andgre5678_2025-11-30-13-37-50-UTC",
-  "cache_b": "in-memory current state",
-  "diff_summary": "policies: 2 new, users: 1 removed, dynamic_groups: 1 changed",
-  "message": "Compared previous cache 'andgre5678_2025-11-30-13-37-50-UTC' vs current memory. policies: 2 new."
-}
-```
-
----
-
 ### reload_mcp_data
 Reload all policy and identity data from OCI into the in-memory MCP server repository.
 

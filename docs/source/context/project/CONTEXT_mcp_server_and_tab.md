@@ -41,7 +41,7 @@ Additional policy intelligence methods or analytics may be added to this post-lo
 - **Policy Set (PolicyAnalysisRepository)**
   - General IAM entity search: users, groups, dynamic groups.
   - Flexible policy statement filtering (`filter_policy_statements`), supporting exact/fuzzy identity and rich filtering criteria.
-  - Cross-tenancy alias inspection, reference cache comparison, and reload tools.
+  - Cross-tenancy alias inspection and reload tools.
 - **Simulation Engine**
   - Tools for simulation setup and execution: `prepare_simulation`, `run_simulation_batch`.
   - Prospective (what-if) statements: editable via UI (Simulation tab) and now also via MCP tools, merged seamlessly into simulation.

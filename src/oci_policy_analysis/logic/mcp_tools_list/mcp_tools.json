@@ -2023,53 +2023,6 @@
                 }
             },
             {
-                "name": "compare_reference_data_caches",
-                "description": "Compares the previous reference data cache for this tenancy to the current in-memory state using DeepDiff and returns a summarized result of the changes.",
-                "inputSchema": {
-                    "properties": {},
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "description": "Result model describing the outcome of comparing two cached reference data sets.\nUsed by tools diagnosing drift or state changes in cached OCI data.",
-                    "properties": {
-                        "response_type": {
-                            "const": "reference_data_diff",
-                            "type": "string"
-                        },
-                        "cache_a": {
-                            "type": "string"
-                        },
-                        "cache_b": {
-                            "type": "string"
-                        },
-                        "diff_summary": {
-                            "type": "string"
-                        },
-                        "diff_details": {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    },
-                    "required": [
-                        "response_type",
-                        "cache_a",
-                        "cache_b",
-                        "diff_summary",
-                        "diff_details",
-                        "message"
-                    ],
-                    "type": "object"
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
                 "name": "reload_mcp_data",
                 "description": "Reload all policy and identity data from OCI into the MCP server repository. This allows refreshing data without restarting the server. Use with caution as it may take time depending on tenancy size.",
                 "inputSchema": {

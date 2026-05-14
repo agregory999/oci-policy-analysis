@@ -36,21 +36,20 @@ if sys.stderr is None:
 
 import argparse  # noqa: E402
 import json  # noqa: E402
+import logging  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from typing import Any  # noqa: E402
 
-from deepdiff import DeepDiff  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
-from oci_policy_analysis.application.core.common.diff_utils import canonical_filter  # noqa: E402
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine  # noqa: E402
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo  # noqa: E402
 from oci_policy_analysis.common.caching import CacheManager  # noqa: E402
-from oci_policy_analysis.common.logger import get_logger  # noqa: E402
+from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.common.models_iam import (  # noqa: E402
     DynamicGroupSearch,
     Group,
@@ -73,7 +72,6 @@ from oci_policy_analysis.common.models_responses import (  # noqa: E402
     GroupSearchFull,
     GroupSearchResponse,
     GroupSummary,
-    ReferenceDataDiffResult,
     UserSearchFull,
     UserSearchResponse,
     UserSummary,
@@ -1046,106 +1044,6 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStateme
 
 
 # ===========================================================
-# REFERENCE DATA CACHE COMPARISON TOOL
-# ===========================================================
-
-
-@mcp.tool(
-    name='compare_reference_data_caches',
-    description='Compares the previous reference data cache for this tenancy to the current in-memory state using DeepDiff and returns a summarized result of the changes.',
-)
-def compare_reference_data_caches() -> ReferenceDataDiffResult:
-    """
-    Compares the in-memory current repository state ("right") to the previous-dated cache ("left") for this tenancy.
-
-    Returns:
-        ReferenceDataDiffResult: diff information and a summary
-    """
-    if not pca:
-        raise ToolError('Repository not initialized. Run with a profile or instance principal.')
-
-    try:
-        cache_mgr = CacheManager(policy_analysis=pca)
-        cache_names = cache_mgr.get_available_cache(getattr(pca, 'tenancy_name', None))
-        if not cache_names or len(cache_names) < 1:
-            raise ToolError('No cached reference data sets available for comparison.')
-
-        # Newest cache is current state, so previous is the "left" for comparison (if available)
-        if len(cache_names) == 1:
-            raise ToolError('At least one previous cached data set required for comparison.')
-
-        # The most recent (cache_names[0]) may be the just-now-saved one (equivalent to in-memory);
-        # we want to compare the previous cache file against in-memory as of now.
-        previous_cache_name = cache_names[1]
-        data_a = cache_mgr.load_cache_into_local_json(previous_cache_name)
-
-        # Prepare the current repo state as would be saved to cache by current CacheManager logic
-        combined_data = {
-            'tenancy_name': pca.tenancy_name,
-            'tenancy_ocid': pca.tenancy_ocid,
-            'policies': pca.regular_statements,
-            'dynamic_groups': pca.dynamic_groups,
-            'defined_aliases': pca.defined_aliases,
-            'cross_tenancy_statements': pca.cross_tenancy_statements,
-            'compartments': pca.compartments,
-            'identity_domains': pca._get_domains(),
-            'groups': pca.groups,
-            'users': pca.users,
-            'data_as_of': pca.data_as_of,
-        }
-        data_b = combined_data
-
-        # Show counts for each section for debug
-        logger.info(
-            f'Previous cache data counts: policies={len(data_a.get("policies", []))}, '
-            f'dynamic_groups={len(data_a.get("dynamic_groups", []))}, '
-            f'defined_aliases={len(data_a.get("defined_aliases", []))}, '
-            f'cross_tenancy_statements={len(data_a.get("cross_tenancy_statements", []))}, '
-            f'compartments={len(data_a.get("compartments", []))}, '
-            f'identity_domains={len(data_a.get("identity_domains", []))}, '
-            f'groups={len(data_a.get("groups", []))}, '
-            f'users={len(data_a.get("users", []))}'
-        )
-        logger.info(
-            f'Current in-memory data counts: policies={len(data_b.get("policies", []))}, '
-            f'dynamic_groups={len(data_b.get("dynamic_groups", []))}, '
-            f'defined_aliases={len(data_b.get("defined_aliases", []))}, '
-            f'cross_tenancy_statements={len(data_b.get("cross_tenancy_statements", []))}, '
-            f'compartments={len(data_b.get("compartments", []))}, '
-            f'identity_domains={len(data_b.get("identity_domains", []))}, '
-            f'groups={len(data_b.get("groups", []))}, '
-            f'users={len(data_b.get("users", []))}'
-        )
-
-        if not data_a or not data_b:
-            raise ToolError('Unable to access previous cache and/or current state for comparison.')
-
-        left_filtered = canonical_filter(data_a)
-        right_filtered = canonical_filter(data_b)
-
-        ddiff = DeepDiff(left_filtered, right_filtered, ignore_order=True, verbose_level=2)
-        diff_summary = ', '.join(f'{k}: {len(v)}' for k, v in ddiff.items() if isinstance(v, dict | list) or v)  # noqa: UP038
-        if not diff_summary:
-            diff_summary = 'No differences detected.'
-        message = f"Compared previous cache '{previous_cache_name}' vs current memory. {diff_summary}"
-        logger.info(message)
-
-        result: ReferenceDataDiffResult = {
-            'response_type': 'reference_data_diff',
-            'cache_a': str(previous_cache_name),
-            'cache_b': 'in-memory current state',
-            'diff_summary': diff_summary,
-            'diff_details': ddiff.to_dict() if hasattr(ddiff, 'to_dict') else dict(ddiff),
-            'message': message,
-        }
-        return result
-
-    except Exception as e:
-        logger.error(f'Error comparing reference data caches: {e}')
-        raise ToolError(f'Failed to compare reference data caches: {e}') from e
-
-
-# ===========================================================
 # RELOAD MCP DATA TOOL
 # ===========================================================
 @mcp.tool(
@@ -1278,6 +1176,12 @@ def _build_arg_parser():
     parser.add_argument('--transport', default='stdio', choices=['stdio', 'streamable-http'])
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument(
+        '--log-level',
+        default='WARNING',
+        choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'critical', 'error', 'warning', 'info', 'debug'],
+        help='Application and MCP framework log level for standalone MCP mode (default: WARNING).',
+    )
     return parser
 
 
@@ -1292,6 +1196,10 @@ def main():
 
     global args
     args = _build_arg_parser().parse_args()
+    args.log_level = str(args.log_level).upper()
+    set_log_level(args.log_level, announce=False)
+    logging.getLogger('mcp').setLevel(args.log_level)
+    logging.getLogger('mcp.server').setLevel(args.log_level)
     recursive = args.recursive
 
     logger.info(
@@ -1384,10 +1292,16 @@ def main():
         logger.info(
             'Starting MCP server in stdio mode - if you get errors, please ensure you set environment variable MCP_STDIO_MODE=1'
         )
-        mcp.run(transport='stdio', show_banner=False, log_level='error')
+        mcp.run(transport='stdio', show_banner=False, log_level=args.log_level.lower())
         # mcp.run(transport='stdio', show_banner=False)
     else:
-        mcp.run(transport='streamable-http', port=args.port, host=args.host, log_level='info', show_banner=False)
+        mcp.run(
+            transport='streamable-http',
+            port=args.port,
+            host=args.host,
+            log_level=args.log_level.lower(),
+            show_banner=False,
+        )
 
 
 if __name__ == '__main__':
