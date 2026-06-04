@@ -255,8 +255,8 @@ class DynamicGroupsTab(BaseUITab):
                     }
                 )
             logger.info(f'DGs for filter: {dgs_for_filter}')
-            exact_dg_filter: list[DynamicGroup] = [DynamicGroup(**dg) for dg in dgs_for_filter]  # type: ignore
-            filtered = self.principal_analysis.by_exact_dynamic_groups(exact_dg_filter).statements
+            dg_principals: list[DynamicGroup] = [DynamicGroup(**dg) for dg in dgs_for_filter]  # type: ignore
+            filtered = self.principal_analysis.by_dynamic_groups(dg_principals).statements
             filtered = [for_display_policy(stmt) for stmt in filtered]
             self.dg_policy_table.update_data(filtered)
             logger.info(f'Policies added to policy table: {len(filtered)}')

@@ -107,12 +107,13 @@ Streamable HTTP is good for a server, where MCP is not local to the client, or i
 In either case, the OCI Policy Analysis tool has a handful of options that can be applied.  See the usage for details:
 
 ```bash
-usage: mcp_server.py [-h] (--profile PROFILE | --instance-principal | --use-cache USE_CACHE | --session-token SESSION_TOKEN) [--recursive] [--dont-save-cache-after-load] [--transport {stdio,streamable-http}] [--port PORT] [--host HOST]
+usage: mcp_server.py [-h] (--profile PROFILE | --instance-principal | --resource-principal | --use-cache USE_CACHE | --session-token SESSION_TOKEN) [--recursive] [--dont-save-cache-after-load] [--transport {stdio,streamable-http}] [--port PORT] [--host HOST] [--compartment-domain-search-depth [1-6]]
 
 options:
   -h, --help            show this help message and exit
   --profile PROFILE
   --instance-principal
+  --resource-principal
   --use-cache USE_CACHE
                         provide the combined cache date to use
   --session-token SESSION_TOKEN
@@ -123,6 +124,8 @@ options:
   --transport {stdio,streamable-http}
   --port PORT
   --host HOST
+  --compartment-domain-search-depth [1-6]
+                        Depth for identity-domain compartment traversal (1=root only, 2=include direct children, max=6).
   ```
 
 The options listed below cover the supported configurations.
@@ -441,6 +444,10 @@ flowchart LR
 
 In this production deployment, the MCP server runs on an OCI compute instance with instance principal authentication, behind an OCI Load Balancer with TLS termination. This provides secure, scalable access to OCI IAM data without storing credentials.
 
+For OCI Container Instance deployment (OCIR image + private subnet + instance principal default runtime), follow:
+
+- [MCP Deployment on OCI Container Instance](setup_mcp_container_instance.md)
+
 **Configuration for Claude:**
 ```json
 {
@@ -483,6 +490,11 @@ python  -m oci_policy_analysis.mcp_server --profile DEFAULT --transport streamab
 python -m oci_policy_analysis.mcp_server --instance-principal --transport streamable-http --host 0.0.0.0
 ```
 
+### Load the tenancy via Resource Principal
+```bash
+python -m oci_policy_analysis.mcp_server --resource-principal --transport streamable-http --host 0.0.0.0
+```
+
 ### Using Cached Data
 ```bash
 python -m oci_policy_analysis.mcp_server --use-cache andgre5678_2025-10-17-17-54-09-UTC --transport streamable-http --host 0.0.0.0
@@ -509,321 +521,27 @@ mcp-proxy add oci-policy-analysis --url https://oci-policy-analysis-mcp.ocidemo.
    curl -vk https://oci-policy-analysis-mcp.ocidemo.app/mcp
    ```
 
+## OCI Container Instance Deployment
+
+For a containerized standalone MCP deployment on OCI:
+
+1. Build image using `Dockerfile.mcp`
+2. Push image to OCIR
+3. Deploy OCI Container Instance in private subnet
+4. Run with defaults:
+   - `MCP_AUTH_MODE=resource_principal`
+   - `MCP_TRANSPORT=streamable-http`
+   - `MCP_HOST=0.0.0.0`
+   - `MCP_PORT=8765`
+   - `MCP_LOG_LEVEL=INFO`
+   - `MCP_SAVE_CACHE_AFTER_LOAD=false`
+   - `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=1` (use `2` when identity domains are in child compartments)
+
+Full procedure:
+
+- [MCP Deployment on OCI Container Instance](setup_mcp_container_instance.md)
+
 ## Available MCP Tools
-
-### MCP v2 Authentication (Token-first)
-
-MCP tools that read or mutate tenancy-backed data now require a short-lived
-token obtained from `mcp_auth_start`.
-
-Flow:
-
-1. Call `mcp_auth_start` with your runtime UUID access key (admin key or an
-   active limited key).
-2. Receive `mcp_token` (short-lived bearer token).
-3. Pass `mcp_token` to protected tools.
-4. Optionally call `mcp_auth_whoami` to inspect token mode/scope or
-   `mcp_auth_revoke` to revoke it.
-
-Example:
-
-```json
-{
-  "access_key": "<runtime-uuid-key>",
-  "ttl_seconds": 900
-}
-```
-
-Response:
-
-```json
-{
-  "mcp_token": "<short-lived-token>",
-  "auth_mode": "admin",
-  "expires_at": "2026-05-13T18:00:00+00:00"
-}
-```
-
-Limited tokens carry enforced scope (compartment roots, scope mode,
-identity-domain allowlist), and MCP simulation/prospective behavior follows
-the same limited-mode constraints used by the web flows.
-
-### Quick Test Recipe (recommended)
-
-Use this exact order when validating MCP manually:
-
-1. Start MCP server (stdio or streamable-http).
-2. Call `mcp_auth_start` with your runtime UUID key.
-3. Copy returned `mcp_token`.
-4. Call `mcp_auth_whoami` and confirm `auth_mode` and scope.
-5. Run functional tools using `mcp_token` (examples below).
-6. Call `mcp_auth_revoke` when done.
-
-> **Important:** `mcp_auth_start` is the only bootstrap tool that does **not**
-> require `mcp_token`. All protected tools require it.
-
-### v1 -> v2 MCP Migration Notes
-
-- Old direct-access behavior is removed for protected tools.
-- Protected tools now require `mcp_token`.
-- Limited UUID sessions now enforce compartment/domain scope in MCP, matching
-  limited web behavior.
-- Prospective statement management is now token-gated (admin required for
-  mutating operations).
-
----
-
-### prepare_simulation
-
-OCI Policy Simulation: Structure and Process
-
-The core policy simulation flow—used by both the UI and MCP tools—follows these canonical steps (as implemented in the simulation engine):
-
-1. **Load Simulation Context:** Specify a compartment path and principal (type and identifier), e.g. compartment "ROOT/Finance" and principal_type "user" with principal ["Default", "anita"].
-2. **Resolve Applicable Statements:** The engine finds all policy statements for that context, including inherited (e.g., 'any-user') as required.
-3. **Determine Where-Clause Fields:** The engine analyzes all applicable statements and computes any "where" context variable names that must/can be supplied for conditional evaluation.
-4. **Run Simulation:** The engine evaluates simulation scenarios, applying any required where-values and the chosen API operation.
-
-**Important:**  
-- The MCP simulation tools *always* use all applicable policy statements (including any valid prospective what-if statements) for a context. Manual "statement selection" (allowed in the UI for debugging) is **never** exposed in the MCP API to ensure correctness and reproducibility.
-
----
-
-Prepare an OCI policy simulation context.
-
-**Purpose:**  
-Given a compartment path and principal (type + identifier), return all where-clause fields that should be supplied for simulation. This is needed before the simulation run to ensure you know what extra context/variables to provide.
-
-**Input:**  
-```json
-{
-  "mcp_token": "<token-from-mcp_auth_start>",
-  "compartment_path": "ROOT/Finance",
-  "principal_type": "user",
-  "principal": ["Default", "anita"]
-}
-```
-or for an "any-user" simulation:
-```json
-{
-  "mcp_token": "<token-from-mcp_auth_start>",
-  "compartment_path": "ROOT",
-  "principal_type": "any-user",
-  "principal": "any-user"
-}
-```
-
-**Response:**  
-```json
-{
-  "required_where_fields": ["user.department", "request.time", "resource.tags.department"],
-  "principal_key": "user:Default/anita"
-}
-```
-
----
-
-### run_simulation_batch
-Run one or more policy simulation scenarios using canonical logic (all valid statements, all required where clause params).
-
-**Purpose:**  
-For each scenario, specifies compartment, principal, API operation, and where-values. Returns allowed/denied plus simulation trace.
-
-**Input:**  
-```json
-{
-  "mcp_token": "<token-from-mcp_auth_start>",
-  "simulations": [
-    {
-      "compartment_path": "ROOT/Finance",
-      "principal_type": "user",
-      "principal": ["Default", "anita"],
-      "api_operation": "oci:ListBuckets",
-      "where_context": {
-        "user.department": "Finance",
-        "request.time": "2026-01-22T09:00:00Z"
-      }
-    },
-    {
-      "compartment_path": "ROOT",
-      "principal_type": "any-user",
-      "principal": "any-user",
-      "api_operation": "oci:ListInstances",
-      "where_context": {}
-    }
-  ],
-  "trace": true
-}
-```
-
-**Response:**  
-```json
-{
-  "results": [
-    {
-      "result": "YES",
-      "api_call_allowed": true,
-      "final_permission_set": ["BUCKET_READ", "BUCKET_LIST"],
-      "required_permissions_for_api_operation": ["BUCKET_LIST"],
-      "missing_permissions": [],
-      "failure_reason": "",
-      "trace_statements": [
-        {
-          "statement_text": "...",
-          "action": "allow",
-          "permissions": ["BUCKET_LIST"],
-          "conditional": true,
-          "passed": true
-        }
-        // ... additional trace records for full reasoning
-      ]
-    },
-    {
-      "result": "NO",
-      "api_call_allowed": false,
-      "final_permission_set": [],
-      "required_permissions_for_api_operation": ["INSTANCE_LIST"],
-      "missing_permissions": ["INSTANCE_LIST"],
-      "failure_reason": "Missing required permissions: [\"INSTANCE_LIST\"]",
-      "trace_statements": [ ... ]
-    }
-  ]
-}
-```
-
-- Each scenario uses all valid applicable policy statements (including any in-memory prospective statements) for its input context.
-- No manual statement selection is possible or required in MCP simulation—this is by design for accuracy.
-
----
-
-### Prospective (What-If) Policy Statements via MCP
-
-In addition to loading policies from OCI (or cache), the simulation engine supports **prospective** statements – in-memory what-if policies that participate in simulation just like real tenancy-defined policies. The UI Simulation tab exposes an inline editor for these; MCP exposes equivalent capabilities via four tools:
-
-#### list_prospective_statements
-
-List all currently active prospective statements.
-
-**Input:**
-
-```json
-{"mcp_token": "<token-from-mcp_auth_start>"}
-```
-
-**Response (array of summaries):**
-
-```json
-[
-  {
-    "internal_id": "prospective-1",
-    "policy_name": "What-if Finance read",
-    "compartment_path": "ROOT/Finance",
-    "parsed": true,
-    "valid": true,
-    "invalid_reasons": [],
-    "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
-  }
-]
-```
-
-#### set_prospective_statements
-
-Replace the **entire** set of prospective (what-if) statements used during simulation.
-
-**Input:**
-
-```json
-{
-  "mcp_token": "<token-from-mcp_auth_start>",
-  "statements": [
-    {
-      "compartment_path": "ROOT/Finance",
-      "description": "What-if: open Finance bucket read",
-      "statement_text": "Allow group Finance-Admins to read buckets in compartment Finance"
-    },
-    {
-      "compartment_path": "ROOT/HR",
-      "description": "What-if: restrict HR instance start",
-      "statement_text": "Deny group HR-Contractors to manage instance-family in compartment HR"
-    }
-  ]
-}
-```
-
-Each object is a `ProspectiveStatementInput` (see `oci_policy_analysis.common.models_simulation`).
-
-**Response:**
-
-- Same shape as `list_prospective_statements` – the full, normalized prospective list **after** replacement.
-
-#### add_prospective_statement
-
-Validate and add a **single** prospective statement.
-
-**Input:**
-
-```json
-{
-  "mcp_token": "<token-from-mcp_auth_start>",
-  "compartment_path": "ROOT/Finance",
-  "description": "What-if: allow Finance auditors to inspect buckets",
-  "statement_text": "Allow group Finance-Auditors to inspect buckets in compartment Finance"
-}
-```
-
-**Response (`ProspectiveStatementResult`):**
-
-```json
-{
-  "parsed": true,
-  "valid": true,
-  "invalid_reasons": [],
-  "internal_id": "prospective-3",
-  "normalized": {
-    "parsed": true,
-    "valid": true,
-    "verb": "inspect",
-    "resource": "buckets",
-    "permission": ["INSPECT_BUCKETS"],
-    "effective_path": "ROOT/Finance",
-    "conditions": "",
-    "action": "allow"
-    // ... additional normalized fields
-  },
-  "message": "Prospective statement parsed, validated, and added successfully."
-}
-```
-
-- If parse or validation fails, the tool returns `parsed=false` or `valid=false`, includes `invalid_reasons`, and **does not** modify the engine’s state.
-- On success, the statement is appended to the current prospective list and will participate in subsequent simulations.
-
-#### clear_prospective_statements
-
-Remove all prospective statements.
-
-**Input:**
-
-```json
-{"mcp_token": "<token-from-mcp_auth_start>"}
-```
-
-**Response:**
-
-```json
-{
-  "status": "success",
-  "message": "All prospective statements have been cleared."
-}
-```
-
-**Typical what-if workflow:**
-
-1. Use `set_prospective_statements` or `add_prospective_statement` to define one or more what-if policies.
-2. Confirm them with `list_prospective_statements` (optional).
-3. Run `prepare_simulation` and `run_simulation_batch` as usual – prospective statements are automatically included whenever they match the simulation principal and effective path.
-4. Use `clear_prospective_statements` to reset the engine to tenancy-only policies.
-
----
 
 MCP clients such as **Claude** and **VS Code Copilot** understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.
 
@@ -840,62 +558,26 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 | "Find all groups with 'admin' in the name" | `search_groups` | `{ "group_name": ["admin"] }` |
 | "Which policies allow manage on databases?" | `filter_policy_statements` | `{ "verb": ["manage"], "resource": ["database"] }` |
 | "List all users in group 'cloud-engineering-domain-users'" | `get_users_for_group` | `{ "group_name": "cloud-engineering-domain-users", "domain_name": "cloud-engineering-domain" }` |
-| "Show cross-tenancy aliases" | `cross-tenancy-alias-list` | `{ "mcp_token": "<token>" }` |
+| "Show cross-tenancy aliases" | `cross-tenancy-alias-list` | `None` |
 | "Show me policies with use or manage that cover databases or instances" | `filter_policy_statements` | `{ "verb": ["use", "manage"], "resource": ["database", "instance-family"] }` |
 | "Find all groups in the Default domain with 'viewer' or 'admin' in the name" | `search_groups` | `{ "domain_name": ["Default"], "group_name": ["viewer", "admin"] }` |
 | "List users named Andrew or Mark in cloud-engineering-domain" | `search_users` | `{ "search": ["andrew", "mark"], "domain_name": ["cloud-engineering-domain"] }` |
-| "Show policies for group 'cloud-engineering-domain-users' in root compartment" | `filter_policy_statements` | `{ "exact_groups": [{"group_name": "cloud-engineering-domain-users", "domain_name": "cloud-engineering-domain"}], "policy_compartment": ["ROOTONLY"] }` |
+| "Show policies for group 'cloud-engineering-domain-users' in root compartment" | `filter_policy_statements` | `{ "principals": [{"principal_type": "group", "domain_name": "cloud-engineering-domain", "name": "cloud-engineering-domain-users"}], "policy_compartment": ["ROOTONLY"] }` |
+| "Show policies for the Default Administrators group principal" | `filter_policy_statements` | `{ "principals": [{"principal_type": "group", "domain_name": "Default", "name": "Administrators"}] }` |
 
 ---
 
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
 
-### compare_reference_data_caches
-Compare the previous reference data cache for this tenancy to the current in-memory state.
-
-**Features:**
-- Compares the saved ("previous") cache to current in-memory IAM and policy data.
-- Returns a summary and details on what has changed (added, removed, modified), using a deep structural diff.
-- Useful for diagnosing updates to policies, dynamic groups, groups, users, etc.
-
-**Input:**
-```json
-{ "mcp_token": "<token-from-mcp_auth_start>" }
-```
-
-**Response:**
-- `response_type`: Always `"reference_data_diff"`
-- `cache_a`: Name of previous cache used for comparison
-- `cache_b`: `"in-memory current state"`
-- `diff_summary`: Concise description of what changed (e.g., "policies: 2 changed, groups: 1 removed")
-- `diff_details`: Structured diff compatible with [DeepDiff](https://zepworks.com/deepdiff/current/) output
-- `message`: Human-readable summary
-
-**Example:**
-```json
-{
-  "response_type": "reference_data_diff",
-  "cache_a": "andgre5678_2025-11-30-13-37-50-UTC",
-  "cache_b": "in-memory current state",
-  "diff_summary": "policies: 2 new, users: 1 removed, dynamic_groups: 1 changed",
-  "message": "Compared previous cache 'andgre5678_2025-11-30-13-37-50-UTC' vs current memory. policies: 2 new."
-}
-```
-
----
-
 ### reload_mcp_data
-Reload all policy and identity data from OCI into the in-memory MCP server repository.
+Reload all policy and identity data from OCI through the same application load service used by the main app.
 
 **Features:**
 - Live reloads the full OCI tenancy policy and identity data (requires running server with profile or instance principal, not just cache mode).
 - Also saves a new combined cache after reload, unless `--dont-save-cache-after-load` is set.
 - Useful for refreshing the data visible to MCP clients without restarting the server process.
 
-**Input:**
-```json
-{ "mcp_token": "<token-from-mcp_auth_start>" }
-```
+**Input:** None
 
 **Response:**
 - `status`: "success" or "error"
@@ -925,26 +607,34 @@ Reload all policy and identity data from OCI into the in-memory MCP server repos
 - `verb`: ["inspect", "read", "use", "manage"]
 - `resource`: Resource types (e.g., "instance-family", "database")
 - `subject_type`: ["user", "group", "dynamic-group", "any-user"]
-- `subject`: Exact subject matches with domain and name
+- `subject`: Token search across subject/principal domain, name, OCID, principal key, or display name
+- `principals`: Structured principal selectors using `principal_type`, `principal_key`, `domain_name`, `name`, `ocid`, or `display_name`
+- `principal_keys`: Canonical principal key matching, such as `group:Default/Administrators`
 - `location`: Compartment paths where resources are accessed
 - `policy_compartment`: Compartment where policy is defined (use "ROOTONLY" for root only)
 - `policy_text`: Text search within statement
-- `exact_groups`, `exact_users`, `exact_dynamic_groups`: Precise identity matching
+- `exact_groups`, `exact_users`, `exact_dynamic_groups`: Legacy precise identity matching, retained for compatibility
 - `search_groups`, `search_users`, `search_dynamic_groups`: Fuzzy search with partial matches
 
 **Examples:**
 ```json
 // Get all manage permissions
-{"mcp_token": "<token>", "verb": ["manage"]}
+{"verb": ["manage"]}
 
-// Find policies for specific group
-{"mcp_token": "<token>", "exact_groups": [{"group_name": "Administrators", "domain_name": "Default"}]}
+// Find policies for specific group principal
+{"principals": [{"principal_type": "group", "domain_name": "Default", "name": "Administrators"}]}
+
+// Find policies for a canonical principal key
+{"principal_keys": ["group:Default/Administrators"]}
+
+// Find policies for a structured principal selector
+{"principals": [{"principal_type": "group", "domain_name": "Default", "name": "Administrators"}]}
 
 // Find database-related permissions with manage or use
-{"mcp_token": "<token>", "verb": ["manage", "use"], "resource": ["database"]}
+{"verb": ["manage", "use"], "resource": ["database"]}
 
 // Search for users by name
-{"mcp_token": "<token>", "search_users": {"search": ["andrew", "bob"]}}
+{"search_users": {"search": ["andrew", "bob"]}}
 ```
 
 **Response Types:**
@@ -964,13 +654,13 @@ Search and retrieve OCI IAM users with optional filtering.
 **Examples:**
 ```json
 // Get all users
-{"mcp_token": "<token>"}
+{}
 
 // Search by username
-{"mcp_token": "<token>", "search": ["andrew", "mark", "noah"]}
+{"search": ["andrew", "mark", "noah"]}
 
 // Find users by OCID
-{"mcp_token": "<token>", "user_ocid": ["ocid1.user.oc1..aaaaaa..."]}
+{"user_ocid": ["ocid1.user.oc1..aaaaaa..."]}
 ```
 
 **Response:**
@@ -990,16 +680,16 @@ Search and retrieve OCI IAM groups.
 **Examples:**
 ```json
 // Get all groups
-{"mcp_token": "<token>"}
+{}
 
 // Search by name
-{"mcp_token": "<token>", "group_name": ["admin", "developer"]}
+{"group_name": ["admin", "developer"]}
 
 // Find specific groups by OCID
-{"mcp_token": "<token>", "group_ocid": ["ocid1.group.oc1..aaaaaa...", "ocid1.group.oc1..bbbbbb..."]}
+{"group_ocid": ["ocid1.group.oc1..aaaaaa...", "ocid1.group.oc1..bbbbbb..."]}
 
 // Filter by domain
-{"mcp_token": "<token>", "domain_name": ["Default", "cloud-engineering-domain"]}
+{"domain_name": ["Default", "cloud-engineering-domain"]}
 ```
 
 **Response:**
@@ -1019,13 +709,13 @@ Search and retrieve OCI dynamic groups.
 **Examples:**
 ```json
 // Get all dynamic groups
-{"mcp_token": "<token>"}
+{}
 
 // Search by name
-{"mcp_token": "<token>", "dynamic_group_name": ["compute", "function"]}
+{"dynamic_group_name": ["compute", "function"]}
 
 // Find by matching rule content
-{"mcp_token": "<token>", "matching_rule": ["instance.compartment.id"]}
+{"matching_rule": ["instance.compartment.id"]}
 ```
 
 **Response:**
@@ -1040,7 +730,6 @@ Get all groups that a specific user belongs to (exact match only).
 **Input:**
 ```json
 {
-  "mcp_token": "<token-from-mcp_auth_start>",
   "user_name": "andrew.gregory@oracle.com",
   "domain_name": "cloud-engineering-domain"
 }
@@ -1056,7 +745,6 @@ Get all users in a specific group (exact match only).
 **Input:**
 ```json
 {
-  "mcp_token": "<token-from-mcp_auth_start>",
   "group_name": "Administrators",
   "domain_name": "Default"
 }
@@ -1069,10 +757,7 @@ Get all users in a specific group (exact match only).
 ### cross_tenancy_alias_list
 List all cross-tenancy aliases defined in OCI policies.
 
-**Input:**
-```json
-{ "mcp_token": "<token-from-mcp_auth_start>" }
-```
+**Input:** None
 
 **Response:** List of all DEFINE statements with tenancy OCIDs and aliases.
 
@@ -1084,7 +769,6 @@ Filter cross-tenancy policy statements that reference a specific alias.
 **Input:**
 ```json
 {
-  "mcp_token": "<token-from-mcp_auth_start>",
   "alias": "partner-tenancy"
 }
 ```

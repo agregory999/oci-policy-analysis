@@ -195,40 +195,61 @@ class LoadService:
         self,
         *,
         use_instance_principal: bool,
+        use_resource_principal: bool = False,
         profile: str | None = None,
         session_token: str | None = None,
         recursive: bool = False,
         load_all_users: bool = True,
         compartment_domain_search_depth: int = 1,
         run_post_load_intelligence: bool = True,
+        save_cache_after_load: bool = True,
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> LoadResult:
         """Load policy data directly from OCI tenancy.
 
         Args:
             use_instance_principal: Whether to authenticate with instance principal.
+            use_resource_principal: Whether to authenticate with resource principal.
             profile: Optional OCI profile name.
             session_token: Optional session token for auth.
             recursive: Whether tenancy traversal should be recursive.
             load_all_users: Whether to load all users for identity domains.
             compartment_domain_search_depth: Identity domain search depth.
             run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            save_cache_after_load: Whether to persist a fresh cache entry after live load.
             on_stage: Optional stage progress callback.
 
         Returns:
             LoadResult: Load status and data summary.
         """
         self.logger.info(
-            'Loading tenancy via LoadService: instance_principal=%s profile=%s recursive=%s',
+            'Loading tenancy via LoadService: instance_principal=%s resource_principal=%s profile=%s recursive=%s',
             use_instance_principal,
+            use_resource_principal,
             profile or '',
             recursive,
         )
         self._emit_stage(stage='Initializing', detail='Configuring OCI client', on_stage=on_stage)
         repo = self.context.policy_repo
         self._reset_repo_state_before_load()
+        self.logger.info(
+            'Starting tenancy client initialization: auth_mode=%s profile=%s session_token=%s recursive=%s',
+            (
+                'resource_principal'
+                if use_resource_principal
+                else (
+                    'instance_principal'
+                    if use_instance_principal
+                    else ('session_token' if session_token else 'profile')
+                )
+            ),
+            profile or '',
+            bool(session_token),
+            recursive,
+        )
         success = repo.initialize_client(
             use_instance_principal=use_instance_principal,
+            use_resource_principal=use_resource_principal,
             session_token=session_token,
             recursive=recursive,
             profile=profile or '',
@@ -239,6 +260,11 @@ class LoadService:
                 stage='Failed', detail='Failed to initialize tenancy client', state='error', on_stage=on_stage
             )
             return LoadResult(success=False, message='Failed to initialize tenancy client')
+        self.logger.info(
+            'Tenancy client initialized: tenancy_ocid=%s tenancy_name=%s',
+            getattr(repo, 'tenancy_ocid', None),
+            getattr(repo, 'tenancy_name', None),
+        )
 
         self._emit_stage(stage='Loading Compartments', detail='Fetching tenancy compartments', on_stage=on_stage)
         if not repo.load_compartments_only():
@@ -268,11 +294,12 @@ class LoadService:
         if run_post_load_intelligence:
             self._post_load_create_intelligence_with_stage(on_stage=on_stage)
 
-        # Persist a fresh cache entry for web/API-driven tenancy loads.
-        try:
-            self.context.cache_service.save_cache(repo)
-        except Exception as exc:
-            self.logger.warning('Tenancy load succeeded but cache save failed: %s', exc)
+        if save_cache_after_load:
+            # Persist a fresh cache entry for web/API-driven tenancy loads.
+            try:
+                self.context.cache_service.save_cache(repo)
+            except Exception as exc:
+                self.logger.warning('Tenancy load succeeded but cache save failed: %s', exc)
 
         summary = self._build_summary(repo)
         self._emit_stage(

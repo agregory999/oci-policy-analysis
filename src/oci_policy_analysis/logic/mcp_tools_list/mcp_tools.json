@@ -4,574 +4,12 @@
     "result": {
         "tools": [
             {
-                "name": "prepare_simulation",
-                "description": "Prepare a simulation for a specific compartment and principal. This tool returns all where-clause fields required for simulation for the specified context. Pass in the compartment_path (effective path), principal_type (e.g. \"user\", \"any-user\"), and principal (string for any-user/service, or (domain, name) tuple for user/group/dyn-group). See SimulationPrepareRequest for details.",
-                "inputSchema": {
-                    "$defs": {
-                        "SimulationPrepareRequest": {
-                            "description": "Canonical input for simulation preparation.\n\nUsed to obtain principal and where-clause context, never for actual simulation execution.",
-                            "properties": {
-                                "compartment_path": {
-                                    "type": "string"
-                                },
-                                "principal_type": {
-                                    "enum": [
-                                        "group",
-                                        "user",
-                                        "dynamic-group",
-                                        "any-user",
-                                        "any-group",
-                                        "service"
-                                    ],
-                                    "type": "string"
-                                },
-                                "principal": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "items": {
-                                                "anyOf": [
-                                                    {
-                                                        "type": "string"
-                                                    },
-                                                    {
-                                                        "type": "null"
-                                                    }
-                                                ]
-                                            },
-                                            "type": "array"
-                                        }
-                                    ]
-                                }
-                            },
-                            "required": [
-                                "compartment_path",
-                                "principal_type",
-                                "principal"
-                            ],
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "request": {
-                            "$ref": "#/$defs/SimulationPrepareRequest"
-                        }
-                    },
-                    "required": [
-                        "request"
-                    ],
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "description": "Output of simulation preparation.\n\nProvides required where fields and a standardized principal key.",
-                    "properties": {
-                        "required_where_fields": {
-                            "items": {
-                                "type": "string"
-                            },
-                            "type": "array"
-                        },
-                        "principal_key": {
-                            "type": "string"
-                        }
-                    },
-                    "required": [
-                        "required_where_fields",
-                        "principal_key"
-                    ],
-                    "type": "object"
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
-                "name": "run_simulation_batch",
-                "description": "Run a batch of permission simulations for OCI principals and API operations. Input is a SimulationBatchRequest containing a list of SimulationScenario items. Each scenario must specify: compartment_path, principal_key (from prepare_simulation), api_operation, and where_context. checked_statement_ids should NOT be included. Result: SimulationBatchResponse with one result per input scenario. MCP never requests the trace ('trace' in SimulationBatchRequest should be omitted or false).",
-                "inputSchema": {
-                    "$defs": {
-                        "SimulationBatchRequest": {
-                            "description": "Batch simulation request (multiplex multiple scenarios).\n\nExample::\n\n    {\n      \"simulations\": [\n        { ... see SimulationScenario ... }\n      ],\n      \"trace\": true\n    }",
-                            "properties": {
-                                "simulations": {
-                                    "items": {
-                                        "$ref": "#/$defs/SimulationScenario"
-                                    },
-                                    "type": "array"
-                                },
-                                "trace": {
-                                    "type": "boolean"
-                                }
-                            },
-                            "required": [
-                                "simulations"
-                            ],
-                            "type": "object"
-                        },
-                        "SimulationScenario": {
-                            "description": "Canonical input for a single simulation scenario.\n\nBatch-mode simulations use a list of these in SimulationBatchRequest.",
-                            "properties": {
-                                "compartment_path": {
-                                    "type": "string"
-                                },
-                                "principal_key": {
-                                    "type": "string"
-                                },
-                                "api_operation": {
-                                    "type": "string"
-                                },
-                                "where_context": {
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    },
-                                    "type": "object"
-                                },
-                                "checked_statements": {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                }
-                            },
-                            "required": [
-                                "compartment_path",
-                                "principal_key",
-                                "api_operation",
-                                "where_context"
-                            ],
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "request": {
-                            "$ref": "#/$defs/SimulationBatchRequest"
-                        }
-                    },
-                    "required": [
-                        "request"
-                    ],
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "$defs": {
-                        "SimulationResult": {
-                            "description": "Canonical result for a single simulation scenario.\n\nAll fields strictly correspond to engine outputs and are fully JSON-serializable.",
-                            "properties": {
-                                "result": {
-                                    "enum": [
-                                        "YES",
-                                        "NO"
-                                    ],
-                                    "type": "string"
-                                },
-                                "api_call_allowed": {
-                                    "type": "boolean"
-                                },
-                                "final_permission_set": {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                },
-                                "required_permissions_for_api_operation": {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                },
-                                "missing_permissions": {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                },
-                                "failure_reason": {
-                                    "type": "string"
-                                },
-                                "trace_statements": {
-                                    "items": {
-                                        "additionalProperties": true,
-                                        "type": "object"
-                                    },
-                                    "type": "array"
-                                }
-                            },
-                            "required": [
-                                "result",
-                                "api_call_allowed",
-                                "final_permission_set",
-                                "required_permissions_for_api_operation",
-                                "missing_permissions",
-                                "failure_reason"
-                            ],
-                            "type": "object"
-                        }
-                    },
-                    "description": "Batch simulation output: result list, matches input scenario order.",
-                    "properties": {
-                        "results": {
-                            "items": {
-                                "$ref": "#/$defs/SimulationResult"
-                            },
-                            "type": "array"
-                        }
-                    },
-                    "required": [
-                        "results"
-                    ],
-                    "type": "object"
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
-                "name": "list_prospective_statements",
-                "description": "List all current prospective (what-if) policy statements loaded into the simulation engine. Each entry includes internal_id, policy_name, compartment_path, parsed/valid flags and invalid_reasons.",
-                "inputSchema": {
-                    "properties": {},
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "$defs": {
-                        "ProspectiveStatementSummary": {
-                            "description": "Summarized view of a prospective statement for MCP/UI listing.",
-                            "properties": {
-                                "internal_id": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "policy_name": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "compartment_path": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "parsed": {
-                                    "anyOf": [
-                                        {
-                                            "type": "boolean"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "valid": {
-                                    "anyOf": [
-                                        {
-                                            "type": "boolean"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "invalid_reasons": {
-                                    "anyOf": [
-                                        {
-                                            "items": {
-                                                "type": "string"
-                                            },
-                                            "type": "array"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "statement_text": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                }
-                            },
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "result": {
-                            "items": {
-                                "$ref": "#/$defs/ProspectiveStatementSummary"
-                            },
-                            "type": "array"
-                        }
-                    },
-                    "required": [
-                        "result"
-                    ],
-                    "type": "object",
-                    "x-fastmcp-wrap-result": true
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
-                "name": "set_prospective_statements",
-                "description": "Replace the entire set of prospective (what-if) policy statements used by the simulation engine. Input is a list of ProspectiveStatementInput objects; any existing prospective statements are discarded.",
-                "inputSchema": {
-                    "$defs": {
-                        "ProspectiveStatementInput": {
-                            "description": "Lightweight input model for defining a prospective (what-if) statement.\n\nThese fields mirror the data used by the UI's prospective editor and\nare consumed by PolicySimulationEngine.set_prospective_statements.",
-                            "properties": {
-                                "compartment_path": {
-                                    "type": "string"
-                                },
-                                "description": {
-                                    "type": "string"
-                                },
-                                "statement_text": {
-                                    "type": "string"
-                                }
-                            },
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "statements": {
-                            "items": {
-                                "$ref": "#/$defs/ProspectiveStatementInput"
-                            },
-                            "type": "array"
-                        }
-                    },
-                    "required": [
-                        "statements"
-                    ],
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "$defs": {
-                        "ProspectiveStatementSummary": {
-                            "description": "Summarized view of a prospective statement for MCP/UI listing.",
-                            "properties": {
-                                "internal_id": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "policy_name": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "compartment_path": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "parsed": {
-                                    "anyOf": [
-                                        {
-                                            "type": "boolean"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "valid": {
-                                    "anyOf": [
-                                        {
-                                            "type": "boolean"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "invalid_reasons": {
-                                    "anyOf": [
-                                        {
-                                            "items": {
-                                                "type": "string"
-                                            },
-                                            "type": "array"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                },
-                                "statement_text": {
-                                    "anyOf": [
-                                        {
-                                            "type": "string"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ]
-                                }
-                            },
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "result": {
-                            "items": {
-                                "$ref": "#/$defs/ProspectiveStatementSummary"
-                            },
-                            "type": "array"
-                        }
-                    },
-                    "required": [
-                        "result"
-                    ],
-                    "type": "object",
-                    "x-fastmcp-wrap-result": true
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
-                "name": "add_prospective_statement",
-                "description": "Validate and add a single prospective (what-if) policy statement to the simulation engine. Returns parse/valid flags, any invalid reasons, normalized payload, and the assigned internal_id if added.",
-                "inputSchema": {
-                    "$defs": {
-                        "ProspectiveStatementInput": {
-                            "description": "Lightweight input model for defining a prospective (what-if) statement.\n\nThese fields mirror the data used by the UI's prospective editor and\nare consumed by PolicySimulationEngine.set_prospective_statements.",
-                            "properties": {
-                                "compartment_path": {
-                                    "type": "string"
-                                },
-                                "description": {
-                                    "type": "string"
-                                },
-                                "statement_text": {
-                                    "type": "string"
-                                }
-                            },
-                            "type": "object"
-                        }
-                    },
-                    "properties": {
-                        "input_model": {
-                            "$ref": "#/$defs/ProspectiveStatementInput"
-                        }
-                    },
-                    "required": [
-                        "input_model"
-                    ],
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "description": "Result of adding or validating a single prospective statement via MCP.",
-                    "properties": {
-                        "parsed": {
-                            "type": "boolean"
-                        },
-                        "valid": {
-                            "type": "boolean"
-                        },
-                        "invalid_reasons": {
-                            "items": {
-                                "type": "string"
-                            },
-                            "type": "array"
-                        },
-                        "internal_id": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ]
-                        },
-                        "normalized": {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    },
-                    "type": "object"
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
-                "name": "clear_prospective_statements",
-                "description": "Remove all prospective (what-if) statements from the simulation engine, restoring it to tenancy-only data.",
-                "inputSchema": {
-                    "properties": {},
-                    "type": "object"
-                },
-                "outputSchema": {
-                    "additionalProperties": true,
-                    "type": "object"
-                },
-                "_meta": {
-                    "_fastmcp": {
-                        "tags": []
-                    }
-                }
-            },
-            {
                 "name": "filter_policy_statements",
-                "description": "Favor this tool for all policy statement filtering needs.Filter OCI IAM policy statements using a JSON filter object. Each field is optional; OR within each field, AND across fields. Filtering allows Exact User, Group, Dynamic-Group matches. Fuzzy matching is also supported for user, group, and dynamic group criteria. Special cases: - verb must be one of inspect/read/use/manage - policy_compartment supports ROOTONLY to bring back policy statements only in the root compartment - policy_text matches anywhere in the statement text.Response: Returns either full policy statements or a summary based on result size. Large result sets (>100 statements) return a PolicySummary with counts and breakdowns. Smaller result sets return the complete PolicyStatement list.Filter Examples: - filter by verb and effective path: {\"subject_type\": [\"group\"], \"subject\": [{\"domain_name\": \"Default\", \"group_name\": \"Admins\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by exact user and verbs: {\"exact_groups\":[{\"group_name\":\"PolicyAuditorGroup\", \"domain_name\":\"Default\"}], \"verb\": [\"manage\",\"use\"]} - filter by exact group, resource and verb: {\"exact_groups\":[{\"group_name\":\"PolicyAuditorGroup\", \"domain_name\":\"Default\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by exact dynamic group and location: {\"exact_dynamic_groups\":[{\"dynamic_group_name\":\"DG1\"}], \"location\": [\"compartment1\"]} - filter by users (fuzzy) and resource: {\"search_users\":{\"search\":[\"andrew\",\"bob\"], \"user_ocid\":[\"4qa\",\"p57q\"]}, \"policy_compartment\": [\"ROOTONLY\"]} - filter by groups (fuzzy) and resource: {\"search_groups\":{\"search\":[\"admins\",\"developers\"], \"group_ocid\":[\"4qa\",\"p57q\"], \"domain_name\": [\"Default\",\"domain1\"]}, \"resource\": [\"instance-family\",\"database\"]} - filter by dynamic groups (fuzzy) and resource: {\"search_dynamic_groups\":{\"dynamic_group_name\":[\"app\",\"web\"], \"matching_rule\":[\"instance.compartment.id\",\"instance.id\"], \"domain_name\": [\"Default\",\"domain1\"]} ",
+                "description": "Favor this tool for all policy statement filtering needs.Filter OCI IAM policy statements using a JSON filter object. Each field is optional; OR within each field, AND across fields. Filtering allows Exact User, Group, Dynamic-Group matches. Fuzzy matching is also supported for user, group, and dynamic group criteria. Special cases: - verb must be one of inspect/read/use/manage - policy_compartment supports ROOTONLY to bring back policy statements only in the root compartment - policy_text matches anywhere in the statement text.Response: Returns either full policy statements or a summary based on result size. Large result sets (>100 statements) return a PolicySummary with counts and breakdowns. Smaller result sets return the complete PolicyStatement list.Filter Examples: - filter by verb and effective path: {\"subject_type\": [\"group\"], \"subject\": [{\"domain_name\": \"Default\", \"group_name\": \"Admins\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by group principal and verbs: {\"principals\":[{\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"PolicyAuditorGroup\"}], \"verb\": [\"manage\",\"use\"]} - filter by group principal, resource and verb: {\"principals\":[{\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"PolicyAuditorGroup\"}], \"verb\": [\"manage\"], \"resource\": [\"instance-family\"]} - filter by dynamic group principal and location: {\"principals\":[{\"principal_type\":\"dynamic-group\",\"domain_name\":\"Default\",\"name\":\"DG1\"}], \"location\": [\"compartment1\"]} - filter by principal key: {\"principal_keys\":[\"group:Default/Administrators\"]} - filter by structured principal: {\"principals\":[{\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Administrators\"}]} - filter by users (fuzzy) and resource: {\"search_users\":{\"search\":[\"andrew\",\"bob\"], \"user_ocid\":[\"4qa\",\"p57q\"]}, \"policy_compartment\": [\"ROOTONLY\"]} - filter by groups (fuzzy) and resource: {\"search_groups\":{\"search\":[\"admins\",\"developers\"], \"group_ocid\":[\"4qa\",\"p57q\"], \"domain_name\": [\"Default\",\"domain1\"]}, \"resource\": [\"instance-family\",\"database\"]} - filter by dynamic groups (fuzzy) and resource: {\"search_dynamic_groups\":{\"dynamic_group_name\":[\"app\",\"web\"], \"matching_rule\":[\"instance.compartment.id\",\"instance.id\"], \"domain_name\": [\"Default\",\"domain1\"]} ",
                 "inputSchema": {
                     "$defs": {
                         "DynamicGroup": {
-                            "description": "Model representing an OCI IAM dynamic group.\nDynamic groups are collections of principals defined by rules; unique by domain and name.",
+                            "description": "Model representing an OCI IAM dynamic group.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -620,7 +58,7 @@
                             "type": "object"
                         },
                         "DynamicGroupSearch": {
-                            "description": "Search model for OCI IAM dynamic groups.\nUsed to query dynamic groups based on domain, name, or matching rule criteria via MCP tools.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM dynamic groups.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -650,7 +88,7 @@
                             "type": "object"
                         },
                         "Group": {
-                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "description": "Model representing an OCI IAM group (identity and metadata).",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -674,7 +112,7 @@
                             "type": "object"
                         },
                         "GroupSearch": {
-                            "description": "Search model for OCI IAM groups.\nUsed to filter and query cached group metadata by different attributes.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM groups.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -698,7 +136,7 @@
                             "type": "object"
                         },
                         "PolicySearch": {
-                            "description": "Search/filter model for querying OCI IAM policy statements.\nAccepts many fields; lists use OR logic, multiple fields use AND.\nUsed as input to policy filter tools provided by MCP.",
+                            "description": "Search/filter model for querying OCI IAM policy statements.",
                             "properties": {
                                 "action": {
                                     "items": {
@@ -732,6 +170,18 @@
                                 },
                                 "search_dynamic_groups": {
                                     "$ref": "#/$defs/DynamicGroupSearch"
+                                },
+                                "principals": {
+                                    "items": {
+                                        "$ref": "#/$defs/Principal"
+                                    },
+                                    "type": "array"
+                                },
+                                "principal_keys": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
                                 },
                                 "verb": {
                                     "items": {
@@ -824,8 +274,39 @@
                             },
                             "type": "object"
                         },
+                        "Principal": {
+                            "description": "Canonical principal representation for parsed policy statements.",
+                            "properties": {
+                                "principal_type": {
+                                    "type": "string"
+                                },
+                                "principal_key": {
+                                    "type": "string"
+                                },
+                                "domain_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        },
                         "User": {
-                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "description": "Model representing an OCI IAM user.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -858,7 +339,7 @@
                             "type": "object"
                         },
                         "UserSearch": {
-                            "description": "Search model for OCI IAM users.\nUsed to filter and query cached user metadata by domain, username, or partial/display names.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM users.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -892,7 +373,7 @@
                 "outputSchema": {
                     "$defs": {
                         "PolicyStatementFull": {
-                            "description": "Model for detailed/full reporting of policy statement queries.\nOnly used when result set is small enough to return every statement.",
+                            "description": "Model for detailed/full reporting of policy statement queries.",
                             "properties": {
                                 "response_type": {
                                     "const": "full",
@@ -916,7 +397,7 @@
                             "type": "object"
                         },
                         "PolicySummary": {
-                            "description": "Model for lightweight summary reporting for policy statement queries.\nUsed by APIs or UI when result set is too large to send full details.",
+                            "description": "Model for lightweight summary reporting for policy statement queries.",
                             "properties": {
                                 "response_type": {
                                     "const": "summary",
@@ -986,8 +467,39 @@
                             ],
                             "type": "object"
                         },
+                        "Principal": {
+                            "description": "Canonical principal representation for parsed policy statements.",
+                            "properties": {
+                                "principal_type": {
+                                    "type": "string"
+                                },
+                                "principal_key": {
+                                    "type": "string"
+                                },
+                                "domain_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "ocid": {
+                                    "type": "string"
+                                },
+                                "display_name": {
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        },
                         "RegularPolicyStatement": {
-                            "description": "Represents a parsed OCI IAM policy statement.\n\nEach field corresponds to a normalized component extracted from a raw OCI policy text line.\nThese structures are produced during policy parsing and returned by filter tools.",
+                            "description": "Represents a parsed OCI IAM policy statement.",
                             "properties": {
                                 "policy_name": {
                                     "type": "string"
@@ -1061,6 +573,18 @@
                                             "type": "string"
                                         }
                                     ]
+                                },
+                                "principals": {
+                                    "items": {
+                                        "$ref": "#/$defs/Principal"
+                                    },
+                                    "type": "array"
+                                },
+                                "principal_keys": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "type": "array"
                                 },
                                 "verb": {
                                     "type": "string"
@@ -1156,7 +680,7 @@
                 "inputSchema": {
                     "$defs": {
                         "User": {
-                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "description": "Model representing an OCI IAM user.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1202,7 +726,7 @@
                 "outputSchema": {
                     "$defs": {
                         "Group": {
-                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "description": "Model representing an OCI IAM group (identity and metadata).",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1252,7 +776,7 @@
                 "inputSchema": {
                     "$defs": {
                         "Group": {
-                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "description": "Model representing an OCI IAM group (identity and metadata).",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1289,7 +813,7 @@
                 "outputSchema": {
                     "$defs": {
                         "User": {
-                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "description": "Model representing an OCI IAM user.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1348,7 +872,7 @@
                 "inputSchema": {
                     "$defs": {
                         "UserSearch": {
-                            "description": "Search model for OCI IAM users.\nUsed to filter and query cached user metadata by domain, username, or partial/display names.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM users.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -1382,7 +906,7 @@
                 "outputSchema": {
                     "$defs": {
                         "User": {
-                            "description": "Model representing an OCI IAM user.\nOnly username and domain are required to uniquely identify a user.",
+                            "description": "Model representing an OCI IAM user.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1415,7 +939,7 @@
                             "type": "object"
                         },
                         "UserSearchFull": {
-                            "description": "Model representing a full user search result set (all users).\nUsed if the user list is small enough to return fully.",
+                            "description": "Model representing a full user search result set (all users).",
                             "properties": {
                                 "response_type": {
                                     "const": "full",
@@ -1439,7 +963,7 @@
                             "type": "object"
                         },
                         "UserSummary": {
-                            "description": "Lightweight summary of user search results when full details are not shown.\nUsed to communicate match counts and domain breakdowns for user searches.",
+                            "description": "Lightweight summary of user search results when full details are not shown.",
                             "properties": {
                                 "response_type": {
                                     "const": "summary",
@@ -1512,7 +1036,7 @@
                 "inputSchema": {
                     "$defs": {
                         "GroupSearch": {
-                            "description": "Search model for OCI IAM groups.\nUsed to filter and query cached group metadata by different attributes.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM groups.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -1549,7 +1073,7 @@
                 "outputSchema": {
                     "$defs": {
                         "Group": {
-                            "description": "Model representing an OCI IAM group (identity and metadata).\nA group is uniquely identified by domain and group name.",
+                            "description": "Model representing an OCI IAM group (identity and metadata).",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1573,7 +1097,7 @@
                             "type": "object"
                         },
                         "GroupSearchFull": {
-                            "description": "Model representing a full group search result set (all groups).\nUsed if the group list is small enough to return fully.",
+                            "description": "Model representing a full group search result set (all groups).",
                             "properties": {
                                 "response_type": {
                                     "const": "full",
@@ -1597,7 +1121,7 @@
                             "type": "object"
                         },
                         "GroupSummary": {
-                            "description": "Lightweight summary of group search results.\nUsed to summarize group matches, domain breakdowns, and sampling.",
+                            "description": "Lightweight summary of group search results.",
                             "properties": {
                                 "response_type": {
                                     "const": "summary",
@@ -1670,7 +1194,7 @@
                 "inputSchema": {
                     "$defs": {
                         "DynamicGroupSearch": {
-                            "description": "Search model for OCI IAM dynamic groups.\nUsed to query dynamic groups based on domain, name, or matching rule criteria via MCP tools.\nLists inside a field use OR; multiple fields use AND.",
+                            "description": "Search model for OCI IAM dynamic groups.",
                             "properties": {
                                 "domain_name": {
                                     "items": {
@@ -1713,7 +1237,7 @@
                 "outputSchema": {
                     "$defs": {
                         "DynamicGroup": {
-                            "description": "Model representing an OCI IAM dynamic group.\nDynamic groups are collections of principals defined by rules; unique by domain and name.",
+                            "description": "Model representing an OCI IAM dynamic group.",
                             "properties": {
                                 "domain_name": {
                                     "type": "string"
@@ -1762,7 +1286,7 @@
                             "type": "object"
                         },
                         "DynamicGroupSearchFull": {
-                            "description": "Model representing a full dynamic group search result set.\nUsed if the dynamic group list is small enough to return fully.",
+                            "description": "Model representing a full dynamic group search result set.",
                             "properties": {
                                 "response_type": {
                                     "const": "full",
@@ -1786,7 +1310,7 @@
                             "type": "object"
                         },
                         "DynamicGroupSummary": {
-                            "description": "Lightweight summary of dynamic group search results.\nUsed to summarize matches, domain/in-use breakdowns, and sample listing.",
+                            "description": "Lightweight summary of dynamic group search results.",
                             "properties": {
                                 "response_type": {
                                     "const": "summary",
@@ -1862,7 +1386,7 @@
             },
             {
                 "name": "cross-tenancy-alias-list",
-                "description": "List all defined aliases stored in the DataRepository.",
+                "description": "List all loaded cross-tenancy alias definitions.",
                 "inputSchema": {
                     "properties": {},
                     "type": "object"
@@ -1962,7 +1486,7 @@
                 "outputSchema": {
                     "$defs": {
                         "BasePolicyStatement": {
-                            "description": "Base model for all OCI policy statement types, containing shared fields.\nAll statement models inherit from this and add statement-type-specific data.",
+                            "description": "Base model for all OCI policy statement types, containing shared fields.",
                             "properties": {
                                 "policy_name": {
                                     "type": "string"
@@ -2071,7 +1595,7 @@
             },
             {
                 "name": "reload_mcp_data",
-                "description": "Reload all policy and identity data from OCI into the MCP server repository. This allows refreshing data without restarting the server. Use with caution as it may take time depending on tenancy size.",
+                "description": "Reload all policy and identity data from OCI through the MCP load service. This allows refreshing data without restarting the server. Use with caution as it may take time depending on tenancy size.",
                 "inputSchema": {
                     "properties": {},
                     "type": "object"

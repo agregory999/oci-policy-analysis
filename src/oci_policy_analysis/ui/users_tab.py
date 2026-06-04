@@ -657,11 +657,11 @@ class UsersTab(BaseUITab):
           what is rendered on screen.
         """
         logger.info(f'Searching for policies for groups: {groups_for_filter} and users: {users_for_filter}')
-        exact_groups_filter: list[Group] = groups_for_filter
-        exact_users_filter: list[User] = users_for_filter
-        policy_result = self.principal_analysis.by_exact_groups_users(
-            groups=exact_groups_filter,
-            users=exact_users_filter,
+        group_principals: list[Group] = groups_for_filter
+        user_principals: list[User] = users_for_filter
+        policy_result = self.principal_analysis.by_groups_users(
+            groups=group_principals,
+            users=user_principals,
         )
         self.filtered_policies: list[RegularPolicyStatement] = policy_result.statements
         logger.info(f'Found {len(self.filtered_policies)} policies for selected users/groups')

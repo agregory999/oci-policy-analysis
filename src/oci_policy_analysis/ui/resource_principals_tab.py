@@ -228,7 +228,7 @@ class ResourcePrincipalsTab(BaseUITab):
             logger.info(f'DGs for filter: {dgs_for_filter}')
             # Call the filter
             # TODO: fix this filter
-            filtered = self.principal_analysis.by_exact_dynamic_groups(dgs_for_filter).statements
+            filtered = self.principal_analysis.by_dynamic_groups(dgs_for_filter).statements
 
             logger.debug(f'type: {type(filtered)} len: {len(filtered)}')
             # SNormalize the data

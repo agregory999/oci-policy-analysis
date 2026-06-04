@@ -9,7 +9,7 @@ from typing import Literal
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
 from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, Group, PolicySearch, RegularPolicyStatement, User
+from oci_policy_analysis.common.models import DynamicGroup, Group, PolicySearch, Principal, RegularPolicyStatement, User
 
 
 @dataclass
@@ -31,7 +31,8 @@ class PrincipalAnalysisService:
     Notes:
         - Keeps legacy `subject` data on statements untouched.
         - Avoids building new UI flows around `subject` filter; relies on
-          exact principal selectors and/or `subject_type` filters.
+          structured principal selectors, principal keys, and/or
+          `subject_type` filters.
     """
 
     def __init__(self, context: AppContext) -> None:
@@ -47,6 +48,39 @@ class PrincipalAnalysisService:
         self.logger = get_logger(component='principal_analysis_service')
         self.analysis = AnalysisService(context)
 
+    @staticmethod
+    def _principal_from_group(group: Group) -> Principal:
+        principal: Principal = {
+            'principal_type': 'group',
+            'domain_name': group.get('domain_name') or 'Default',
+            'name': group.get('group_name') or '',
+        }
+        if group.get('group_ocid'):
+            principal['ocid'] = str(group.get('group_ocid'))
+        return principal
+
+    @staticmethod
+    def _principal_from_dynamic_group(dynamic_group: DynamicGroup) -> Principal:
+        principal: Principal = {
+            'principal_type': 'dynamic-group',
+            'domain_name': dynamic_group.get('domain_name') or 'Default',
+            'name': dynamic_group.get('dynamic_group_name') or '',
+        }
+        if dynamic_group.get('dynamic_group_ocid'):
+            principal['ocid'] = str(dynamic_group.get('dynamic_group_ocid'))
+        return principal
+
+    @staticmethod
+    def _principal_from_user(user: User) -> Principal:
+        principal: Principal = {
+            'principal_type': 'user',
+            'domain_name': user.get('domain_name') or 'Default',
+            'name': user.get('user_name') or '',
+        }
+        if user.get('user_ocid'):
+            principal['ocid'] = str(user.get('user_ocid'))
+        return principal
+
     def by_exact_dynamic_groups(self, dynamic_groups: list[DynamicGroup]) -> PrincipalPolicyResult:
         """Find statements matching exact dynamic groups.
 
@@ -56,8 +90,22 @@ class PrincipalAnalysisService:
         Returns:
             PrincipalPolicyResult: Matched policy statements.
         """
-        self.logger.info('Filtering policies by exact dynamic groups: count=%s', len(dynamic_groups))
-        filters: PolicySearch = PolicySearch(exact_dynamic_groups=dynamic_groups)
+        return self.by_dynamic_groups(dynamic_groups)
+
+    def by_dynamic_groups(self, dynamic_groups: list[DynamicGroup]) -> PrincipalPolicyResult:
+        """Find statements matching dynamic group principals.
+
+        Args:
+            dynamic_groups: Dynamic groups to match as principal selectors.
+
+        Returns:
+            PrincipalPolicyResult: Matched policy statements.
+        """
+        self.logger.info('Filtering policies by dynamic group principals: count=%s', len(dynamic_groups))
+        principals = [self._principal_from_dynamic_group(dg) for dg in dynamic_groups]
+        if not principals:
+            return PrincipalPolicyResult(statements=[])
+        filters: PolicySearch = PolicySearch(principals=principals)
         return PrincipalPolicyResult(statements=self.analysis.filter_policy_statements(filters=filters).statements)
 
     def by_exact_groups_users(
@@ -75,10 +123,34 @@ class PrincipalAnalysisService:
         Returns:
             PrincipalPolicyResult: Matched policy statements.
         """
+        return self.by_groups_users(groups=groups, users=users)
+
+    def by_groups_users(
+        self,
+        *,
+        groups: list[Group] | None = None,
+        users: list[User] | None = None,
+    ) -> PrincipalPolicyResult:
+        """Find statements matching group and user principals.
+
+        User selectors are expanded by repository principal equivalence, so
+        group-based policies for loaded user memberships are included.
+
+        Args:
+            groups: Group objects to match as principal selectors.
+            users: User objects to match as principal selectors.
+
+        Returns:
+            PrincipalPolicyResult: Matched policy statements.
+        """
         self.logger.info(
-            'Filtering policies by exact principals: groups=%s users=%s', len(groups or []), len(users or [])
+            'Filtering policies by group/user principals: groups=%s users=%s', len(groups or []), len(users or [])
         )
-        filters: PolicySearch = PolicySearch(exact_groups=groups or [], exact_users=users or [])
+        principals = [self._principal_from_group(group) for group in groups or []]
+        principals.extend(self._principal_from_user(user) for user in users or [])
+        if not principals:
+            return PrincipalPolicyResult(statements=[])
+        filters: PolicySearch = PolicySearch(principals=principals)
         return PrincipalPolicyResult(statements=self.analysis.filter_policy_statements(filters=filters).statements)
 
     def by_subject_types(

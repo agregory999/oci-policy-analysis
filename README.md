@@ -5,6 +5,9 @@ Analyze Oracle Cloud IAM policies and identity data.
 📘 **Full documentation:**  
 👉 [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
 
+For standalone MCP deployment on OCI Container Instances (OCIR image + instance principal), see:
+- [docs/source/setup_mcp_container_instance.md](docs/source/setup_mcp_container_instance.md)
+
 ## Limited Mode (Web)
 
 - Overview doc: [docs/source/limited_mode.md](docs/source/limited_mode.md)
