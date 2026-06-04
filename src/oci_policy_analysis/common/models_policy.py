@@ -59,6 +59,14 @@ class PolicySearch(TypedDict, total=False):
     search_dynamic_groups: Annotated[
         DynamicGroupSearch, 'Fuzzy Search Dynamic Group(s) to filter policies by. Accepts full or partial names.'
     ]
+    principals: Annotated[
+        list[Principal],
+        'Structured principal selector(s) to filter policy subjects by principal_type, principal_key, domain_name, name, ocid, or display_name.',
+    ]
+    principal_keys: Annotated[
+        list[str],
+        'Canonical principal key(s) to filter policy subjects by, such as "group:Default/Admins".',
+    ]
     verb: Annotated[
         list[Literal['inspect', 'read', 'use', 'manage']],
         'One or more policy verbs to match. Each value filters by IAM verb type.',

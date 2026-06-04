@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import secrets
+import warnings
 from importlib.resources import files
 
 import uvicorn
@@ -12,7 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from oci_policy_analysis.web.api.routes_core import router as core_router
+# Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
+# Suppress DeprecationWarnings from libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+from oci_policy_analysis.web.api.routes_core import router as core_router  # noqa: E402
 
 STATIC_DIR = files('oci_policy_analysis.web').joinpath('static')
 

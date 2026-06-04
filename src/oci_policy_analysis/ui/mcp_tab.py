@@ -22,8 +22,6 @@ from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 import oci_policy_analysis.mcp_server as mcp_server
-from oci_policy_analysis.application.core.engine import PolicySimulationEngine
-from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.common.logger import get_logger, set_component_level
 from oci_policy_analysis.common.usage_tracking import get_usage_tracker
 from oci_policy_analysis.mcp_server import (
@@ -75,7 +73,7 @@ class McpTab(BaseUITab):
         _start_mcp: (Internal) Starts the MCP server in a separate thread.
     """
 
-    def __init__(self, parent, app, policy_repo: PolicyAnalysisRepository):
+    def __init__(self, parent, app, policy_repo: object | None = None):
         super().__init__(
             parent,
             default_help_text=(
@@ -84,9 +82,9 @@ class McpTab(BaseUITab):
             ),
             page_help_link='/usage.html#embedded-mcp-tab',
         )
+        del policy_repo  # Legacy constructor argument; MCP now uses app.app_context.
         self.app = app
         self.settings = app.settings
-        self.policy_repo = policy_repo
         self.server_running = False
 
         self._build_ui()
@@ -261,15 +259,18 @@ class McpTab(BaseUITab):
         if self.server_running:
             messagebox.showinfo('MCP', 'MCP server is already running.')
             return
-        mcp_server.pca = self.policy_repo
-        # Need to create simulation engine here as well
-        mcp_server.sim_engine = PolicySimulationEngine(
-            policy_repo=self.policy_repo, ref_data_repo=self.policy_repo.permission_reference_repo
-        )
-        # Show the count of loaded policies in the simulation engine
-        policy_count = len(self.policy_repo.regular_statements) if self.policy_repo else 0
-        logger.info(f'Policy Analysis Repository and Simulation Engine initialized with {policy_count} policies.')
-        # Show count of policies in the simulation engine
+
+        app_context = getattr(self.app, 'app_context', None)
+        if app_context is None:
+            logger.error('Application context unavailable; embedded MCP cannot start without service context.')
+            messagebox.showerror('MCP', 'Application service context is unavailable; MCP cannot start.')
+            return
+
+        mcp_server.app_context = app_context
+
+        active_repo = app_context.policy_repo
+        policy_count = len(active_repo.regular_statements) if active_repo else 0
+        logger.info(f'Policy Analysis Repository initialized for MCP with {policy_count} policies.')
         logger.info('Starting MCP server...')
         # Anonymous usage tracking: record MCP server start (no request/response content).
         try:

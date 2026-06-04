@@ -1,0 +1,18 @@
+.git
+.github
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.log
+dist/
+build/
+docs/_build/
+node_modules/
+private/
+old/
+usage-par.txt
+OCI Policy Analysis.spec
+

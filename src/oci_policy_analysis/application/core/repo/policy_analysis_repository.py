@@ -18,6 +18,7 @@ import collections
 import csv
 import hashlib
 import json
+import logging
 import os
 import sys
 import time
@@ -28,7 +29,11 @@ from typing import Any
 
 # Third-party imports
 from oci import config, pagination
-from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
+from oci.auth.signers import (
+    InstancePrincipalsSecurityTokenSigner,
+    SecurityTokenSigner,
+    get_resource_principals_signer,
+)
 from oci.exceptions import ConfigFileNotFound, ServiceError
 from oci.identity import IdentityClient
 from oci.identity_domains import IdentityDomainsClient
@@ -171,6 +176,419 @@ class PolicyAnalysisRepository:
                 return True
         return False
 
+    @staticmethod
+    def _normalize_principal_field(value: object) -> str:
+        """Return a normalized principal field value for matching.
+
+        Args:
+            value: Raw principal value from a statement or filter.
+
+        Returns:
+            str: Trimmed case-folded value, or an empty string for missing values.
+        """
+        if value is None:
+            return ''
+        return str(value).strip().casefold()
+
+    def _statement_principal_keys(self, stmt: RegularPolicyStatement) -> set[str]:
+        """Return normalized principal keys available on a policy statement.
+
+        Args:
+            stmt: Policy statement to inspect.
+
+        Returns:
+            set[str]: Normalized canonical principal keys.
+        """
+        keys: set[str] = set()
+
+        singular_key = self._normalize_principal_field(stmt.get('principal_key'))
+        if singular_key:
+            keys.add(singular_key)
+
+        raw_keys = stmt.get('principal_keys', [])
+        if isinstance(raw_keys, list):
+            for key in raw_keys:
+                normalized = self._normalize_principal_field(key)
+                if normalized:
+                    keys.add(normalized)
+        elif raw_keys:
+            normalized = self._normalize_principal_field(raw_keys)
+            if normalized:
+                keys.add(normalized)
+
+        principals = stmt.get('principals', [])
+        for principal in principals if isinstance(principals, list) else []:
+            if not isinstance(principal, dict):
+                continue
+            principal_key = self._normalize_principal_field(principal.get('principal_key'))
+            if principal_key:
+                keys.add(principal_key)
+
+        return keys
+
+    @staticmethod
+    def _identity_matches(
+        *,
+        actual_domain: object | None,
+        actual_name: object | None,
+        filter_domain: object | None,
+        filter_name: object | None,
+    ) -> bool:
+        """Return whether identity domain/name values match case-insensitively.
+
+        Args:
+            actual_domain: Domain value from loaded identity data.
+            actual_name: Name value from loaded identity data.
+            filter_domain: Domain value from the caller.
+            filter_name: Name value from the caller.
+
+        Returns:
+            bool: True when both domain and name match.
+        """
+        actual_domain_str = str(actual_domain or 'Default').casefold()
+        actual_name_str = str(actual_name or '').casefold()
+        filter_domain_str = str(filter_domain or 'Default').casefold()
+        filter_name_str = str(filter_name or '').casefold()
+        return bool(actual_name_str and filter_name_str) and (
+            actual_domain_str == filter_domain_str and actual_name_str == filter_name_str
+        )
+
+    def _group_principal_keys(
+        self,
+        *,
+        domain_name: object | None = None,
+        group_name: object | None = None,
+        group_ocid: object | None = None,
+    ) -> set[str]:
+        """Return equivalent named and ID-based principal keys for a group.
+
+        Args:
+            domain_name: Optional group identity domain.
+            group_name: Optional group name.
+            group_ocid: Optional group OCID.
+
+        Returns:
+            set[str]: Canonical group and group-id keys that refer to the same group.
+        """
+        keys: set[str] = set()
+        domain = str(domain_name or 'Default').strip()
+        name = str(group_name or '').strip()
+        ocid = str(group_ocid or '').strip()
+
+        if name:
+            keys.add(calculate_principal_key('group', domain, name))
+        if ocid:
+            keys.add(f'group-id:{ocid}')
+
+        for group in self.groups:
+            if not isinstance(group, dict):
+                continue
+            group_matches_ocid = bool(ocid and str(group.get('group_ocid') or '').casefold() == ocid.casefold())
+            group_matches_name = self._identity_matches(
+                actual_domain=group.get('domain_name'),
+                actual_name=group.get('group_name'),
+                filter_domain=domain,
+                filter_name=name,
+            )
+            if not (group_matches_ocid or group_matches_name):
+                continue
+            resolved_name = str(group.get('group_name') or '').strip()
+            if resolved_name:
+                keys.add(calculate_principal_key('group', group.get('domain_name') or 'Default', resolved_name))
+            resolved_ocid = str(group.get('group_ocid') or '').strip()
+            if resolved_ocid:
+                keys.add(f'group-id:{resolved_ocid}')
+
+        return keys
+
+    def _dynamic_group_principal_keys(
+        self,
+        *,
+        domain_name: object | None = None,
+        dynamic_group_name: object | None = None,
+        dynamic_group_ocid: object | None = None,
+    ) -> set[str]:
+        """Return equivalent named and ID-based principal keys for a dynamic group.
+
+        Args:
+            domain_name: Optional dynamic group identity domain.
+            dynamic_group_name: Optional dynamic group name.
+            dynamic_group_ocid: Optional dynamic group OCID.
+
+        Returns:
+            set[str]: Canonical dynamic-group and dynamic-group-id keys for the same dynamic group.
+        """
+        keys: set[str] = set()
+        domain = str(domain_name or 'Default').strip()
+        name = str(dynamic_group_name or '').strip()
+        ocid = str(dynamic_group_ocid or '').strip()
+
+        if name:
+            keys.add(calculate_principal_key('dynamic-group', domain, name))
+        if ocid:
+            keys.add(f'dynamic-group-id:{ocid}')
+
+        for dynamic_group in self.dynamic_groups:
+            if not isinstance(dynamic_group, dict):
+                continue
+            dg_matches_ocid = bool(
+                ocid and str(dynamic_group.get('dynamic_group_ocid') or '').casefold() == ocid.casefold()
+            )
+            dg_matches_name = self._identity_matches(
+                actual_domain=dynamic_group.get('domain_name'),
+                actual_name=dynamic_group.get('dynamic_group_name'),
+                filter_domain=domain,
+                filter_name=name,
+            )
+            if not (dg_matches_ocid or dg_matches_name):
+                continue
+            resolved_name = str(dynamic_group.get('dynamic_group_name') or '').strip()
+            if resolved_name:
+                keys.add(
+                    calculate_principal_key(
+                        'dynamic-group', dynamic_group.get('domain_name') or 'Default', resolved_name
+                    )
+                )
+            resolved_ocid = str(dynamic_group.get('dynamic_group_ocid') or '').strip()
+            if resolved_ocid:
+                keys.add(f'dynamic-group-id:{resolved_ocid}')
+
+        return keys
+
+    def _user_principal_keys(
+        self,
+        *,
+        domain_name: object | None = None,
+        user_name: object | None = None,
+        user_ocid: object | None = None,
+    ) -> set[str]:
+        """Return user principal keys and group principals reachable from a user.
+
+        Args:
+            domain_name: Optional user identity domain.
+            user_name: Optional user name.
+            user_ocid: Optional user OCID.
+
+        Returns:
+            set[str]: User keys plus group/group-id keys for loaded memberships.
+        """
+        keys: set[str] = set()
+        domain = str(domain_name or 'Default').strip()
+        name = str(user_name or '').strip()
+        ocid = str(user_ocid or '').strip()
+
+        if name:
+            keys.add(calculate_principal_key('user', domain, name))
+        if ocid:
+            keys.add(f'user-id:{ocid}')
+
+        for user in self.users:
+            if not isinstance(user, dict):
+                continue
+            user_matches_ocid = bool(ocid and str(user.get('user_ocid') or '').casefold() == ocid.casefold())
+            user_matches_name = self._identity_matches(
+                actual_domain=user.get('domain_name'),
+                actual_name=user.get('user_name'),
+                filter_domain=domain,
+                filter_name=name,
+            )
+            if not (user_matches_ocid or user_matches_name):
+                continue
+            resolved_name = str(user.get('user_name') or '').strip()
+            if resolved_name:
+                keys.add(calculate_principal_key('user', user.get('domain_name') or 'Default', resolved_name))
+            resolved_ocid = str(user.get('user_ocid') or '').strip()
+            if resolved_ocid:
+                keys.add(f'user-id:{resolved_ocid}')
+            for group_ocid in user.get('groups', []) or []:
+                keys.update(self._group_principal_keys(group_ocid=group_ocid))
+
+        return keys
+
+    def _equivalent_principal_keys_for_key(self, principal_key: str) -> set[str]:
+        """Return all known equivalent principal keys for a canonical key.
+
+        Args:
+            principal_key: Canonical principal key supplied by a caller or parsed
+                from a statement.
+
+        Returns:
+            set[str]: Equivalent keys, including the original key.
+        """
+        raw_key = str(principal_key or '').strip()
+        if not raw_key:
+            return set()
+
+        keys: set[str] = {raw_key}
+        if ':' not in raw_key:
+            return keys
+
+        principal_type, payload = raw_key.split(':', 1)
+        principal_type = principal_type.strip()
+        payload = payload.strip()
+
+        if principal_type == 'group-id':
+            keys.update(self._group_principal_keys(group_ocid=payload))
+        elif principal_type == 'group' and '/' in payload:
+            domain, name = payload.split('/', 1)
+            keys.update(self._group_principal_keys(domain_name=domain, group_name=name))
+        elif principal_type == 'dynamic-group-id':
+            keys.update(self._dynamic_group_principal_keys(dynamic_group_ocid=payload))
+        elif principal_type == 'dynamic-group' and '/' in payload:
+            domain, name = payload.split('/', 1)
+            keys.update(self._dynamic_group_principal_keys(domain_name=domain, dynamic_group_name=name))
+        elif principal_type == 'user-id':
+            keys.update(self._user_principal_keys(user_ocid=payload))
+        elif principal_type == 'user' and '/' in payload:
+            domain, name = payload.split('/', 1)
+            keys.update(self._user_principal_keys(domain_name=domain, user_name=name))
+
+        return keys
+
+    def _equivalent_principal_keys_for_selector(self, selector: Principal) -> set[str]:
+        """Return equivalent principal keys for a structured principal selector.
+
+        Args:
+            selector: Principal selector from ``PolicySearch``.
+
+        Returns:
+            set[str]: Equivalent keys derived from selector fields and identity data.
+        """
+        if not isinstance(selector, dict):
+            return set()
+
+        keys: set[str] = set()
+        principal_key = str(selector.get('principal_key') or '').strip()
+        if principal_key:
+            keys.update(self._equivalent_principal_keys_for_key(principal_key))
+
+        principal_type = str(selector.get('principal_type') or '').strip()
+        domain_name = selector.get('domain_name')
+        name = selector.get('name')
+        ocid = selector.get('ocid')
+
+        if principal_type == 'group':
+            keys.update(self._group_principal_keys(domain_name=domain_name, group_name=name, group_ocid=ocid))
+        elif principal_type == 'group-id':
+            keys.update(self._group_principal_keys(group_ocid=ocid or name))
+        elif principal_type == 'dynamic-group':
+            keys.update(
+                self._dynamic_group_principal_keys(
+                    domain_name=domain_name,
+                    dynamic_group_name=name,
+                    dynamic_group_ocid=ocid,
+                )
+            )
+        elif principal_type == 'dynamic-group-id':
+            keys.update(self._dynamic_group_principal_keys(dynamic_group_ocid=ocid or name))
+        elif principal_type == 'user':
+            keys.update(self._user_principal_keys(domain_name=domain_name, user_name=name, user_ocid=ocid))
+        elif principal_type == 'user-id':
+            keys.update(self._user_principal_keys(user_ocid=ocid or name))
+
+        return keys
+
+    def _normalized_equivalent_principal_keys_for_key(self, principal_key: str) -> set[str]:
+        """Return normalized equivalent principal keys for matching.
+
+        Args:
+            principal_key: Principal key to expand and normalize.
+
+        Returns:
+            set[str]: Case-folded equivalent keys.
+        """
+        return {
+            normalized
+            for key in self._equivalent_principal_keys_for_key(principal_key)
+            if (normalized := self._normalize_principal_field(key))
+        }
+
+    def _normalized_equivalent_statement_principal_keys(self, stmt: RegularPolicyStatement) -> set[str]:
+        """Return normalized statement principal keys with identity equivalents.
+
+        Args:
+            stmt: Policy statement to inspect.
+
+        Returns:
+            set[str]: Case-folded statement principal keys and equivalents.
+        """
+        keys: set[str] = set()
+        for principal_key in self._statement_principal_keys(stmt):
+            keys.update(self._normalized_equivalent_principal_keys_for_key(principal_key))
+        return keys
+
+    def _principal_key_matches_statement(self, stmt: RegularPolicyStatement, principal_key: str) -> bool:
+        """Return whether a statement matches a canonical principal key.
+
+        Args:
+            stmt: Policy statement to inspect.
+            principal_key: Canonical principal key filter value.
+
+        Returns:
+            bool: True when the statement contains the requested principal key.
+        """
+        normalized_keys = self._normalized_equivalent_principal_keys_for_key(principal_key)
+        if not normalized_keys:
+            return True
+        return bool(normalized_keys & self._normalized_equivalent_statement_principal_keys(stmt))
+
+    def _principal_matches_statement(self, stmt: RegularPolicyStatement, selector: Principal) -> bool:
+        """Return whether a statement matches a structured principal selector.
+
+        Args:
+            stmt: Policy statement to inspect.
+            selector: Principal filter value. Populated selector fields are ANDed
+                for a single statement principal; multiple selectors are ORed by
+                the caller.
+
+        Returns:
+            bool: True when any statement principal satisfies the selector.
+        """
+        if not isinstance(selector, dict):
+            return False
+
+        selector_values = {
+            field: self._normalize_principal_field(selector.get(field))
+            for field in ('principal_type', 'principal_key', 'domain_name', 'name', 'ocid', 'display_name')
+        }
+        selector_values = {field: value for field, value in selector_values.items() if value}
+        if not selector_values:
+            return False
+
+        selector_keys = {
+            normalized
+            for key in self._equivalent_principal_keys_for_selector(selector)
+            if (normalized := self._normalize_principal_field(key))
+        }
+        if selector_keys and selector_keys & self._normalized_equivalent_statement_principal_keys(stmt):
+            return True
+
+        principals = stmt.get('principals', [])
+        for principal in principals if isinstance(principals, list) else []:
+            if not isinstance(principal, dict):
+                continue
+            if all(
+                self._normalize_principal_field(principal.get(field)) == expected
+                for field, expected in selector_values.items()
+            ):
+                return True
+
+        # Legacy fallback for older statements that do not have principal models.
+        principal_key = selector_values.get('principal_key')
+        if principal_key and not self._principal_key_matches_statement(stmt, principal_key):
+            return False
+        principal_type = selector_values.get('principal_type')
+        if principal_type and self._normalize_principal_field(stmt.get('subject_type')) != principal_type:
+            return False
+        fallback_tokens = [
+            value
+            for field, value in selector_values.items()
+            if field in {'domain_name', 'name', 'ocid', 'display_name'} and value
+        ]
+        return bool(fallback_tokens) and all(
+            self._subject_token_matches_statement(stmt, token) for token in fallback_tokens
+        )
+
     def __init__(self):
         self.compartments = []  # List of dicts: {id, name, parent_id, hierarchy_path, hierarchy_ocids}
         self.policies: list[BasePolicy] = []  # List of BasePolicy dicts
@@ -258,6 +676,7 @@ class PolicyAnalysisRepository:
     def initialize_client(
         self,
         use_instance_principal: bool,
+        use_resource_principal: bool = False,
         session_token: str | None = None,
         recursive: bool = True,
         profile: str = 'DEFAULT',
@@ -268,6 +687,7 @@ class PolicyAnalysisRepository:
 
         Args:
             use_instance_principal: Whether to attempt Instance Principal signer-based authentication
+            use_resource_principal: Whether to attempt Resource Principal signer-based authentication
             recursive: Whether to load tenancy data across all compartments, or simply the root (tenancy) compartment
             session: The named OCI Session Token Profile to use - must be present on the file system in the standard OCI location of .oci/config
             profile: The named OCI Profile to use - must be present on the file system in the standard OCI location of .oci/config
@@ -279,20 +699,42 @@ class PolicyAnalysisRepository:
         """
         self.session_token = session_token
         self.use_instance_principal = use_instance_principal
+        self.use_resource_principal = use_resource_principal
         try:
             from oci.limits import LimitsClient
 
-            if use_instance_principal:
-                logger.debug('Using Instance Principal Authentication')
+            if os.environ.get('OPA_OCI_SDK_DEBUG', '0') == '1':
+                logging.getLogger('oci').setLevel(logging.DEBUG)
+                logger.info('OPA_OCI_SDK_DEBUG enabled: OCI SDK logger set to DEBUG')
+
+            if use_resource_principal:
+                logger.info('Using Resource Principal authentication to initialize OCI clients')
+                logger.info('Creating resource principal signer...')
+                self.signer = get_resource_principals_signer()
+                logger.info('Resource principal signer created successfully')
+                self.identity_client = IdentityClient(config={}, signer=self.signer)
+                self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
+                self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
+                self.limits_client = LimitsClient(config={}, signer=self.signer)
+                # most resource principal signer variants expose tenancy_id, but keep safe fallback
+                self.tenancy_ocid = getattr(self.signer, 'tenancy_id', None)
+                if not self.tenancy_ocid:
+                    logger.warning('Resource principal signer did not expose tenancy_id directly.')
+                logger.info('Resource principal tenancy OCID resolved: %s', self.tenancy_ocid)
+            elif use_instance_principal:
+                logger.info('Using Instance Principal authentication to initialize OCI clients')
+                logger.info('Creating InstancePrincipalsSecurityTokenSigner...')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
+                logger.info('Instance principal signer created successfully')
                 # Identity for all policy Data
                 self.identity_client = IdentityClient(config={}, signer=self.signer)
                 self.logging_search_client = LogSearchClient(config={}, signer=self.signer)
                 self.resource_search_client = ResourceSearchClient(config={}, signer=self.signer)
                 self.limits_client = LimitsClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
+                logger.info('Instance principal tenancy OCID resolved: %s', self.tenancy_ocid)
             elif session_token:
-                logger.info('Attempt session auth')
+                logger.info('Using session-token authentication to initialize OCI clients')
                 self.config = config.from_file(profile_name=session_token)
                 token_file = self.config['security_token_file']
                 token = None
@@ -316,13 +758,23 @@ class PolicyAnalysisRepository:
                 self.resource_search_client = ResourceSearchClient(self.config)
                 self.limits_client = LimitsClient(self.config)
             logger.info(f'Set up Identity Client for tenancy: {self.tenancy_ocid}')
+            if not self.tenancy_ocid:
+                logger.error('Tenancy OCID is not available after client initialization.')
+                return False
 
             # Set Recursion
             self.recursive = recursive
             logger.debug(f'Set recursive to: {self.recursive}')
 
             # Get tenancy name
-            self.tenancy_name = self.identity_client.get_compartment(compartment_id=self.tenancy_ocid).data.name
+            logger.info('Resolving tenancy name via IdentityClient.get_compartment...')
+            tenancy_compartment = self._api_call_with_logging(
+                'IdentityClient.get_compartment', self.identity_client.get_compartment, compartment_id=self.tenancy_ocid
+            )
+            if not tenancy_compartment or not tenancy_compartment.data:
+                logger.error('Unable to resolve tenancy compartment details for OCID: %s', self.tenancy_ocid)
+                return False
+            self.tenancy_name = tenancy_compartment.data.name
             logger.info(f'Initialized client for tenancy: {self.tenancy_name} ({self.tenancy_ocid})')
             return True
         except (ConfigFileNotFound, Exception) as exc:
@@ -1556,7 +2008,7 @@ class PolicyAnalysisRepository:
             for domain in self.identity_domains:
                 try:
                     # Get IdentityDomainsClient and hold on to it
-                    if self.use_instance_principal:
+                    if self.use_instance_principal or self.use_resource_principal:
                         domain_client = IdentityDomainsClient(
                             config={}, signer=self.signer, service_endpoint=domain.url
                         )
@@ -1999,6 +2451,26 @@ class PolicyAnalysisRepository:
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to permission mismatch')
                         match = False
                         break
+                elif key == 'principal_keys':
+                    raw_values = values if isinstance(values, list) else [values]
+                    principal_keys = [str(v).strip() for v in raw_values if str(v).strip()]
+                    if not principal_keys:
+                        continue
+                    if not any(
+                        self._principal_key_matches_statement(stmt, principal_key) for principal_key in principal_keys
+                    ):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to principal_key mismatch')
+                        match = False
+                        break
+                elif key == 'principals':
+                    raw_values = values if isinstance(values, list) else [values]
+                    principal_selectors = [v for v in raw_values if isinstance(v, dict)]
+                    if not principal_selectors:
+                        continue
+                    if not any(self._principal_matches_statement(stmt, selector) for selector in principal_selectors):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to principal selector mismatch')
+                        match = False
+                        break
                 elif key == 'subject':
                     raw_values = values if isinstance(values, list) else [values]
                     value_ci = [str(v).strip() for v in raw_values if str(v).strip()]
@@ -2211,106 +2683,94 @@ class PolicyAnalysisRepository:
         logger.debug(f'Resolve fuzzy Users: {filters.get("search_users")}')
         logger.debug(f'Resolve fuzzy DG: {filters.get("search_dynamic_groups")}')
 
+        def _add_principals(principals: list[Principal]) -> None:
+            existing = filters.get('principals', []) or []
+            if not isinstance(existing, list):
+                existing = []
+            existing.extend(principals)
+            filters['principals'] = existing
+
+        def _group_principal(group: Group) -> Principal:
+            principal: Principal = {
+                'principal_type': 'group',
+                'domain_name': group.get('domain_name') or 'Default',
+                'name': group.get('group_name') or '',
+            }
+            if group.get('group_ocid'):
+                principal['ocid'] = str(group.get('group_ocid'))
+            return principal
+
+        def _dynamic_group_principal(dynamic_group: DynamicGroup) -> Principal:
+            principal: Principal = {
+                'principal_type': 'dynamic-group',
+                'domain_name': dynamic_group.get('domain_name') or 'Default',
+                'name': dynamic_group.get('dynamic_group_name') or '',
+            }
+            if dynamic_group.get('dynamic_group_ocid'):
+                principal['ocid'] = str(dynamic_group.get('dynamic_group_ocid'))
+            return principal
+
+        def _user_principal(user: User) -> Principal:
+            principal: Principal = {
+                'principal_type': 'user',
+                'domain_name': user.get('domain_name') or 'Default',
+                'name': user.get('user_name') or '',
+            }
+            if user.get('user_ocid'):
+                principal['ocid'] = str(user.get('user_ocid'))
+            return principal
+
         # First do fuzzy user search
         if filters.get('search_users'):
             user_filter: UserSearch = filters.get('search_users')
             logger.info(f'User filter to check: {user_filter}')
             filtered_users = self._user_search_internal(user_filter)
             logger.info(f'User search returned {len(filtered_users)} users')
-            # Now, for each user, get their groups and add to exact groups
-            exact_groups: list[Group] = []
-            for u in filtered_users:
-                user_groups: list[Group] = self.get_groups_for_user(u)
-                exact_groups.extend(user_groups)
-
-            # De-dup exact groups
-            seen = set()
-            deduplicated_list = []
-            for group in exact_groups:
-                identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
-                if identifier not in seen:
-                    seen.add(identifier)
-                    deduplicated_list.append(group)
-            exact_groups = deduplicated_list
-            # Set exact groups into filter that was passed in
-            filters['exact_groups'] = exact_groups
+            _add_principals([_user_principal(user) for user in filtered_users])
             del filters['search_users']
-            logger.info(f'Added {len(exact_groups)} exact groups to filter (removed fuzzy user search)')
+            logger.info(f'Added {len(filtered_users)} user principals to filter (removed fuzzy user search)')
         # Next, fuzzy group search
-        elif filters.get('search_group'):
+        elif filters.get('search_groups'):
             group_filter: GroupSearch = filters.get('search_groups')
-            exact_groups: list[Group] = self._group_search_internal(group_filter)
-
-            # De-dup exact groups
-            seen = set()
-            deduplicated_list = []
-            for group in exact_groups:
-                identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
-                if identifier not in seen:
-                    seen.add(identifier)
-                    deduplicated_list.append(group)
-            exact_groups = deduplicated_list
-            # Set exact groups into filter that was passed in
-            filters['exact_groups'] = exact_groups
+            matching_groups: list[Group] = self._group_search_internal(group_filter)
+            _add_principals([_group_principal(group) for group in matching_groups])
             # remove the fuzzy search
             del filters['search_groups']
-            logger.info(f'Added {len(exact_groups)} exact groups to filter')
+            logger.info(f'Added {len(matching_groups)} group principals to filter')
         # Finally, fuzzy dynamic group search
         elif filters.get('search_dynamic_groups'):
             dg_filter: DynamicGroupSearch = filters.get('search_dynamic_groups')
-            exact_dgs: list[DynamicGroup] = self._dynamic_group_search_internal(dg_filter)
-
-            # Set exact DGs into filter that was passed in
-            filters['exact_dynamic_groups'] = exact_dgs
+            matching_dgs: list[DynamicGroup] = self._dynamic_group_search_internal(dg_filter)
+            _add_principals([_dynamic_group_principal(dg) for dg in matching_dgs])
             # Remove fuzzy search
             del filters['search_dynamic_groups']
-            logger.info(f'Added {len(exact_dgs)} exact dynamic groups to filter (removed fuzzy dynamic group search)')
+            logger.info(f'Added {len(matching_dgs)} dynamic group principals to filter')
         else:
             logger.debug('No fuzzy logic executed, search not changed.')
 
     def _resolve_exact_users(self, filters: PolicySearch):
-        """Look for exact users and turn them into groups"""
+        """Look for exact users and turn them into user principal selectors."""
         if not filters.get('exact_users'):
             return
         user_filter: list[User] = filters.get('exact_users')
         logger.info(f'Exact User filter to check: {user_filter}')
-        # Start with no groups and iterate users
-        exact_groups: list[Group] = []
-        for u in self.users:
-            # We need an exact match on domain and username
-            user_domain = u.get('domain_name') or 'default'
-            user_name = u.get('user_name')
-            for filter_user in user_filter:
-                filter_domain = filter_user.get('domain_name') or 'default'
-                filter_name = filter_user.get('user_name')
-
-                logger.debug(
-                    f'Checking actual user {user_domain}/{user_name} against filter user {filter_domain}/{filter_name}'
-                )
-                if (
-                    filter_domain.casefold() == user_domain.casefold()
-                    and filter_name.casefold() == user_name.casefold()
-                ):
-                    # get groups for user
-                    logger.debug(f'Exact user match found: {user_domain}/{user_name}')
-                    uu: User = {'domain_name': user_domain, 'user_name': user_name}  # type: ignore
-                    user_groups: list[Group] = self.get_groups_for_user(uu)
-                    logger.debug(f'User groups: {user_groups}')
-                    # add groups into exact match in filter
-                    exact_groups.extend(user_groups)
-        # De-dup exact groups
-        seen = set()
-        deduplicated_list = []
-        for group in exact_groups:
-            identifier = (group.get('domain_name') or 'Default', group.get('group_name'))
-            if identifier not in seen:
-                seen.add(identifier)
-                deduplicated_list.append(group)
-        exact_groups = deduplicated_list
-        # Set exact groups into filter that was passed in
-        filters['exact_groups'] = exact_groups
+        principals: list[Principal] = []
+        for user in user_filter:
+            principal: Principal = {
+                'principal_type': 'user',
+                'domain_name': user.get('domain_name') or 'Default',
+                'name': user.get('user_name') or '',
+            }
+            if user.get('user_ocid'):
+                principal['ocid'] = str(user.get('user_ocid'))
+            principals.append(principal)
+        existing = filters.get('principals', []) or []
+        if not isinstance(existing, list):
+            existing = []
+        existing.extend(principals)
+        filters['principals'] = existing
         del filters['exact_users']
-        logger.info(f'Exact User Search {len(exact_groups)} exact groups to filter (removed exact user search)')
+        logger.info(f'Exact User Search added {len(principals)} user principals to filter')
 
     def filter_groups(self, group_filter: GroupSearch) -> list[Group]:
         """Filter groups based on the provided filter.  Public function used by MCP or UI"""

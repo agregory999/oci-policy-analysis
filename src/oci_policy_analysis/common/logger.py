@@ -19,6 +19,21 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 
+def _level_value(level: str | int | None, default: int = logging.INFO) -> int:
+    """Return a logging level value from a string or integer input."""
+
+    if level is None:
+        return default
+    if isinstance(level, int):
+        return level
+    value = str(level).strip()
+    if not value:
+        return default
+    if value.isdigit():
+        return int(value)
+    return logging._nameToLevel.get(value.upper(), default)
+
+
 def _resolve_logger_name(component: str) -> str:
     """Resolve configured component keys to concrete logger names.
 
@@ -46,7 +61,11 @@ def _resolve_logger_name(component: str) -> str:
 
 
 class ForceFlushStreamHandler(logging.StreamHandler):
-    """A stream handler that flushes after every emit, ensuring logs always show up immediately—even from threads."""
+    """Stream handler that flushes after every log record.
+
+    This keeps console and MCP stderr logs visible promptly, including when
+    records are emitted from worker threads.
+    """
 
     def emit(self, record):
         super().emit(record)
@@ -71,7 +90,7 @@ def _setup_logging() -> None:
     if root.handlers:  # Already setup? Skip.
         return
 
-    root.setLevel(logging.INFO)  # Default level
+    root.setLevel(_level_value(os.environ.get('OCI_POLICY_ANALYSIS_LOG_LEVEL'), default=logging.WARNING))
 
     # Clear any existing handlers on root
     for h in list(root.handlers):
@@ -101,7 +120,8 @@ def _setup_logging() -> None:
     file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s'))
     root.addHandler(file_handler)
 
-    root.info('Root logger initialized (stdout + app.log).')
+    stream_name = 'stderr' if os.environ.get('MCP_STDIO_MODE', '0') == '1' else 'stdout'
+    root.info('Root logger initialized (%s + app.log).', stream_name)
 
 
 def get_logger(component: str | None = None) -> logging.Logger:
@@ -120,7 +140,7 @@ def get_logger(component: str | None = None) -> logging.Logger:
     return lgr
 
 
-def set_log_level(level: str | int) -> None:
+def set_log_level(level: str | int, announce: bool = True) -> None:
     """
     Set root logger level (affects all non-overridden loggers).
 
@@ -137,11 +157,9 @@ def set_log_level(level: str | int) -> None:
 
     Args:
         level: Level name (e.g., 'DEBUG') or int.
+        announce: Whether to log the resulting level change.
     """
-    if isinstance(level, str):
-        level_value = logging._nameToLevel.get(level.upper(), logging.INFO)
-    else:
-        level_value = int(level)
+    level_value = _level_value(level)
 
     # If we are in DEBUG, stay there (must have been passed in)
     if logging.getLogger().level == logging.DEBUG:
@@ -162,7 +180,8 @@ def set_log_level(level: str | int) -> None:
         logging.getLogger(logger_name).setLevel(level_value)
 
     # logging.getLogger().setLevel(level_value)  # Root
-    logging.getLogger().warning(f'Global (root) log level set to {logging.getLevelName(level_value)}')
+    if announce:
+        logging.getLogger().warning(f'Global (root) log level set to {logging.getLevelName(level_value)}')
 
 
 def set_component_level(component: str, level: str | int) -> None:

@@ -57,3 +57,5 @@ private/
 # --- Cline ---
 .cline/
 node_modules
+env.sh
+usage-par.txt
