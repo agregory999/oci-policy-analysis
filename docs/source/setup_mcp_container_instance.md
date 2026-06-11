@@ -18,7 +18,7 @@ The default runtime behavior in this guide is:
 - Docker installed locally.
 - A private OCIR repository path (you said you are creating this).
 - A VCN/subnet where the Container Instance can reach OCI public APIs (typically via NAT Gateway in private subnet).
-- IAM policy for the Container Instance dynamic group granting the read permissions needed by policy analysis.
+- IAM policy for the Container Instance granting the read permissions needed by policy analysis. See [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
 
 ## 2. Build and Push to OCIR
 
@@ -141,7 +141,7 @@ OCI Console manual flow (alternative):
      - `MCP_LOG_LEVEL=INFO`
      - `MCP_SAVE_CACHE_AFTER_LOAD=false`
      - `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` (recommended for tenancies where identity domains are in child compartments)
-6. Attach IAM policy for the container instance dynamic group (resource principal auth path).
+6. Attach IAM policy for the container instance resource principal auth path. See [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
 7. Create and wait until state is `Active`.
 
 ## 5. Validate in OCI

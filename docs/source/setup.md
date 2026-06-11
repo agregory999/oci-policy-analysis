@@ -14,6 +14,35 @@ If you are not sure which to choose:
 
 For a high-level capability comparison by startup mode, see [Overview](overview.md).
 
+## Permissions Required and Authentication
+
+All modes use the same OCI IAM permissions and auth choices:
+
+- Named OCI profile
+- Instance principal
+- Session token
+- Resource principal for OCI Container Instance deployments
+
+Required baseline policies:
+
+```text
+allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
+allow group <your_group> to use generative-ai-family in tenancy
+```
+
+For dynamic-group/instance-principal usage, grant equivalent policies to the dynamic group.
+
+```text
+allow dynamic-group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
+allow dynamic-group <your_group> to use generative-ai-family in tenancy
+```
+
+For resource principal usage with a container instance, grant as follows:
+
+```text
+allow any-user to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy where all { request.principal.type = 'containerinstance', request.principal.id = '<ocid of container instance>' }
+```
+
 ## Server-first pip installs (no git clone)
 
 If you are starting on a non-desktop server and want quick copy/paste commands,

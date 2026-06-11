@@ -147,20 +147,8 @@ If users report “Invalid access key”:
 
 ## Permissions Required and Authentication
 
-Web mode uses the same OCI IAM permissions and auth choices as desktop mode:
-
-- Named OCI profile
-- Instance principal
-- Session token
-
-Required baseline policies:
-
-```text
-allow group <your_group> to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy
-allow group <your_group> to use generative-ai-family in tenancy
-```
-
-For dynamic-group/instance-principal usage, grant equivalent policies to the dynamic group.
+Web mode uses the shared OCI IAM permissions and authentication models.
+For complete policy statements and auth details, see [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
 
 ## Quick Post-Deploy Validation (Web)
 

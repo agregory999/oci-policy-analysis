@@ -84,13 +84,8 @@ python -m oci_policy_analysis.main
 
 ## Permissions & Authentication
 
-Desktop mode uses the same OCI permissions/authentication models as other modes:
-
-- Named OCI profile
-- Instance principal
-- Session token
-
-For complete policy statements and auth details, see [setup_web.md](setup_web.md#permissions-required-and-authentication) (shared across modes).
+Desktop mode uses the shared OCI IAM permissions and authentication models.
+For complete policy statements and auth details, see [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
 
 ## Troubleshooting (Desktop)
 
