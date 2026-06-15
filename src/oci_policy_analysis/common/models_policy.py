@@ -6,19 +6,17 @@ from .models_iam import DynamicGroup, DynamicGroupSearch, Group, GroupSearch, Us
 
 
 class Principal(TypedDict, total=False):
-    """Canonical principal representation for parsed policy statements."""
+    """Canonical policy principal."""
 
     principal_type: Annotated[
         str,
-        "Principal type (e.g., 'group', 'group-id', 'dynamic-group', 'dynamic-group-id', 'user', 'any-user', 'service').",
+        'Principal type.',
     ]
-    principal_key: Annotated[str, 'Canonical principal key used for stable matching/display.']
-    domain_name: NotRequired[
-        Annotated[str | None, 'Identity domain for name-based principals; usually None for id-based principals.']
-    ]
-    name: NotRequired[Annotated[str, 'Display/principal name for name-based principals.']]
-    ocid: NotRequired[Annotated[str, 'OCID for id-based principals when present.']]
-    display_name: NotRequired[Annotated[str, 'Human-readable display string for UI/debug output.']]
+    principal_key: Annotated[str, 'Canonical principal key.']
+    domain_name: NotRequired[Annotated[str | None, 'Identity domain.']]
+    name: NotRequired[Annotated[str, 'Principal name.']]
+    ocid: NotRequired[Annotated[str, 'Principal OCID.']]
+    display_name: NotRequired[Annotated[str, 'Display label.']]
 
 
 class BasePolicy(TypedDict, total=False):
@@ -46,69 +44,54 @@ class BasePolicy(TypedDict, total=False):
 
 
 class PolicySearch(TypedDict, total=False):
-    """Search/filter model for querying OCI IAM policy statements."""
+    """Policy statement filters."""
 
-    action: Annotated[list[str], "Restrict results to statements of a given action: ['allow'], ['deny'], or both."]
-    exact_groups: Annotated[list[Group], 'Exact Group(s) to filter policies by. Requires full group_name.']
-    exact_users: Annotated[list[User], 'Exact User(s) to filter policies by. Requires full user_name.']
-    exact_dynamic_groups: Annotated[
-        list[DynamicGroup], 'Exact Dynamic Group(s) to filter policies by. Requires full dynamic_group_name.'
-    ]
-    search_groups: Annotated[GroupSearch, 'Fuzzy Search Group(s) to filter policies by. Accepts full or partial names.']
-    search_users: Annotated[UserSearch, 'Fuzzy Search User(s) to filter policies by. Accepts full or partial names.']
-    search_dynamic_groups: Annotated[
-        DynamicGroupSearch, 'Fuzzy Search Dynamic Group(s) to filter policies by. Accepts full or partial names.'
-    ]
+    action: Annotated[list[str], "Statement actions: 'allow' or 'deny'."]
+    exact_groups: Annotated[list[Group], 'Exact groups.']
+    exact_users: Annotated[list[User], 'Exact users.']
+    exact_dynamic_groups: Annotated[list[DynamicGroup], 'Exact dynamic groups.']
+    search_groups: Annotated[GroupSearch, 'Fuzzy group search.']
+    search_users: Annotated[UserSearch, 'Fuzzy user search.']
+    search_dynamic_groups: Annotated[DynamicGroupSearch, 'Fuzzy dynamic group search.']
     principals: Annotated[
         list[Principal],
-        'Structured principal selector(s) to filter policy subjects by principal_type, principal_key, domain_name, name, ocid, or display_name.',
+        'Structured principal selectors.',
     ]
     principal_keys: Annotated[
         list[str],
-        'Canonical principal key(s) to filter policy subjects by, such as "group:Default/Admins".',
+        'Canonical principal keys.',
     ]
     verb: Annotated[
         list[Literal['inspect', 'read', 'use', 'manage']],
-        'One or more policy verbs to match. Each value filters by IAM verb type.',
+        'Policy verbs to match.',
     ]
-    statement_text: Annotated[list[str], 'Substring(s) of the policy statement text to match.']
-    policy_name: Annotated[list[str], 'Filter by policy display name(s).']
-    compartment_path: Annotated[
-        list[str], "Compartment(s) that define the policy. Supports 'ROOTONLY' to restrict to root-level policies."
-    ]
-    resource: Annotated[
-        list[str], "One or more OCI resources (e.g., 'instance', 'bucket') that this policy applies to."
-    ]
+    statement_text: Annotated[list[str], 'Statement text substrings.']
+    policy_name: Annotated[list[str], 'Policy names.']
+    compartment_path: Annotated[list[str], "Policy compartment paths; 'ROOTONLY' means root policies."]
+    resource: Annotated[list[str], 'Policy resource types.']
     location: Annotated[
         list[str],
-        "Relative compartment path(s) or OCIDs representing where the policy applies. Accepts 'tenancy' for top-level.",
+        'Policy locations or OCIDs.',
     ]
     effective_path: Annotated[
         list[str],
-        'Computed effective compartment path(s) for scope evaluation, used to determine inheritance of permissions. '
-        'Always starts with ROOT  '
-        'An example is ROOT/compartment1/sub-comp'
-        'This filter can handle multiple paths as a list of strings. '
-        'Supports partial paths, e.g., ROOT/compartment1',
-        'To match, this must be an exact match or a prefix(startswith) of the effective path of a policy statement.',
+        'Effective paths; exact or prefix match.',
     ]
     subject_type: Annotated[
         list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']],
-        "Type of subject targeted by the policy. Must be one or more of 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
+        'Policy subject types.',
     ]
-    subject: Annotated[list[str], 'Subject identifier(s), usually user, group, or domain/name pairs.']
+    subject: Annotated[list[str], 'Subject identifiers.']
     principal_key: Annotated[
         list[str],
-        'Canonical principal key(s) for exact principal matching (e.g., user:Default/alice, service:None/database).',
+        'Legacy principal key filter.',
     ]
-    permission: Annotated[
-        list[str], "List of specific permissions or actions (e.g., 'START_INSTANCE', 'READ_OBJECTS')."
-    ]
-    comments: Annotated[list[str], 'Comment text that appears at the end of policy statements (if any).']
-    conditions: Annotated[list[str], "Conditional clauses ('any', 'all', etc.) used within the policy statement."]
+    permission: Annotated[list[str], 'Permission names.']
+    comments: Annotated[list[str], 'Statement comment substrings.']
+    conditions: Annotated[list[str], 'Condition substrings.']
     valid: Annotated[
         bool,
-        'If set to True, only return valid policy statements that parsed and passed validation. If False, only invalid statements.',
+        'True for valid statements; false for invalid.',
     ]
 
 
@@ -127,30 +110,30 @@ class PolicyOverlap(TypedDict):
 class BasePolicyStatement(TypedDict):
     """Base model for all OCI policy statement types, containing shared fields."""
 
-    policy_name: Annotated[str, 'Display name of the policy containing this statement.']
-    policy_ocid: Annotated[str, 'Unique OCID identifier of the policy.']
-    compartment_ocid: Annotated[str, 'OCID of the compartment where this policy is defined.']
-    compartment_path: Annotated[str, 'Path of the compartment that owns this policy.']
-    statement_text: Annotated[str, 'The full, raw text of the policy statement as defined in OCI.']
-    creation_time: Annotated[str, 'Timestamp (ISO-8601) of the policy creation in OCI.']
-    internal_id: Annotated[str, 'Unique internal hash identifier for this statement.']
-    parsed: Annotated[bool, 'True if the parser successfully interpreted this statement and extracted its components.']
+    policy_name: Annotated[str, 'Policy name.']
+    policy_ocid: Annotated[str, 'Policy OCID.']
+    compartment_ocid: Annotated[str, 'Policy compartment OCID.']
+    compartment_path: Annotated[str, 'Policy compartment path.']
+    statement_text: Annotated[str, 'Raw policy statement.']
+    creation_time: Annotated[str, 'Policy creation time.']
+    internal_id: Annotated[str, 'Internal statement ID.']
+    parsed: Annotated[bool, 'True when parsed.']
 
 
 class DefineStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'define' policy statement with optional metadata."""
 
-    valid: Annotated[bool, 'True if the statement passed parsing and validation']
-    defined_type: Annotated[str, 'Type of object defined (user, group, dynamic-group, etc.)']
-    defined_name: Annotated[str, 'Name of the defined object']
-    ocid_alias: Annotated[str, 'Alias assigned for this definition, if any']
-    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
+    valid: Annotated[bool, 'True when valid.']
+    defined_type: Annotated[str, 'Defined object type.']
+    defined_name: Annotated[str, 'Defined object name.']
+    ocid_alias: Annotated[str, 'Defined OCID alias.']
+    comment: NotRequired[Annotated[str, 'Statement comment.']]
 
 
 class EndorseStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'endorse' cross-tenancy policy statement with optional metadata."""
 
-    valid: Annotated[bool, 'True if the statement passed parsing and validation']
+    valid: Annotated[bool, 'True when valid.']
     action_type: Annotated[
         Literal['endorse', 'deny endorse'], 'Type of endorse action: either "endorse" or "deny endorse"'
     ]
@@ -158,160 +141,128 @@ class EndorseStatement(BasePolicyStatement, total=False):
         Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
         'Type of principal: group, dynamic-group, any-user, service.',
     ]
-    principal_keys: NotRequired[
-        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
-    ]
-    endorsed_principal: Annotated[str, 'Name of the principal being endorsed (group, dynamic-group, etc.)']
-    endorsed_principal_tenancy: Annotated[str, 'The tenancy of the endorsed group or dynamic-group']
-    endorse_action: Annotated[str, 'Verb or permission for the endorse statement (e.g., associate, use, etc.)']
-    endorse_resource: Annotated[
-        str, 'Target OCI resource of the endorse statement (e.g., instance-family, bucket, etc.)'
-    ]
-    endorse_permissions: NotRequired[Annotated[list[str], 'List of explicit permissions being endorsed']]
-    endorse_tenancy: Annotated[str, 'Defined name of the endorsed tenancy']
-    endorse_associate_resource: NotRequired[Annotated[str, 'Resource being associated (resource_a)']]
-    endorse_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
-    endorse_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
-    endorse_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
-    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause text when endorse uses associate semantics']]
-    tenancy_aliases: NotRequired[
-        Annotated[list[str], 'Referenced tenancy aliases discovered during parsing (unresolved)']
-    ]
+    principal_keys: NotRequired[Annotated[list[str], 'Canonical principal keys.']]
+    endorsed_principal: Annotated[str, 'Endorsed principal.']
+    endorsed_principal_tenancy: Annotated[str, 'Endorsed principal tenancy.']
+    endorse_action: Annotated[str, 'Endorse verb/permission.']
+    endorse_resource: Annotated[str, 'Endorse resource.']
+    endorse_permissions: NotRequired[Annotated[list[str], 'Endorse permissions.']]
+    endorse_tenancy: Annotated[str, 'Endorsed tenancy alias.']
+    endorse_associate_resource: NotRequired[Annotated[str, 'Associate resource A.']]
+    endorse_associate_tenancy: NotRequired[Annotated[str, 'Associate tenancy A.']]
+    endorse_associate_with_resource: NotRequired[Annotated[str, 'Associate resource B.']]
+    endorse_associate_with_tenancy: NotRequired[Annotated[str, 'Associate tenancy B.']]
+    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause.']]
+    tenancy_aliases: NotRequired[Annotated[list[str], 'Referenced tenancy aliases.']]
     resolved_aliases: NotRequired[
         Annotated[
             dict[str, dict[str, str | bool]],
             'Alias resolution map populated by intelligence step; keys are alias names and values include ocid/resolved.',
         ]
     ]
-    aliases_resolved: NotRequired[Annotated[bool, 'True when all referenced aliases are resolved to define OCIDs']]
-    where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
-    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
+    aliases_resolved: NotRequired[Annotated[bool, 'True when aliases resolve.']]
+    where_clause: NotRequired[Annotated[str, 'Where clause.']]
+    comment: NotRequired[Annotated[str, 'Statement comment.']]
 
 
 class AdmitStatement(BasePolicyStatement, total=False):
     """Parsed OCI IAM 'admit' cross-tenancy policy statement with parsed metadata."""
 
-    valid: Annotated[bool, 'True if the statement passed parsing and validation']
+    valid: Annotated[bool, 'True when valid.']
     action_type: Annotated[Literal['admit', 'deny admit'], 'Type of admit action: either "admit" or "deny admit"']
     admitted_principal_type: Annotated[
         Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service'],
         'Type of principal: group, dynamic-group, any-user, etc.',
     ]
-    principal_keys: NotRequired[
-        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
-    ]
-    admitted_principal: Annotated[str, 'Name of the principal being admitted (group, dynamic-group, etc.)']
-    admitted_tenancy: Annotated[str, 'The tenancy of the admitted group or dynamic-group']
-    admit_action: Annotated[str, 'Verb or permission for the admit statement (e.g., read, manage, use, etc.)']
-    admit_resource: Annotated[str, 'Target OCI resource of the admit statement (e.g., all-resources, orm-stack, etc.)']
-    admit_permissions: NotRequired[Annotated[list[str], 'List of explicit permissions being admitted']]
-    admit_location_type: Annotated[str, 'tenancy or compartment or compartment id']
-    admit_location: Annotated[str, 'The actual location value (e.g., tenancy, compartment OCID, etc.)']
-    admit_associate_resource: NotRequired[Annotated[str, 'Resource being associated (resource_a)']]
-    admit_associate_tenancy: NotRequired[Annotated[str, 'Location of resource being associated']]
-    admit_associate_with_resource: NotRequired[Annotated[str, 'Remote resource being associated (resource_b)']]
-    admit_associate_with_tenancy: NotRequired[Annotated[str, 'Location of second resource being associated']]
-    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause text when admit uses associate semantics']]
-    tenancy_aliases: NotRequired[
-        Annotated[list[str], 'Referenced tenancy aliases discovered during parsing (unresolved)']
-    ]
+    principal_keys: NotRequired[Annotated[list[str], 'Canonical principal keys.']]
+    admitted_principal: Annotated[str, 'Admitted principal.']
+    admitted_tenancy: Annotated[str, 'Admitted tenancy.']
+    admit_action: Annotated[str, 'Admit verb/permission.']
+    admit_resource: Annotated[str, 'Admit resource.']
+    admit_permissions: NotRequired[Annotated[list[str], 'Admit permissions.']]
+    admit_location_type: Annotated[str, 'Admit location type.']
+    admit_location: Annotated[str, 'Admit location.']
+    admit_associate_resource: NotRequired[Annotated[str, 'Associate resource A.']]
+    admit_associate_tenancy: NotRequired[Annotated[str, 'Associate tenancy A.']]
+    admit_associate_with_resource: NotRequired[Annotated[str, 'Associate resource B.']]
+    admit_associate_with_tenancy: NotRequired[Annotated[str, 'Associate tenancy B.']]
+    associate_clause_raw: NotRequired[Annotated[str, 'Raw associate clause.']]
+    tenancy_aliases: NotRequired[Annotated[list[str], 'Referenced tenancy aliases.']]
     resolved_aliases: NotRequired[
         Annotated[
             dict[str, dict[str, str | bool]],
             'Alias resolution map populated by intelligence step; keys are alias names and values include ocid/resolved.',
         ]
     ]
-    aliases_resolved: NotRequired[Annotated[bool, 'True when all referenced aliases are resolved to define OCIDs']]
-    where_clause: NotRequired[Annotated[str, 'Optional where clause (all {...}) attached']]
-    comment: NotRequired[Annotated[str, 'Trailing policy statement comment if present']]
+    aliases_resolved: NotRequired[Annotated[bool, 'True when aliases resolve.']]
+    where_clause: NotRequired[Annotated[str, 'Where clause.']]
+    comment: NotRequired[Annotated[str, 'Statement comment.']]
 
 
 class RegularPolicyStatement(BasePolicyStatement, total=False):
     """Represents a parsed OCI IAM policy statement."""
 
-    action: Annotated[
-        Literal['allow', 'deny'], "The IAM action specified in the policy statement: either 'allow' or 'deny'."
-    ]
-    valid: Annotated[bool, 'True if the statement successfully parsed and passed internal validation.']
-    invalid_reasons: Annotated[list[str], 'If invalid, the reasons why parsing or validation failed.']
+    action: Annotated[Literal['allow', 'deny'], "Statement action: 'allow' or 'deny'."]
+    valid: Annotated[bool, 'True when valid.']
+    invalid_reasons: Annotated[list[str], 'Validation errors.']
     subject_type: Annotated[
         str,
-        "Type of subject targeted by the policy, such as 'group', 'dynamic-group', 'any-user', 'any-group', or 'service'.",
+        'Policy subject type.',
     ]
     subject: Annotated[
         list[tuple[str | None, str]] | str,
-        'The subject(s) this policy applies to. May be a list of (domain, name) tuples or a simple string if unstructured.',
+        'Policy subject value.',
     ]
     principals: Annotated[
         list[Principal],
-        'Derived canonical principal model list. Additive/non-breaking; legacy subject field remains during transition.',
+        'Canonical principals.',
     ]
-    principal_keys: NotRequired[
-        Annotated[list[str], 'Canonical principal key list derived from parsed subject payload.']
-    ]
-    verb: Annotated[str, "The IAM verb granting the level of access: one of 'inspect', 'read', 'use', or 'manage'."]
-    resource: Annotated[
-        str, "OCI resource type targeted by this statement (e.g., 'instance-family', 'bucket', 'compartment')."
-    ]
+    principal_keys: NotRequired[Annotated[list[str], 'Canonical principal keys.']]
+    verb: Annotated[str, 'IAM verb.']
+    resource: Annotated[str, 'Policy resource type.']
     permission: Annotated[
         list[str],
-        "Specific permissions or actions derived from the statement (e.g., 'START_INSTANCE', 'READ_OBJECTS').",
+        'Derived permission names.',
     ]
-    location_type: Annotated[str, "Indicates how the location was resolved: 'explicit', 'root', 'derived', etc."]
-    location: Annotated[str, 'Human-readable compartment path or OCID representing where this policy applies.']
-    effective_compartment_ocid: Annotated[
-        str | None, 'OCID of the effective compartment determined from policy scope analysis.'
-    ]
+    location_type: Annotated[str, 'Location resolution type.']
+    location: Annotated[str, 'Policy location.']
+    effective_compartment_ocid: Annotated[str | None, 'Effective compartment OCID.']
     effective_path: Annotated[
         str | None,
-        'Resolved compartment path string showing where the statement takes effect, including inherited scopes.',
+        'Effective compartment path.',
     ]
-    conditions: Annotated[
-        str, "Conditional logic (e.g., 'where any {request.user.id = ...}') if present in the statement."
-    ]
-    comments: Annotated[str, 'Comments or annotations appended to the policy statement text, if any.']
-    parsing_notes: Annotated[
-        list[str], 'List of notes or warnings generated during parsing, such as unsupported constructs.'
-    ]
+    conditions: Annotated[str, 'Statement conditions.']
+    comments: Annotated[str, 'Statement comments.']
+    parsing_notes: Annotated[list[str], 'Parser notes.']
 
 
 class PolicySummary(TypedDict):
-    """Model for lightweight summary reporting for policy statement queries."""
+    """Policy filter summary."""
 
     response_type: Literal['summary']
-    total_statements: Annotated[int, 'Total number of policy statements that matched the filter']
-    truncated: Annotated[bool, 'True if results were truncated due to size limits']
-    truncation_point: Annotated[int, 'Number of statements included before truncation occurred']
-    policy_breakdown: Annotated[
-        dict[str, int], 'Count of statements by policy name (e.g., {"CloudGuardPolicies": 29, "Arista-Policy": 7})'
-    ]
-    action_breakdown: Annotated[dict[str, int], 'Count of statements by action (e.g., {"allow": 82, "deny": 33})']
-    compartment_breakdown: Annotated[
-        dict[str, int], 'Count of statements by compartment (e.g., {"ROOT": 45, "ROOT/LZ-Top": 29})'
-    ]
-    subject_type_breakdown: Annotated[
-        dict[str, int], 'Count of statements by subject type (e.g., {"group": 250, "service": 50, "dynamic-group": 40})'
-    ]
-    verb_breakdown: Annotated[
-        dict[str, int], 'Count of statements by verb (e.g., {"manage": 120, "read": 100, "use": 80, "inspect": 40})'
-    ]
-    sample_statements: Annotated[
-        list[str], 'Sample of statement texts to give context (limited to first 10-20 statements)'
-    ]
-    message: Annotated[str, 'Human-readable explanation of why summary was returned instead of full data']
+    total_statements: Annotated[int, 'Matched statement count.']
+    truncated: Annotated[bool, 'True when summarized.']
+    truncation_point: Annotated[int, 'Full-result threshold.']
+    policy_breakdown: Annotated[dict[str, int], 'Count by policy.']
+    action_breakdown: Annotated[dict[str, int], 'Count by action.']
+    compartment_breakdown: Annotated[dict[str, int], 'Count by compartment.']
+    subject_type_breakdown: Annotated[dict[str, int], 'Count by subject type.']
+    verb_breakdown: Annotated[dict[str, int], 'Count by verb.']
+    sample_statements: Annotated[list[str], 'Sample statements.']
+    message: Annotated[str, 'Summary note.']
 
 
 class PolicyStatementFull(TypedDict):
-    """Model for detailed/full reporting of policy statement queries."""
+    """Policy filter full result."""
 
     response_type: Literal['full']
-    statements: Annotated[list[RegularPolicyStatement], 'Complete list of policy statements']
-    total_count: Annotated[int, 'Total number of statements returned']
+    statements: Annotated[list[RegularPolicyStatement], 'Matched statements.']
+    total_count: Annotated[int, 'Returned statement count.']
 
 
 PolicyFilterResponse = Annotated[
     PolicySummary | PolicyStatementFull,
-    'Response from policy filter operations - either summary or full data based on size constraints',
+    'Policy filter result.',
 ]
 
 

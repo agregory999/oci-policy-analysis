@@ -543,12 +543,7 @@ Full procedure:
 
 ## Available MCP Tools
 
-MCP clients such as **Claude** and **VS Code Copilot** understand the request and response types described below. Users interact with these clients by asking questions in natural language, and the client will interpret your query and translate it into requests to the appropriate MCP tools. The client will automatically choose the best tool, construct the request, and present the results in a readable format.
-
-### How It Works
-- **Ask in natural language:** You can ask questions like "Show me all users in the cloud-engineering domain" or "List policies that allow manage on databases."
-- **Automatic tool selection:** The MCP client will select the right tool and build the request for you.
-- **Structured responses:** Results are returned in structured formats (summaries, lists, breakdowns) and presented clearly.
+MCP clients choose tools from concise descriptions and JSON schemas. The server keeps tool schemas intentionally small; full examples and response notes live here instead of in the tool description payload.
 
 ### Example Natural Language Queries
 
@@ -562,7 +557,7 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 | "Show me policies with use or manage that cover databases or instances" | `filter_policy_statements` | `{ "verb": ["use", "manage"], "resource": ["database", "instance-family"] }` |
 | "Find all groups in the Default domain with 'viewer' or 'admin' in the name" | `search_groups` | `{ "domain_name": ["Default"], "group_name": ["viewer", "admin"] }` |
 | "List users named Andrew or Mark in cloud-engineering-domain" | `search_users` | `{ "search": ["andrew", "mark"], "domain_name": ["cloud-engineering-domain"] }` |
-| "Show policies for group 'cloud-engineering-domain-users' in root compartment" | `filter_policy_statements` | `{ "principals": [{"principal_type": "group", "domain_name": "cloud-engineering-domain", "name": "cloud-engineering-domain-users"}], "policy_compartment": ["ROOTONLY"] }` |
+| "Show policies for group 'cloud-engineering-domain-users' in root compartment" | `filter_policy_statements` | `{ "principals": [{"principal_type": "group", "domain_name": "cloud-engineering-domain", "name": "cloud-engineering-domain-users"}], "compartment_path": ["ROOTONLY"] }` |
 | "Show policies for the Default Administrators group principal" | `filter_policy_statements` | `{ "principals": [{"principal_type": "group", "domain_name": "Default", "name": "Administrators"}] }` |
 
 ---
@@ -570,12 +565,9 @@ MCP clients such as **Claude** and **VS Code Copilot** understand the request an
 The OCI Policy Analysis MCP Server exposes the following tools for querying OCI IAM data:
 
 ### reload_mcp_data
-Reload all policy and identity data from OCI through the same application load service used by the main app.
+Reload live OCI policy and identity data through the same load service used by the main app.
 
-**Features:**
-- Live reloads the full OCI tenancy policy and identity data (requires running server with profile or instance principal, not just cache mode).
-- Also saves a new combined cache after reload, unless `--dont-save-cache-after-load` is set.
-- Useful for refreshing the data visible to MCP clients without restarting the server process.
+This requires a server started with profile, instance principal, resource principal, or session-token auth. It is not available for cache-only runs. Unless the server was started with `--dont-save-cache-after-load`, reload also writes a new combined cache.
 
 **Input:** None
 
@@ -596,25 +588,29 @@ Reload all policy and identity data from OCI through the same application load s
 ```
 
 ### filter_policy_statements
-**Primary tool for policy analysis** - Filter OCI IAM policy statements with flexible criteria.
+Primary policy-analysis tool. Filters loaded OCI IAM policy statements.
 
 **Features:**
 - OR logic within each field, AND logic across fields
 - Returns summary for large result sets (>50 statements), full details for smaller sets
-- Supports exact matching and fuzzy search
+- Uses compact MCP-facing filters; search identities first when fuzzy identity lookup is needed
 
 **Filter Options:**
+- `action`: `["allow"]`, `["deny"]`, or both
 - `verb`: ["inspect", "read", "use", "manage"]
-- `resource`: Resource types (e.g., "instance-family", "database")
-- `subject_type`: ["user", "group", "dynamic-group", "any-user"]
-- `subject`: Token search across subject/principal domain, name, OCID, principal key, or display name
-- `principals`: Structured principal selectors using `principal_type`, `principal_key`, `domain_name`, `name`, `ocid`, or `display_name`
+- `resource`: Resource types, for example `instance-family`, `database`, or `bucket`
+- `subject_type`: `group`, `dynamic-group`, `any-user`, `any-group`, or `service`
+- `principals`: Structured selectors using `principal_type`, `principal_key`, `domain_name`, `name`, `ocid`, or `display_name`
 - `principal_keys`: Canonical principal key matching, such as `group:Default/Administrators`
-- `location`: Compartment paths where resources are accessed
-- `policy_compartment`: Compartment where policy is defined (use "ROOTONLY" for root only)
-- `policy_text`: Text search within statement
-- `exact_groups`, `exact_users`, `exact_dynamic_groups`: Legacy precise identity matching, retained for compatibility
-- `search_groups`, `search_users`, `search_dynamic_groups`: Fuzzy search with partial matches
+- `statement_text`: Text search within statements
+- `policy_name`: Policy display names
+- `compartment_path`: Policy-defining compartment path; `ROOTONLY` means root policies only
+- `location`: Statement location values
+- `effective_path`: Computed effective compartment path; exact or prefix match
+- `permission`: Specific permission names, such as `INSTANCE_LAUNCH`
+- `conditions`: Condition text search
+- `comments`: Comment text search
+- `valid`: `true` for valid parsed statements, `false` for invalid statements
 
 **Examples:**
 ```json
@@ -633,8 +629,8 @@ Reload all policy and identity data from OCI through the same application load s
 // Find database-related permissions with manage or use
 {"verb": ["manage", "use"], "resource": ["database"]}
 
-// Search for users by name
-{"search_users": {"search": ["andrew", "bob"]}}
+// Find policies whose effective scope includes a compartment path
+{"effective_path": ["ROOT/Prod"], "verb": ["use", "manage"]}
 ```
 
 **Response Types:**
@@ -647,9 +643,9 @@ Reload all policy and identity data from OCI through the same application load s
 Search and retrieve OCI IAM users with optional filtering.
 
 **Filter Options:**
-- `search`: List of partial username/email strings (fuzzy match)
-- `user_ocid`: List of full or partial user OCIDs
-- `domain_name`: List of identity domain names
+- `search`: User name or display-name substrings
+- `user_ocid`: User OCID or OCID substring
+- `domain_name`: Identity domain names
 
 **Examples:**
 ```json
@@ -673,9 +669,9 @@ Search and retrieve OCI IAM users with optional filtering.
 Search and retrieve OCI IAM groups.
 
 **Filter Options:**
-- `group_name`: List of partial group names (fuzzy match)
-- `group_ocid`: List of full or partial group OCIDs
-- `domain_name`: List of identity domain names
+- `group_name`: Group name substrings
+- `group_ocid`: Group OCIDs or OCID substrings
+- `domain_name`: Identity domain names
 
 **Examples:**
 ```json
@@ -702,9 +698,11 @@ Search and retrieve OCI IAM groups.
 Search and retrieve OCI dynamic groups.
 
 **Filter Options:**
-- `dynamic_group_name`: List of partial dynamic group names (fuzzy match)
-- `matching_rule`: List of partial matching rule strings
-- `domain_name`: List of identity domain names
+- `dynamic_group_name`: Dynamic group name substrings
+- `matching_rule`: Matching-rule substrings
+- `dynamic_group_ocid`: Dynamic group OCID or OCID substring
+- `domain_name`: Identity domain names
+- `in_use`: `true` for dynamic groups referenced by policies, `false` for unused groups
 
 **Examples:**
 ```json
@@ -725,7 +723,7 @@ Search and retrieve OCI dynamic groups.
 ---
 
 ### get_groups_for_user
-Get all groups that a specific user belongs to (exact match only).
+Get all groups that a specific user belongs to. This is exact match only; use `search_users` first when the name is uncertain.
 
 **Input:**
 ```json
@@ -740,7 +738,7 @@ Get all groups that a specific user belongs to (exact match only).
 ---
 
 ### get_users_for_group
-Get all users in a specific group (exact match only).
+Get all users in a specific group. This is exact match only; use `search_groups` first when the name is uncertain.
 
 **Input:**
 ```json
@@ -754,7 +752,7 @@ Get all users in a specific group (exact match only).
 
 ---
 
-### cross_tenancy_alias_list
+### cross-tenancy-alias-list
 List all cross-tenancy aliases defined in OCI policies.
 
 **Input:** None
@@ -763,7 +761,7 @@ List all cross-tenancy aliases defined in OCI policies.
 
 ---
 
-### cross_tenancy_policies_by_alias
+### cross-tenancy-policies-by-alias
 Filter cross-tenancy policy statements that reference a specific alias.
 
 **Input:**
@@ -777,10 +775,10 @@ Filter cross-tenancy policy statements that reference a specific alias.
 
 ---
 
-## 💡 Usage Tips
+## Usage Tips
 
 1. **Start broad, then filter**: Begin with empty filters `{}` to get summaries, then add specific criteria
 2. **Combine filters**: Use multiple fields together (AND logic across fields, OR within fields)
-3. **Use fuzzy search**: `search_users`, `search_groups` support partial string matching
-4. **OCID filtering**: All `*_ocid` fields support partial OCID matching
+3. **Use fuzzy identity search first**: Find users, groups, or dynamic groups, then pass `principal_keys` or `principals` to `filter_policy_statements`
+4. **OCID filtering**: `*_ocid` fields support partial OCID matching
 5. **Check response type**: Large result sets return summaries - add filters to get full details

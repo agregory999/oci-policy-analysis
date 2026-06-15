@@ -38,7 +38,7 @@ import argparse  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import threading  # noqa: E402
-from typing import Any  # noqa: E402
+from typing import Any, Literal, TypedDict  # noqa: E402
 
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
@@ -58,22 +58,17 @@ from oci_policy_analysis.common.models_iam import (  # noqa: E402
     UserSearch,
 )
 from oci_policy_analysis.common.models_policy import (  # noqa: E402
-    BasePolicyStatement,
-    DefineStatement,
-    PolicyFilterResponse,
     PolicySearch,
     PolicyStatementFull,
     PolicySummary,
+    Principal,
 )
 from oci_policy_analysis.common.models_responses import (  # noqa: E402
     DynamicGroupSearchFull,
-    DynamicGroupSearchResponse,
     DynamicGroupSummary,
     GroupSearchFull,
-    GroupSearchResponse,
     GroupSummary,
     UserSearchFull,
-    UserSearchResponse,
     UserSummary,
 )
 
@@ -96,6 +91,28 @@ POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
 
 # Decision logic: return summary if result set is too large
 IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
+
+
+class MCPPolicySearch(TypedDict, total=False):
+    """Compact MCP policy filters."""
+
+    action: list[str]
+    principals: list[Principal]
+    principal_keys: list[str]
+    verb: list[Literal['inspect', 'read', 'use', 'manage']]
+    statement_text: list[str]
+    policy_name: list[str]
+    compartment_path: list[str]
+    resource: list[str]
+    location: list[str]
+    effective_path: list[str]
+    subject_type: list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']]
+    subject: list[str]
+    principal_key: list[str]
+    permission: list[str]
+    comments: list[str]
+    conditions: list[str]
+    valid: bool
 
 
 def _build_service_context(log_level: str) -> AppContext:
@@ -368,31 +385,11 @@ async def health_check(request):
 @mcp.tool(
     name='filter_policy_statements',
     description=(
-        'Favor this tool for all policy statement filtering needs.'
-        'Filter OCI IAM policy statements using a JSON filter object. '
-        'Each field is optional; OR within each field, AND across fields. '
-        'Filtering allows Exact User, Group, Dynamic-Group matches. '
-        'Fuzzy matching is also supported for user, group, and dynamic group criteria. '
-        'Special cases: '
-        '- verb must be one of inspect/read/use/manage '
-        '- policy_compartment supports ROOTONLY to bring back policy statements only in the root compartment '
-        '- policy_text matches anywhere in the statement text.'
-        'Response: Returns either full policy statements or a summary based on result size. '
-        'Large result sets (>100 statements) return a PolicySummary with counts and breakdowns. '
-        'Smaller result sets return the complete PolicyStatement list.'
-        'Filter Examples: '
-        '- filter by verb and effective path: {"subject_type": ["group"], "subject": [{"domain_name": "Default", "group_name": "Admins"}], "verb": ["manage"], "resource": ["instance-family"]} '
-        '- filter by group principal and verbs: {"principals":[{"principal_type":"group","domain_name":"Default","name":"PolicyAuditorGroup"}], "verb": ["manage","use"]} '
-        '- filter by group principal, resource and verb: {"principals":[{"principal_type":"group","domain_name":"Default","name":"PolicyAuditorGroup"}], "verb": ["manage"], "resource": ["instance-family"]} '
-        '- filter by dynamic group principal and location: {"principals":[{"principal_type":"dynamic-group","domain_name":"Default","name":"DG1"}], "location": ["compartment1"]} '
-        '- filter by principal key: {"principal_keys":["group:Default/Administrators"]} '
-        '- filter by structured principal: {"principals":[{"principal_type":"group","domain_name":"Default","name":"Administrators"}]} '
-        '- filter by users (fuzzy) and resource: {"search_users":{"search":["andrew","bob"], "user_ocid":["4qa","p57q"]}, "policy_compartment": ["ROOTONLY"]} '
-        '- filter by groups (fuzzy) and resource: {"search_groups":{"search":["admins","developers"], "group_ocid":["4qa","p57q"], "domain_name": ["Default","domain1"]}, "resource": ["instance-family","database"]} '
-        '- filter by dynamic groups (fuzzy) and resource: {"search_dynamic_groups":{"dynamic_group_name":["app","web"], "matching_rule":["instance.compartment.id","instance.id"], "domain_name": ["Default","domain1"]} '
+        'Primary policy search. Filter loaded OCI IAM statements; OR within a field, AND across fields. '
+        'Large matches return a summary; smaller matches return full statements.'
     ),
 )
-def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
+def filter_policy_statements(filters: MCPPolicySearch) -> dict[str, Any]:
     """Filter policy statements through the MCP query service.
 
     Args:
@@ -404,7 +401,7 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
     tool_name = 'filter_policy_statements'
     try:
         logger.info('Tool Policy Filter with JSON filters: %s', filters)
-        raw_results = _query_service().filter_policy_statements(filters)
+        raw_results = _query_service().filter_policy_statements(PolicySearch(**filters))
 
         if len(raw_results) > POLICY_RESULT_THRESHOLD:
             # Generate summary response
@@ -494,15 +491,9 @@ def filter_policy_statements(filters: PolicySearch) -> PolicyFilterResponse:
 # User and Group tools
 @mcp.tool(
     name='get_groups_for_user',
-    description=(
-        'Return all groups that a specified OCI IAM user belongs to. '
-        'Input must include user_name but could also include domain_name. '
-        "Returns a list of group dictionaries with keys 'group_name' and 'domain_name'. "
-        'Only use this tool for getting groups for an exact User (no fuzzy matching). '
-        'For policy filtering, use the main filter_policy_statements tool instead.'
-    ),
+    description=('Return groups for an exact OCI IAM user. Use search_users first when the user name is uncertain.'),
 )
-def get_groups_for_user(user: User) -> list[Group]:
+def get_groups_for_user(user: User) -> list[dict[str, Any]]:
     """Return groups for an exact user through the MCP query service.
 
     Args:
@@ -524,15 +515,9 @@ def get_groups_for_user(user: User) -> list[Group]:
 
 @mcp.tool(
     name='get_users_for_group',
-    description=(
-        'Return all users that belong to a specified OCI IAM group. '
-        "Input must include the group's domain (string or null for Default) and name (string). "
-        "Returns a list of user dictionaries with keys 'user_name', 'user_id', and 'domain_name'. "
-        'Only use this tool for getting users for an exact Group (no fuzzy matching). '
-        'For policy filtering, use the main filter_policy_statements tool instead.'
-    ),
+    description=('Return users for an exact OCI IAM group. Use search_groups first when the group name is uncertain.'),
 )
-def get_users_for_group(group: Group) -> list[User]:
+def get_users_for_group(group: Group) -> list[dict[str, Any]]:
     """Get all users for a specific group.
 
     Args:
@@ -555,15 +540,9 @@ def get_users_for_group(group: Group) -> list[User]:
 # MCP Tool to search for users with Union type response
 @mcp.tool(
     name='search_users',
-    description=(
-        'Return all users that match the specified criteria. '
-        "Input may include the user's email (string) and name (string). "
-        'Returns either a summary or full user list based on result size. '
-        'Pass in no filter criteria to return all users. Any provided criteria will be combined with AND logic. '
-        'For policy filtering, use the main filter_policy_statements tool instead.'
-    ),
+    description=('Search loaded IAM users by domain, name/display name, or OCID. Empty filters list all users.'),
 )
-def search_users(filters: UserSearch) -> UserSearchResponse:
+def search_users(filters: UserSearch) -> dict[str, Any]:
     """Search users through the MCP query service.
 
     Args:
@@ -616,15 +595,9 @@ def search_users(filters: UserSearch) -> UserSearchResponse:
 # MCP tool to search for groups with Union type response
 @mcp.tool(
     name='search_groups',
-    description=(
-        'Return all groups that match the specified criteria. '
-        "Input may include the group's domain (string or null for Default) and name (string). "
-        'Returns either a summary or full group list based on result size. '
-        'Pass in no filter criteria to return all groups. Any provided criteria will be combined with AND logic. '
-        'For policy filtering, use the main filter_policy_statements tool instead.'
-    ),
+    description=('Search loaded IAM groups by domain, name, or OCID. Empty filters list all groups.'),
 )
-def search_groups(filters: GroupSearch) -> GroupSearchResponse:
+def search_groups(filters: GroupSearch) -> dict[str, Any]:
     """Search groups through the MCP query service.
 
     Args:
@@ -680,15 +653,9 @@ def search_groups(filters: GroupSearch) -> GroupSearchResponse:
 # MCP tool to search for dynamic groups with Union type response
 @mcp.tool(
     name='search_dynamic_groups',
-    description=(
-        'Return all dynamic groups that match the specified criteria. '
-        "Input may include the dynamic group's domain (string or null for Default) and name (string). "
-        'Returns either a summary or full dynamic group list based on result size. '
-        'Pass in no filter criteria to return all dynamic groups. Any provided criteria will be combined with AND logic. '
-        'For policy filtering, use the main filter_policy_statements tool instead.'
-    ),
+    description=('Search loaded dynamic groups by domain, name, OCID, rule text, or in-use status.'),
 )
-def search_dynamic_groups(filters: DynamicGroupSearch) -> DynamicGroupSearchResponse:
+def search_dynamic_groups(filters: DynamicGroupSearch) -> dict[str, Any]:
     """Search dynamic groups through the MCP query service.
 
     Args:
@@ -753,7 +720,7 @@ def search_dynamic_groups(filters: DynamicGroupSearch) -> DynamicGroupSearchResp
 
 
 @mcp.tool('cross-tenancy-alias-list', description='List all loaded cross-tenancy alias definitions.')
-def list_cross_tenancy_aliases() -> list[DefineStatement]:
+def list_cross_tenancy_aliases() -> list[dict[str, Any]]:
     """Retrieve all defined aliases from the MCP query service.
 
     Returns:
@@ -770,7 +737,7 @@ def list_cross_tenancy_aliases() -> list[DefineStatement]:
 
 
 @mcp.tool('cross-tenancy-policies-by-alias', description='Filter cross-tenancy policy statements for a given alias.')
-def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStatement]:
+def filter_cross_tenancy_policies_by_alias(alias: str) -> list[dict[str, Any]]:
     """Retrieve all cross-tenancy policy statements that reference an alias.
 
     Args:
@@ -796,9 +763,7 @@ def filter_cross_tenancy_policies_by_alias(alias: str) -> list[BasePolicyStateme
 @mcp.tool(
     name='reload_mcp_data',
     description=(
-        'Reload all policy and identity data from OCI through the MCP load service. '
-        'This allows refreshing data without restarting the server. '
-        'Use with caution as it may take time depending on tenancy size.'
+        'Reload live OCI policy and identity data for this MCP server. Requires live auth, not cache-only mode.'
     ),
 )
 def reload_mcp_data() -> dict:

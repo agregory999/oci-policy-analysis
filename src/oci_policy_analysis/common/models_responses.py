@@ -6,85 +6,79 @@ from .models_iam import DynamicGroup, Group, User
 
 
 class UserSummary(TypedDict):
-    """Lightweight summary of user search results when full details are not shown."""
+    """User search summary."""
 
     response_type: Literal['summary']
-    total_users: Annotated[int, 'Total number of users that matched the search criteria']
-    truncated: Annotated[bool, 'True if results were truncated due to size limits']
-    truncation_point: Annotated[int, 'Number of users included before truncation occurred']
-    domain_breakdown: Annotated[dict[str, int], 'Count of users by domain (e.g., {"Default": 45, "federated": 29})']
-    sample_users: Annotated[list[str], 'Sample of user names to give context (limited to first 10-20 users)']
-    message: Annotated[str, 'Human-readable explanation of why summary was returned instead of full data']
+    total_users: Annotated[int, 'Matched user count.']
+    truncated: Annotated[bool, 'True when summarized.']
+    truncation_point: Annotated[int, 'Full-result threshold.']
+    domain_breakdown: Annotated[dict[str, int], 'User count by domain.']
+    sample_users: Annotated[list[str], 'Sample user names.']
+    message: Annotated[str, 'Summary note.']
 
 
 class UserSearchFull(TypedDict):
-    """Model representing a full user search result set (all users)."""
+    """Full user search result."""
 
     response_type: Literal['full']
-    users: Annotated[list[User], 'Complete list of users']
-    total_count: Annotated[int, 'Total number of users returned']
+    users: Annotated[list[User], 'Matched users.']
+    total_count: Annotated[int, 'Returned user count.']
 
 
 class GroupSummary(TypedDict):
-    """Lightweight summary of group search results."""
+    """Group search summary."""
 
     response_type: Literal['summary']
-    total_groups: Annotated[int, 'Total number of groups that matched the search criteria']
-    truncated: Annotated[bool, 'True if results were truncated due to size limits']
-    truncation_point: Annotated[int, 'Number of groups included before truncation occurred']
-    domain_breakdown: Annotated[dict[str, int], 'Count of groups by domain (e.g., {"Default": 45, "federated": 29})']
-    sample_groups: Annotated[list[str], 'Sample of group names to give context (limited to first 10-20 groups)']
-    message: Annotated[str, 'Human-readable explanation of why summary was returned instead of full data']
+    total_groups: Annotated[int, 'Matched group count.']
+    truncated: Annotated[bool, 'True when summarized.']
+    truncation_point: Annotated[int, 'Full-result threshold.']
+    domain_breakdown: Annotated[dict[str, int], 'Group count by domain.']
+    sample_groups: Annotated[list[str], 'Sample group names.']
+    message: Annotated[str, 'Summary note.']
 
 
 class GroupSearchFull(TypedDict):
-    """Model representing a full group search result set (all groups)."""
+    """Full group search result."""
 
     response_type: Literal['full']
-    groups: Annotated[list[Group], 'Complete list of groups']
-    total_count: Annotated[int, 'Total number of groups returned']
+    groups: Annotated[list[Group], 'Matched groups.']
+    total_count: Annotated[int, 'Returned group count.']
 
 
 class DynamicGroupSummary(TypedDict):
-    """Lightweight summary of dynamic group search results."""
+    """Dynamic group search summary."""
 
     response_type: Literal['summary']
-    total_dynamic_groups: Annotated[int, 'Total number of dynamic groups that matched the search criteria']
-    truncated: Annotated[bool, 'True if results were truncated due to size limits']
-    truncation_point: Annotated[int, 'Number of dynamic groups included before truncation occurred']
-    domain_breakdown: Annotated[
-        dict[str, int], 'Count of dynamic groups by domain (e.g., {"Default": 45, "federated": 29})'
-    ]
-    in_use_breakdown: Annotated[
-        dict[str, int], 'Count of dynamic groups by usage status (e.g., {"in_use": 25, "not_in_use": 10})'
-    ]
-    sample_dynamic_groups: Annotated[
-        list[str], 'Sample of dynamic group names to give context (limited to first 10-20 dynamic groups)'
-    ]
-    message: Annotated[str, 'Human-readable explanation of why summary was returned instead of full data']
+    total_dynamic_groups: Annotated[int, 'Matched dynamic group count.']
+    truncated: Annotated[bool, 'True when summarized.']
+    truncation_point: Annotated[int, 'Full-result threshold.']
+    domain_breakdown: Annotated[dict[str, int], 'Dynamic group count by domain.']
+    in_use_breakdown: Annotated[dict[str, int], 'Count by in-use status.']
+    sample_dynamic_groups: Annotated[list[str], 'Sample dynamic group names.']
+    message: Annotated[str, 'Summary note.']
 
 
 class DynamicGroupSearchFull(TypedDict):
-    """Model representing a full dynamic group search result set."""
+    """Full dynamic group search result."""
 
     response_type: Literal['full']
-    dynamic_groups: Annotated[list[DynamicGroup], 'Complete list of dynamic groups']
-    total_count: Annotated[int, 'Total number of dynamic groups returned']
+    dynamic_groups: Annotated[list[DynamicGroup], 'Matched dynamic groups.']
+    total_count: Annotated[int, 'Returned dynamic group count.']
 
 
 UserSearchResponse = Annotated[
     UserSummary | UserSearchFull,
-    'Response from user search operations - either summary or full data based on size constraints',
+    'User search result.',
 ]
 
 GroupSearchResponse = Annotated[
     GroupSummary | GroupSearchFull,
-    'Response from group search operations - either summary or full data based on size constraints',
+    'Group search result.',
 ]
 
 DynamicGroupSearchResponse = Annotated[
     DynamicGroupSummary | DynamicGroupSearchFull,
-    'Response from dynamic group search operations - either summary or full data based on size constraints',
+    'Dynamic group search result.',
 ]
 
 

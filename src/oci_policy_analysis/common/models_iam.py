@@ -32,107 +32,95 @@ class Compartment(TypedDict, total=False):
 
 
 class Group(TypedDict):
-    """Model representing an OCI IAM group (identity and metadata)."""
+    """OCI IAM group."""
 
-    domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
-    group_name: Annotated[str, 'The name of the group.']
-    group_id: NotRequired[Annotated[str, 'The ID of the group. Not required for filters.']]
-    group_ocid: NotRequired[Annotated[str, 'The OCID of the group. Not required for filters.']]
-    description: NotRequired[Annotated[str, 'The description of the group. Not required for filters.']]
+    domain_name: NotRequired[Annotated[str, 'Identity domain; defaults to Default.']]
+    group_name: Annotated[str, 'Group name.']
+    group_id: NotRequired[Annotated[str, 'Group ID.']]
+    group_ocid: NotRequired[Annotated[str, 'Group OCID.']]
+    description: NotRequired[Annotated[str, 'Group description.']]
 
 
 class User(TypedDict):
-    """Model representing an OCI IAM user."""
+    """OCI IAM user."""
 
-    domain_name: NotRequired[Annotated[str, 'The domain of the user. If not provided, the default domain.']]
-    user_name: Annotated[str, 'The user name. Required']
-    user_ocid: NotRequired[Annotated[str, 'The user OCID. Not required for filters.']]
-    display_name: NotRequired[Annotated[str, 'The display name. Not required for filters.']]
-    email: NotRequired[Annotated[str, 'The primary email address. Not required for filters.']]
-    user_id: NotRequired[Annotated[str, 'The user ID. Not required for filters.']]
-    groups: NotRequired[Annotated[list[str], 'List of group OCIDs the user belongs to. Not required for filters.']]
+    domain_name: NotRequired[Annotated[str, 'Identity domain; defaults to Default.']]
+    user_name: Annotated[str, 'User name.']
+    user_ocid: NotRequired[Annotated[str, 'User OCID.']]
+    display_name: NotRequired[Annotated[str, 'Display name.']]
+    email: NotRequired[Annotated[str, 'Primary email.']]
+    user_id: NotRequired[Annotated[str, 'User ID.']]
+    groups: NotRequired[Annotated[list[str], 'Group OCIDs.']]
 
 
 class DynamicGroup(TypedDict):
-    """Model representing an OCI IAM dynamic group."""
+    """OCI dynamic group."""
 
-    domain_name: NotRequired[Annotated[str, 'The domain of the group. If not provided, the default domain.']]
-    domain_ocid: NotRequired[Annotated[str, 'The OCID of the domain. Not required for filters.']]
-    dynamic_group_name: Annotated[str, 'The name of the dynamic group.']
-    dynamic_group_ocid: NotRequired[Annotated[str, 'The OCID of the dynamic group. Not required for filters.']]
-    dynamic_group_id: NotRequired[Annotated[str, 'The ID of the dynamic group. Not required for filters.']]
-    matching_rule: NotRequired[
-        Annotated[str, 'The matching rule expression for the dynamic group. Not required for filters.']
-    ]
-    description: NotRequired[Annotated[str | None, 'The description of the dynamic group. Not required for filters.']]
-    in_use: NotRequired[
-        Annotated[bool, 'True if the dynamic group is referenced by any policies. Not required for filters.']
-    ]
-    creation_time: NotRequired[Annotated[str, 'The creation time of the dynamic group. Not required for filters.']]
-    created_by_ocid: NotRequired[
-        Annotated[str, 'The OCID of the user who created the dynamic group. Not required for filters.']
-    ]
-    created_by_name: NotRequired[
-        Annotated[str, 'The name of the user who created the dynamic group. Not required for filters.']
-    ]
+    domain_name: NotRequired[Annotated[str, 'Identity domain; defaults to Default.']]
+    domain_ocid: NotRequired[Annotated[str, 'Domain OCID.']]
+    dynamic_group_name: Annotated[str, 'Dynamic group name.']
+    dynamic_group_ocid: NotRequired[Annotated[str, 'Dynamic group OCID.']]
+    dynamic_group_id: NotRequired[Annotated[str, 'Dynamic group ID.']]
+    matching_rule: NotRequired[Annotated[str, 'Dynamic group matching rule.']]
+    description: NotRequired[Annotated[str | None, 'Dynamic group description.']]
+    in_use: NotRequired[Annotated[bool, 'True when referenced by policy.']]
+    creation_time: NotRequired[Annotated[str, 'Creation time.']]
+    created_by_ocid: NotRequired[Annotated[str, 'Creator OCID.']]
+    created_by_name: NotRequired[Annotated[str, 'Creator name.']]
 
 
 class GroupSearch(TypedDict, total=False):
-    """Search model for OCI IAM groups."""
+    """Group search filters."""
 
     domain_name: Annotated[
         list[str],
-        'Domain name(s) to filter groups by. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
+        'Domain names to match.',
     ]
 
-    group_name: Annotated[list[str], 'Group display name(s) to match. Accepts full or partial names.']
+    group_name: Annotated[list[str], 'Group names or substrings.']
 
-    group_ocid: Annotated[list[str], 'A list of OCIDs or partial OCIDs of the group.']
+    group_ocid: Annotated[list[str], 'Group OCIDs or substrings.']
 
 
 class UserSearch(TypedDict, total=False):
-    """Search model for OCI IAM users."""
+    """User search filters."""
 
     domain_name: Annotated[
         list[str],
-        'Domain name(s) to filter users by. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
+        'Domain names to match.',
     ]
 
     search: Annotated[
         list[str],
-        'User name(s) or Display Name(s) to match. Accepts full or partial names and matches display name or username.',
+        'User names/display names or substrings.',
     ]
 
-    user_ocid: Annotated[
-        str, 'A list of full or partial OCIDs of users to search on. The list will be treated as logical OR.'
-    ]
+    user_ocid: Annotated[str, 'User OCIDs or substrings.']
 
 
 class DynamicGroupSearch(TypedDict, total=False):
-    """Search model for OCI IAM dynamic groups."""
+    """Dynamic group search filters."""
 
     domain_name: NotRequired[
         Annotated[
             list[str],
-            'Domain name(s) associated with the dynamic group. If provided, use the specified domain(s) to search. If not provided, the default domain is used.',
+            'Domain names to match.',
         ]
     ]
 
-    dynamic_group_name: NotRequired[
-        Annotated[list[str], 'Dynamic group name(s) to filter by. Accepts full or partial names.']
-    ]
+    dynamic_group_name: NotRequired[Annotated[list[str], 'Dynamic group names or substrings.']]
 
     matching_rule: NotRequired[
         Annotated[
             list[str],
-            "Matching rule expression(s) to search for (e.g., 'ALL {resource.type = instance, ...}'). Supports substring matches.",
+            'Matching rule substrings.',
         ]
     ]
 
-    dynamic_group_ocid: Annotated[str, 'List of full or partial OCIDs of the dynamic group.']
+    dynamic_group_ocid: Annotated[str, 'Dynamic group OCIDs or substrings.']
     in_use: NotRequired[
         Annotated[
             bool,
-            'If set to True, only return dynamic groups that are referenced by policies. If False, only those not in use. Not Required.',
+            'Filter by policy reference status.',
         ]
     ]
