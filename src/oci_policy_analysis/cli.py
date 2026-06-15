@@ -142,6 +142,7 @@ def main():  # noqa: C901
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyAnalysisRepository()
     cache_manager = CacheManager()
+    save_cache_after_cli_post_load = False
 
     # 1. Load from compliance CSVs if requested
     if args.load_from_compliance:
@@ -205,9 +206,7 @@ def main():  # noqa: C901
             # Completed the Load
             logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
 
-            if not args.dont_save_cache_after_load:
-                logger.info('Saving combined cache after loading from OCI')
-                cache_manager.save_combined_cache(policy_analysis=policy_analysis)
+            save_cache_after_cli_post_load = not args.dont_save_cache_after_load
 
         # ---- Policy Intelligence step (CLI) ----
         logger.info('[CLI] Running minimal post-load policy intelligence')
@@ -222,6 +221,10 @@ def main():  # noqa: C901
         t1 = time.perf_counter()
         logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
         # ----------------------------------------
+
+        if save_cache_after_cli_post_load:
+            logger.info('Saving combined cache after loading from OCI and post-load enrichment')
+            cache_manager.save_combined_cache(policy_analysis=policy_analysis)
 
     # Print some basic details
     logger.info('-' * 80)

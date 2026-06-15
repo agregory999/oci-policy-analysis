@@ -54,6 +54,8 @@ Target after the final meta-tool design:
 
 Replace the current collection of narrow tools with a smaller set of meta-tools. This branch is allowed to make breaking MCP changes, and the next pip release should replace the existing MCP tools rather than carry legacy wrappers.
 
+Implementation note (2026-06-15): the MCP server now advertises only the six compact tools below. Legacy tool function bodies remain in `mcp_server.py` as internal compatibility helpers, but they are no longer registered with FastMCP. The regenerated packaged `mcp_tools.json` is about 1,775 `o200k_base` tokens.
+
 | Tool | Purpose | Agent routing cue |
 | --- | --- | --- |
 | `policy_search` | Run one policy search in simple or advanced mode. | "Find/show/list policies", "what policies allow..." |
@@ -980,6 +982,7 @@ Roadmap items:
 
 - Add `policy_search_set` templates for common OCI services/products.
 - Consider templates that mimic OCI Console policy wizards, while also checking existing statements so users know what is already present.
+- In workload-principal UI result tables, avoid blank confidence cells when broad `any-user`/`any-group` browsing has not run a specific workload-principal match scorer; show `Not scored` or hide the confidence column until a workload selector is active.
 - Add full or bounded recursive where-clause evaluation once the parsed statement JSON has been tested in the UI.
 - Add full or bounded dynamic group rule evaluation once parsed dynamic group JSON has been tested in the UI.
 - Add a configurable reload policy from desktop UI, web startup, or MCP server startup for nightly, weekly, or custom-interval cache creation.
