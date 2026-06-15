@@ -46,24 +46,20 @@ from starlette.responses import JSONResponse  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
 from oci_policy_analysis.application.context import AppContext  # noqa: E402
-from oci_policy_analysis.application.services.load_service import LoadService  # noqa: E402
-from oci_policy_analysis.application.services.mcp_query_service import MCPQueryService  # noqa: E402
-from oci_policy_analysis.common import config  # noqa: E402
-from oci_policy_analysis.common.logger import get_logger, set_log_level  # noqa: E402
-from oci_policy_analysis.common.models_iam import (  # noqa: E402
+from oci_policy_analysis.application.core.models.models_iam import (  # noqa: E402
     DynamicGroupSearch,
     Group,
     GroupSearch,
     User,
     UserSearch,
 )
-from oci_policy_analysis.common.models_policy import (  # noqa: E402
+from oci_policy_analysis.application.core.models.models_policy import (  # noqa: E402
     PolicySearch,
     PolicyStatementFull,
     PolicySummary,
     Principal,
 )
-from oci_policy_analysis.common.models_responses import (  # noqa: E402
+from oci_policy_analysis.application.core.models.models_responses import (  # noqa: E402
     DynamicGroupSearchFull,
     DynamicGroupSummary,
     GroupSearchFull,
@@ -71,9 +67,13 @@ from oci_policy_analysis.common.models_responses import (  # noqa: E402
     UserSearchFull,
     UserSummary,
 )
+from oci_policy_analysis.application.core.support import config  # noqa: E402
+from oci_policy_analysis.application.core.support.logger import get_logger, set_log_level  # noqa: E402
+from oci_policy_analysis.application.services.load_service import LoadService  # noqa: E402
+from oci_policy_analysis.application.services.mcp_query_service import MCPQueryService  # noqa: E402
 
 try:  # usage tracking is optional when running embedded; ignore if unavailable
-    from oci_policy_analysis.common.usage_tracking import get_usage_tracker  # type: ignore[import]
+    from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker  # type: ignore[import]
 except Exception:  # pragma: no cover - defensive fallback
 
     def get_usage_tracker():  # type: ignore[no-redef]
@@ -97,6 +97,7 @@ class MCPPolicySearch(TypedDict, total=False):
     """Compact MCP policy filters."""
 
     action: list[str]
+    principal: Principal
     principals: list[Principal]
     principal_keys: list[str]
     verb: list[Literal['inspect', 'read', 'use', 'manage']]
@@ -201,6 +202,9 @@ def _normalize_policy_statement_for_mcp(stmt: dict) -> dict:
         'location',
         'conditions',
         'comments',
+        'confidence',
+        'match_confidence',
+        'match_confidence_reason',
         'effective_compartment_ocid',
         'effective_path',
     )

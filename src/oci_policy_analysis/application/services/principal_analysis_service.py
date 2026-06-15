@@ -7,9 +7,16 @@ from dataclasses import dataclass
 from typing import Literal
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.models.models import (
+    DynamicGroup,
+    Group,
+    PolicySearch,
+    Principal,
+    RegularPolicyStatement,
+    User,
+)
+from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import DynamicGroup, Group, PolicySearch, Principal, RegularPolicyStatement, User
 
 
 @dataclass
@@ -158,29 +165,40 @@ class PrincipalAnalysisService:
         *,
         subject_types: list[AllowedSubjectType],
         resource_type: str = 'Any',
+        resource_compartment_ocid: str = '',
     ) -> PrincipalPolicyResult:
         """Find statements by subject type and optional resource type scope.
 
         Args:
             subject_types: Subject type filters.
-            resource_type: Optional resource type scope; "Any" disables resource filter.
+            resource_type: Optional resource type scope; "Any" disables resource type evidence filtering.
+            resource_compartment_ocid: Optional request.principal.compartment.id evidence filter.
 
         Returns:
             PrincipalPolicyResult: Matched policy statements.
         """
         self.logger.info(
-            'Filtering policies by subject types: count=%s resource_type=%s', len(subject_types), resource_type
+            'Filtering policies by subject types: count=%s resource_type=%s resource_compartment_ocid=%s',
+            len(subject_types),
+            resource_type,
+            bool(str(resource_compartment_ocid or '').strip()),
         )
         filters: PolicySearch
+        resource_type_filter = str(resource_type or 'Any').strip()
+        compartment_filter = str(resource_compartment_ocid or '').strip()
+        if resource_type_filter != 'Any' or compartment_filter:
+            principal: Principal = {'principal_type': 'resource-principal'}
+            if resource_type_filter != 'Any':
+                principal['resource_type'] = resource_type_filter
+            if compartment_filter:
+                principal['resource_compartment_ocid'] = compartment_filter
+            filters = PolicySearch(subject_type=subject_types, principal=principal)
+            return PrincipalPolicyResult(
+                statements=list(self.analysis.filter_policy_statements(filters=filters).statements)
+            )
+
         filters = PolicySearch(subject_type=subject_types)
         statements = list(self.analysis.filter_policy_statements(filters=filters).statements)
-        if resource_type != 'Any':
-            target = resource_type.casefold()
-            statements = [
-                st
-                for st in statements
-                if target in self._extract_resource_types_from_conditions(str(st.get('conditions') or ''))
-            ]
         return PrincipalPolicyResult(statements=statements)
 
     @staticmethod

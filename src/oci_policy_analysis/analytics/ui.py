@@ -24,8 +24,8 @@ from collections.abc import Iterable
 from datetime import date
 from tkinter import ttk
 
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.ui.base_tab import BaseUITab
+from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 
 from .aggregator import (
     AiAssistSummary,

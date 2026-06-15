@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from oci_policy_analysis.common import config
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support import config
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 DEFAULT_WHERE_CLAUSE_REDUCTION_PCT = 50
 DEFAULT_SERVICE_PRINCIPAL_REDUCTION_PCT = 50

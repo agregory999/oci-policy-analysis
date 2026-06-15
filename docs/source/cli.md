@@ -46,7 +46,8 @@ See also:
 
 | Option                       | Description                                                                                                    |
 |------------------------------|----------------------------------------------------------------------------------------------------------------|
-| `--verbose`                  | Enable verbose logging                                                                                         |
+| `--verbose`                  | Enable DEBUG logging                                                                                           |
+| `--log-level LEVEL`          | Set CLI log level (`CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG`) without forcing verbose mode             |
 | `--app-log`                  | Log output to `app.log` instead of console                                                                    |
 | `--instance-principal`       | Use instance principal authentication                                                                         |
 | `--get-caches TENANCY`       | List available caches for the given tenancy                                                                   |
@@ -91,6 +92,7 @@ python -m oci_policy_analysis.cli --profile MY_PROFILE --recursive
 - This will connect to OCI, recursively load all compartments, users, groups, and policies, and generate a "combined cache" file for offline or repeated analysis.
 - By default, the cache is saved after load (unless `--dont-save-cache-after-load` is provided).
 - Use `--instance-principal` to run under an OCI Compute Instance with instance principal auth.
+- Use `--log-level INFO` when you want normal progress/filter logging without full DEBUG verbosity.
 
 ---
 

@@ -53,7 +53,7 @@ from typing import Any
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine
 from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='prospective_statements_service')
 

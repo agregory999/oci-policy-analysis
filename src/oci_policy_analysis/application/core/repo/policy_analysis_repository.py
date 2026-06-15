@@ -45,9 +45,7 @@ from oci.resource_search.models import StructuredSearchDetails
 from oci.signer import load_private_key_from_file
 
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
-from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import (
+from oci_policy_analysis.application.core.models.models import (
     AdmitStatement,
     BasePolicy,
     BasePolicyStatement,
@@ -64,6 +62,12 @@ from oci_policy_analysis.common.models import (
     User,
     UserSearch,
 )
+from oci_policy_analysis.application.core.parser.condition_structure import (
+    format_condition_structure_summary,
+    parse_condition_structure,
+)
+from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 # Global logger for this module
 logger = get_logger(component='data_repo')
@@ -532,7 +536,147 @@ class PolicyAnalysisRepository:
             return True
         return bool(normalized_keys & self._normalized_equivalent_statement_principal_keys(stmt))
 
+    @staticmethod
+    def _normalize_condition_value(value: object) -> str:
+        """Normalize a condition value for case-insensitive evidence matching."""
+        return str(value or '').strip().strip('\'"').casefold()
+
+    def _condition_atoms_for_statement(self, stmt: RegularPolicyStatement) -> list[dict[str, object]]:
+        """Return parsed condition atoms, parsing raw conditions as a fallback."""
+        structure = stmt.get('where_clause_structure') or stmt.get('where_clause') or {}
+        if isinstance(structure, dict):
+            atoms = structure.get('atoms')
+            if isinstance(atoms, list):
+                return [atom for atom in atoms if isinstance(atom, dict)]
+
+        parsed = parse_condition_structure(str(stmt.get('conditions') or ''))
+        atoms = parsed.get('atoms') if isinstance(parsed, dict) else []
+        return [atom for atom in atoms if isinstance(atom, dict)] if isinstance(atoms, list) else []
+
+    def _condition_atom_with_value(
+        self, atoms: list[dict[str, object]], left: str, expected: str
+    ) -> dict[str, object] | None:
+        """Return matching parsed condition atom for ``left`` with ``expected``."""
+        expected_value = self._normalize_condition_value(expected)
+        if not expected_value:
+            return None
+        expected_left = left.casefold()
+        for atom in atoms:
+            atom_left = self._normalize_principal_field(atom.get('normalized_left') or atom.get('left'))
+            if atom_left != expected_left:
+                continue
+            raw_right = str(atom.get('right') or '')
+            right_values = [self._normalize_condition_value(value) for value in raw_right.split(',')]
+            if expected_value in right_values:
+                return atom
+        return None
+
+    def _condition_has_value(self, atoms: list[dict[str, object]], left: str, expected: str) -> bool:
+        """Return whether parsed condition atoms contain ``left`` with ``expected``."""
+        return self._condition_atom_with_value(atoms, left, expected) is not None
+
+    def _raw_condition_has_value(self, stmt: RegularPolicyStatement, left: str, expected: str) -> bool:
+        """Best-effort fallback for older cache rows without parsed condition atoms."""
+        expected_value = self._normalize_condition_value(expected)
+        if not expected_value:
+            return True
+        conditions = str(stmt.get('conditions') or '').casefold()
+        return left.casefold() in conditions and expected_value in conditions
+
+    def _resource_principal_match_details(
+        self, stmt: RegularPolicyStatement, selector: Principal
+    ) -> dict[str, object] | None:
+        """Match resource-principal selectors and return confidence/evidence details."""
+        subject_type = self._normalize_principal_field(stmt.get('subject_type'))
+        if subject_type not in {'any-user', 'any-group'}:
+            return None
+
+        resource_type = self._normalize_principal_field(selector.get('resource_type') or selector.get('type'))
+        principal_ocid = self._normalize_principal_field(selector.get('ocid') or selector.get('resource_ocid'))
+        compartment_ocid = self._normalize_principal_field(
+            selector.get('compartment_ocid') or selector.get('resource_compartment_ocid')
+        )
+        if not any([resource_type, principal_ocid, compartment_ocid]):
+            return None
+
+        atoms = self._condition_atoms_for_statement(stmt)
+        used_parsed_atoms = bool(atoms)
+        identity_evidence: list[dict[str, object]] = []
+
+        checks = [
+            ('request.principal.type', resource_type),
+            ('request.principal.id', principal_ocid),
+            ('request.principal.compartment.id', compartment_ocid),
+        ]
+        for left, expected in checks:
+            if not expected:
+                continue
+            if used_parsed_atoms:
+                atom = self._condition_atom_with_value(atoms, left, expected)
+                if atom is None:
+                    return None
+                identity_evidence.append(atom)
+            elif not self._raw_condition_has_value(stmt, left, expected):
+                return None
+
+        if not used_parsed_atoms:
+            return {
+                'match_confidence': 'identity_match_unparsed_conditions',
+                'match_confidence_reason': 'Matched requested principal evidence in raw where-clause text, but parsed condition atoms were unavailable.',
+                'principal_evidence': [],
+                'residual_conditions': [],
+            }
+
+        identity_lefts = {'request.principal.type', 'request.principal.id', 'request.principal.compartment.id'}
+        residual_atoms = [
+            atom
+            for atom in atoms
+            if self._normalize_principal_field(atom.get('normalized_left') or atom.get('left')) not in identity_lefts
+        ]
+        if residual_atoms:
+            confidence = 'identity_match_with_residual'
+            reason = (
+                'Matched requested request.principal.* identity evidence, but residual where-clause conditions remain '
+                'and were not evaluated as part of principal identity.'
+            )
+        else:
+            confidence = 'exact'
+            reason = 'Matched requested request.principal.* identity evidence with no residual where-clause conditions.'
+        return {
+            'match_confidence': confidence,
+            'match_confidence_reason': reason,
+            'principal_evidence': identity_evidence,
+            'residual_conditions': residual_atoms,
+        }
+
+    def _resource_principal_match_confidence(self, stmt: RegularPolicyStatement, selector: Principal) -> str | None:
+        """Match resource-principal selectors against any-user/any-group condition evidence."""
+        details = self._resource_principal_match_details(stmt, selector)
+        if not details:
+            return None
+        return str(details.get('match_confidence') or '')
+
+    def _principal_match_details(self, stmt: RegularPolicyStatement, selector: Principal) -> dict[str, object] | None:
+        """Return match details for a structured principal selector, or None when unmatched."""
+        principal_type = self._normalize_principal_field(selector.get('principal_type'))
+        if principal_type in {'resource-principal', 'resource_principal', 'workload-principal', 'workload_principal'}:
+            return self._resource_principal_match_details(stmt, selector)
+        if self._identity_principal_matches_statement(stmt, selector):
+            return {'match_confidence': 'matched'}
+        return None
+
+    def _principal_match_confidence(self, stmt: RegularPolicyStatement, selector: Principal) -> str | None:
+        """Return match confidence for a structured principal selector, or None when unmatched."""
+        details = self._principal_match_details(stmt, selector)
+        if not details:
+            return None
+        return str(details.get('match_confidence') or '')
+
     def _principal_matches_statement(self, stmt: RegularPolicyStatement, selector: Principal) -> bool:
+        """Return whether a statement matches a structured principal selector."""
+        return self._principal_match_confidence(stmt, selector) is not None
+
+    def _identity_principal_matches_statement(self, stmt: RegularPolicyStatement, selector: Principal) -> bool:
         """Return whether a statement matches a structured principal selector.
 
         Args:
@@ -636,6 +780,33 @@ class PolicyAnalysisRepository:
         self.normalizer = PolicyStatementNormalizer()
         # Cached tenancy-wide policy statement limit (fetch once per run)
         self.tenancy_policy_statement_limit = None
+
+    def enrich_display_structures(self) -> None:
+        """Attach parsed display structures to loaded statements and dynamic groups."""
+        for statement in self.regular_statements or []:
+            if not isinstance(statement, dict):
+                continue
+            conditions = str(statement.get('conditions') or '').strip()
+            if 'where_clause_structure' not in statement:
+                structure = parse_condition_structure(conditions)
+                statement['where_clause_structure'] = structure
+                statement['where_clause'] = structure
+            elif 'where_clause' not in statement and isinstance(statement.get('where_clause_structure'), dict):
+                statement['where_clause'] = statement['where_clause_structure']
+            structure = statement.get('where_clause_structure') or statement.get('where_clause') or {}
+            if isinstance(structure, dict):
+                statement['conditions_where_clause'] = conditions
+                statement['conditions_parsed_structure'] = format_condition_structure_summary(structure)
+                statement['condition_atoms'] = structure.get('atoms', [])
+
+        for dynamic_group in self.dynamic_groups or []:
+            if not isinstance(dynamic_group, dict):
+                continue
+            if 'matching_rule_structure' not in dynamic_group:
+                dynamic_group['matching_rule_structure'] = parse_condition_structure(dynamic_group.get('matching_rule'))
+            structure = dynamic_group.get('matching_rule_structure') or {}
+            if isinstance(structure, dict):
+                dynamic_group['matching_rule_parsed_structure'] = format_condition_structure_summary(structure)
 
     def reset_state(self):
         """
@@ -1194,6 +1365,7 @@ class PolicyAnalysisRepository:
     def _parse_dynamic_group(self, domain, dg: DynamicResourceGroup) -> DynamicGroup:
         """Extract the contents of the DG into a dict"""
         logger.debug(f'Created by: {dg.idcs_created_by}')
+        matching_rule_structure = parse_condition_structure(dg.matching_rule)
         return DynamicGroup(
             domain_name=domain.display_name,
             domain_ocid=domain.id,
@@ -1201,6 +1373,8 @@ class PolicyAnalysisRepository:
             dynamic_group_id=dg.id,
             description=dg.description or '',
             matching_rule=dg.matching_rule,
+            matching_rule_structure=matching_rule_structure,
+            matching_rule_parsed_structure=format_condition_structure_summary(matching_rule_structure),
             in_use=True,  # Placeholder until analysis is run
             dynamic_group_ocid=dg.ocid,
             creation_time=str(dg.meta.created),
@@ -2153,7 +2327,7 @@ class PolicyAnalysisRepository:
         Returns:
             list[PolicyStatement]: List of statements matching the filter.
         """
-        logger.debug(f'Filtering policy statements with criteria: {filters}')
+        logger.info('Filtering policy statements with criteria: %s', filters)
 
         # If fuzzy or exact search is requested, identity domains must be loaded. If not, raise an error
         # Previously, filtering by group/user/dynamic-group required identity_domains_loaded.
@@ -2462,15 +2636,35 @@ class PolicyAnalysisRepository:
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to principal_key mismatch')
                         match = False
                         break
-                elif key == 'principals':
+                elif key in {'principal', 'principals'}:
                     raw_values = values if isinstance(values, list) else [values]
                     principal_selectors = [v for v in raw_values if isinstance(v, dict)]
                     if not principal_selectors:
                         continue
-                    if not any(self._principal_matches_statement(stmt, selector) for selector in principal_selectors):
+                    match_details = next(
+                        (
+                            details
+                            for selector in principal_selectors
+                            if (details := self._principal_match_details(stmt, selector)) is not None
+                        ),
+                        None,
+                    )
+                    if match_details is None:
                         logger.debug(f'Rejecting {stmt.get("policy_name")} due to principal selector mismatch')
                         match = False
                         break
+                    match_confidence = str(match_details.get('match_confidence') or '')
+                    if match_confidence != 'matched':
+                        stmt = RegularPolicyStatement(
+                            {
+                                **stmt,
+                                'match_confidence': match_confidence,
+                                'confidence': stmt.get('confidence') or match_confidence,
+                                'match_confidence_reason': match_details.get('match_confidence_reason') or '',
+                                'principal_evidence': match_details.get('principal_evidence') or [],
+                                'residual_conditions': match_details.get('residual_conditions') or [],
+                            }
+                        )
                 elif key == 'subject':
                     raw_values = values if isinstance(values, list) else [values]
                     value_ci = [str(v).strip() for v in raw_values if str(v).strip()]
@@ -3107,12 +3301,15 @@ class PolicyAnalysisRepository:
                         created_by_ocid = 'n/a'
                     domain_ocid = row.get('domain_ocid', '')
                     domain_name = self._get_domain_name_from_ocid(domain_ocid)
+                    matching_rule_structure = parse_condition_structure(row.get('matching_rule', ''))
                     dg: DynamicGroup = {
                         'domain_name': domain_name or 'Default',
                         'dynamic_group_name': row.get('display_name') or '',
                         'dynamic_group_id': 'n/a',
                         'dynamic_group_ocid': row.get('ocid', ''),
                         'matching_rule': row.get('matching_rule', ''),
+                        'matching_rule_structure': matching_rule_structure,
+                        'matching_rule_parsed_structure': format_condition_structure_summary(matching_rule_structure),
                         'description': row.get('description') or '',
                         'in_use': True,  # Default to True; will be updated later
                         'creation_time': 'n/a',

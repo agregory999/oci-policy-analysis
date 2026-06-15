@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from oci_policy_analysis.common.caching import CacheManager
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.caching import CacheManager
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 
 @dataclass

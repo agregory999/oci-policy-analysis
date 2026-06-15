@@ -25,7 +25,7 @@ from oci_policy_analysis.application.core.parser.condition_parser.OciIamPolicyCo
 from oci_policy_analysis.application.core.parser.condition_parser.OciIamPolicyConditionVisitor import (
     OciIamPolicyConditionVisitor,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='where_clause_evaluator')
 

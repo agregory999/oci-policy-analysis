@@ -16,7 +16,7 @@
 """Usage analytics package for OCI Policy Analysis.
 
 This package provides a small, standalone Tkinter UI that can read anonymous
-usage tracking documents written by :mod:`oci_policy_analysis.common.usage_tracking`
+usage tracking documents written by :mod:`oci_policy_analysis.application.core.support.usage_tracking`
 and present basic aggregate metrics (runs, tenancies, tab usage, etc.).
 
 The main entry points are :func:`oci_policy_analysis.analytics.main.main` and

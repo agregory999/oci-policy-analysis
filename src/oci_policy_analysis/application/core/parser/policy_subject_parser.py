@@ -12,7 +12,7 @@ Author: Plan-based refactor by Cline (2026)
 
 import re
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='policy_parser')
 

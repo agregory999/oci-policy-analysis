@@ -55,7 +55,7 @@ test = [
 [project.scripts]
 oci-policy-analysis-ui = "oci_policy_analysis.main:main"
 oci-policy-analysis-cli = "oci_policy_analysis.cli:main"
-oci-policy-analysis-web = "oci_policy_analysis.web.main:main"
+oci-policy-analysis-web = "oci_policy_analysis.presentation.web.main:main"
 oci-policy-analysis-mcp = "oci_policy_analysis.mcp_server:main"
 
 [build-system]
@@ -69,10 +69,11 @@ include = ["oci_policy_analysis*"]
 [tool.setuptools.package-data]
 "oci_policy_analysis" = [
     "version.txt",
-    "logic/permissions/*.json",
-    "logic/mcp_tools_list/*.json",
-    "logic/parsers/*.txt",
-    "logic/parsers/*.jar",
-    "ui/*.txt",
+    "application/core/resources/permissions/*.json",
+    "application/core/resources/mcp_tools_list/*.json",
+    "application/core/resources/parsers/*.txt",
+    "application/core/resources/parsers/*.jar",
+    "assets/icons/*.png",
+    "presentation/desktop/*.txt",
 ]
-"oci_policy_analysis.web" = ["static/*", "static/**/*"]
+"oci_policy_analysis.presentation.web" = ["static/*", "static/**/*"]

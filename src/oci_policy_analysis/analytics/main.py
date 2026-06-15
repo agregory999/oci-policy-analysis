@@ -24,7 +24,7 @@ import tkinter as tk
 from datetime import UTC, date, datetime, timedelta
 from tkinter import messagebox, simpledialog, ttk
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 from .aggregator import (
     compute_ai_assist_summary,

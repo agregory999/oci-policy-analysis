@@ -19,7 +19,7 @@ from oci_policy_analysis.application.core.parser.generated.condition_parser impo
 from oci_policy_analysis.application.core.parser.generated.condition_parser.where_clause_evaluator import (
     evaluate_where_clause,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='condition_evaluator')
 

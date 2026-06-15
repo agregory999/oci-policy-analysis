@@ -14,7 +14,7 @@ from oci_policy_analysis.application.core.parser import (
     extract_variable_names,
     format_policy_clause,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 
 @dataclass

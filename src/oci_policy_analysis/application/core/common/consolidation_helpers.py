@@ -13,9 +13,9 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 
+from oci_policy_analysis.application.core.models.models import BasePolicy, RegularPolicyStatement
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import BasePolicy, RegularPolicyStatement
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.engine.consolidation_helpers')
 

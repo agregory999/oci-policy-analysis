@@ -173,3 +173,94 @@ def test_policy_search_principal_equivalence_does_not_match_unrelated_principals
 
     assert _policy_names(repo, {'principal_keys': ['group:DomainA/Operators']}) == ['operators-policy']
     assert _policy_names(repo, {'principal_keys': ['group:Default/Missing']}) == []
+
+
+def test_policy_search_matches_singular_resource_principal_by_condition_evidence() -> None:
+    """Verify resource-principal filters match any-user statements through request.principal evidence."""
+    repo = PolicyAnalysisRepository()
+    repo.regular_statements = [
+        {
+            'policy_name': 'container-policy',
+            'statement_text': 'allow any-user to read repos in tenancy',
+            'subject_type': 'any-user',
+            'subject': ['any-user'],
+            'principals': [
+                {
+                    'principal_type': 'any-user',
+                    'principal_key': 'any-user:None/any-user',
+                    'display_name': 'any-user',
+                }
+            ],
+            'principal_keys': ['any-user:None/any-user'],
+            'conditions': (
+                "all { request.principal.type = 'computecontainerinstance', " "request.operation = 'PullImage' }"
+            ),
+        },
+        {
+            'policy_name': 'database-policy',
+            'statement_text': 'allow any-user to read buckets in tenancy',
+            'subject_type': 'any-user',
+            'subject': ['any-user'],
+            'principal_keys': ['any-user:None/any-user'],
+            'conditions': "all { request.principal.type = 'autonomousdatabase' }",
+        },
+        _statement(
+            'group-policy',
+            'group',
+            'group:Default/Admins',
+            domain_name='Default',
+            name='Admins',
+        ),
+    ]
+
+    results = repo.filter_policy_statements(
+        {
+            'principal': {
+                'principal_type': 'resource-principal',
+                'resource_type': 'computecontainerinstance',
+            }
+        }
+    )
+
+    assert [statement['policy_name'] for statement in results] == ['container-policy']
+    assert results[0]['match_confidence'] == 'identity_match_with_residual'
+    assert results[0]['confidence'] == 'identity_match_with_residual'
+    assert [atom['left'] for atom in results[0]['principal_evidence']] == ['request.principal.type']
+    assert [atom['left'] for atom in results[0]['residual_conditions']] == ['request.operation']
+    assert 'residual' in results[0]['match_confidence_reason']
+
+
+def test_policy_search_matches_resource_principal_by_compartment_ocid() -> None:
+    """Verify resource-principal compartment filters use request.principal.compartment.id."""
+    repo = PolicyAnalysisRepository()
+    repo.regular_statements = [
+        {
+            'policy_name': 'container-compartment-policy',
+            'statement_text': 'allow any-group to use objects in tenancy',
+            'subject_type': 'any-group',
+            'subject': ['any-group'],
+            'principal_keys': ['any-group:None/any-group'],
+            'conditions': (
+                "all { request.principal.type = 'computecontainerinstance', "
+                "request.principal.compartment.id = 'ocid1.compartment.oc1..app' }"
+            ),
+        }
+    ]
+
+    results = repo.filter_policy_statements(
+        {
+            'principal': {
+                'principal_type': 'resource-principal',
+                'resource_type': 'computecontainerinstance',
+                'compartment_ocid': 'ocid1.compartment.oc1..app',
+            }
+        }
+    )
+
+    assert [statement['policy_name'] for statement in results] == ['container-compartment-policy']
+    assert results[0]['match_confidence'] == 'exact'
+    assert [atom['left'] for atom in results[0]['principal_evidence']] == [
+        'request.principal.type',
+        'request.principal.compartment.id',
+    ]
+    assert results[0]['residual_conditions'] == []

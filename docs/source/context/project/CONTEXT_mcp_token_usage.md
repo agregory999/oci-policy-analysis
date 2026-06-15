@@ -837,6 +837,59 @@ principal: optional Principal
 
 Implementation should proceed in this order:
 
+0. **Package Structure Cleanup**
+   - Finish moving domain/application code into `oci_policy_analysis.application`.
+   - Treat this as preparatory work before the search/MCP model split, because otherwise the new models and services will be added to packages that are already slated to move.
+   - Keep the moves mechanical first: preserve behavior, update imports, run focused tests, and avoid mixing package moves with feature changes.
+
+   Proposed target layout:
+
+   ```text
+   oci_policy_analysis/
+     application/
+       core/
+         models/          # current common models
+         repo/            # repositories
+         engine/          # analysis/simulation/intelligence engines
+         parser/          # policy and condition parsers
+         resources/       # permissions JSON, mcp tool fixtures, parser assets
+         support/         # logger, config, cache, usage tracking, helpers
+       services/          # application services used by CLI/MCP/web/desktop
+       context.py
+       post_load.py
+     presentation/
+       formatters.py
+       desktop/           # current ui package
+       web/               # current web package
+     analytics/
+     cli.py
+     main.py              # desktop entrypoint shim
+     mcp_server.py        # MCP entrypoint shim
+   ```
+
+   Specific package decisions:
+
+   - Move `common/models*.py` under `application/core/models`.
+   - Move `common/logger.py`, `config.py`, `caching.py`, `usage_tracking.py`, and remaining helper utilities under `application/core/support` or another clearly named support package.
+   - Fold remaining `logic` package assets into `application/core/resources`; update `pyproject.toml` package-data paths and all `importlib.resources` callers.
+   - Remove `consumers` unless the sample apps are still useful as docs examples. If retained, move them outside the importable package or into docs/examples.
+   - Move current `presentation/formatters.py` under `application/presentation` or keep `presentation` top-level as the UI boundary, but do not leave formatter code importing back through `common`.
+   - Move current `ui` under `presentation/desktop`.
+   - Move current `web` under `presentation/web`.
+   - Keep top-level console-script entrypoints as thin compatibility shims so pip commands do not expose the internal package layout.
+
+   Migration order:
+
+   1. Move packaged resources and update `pyproject.toml`.
+   2. Move models and add temporary import shims if needed.
+   3. Move support utilities and update internal imports.
+   4. Move presentation packages (`ui`, `web`, formatters).
+   5. Remove `consumers` or move examples out of package.
+   6. Update docs/API references and packaging tests.
+   7. Remove compatibility shims once tests and external entrypoints are stable.
+
+   This is also a breaking-change branch, so internal imports can change aggressively. Public console scripts should remain stable.
+
 1. **Models**
    - Expand `Principal` into a normalized selector/context model.
    - Add canonical principal-key derivation and compatibility validation for structured workload principal selectors.

@@ -41,7 +41,7 @@ from datetime import date
 from urllib import error as urlerror
 from urllib import request
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 from .model import UsageDoc
 

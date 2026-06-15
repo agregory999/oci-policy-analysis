@@ -1,1 +1,3 @@
-"""API route modules for the FastAPI consumer."""
+"""Compatibility package for web API modules."""
+
+from oci_policy_analysis.presentation.web.api import *  # noqa: F403

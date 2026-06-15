@@ -31,7 +31,7 @@ from oci.generative_ai_inference.models import (
 )
 from oci.signer import load_private_key_from_file
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 # Global logger for this module
 logger = get_logger(component='ai_repo')

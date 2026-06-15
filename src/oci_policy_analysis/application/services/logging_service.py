@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level
+from oci_policy_analysis.application.core.support.logger import get_logger, set_component_level, set_log_level
 
 LEGACY_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     # Core repo

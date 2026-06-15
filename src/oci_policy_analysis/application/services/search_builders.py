@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import PolicySearch
+from oci_policy_analysis.application.core.models.models import PolicySearch
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 LOGGER = get_logger(component='search_builders')
 
@@ -119,8 +119,17 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
             return '|'.join([str(v) for v in value if str(v).strip()])
         return str(value)
 
-    valid_value = payload.get('valid')
-    return build_policy_search_from_filters(
+    def _as_str_list(value: object | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return _split_pipe(value)
+        if isinstance(value, Iterable):
+            return [str(v).strip() for v in value if str(v).strip()]
+        text = str(value).strip()
+        return [text] if text else []
+
+    filters = build_policy_search_from_filters(
         subject=_as_str(payload.get('subject')),
         action=_as_str(payload.get('action')),
         verb=_as_str(payload.get('verb')),
@@ -132,5 +141,25 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
         policy_name=_as_str(payload.get('policy_name')),
         effective_path=_as_str(payload.get('effective_path')),
         conditions=_as_str(payload.get('conditions')),
-        valid=valid_value if isinstance(valid_value, bool) else None,
+        valid=payload.get('valid') if isinstance(payload.get('valid'), bool) else None,
     )
+
+    principal = payload.get('principal')
+    if isinstance(principal, dict):
+        filters['principal'] = principal
+
+    principals = payload.get('principals')
+    if isinstance(principals, list):
+        structured_principals = [principal for principal in principals if isinstance(principal, dict)]
+        if structured_principals:
+            filters['principals'] = structured_principals
+
+    principal_keys = _as_str_list(payload.get('principal_keys'))
+    if principal_keys:
+        filters['principal_keys'] = principal_keys
+
+    principal_key = _as_str_list(payload.get('principal_key'))
+    if principal_key:
+        filters['principal_key'] = principal_key
+
+    return filters

@@ -30,6 +30,7 @@ import tkinter.ttk as ttk
 import traceback
 import warnings
 import webbrowser
+from importlib.resources import files
 
 import oci
 from dateutil import parser as dtparser
@@ -38,41 +39,46 @@ from dateutil import parser as dtparser
 from oci_policy_analysis._version import get_app_version
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
-from oci_policy_analysis.application.services.load_service import LoadService
-from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
-from oci_policy_analysis.common import config
-from oci_policy_analysis.common.logger import get_logger, set_component_level, set_log_level  # noqa: E402
-from oci_policy_analysis.common.usage_tracking import (  # noqa: E402
+from oci_policy_analysis.application.core.support import config
+from oci_policy_analysis.application.core.support.logger import (  # noqa: E402
+    get_logger,
+    set_component_level,
+    set_log_level,
+)
+from oci_policy_analysis.application.core.support.usage_tracking import (  # noqa: E402
     get_usage_tracker,
     init_usage_tracker,
 )
-from oci_policy_analysis.ui.condition_tester_tab import ConditionTesterTab
-from oci_policy_analysis.ui.console_tab import ConsoleTab  # noqa: E402
-from oci_policy_analysis.ui.consolidation_workbench_tab import ConsolidationWorkbenchTab
+from oci_policy_analysis.application.services.load_service import LoadService
+from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
+from oci_policy_analysis.presentation.desktop.condition_tester_tab import ConditionTesterTab
+from oci_policy_analysis.presentation.desktop.console_tab import ConsoleTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.consolidation_workbench_tab import ConsolidationWorkbenchTab
 
 # REMOVED: ConsolidationWorkbenchTab import (consolidation feature disabled)
-from oci_policy_analysis.ui.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
-from oci_policy_analysis.ui.debugger_tab import DebuggerTab
-from oci_policy_analysis.ui.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
-from oci_policy_analysis.ui.historical_tab import HistoricalTab  # noqa: E402
-from oci_policy_analysis.ui.maintenance_tab import MaintenanceTab
+from oci_policy_analysis.presentation.desktop.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.debugger_tab import DebuggerTab
+from oci_policy_analysis.presentation.desktop.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.historical_tab import HistoricalTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.maintenance_tab import MaintenanceTab
 
 try:
-    from oci_policy_analysis.ui.mcp_tab import McpTab  # noqa: E402
+    from oci_policy_analysis.presentation.desktop.mcp_tab import McpTab  # noqa: E402
 except ModuleNotFoundError:
     McpTab = None  # type: ignore[assignment]
-from oci_policy_analysis.ui.permissions_report_tab import PermissionsReportTab  # noqa: E402
-from oci_policy_analysis.ui.policies_tab import PoliciesTab  # noqa: E402
-from oci_policy_analysis.ui.policy_browser_tab import PolicyBrowserTab
-from oci_policy_analysis.ui.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.ui.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
-from oci_policy_analysis.ui.settings_tab import SettingsTab  # noqa: E402
-from oci_policy_analysis.ui.simulation_tab import SimulationTab
-from oci_policy_analysis.ui.tag_based_access_tab import TagBasedAccessTab
-from oci_policy_analysis.ui.users_tab import UsersTab
+from oci_policy_analysis.presentation.desktop.permissions_report_tab import PermissionsReportTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.policies_tab import PoliciesTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.policy_browser_tab import PolicyBrowserTab
+from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.desktop.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab  # noqa: E402
+from oci_policy_analysis.presentation.desktop.simulation_tab import SimulationTab
+from oci_policy_analysis.presentation.desktop.tag_based_access_tab import TagBasedAccessTab
+from oci_policy_analysis.presentation.desktop.users_tab import UsersTab
 
 # ----------- POST-IMPORT SETUP ------------
 __version__ = get_app_version()
+logger = get_logger(component='main')
 
 # Suppress OCI SDK datetime.utcnow() DeprecationWarning (Python 3.12+)
 warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*datetime\.datetime\.utcnow\(\).*')
@@ -129,6 +135,7 @@ class App(tk.Tk):
         # Configure basic window geometry
         self.title(f'OCI Policy Analysis {__version__}')
         self.geometry('1440x900')
+        self._configure_window_icon()
 
         # Initialize usage tracker (may be None if disabled in settings)
         self.usage_tracker = init_usage_tracker(self.settings, __version__)
@@ -246,7 +253,7 @@ class App(tk.Tk):
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
-        self.notebook.add(self.resource_principals_tab, text='Resource\nPrincipals')
+        self.notebook.add(self.resource_principals_tab, text='Workload\nPrincipals')
         self.notebook.add(self.cross_tenancy_tab, text='Cross-Tenancy\nPolicies')
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
         if McpTab is not None:
@@ -411,6 +418,17 @@ class App(tk.Tk):
                 tracker.track('app_start')
         except Exception:
             pass
+
+    def _configure_window_icon(self) -> None:
+        """Set the Tk window icon from packaged assets when available."""
+
+        try:
+            icon_path = files('oci_policy_analysis.assets.icons').joinpath('oci-policy-dg-viewer.png')
+            icon = tk.PhotoImage(file=str(icon_path))
+            self.iconphoto(True, icon)
+            self._app_icon_image = icon
+        except Exception as exc:
+            logger.debug('Unable to set Tk window icon: %s', exc, exc_info=True)
 
     def update_status_bar(self):
         """Update status bar with policy data load status and tracking flag."""
@@ -781,12 +799,6 @@ class App(tk.Tk):
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
-
-        # Keep window on top of app while running.
-        try:
-            dialog.attributes('-topmost', True)
-        except Exception:
-            pass
 
         frame = ttk.Frame(dialog, padding=16)
         frame.pack(fill='both', expand=True)
@@ -1556,7 +1568,7 @@ class App(tk.Tk):
         #     self.policy_browser_tab.update_ai_assist_button()
 
 
-if __name__ == '__main__':
+def main() -> None:
     """Main entry point for OCI Policy Analysis application."""
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
@@ -1568,8 +1580,6 @@ if __name__ == '__main__':
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
     args = parser.parse_args()
-
-    logger = get_logger(component='main')
 
     # Print a welcome message with version info at startup
     logger.info('--- Starting OCI Policy Analysis Application ---')
@@ -1596,7 +1606,7 @@ if __name__ == '__main__':
     # On clean exit, attempt to flush anonymous usage tracking so a single
     # run document is written to Object Storage (best-effort only).
     try:
-        from oci_policy_analysis.common.usage_tracking import get_usage_tracker
+        from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
 
         tracker = get_usage_tracker()
         if tracker is not None:
@@ -1604,3 +1614,7 @@ if __name__ == '__main__':
             tracker.flush()
     except Exception as e:  # pragma: no cover - defensive
         logger.warning('Failed to flush usage tracking on exit: %s', e)
+
+
+if __name__ == '__main__':
+    main()
