@@ -39,10 +39,11 @@ import argparse  # noqa: E402
 import asyncio  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
+import re  # noqa: E402
 import threading  # noqa: E402
 from collections import Counter  # noqa: E402
 from datetime import UTC, datetime  # noqa: E402
-from typing import Any, Literal, TypedDict  # noqa: E402
+from typing import Any, Literal  # noqa: E402
 
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
@@ -57,20 +58,7 @@ from oci_policy_analysis.application.core.models.models_iam import (  # noqa: E4
     User,
     UserSearch,
 )
-from oci_policy_analysis.application.core.models.models_policy import (  # noqa: E402
-    PolicySearch,
-    PolicyStatementFull,
-    PolicySummary,
-    Principal,
-)
-from oci_policy_analysis.application.core.models.models_responses import (  # noqa: E402
-    DynamicGroupSearchFull,
-    DynamicGroupSummary,
-    GroupSearchFull,
-    GroupSummary,
-    UserSearchFull,
-    UserSummary,
-)
+from oci_policy_analysis.application.core.models.models_policy import PolicySearch  # noqa: E402
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import (  # noqa: E402
     PolicyAnalysisRepository,
 )
@@ -94,34 +82,7 @@ logger = get_logger(component='mcp_server')
 mcp = FastMCP(name='OCI Policy MCP')
 app_context: AppContext | None = None
 
-# Decision logic: return summary if result set is too large
-POLICY_RESULT_THRESHOLD = 50  # Adjust based on your needs
-
-# Decision logic: return summary if result set is too large
-IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-
-
-class MCPPolicySearch(TypedDict, total=False):
-    """Compact MCP policy filters."""
-
-    action: list[str]
-    principal: Principal
-    principals: list[Principal]
-    principal_keys: list[str]
-    verb: list[Literal['inspect', 'read', 'use', 'manage']]
-    statement_text: list[str]
-    policy_name: list[str]
-    compartment_path: list[str]
-    resource: list[str]
-    location: list[str]
-    effective_path: list[str]
-    subject_type: list[Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']]
-    subject: list[str]
-    principal_key: list[str]
-    permission: list[str]
-    comments: list[str]
-    conditions: list[str]
-    valid: bool
+MCP_OUTPUT_LOG_LIMIT = 4000
 
 
 CONFIDENCE_ORDER = {
@@ -134,16 +95,10 @@ CONFIDENCE_ORDER = {
     '': -1,
 }
 
-
-def _legacy_tool_disabled(*args, **kwargs):  # noqa: ANN002, ANN003
-    """Decorator used to keep legacy tool bodies without registering them."""
-
-    def _decorator(func):
-        return func
-
-    if args and callable(args[0]) and len(args) == 1 and not kwargs:
-        return args[0]
-    return _decorator
+COMPARTMENT_OCID_RE = re.compile(
+    r'ocid1\.compartment\.[A-Za-z0-9._-]+',
+    re.IGNORECASE,
+)
 
 
 def _build_service_context(log_level: str) -> AppContext:
@@ -199,6 +154,33 @@ def _track_mcp_tool(tool_name: str, status: str = 'success', **extra: object) ->
         tracker.track_operation('mcp_tool', **payload)
     except Exception:
         logger.debug('Usage tracking for mcp_tool.%s (%s) failed', tool_name, status, exc_info=True)
+
+
+def _json_for_log(payload: object) -> str:
+    """Serialize a MCP payload for INFO-level call logging."""
+
+    try:
+        return json.dumps(payload, sort_keys=True, default=str)
+    except Exception:
+        return repr(payload)
+
+
+def _truncate_log_text(text: str, limit: int = MCP_OUTPUT_LOG_LIMIT) -> str:
+    if len(text) <= limit:
+        return text
+    omitted = len(text) - limit
+    return f'{text[:limit]}... <truncated {omitted} chars>'
+
+
+def _log_mcp_call_input(tool_name: str, inputs: dict[str, Any]) -> None:
+    if logger.isEnabledFor(logging.INFO):
+        logger.info('MCP call %s input(full)=%s', tool_name, _json_for_log(inputs))
+
+
+def _log_mcp_call_output(tool_name: str, output: object) -> object:
+    if logger.isEnabledFor(logging.INFO):
+        logger.info('MCP call %s output(truncated)=%s', tool_name, _truncate_log_text(_json_for_log(output)))
+    return output
 
 
 def _normalize_policy_statement_for_mcp(stmt: dict) -> dict:
@@ -317,6 +299,238 @@ def _principal_key_for_dynamic_group(dynamic_group: dict[str, Any]) -> str:
     return f'dynamic-group:{domain}/{name}' if name else ''
 
 
+def _current_policy_repo() -> PolicyAnalysisRepository | None:
+    """Return the active policy repository if one is available."""
+    return getattr(app_context, 'policy_repo', None) if app_context is not None else None
+
+
+def _normalize_compartment_path(path: object | None) -> str:
+    text = str(path or '').replace('\\', '/').strip().strip('/')
+    return text
+
+
+def _compartment_path(compartment: dict[str, Any], repo: PolicyAnalysisRepository | None = None) -> str:
+    path = compartment.get('hierarchy_path') or compartment.get('compartment_path') or ''
+    if not path and repo is not None and compartment.get('id') == getattr(repo, 'tenancy_ocid', None):
+        path = 'ROOT'
+    return _normalize_compartment_path(path)
+
+
+def _compartment_parent_path(
+    compartment: dict[str, Any],
+    by_id: dict[str, dict[str, Any]],
+    repo: PolicyAnalysisRepository | None = None,
+) -> str:
+    parent_id = str(compartment.get('parent_id') or '')
+    parent = by_id.get(parent_id)
+    return _compartment_path(parent, repo) if parent else ''
+
+
+def _format_compartment_for_mcp(
+    compartment: dict[str, Any],
+    *,
+    repo: PolicyAnalysisRepository | None = None,
+    by_id: dict[str, dict[str, Any]] | None = None,
+    sources: list[str] | None = None,
+) -> dict[str, Any]:
+    """Normalize a repository compartment for compact MCP responses."""
+
+    by_id = by_id or {}
+    path = _compartment_path(compartment, repo)
+    row = {
+        'name': str(compartment.get('name') or ''),
+        'ocid': str(compartment.get('id') or compartment.get('ocid') or ''),
+        'path': path,
+        'effective_path': path.casefold() if path else '',
+        'parent_ocid': str(compartment.get('parent_id') or ''),
+        'parent_path': _compartment_parent_path(compartment, by_id, repo),
+        'lifecycle_state': str(compartment.get('lifecycle_state') or ''),
+        'description': str(compartment.get('description') or ''),
+        'statement_count_direct': int(compartment.get('statement_count_direct') or 0),
+        'statement_count_cumulative': int(compartment.get('statement_count_cumulative') or 0),
+    }
+    if sources:
+        row['sources'] = sorted(set(sources))
+    return row
+
+
+def _path_matches(candidate: str, query: str) -> bool:
+    candidate_norm = _normalize_compartment_path(candidate).casefold()
+    query_norm = _normalize_compartment_path(query).casefold()
+    if not candidate_norm or not query_norm:
+        return False
+    return candidate_norm == query_norm or candidate_norm.endswith(f'/{query_norm}')
+
+
+def _is_descendant_of(
+    compartment: dict[str, Any],
+    ancestor_id: str,
+    by_id: dict[str, dict[str, Any]],
+) -> bool:
+    current_id = str(compartment.get('parent_id') or '')
+    visited: set[str] = set()
+    while current_id and current_id not in visited:
+        if current_id == ancestor_id:
+            return True
+        visited.add(current_id)
+        parent = by_id.get(current_id)
+        if not parent:
+            return False
+        current_id = str(parent.get('parent_id') or '')
+    return False
+
+
+def _search_compartments(
+    repo: PolicyAnalysisRepository,
+    *,
+    names: list[str] | None = None,
+    ocids: list[str] | None = None,
+    paths: list[str] | None = None,
+    parent_ocids: list[str] | None = None,
+    parent_paths: list[str] | None = None,
+    include_children: bool = False,
+) -> list[dict[str, Any]]:
+    """Search loaded compartments by OCID, name, path, or parent scope."""
+
+    compartments = [dict(comp) for comp in (getattr(repo, 'compartments', []) or []) if isinstance(comp, dict)]
+    by_id = {str(comp.get('id') or ''): comp for comp in compartments if comp.get('id')}
+    name_terms = {term.casefold() for term in _as_str_list(names)}
+    ocid_terms = set(_as_str_list(ocids))
+    path_terms = _as_str_list(paths)
+    parent_ocid_terms = set(_as_str_list(parent_ocids))
+    parent_path_terms = _as_str_list(parent_paths)
+
+    matched: list[dict[str, Any]] = []
+    matched_ids: set[str] = set()
+
+    for comp in compartments:
+        comp_id = str(comp.get('id') or '')
+        comp_name = str(comp.get('name') or '').casefold()
+        comp_path = _compartment_path(comp, repo)
+        parent_id = str(comp.get('parent_id') or '')
+        parent_path = _compartment_parent_path(comp, by_id, repo)
+
+        if name_terms and comp_name not in name_terms:
+            continue
+        if ocid_terms and comp_id not in ocid_terms:
+            continue
+        if path_terms and not any(_path_matches(comp_path, term) for term in path_terms):
+            continue
+        if parent_ocid_terms and parent_id not in parent_ocid_terms:
+            continue
+        if parent_path_terms and not any(_path_matches(parent_path, term) for term in parent_path_terms):
+            continue
+
+        matched.append(comp)
+        if comp_id:
+            matched_ids.add(comp_id)
+
+    if include_children and matched_ids:
+        for comp in compartments:
+            comp_id = str(comp.get('id') or '')
+            if comp_id in matched_ids:
+                continue
+            if any(_is_descendant_of(comp, ancestor_id, by_id) for ancestor_id in matched_ids):
+                matched.append(comp)
+                if comp_id:
+                    matched_ids.add(comp_id)
+
+    rows = [_format_compartment_for_mcp(comp, repo=repo, by_id=by_id) for comp in matched]
+    rows.sort(
+        key=lambda row: (
+            str(row.get('path') or '').casefold(),
+            str(row.get('name') or '').casefold(),
+        )
+    )
+    return rows
+
+
+def _extract_compartment_ocids(text: object | None) -> list[str]:
+    return sorted(set(COMPARTMENT_OCID_RE.findall(str(text or ''))))
+
+
+def _add_compartment_ocid_sources(
+    sources_by_ocid: dict[str, list[str]],
+    value: object | None,
+    source: str,
+) -> None:
+    for ocid in _extract_compartment_ocids(value):
+        sources_by_ocid.setdefault(ocid, []).append(source)
+
+
+def _resolve_statement_principal_compartments(
+    statement: dict[str, Any],
+    repo: PolicyAnalysisRepository | None,
+) -> list[dict[str, Any]]:
+    """Resolve compartment OCIDs present in workload-principal evidence."""
+
+    if repo is None:
+        return []
+
+    sources_by_ocid: dict[str, list[str]] = {}
+
+    for principal in statement.get('principals') or []:
+        if not isinstance(principal, dict):
+            continue
+        for key in ('compartment_ocid', 'resource_compartment_ocid', 'resource_compartment_id'):
+            _add_compartment_ocid_sources(sources_by_ocid, principal.get(key), f'principal.{key}')
+
+    for atom in statement.get('principal_evidence') or []:
+        if not isinstance(atom, dict):
+            continue
+        left = str(atom.get('normalized_left') or atom.get('left') or '').casefold()
+        if 'compartment' not in left or 'id' not in left:
+            continue
+        _add_compartment_ocid_sources(
+            sources_by_ocid,
+            atom.get('right') or atom.get('value') or atom.get('values'),
+            f'principal_evidence.{left or "compartment"}',
+        )
+
+    for evidence in statement.get('dynamic_group_rule_evidence') or []:
+        if not isinstance(evidence, dict):
+            continue
+        _add_compartment_ocid_sources(
+            sources_by_ocid,
+            evidence.get('matching_rule'),
+            'dynamic_group_rule_evidence.matching_rule',
+        )
+        _add_compartment_ocid_sources(
+            sources_by_ocid,
+            json.dumps(evidence.get('matching_rule_structure') or {}, default=str),
+            'dynamic_group_rule_evidence.matching_rule_structure',
+        )
+
+    if not sources_by_ocid:
+        return []
+
+    compartments = [dict(comp) for comp in (getattr(repo, 'compartments', []) or []) if isinstance(comp, dict)]
+    by_id = {str(comp.get('id') or ''): comp for comp in compartments if comp.get('id')}
+    rows = []
+    for ocid, sources in sorted(sources_by_ocid.items()):
+        comp = by_id.get(ocid)
+        if comp:
+            rows.append(_format_compartment_for_mcp(comp, repo=repo, by_id=by_id, sources=sources))
+        else:
+            rows.append(
+                {
+                    'name': '',
+                    'ocid': ocid,
+                    'path': '',
+                    'effective_path': '',
+                    'parent_ocid': '',
+                    'parent_path': '',
+                    'lifecycle_state': '',
+                    'description': '',
+                    'statement_count_direct': 0,
+                    'statement_count_cumulative': 0,
+                    'sources': sorted(set(sources)),
+                    'resolution_status': 'not_found',
+                }
+            )
+    return rows
+
+
 def _policy_filters_from_request(filters: dict[str, Any] | None) -> PolicySearch:
     raw = dict(filters or {})
     normalized: dict[str, object] = {}
@@ -403,7 +617,12 @@ def _statement_compact(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _statement_advanced(statement: dict[str, Any], include_full: bool = False) -> dict[str, Any]:
+def _statement_advanced(
+    statement: dict[str, Any],
+    *,
+    include_full: bool = False,
+    repo: PolicyAnalysisRepository | None = None,
+) -> dict[str, Any]:
     row = {
         'statement_text': statement.get('statement_text') or '',
         'policy_name': statement.get('policy_name') or '',
@@ -418,6 +637,9 @@ def _statement_advanced(statement: dict[str, Any], include_full: bool = False) -
         'match_confidence': statement.get('match_confidence') or statement.get('confidence') or '',
         'match_confidence_reason': statement.get('match_confidence_reason') or '',
     }
+    resolved_compartments = _resolve_statement_principal_compartments(statement, repo)
+    if resolved_compartments:
+        row['resolved_compartments'] = resolved_compartments
     if include_full:
         row['full_statement'] = statement
     return row
@@ -449,6 +671,7 @@ def _format_policy_search_response(
     detail_level: str = 'simple',
     limit: int | None = None,
     warnings: list[str] | None = None,
+    repo: PolicyAnalysisRepository | None = None,
 ) -> dict[str, Any]:
     bounded_limit = _clamp_limit(limit)
     normalized = [_normalize_policy_statement_for_mcp(statement) for statement in statements]
@@ -458,11 +681,13 @@ def _format_policy_search_response(
 
     if response_type == 'full':
         rows = [
-            _statement_advanced(statement, include_full=(mode == 'advanced')) if mode == 'advanced' else statement
+            _statement_advanced(statement, include_full=(mode == 'advanced'), repo=repo)
+            if mode == 'advanced'
+            else statement
             for statement in sample
         ]
     elif mode == 'advanced':
-        rows = [_statement_advanced(statement, include_full=False) for statement in sample]
+        rows = [_statement_advanced(statement, include_full=False, repo=repo) for statement in sample]
     else:
         rows = [_statement_compact(statement) for statement in sample]
 
@@ -558,6 +783,7 @@ def _run_policy_search_request(
         detail_level=detail_level,
         limit=request.get('limit') if isinstance(request.get('limit'), int) else None,
         warnings=warnings,
+        repo=repo or _current_policy_repo(),
     )
 
 
@@ -659,7 +885,7 @@ def _cache_entries() -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 continue
             if isinstance(entry, dict):
-                entry['cache_name'] = f"{entry.get('tenancy_name', '')}_{entry.get('cache_date', '')}"
+                entry['cache_name'] = f'{entry.get("tenancy_name", "")}_{entry.get("cache_date", "")}'
                 entries.append(entry)
     return list(reversed(entries))
 
@@ -903,12 +1129,13 @@ def policy_search(
     """Run one bounded policy search."""
 
     tool_name = 'policy_search'
+    _log_mcp_call_input(tool_name, {'mode': mode, 'detail_level': detail_level, 'filters': filters, 'limit': limit})
     try:
         response = _run_policy_search_request(
             {'mode': mode, 'detail_level': detail_level, 'filters': filters or {}, 'limit': limit}
         )
         _track_mcp_tool(tool_name, status='success', total_statements=response.get('total_count'))
-        return response
+        return _log_mcp_call_output(tool_name, response)
     except ToolError:
         _track_mcp_tool(tool_name, status='error')
         raise
@@ -928,6 +1155,15 @@ def policy_search_set(
     """Run multiple related policy searches and summarize coverage."""
 
     tool_name = 'policy_search_set'
+    _log_mcp_call_input(
+        tool_name,
+        {
+            'intent': intent,
+            'product_or_service': product_or_service,
+            'searches': searches,
+            'evaluation': evaluation,
+        },
+    )
     try:
         search_items = [item for item in (searches or []) if isinstance(item, dict)]
         eval_config = dict(evaluation or {})
@@ -948,7 +1184,7 @@ def policy_search_set(
             evaluation=eval_config,
         )
         _track_mcp_tool(tool_name, status='success', count=len(results))
-        return {'set_summary': set_summary, 'search_results': results}
+        return _log_mcp_call_output(tool_name, {'set_summary': set_summary, 'search_results': results})
     except ToolError:
         _track_mcp_tool(tool_name, status='error')
         raise
@@ -969,6 +1205,16 @@ def policy_history_search(
     """Compare one search or search set across two data snapshots."""
 
     tool_name = 'policy_history_search'
+    _log_mcp_call_input(
+        tool_name,
+        {
+            'query_type': query_type,
+            'query': query,
+            'left': left,
+            'right': right,
+            'diff_mode': diff_mode,
+        },
+    )
     try:
         left_repo, left_metadata = _repo_from_snapshot(left or {'source': 'current'})
         right_repo, right_metadata = _repo_from_snapshot(right or {'source': 'current'})
@@ -1007,7 +1253,7 @@ def policy_history_search(
             'right_snapshot_metadata': right_metadata,
         }
         _track_mcp_tool(tool_name, status='success', count=response['right_count'])
-        return response
+        return _log_mcp_call_output(tool_name, response)
     except ToolError:
         _track_mcp_tool(tool_name, status='error')
         raise
@@ -1017,13 +1263,17 @@ def policy_history_search(
         raise ToolError(f'Unhandled error in policy_history_search: {exc}') from exc
 
 
-@mcp.tool(name='identity_search', description='Search users, groups, dynamic groups, and IAM memberships.')
+@mcp.tool(name='identity_search', description='Search identities, compartments, and IAM memberships.')
 def identity_search(
     operation: Literal['search', 'members_for_group', 'groups_for_user'] = 'search',
-    entity_types: list[Literal['user', 'group', 'dynamic-group']] | None = None,
+    entity_types: list[Literal['user', 'group', 'dynamic-group', 'compartment']] | None = None,
     domain_name: list[str] | None = None,
     name: list[str] | None = None,
     ocid: list[str] | None = None,
+    compartment_path: list[str] | None = None,
+    parent_ocid: list[str] | None = None,
+    parent_path: list[str] | None = None,
+    include_children: bool = False,
     matching_rule: list[str] | None = None,
     in_use: bool | None = None,
     principal: dict[str, Any] | None = None,
@@ -1032,11 +1282,35 @@ def identity_search(
     """Resolve identities and memberships through one compact MCP tool."""
 
     tool_name = 'identity_search'
+    _log_mcp_call_input(
+        tool_name,
+        {
+            'operation': operation,
+            'entity_types': entity_types,
+            'domain_name': domain_name,
+            'name': name,
+            'ocid': ocid,
+            'compartment_path': compartment_path,
+            'parent_ocid': parent_ocid,
+            'parent_path': parent_path,
+            'include_children': include_children,
+            'matching_rule': matching_rule,
+            'in_use': in_use,
+            'principal': principal,
+            'limit': limit,
+        },
+    )
     try:
         principal = dict(principal or {})
         domains = domain_name or _as_str_list(principal.get('domain_name'))
         names = name or _as_str_list(principal.get('name') or principal.get('display_name'))
         ocids = ocid or _as_str_list(principal.get('ocid'))
+        compartment_ocids = ocid or _as_str_list(
+            principal.get('compartment_ocid') or principal.get('resource_compartment_ocid') or principal.get('ocid')
+        )
+        compartment_paths = compartment_path or _as_str_list(
+            principal.get('compartment_path') or principal.get('resource_compartment_path')
+        )
         bounded_limit = _clamp_limit(limit)
 
         if operation == 'groups_for_user':
@@ -1047,7 +1321,10 @@ def identity_search(
             if ocids:
                 user['user_ocid'] = ocids[0]
             groups = _query_service().get_groups_for_user(user)
-            return {'operation': operation, 'groups': groups[:bounded_limit], 'total_count': len(groups)}
+            return _log_mcp_call_output(
+                tool_name,
+                {'operation': operation, 'groups': groups[:bounded_limit], 'total_count': len(groups)},
+            )
 
         if operation == 'members_for_group':
             group: Group = {
@@ -1057,7 +1334,10 @@ def identity_search(
             if ocids:
                 group['group_ocid'] = ocids[0]
             users = _query_service().get_users_for_group(group)
-            return {'operation': operation, 'users': users[:bounded_limit], 'total_count': len(users)}
+            return _log_mcp_call_output(
+                tool_name,
+                {'operation': operation, 'users': users[:bounded_limit], 'total_count': len(users)},
+            )
 
         requested_types = set(entity_types or ['user', 'group', 'dynamic-group'])
         response: dict[str, Any] = {'operation': operation, 'entity_types': sorted(requested_types)}
@@ -1089,12 +1369,26 @@ def identity_search(
             response['dynamic_groups'] = dynamic_groups[:bounded_limit]
             response['total_dynamic_groups'] = len(dynamic_groups)
             total += len(dynamic_groups)
+        if 'compartment' in requested_types:
+            compartments = _search_compartments(
+                _require_service_context().policy_repo,
+                names=names,
+                ocids=compartment_ocids,
+                paths=compartment_paths,
+                parent_ocids=parent_ocid,
+                parent_paths=parent_path,
+                include_children=include_children,
+            )
+            response['compartments'] = compartments[:bounded_limit]
+            response['total_compartments'] = len(compartments)
+            total += len(compartments)
         response['total_count'] = total
         response['truncated'] = any(
-            int(response.get(key, 0)) > bounded_limit for key in ('total_users', 'total_groups', 'total_dynamic_groups')
+            int(response.get(key, 0)) > bounded_limit
+            for key in ('total_users', 'total_groups', 'total_dynamic_groups', 'total_compartments')
         )
         _track_mcp_tool(tool_name, status='success', count=total)
-        return response
+        return _log_mcp_call_output(tool_name, response)
     except Exception as exc:
         _track_mcp_tool(tool_name, status='error')
         logger.error('Unhandled error in identity_search: %s', exc, exc_info=True)
@@ -1110,59 +1404,72 @@ def data_operations(
     """Manage data state and cache visibility."""
 
     tool_name = 'data_operations'
+    _log_mcp_call_input(
+        tool_name,
+        {'operation': operation, 'cache_name': cache_name, 'tenancy_name': tenancy_name},
+    )
     try:
         ctx = _require_service_context()
         repo = ctx.policy_repo
         manager = CacheManager()
 
         if operation == 'get_status':
-            return {
-                'operation': operation,
-                'tenancy_name': repo.tenancy_name,
-                'tenancy_ocid': repo.tenancy_ocid,
-                'data_as_of': repo.data_as_of,
-                'regular_statements': len(repo.regular_statements),
-                'cross_tenancy_statements': len(repo.cross_tenancy_statements),
-                'defined_aliases': len(repo.defined_aliases),
-                'users': len(repo.users),
-                'groups': len(repo.groups),
-                'dynamic_groups': len(repo.dynamic_groups),
-                'loaded_from_tenancy': bool(getattr(repo, 'policies_loaded_from_tenancy', False)),
-            }
+            return _log_mcp_call_output(
+                tool_name,
+                {
+                    'operation': operation,
+                    'tenancy_name': repo.tenancy_name,
+                    'tenancy_ocid': repo.tenancy_ocid,
+                    'data_as_of': repo.data_as_of,
+                    'regular_statements': len(repo.regular_statements),
+                    'cross_tenancy_statements': len(repo.cross_tenancy_statements),
+                    'defined_aliases': len(repo.defined_aliases),
+                    'users': len(repo.users),
+                    'groups': len(repo.groups),
+                    'dynamic_groups': len(repo.dynamic_groups),
+                    'loaded_from_tenancy': bool(getattr(repo, 'policies_loaded_from_tenancy', False)),
+                },
+            )
 
         if operation == 'list_caches':
             cache_names = manager.get_available_cache(tenancy_name or None)
-            return {
-                'operation': operation,
-                'caches': [_cache_metadata(name) for name in cache_names],
-                'total_count': len(cache_names),
-            }
+            return _log_mcp_call_output(
+                tool_name,
+                {
+                    'operation': operation,
+                    'caches': [_cache_metadata(name) for name in cache_names],
+                    'total_count': len(cache_names),
+                },
+            )
 
         if operation == 'cache_metadata':
             if not cache_name:
                 raise ToolError('cache_metadata requires cache_name.')
-            return {'operation': operation, 'cache': _cache_metadata(cache_name)}
+            return _log_mcp_call_output(tool_name, {'operation': operation, 'cache': _cache_metadata(cache_name)})
 
         if operation == 'load_cache':
             if not cache_name:
                 raise ToolError('load_cache requires cache_name.')
             loaded = manager.load_combined_cache(policy_analysis=repo, named_cache=cache_name)
-            return {
-                'operation': operation,
-                'status': 'success',
-                'loaded': loaded,
-                'cache_name': cache_name,
-                'regular_statements': len(repo.regular_statements),
-                'users': len(repo.users),
-                'groups': len(repo.groups),
-                'dynamic_groups': len(repo.dynamic_groups),
-                'data_as_of': repo.data_as_of,
-            }
+            return _log_mcp_call_output(
+                tool_name,
+                {
+                    'operation': operation,
+                    'status': 'success',
+                    'loaded': loaded,
+                    'cache_name': cache_name,
+                    'regular_statements': len(repo.regular_statements),
+                    'users': len(repo.users),
+                    'groups': len(repo.groups),
+                    'dynamic_groups': len(repo.dynamic_groups),
+                    'data_as_of': repo.data_as_of,
+                },
+            )
 
         if operation == 'reload':
-            result = reload_mcp_data()
+            result = _reload_mcp_data()
             result['operation'] = operation
-            return result
+            return _log_mcp_call_output(tool_name, result)
 
         raise ToolError(f'Unsupported data operation: {operation}')
     except ToolError:
@@ -1184,11 +1491,23 @@ def cross_tenancy_search(
     """Consolidated cross-tenancy alias and statement search."""
 
     tool_name = 'cross_tenancy_search'
+    _log_mcp_call_input(
+        tool_name,
+        {
+            'operation': operation,
+            'alias': alias,
+            'statement_text': statement_text,
+            'principal': principal,
+        },
+    )
     try:
         service = _query_service()
         if operation == 'list_aliases':
             aliases = [_normalize_policy_statement_for_mcp(stmt) for stmt in service.list_cross_tenancy_aliases()]
-            return {'operation': operation, 'aliases': aliases, 'total_count': len(aliases)}
+            return _log_mcp_call_output(
+                tool_name,
+                {'operation': operation, 'aliases': aliases, 'total_count': len(aliases)},
+            )
 
         if operation == 'policies_by_alias':
             if not alias:
@@ -1197,7 +1516,10 @@ def cross_tenancy_search(
                 _normalize_policy_statement_for_mcp(stmt)
                 for stmt in service.filter_cross_tenancy_policies_by_alias(alias)
             ]
-            return {'operation': operation, 'statements': statements, 'total_count': len(statements)}
+            return _log_mcp_call_output(
+                tool_name,
+                {'operation': operation, 'statements': statements, 'total_count': len(statements)},
+            )
 
         terms = [term.casefold() for term in _as_str_list(statement_text)]
         principal_terms = [term.casefold() for term in _as_str_list((principal or {}).get('name'))]
@@ -1216,7 +1538,10 @@ def cross_tenancy_search(
             ]
         statements = [_normalize_policy_statement_for_mcp(stmt) for stmt in rows]
         _track_mcp_tool(tool_name, status='success', count=len(statements))
-        return {'operation': operation, 'statements': statements, 'total_count': len(statements)}
+        return _log_mcp_call_output(
+            tool_name,
+            {'operation': operation, 'statements': statements, 'total_count': len(statements)},
+        )
     except ToolError:
         _track_mcp_tool(tool_name, status='error')
         raise
@@ -1226,403 +1551,8 @@ def cross_tenancy_search(
         raise ToolError(f'Unhandled error in cross_tenancy_search: {exc}') from exc
 
 
-# Main Policy filter tool
-@_legacy_tool_disabled(
-    name='filter_policy_statements',
-    description=(
-        'Primary policy search. Filter loaded OCI IAM statements; OR within a field, AND across fields. '
-        'Large matches return a summary; smaller matches return full statements.'
-    ),
-)
-def filter_policy_statements(filters: MCPPolicySearch) -> dict[str, Any]:
-    """Filter policy statements through the MCP query service.
-
-    Args:
-        filters: Policy statement search criteria.
-
-    Returns:
-        PolicyFilterResponse: Full statement results or a summarized response.
-    """
-    tool_name = 'filter_policy_statements'
-    try:
-        logger.info('Tool Policy Filter with JSON filters: %s', filters)
-        raw_results = _query_service().filter_policy_statements(PolicySearch(**filters))
-
-        if len(raw_results) > POLICY_RESULT_THRESHOLD:
-            # Generate summary response
-            logger.info('Large result set (%d statements), returning summary', len(raw_results))
-
-            # Calculate breakdowns
-            policy_breakdown = {}
-            action_breakdown = {}
-            compartment_breakdown = {}
-            subject_type_breakdown = {}
-            verb_breakdown = {}
-
-            for statement in raw_results:
-                # Policy breakdown
-                policy_name = statement.get('policy_name', 'Unknown')
-                policy_breakdown[policy_name] = policy_breakdown.get(policy_name, 0) + 1
-
-                # Action breakdown (allow/deny)
-                action = statement.get('action', 'allow').lower()
-                action_breakdown[action] = action_breakdown.get(action, 0) + 1
-
-                # Compartment breakdown
-                compartment = statement.get('policy_compartment', 'Unknown')
-                compartment_breakdown[compartment] = compartment_breakdown.get(compartment, 0) + 1
-
-                # Subject type breakdown
-                subject_type = statement.get('subject_type', 'Unknown')
-                subject_type_breakdown[subject_type] = subject_type_breakdown.get(subject_type, 0) + 1
-
-                # Verb breakdown
-                verb = statement.get('verb', 'Unknown')
-                verb_breakdown[verb] = verb_breakdown.get(verb, 0) + 1
-
-            # Get sample statements (first 15)
-            sample_statements = [statement.get('statement_text', '') for statement in raw_results[:15]]
-
-            summary_response: PolicySummary = {
-                'response_type': 'summary',
-                'total_statements': len(raw_results),
-                'truncated': True,
-                'truncation_point': POLICY_RESULT_THRESHOLD,
-                'policy_breakdown': policy_breakdown,
-                'action_breakdown': action_breakdown,
-                'compartment_breakdown': compartment_breakdown,
-                'subject_type_breakdown': subject_type_breakdown,
-                'verb_breakdown': verb_breakdown,
-                'sample_statements': sample_statements,
-                'message': (
-                    'Result set too large '
-                    f'({len(raw_results)} statements). Returning summary with breakdowns. '
-                    'Use more specific filters to get full details.'
-                ),
-            }
-
-            logger.info('Returning summary for %d policy statements', len(raw_results))
-            _track_mcp_tool(tool_name, status='success', total_statements=len(raw_results))
-            return summary_response
-
-        # Return full results for smaller sets
-        logger.info('Manageable result set (%d statements), returning full data', len(raw_results))
-
-        # Log raw results for debugging
-        for st in raw_results:
-            logger.debug('Raw Result: %s\n\n', st)
-
-        # Normalize subjects for MCP output (e.g., any-user / any-group)
-        normalized_results = [_normalize_policy_statement_for_mcp(st) for st in raw_results]
-
-        full_response: PolicyStatementFull = {
-            'response_type': 'full',
-            'statements': normalized_results,
-            'total_count': len(normalized_results),
-        }
-
-        logger.info('Filter returning %d full policy statements to client', len(normalized_results))
-        _track_mcp_tool(tool_name, status='success', total_statements=len(normalized_results))
-        return full_response
-    except ToolError:
-        _track_mcp_tool(tool_name, status='error')
-        raise
-    except Exception as exc:
-        _track_mcp_tool(tool_name, status='error')
-        logger.error('Unhandled error in filter_policy_statements: %s', exc, exc_info=True)
-        raise ToolError(f'Unhandled error in filter_policy_statements: {exc}') from exc
-
-
-# User and Group tools
-@_legacy_tool_disabled(
-    name='get_groups_for_user',
-    description=('Return groups for an exact OCI IAM user. Use search_users first when the user name is uncertain.'),
-)
-def get_groups_for_user(user: User) -> list[dict[str, Any]]:
-    """Return groups for an exact user through the MCP query service.
-
-    Args:
-        user: Exact user descriptor.
-
-    Returns:
-        list[Group]: Groups containing the user.
-    """
-    try:
-        logger.info(f'MCP Tool: Getting groups for user {user}')
-        results = _query_service().get_groups_for_user(user)
-        logger.debug(f'Groups: {results}')
-
-        logger.info(f'Returning {len(results)} groups for user {user}')
-        return results
-    except Exception as e:
-        raise ToolError(f'Failed to retrieve groups for user {user}: {e}') from e
-
-
-@_legacy_tool_disabled(
-    name='get_users_for_group',
-    description=('Return users for an exact OCI IAM group. Use search_groups first when the group name is uncertain.'),
-)
-def get_users_for_group(group: Group) -> list[dict[str, Any]]:
-    """Get all users for a specific group.
-
-    Args:
-        group: Exact group descriptor.
-
-    Returns:
-        list[User]: List of user entries who are members of that group.
-    """
-    try:
-        logger.info(f'MCP Tool: Getting users for group {group}')
-        results = _query_service().get_users_for_group(group)
-        logger.debug(f'Users: {results}')
-
-        logger.info(f'Returning {len(results)} users for group {group}')
-        return results
-    except Exception as e:
-        raise ToolError(f'Failed to retrieve users for group {group}: {e}') from e
-
-
-# MCP Tool to search for users with Union type response
-@_legacy_tool_disabled(
-    name='search_users',
-    description=('Search loaded IAM users by domain, name/display name, or OCID. Empty filters list all users.'),
-)
-def search_users(filters: UserSearch) -> dict[str, Any]:
-    """Search users through the MCP query service.
-
-    Args:
-        filters: User search criteria.
-
-    Returns:
-        UserSearchResponse: Full user results or a summarized response.
-    """
-    try:
-        logger.info(f'MCP Tool: Searching users with filters {filters}')
-        raw_results = _query_service().search_users(filters)
-        logger.debug(f'Users: {json.dumps(raw_results, indent=4)}')
-
-        if len(raw_results) > IAM_SEARCH_THRESHOLD:
-            # Generate summary response
-            from collections import Counter
-
-            # Generate breakdowns
-            domain_breakdown = Counter()
-            sample_users = []
-
-            for user in raw_results:
-                domain_name = user.get('domain_name', 'Default')
-                domain_breakdown[domain_name] += 1
-
-                # Collect sample user names (first N)
-                if len(sample_users) < 15:
-                    user_name = user.get('user_name', user.get('email', 'Unknown'))
-                    sample_users.append(user_name)
-
-            logger.info(f'Returning summary for {len(raw_results)} users (threshold: {IAM_SEARCH_THRESHOLD})')
-            return UserSummary(
-                response_type='summary',
-                total_users=len(raw_results),
-                truncated=True,
-                truncation_point=IAM_SEARCH_THRESHOLD,
-                domain_breakdown=dict(domain_breakdown),
-                sample_users=sample_users,
-                message=f'Result set too large ({len(raw_results)} users). Returning summary with breakdowns. Use more specific filters to get full details.',
-            )
-        else:
-            # Return full results
-            logger.info(f'Returning {len(raw_results)} users (under threshold)')
-            return UserSearchFull(response_type='full', users=raw_results, total_count=len(raw_results))
-
-    except Exception as e:
-        raise ToolError(f'Failed to retrieve users with filters {filters}: {e}') from e
-
-
-# MCP tool to search for groups with Union type response
-@_legacy_tool_disabled(
-    name='search_groups',
-    description=('Search loaded IAM groups by domain, name, or OCID. Empty filters list all groups.'),
-)
-def search_groups(filters: GroupSearch) -> dict[str, Any]:
-    """Search groups through the MCP query service.
-
-    Args:
-        filters: Group search criteria.
-
-    Returns:
-        GroupSearchResponse: Full group results or a summarized response.
-    """
-    try:
-        logger.info(f'MCP Tool: Searching groups with filters {filters}')
-        raw_results = _query_service().search_groups(filters)
-        logger.debug(f'Groups: {json.dumps(raw_results, indent=4)}')
-
-        # Decision logic: return summary if result set is too large
-        IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-
-        if len(raw_results) > IAM_SEARCH_THRESHOLD:
-            # Generate summary response
-            from collections import Counter
-
-            # Generate breakdowns
-            domain_breakdown = Counter()
-            sample_groups = []
-
-            for group in raw_results:
-                domain_name = group.get('domain_name', 'Default')
-                domain_breakdown[domain_name] += 1
-
-                # Collect sample group names (first N)
-                if len(sample_groups) < 15:
-                    group_name = group.get('group_name', 'Unknown')
-                    sample_groups.append(group_name)
-
-            logger.info(f'Returning summary for {len(raw_results)} groups (threshold: {IAM_SEARCH_THRESHOLD})')
-            return GroupSummary(
-                response_type='summary',
-                total_groups=len(raw_results),
-                truncated=True,
-                truncation_point=IAM_SEARCH_THRESHOLD,
-                domain_breakdown=dict(domain_breakdown),
-                sample_groups=sample_groups,
-                message=f'Result set too large ({len(raw_results)} groups). Returning summary with breakdowns. Use more specific filters to get full details.',
-            )
-        else:
-            # Return full results
-            logger.info(f'Returning {len(raw_results)} groups (under threshold)')
-            return GroupSearchFull(response_type='full', groups=raw_results, total_count=len(raw_results))
-
-    except Exception as e:
-        raise ToolError(f'Failed to retrieve groups with filters {filters}: {e}') from e
-
-
-# MCP tool to search for dynamic groups with Union type response
-@_legacy_tool_disabled(
-    name='search_dynamic_groups',
-    description=('Search loaded dynamic groups by domain, name, OCID, rule text, or in-use status.'),
-)
-def search_dynamic_groups(filters: DynamicGroupSearch) -> dict[str, Any]:
-    """Search dynamic groups through the MCP query service.
-
-    Args:
-        filters: Dynamic group search criteria.
-
-    Returns:
-        DynamicGroupSearchResponse: Full dynamic group results or a summarized response.
-    """
-    try:
-        logger.info(f'MCP Tool: Searching dynamic groups with filters {filters}')
-        raw_results = _query_service().search_dynamic_groups(filters)
-        logger.debug(f'Dynamic Groups: {json.dumps(raw_results, indent=4)}')
-
-        # Decision logic: return summary if result set is too large
-        IAM_SEARCH_THRESHOLD = 50  # Use the same threshold as policies
-
-        if len(raw_results) > IAM_SEARCH_THRESHOLD:
-            # Generate summary response
-            from collections import Counter
-
-            # Generate breakdowns
-            domain_breakdown = Counter()
-            in_use_breakdown = Counter()
-            sample_dynamic_groups = []
-
-            for dg in raw_results:
-                domain_name = dg.get('domain_name', 'Default')
-                domain_breakdown[domain_name] += 1
-
-                # Track usage status
-                in_use = dg.get('in_use', False)
-                in_use_breakdown['in_use' if in_use else 'not_in_use'] += 1
-
-                # Collect sample dynamic group names (first N)
-                if len(sample_dynamic_groups) < 15:
-                    dg_name = dg.get('dynamic_group_name', 'Unknown')
-                    sample_dynamic_groups.append(dg_name)
-
-            logger.info(f'Returning summary for {len(raw_results)} dynamic groups (threshold: {IAM_SEARCH_THRESHOLD})')
-            return DynamicGroupSummary(
-                response_type='summary',
-                total_dynamic_groups=len(raw_results),
-                truncated=True,
-                truncation_point=IAM_SEARCH_THRESHOLD,
-                domain_breakdown=dict(domain_breakdown),
-                in_use_breakdown=dict(in_use_breakdown),
-                sample_dynamic_groups=sample_dynamic_groups,
-                message=f'Result set too large ({len(raw_results)} dynamic groups). Returning summary with breakdowns. Use more specific filters to get full details.',
-            )
-        else:
-            # Return full results
-            logger.info(f'Returning {len(raw_results)} dynamic groups (under threshold)')
-            return DynamicGroupSearchFull(
-                response_type='full', dynamic_groups=raw_results, total_count=len(raw_results)
-            )
-
-    except Exception as e:
-        raise ToolError(f'Failed to retrieve dynamic groups with filters {filters}: {e}') from e
-
-
-# --- CROSS TENANCY TOOLS START HERE ---
-
-
-@_legacy_tool_disabled('cross-tenancy-alias-list', description='List all loaded cross-tenancy alias definitions.')
-def list_cross_tenancy_aliases() -> list[dict[str, Any]]:
-    """Retrieve all defined aliases from the MCP query service.
-
-    Returns:
-        list[DefineStatement]: All aliases known to the active policy data.
-    """
-    try:
-        raw_aliases = _query_service().list_cross_tenancy_aliases()
-        logger.info(f'Returning {len(raw_aliases)} aliases')
-        logger.debug(f'Aliases: {raw_aliases}')
-        return [_normalize_policy_statement_for_mcp(stmt) for stmt in raw_aliases]
-    except Exception as e:
-        logger.error(f'Failed to list aliases: {e}')
-        raise ToolError(f'Failed to list aliases: {e}') from e
-
-
-@_legacy_tool_disabled(
-    'cross-tenancy-policies-by-alias', description='Filter cross-tenancy policy statements for a given alias.'
-)
-def filter_cross_tenancy_policies_by_alias(alias: str) -> list[dict[str, Any]]:
-    """Retrieve all cross-tenancy policy statements that reference an alias.
-
-    Args:
-        alias: The named cross-tenancy alias to filter policy statements by.
-
-    Returns:
-        list[BasePolicyStatement]: List of matching policy statements.
-    """
-    try:
-        logger.info(f"Filtering cross-tenancy statements for alias '{alias}'")
-        raw_results = _query_service().filter_cross_tenancy_policies_by_alias(alias)
-        logger.info(f"Found {len(raw_results)} policy statements matching alias '{alias}'")
-        logger.debug(f'Policies: {raw_results}')
-        return [_normalize_policy_statement_for_mcp(stmt) for stmt in raw_results]
-    except Exception as e:
-        logger.error(f'Failed to filter policies by alias: {e}')
-        raise ToolError(f'Failed to filter policies by alias: {e}') from e
-
-
-# ===========================================================
-# RELOAD MCP DATA TOOL
-# ===========================================================
-@_legacy_tool_disabled(
-    name='reload_mcp_data',
-    description=(
-        'Reload live OCI policy and identity data for this MCP server. Requires live auth, not cache-only mode.'
-    ),
-)
-def reload_mcp_data() -> dict:
-    """
-    Reload all policy and identity data from OCI through the MCP load service.
-
-    Args:
-        recursive (bool): Whether to recursively load all compartments. Default is True.
-
-    Returns:
-        dict: Summary of the reload operation.
-    """
+def _reload_mcp_data() -> dict[str, Any]:
+    """Reload live policy and identity data for the active standalone MCP context."""
 
     ctx = _require_service_context()
     repo = ctx.policy_repo
@@ -1690,7 +1620,7 @@ def start_mcp_server_in_thread(settings: dict):
         global server_running
         try:
             logger.info(
-                f"Starting FastMCP server on {settings.get('mcp_host', '127.0.0.1')}:{settings.get('mcp_port', 8765)}"
+                f'Starting FastMCP server on {settings.get("mcp_host", "127.0.0.1")}:{settings.get("mcp_port", 8765)}'
             )
             server_running = True
             mcp.run(

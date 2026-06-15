@@ -32,8 +32,8 @@ Token counts below reflect the current branch state, not the proposed future met
 
 | Snapshot | Encoding | Tools | Total | Avg/tool | Max/tool | Description | Input schema | Output schema |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Current branch | `o200k_base` | 9 | 1,594 | 177.1 | 542 | 181 | 1,153 | 260 |
-| Current branch | `cl100k_base` | 9 | 1,597 | 177.4 | 543 | 183 | 1,154 | 260 |
+| Current branch | `o200k_base` | 6 | 1,310 | 218.3 | 466 | 68 | 1,023 | 72 |
+| Current branch | `cl100k_base` | 6 | 1,308 | 218.0 | 466 | 69 | 1,021 | 72 |
 
 Current optimization choices already applied on this branch:
 
@@ -54,14 +54,14 @@ Target after the final meta-tool design:
 
 Replace the current collection of narrow tools with a smaller set of meta-tools. This branch is allowed to make breaking MCP changes, and the next pip release should replace the existing MCP tools rather than carry legacy wrappers.
 
-Implementation note (2026-06-15): the MCP server now advertises only the six compact tools below. Legacy tool function bodies remain in `mcp_server.py` as internal compatibility helpers, but they are no longer registered with FastMCP. The regenerated packaged `mcp_tools.json` is about 1,775 `o200k_base` tokens.
+Implementation note (2026-06-15): the MCP server now advertises only the six compact tools below. The legacy MCP tool bodies have been removed; operations route through the compact tools. The regenerated packaged `mcp_tools.json` is about 1,310 `o200k_base` tokens.
 
 | Tool | Purpose | Agent routing cue |
 | --- | --- | --- |
 | `policy_search` | Run one policy search in simple or advanced mode. | "Find/show/list policies", "what policies allow..." |
 | `policy_search_set` | Run multiple related searches and summarize coverage. | "validate", "install", "configured correctly", "troubleshoot service setup" |
 | `policy_history_search` | Run a search or search set against two snapshots and diff results. | "changed since", "compare to last month", "what is new/removed" |
-| `identity_search` | Resolve users, groups, dynamic groups, and membership. | "find user/group/dynamic group", "who is in group", "groups for user" |
+| `identity_search` | Resolve users, groups, dynamic groups, compartments, and membership. | "find user/group/dynamic group/compartment", "who is in group", "groups for user" |
 | `data_operations` | Data status, cache listing, cache metadata, load cache, reload. | "reload", "current data", "list caches", "what snapshot" |
 | `cross_tenancy_search` | Alias listing and alias-related cross-tenancy policy search. | "define/admit/endorse", "cross-tenancy alias" |
 

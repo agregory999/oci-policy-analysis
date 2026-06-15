@@ -1,6 +1,6 @@
 {
   "jsonrpc": "2.0",
-  "id": 2,
+  "id": 1,
   "result": {
     "tools": [
       {
@@ -171,7 +171,7 @@
       },
       {
         "name": "identity_search",
-        "description": "Search users, groups, dynamic groups, and IAM memberships.",
+        "description": "Search identities, compartments, and IAM memberships.",
         "inputSchema": {
           "properties": {
             "operation": {
@@ -190,7 +190,8 @@
                     "enum": [
                       "user",
                       "group",
-                      "dynamic-group"
+                      "dynamic-group",
+                      "compartment"
                     ],
                     "type": "string"
                   },
@@ -243,6 +244,52 @@
                 }
               ],
               "default": null
+            },
+            "compartment_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "parent_ocid": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "parent_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "include_children": {
+              "default": false,
+              "type": "boolean"
             },
             "matching_rule": {
               "anyOf": [
