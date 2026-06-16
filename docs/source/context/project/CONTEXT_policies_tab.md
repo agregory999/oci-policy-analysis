@@ -135,7 +135,7 @@ Under the hood, the flow is:
 
 ## 5. Code Location
 
-Implementation: [`src/oci_policy_analysis/ui/policies_tab.py`](../../../src/oci_policy_analysis/ui/policies_tab.py)
+Implementation: [`src/oci_policy_analysis/presentation/desktop/policies_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/policies_tab.py)
 
 ---
 

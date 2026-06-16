@@ -218,7 +218,7 @@ def collect_tag_conditions(condition_str: str) -> tuple[str, list[TagCondition]]
 ## Tag-based Access Tab: UI Layout
 
 The tab is implemented as `TagBasedAccessTab(BaseUITab)` under
-`src/oci_policy_analysis/ui/tag_based_access_tab.py` and added to the
+`src/oci_policy_analysis/presentation/desktop/tag_based_access_tab.py` and added to the
 application's notebook as an **advanced** tab (toggled via Settings).
 
 ### Page-Level Behavior
@@ -625,13 +625,13 @@ Potential follow-ons include:
 
 - Condition parser and tester:
   - `src/oci_policy_analysis/logic/parsers/condition_parser/`
-  - `src/oci_policy_analysis/ui/condition_tester_tab.py`
+  - `src/oci_policy_analysis/presentation/desktop/condition_tester_tab.py`
   - [`CONTEXT_simulation_engine.md`](CONTEXT_simulation_engine.md)
 
 - Policies tab and filters:
-  - `src/oci_policy_analysis/ui/policies_tab.py`
+  - `src/oci_policy_analysis/presentation/desktop/policies_tab.py`
   - [`CONTEXT_policies_tab.md`](CONTEXT_policies_tab.md)
 
 - UI architecture and BaseUITab:
-  - `src/oci_policy_analysis/ui/base_tab.py`
+  - `src/oci_policy_analysis/presentation/desktop/base_tab.py`
   - [`CONTEXT_ui.md`](CONTEXT_ui.md)

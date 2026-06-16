@@ -10,7 +10,7 @@ Desktop UI
 .. automodule:: oci_policy_analysis.presentation.desktop.dynamic_group_tab
    :no-members:
 
-.. automodule:: oci_policy_analysis.presentation.desktop.resource_principals_tab
+.. automodule:: oci_policy_analysis.presentation.desktop.workload_principals_tab
    :no-members:
 
 .. currentmodule:: oci_policy_analysis.presentation.desktop
@@ -75,10 +75,10 @@ McpTab
    :undoc-members:
    :show-inheritance:
 
-ResourcePrincipalsTab
+WorkloadPrincipalsTab
 ---------------------
 
-.. autoclass:: ResourcePrincipalsTab
+.. autoclass:: WorkloadPrincipalsTab
    :members:
    :undoc-members:
    :show-inheritance:

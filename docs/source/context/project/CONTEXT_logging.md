@@ -178,6 +178,6 @@ flowchart LR
 ## References
 
 - Logging configuration is defined in [`src/oci_policy_analysis/common/logger.py`](../../src/oci_policy_analysis/common/logger.py)
-- Console logging UI logic is in [`src/oci_policy_analysis/ui/console_tab.py`](../../src/oci_policy_analysis/ui/console_tab.py)
+- Console logging UI logic is in [`src/oci_policy_analysis/presentation/desktop/console_tab.py`](../../src/oci_policy_analysis/presentation/desktop/console_tab.py)
 - Settings load/save implementation is in [`src/oci_policy_analysis/common/config.py`](../../src/oci_policy_analysis/common/config.py)
 - All logger setup at startup occurs in [`src/oci_policy_analysis/main.py`](../../src/oci_policy_analysis/main.py)

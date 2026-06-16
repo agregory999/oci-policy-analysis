@@ -994,12 +994,12 @@ class SettingsTab(BaseUITab):
             if hasattr(self.app, 'users_tab') and hasattr(self.app.users_tab, 'ai_assist_btn'):
                 self.app.users_tab.ai_assist_btn.config(state=tk.NORMAL)
                 logger.info('AI Assist button on UsersTab enabled')
-            # Enable ResourcePrincipalsTab (and other tabs in the future) to show the AI Assist button
+            # Enable WorkloadPrincipalsTab (and other tabs in the future) to show the AI Assist button
             if hasattr(self.app, 'resource_principals_tab') and hasattr(
                 self.app.resource_principals_tab, 'ai_assist_btn'
             ):
                 self.app.resource_principals_tab.ai_assist_btn.config(state=tk.NORMAL)
-                logger.info('AI Assist button on ResourcePrincipalsTab enabled')
+                logger.info('AI Assist button on WorkloadPrincipalsTab enabled')
             # Clear previous AI Assistant search and results after enablement
             if hasattr(self.app, 'policy_query_var'):
                 self.app.policy_query_var.set('')
@@ -1072,7 +1072,6 @@ class SettingsTab(BaseUITab):
         notebook = self.app.notebook
         advanced_tabs = [
             self.app.permissions_report_tab,
-            self.app.condition_tester_tab,
             self.app.tag_based_access_tab,
             self.app.simulation_tab,
             self.app.policy_recommendations_tab,
@@ -1092,7 +1091,6 @@ class SettingsTab(BaseUITab):
         else:
             notebook.add(self.app.mcp_tab, text='Embedded MCP\n(Advanced)')
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
-            notebook.add(self.app.condition_tester_tab, text='Condition Tester\n(Advanced)')
             notebook.add(self.app.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
             notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')

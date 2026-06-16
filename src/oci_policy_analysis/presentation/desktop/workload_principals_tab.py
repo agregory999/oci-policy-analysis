@@ -4,7 +4,7 @@
 #
 # DISCLAIMER This is not an official Oracle application, It does not supported by Oracle Support.
 #
-# resource_principals_tab.py
+# workload_principals_tab.py
 #
 # @author: Andrew Gregory
 #
@@ -27,7 +27,7 @@ from oci_policy_analysis.presentation import (
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import DataTable
 
-logger = get_logger(component='resource_principals_tab')
+logger = get_logger(component='workload_principals_tab')
 
 BASIC_DG_COLUMNS = ['Domain', 'DG Name', 'Matching Rule', 'Matching Rule (parsed structure)', 'In Use']
 ALL_DG_COLUMNS = [
@@ -74,7 +74,6 @@ ALL_POLICY_COLUMNS = [
     'Location Type',
     'Location',
     'Effective Path',
-    'Conditions',
     'Conditions (where clause)',
     'Conditions (parsed structure)',
     'Conditions (elements)',
@@ -93,7 +92,9 @@ BASIC_POLICY_COLUMNS = [
     'Policy Compartment',
     'Statement Text',
     'Conditions (parsed structure)',
-    'Confidence',
+    'Conditions (elements)',
+    'Match Confidence',
+    'Match Confidence Reason',
     'Effective Path',
     'Valid',
 ]
@@ -113,7 +114,6 @@ POLICY_COLUMN_WIDTHS = {
     'Permission': 150,
     'Location Type': 120,
     'Location': 200,
-    'Conditions': 200,
     'Conditions (where clause)': 260,
     'Conditions (parsed structure)': 280,
     'Conditions (elements)': 420,
@@ -129,13 +129,13 @@ POLICY_COLUMN_WIDTHS = {
 }
 
 
-class ResourcePrincipalsTab(BaseUITab):
+class WorkloadPrincipalsTab(BaseUITab):
     """
-    Resource Principals Tab for OCI Policy Analysis UI.
+    Workload Principals Tab for OCI Policy Analysis UI.
 
     Allows viewing Dynamic Groups and associated policy statements, with contextual page help. Now inherits from BaseUITab.
     Methods:
-        __init__: Initializes the ResourcePrincipalsTab with UI components and context help.
+        __init__: Initializes the WorkloadPrincipalsTab with UI components and context help.
         _build_ui: (Internal) Builds the UI components for the tab.
         apply_settings: Updates tab appearance and page help when global UI settings change.
         update_principals_sheets: Updates sheets based on dropdown and DG selection (called from main app, or internally).
@@ -254,7 +254,7 @@ class ResourcePrincipalsTab(BaseUITab):
         )
         self.ai_assist_btn.grid(row=0, column=9, padx=(8, 8), pady=2, sticky='w')
         self.add_context_help(
-            self.ai_assist_btn, 'Use Generative AI to analyze Resource Principals context and matching policies.'
+            self.ai_assist_btn, 'Use Generative AI to analyze workload principals context and matching policies.'
         )
 
         # refresh on text filter change
@@ -280,6 +280,7 @@ class ResourcePrincipalsTab(BaseUITab):
             # SNormalize the data
             filtered = [for_display_policy(statement) for statement in filtered]
             self.rp_policy_table.update_data(filtered)
+            self._update_policy_count(len(filtered), context='dynamic group selection')
             logger.info(f'Policies added to RP policy table: {len(filtered)}')
 
         def rp_policy_selection_callback(selected_rows: list[dict]) -> None:
@@ -312,6 +313,26 @@ class ResourcePrincipalsTab(BaseUITab):
                 self.app.policies_tab.policy_filter_var.set(row_data.get('Policy Name', ''))
 
             menu.add_command(label=f'View Full Policy ({policy_label})', command=switch_tab_policy_analysis)
+            condition_text = (
+                row_data.get('Conditions (where clause)')
+                or row_data.get('Conditions')
+                or row_data.get('conditions_where_clause')
+                or row_data.get('conditions')
+                or ''
+            )
+            if (
+                self.principals_style_var.get() in ('any-user', 'any-group', 'any-user / any-group')
+                and condition_text
+                and condition_text != 'None'
+                and hasattr(self.app, 'condition_tester_tab')
+            ):
+                menu.add_command(
+                    label='View in Condition Tester Tab',
+                    command=lambda text=condition_text: (
+                        self.app.condition_tester_tab.set_clause_text(text),
+                        self.app.open_condition_tester_with_condition(text),
+                    ),
+                )
             return menu
 
         # --- Main area: Labeled Frames for each table area ---
@@ -347,11 +368,15 @@ class ResourcePrincipalsTab(BaseUITab):
         self.rp_labelframe = ttk.LabelFrame(frm_bottom_area, text='Matching Workload Principal Policies')
         self.rp_labelframe.grid(row=1, column=0, sticky='nsew', padx=2, pady=3)
         self.rp_labelframe.grid_columnconfigure(0, weight=1)
-        self.rp_labelframe.grid_rowconfigure(0, weight=1)
+        self.rp_labelframe.grid_rowconfigure(1, weight=1)
         self.add_context_help(
             self.rp_labelframe,
             'List of policy statements for chosen resource principals or dynamic group(s). Right-click for full policy details.',
         )
+
+        self.policy_count_var = tk.StringVar(value='Statements found: 0')
+        self.policy_count_label = ttk.Label(self.rp_labelframe, textvariable=self.policy_count_var)
+        self.policy_count_label.grid(row=0, column=0, sticky='w', padx=4, pady=(2, 4))
 
         # Policy Statements DataTable
         self.rp_policy_table = DataTable(
@@ -364,7 +389,7 @@ class ResourcePrincipalsTab(BaseUITab):
             selection_callback=rp_policy_selection_callback,
             multi_select=False,
         )
-        self.rp_policy_table.grid(row=0, column=0, sticky='nsew')
+        self.rp_policy_table.grid(row=1, column=0, sticky='nsew')
 
         # Update the sheet
         self.update_principals_sheets()
@@ -422,6 +447,7 @@ class ResourcePrincipalsTab(BaseUITab):
             if search_text:
                 display_data = [row for row in display_data if search_text in (row.get('Statement Text') or '').lower()]
             self.rp_policy_table.update_data(display_data)
+            self._update_policy_count(len(display_data), context=principals_style)
             logger.info(
                 f'Filtered to {len(display_data)} policies with principals: {subjects} filtering by resource: {resource_type} compartment_filter={bool(resource_compartment_ocid)}'
             )
@@ -441,8 +467,16 @@ class ResourcePrincipalsTab(BaseUITab):
                     row for row in filtered_dynamic_groups if search_text in (row.get('Matching Rule') or '').lower()
                 ]
             self.rp_dg_table.update_data(filtered_dynamic_groups)
+            self.rp_policy_table.update_data([])
+            self._update_policy_count(0, context='select dynamic group rows')
 
         # In DG mode policy table is updated by DG selection; in other modes, filled above
+
+    def _update_policy_count(self, count: int, *, context: str = '') -> None:
+        """Update the visible matching policy statement count."""
+
+        suffix = f' ({context})' if context else ''
+        self.policy_count_var.set(f'Statements found: {count}{suffix}')
 
     def apply_settings(self, context_help: bool, font_size: str):
         """

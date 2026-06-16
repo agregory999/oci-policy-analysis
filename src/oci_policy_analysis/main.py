@@ -70,11 +70,11 @@ from oci_policy_analysis.presentation.desktop.permissions_report_tab import Perm
 from oci_policy_analysis.presentation.desktop.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.policy_browser_tab import PolicyBrowserTab
 from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
-from oci_policy_analysis.presentation.desktop.resource_principals_tab import ResourcePrincipalsTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.simulation_tab import SimulationTab
 from oci_policy_analysis.presentation.desktop.tag_based_access_tab import TagBasedAccessTab
 from oci_policy_analysis.presentation.desktop.users_tab import UsersTab
+from oci_policy_analysis.presentation.desktop.workload_principals_tab import WorkloadPrincipalsTab  # noqa: E402
 
 # ----------- POST-IMPORT SETUP ------------
 __version__ = get_app_version()
@@ -225,7 +225,7 @@ class App(tk.Tk):
         self.users_tab = UsersTab(self.notebook, self)
         self.dynamic_groups_tab = DynamicGroupsTab(self.notebook, self)
         self.cross_tenancy_tab = CrossTenancyTab(self.notebook, self)
-        self.resource_principals_tab = ResourcePrincipalsTab(self.notebook, self)
+        self.resource_principals_tab = WorkloadPrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
         self.console_tab = ConsoleTab(self.notebook, self)
@@ -259,7 +259,7 @@ class App(tk.Tk):
         if McpTab is not None:
             self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
         self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
-        self.notebook.add(self.condition_tester_tab, text='Condition Tester\n(Advanced)')
+        self.notebook.add(self.condition_tester_tab, text='Condition\nTester')
         self.notebook.add(self.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
         self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
@@ -342,7 +342,6 @@ class App(tk.Tk):
             self.notebook.forget(self.mcp_tab)
         self.notebook.forget(self.maintenance_tab)
         self.notebook.forget(self.permissions_report_tab)
-        self.notebook.forget(self.condition_tester_tab)
         self.notebook.forget(self.tag_based_access_tab)
         self.notebook.forget(self.simulation_tab)
         self.notebook.forget(self.policy_recommendations_tab)

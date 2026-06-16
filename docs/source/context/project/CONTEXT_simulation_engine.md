@@ -10,7 +10,7 @@ The PolicySimulationEngine serves as the single source of truth for all permissi
 
 - **Engine location:** `src/oci_policy_analysis/logic/simulation_engine.py`
 - **Driven by:**
-  - **UI:** `src/oci_policy_analysis/ui/simulation_tab.py`
+  - **UI:** `src/oci_policy_analysis/presentation/desktop/simulation_tab.py`
   - **MCP:** `src/oci_policy_analysis/mcp_server.py`
 - **Data Schemas:** `src/oci_policy_analysis/common/models.py`
 - **Demo usage:** `docs/source/simulation_engine_usage_examples.py`
@@ -313,7 +313,7 @@ orchestration, delegating persistence to
 ## 9. References
 
 - [`simulation_engine.py`](../../../src/oci_policy_analysis/logic/simulation_engine.py)
-- [`simulation_tab.py`](../../../src/oci_policy_analysis/ui/simulation_tab.py)
+- [`simulation_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/simulation_tab.py)
 - [`mcp_server.py`](../../../src/oci_policy_analysis/mcp_server.py)
 - [`common/models.py`](../../../src/oci_policy_analysis/common/models.py)
 - [Simulation usage examples](../../../docs/source/simulation_engine_usage_examples.py)

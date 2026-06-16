@@ -6,7 +6,7 @@ This document describes the architecture, organization, patterns, and best pract
 
 ## 1. Tab Structure and Organization
 
-All UI (graphical interface) code is located under `src/oci_policy_analysis/ui/`. Each major tab or functional panel appears as its own module, named `<feature>_tab.py`. Example: `policies_tab.py`, `users_tab.py`, `cross_tenancy_tab.py`.
+All UI (graphical interface) code is located under `src/oci_policy_analysis/presentation/desktop/`. Each major tab or functional panel appears as its own module, named `<feature>_tab.py`. Example: `policies_tab.py`, `users_tab.py`, `cross_tenancy_tab.py`.
 
 Tabs are registered and arranged in `main.py` (see the `App` class). Each tab is instantiated as a class (typically a subclass of `BaseUITab`) and added to the main application's `ttk.Notebook`, which manages the tabbed interface.
 
@@ -19,7 +19,7 @@ Tabs are registered and arranged in `main.py` (see the `App` class). Each tab is
 
 ## 2. The BaseUITab: Shared Functionality
 
-Most tabs inherit from `BaseUITab` (`src/oci_policy_analysis/ui/base_tab.py`), which provides:
+Most tabs inherit from `BaseUITab` (`src/oci_policy_analysis/presentation/desktop/base_tab.py`), which provides:
 - **Unified Context Help**: Automatic insertion of a context help "help area" at the top of each tab, managed through `add_context_help(widget, message)` and propagated from global settings.
 - **UI State and Settings Propagation**: All tabs receive changes to context help toggling, font size, style, and (if extended) theme from the main app via a central `apply_settings` interface.
 - **Boilerplate Reduction**: Subclasses need only define which widgets need help; tab writers do not have to write per-widget Enter/Leave handlers or manual label setup.
@@ -35,7 +35,7 @@ In addition to the page-level help area, `BaseUITab` provides a small helper for
 
 ### The `create_doc_link_label` helper
 
-Defined in `src/oci_policy_analysis/ui/base_tab.py`:
+Defined in `src/oci_policy_analysis/presentation/desktop/base_tab.py`:
 
 ```python
 class BaseUITab(ttk.Frame):
@@ -272,7 +272,7 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 ## 5. Creating a New Tab: Best Practices
 
 1. **Create the Module**
-    - Name as `<feature>_tab.py` and place under `src/oci_policy_analysis/ui/`.
+    - Name as `<feature>_tab.py` and place under `src/oci_policy_analysis/presentation/desktop/`.
     - Inherit from `BaseUITab` if you want plug-and-play context help and unified settings propagation.
 2. **Implement Required Interfaces**
     - Always implement `apply_settings(context_help: bool, font_size: str)`.
@@ -313,8 +313,8 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 ## 7. Reference: Relevant Files
 
 - `src/oci_policy_analysis/main.py`: App wiring, lifecycle, model/engine initialization, centralized tab management.
-- `src/oci_policy_analysis/ui/base_tab.py`: Shared base tab implementation.
-- `src/oci_policy_analysis/ui/`: All tab modules.
+- `src/oci_policy_analysis/presentation/desktop/base_tab.py`: Shared base tab implementation.
+- `src/oci_policy_analysis/presentation/desktop/`: All tab modules.
 - `docs/source/context/project/CONTEXT_web_ui.md`: Web UI architecture, data flow, and right-side detail pane patterns.
 - Other `context/project/CONTEXT_*.md` files for individual tab details.
 
@@ -324,7 +324,7 @@ self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
 
 The UI layer of OCI Policy Analysis follows established architectural patterns for maintainability, consistency, and extensibility. Centralized tab management, unified settings propagation, and model/engine separation come together to provide a robust, predictable developer experience for UI extension and maintenance.
 
-For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/ui/` tab source files directly.
+For further examples or boilerplate, study `main.py` and `src/oci_policy_analysis/presentation/desktop/` tab source files directly.
 
 ---
 

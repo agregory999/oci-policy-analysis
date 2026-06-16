@@ -98,7 +98,7 @@ This flow allows users not only to reason about trust boundaries and cross-tenan
 |---------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | Model Definitions         | [`common/models.py`](../../../src/oci_policy_analysis/common/models.py)                                                     |
 | Data Loading/Filtering    | [`logic/data_repo.py`](../../../src/oci_policy_analysis/logic/data_repo.py)                                                 |
-| UI (Tab & Filter Logic)   | [`ui/cross_tenancy_tab.py`](../../../src/oci_policy_analysis/ui/cross_tenancy_tab.py)                                       |
+| UI (Tab & Filter Logic)   | [`presentation/desktop/cross_tenancy_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/cross_tenancy_tab.py)                                       |
 | Consolidation Engine      | [`logic/consolidation_engine.py`](../../../src/oci_policy_analysis/logic/consolidation_engine.py)                           |
 
 Further context: for UI style, see [CONTEXT_ui.md](CONTEXT_ui.md); for general logic conventions, see [CONTEXT_logic.md](CONTEXT_logic.md).

@@ -50,7 +50,6 @@ ALL_POLICY_COLUMNS = [
     'Permission',
     'Location Type',
     'Location',
-    'Conditions',
     'Conditions (where clause)',
     'Conditions (parsed structure)',
     'Conditions (elements)',
@@ -86,7 +85,6 @@ POLICY_COLUMN_WIDTHS = {
     'Permission': 150,
     'Location Type': 120,
     'Location': 200,
-    'Conditions': 200,
     'Conditions (where clause)': 260,
     'Conditions (parsed structure)': 320,
     'Conditions (elements)': 520,
@@ -1281,9 +1279,7 @@ class PoliciesTab(BaseUITab):
 
             # If the policy statement contains a condition (not null), add a way to send that to the Condition Tester tab
             condition_text = row.get('Conditions')
-            # Only show if condition tester tab is currently visible and advanced_tabs_visible is True
-            is_condition_tester_visible = hasattr(self.app, 'condition_tester_tab') and self.app.advanced_tabs_visible
-            if condition_text and condition_text != 'None' and is_condition_tester_visible:
+            if condition_text and condition_text != 'None' and hasattr(self.app, 'condition_tester_tab'):
                 menu.add_command(
                     label='Test Condition in Condition Tester Tab',
                     command=lambda: (

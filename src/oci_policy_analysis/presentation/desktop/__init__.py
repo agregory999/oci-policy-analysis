@@ -19,9 +19,9 @@ from .permissions_report_tab import PermissionsReportTab
 from .policies_tab import PoliciesTab
 from .policy_browser_tab import PolicyBrowserTab
 from .policy_recommendations_tab import PolicyRecommendationsTab
-from .resource_principals_tab import ResourcePrincipalsTab
 from .settings_tab import SettingsTab
 from .users_tab import UsersTab
+from .workload_principals_tab import WorkloadPrincipalsTab
 
 __all__ = [
     'SettingsTab',
@@ -32,7 +32,7 @@ __all__ = [
     'ConsoleTab',
     'PolicyRecommendationsTab',
     'McpTab',
-    'ResourcePrincipalsTab',
+    'WorkloadPrincipalsTab',
     'DataTable',
     'CheckboxTable',
     'MaintenanceTab',

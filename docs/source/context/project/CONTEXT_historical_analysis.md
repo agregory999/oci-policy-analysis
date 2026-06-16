@@ -93,9 +93,9 @@ The Historical Analysis/Comparison tab enables users to **compare two cached OCI
 
 | Area           | File/Module                                                                                              |
 |----------------|---------------------------------------------------------------------------------------------------------|
-| Main UI Tab    | [`src/oci_policy_analysis/ui/historical_tab.py`](../../../src/oci_policy_analysis/ui/historical_tab.py)  |
+| Main UI Tab    | [`src/oci_policy_analysis/presentation/desktop/historical_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/historical_tab.py)  |
 | Canonicalization Helper | [`logic/diff_utils.py`](../../../src/oci_policy_analysis/logic/diff_utils.py)                   |
-| UI Context Help System  | [`ui/base_tab.py`](../../../src/oci_policy_analysis/ui/base_tab.py)                             |
+| UI Context Help System  | [`presentation/desktop/base_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/base_tab.py)                             |
 | Example: Other Tab Context File  | [`CONTEXT_ui.md`](CONTEXT_ui.md)                                                       |
 
 ---

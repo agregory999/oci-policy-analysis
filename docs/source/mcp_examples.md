@@ -1,16 +1,16 @@
 # MCP and Policy Search Examples
 
-This page shows example requests and expected response shapes for the planned MCP search surface. It starts with simple policy searches and builds toward workload principal analysis, search sets, and historical comparison.
+This page shows example requests and expected response shapes for the compact MCP search surface. It starts with simple policy searches and builds toward workload principal analysis, search sets, identity lookup, data operations, and historical comparison.
 
 The examples are intentionally verbose for documentation. MCP tool descriptions should stay terse.
 
 ## Result Detail Levels
 
-Most policy search examples use:
+Most `policy_search` examples use:
 
 - `detail_level: summary` for counts, breakdowns, and samples.
 - `detail_level: simple` for compact statement rows.
-- `detail_level: full` for parsed statement metadata, principal evidence, parsed condition structure, and condition elements.
+- `detail_level: full` for parsed statement metadata, principal evidence, condition atoms, residual conditions, resolved compartments, and confidence details.
 
 `limit` controls the maximum number of detailed statement rows returned. The server should evaluate all matches, but return summary output when match count exceeds the limit. MCP-facing calls should cap `limit` at `50` or lower to avoid large protocol payloads.
 
@@ -20,20 +20,25 @@ Each search has three conceptual inputs:
 - `filters`: the searchable fields. `statement_text` and `subject_text` are raw text filters; `principal` is structured identity context.
 - `detail_level`: how much metadata to return. `summary` is safest for broad searches, `simple` returns compact rows, and `full` returns parsed metadata and evidence fields.
 
-Common output fields:
+Common top-level output fields:
 
+- `response_type`: `summary`, `simple`, or `full`.
 - `total_count`: number of matching statements after all filters run.
-- `statements`: detailed rows when `total_count <= limit`.
-- `summary`: counts and breakdowns when `total_count > limit` or when `detail_level: summary`.
-- `conditions_where_clause`: raw policy `where` clause text.
-- `conditions_parsed_structure`: display-oriented parse status and shape.
-- `condition_atoms`: parsed condition elements such as left side, operator, right side, and evidence kind.
+- `returned_count`: number of detailed rows returned.
+- `truncated`: whether matching rows were omitted because of `limit`.
+- `breakdowns`: count buckets by policy, compartment, subject type, verb, resource, and confidence when available.
+- `warnings`: caveats such as broad filters, unsupported fields, or result truncation.
+- `statements`: detailed rows for `simple` or `full` detail levels.
+
+Compact statement rows include fields such as `policy_name`, `compartment_path`, `statement_text`, `subject_type`, `principal_summary`, `verb`, `resource`, `permission`, `location`, `effective_path`, `where_clause_text`, and `match_confidence`.
+
+Advanced rows add evidence fields such as `normalized_principals`, `principal_keys`, `principal_evidence`, `where_clause`, `condition_atoms`, `dynamic_group_rule_evidence`, `residual_conditions`, `match_confidence_reason`, and `resolved_compartments`.
 
 ## Principal Keys and Structured Fields
 
 Callers can provide either a canonical `principal_key` or structured fields. They should not provide both in the same principal filter unless the server explicitly validates they are equivalent.
 
-Structured fields are preferred for AI agents and UI forms because the server can compute and log the canonical key. The repository layer should emit the computed or supplied key at `WARNING` while this feature is stabilizing.
+Structured fields are preferred for AI agents and UI forms because the server can compute the canonical key and apply workload-principal matching rules. When the MCP server runs with `--log-level INFO`, each tool call logs full input and truncated output, which is useful for confirming the computed filter shape. `WARNING` and higher suppress tool payload logging.
 
 Examples:
 
@@ -59,6 +64,48 @@ The second example computes:
 
 ```text
 resource-principal:containerinstance/compartment:ocid1.compartment.oc1..app
+```
+
+## Compartment Lookup
+
+Use `identity_search` when a policy or workload-principal condition gives you a compartment OCID and you need the human-readable name or path for follow-up searches.
+
+Lookup by OCID:
+
+```json
+{
+  "entity_types": ["compartment"],
+  "ocid": ["ocid1.compartment.oc1..app"],
+  "limit": 10
+}
+```
+
+Lookup by name or path:
+
+```json
+{
+  "entity_types": ["compartment"],
+  "name": ["app"],
+  "compartment_path": ["ROOT/Prod/App"],
+  "limit": 10
+}
+```
+
+Expected output fields:
+
+```json
+{
+  "operation": "search",
+  "total_count": 1,
+  "compartments": [
+    {
+      "name": "App",
+      "ocid": "ocid1.compartment.oc1..app",
+      "compartment_path": "ROOT/Prod/App",
+      "parent_ocid": "ocid1.compartment.oc1..prod"
+    }
+  ]
+}
 ```
 
 ## Simple Statement Text Search
@@ -90,12 +137,13 @@ Expected output:
       "policy_name": "ProdAdmins",
       "compartment_path": "ROOT",
       "statement_text": "allow group ProdAdmins to manage all-resources in compartment Prod",
-      "subject_text": "group ProdAdmins",
+      "subject_type": "group",
+      "principal_summary": "group ProdAdmins",
       "verb": "manage",
       "resource": "all-resources",
       "effective_path": "ROOT/Prod",
-      "conditions_where_clause": "",
-      "conditions_parsed_structure": ""
+      "where_clause_text": "",
+      "match_confidence": ""
     }
   ]
 }
@@ -209,8 +257,7 @@ Expected output fields:
 
 ```json
 {
-  "conditions_where_clause": "all { request.principal.type = 'containerinstance', request.operation = 'PullImage' }",
-  "conditions_parsed_structure": "parsed: ALL { c1, c2 } (2 atoms)",
+  "where_clause": "all { request.principal.type = 'containerinstance', request.operation = 'PullImage' }",
   "condition_atoms": [
     {
       "id": "c1",
@@ -227,7 +274,15 @@ Expected output fields:
       "evidence_kind": "condition"
     }
   ],
-  "match_confidence": "identity_match_with_residual"
+  "residual_conditions": [
+    {
+      "left": "request.operation",
+      "operator": "=",
+      "right": "PullImage"
+    }
+  ],
+  "match_confidence": "identity_match_with_residual",
+  "match_confidence_reason": "Principal type matched, but one or more non-identity conditions remain."
 }
 ```
 
@@ -254,8 +309,34 @@ Expected behavior:
 
 - Derive principal key `resource-principal:containerinstance/compartment:ocid1.compartment.oc1..app`.
 - Treat `request.principal.type` plus `request.principal.compartment.id` as identity evidence.
+- Return `resolved_compartments` when the compartment OCID can be mapped to a loaded compartment name and path.
 - Return `exact` only when no non-identity condition atoms remain.
 - Return `identity_match_with_residual` when the statement also includes operations, permissions, tags, time, network, or other conditions.
+
+Expected output fields:
+
+```json
+{
+  "principal_keys": [
+    "resource-principal:containerinstance/compartment:ocid1.compartment.oc1..app"
+  ],
+  "principal_evidence": [
+    {
+      "source": "condition",
+      "field": "request.principal.compartment.id",
+      "value": "ocid1.compartment.oc1..app"
+    }
+  ],
+  "resolved_compartments": [
+    {
+      "ocid": "ocid1.compartment.oc1..app",
+      "name": "App",
+      "compartment_path": "ROOT/Prod/App"
+    }
+  ],
+  "match_confidence": "exact"
+}
+```
 
 ## Instance Principal, Dynamic Group Rule
 
@@ -281,15 +362,33 @@ Expected behavior:
 - Derive principal key `instance-principal:instance/compartment:ocid1.compartment.oc1..app`.
 - Search dynamic group rules for `instance.compartment.id`.
 - Search policies for matching dynamic group subjects.
-- Return `rule_evidence` until full rule evaluation is implemented.
+- Return dynamic group rule evidence and resolved compartments when possible.
 
 Dynamic group display fields:
 
 ```json
 {
-  "matching_rule": "instance.compartment.id = 'ocid1.compartment.oc1..app'",
-  "matching_rule_parsed_structure": "parsed: c1 (1 atom)",
-  "matching_rule_elements": "c1: instance.compartment.id = ocid1.compartment.oc1..app [instance_principal]"
+  "dynamic_group_rule_evidence": [
+    {
+      "dynamic_group_name": "AppInstances",
+      "matching_rule": "instance.compartment.id = 'ocid1.compartment.oc1..app'",
+      "condition_atoms": [
+        {
+          "left": "instance.compartment.id",
+          "operator": "=",
+          "right": "ocid1.compartment.oc1..app",
+          "evidence_kind": "instance_principal"
+        }
+      ]
+    }
+  ],
+  "resolved_compartments": [
+    {
+      "ocid": "ocid1.compartment.oc1..app",
+      "name": "App",
+      "compartment_path": "ROOT/Prod/App"
+    }
+  ]
 }
 ```
 
@@ -353,8 +452,7 @@ Output:
 
 ```json
 {
-  "conditions_where_clause": "all { request.principal.type = 'containerinstance', target.resource.tag.Operations.Environment = 'prod' }",
-  "conditions_parsed_structure": "parsed: ALL { c1, c2 } (2 atoms)",
+  "where_clause": "all { request.principal.type = 'containerinstance', target.resource.tag.Operations.Environment = 'prod' }",
   "condition_atoms": [
     {
       "id": "c1",
@@ -567,3 +665,20 @@ Reliable cache creation options:
 - Use a future reload policy setting at application startup or MCP server startup.
 
 Automatic reload policies are a roadmap item. History search should report the cache selected for `as_of` and the confidence that it represents the requested time.
+
+## MCP Call Logging
+
+Start the MCP server with INFO logging when testing clients or validating generated filters:
+
+```bash
+python -m oci_policy_analysis.mcp_server --use-cache andgre5678_2026-06-15-12-00-00-UTC --transport streamable-http --log-level INFO
+```
+
+At INFO level, the server logs each tool call with full input and truncated output:
+
+```text
+MCP call policy_search input(full)={...}
+MCP call policy_search output(truncated)={...}
+```
+
+The output payload is capped for log readability. Use `--log-level WARNING` when you want normal operation without tool payload logging.
