@@ -1,3 +1,10 @@
+# [5.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.1...v5.3.0) (2026-06-04)
+
+
+### Features
+
+* Merge pull request [#51](https://github.com/agregory999/oci-policy-analysis/issues/51) from agregory999/feature/mcp-container ([c777c08](https://github.com/agregory999/oci-policy-analysis/commit/c777c08fbfc6ea7262c43b1f9a716da3abb36bda))
+
 ## [5.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.0...v5.2.1) (2026-05-14)
 
 
