@@ -1,0 +1,429 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "policy_search",
+        "description": "Search OCI IAM policies; supports simple text filters and advanced principal evidence.",
+        "inputSchema": {
+          "properties": {
+            "mode": {
+              "default": "simple",
+              "enum": [
+                "simple",
+                "advanced"
+              ],
+              "type": "string"
+            },
+            "detail_level": {
+              "default": "simple",
+              "enum": [
+                "summary",
+                "simple",
+                "full"
+              ],
+              "type": "string"
+            },
+            "filters": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "policy_search_set",
+        "description": "Run related policy searches and summarize coverage.",
+        "inputSchema": {
+          "properties": {
+            "intent": {
+              "default": "custom",
+              "enum": [
+                "install_validation",
+                "access_review",
+                "workload_analysis",
+                "custom"
+              ],
+              "type": "string"
+            },
+            "product_or_service": {
+              "default": "",
+              "type": "string"
+            },
+            "searches": {
+              "anyOf": [
+                {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "evaluation": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "policy_history_search",
+        "description": "Run a policy search against two snapshots and diff results.",
+        "inputSchema": {
+          "properties": {
+            "query_type": {
+              "default": "single",
+              "enum": [
+                "single",
+                "set"
+              ],
+              "type": "string"
+            },
+            "query": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "left": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "right": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "diff_mode": {
+              "default": "statement_identity",
+              "enum": [
+                "statement_identity",
+                "full_fields",
+                "permissions"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "identity_search",
+        "description": "Search identities, compartments, and IAM memberships.",
+        "inputSchema": {
+          "properties": {
+            "operation": {
+              "default": "search",
+              "enum": [
+                "search",
+                "members_for_group",
+                "groups_for_user"
+              ],
+              "type": "string"
+            },
+            "entity_types": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "user",
+                      "group",
+                      "dynamic-group",
+                      "compartment"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "domain_name": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "ocid": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "compartment_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "parent_ocid": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "parent_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "include_children": {
+              "default": false,
+              "type": "boolean"
+            },
+            "matching_rule": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "in_use": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "principal": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "data_operations",
+        "description": "Inspect or change MCP data state: status, caches, load cache, reload.",
+        "inputSchema": {
+          "properties": {
+            "operation": {
+              "default": "get_status",
+              "enum": [
+                "get_status",
+                "list_caches",
+                "cache_metadata",
+                "load_cache",
+                "reload"
+              ],
+              "type": "string"
+            },
+            "cache_name": {
+              "default": "",
+              "type": "string"
+            },
+            "tenancy_name": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "cross_tenancy_search",
+        "description": "List aliases or search cross-tenancy policy statements.",
+        "inputSchema": {
+          "properties": {
+            "operation": {
+              "default": "list_aliases",
+              "enum": [
+                "list_aliases",
+                "policies_by_alias",
+                "search"
+              ],
+              "type": "string"
+            },
+            "alias": {
+              "default": "",
+              "type": "string"
+            },
+            "statement_text": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "principal": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      }
+    ]
+  }
+}

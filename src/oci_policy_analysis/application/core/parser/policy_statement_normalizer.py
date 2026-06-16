@@ -36,15 +36,19 @@ from antlr4.error.ErrorListener import ErrorListener
 from antlr4.tree.Tree import TerminalNode
 
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
-from oci_policy_analysis.application.core.parser.generated.policy_parser import PolicyLexer, PolicyParser, PolicyVisitor
-from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import (
+from oci_policy_analysis.application.core.models.models import (
     AdmitStatement,
     DefineStatement,
     EndorseStatement,
     RegularPolicyStatement,
 )
+from oci_policy_analysis.application.core.parser.condition_structure import (
+    format_condition_structure_summary,
+    parse_condition_structure,
+)
+from oci_policy_analysis.application.core.parser.generated.policy_parser import PolicyLexer, PolicyParser, PolicyVisitor
+from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='policy_parser')
 
@@ -899,6 +903,8 @@ class PolicyStatementNormalizer:
         if isinstance(subjects_out, list) and len(subjects_out) > 1:
             parsing_notes.append('Statement has multiple subjects')
 
+        conditions = fields.get('condition', '') or ''
+        where_clause = parse_condition_structure(conditions)
         obj = {
             **base,
             # 'permission_original': perms_original,
@@ -913,7 +919,12 @@ class PolicyStatementNormalizer:
             'permission': perms,
             'location_type': fields.get('location_type', ''),
             'location': strip_quotes(fields.get('location', '')),
-            'conditions': fields.get('condition', '') or '',
+            'conditions': conditions,
+            'conditions_where_clause': conditions,
+            'conditions_parsed_structure': format_condition_structure_summary(where_clause),
+            'condition_atoms': where_clause.get('atoms', []),
+            'where_clause': where_clause,
+            'where_clause_structure': where_clause,
             'comments': fields.get('comments', ''),
             'parsing_notes': parsing_notes,
             'statement_text': statement_text,

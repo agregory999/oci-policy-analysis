@@ -1,97 +1,87 @@
 Policy Recommendations and Consolidation
-=======================================+
+========================================
 
 Recommendation Strategies
 -------------------------
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.recommendations
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.recommendations
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.consolidation_suggestion
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.consolidation_suggestion
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.risk
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.risk
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.overlap
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.overlap
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.base
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.base
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.cleanup_anyuser_no_where
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_anyuser_no_where
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.cleanup_invalid
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_invalid
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.cleanup_statements_too_open
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_statements_too_open
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.cleanup_unused_dynamic_groups
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_unused_dynamic_groups
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
-.. automodule:: oci_policy_analysis.logic.intelligence_strategies.cleanup_unused_groups
+.. automodule:: oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_unused_groups
    :members:
    :undoc-members:
    :show-inheritance:
    :no-index:
 
 
-.. Consolidation Engine and Strategies
-.. -----------------------------------
+Consolidation Engine
+--------------------
 
-..
-   .. automodule:: oci_policy_analysis.logic.consolidation_engine
-      :members:
-      :undoc-members:
-      :show-inheritance:
-      :no-index:
+.. automodule:: oci_policy_analysis.application.core.engine.consolidation_engine
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :no-index:
 
-..
-   .. automodule:: oci_policy_analysis.logic.consolidation_helpers
-      :members:
-      :undoc-members:
-      :show-inheritance:
-      :no-index:
+.. automodule:: oci_policy_analysis.application.core.common.consolidation_helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :no-index:
 
-..
-   .. automodule:: oci_policy_analysis.logic.consolidation_strategies
-      :members:
-      :undoc-members:
-      :show-inheritance:
-      :no-index:
-
-..
-   .. automodule:: oci_policy_analysis.common.models_consolidation
-      :members:
-      :undoc-members:
-      :show-inheritance:
-      :no-index:
+.. automodule:: oci_policy_analysis.application.core.models.models_consolidation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :no-index:

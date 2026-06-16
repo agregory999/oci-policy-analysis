@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Policy Filter</title>
+    <link rel="stylesheet" href="/app.css?v=simulation-v2" />
+    <style>
+      textarea {
+        margin-top: 0.5rem;
+      }
+
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin-top: 0.75rem;
+      }
+
+      .filter-field {
+        min-width: 0;
+      }
+
+      .filter-field label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #4b5563;
+        margin-bottom: 0.22rem;
+      }
+
+      .filter-field input,
+      .filter-field select {
+        width: 100%;
+      }
+
+      .filter-field .helper-text {
+        font-size: 0.72rem;
+        color: #6b7280;
+        margin-top: 0.22rem;
+        line-height: 1.25;
+      }
+
+      @media (max-width: 1300px) {
+        .filter-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 820px) {
+        .filter-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 560px) {
+        .filter-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .filter-actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .inline-checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        gap: 0.35rem;
+        font-size: 0.82rem;
+        line-height: 1.2;
+        white-space: nowrap;
+        color: #2f2a27;
+        margin: 0;
+      }
+
+      .inline-checkbox-label input[type='checkbox'] {
+        width: auto;
+        height: auto;
+        margin: 0;
+        flex: 0 0 auto;
+      }
+
+      .toolbar-separator {
+        width: 1px;
+        height: 1.8rem;
+        align-self: center;
+        background: var(--oci-line);
+        opacity: 0.95;
+      }
+
+      .policy-layout {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+        position: relative;
+      }
+
+      .policy-layout.has-selection {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .table-shell {
+        border: 1px solid var(--oci-line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .table-scroll {
+        max-height: 62vh;
+        overflow: auto;
+      }
+
+      #resultsTable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f1ef;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #resultsTable thead th:hover {
+        color: var(--oci-red);
+      }
+
+      #resultsTable tbody tr:nth-child(odd) {
+        background: #ffffff;
+      }
+
+      #resultsTable tbody tr:nth-child(even) {
+        background: #f7f7f7;
+      }
+
+      #resultsTable tbody tr:hover {
+        background: #fdf1ef;
+      }
+
+      #resultsTable tbody tr.active-row {
+        background: #fbe4e0;
+      }
+
+      /* Keep same monospace face but reduce table text roughly by ~2pt for denser scanability. */
+      #resultsTable th,
+      #resultsTable td {
+        font-size: 0.75rem;
+      }
+
+      .sort-indicator {
+        font-size: 0.8rem;
+        margin-left: 0.3rem;
+        opacity: 0.7;
+      }
+
+      .results-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .results-hint {
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+
+      .inspector-header h3 {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+
+      .policy-inspector-subtitle {
+        margin-top: 0.2rem;
+        color: #d7cbc4;
+        font-size: 0.75rem;
+      }
+
+      .inspector-body table {
+        width: 100%;
+      }
+
+      .inspector-body th {
+        width: 32%;
+        background: #faf8f6;
+        color: #5f5956;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .inspector-body td {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .inspector-body .inspector-separator th {
+        width: 100%;
+        background: #f1ede9;
+        color: #6c625d;
+        text-align: center;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.5rem;
+      }
+
+      .policy-inspector-footer {
+        padding: 0.7rem;
+        display: flex;
+        gap: 0.5rem;
+        border-top: 1px solid var(--oci-line);
+        background: #fffdfa;
+      }
+
+      .policy-inspector-footer button {
+        margin-top: 0;
+        padding: 0.45rem 0.7rem;
+        font-size: 0.82rem;
+      }
+
+      .inspector-empty {
+        padding: 1rem;
+        font-size: 0.88rem;
+        color: #6b7280;
+      }
+
+      .policy-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .policy-context-menu {
+        position: fixed;
+        z-index: 1200;
+        min-width: 220px;
+        background: #ffffff;
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+        padding: 0.3rem;
+      }
+
+      .policy-context-menu[hidden] {
+        display: none;
+      }
+
+      .policy-context-menu button {
+        display: block;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        text-align: left;
+        font-size: 0.85rem;
+        color: #2f2a27;
+        padding: 0.45rem 0.55rem;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .policy-context-menu button:hover:not(:disabled) {
+        background: #fdf1ef;
+      }
+
+      .policy-context-menu button:disabled {
+        color: #9ca3af;
+        cursor: not-allowed;
+      }
+
+      .advanced-helper-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.7rem;
+        margin-top: 0.6rem;
+      }
+
+      .advanced-helper-card {
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        background: #fffdfa;
+        padding: 0.6rem;
+      }
+
+      .advanced-helper-card h4 {
+        margin: 0 0 0.35rem;
+        font-size: 0.86rem;
+      }
+
+      .advanced-helper-card .helper-text {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.3rem;
+      }
+
+      .advanced-helper-card .helper-actions {
+        display: flex;
+        gap: 0.45rem;
+        margin-top: 0.45rem;
+        flex-wrap: wrap;
+      }
+
+      .advanced-helper-inline-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin-top: 0.2rem;
+      }
+
+      .advanced-helper-inline-row select {
+        flex: 0 1 230px;
+        min-width: 170px;
+        max-width: 260px;
+      }
+
+      .advanced-helper-inline-row label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+
+      .permission-flyin-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 1300;
+      }
+
+      .permission-flyin-backdrop[hidden] {
+        display: none;
+      }
+
+      .permission-flyin-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: min(760px, 96vw);
+        height: 100vh;
+        background: #fff;
+        border-left: 1px solid var(--oci-line);
+        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
+        z-index: 1301;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .permission-flyin-panel[hidden] {
+        display: none;
+      }
+
+      .permission-flyin-header,
+      .permission-flyin-footer {
+        padding: 0.7rem;
+        border-bottom: 1px solid var(--oci-line);
+        background: #fffdfa;
+      }
+
+      .permission-flyin-footer {
+        border-bottom: 0;
+        border-top: 1px solid var(--oci-line);
+      }
+
+      .permission-flyin-body {
+        overflow: auto;
+        padding: 0.8rem;
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .permission-flyin-section {
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        padding: 0.6rem;
+        background: #fffdfa;
+      }
+
+      .permission-flyin-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+      }
+
+      .permission-flyin-list {
+        min-height: 7rem;
+      }
+
+      .filter-label-row {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .filter-mode-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        padding: 0.08rem 0.42rem;
+        border: 1px solid #d9d4cf;
+        color: #6b7280;
+        background: #f8f7f6;
+      }
+
+      .filter-mode-badge.active {
+        border-color: #c2410c;
+        color: #9a3412;
+        background: #fff7ed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Policy Analysis" data-help-body="Use this page to filter policy statements and inspect details in the right-side fly-in. Use Manage Prospective Statements for the wider editor fly-in.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div>
+            <h1>Policy Analysis</h1>
+            <p>Basic Filter • Advanced Filter • Inspector • Prospective Editor</p>
+          </div>
+        </div>
+        <div class="policy-toolbar">
+          <a href="/" class="card-link secondary">← Back to home</a>
+        </div>
+      </header>
+
+      <div class="context-help-card context-help-fixed" id="contextHelpCard">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
+        <p id="contextHelpBody" class="context-help-body">Run filters to load statements, click rows to open the standard fly-in inspector, and use Manage Prospective Statements to open the wide editor fly-in.</p>
+      </div>
+    </div>
+
+    <main class="layout-single">
+      <div class="card">
+        <label for="subjectFilter">Policy Filters (use | for OR values)</label>
+        <div class="filter-grid">
+          <div class="filter-field" data-help-title="Subject filter" data-help-body="Filter by principal subject. Use | to match multiple values (for example: any-user|group-id).">
+            <label for="subjectFilter">Subject</label>
+            <input id="subjectFilter" placeholder="any-user|group-id" />
+            <div class="helper-text">Principal subject matcher; supports | for OR.</div>
+          </div>
+          <div class="filter-field" data-help-title="Action filter" data-help-body="Limit results to Allow, Deny, or show both action types.">
+            <label for="actionFilter">Action</label>
+            <select id="actionFilter">
+              <option value="Both">Both</option>
+              <option value="Allow">Allow</option>
+              <option value="Deny">Deny</option>
+            </select>
+            <div class="helper-text">Restrict by action type or include both.</div>
+          </div>
+          <div class="filter-field" data-help-title="Verb filter" data-help-body="Filter statements by IAM verb. Use | to search for multiple verbs.">
+            <label for="verbFilter">Verb</label>
+            <input id="verbFilter" placeholder="inspect|read|use|manage" />
+            <div class="helper-text">IAM verb matcher; supports | for OR.</div>
+          </div>
+          <div class="filter-field" data-help-title="Resource filter" data-help-body="Filter by resource or resource family used in the statement.">
+            <div class="filter-label-row">
+              <label for="resourceFilter">Resource</label>
+              <span id="resourceModeBadge" class="filter-mode-badge" data-help-title="Resource/Permission mode" data-help-body="Resource and Permission filters are mutually exclusive. Using one clears the other.">Inactive</span>
+            </div>
+            <input id="resourceFilter" placeholder="instance|database" />
+            <div class="helper-text">Resource or family matcher.</div>
+          </div>
+          <div class="filter-field" data-help-title="Permission filter" data-help-body="Filter by normalized permission extracted from policy text.">
+            <div class="filter-label-row">
+              <label for="permissionFilter">Permission</label>
+              <span id="permissionModeBadge" class="filter-mode-badge" data-help-title="Resource/Permission mode" data-help-body="Resource and Permission filters are mutually exclusive. Using one clears the other.">Inactive</span>
+            </div>
+            <input id="permissionFilter" placeholder="OBJECT_CREATE" />
+            <div class="helper-text">Matches normalized permission text.</div>
+          </div>
+          <div class="filter-field" data-help-title="Location filter" data-help-body="Match statement location text, such as tenancy or compartment references.">
+            <label for="locationFilter">Statement Location</label>
+            <input id="locationFilter" placeholder="tenancy|compartment" />
+            <div class="helper-text">Location clause matcher. "tenancy" or name of compartment.</div>
+          </div>
+          <div class="filter-field" data-help-title="Compartment path filter" data-help-body="Filter by the compartment path where the statement is defined.">
+            <label for="compartmentPathFilter">Compartment Path</label>
+            <input id="compartmentPathFilter" placeholder="ROOT/Shared/Prod" />
+            <div class="helper-text">Path where the policy is defined.</div>
+          </div>
+          <div class="filter-field" data-help-title="Statement text filter" data-help-body="Search raw statement text. Use this when you want exact wording matches.">
+            <label for="statementTextFilter">Statement Text</label>
+            <input id="statementTextFilter" placeholder="Allow group ..." />
+            <div class="helper-text">Raw statement text contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Policy name filter" data-help-body="Filter by policy name containing the entered text.">
+            <label for="policyNameFilter">Policy Name</label>
+            <input id="policyNameFilter" placeholder="Network Admin" />
+            <div class="helper-text">Policy name contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Effective path filter" data-help-body="Filter by effective evaluation path after inheritance/placement.">
+            <label for="effectivePathFilter">Effective Path</label>
+            <input id="effectivePathFilter" placeholder="ROOT/Shared" />
+            <div class="helper-text">Final effective evaluation path.</div>
+          </div>
+          <div class="filter-field" data-help-title="Conditions filter" data-help-body="Search the parsed where/condition clause text.">
+            <label for="conditionsFilter">Conditions</label>
+            <input id="conditionsFilter" placeholder="request.principal.type" />
+            <div class="helper-text">Condition clause contains match.</div>
+          </div>
+          <div class="filter-field" data-help-title="Validity filter" data-help-body="Show only valid or invalid parsed statements, or include all.">
+            <label for="validFilter">Validity</label>
+            <select id="validFilter">
+              <option value="">Any</option>
+              <option value="true">True</option>
+              <option value="false">False</option>
+            </select>
+            <div class="helper-text">Filter by parser validity state.</div>
+          </div>
+        </div>
+        <details style="margin-top:0.7rem;">
+          <summary style="cursor:pointer; font-weight:600;">Advanced: filter helper actions</summary>
+          <div class="advanced-helper-grid">
+            <div class="advanced-helper-card">
+              <h4>Resource → Family + all-resources</h4>
+              <div class="advanced-helper-inline-row">
+                <select id="resourceHelperSelect" data-help-title="Resource helper" data-help-body="Choose a known resource. Apply writes Resource filter as resource|family|all-resources.">
+                  <option value="">Select resource...</option>
+                </select>
+                <label>
+                  <input id="includeAllResourcesFromResource" type="checkbox" checked /> Include all-resources
+                </label>
+              </div>
+              <div class="helper-actions">
+                <button id="applyResourceHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Resource Expansion</button>
+              </div>
+              <div class="helper-text">Builds <code>resource|family|all-resources</code> in Resource filter.</div>
+            </div>
+            <div class="advanced-helper-card">
+              <h4>Family → members + all-resources</h4>
+              <div class="advanced-helper-inline-row">
+                <select id="familyHelperSelect" data-help-title="Family helper" data-help-body="Choose a family. Apply writes Resource filter as family|resource1|...|all-resources.">
+                  <option value="">Select family...</option>
+                </select>
+                <label>
+                  <input id="includeAllResourcesFromFamily" type="checkbox" checked /> Include all-resources
+                </label>
+              </div>
+              <div class="helper-actions">
+                <button id="applyFamilyHelperBtn" class="ghost" style="margin-top:0;" type="button">Apply Family Expansion</button>
+              </div>
+              <div class="helper-text">Builds <code>family|resource1|resource2|...|all-resources</code> in Resource filter.</div>
+            </div>
+            <div class="advanced-helper-card">
+              <h4>Permission Lookup</h4>
+              <div class="helper-actions">
+                <button id="openPermissionFlyinBtn" class="ghost" style="margin-top:0;" type="button">Open Permission Lookup</button>
+              </div>
+              <div class="helper-text">Add individual <code>PERMISSION</code> elements to the Permission filter using the lookup fly-in. Searching for permissions clears the Resource filter because they are mutually exclusive and cannot exist together in the same policy statement.</div>
+            </div>
+          </div>
+        </details>
+        <details style="margin-top:0.7rem;">
+          <summary style="cursor:pointer; font-weight:600;">Advanced: raw JSON payload override</summary>
+          <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
+            <button id="loadJsonExampleBtn" class="ghost" style="margin-top:0;">Load Example JSON</button>
+          </div>
+          <textarea id="filters" placeholder="Optional JSON payload override. If valid JSON is present, it overrides the field filters." data-help-title="Raw JSON filter override" data-help-body="If this contains valid JSON, it fully overrides the field-based filters when you run the query."></textarea>
+        </details>
+        <div class="filter-actions" style="margin-top:0.6rem;">
+          <button id="runBtn" data-help-title="Run filter" data-help-body="Run the query using field filters or the JSON override if provided.">Run Filter</button>
+          <button id="clearFiltersBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset all filter inputs and the JSON override area.">Clear Filters</button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <label class="inline-checkbox-label" data-help-title="Show Prospective" data-help-body="Include saved prospective statements in the results table alongside matched policy data."><input id="showProspectiveFilter" type="checkbox" /> Show Prospective</label>
+          <button id="manageProspectiveBtn" data-help-title="Manage Prospective Statements" data-help-body="Open the prospective statement editor to add, parse, and save what-if policy statements.">Manage Prospective Statements</button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <input id="savedSearchName" placeholder="Saved Search Name" style="max-width:220px;" data-help-title="Saved search name" data-help-body="Enter a name for the current filter set before saving it to settings." />
+          <button id="saveSearchBtn" data-help-title="Save search" data-help-body="Save or overwrite the current filter configuration under the provided name.">Save Search</button>
+          <select id="savedSearchSelect" style="max-width:260px; min-width:180px;" data-help-title="Saved searches" data-help-body="Load a previously saved filter preset and run it immediately.">
+            <option value="">Saved Searches</option>
+          </select>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+
+      <div class="policy-layout">
+        <div class="card">
+          <div class="results-meta">
+            <div id="summary" class="pill">No results yet</div>
+            <div class="results-hint" data-help-title="Results table" data-help-body="Click a row to inspect parsed details. Click column headers to sort ascending/descending.">Tip: click a row to view more details.</div>
+          </div>
+          <div class="table-shell" style="margin-top: 1rem;">
+            <div class="table-scroll">
+              <table id="resultsTable">
+                <thead>
+                  <tr>
+                    <th data-sort-key="policy_name">Compartment / Policy <span class="sort-indicator"></span></th>
+                    <th data-sort-key="effective_path">Effective Path <span class="sort-indicator"></span></th>
+                    <th data-sort-key="statement_text">Statement <span class="sort-indicator"></span></th>
+                    <th data-sort-key="conditions">Conditions <span class="sort-indicator"></span></th>
+                    <th data-sort-key="verb">Verb + Resource / Permission <span class="sort-indicator"></span></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside id="policyInspector" class="policy-inspector inspector-panel" aria-live="polite">
+          <div class="inspector-header">
+            <div>
+              <h3 id="inspectorTitle">Statement Details</h3>
+              <div id="inspectorSubtitle" class="policy-inspector-subtitle">Select a row to inspect statement details</div>
+            </div>
+            <button id="closeInspectorBtn" class="ghost" style="margin-top: 0;">×</button>
+          </div>
+          <div class="inspector-body custom-scrollbar">
+            <div id="inspectorEmpty" class="inspector-empty">No policy selected.</div>
+            <table id="inspectorTable" class="inspector-table" style="display:none;">
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="policy-inspector-footer">
+            <button id="copyStatementBtn" class="ghost" disabled>Copy Statement</button>
+            <button id="copySummaryBtn" class="ghost" disabled>Copy Summary</button>
+          </div>
+        </aside>
+      </div>
+
+      <div id="policyContextMenu" class="policy-context-menu" hidden>
+        <button id="sendConditionToTesterBtn" type="button">Send condition to Condition Tester</button>
+      </div>
+    </main>
+
+    <section class="analysis-layout">
+      <div id="prospectiveEditorHost" class="prospective-editor-host"></div>
+    </section>
+
+    <div id="permissionFlyinBackdrop" class="permission-flyin-backdrop" hidden></div>
+    <aside id="permissionFlyinPanel" class="permission-flyin-panel" hidden aria-live="polite">
+      <div class="permission-flyin-header" style="display:flex; justify-content:space-between; align-items:center; gap:.5rem;">
+        <div>
+          <strong>Permission Lookup</strong>
+          <div class="helper-text">Build a permission list from API operation or resource/family + verb.</div>
+        </div>
+        <button id="closePermissionFlyinBtn" class="ghost" style="margin-top:0;" type="button">×</button>
+      </div>
+      <div class="permission-flyin-body custom-scrollbar">
+        <section class="permission-flyin-section">
+          <strong>Lookup by API Operation</strong>
+          <div class="permission-flyin-grid" style="margin-top:.5rem;">
+            <div>
+              <label for="permissionOperationSearch">Search</label>
+              <input id="permissionOperationSearch" placeholder="compute|list|create" />
+            </div>
+            <div>
+              <label for="permissionOperationSelect">API:Operation</label>
+              <select id="permissionOperationSelect"></select>
+            </div>
+          </div>
+          <div style="margin-top:.5rem;"><button id="permissionAddFromOperationBtn" class="ghost" style="margin-top:0;" type="button">Add from API Operation</button></div>
+        </section>
+
+        <section class="permission-flyin-section">
+          <strong>Lookup by Resource/Family + Verb</strong>
+          <div class="permission-flyin-grid" style="margin-top:.5rem;">
+            <div>
+              <label for="permissionEntitySelect">Resource/Family</label>
+              <select id="permissionEntitySelect"></select>
+            </div>
+            <div>
+              <label for="permissionVerbSelect">Verb</label>
+              <select id="permissionVerbSelect"></select>
+            </div>
+          </div>
+          <div style="margin-top:.5rem;"><button id="permissionAddFromEntityBtn" class="ghost" style="margin-top:0;" type="button">Add from Resource/Family</button></div>
+        </section>
+
+        <section class="permission-flyin-section">
+          <strong>Pending Permission List</strong>
+          <textarea id="permissionPendingList" class="permission-flyin-list" placeholder="No permissions added yet" readonly></textarea>
+          <div style="display:flex; gap:.5rem; margin-top:.5rem;">
+            <button id="permissionClearPendingBtn" class="ghost" style="margin-top:0;" type="button">Clear Pending</button>
+          </div>
+          <div class="helper-text">Applying permission list clears Resource filter because these are mutually exclusive.</div>
+        </section>
+      </div>
+      <div class="permission-flyin-footer" style="display:flex; gap:.5rem; justify-content:flex-end;">
+        <button id="permissionApplyBtn" type="button" style="margin-top:0;">Apply to Permission Filter</button>
+      </div>
+    </aside>
+
+    <script src="/prospective-editor.js"></script>
+    <script src="/shared-formatters.js"></script>
+    <script src="/shared-table.js"></script>
+    <script src="/policy-statement-inspector.js"></script>
+    <script>
+      const runBtn = document.getElementById('runBtn');
+      const contextHelpTitle = document.getElementById('contextHelpTitle');
+      const contextHelpBody = document.getElementById('contextHelpBody');
+      const defaultContextHelp = {
+        title: 'How To Use This Page',
+        body: 'Run filters to load statements, click rows to open the standard fly-in inspector, and use Manage Prospective Statements to open the wide editor fly-in.',
+      };
+      const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+      const saveSearchBtn = document.getElementById('saveSearchBtn');
+      const savedSearchName = document.getElementById('savedSearchName');
+      const savedSearchSelect = document.getElementById('savedSearchSelect');
+      const loadJsonExampleBtn = document.getElementById('loadJsonExampleBtn');
+      const manageProspectiveBtn = document.getElementById('manageProspectiveBtn');
+      const resourceHelperSelect = document.getElementById('resourceHelperSelect');
+      const familyHelperSelect = document.getElementById('familyHelperSelect');
+      const applyResourceHelperBtn = document.getElementById('applyResourceHelperBtn');
+      const applyFamilyHelperBtn = document.getElementById('applyFamilyHelperBtn');
+      const includeAllResourcesFromResource = document.getElementById('includeAllResourcesFromResource');
+      const includeAllResourcesFromFamily = document.getElementById('includeAllResourcesFromFamily');
+      const openPermissionFlyinBtn = document.getElementById('openPermissionFlyinBtn');
+      const permissionFlyinBackdrop = document.getElementById('permissionFlyinBackdrop');
+      const permissionFlyinPanel = document.getElementById('permissionFlyinPanel');
+      const closePermissionFlyinBtn = document.getElementById('closePermissionFlyinBtn');
+      const permissionOperationSearch = document.getElementById('permissionOperationSearch');
+      const permissionOperationSelect = document.getElementById('permissionOperationSelect');
+      const permissionAddFromOperationBtn = document.getElementById('permissionAddFromOperationBtn');
+      const permissionEntitySelect = document.getElementById('permissionEntitySelect');
+      const permissionVerbSelect = document.getElementById('permissionVerbSelect');
+      const permissionAddFromEntityBtn = document.getElementById('permissionAddFromEntityBtn');
+      const permissionPendingList = document.getElementById('permissionPendingList');
+      const permissionClearPendingBtn = document.getElementById('permissionClearPendingBtn');
+      const permissionApplyBtn = document.getElementById('permissionApplyBtn');
+      const resourceModeBadge = document.getElementById('resourceModeBadge');
+      const permissionModeBadge = document.getElementById('permissionModeBadge');
+      const showProspectiveFilter = document.getElementById('showProspectiveFilter');
+      const status = document.getElementById('status');
+      const filters = document.getElementById('filters');
+      const subjectFilter = document.getElementById('subjectFilter');
+      const actionFilter = document.getElementById('actionFilter');
+      const verbFilter = document.getElementById('verbFilter');
+      const resourceFilter = document.getElementById('resourceFilter');
+      const permissionFilter = document.getElementById('permissionFilter');
+      const locationFilter = document.getElementById('locationFilter');
+      const compartmentPathFilter = document.getElementById('compartmentPathFilter');
+      const statementTextFilter = document.getElementById('statementTextFilter');
+      const policyNameFilter = document.getElementById('policyNameFilter');
+      const effectivePathFilter = document.getElementById('effectivePathFilter');
+      const conditionsFilter = document.getElementById('conditionsFilter');
+      const validFilter = document.getElementById('validFilter');
+      const tbody = document.querySelector('#resultsTable tbody');
+      const summary = document.getElementById('summary');
+      const headerCells = document.querySelectorAll('#resultsTable thead th[data-sort-key]');
+      const policyInspector = document.getElementById('policyInspector');
+      const closeInspectorBtn = document.getElementById('closeInspectorBtn');
+      const inspectorTitle = document.getElementById('inspectorTitle');
+      const inspectorSubtitle = document.getElementById('inspectorSubtitle');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const inspectorTable = document.getElementById('inspectorTable');
+      const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const copyStatementBtn = document.getElementById('copyStatementBtn');
+      const copySummaryBtn = document.getElementById('copySummaryBtn');
+      const policyLayout = document.querySelector('.policy-layout');
+      const policyContextMenu = document.getElementById('policyContextMenu');
+      const sendConditionToTesterBtn = document.getElementById('sendConditionToTesterBtn');
+
+      const CONDITION_TESTER_STORAGE_KEY = 'ociConditionTesterClause';
+      let contextMenuRow = null;
+
+      function setContextHelp(title, body) {
+        if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
+        if (contextHelpBody) contextHelpBody.textContent = body || defaultContextHelp.body;
+      }
+
+      function bindContextHelp() {
+        document.querySelectorAll('[data-help-title], [data-help-body]').forEach((node) => {
+          const title = node.getAttribute('data-help-title') || '';
+          const body = node.getAttribute('data-help-body') || '';
+          node.addEventListener('mouseenter', () => setContextHelp(title, body));
+          node.addEventListener('focusin', () => setContextHelp(title, body));
+          node.addEventListener('mouseleave', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+          node.addEventListener('focusout', () => setContextHelp(defaultContextHelp.title, defaultContextHelp.body));
+        });
+      }
+
+      let currentRows = [];
+      let selectedRow = null;
+      let sortState = { key: 'policy_name', dir: 'asc' };
+      let appSettings = {};
+      let permissionHelperOptions = { operations: [], resources: [], families: [], verbs: [], actions: [] };
+      let permissionPending = [];
+      let jsonOverrideArmed = false;
+      let suppressJsonInputTracking = false;
+      let authStatus = null;
+      const LIMITED_PROSPECTIVE_HELP = 'Limited mode: prospective statements are view-only on this page. Only statements applicable to your scoped access are shown here. Additional prospective statements may exist in the tenancy but are hidden outside your scope. Contact an admin to add or modify statements.';
+      const sharedProspectiveEditor = window.createProspectiveEditor({
+        host: document.getElementById('prospectiveEditorHost'),
+        mode: 'drawer',
+        readOnly: false,
+        readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+        onSaved: async () => {
+          await runFilter();
+        },
+      });
+      const inspector = window.createPolicyStatementInspector({
+        panel: policyInspector,
+        titleEl: inspectorTitle,
+        subtitleEl: inspectorSubtitle,
+        emptyEl: inspectorEmpty,
+        tableEl: inspectorTable,
+        tableBodyEl: inspectorTableBody,
+        layoutEl: policyLayout,
+        rowSelector: '#resultsTable tbody tr',
+        rowIdAttr: 'rowId',
+        getRowValue,
+        config: {
+          titleWhenSelected: 'Statement Details',
+          subtitleWhenSelected: 'Inspecting selected statement',
+        },
+        onSelectionChange: (row) => {
+          selectedRow = row || null;
+          copyStatementBtn.disabled = !selectedRow;
+          copySummaryBtn.disabled = !selectedRow;
+        },
+      });
+
+      const JSON_OVERRIDE_EXAMPLE = {
+        subject: 'any-user|group-id',
+        verb: 'read|use|manage',
+        resource: 'instance|database'
+      };
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function getRowValue(row, key) {
+        if (key === 'invalid_reasons') {
+          const reasons = row?.invalid_reasons;
+          if (Array.isArray(reasons) && reasons.length) return reasons;
+          const legacy = row?.invalid_reason;
+          if (Array.isArray(legacy)) return legacy;
+          if (legacy !== undefined && legacy !== null && String(legacy).trim() !== '') return [String(legacy)];
+        }
+        const titleKey = key.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      function updateSortIndicators() {
+        headerCells.forEach((th) => {
+          const indicator = th.querySelector('.sort-indicator');
+          const key = th.dataset.sortKey;
+          indicator.textContent = key === sortState.key ? (sortState.dir === 'asc' ? '▲' : '▼') : '';
+        });
+      }
+
+      function renderRows(rows) {
+        tbody.innerHTML = '';
+        rows.forEach((row) => {
+          const tr = document.createElement('tr');
+          tr.dataset.rowId = String(row._row_id);
+          const policyHybrid = window.SharedFormatters?.formatPolicyCompartmentName
+            ? window.SharedFormatters.formatPolicyCompartmentName(row, { separator: ' :: ', empty: '-' })
+            : `${getRowValue(row, 'compartment_path') || '-'} :: ${getRowValue(row, 'policy_name') || '-'}`;
+          const vrpHybrid = window.SharedFormatters?.formatVerbResourcePermission
+            ? window.SharedFormatters.formatVerbResourcePermission(row, { empty: '-' })
+            : `${getRowValue(row, 'verb') || '-'} ${getRowValue(row, 'resource') || ''}`.trim();
+          tr.innerHTML = `
+            <td>${escapeHtml(policyHybrid)}</td>
+            <td>${escapeHtml(getRowValue(row, 'effective_path'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'statement_text'))}</td>
+            <td>${escapeHtml(getRowValue(row, 'conditions'))}</td>
+            <td>${escapeHtml(vrpHybrid)}</td>
+          `;
+          tr.addEventListener('click', () => inspector.setInspector(row));
+          tr.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            openRowContextMenu(event, row);
+          });
+          if (selectedRow && selectedRow._row_id === row._row_id) {
+            tr.classList.add('active-row');
+          }
+          tbody.appendChild(tr);
+        });
+      }
+
+      function hideRowContextMenu() {
+        if (policyContextMenu) {
+          policyContextMenu.hidden = true;
+        }
+        contextMenuRow = null;
+      }
+
+      function openRowContextMenu(event, row) {
+        if (!policyContextMenu || !sendConditionToTesterBtn) return;
+        contextMenuRow = row || null;
+
+        const conditionText = String(getRowValue(row, 'conditions') || '').trim();
+        sendConditionToTesterBtn.disabled = !conditionText;
+        sendConditionToTesterBtn.textContent = conditionText
+          ? 'Send condition to Condition Tester'
+          : 'No condition available for this row';
+
+        const menuWidth = 240;
+        const menuHeight = 44;
+        const x = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8));
+        const y = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8));
+
+        policyContextMenu.style.left = `${x}px`;
+        policyContextMenu.style.top = `${y}px`;
+        policyContextMenu.hidden = false;
+      }
+
+      function buildPayloadFromFields() {
+        const payload = {};
+        const setIfPresent = (key, value) => {
+          if (String(value || '').trim()) payload[key] = String(value).trim();
+        };
+        setIfPresent('subject', subjectFilter.value);
+        setIfPresent('action', actionFilter.value);
+        setIfPresent('verb', verbFilter.value);
+        setIfPresent('resource', resourceFilter.value);
+        setIfPresent('permission', permissionFilter.value);
+        setIfPresent('location', locationFilter.value);
+        setIfPresent('compartment_path', compartmentPathFilter.value);
+        setIfPresent('statement_text', statementTextFilter.value);
+        setIfPresent('policy_name', policyNameFilter.value);
+        setIfPresent('effective_path', effectivePathFilter.value);
+        setIfPresent('conditions', conditionsFilter.value);
+        if (validFilter.value === 'true') payload.valid = true;
+        if (validFilter.value === 'false') payload.valid = false;
+        return payload;
+      }
+
+      function prettyJson(value) {
+        try {
+          return JSON.stringify(value ?? {}, null, 2);
+        } catch {
+          return '{}';
+        }
+      }
+
+      function setFiltersJsonValue(value) {
+        suppressJsonInputTracking = true;
+        filters.value = String(value ?? '');
+        suppressJsonInputTracking = false;
+      }
+
+      function getCurrentSearchSnapshot() {
+        return {
+          subject: String(subjectFilter.value || '').trim(),
+          action: String(actionFilter.value || 'Both').trim() || 'Both',
+          verb: String(verbFilter.value || '').trim(),
+          resource: String(resourceFilter.value || '').trim(),
+          permission: String(permissionFilter.value || '').trim(),
+          location: String(locationFilter.value || '').trim(),
+          compartment_path: String(compartmentPathFilter.value || '').trim(),
+          statement_text: String(statementTextFilter.value || '').trim(),
+          policy_name: String(policyNameFilter.value || '').trim(),
+          effective_path: String(effectivePathFilter.value || '').trim(),
+          conditions: String(conditionsFilter.value || '').trim(),
+          valid: String(validFilter.value || '').trim(),
+        };
+      }
+
+      function applySearchSnapshot(snapshot) {
+        const data = snapshot && typeof snapshot === 'object' ? snapshot : {};
+        subjectFilter.value = String(data.subject || '');
+        actionFilter.value = String(data.action || 'Both');
+        verbFilter.value = String(data.verb || '');
+        resourceFilter.value = String(data.resource || '');
+        permissionFilter.value = String(data.permission || '');
+        locationFilter.value = String(data.location || '');
+        compartmentPathFilter.value = String(data.compartment_path || '');
+        statementTextFilter.value = String(data.statement_text || '');
+        policyNameFilter.value = String(data.policy_name || '');
+        effectivePathFilter.value = String(data.effective_path || '');
+        conditionsFilter.value = String(data.conditions || '');
+        validFilter.value = String(data.valid || '');
+      }
+
+      function getSavedSearches() {
+        const searches = appSettings.saved_policy_searches;
+        return Array.isArray(searches) ? searches : [];
+      }
+
+      function setStatusInfo(message) {
+        status.textContent = String(message || '');
+        status.className = 'status';
+      }
+
+      function setStatusError(message) {
+        status.textContent = String(message || '');
+        status.className = 'status error';
+      }
+
+      function populateResourceHelperOptions(payload) {
+        if (!resourceHelperSelect || !familyHelperSelect) return;
+        const resources = Array.isArray(payload?.resources) ? payload.resources : [];
+        const families = Array.isArray(payload?.families) ? payload.families : [];
+
+        resourceHelperSelect.innerHTML = '<option value="">Select resource...</option>';
+        resources.forEach((entry) => {
+          const resource = String(entry?.resource || '').trim();
+          if (!resource) return;
+          const family = String(entry?.family || '').trim();
+          const option = document.createElement('option');
+          option.value = resource;
+          option.textContent = family ? `${resource} (${family})` : resource;
+          resourceHelperSelect.appendChild(option);
+        });
+
+        familyHelperSelect.innerHTML = '<option value="">Select family...</option>';
+        families.forEach((entry) => {
+          const family = String(entry?.family || '').trim();
+          if (!family) return;
+          const members = Array.isArray(entry?.resources) ? entry.resources.length : 0;
+          const option = document.createElement('option');
+          option.value = family;
+          option.textContent = `${family}${members ? ` (${members})` : ''}`;
+          familyHelperSelect.appendChild(option);
+        });
+      }
+
+      function updatePermissionPendingView() {
+        if (!permissionPendingList) return;
+        permissionPendingList.value = permissionPending.join('|');
+      }
+
+      function updateMutualExclusionBadges() {
+        const hasResource = String(resourceFilter.value || '').trim().length > 0;
+        const hasPermission = String(permissionFilter.value || '').trim().length > 0;
+
+        if (resourceModeBadge) {
+          resourceModeBadge.classList.toggle('active', hasResource && !hasPermission);
+          resourceModeBadge.textContent = hasResource ? 'Active' : 'Inactive';
+        }
+
+        if (permissionModeBadge) {
+          permissionModeBadge.classList.toggle('active', hasPermission && !hasResource);
+          permissionModeBadge.textContent = hasPermission ? 'Active' : 'Inactive';
+        }
+      }
+
+      function addPermissionsToPending(values) {
+        const clean = (Array.isArray(values) ? values : [])
+          .map((v) => String(v || '').trim().toUpperCase())
+          .filter(Boolean);
+        permissionPending = [...new Set([...permissionPending, ...clean])];
+        updatePermissionPendingView();
+      }
+
+      function populatePermissionHelperOptions() {
+        const operations = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const resources = Array.isArray(permissionHelperOptions.resources) ? permissionHelperOptions.resources : [];
+        const families = Array.isArray(permissionHelperOptions.families) ? permissionHelperOptions.families : [];
+        const verbs = Array.isArray(permissionHelperOptions.verbs) ? permissionHelperOptions.verbs : ['inspect', 'read', 'use', 'manage'];
+
+        permissionOperationSelect.innerHTML = operations.map((op) => `<option value="${escapeHtml(op.label)}">${escapeHtml(op.label)}</option>`).join('');
+        const entities = [
+          ...resources.map((r) => ({ label: String(r), value: String(r) })),
+          ...families.map((f) => ({ label: `Family: ${String(f)}`, value: String(f) })),
+        ];
+        permissionEntitySelect.innerHTML = entities.map((e) => `<option value="${escapeHtml(e.value)}">${escapeHtml(e.label)}</option>`).join('');
+        permissionVerbSelect.innerHTML = verbs.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        if (verbs.includes('read')) permissionVerbSelect.value = 'read';
+      }
+
+      async function loadPermissionHelperOptions() {
+        try {
+          const resp = await fetch('/reference/permission-helper-options');
+          if (!resp.ok) throw new Error(`Failed to load permission helper options (${resp.status})`);
+          permissionHelperOptions = await resp.json();
+          populatePermissionHelperOptions();
+        } catch (err) {
+          setStatusError(`Failed to load permission helper options: ${err}`);
+        }
+      }
+
+      function openPermissionFlyin() {
+        permissionFlyinBackdrop.hidden = false;
+        permissionFlyinPanel.hidden = false;
+      }
+
+      function closePermissionFlyin() {
+        permissionFlyinBackdrop.hidden = true;
+        permissionFlyinPanel.hidden = true;
+      }
+
+      function filterPermissionOperationOptions() {
+        const term = String(permissionOperationSearch.value || '').trim().toLowerCase();
+        const operations = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const filtered = operations.filter((op) => String(op.label || '').toLowerCase().includes(term));
+        permissionOperationSelect.innerHTML = filtered.map((op) => `<option value="${escapeHtml(op.label)}">${escapeHtml(op.label)}</option>`).join('');
+      }
+
+      async function loadResourceHelperOptions() {
+        try {
+          const resp = await fetch('/reference/resource-helper-options');
+          if (!resp.ok) throw new Error(`Failed to load helper options (${resp.status})`);
+          const payload = await resp.json();
+          populateResourceHelperOptions(payload || {});
+        } catch (err) {
+          setStatusError(`Failed to load advanced helper options: ${err}`);
+        }
+      }
+
+      async function applyResourceHelper(mode, value) {
+        if (!String(value || '').trim()) {
+          setStatusError(mode === 'from_resource' ? 'Choose a resource helper item first.' : 'Choose a family helper item first.');
+          return;
+        }
+        try {
+          const includeAllResources = mode === 'from_resource'
+            ? !!includeAllResourcesFromResource?.checked
+            : !!includeAllResourcesFromFamily?.checked;
+          const payload = mode === 'from_resource' ? { mode, resource: value } : { mode, family: value };
+          payload.include_all_resources = includeAllResources;
+          const resp = await fetch('/reference/build-resource-filter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!resp.ok) {
+            const detail = await resp.text();
+            throw new Error(`Failed to build resource filter (${resp.status}) ${detail}`);
+          }
+          const data = await resp.json();
+          const next = String(data?.expanded_resource_filter || '').trim();
+          if (!next) {
+            setStatusError('Helper returned an empty filter string.');
+            return;
+          }
+          resourceFilter.value = next;
+          permissionFilter.value = '';
+          updateMutualExclusionBadges();
+          const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
+          if (warnings.length) {
+            setStatusInfo(`Resource helper applied and Permission cleared (mutually exclusive). Warning: ${warnings.join(' ')}`);
+          } else {
+            setStatusInfo(`Resource helper applied and Permission cleared (mutually exclusive): ${next}`);
+          }
+        } catch (err) {
+          setStatusError(`Failed to apply resource helper: ${err}`);
+        }
+      }
+
+      function refreshSavedSearchDropdown(selected = '') {
+        const searches = getSavedSearches();
+        savedSearchSelect.innerHTML = '<option value="">Saved Searches</option>';
+        searches.forEach((entry) => {
+          const name = String(entry?.name || '').trim();
+          if (!name) return;
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          savedSearchSelect.appendChild(option);
+        });
+        savedSearchSelect.value = selected && searches.some((s) => s?.name === selected) ? selected : '';
+      }
+
+      async function loadSettings() {
+        const response = await fetch('/settings');
+        if (!response.ok) throw new Error(`Failed to load settings (${response.status})`);
+        const payload = await response.json();
+        appSettings = payload?.settings && typeof payload.settings === 'object' ? payload.settings : {};
+        if (!Array.isArray(appSettings.saved_policy_searches)) {
+          appSettings.saved_policy_searches = [];
+        }
+        refreshSavedSearchDropdown();
+      }
+
+      async function loadAuthStatus() {
+        try {
+          const response = await fetch('/auth/status', { cache: 'no-store' });
+          if (!response.ok) return null;
+          authStatus = await response.json();
+          return authStatus;
+        } catch (_err) {
+          return null;
+        }
+      }
+
+      async function ensureProspectiveEditorMode() {
+        await loadAuthStatus();
+        const isLimited = String(authStatus?.auth_mode || '') === 'limited';
+        const host = document.getElementById('prospectiveEditorHost');
+        if (!host) return;
+        host.innerHTML = '';
+        if (isLimited) {
+          if (manageProspectiveBtn) {
+            manageProspectiveBtn.style.display = 'none';
+          }
+          return;
+        }
+        if (manageProspectiveBtn) {
+          manageProspectiveBtn.style.display = '';
+        }
+        prospectiveEditor = window.createProspectiveEditor({
+          host,
+          mode: 'drawer',
+          readOnly: false,
+          readOnlyMessage: LIMITED_PROSPECTIVE_HELP,
+          onSaved: async () => {
+            await runFilter();
+          },
+        });
+        manageProspectiveBtn.textContent = 'Manage Prospective Statements';
+        manageProspectiveBtn.setAttribute('data-help-body', 'Open the prospective statement editor to add, parse, and save what-if policy statements.');
+      }
+
+      async function persistSettings() {
+        const response = await fetch('/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settings: appSettings }),
+        });
+        if (!response.ok) throw new Error(`Failed to save settings (${response.status})`);
+      }
+
+      async function saveCurrentSearch() {
+        const name = String(savedSearchName.value || '').trim();
+        if (!name) {
+          status.textContent = 'Enter a Saved Search Name before saving.';
+          status.className = 'status error';
+          return;
+        }
+
+        const existing = getSavedSearches();
+        const idx = existing.findIndex((entry) => String(entry?.name || '') === name);
+        if (idx >= 0 && !window.confirm(`A saved search named "${name}" exists. Overwrite?`)) {
+          return;
+        }
+
+        const updatedEntry = {
+          name,
+          search: getCurrentSearchSnapshot(),
+          raw_json: String(filters.value || '').trim(),
+        };
+
+        const next = [...existing];
+        if (idx >= 0) next[idx] = updatedEntry;
+        else next.push(updatedEntry);
+        appSettings.saved_policy_searches = next;
+
+        try {
+          await persistSettings();
+          refreshSavedSearchDropdown(name);
+          status.textContent = `Saved search "${name}".`;
+          status.className = 'status success';
+        } catch (err) {
+          status.textContent = `Failed to save search: ${err}`;
+          status.className = 'status error';
+        }
+      }
+
+      async function restoreSavedSearch() {
+        const selected = String(savedSearchSelect.value || '').trim();
+        if (!selected) return;
+        const found = getSavedSearches().find((entry) => String(entry?.name || '') === selected);
+        if (!found) {
+          status.textContent = `Could not find saved search "${selected}".`;
+          status.className = 'status error';
+          return;
+        }
+        applySearchSnapshot(found.search || {});
+        setFiltersJsonValue(String(found.raw_json || ''));
+        jsonOverrideArmed = String(found.raw_json || '').trim().length > 0;
+        savedSearchName.value = selected;
+        status.textContent = `Loaded saved search "${selected}".`;
+        status.className = 'status success';
+        await runFilter();
+      }
+
+      async function runFilter() {
+        status.textContent = '';
+        status.className = 'status';
+        const fieldPayload = buildPayloadFromFields();
+        let payload = fieldPayload;
+        let usingRawOverride = false;
+        const rawJson = String(filters.value || '').trim();
+        if (jsonOverrideArmed && rawJson) {
+          try {
+            payload = JSON.parse(rawJson);
+            usingRawOverride = true;
+          } catch (err) {
+            status.textContent = `Invalid JSON override: ${err}`;
+            status.className = 'status error';
+            return;
+          }
+        }
+        const usedPayloadPretty = prettyJson(payload);
+        setFiltersJsonValue(usedPayloadPretty);
+        if (!usingRawOverride) {
+          jsonOverrideArmed = false;
+        }
+        runBtn.disabled = true;
+        status.textContent = usingRawOverride ? 'Running with JSON override...' : 'Running...';
+        try {
+          const response = await fetch('/filter/policies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filters: payload, sort_by: sortState.key, sort_dir: sortState.dir }),
+          });
+          const result = await response.json();
+          const matched = result.matched || 0;
+          const total = result.total || 0;
+          currentRows = (result.statements || []).map((row) => ({ ...row }));
+
+          if (showProspectiveFilter.checked) {
+            const prospectiveResp = await fetch('/prospective/statements');
+            if (prospectiveResp.ok) {
+              const prospectivePayload = await prospectiveResp.json();
+              const prospectiveRows = (prospectivePayload.rows || [])
+                .filter((r) => String(r?.statement_text || '').trim())
+                .map((r) => {
+                  const normalized = r.normalized || {};
+                  const whereStructure = normalized.where_clause_structure || normalized.where_clause || {};
+                  const conditionAtoms = Array.isArray(normalized.condition_atoms)
+                    ? normalized.condition_atoms
+                    : (Array.isArray(whereStructure?.atoms) ? whereStructure.atoms : []);
+                  const conditionRaw = normalized.conditions_where_clause || normalized.conditions || '';
+                  return {
+                    compartment_path: r.compartment_path || 'ROOT',
+                    effective_path: r.effective_path || r.compartment_path || 'ROOT',
+                    policy_name: `[Prospective] ${String(r.description || 'Prospective Statement').trim() || 'Prospective Statement'}`,
+                    policy_ocid: r.tenancy_ocid || '',
+                    statement_text: r.statement_text || '',
+                    action: String(normalized.action || '').toLowerCase() || '',
+                    subject_type: normalized.subject_type || '',
+                    subject: normalized.subject || '',
+                    verb: normalized.verb || '',
+                    resource: normalized.resource || '',
+                    permission: normalized.permission || '',
+                    location: normalized.location || '',
+                    conditions: conditionRaw,
+                    conditions_where_clause: conditionRaw,
+                    conditions_parsed_structure: normalized.conditions_parsed_structure || '',
+                    condition_atoms: conditionAtoms,
+                    parsed: !!r.parsed,
+                    valid: !!r.valid,
+                    invalid_reasons: Array.isArray(r.invalid_reasons) ? r.invalid_reasons : [],
+                    is_prospective: true,
+                  };
+                })
+                .filter((row) => {
+                  const contains = (value, term) => String(value || '').toLowerCase().includes(String(term || '').toLowerCase());
+                  if (String(subjectFilter.value || '').trim() && !contains(`${row.subject_type} ${JSON.stringify(row.subject)}`, subjectFilter.value)) return false;
+                  if (String(verbFilter.value || '').trim() && !contains(row.verb, verbFilter.value)) return false;
+                  if (String(resourceFilter.value || '').trim() && !contains(row.resource, resourceFilter.value)) return false;
+                  if (String(permissionFilter.value || '').trim() && !contains(row.permission, permissionFilter.value)) return false;
+                  if (String(locationFilter.value || '').trim() && !contains(row.location, locationFilter.value)) return false;
+                  if (String(compartmentPathFilter.value || '').trim() && !contains(row.compartment_path, compartmentPathFilter.value)) return false;
+                  if (String(statementTextFilter.value || '').trim() && !contains(row.statement_text, statementTextFilter.value)) return false;
+                  if (String(policyNameFilter.value || '').trim() && !contains(row.policy_name, policyNameFilter.value)) return false;
+                  if (String(effectivePathFilter.value || '').trim() && !contains(row.effective_path, effectivePathFilter.value)) return false;
+                  if (String(conditionsFilter.value || '').trim() && !contains(row.conditions, conditionsFilter.value)) return false;
+                  if (actionFilter.value === 'Allow' && String(row.action || '').toLowerCase() !== 'allow') return false;
+                  if (actionFilter.value === 'Deny' && String(row.action || '').toLowerCase() !== 'deny') return false;
+                  if (validFilter.value === 'true' && !row.valid) return false;
+                  if (validFilter.value === 'false' && row.valid) return false;
+                  return true;
+                });
+
+              currentRows = currentRows.concat(prospectiveRows);
+            }
+          }
+
+          const getComparable = (row, key) => String(getRowValue(row, key) || '').toLowerCase();
+          currentRows.sort((a, b) => {
+            const av = getComparable(a, sortState.key);
+            const bv = getComparable(b, sortState.key);
+            if (av === bv) return 0;
+            return sortState.dir === 'asc' ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1);
+          });
+          currentRows = currentRows.map((row, idx) => ({ ...row, _row_id: idx + 1 }));
+
+          const prospectiveCount = currentRows.filter((r) => r.is_prospective).length;
+          const policyCountShown = Math.max(0, currentRows.length - prospectiveCount);
+          if (prospectiveCount > 0) {
+            summary.textContent = `Showing ${currentRows.length} (${policyCountShown} policy + ${prospectiveCount} prospective) of ${matched} matched policy statements (total ${total})`;
+          } else {
+            summary.textContent = `Showing ${policyCountShown} of ${matched} (total ${total})`;
+          }
+          renderRows(currentRows);
+          inspector.clear();
+          status.textContent = '';
+        } catch (err) {
+          status.textContent = `Filter failed: ${err}`;
+          status.className = 'status error';
+        } finally {
+          runBtn.disabled = false;
+        }
+      }
+
+      headerCells.forEach((th) => {
+        th.addEventListener('click', () => {
+          const key = th.dataset.sortKey;
+          if (!key) return;
+          if (sortState.key === key) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortState.key = key;
+            sortState.dir = 'asc';
+          }
+          updateSortIndicators();
+          runFilter();
+        });
+      });
+
+      closeInspectorBtn.addEventListener('click', () => inspector.clear());
+
+      clearFiltersBtn.addEventListener('click', () => {
+        subjectFilter.value = '';
+        actionFilter.value = 'Both';
+        verbFilter.value = '';
+        resourceFilter.value = '';
+        permissionFilter.value = '';
+        locationFilter.value = '';
+        compartmentPathFilter.value = '';
+        statementTextFilter.value = '';
+        policyNameFilter.value = '';
+        effectivePathFilter.value = '';
+        conditionsFilter.value = '';
+        validFilter.value = '';
+        setFiltersJsonValue('');
+        jsonOverrideArmed = false;
+        status.textContent = '';
+      });
+
+      saveSearchBtn.addEventListener('click', saveCurrentSearch);
+      savedSearchSelect.addEventListener('change', restoreSavedSearch);
+      loadJsonExampleBtn.addEventListener('click', () => {
+        setFiltersJsonValue(JSON.stringify(JSON_OVERRIDE_EXAMPLE, null, 2));
+        jsonOverrideArmed = true;
+        status.textContent = 'Loaded JSON example. Run Filter to apply it.';
+        status.className = 'status';
+      });
+
+      applyResourceHelperBtn.addEventListener('click', () => applyResourceHelper('from_resource', resourceHelperSelect.value));
+      applyFamilyHelperBtn.addEventListener('click', () => applyResourceHelper('from_family', familyHelperSelect.value));
+      openPermissionFlyinBtn.addEventListener('click', openPermissionFlyin);
+      closePermissionFlyinBtn.addEventListener('click', closePermissionFlyin);
+      permissionFlyinBackdrop.addEventListener('click', closePermissionFlyin);
+
+      permissionOperationSearch.addEventListener('input', filterPermissionOperationOptions);
+      permissionAddFromOperationBtn.addEventListener('click', () => {
+        const selected = String(permissionOperationSelect.value || '').trim();
+        if (!selected) return;
+        const ops = Array.isArray(permissionHelperOptions.operations) ? permissionHelperOptions.operations : [];
+        const op = ops.find((item) => String(item?.label || '') === selected);
+        addPermissionsToPending(op?.permissions || []);
+      });
+
+      permissionAddFromEntityBtn.addEventListener('click', async () => {
+        const entity = String(permissionEntitySelect.value || '').trim();
+        const verb = String(permissionVerbSelect.value || '').trim();
+        if (!entity || !verb) return;
+        const resp = await fetch('/reference/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity, verb, action: 'allow' }),
+        });
+        if (!resp.ok) {
+          setStatusError(`Permission lookup failed (${resp.status})`);
+          return;
+        }
+        const payload = await resp.json();
+        addPermissionsToPending(payload?.permissions || []);
+      });
+
+      permissionClearPendingBtn.addEventListener('click', () => {
+        permissionPending = [];
+        updatePermissionPendingView();
+      });
+
+      permissionApplyBtn.addEventListener('click', () => {
+        const merged = [...new Set([...String(permissionFilter.value || '').split('|').map((v) => v.trim()).filter(Boolean), ...permissionPending])];
+        permissionFilter.value = merged.join('|');
+        resourceFilter.value = '';
+        updateMutualExclusionBadges();
+        setStatusInfo('Permission filter applied and Resource cleared (mutually exclusive).');
+        closePermissionFlyin();
+      });
+
+      resourceFilter.addEventListener('input', () => {
+        if (String(resourceFilter.value || '').trim()) {
+          permissionFilter.value = '';
+        }
+        updateMutualExclusionBadges();
+      });
+
+      permissionFilter.addEventListener('input', () => {
+        if (String(permissionFilter.value || '').trim()) {
+          resourceFilter.value = '';
+        }
+        updateMutualExclusionBadges();
+      });
+
+      filters.addEventListener('input', () => {
+        if (suppressJsonInputTracking) return;
+        jsonOverrideArmed = String(filters.value || '').trim().length > 0;
+      });
+
+      let prospectiveEditor = sharedProspectiveEditor;
+      let prospectiveClickBound = false;
+      function bindProspectiveButton() {
+        if (prospectiveClickBound) return;
+        manageProspectiveBtn.addEventListener('click', async () => {
+          await ensureProspectiveEditorMode();
+          await prospectiveEditor.open();
+        });
+        prospectiveClickBound = true;
+      }
+      bindProspectiveButton();
+
+      copyStatementBtn.addEventListener('click', async () => {
+        if (!selectedRow) return;
+        await navigator.clipboard.writeText(String(getRowValue(selectedRow, 'statement_text') || ''));
+      });
+
+      copySummaryBtn.addEventListener('click', async () => {
+        if (!selectedRow) return;
+        const policyCompartment = window.SharedFormatters?.formatPolicyCompartmentName
+          ? window.SharedFormatters.formatPolicyCompartmentName(selectedRow, { separator: ' :: ', empty: '-' })
+          : `${getRowValue(selectedRow, 'compartment_path') || '-'} :: ${getRowValue(selectedRow, 'policy_name') || '-'}`;
+        const text = [
+          `Policy / Compartment: ${policyCompartment}`,
+          `Verb + Resource / Permission: ${window.SharedFormatters?.formatVerbResourcePermission ? window.SharedFormatters.formatVerbResourcePermission(selectedRow, { empty: '-' }) : '-'}`,
+          `Policy: ${getRowValue(selectedRow, 'policy_name') || '-'}`,
+          `Verb: ${getRowValue(selectedRow, 'verb') || '-'}`,
+          `Resource: ${getRowValue(selectedRow, 'resource') || '-'}`,
+          `Compartment: ${getRowValue(selectedRow, 'compartment_path') || '-'}`,
+          `Statement: ${getRowValue(selectedRow, 'statement_text') || '-'}`,
+        ].join('\n');
+        await navigator.clipboard.writeText(text);
+      });
+
+      sendConditionToTesterBtn.addEventListener('click', () => {
+        if (!contextMenuRow) return;
+        const conditionText = String(getRowValue(contextMenuRow, 'conditions') || '').trim();
+        if (!conditionText) return;
+        sessionStorage.setItem(CONDITION_TESTER_STORAGE_KEY, conditionText);
+        hideRowContextMenu();
+        window.location.href = '/condition-tester.html?from=policy-analysis';
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!policyContextMenu || policyContextMenu.hidden) return;
+        if (!policyContextMenu.contains(event.target)) {
+          hideRowContextMenu();
+        }
+      });
+
+      window.addEventListener('scroll', hideRowContextMenu, true);
+      window.addEventListener('resize', hideRowContextMenu);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') hideRowContextMenu();
+      });
+
+      updateSortIndicators();
+      window.SharedTable?.enableResizableColumns(document.getElementById('resultsTable'), {
+        storageKey: 'policy-analysis:resultsTable',
+        minWidth: 90,
+        maxWidth: 1400,
+      });
+      runBtn.addEventListener('click', runFilter);
+      showProspectiveFilter.addEventListener('change', runFilter);
+
+      async function initializePage() {
+        try {
+          await loadAuthStatus();
+          bindContextHelp();
+          if (String(authStatus?.auth_mode || '') === 'limited') {
+            defaultContextHelp.body = 'Run filters to load statements and inspect details. Prospective statements are view-only for limited users and only scoped statements are shown; additional tenancy statements may exist outside scope.';
+            setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+          }
+          await loadSettings();
+          await loadResourceHelperOptions();
+          await loadPermissionHelperOptions();
+          updateMutualExclusionBadges();
+          if (String(authStatus?.auth_mode || '') === 'limited') {
+            if (manageProspectiveBtn) {
+              manageProspectiveBtn.style.display = 'none';
+            }
+          }
+        } catch (err) {
+          status.textContent = `Failed to load settings: ${err}`;
+          status.className = 'status error';
+        }
+        await runFilter();
+      }
+
+      initializePage();
+    </script>
+      <script src="/app-version.js"></script>
+      <script src="/auth-gate.js"></script>
+</body>
+</html>

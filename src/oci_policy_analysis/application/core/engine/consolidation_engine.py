@@ -33,11 +33,11 @@ from oci_policy_analysis.application.core.engine.strategies import (
     PackPoliciesByStatementDensity,
     Strategy,
 )
+from oci_policy_analysis.application.core.models.models import BasePolicy
+from oci_policy_analysis.application.core.models.models_consolidation import ConsolidationPlan
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository, ReferenceDataRepo
-from oci_policy_analysis.common.caching import CacheManager
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import BasePolicy
-from oci_policy_analysis.common.models_consolidation import ConsolidationPlan
+from oci_policy_analysis.application.core.support.caching import CacheManager
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.engine.consolidation_engine')
 

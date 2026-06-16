@@ -19,6 +19,7 @@ Contents
    simulation
    recommendations
    mcp
+   mcp_examples
    cli
    web_ui_styling
    limited_mode
@@ -29,10 +30,9 @@ Contents
    :caption: API Reference
 
    api/oci_policy_analysis
-   api/oci_policy_analysis.ui
-   api/oci_policy_analysis.logic
+   api/oci_policy_analysis.presentation
+   api/oci_policy_analysis.application_core
    api/oci_policy_analysis.recommendations
-   api/oci_policy_analysis.common
 
 .. toctree::
    :maxdepth: 1

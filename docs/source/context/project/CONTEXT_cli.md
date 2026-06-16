@@ -22,6 +22,7 @@ All flags and arguments supported by `cli.py`:
 | Option / Flag                    | Meaning / Usage                                                  |
 |----------------------------------|------------------------------------------------------------------|
 | `--verbose`                      | Enable DEBUG logging for troubleshooting.                        |
+| `--log-level <level>`            | Set CLI log level (`CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG`). |
 | `--app-log`                      | Log output to `app.log` instead of stdout.                       |
 | `--instance-principal`           | Use OCI Instance Principal authentication (vs. config profile).  |
 | `--get-caches <tenancy>`         | List available cached datasets for the given tenancy.             |
@@ -41,7 +42,7 @@ _Most session, filter, and export options are mutually compatible—e.g., you ca
 ## 3. Core Workflow
 
 1. **Parse Arguments & Configure Logging**  
-   Handles all the above flags, sets up console or file-based logging, and controls verbosity as requested.
+   Handles all the above flags, sets up console or file-based logging, and controls verbosity as requested. Use `--log-level INFO` for progress and filter logging without full DEBUG output; `--verbose` remains the DEBUG shortcut.
 2. **Load Data**  
    Loads OCI IAM data from live API (default), a cache, or a compliance CSV directory. Throws if loading fails (with displayed error).
 3. **Run Policy Intelligence Overlays (Post-Load Processing)**
@@ -93,7 +94,7 @@ _Most session, filter, and export options are mutually compatible—e.g., you ca
   ```
 - List available caches for a tenancy:
   ```
-  python -m oci_policy_analysis.cli --get-caches example-tenancy
+  python -m oci_policy_analysis.cli --log-level INFO --get-caches example-tenancy
   ```
 
 ---

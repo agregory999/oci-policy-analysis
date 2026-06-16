@@ -37,28 +37,46 @@ def test_get_resource_types_dedupes_case_insensitive_matches():
 
 def test_by_subject_types_applies_resource_type_filter_via_conditions():
     svc = _build_service([])
+    captured_filters = {}
 
     class _AnalysisStub:
         @staticmethod
         def filter_policy_statements(*, filters):
+            captured_filters.update(filters)
             assert filters.get('subject_type') == ['any-user']
-            return SimpleNamespace(
-                statements=[
-                    {
-                        'subject_type': 'any-user',
-                        'statement_text': 'allow any-user to manage all-resources in tenancy',
-                        'conditions': "all { request.principal.type = 'serviceconnector' }",
-                    },
-                    {
-                        'subject_type': 'any-user',
-                        'statement_text': 'allow any-user to use object-family in tenancy',
-                        'conditions': "all { request.principal.type = 'autonomousdatabase' }",
-                    },
-                ]
-            )
+            return SimpleNamespace(statements=[{'policy_name': 'matched'}])
 
     svc.analysis = cast(Any, _AnalysisStub())
     result = svc.by_subject_types(subject_types=['any-user'], resource_type='serviceconnector')
 
     assert len(result.statements) == 1
-    assert 'serviceconnector' in str(result.statements[0].get('conditions') or '').casefold()
+    assert captured_filters['principal'] == {
+        'principal_type': 'resource-principal',
+        'resource_type': 'serviceconnector',
+    }
+
+
+def test_by_subject_types_applies_resource_compartment_ocid_filter_via_principal_selector():
+    svc = _build_service([])
+    captured_filters = {}
+
+    class _AnalysisStub:
+        @staticmethod
+        def filter_policy_statements(*, filters):
+            captured_filters.update(filters)
+            assert filters.get('subject_type') == ['any-group']
+            return SimpleNamespace(statements=[{'policy_name': 'matched'}])
+
+    svc.analysis = cast(Any, _AnalysisStub())
+    result = svc.by_subject_types(
+        subject_types=['any-group'],
+        resource_type='computecontainerinstance',
+        resource_compartment_ocid='ocid1.compartment.oc1..app',
+    )
+
+    assert len(result.statements) == 1
+    assert captured_filters['principal'] == {
+        'principal_type': 'resource-principal',
+        'resource_type': 'computecontainerinstance',
+        'resource_compartment_ocid': 'ocid1.compartment.oc1..app',
+    }

@@ -5,6 +5,10 @@ from oci_policy_analysis.application.core.parser.condition_evaluator import (
     extract_variable_names,
     format_policy_clause,
 )
+from oci_policy_analysis.application.core.parser.condition_structure import (
+    format_condition_structure_summary,
+    parse_condition_structure,
+)
 from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
 from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
 from oci_policy_analysis.application.core.parser.tag_condition_collector import (
@@ -16,6 +20,8 @@ __all__ = [
     'evaluate_condition_clause',
     'extract_variable_names',
     'format_policy_clause',
+    'format_condition_structure_summary',
+    'parse_condition_structure',
     'PolicyStatementNormalizer',
     'parse_policy_subjects',
     'TagCondition',

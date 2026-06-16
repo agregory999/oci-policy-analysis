@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from oci_policy_analysis.application.core.repo import ReferenceDataRepo
-from oci_policy_analysis.application.models.reference_data_models import (
+from oci_policy_analysis.application.core.models.models_reference_data import (
     FamilyResourcesRow,
     OperationPermissionsRow,
     ResourceFamilyRow,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.repo import ReferenceDataRepo
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 
 @dataclass

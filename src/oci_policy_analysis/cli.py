@@ -18,13 +18,13 @@ import time
 import warnings
 
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine
+from oci_policy_analysis.application.core.models.models import PolicySearch
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
-from oci_policy_analysis.common.caching import CacheManager
-from oci_policy_analysis.common.helpers import (
+from oci_policy_analysis.application.core.support.caching import CacheManager
+from oci_policy_analysis.application.core.support.helpers import (
     for_display_policy,
 )
-from oci_policy_analysis.common.logger import get_logger, set_log_level
-from oci_policy_analysis.common.models import PolicySearch
+from oci_policy_analysis.application.core.support.logger import get_logger, set_log_level
 
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -41,6 +41,8 @@ def main():  # noqa: C901
     ----------
     --verbose : bool
         Enable verbose logging.
+    --log-level : str
+        Set CLI log level (CRITICAL, ERROR, WARNING, INFO, or DEBUG).
     --app-log : bool
         Log output to app.log instead of console.
     --instance-principal : bool
@@ -84,7 +86,14 @@ def main():  # noqa: C901
 
     """
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
-    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--verbose', action='store_true', help='Enable DEBUG logging')
+    parser.add_argument(
+        '--log-level',
+        choices=('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'),
+        type=str.upper,
+        default=None,
+        help='Set CLI log level without enabling full verbose mode (for example: --log-level INFO)',
+    )
     parser.add_argument('--app-log', action='store_true', help='Enable app.log for logging (default is console)')
     parser.add_argument('--instance-principal', action='store_true', help='Use instance principal authentication')
     parser.add_argument('--get-caches', help='If set, provide the names of tenancy to search for caches')
@@ -112,6 +121,10 @@ def main():  # noqa: C901
     )
     args = parser.parse_args()
 
+    effective_log_level = 'DEBUG' if args.verbose else args.log_level
+    if effective_log_level:
+        set_log_level(effective_log_level, announce=False)
+
     # Logging and Console setup
     if args.app_log:
         # Reconfigure logger to use console
@@ -121,15 +134,15 @@ def main():  # noqa: C901
         logger = get_logger(component='cli')
         logger.info('Logging to Console')
 
-    # Configure logging based on verbose flag
     if args.verbose:
-        set_log_level('DEBUG')
-        # logger.setLevel('DEBUG')
         logger.debug('Verbose logging enabled')
+    elif effective_log_level:
+        logger.info('CLI log level set to %s', effective_log_level)
 
     # Initialize PolicyCompartmentAnalysis
     policy_analysis = PolicyAnalysisRepository()
     cache_manager = CacheManager()
+    save_cache_after_cli_post_load = False
 
     # 1. Load from compliance CSVs if requested
     if args.load_from_compliance:
@@ -193,9 +206,7 @@ def main():  # noqa: C901
             # Completed the Load
             logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
 
-            if not args.dont_save_cache_after_load:
-                logger.info('Saving combined cache after loading from OCI')
-                cache_manager.save_combined_cache(policy_analysis=policy_analysis)
+            save_cache_after_cli_post_load = not args.dont_save_cache_after_load
 
         # ---- Policy Intelligence step (CLI) ----
         logger.info('[CLI] Running minimal post-load policy intelligence')
@@ -210,6 +221,10 @@ def main():  # noqa: C901
         t1 = time.perf_counter()
         logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
         # ----------------------------------------
+
+        if save_cache_after_cli_post_load:
+            logger.info('Saving combined cache after loading from OCI and post-load enrichment')
+            cache_manager.save_combined_cache(policy_analysis=policy_analysis)
 
     # Print some basic details
     logger.info('-' * 80)

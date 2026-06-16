@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.models.models_iam import (
+    DynamicGroupSearch,
+    Group,
+    GroupSearch,
+    User,
+    UserSearch,
+)
+from oci_policy_analysis.application.core.models.models_policy import BasePolicyStatement, DefineStatement, PolicySearch
 from oci_policy_analysis.application.services.analysis_service import AnalysisService
-from oci_policy_analysis.common.models_iam import DynamicGroupSearch, Group, GroupSearch, User, UserSearch
-from oci_policy_analysis.common.models_policy import BasePolicyStatement, DefineStatement, PolicySearch
 
 
 class MCPQueryService:

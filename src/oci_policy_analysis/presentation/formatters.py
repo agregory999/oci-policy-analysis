@@ -17,8 +17,9 @@
 import json
 from typing import Any
 
-from oci_policy_analysis.common.models_iam import DynamicGroup, Group, User
-from oci_policy_analysis.common.models_policy import DefineStatement, RegularPolicyStatement
+from oci_policy_analysis.application.core.models.models_iam import DynamicGroup, Group, User
+from oci_policy_analysis.application.core.models.models_policy import DefineStatement, RegularPolicyStatement
+from oci_policy_analysis.application.core.parser.condition_structure import format_condition_structure_summary
 
 
 def format_compartment_policy_name(
@@ -41,6 +42,19 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
     principals_display = ''
     principals = statement.get('principals')
     principal_keys = statement.get('principal_keys')
+    condition_structure = statement.get('where_clause_structure') or statement.get('where_clause') or {}
+    condition_structure_summary = str(
+        statement.get('conditions_parsed_structure') or format_condition_structure_summary(condition_structure)
+    )
+    condition_elements = _format_condition_atoms(condition_structure)
+    condition_raw = statement.get('conditions', '') if 'conditions' in statement else ''
+    confidence = statement.get('confidence') or statement.get('match_confidence') or ''
+    match_confidence = statement.get('match_confidence') or statement.get('confidence') or ''
+    match_confidence_reason = statement.get('match_confidence_reason') or ''
+    principal_evidence = statement.get('principal_evidence') or []
+    residual_conditions = statement.get('residual_conditions') or []
+    principal_evidence_display = _format_condition_atoms({'atoms': principal_evidence})
+    residual_conditions_display = _format_condition_atoms({'atoms': residual_conditions})
     if isinstance(principals, list):
         principals_display = ', '.join(
             [(p.get('display_name') or p.get('principal_key') or '') for p in principals if isinstance(p, dict)]
@@ -71,11 +85,20 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
         'Location Type': statement['location_type'] if 'location_type' in statement else '',
         'Location': statement['location'] if 'location' in statement else '',
         'Effective Path': statement['effective_path'] if 'effective_path' in statement else '',
-        'Conditions': statement['conditions'] if 'conditions' in statement else '',
+        'Conditions': condition_raw,
+        'Conditions (where clause)': condition_raw,
+        'Conditions (parsed structure)': condition_structure_summary,
+        'Conditions (elements)': condition_elements,
+        'Where Structure': condition_structure_summary,
         'Comments': statement['comments'] if 'comments' in statement else '',
         'Parsing Notes': '; '.join(statement['parsing_notes']) if 'parsing_notes' in statement else '',
         'Creation Time': statement['creation_time'] if 'creation_time' in statement else '',
         'Parsed': statement['parsed'] if 'parsed' in statement else '',
+        'Confidence': confidence,
+        'Match Confidence': match_confidence,
+        'Match Confidence Reason': match_confidence_reason,
+        'Principal Evidence': principal_evidence_display,
+        'Residual Conditions': residual_conditions_display,
     }
 
     # Include snake_case aliases so web views can reliably access keys like
@@ -102,11 +125,23 @@ def for_display_policy(statement: RegularPolicyStatement) -> dict:
             'location_type': statement.get('location_type', ''),
             'location': statement.get('location', ''),
             'effective_path': statement.get('effective_path', ''),
-            'conditions': statement.get('conditions', ''),
+            'conditions': condition_raw,
+            'conditions_where_clause': statement.get('conditions_where_clause', condition_raw),
+            'conditions_parsed_structure': condition_structure_summary,
+            'conditions_elements': condition_elements,
+            'condition_atoms': condition_structure.get('atoms', []) if isinstance(condition_structure, dict) else [],
+            'where_clause': condition_structure,
+            'where_clause_structure': condition_structure,
+            'where_structure': condition_structure_summary,
             'comments': statement.get('comments', ''),
             'parsing_notes': statement.get('parsing_notes', []),
             'creation_time': statement.get('creation_time', ''),
             'parsed': statement.get('parsed', ''),
+            'confidence': confidence,
+            'match_confidence': match_confidence,
+            'match_confidence_reason': match_confidence_reason,
+            'principal_evidence': principal_evidence if isinstance(principal_evidence, list) else [],
+            'residual_conditions': residual_conditions if isinstance(residual_conditions, list) else [],
         }
     )
 
@@ -154,6 +189,11 @@ def for_display_group(g: Group) -> dict:
 
 def for_display_dynamic_group(dg: DynamicGroup) -> dict:
     """Return a dictionary suitable for display purposes for dynamic groups."""
+    rule_structure = dg.get('matching_rule_structure') or {}
+    rule_structure_summary = str(
+        dg.get('matching_rule_parsed_structure') or format_condition_structure_summary(rule_structure)
+    )
+    rule_elements = _format_condition_atoms(rule_structure)
     return {
         'Domain': dg['domain_name'] if dg['domain_name'] else 'Default',  # type: ignore
         'Domain OCID': dg.get('domain_ocid', 'N/A'),
@@ -162,11 +202,41 @@ def for_display_dynamic_group(dg: DynamicGroup) -> dict:
         'DG OCID': dg.get('dynamic_group_ocid', 'N/A'),
         'Description': dg.get('description', 'N/A'),
         'Matching Rule': dg.get('matching_rule', 'N/A'),
+        'Matching Rule (parsed structure)': rule_structure_summary,
+        'Matching Rule (elements)': rule_elements,
+        'Rule Structure': rule_structure_summary,
         'In Use': dg.get('in_use', False),
         'Creation Time': dg.get('creation_time', 'N/A'),
         'Created By': dg.get('created_by_name', 'N/A'),
         'Created By OCID': dg.get('created_by_ocid', 'N/A'),
+        'matching_rule_parsed_structure': rule_structure_summary,
+        'matching_rule_elements': rule_elements,
+        'matching_rule_structure': dg.get('matching_rule_structure') or {},
     }  # type: ignore
+
+
+def _format_condition_atoms(structure: object) -> str:
+    """Return compact display lines for parsed condition/rule atoms."""
+    if not isinstance(structure, dict):
+        return ''
+    atoms = structure.get('atoms')
+    if not isinstance(atoms, list):
+        return ''
+    lines: list[str] = []
+    for atom in atoms:
+        if not isinstance(atom, dict):
+            continue
+        atom_id = str(atom.get('id') or '').strip()
+        left = str(atom.get('left') or '').strip()
+        operator = str(atom.get('operator') or '').strip()
+        right = str(atom.get('right') or '').strip()
+        evidence_kind = str(atom.get('evidence_kind') or '').strip()
+        expr = ' '.join(part for part in [left, operator, right] if part)
+        prefix = f'{atom_id}: ' if atom_id else ''
+        suffix = f' [{evidence_kind}]' if evidence_kind else ''
+        if expr:
+            lines.append(f'{prefix}{expr}{suffix}')
+    return '\n'.join(lines)
 
 
 def for_display_define(define: DefineStatement) -> dict:

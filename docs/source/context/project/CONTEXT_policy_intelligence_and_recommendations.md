@@ -6,13 +6,13 @@ This document describes the contract and architecture that underpins how the pol
 
 ## 1. Architecture & Overview
 
-- **PolicyIntelligenceEngine** ([`logic/policy_intelligence.py`](../../../src/oci_policy_analysis/logic/policy_intelligence.py)):  
+- **PolicyIntelligenceEngine** ([`logic/policy_intelligence.py`](../../../src/oci_policy_analysis/logic/policy_intelligence.py)):
   The engine orchestrates all post-load analysis by dispatching to a set of modular, pluggable **intelligence strategies**. Each strategy implements a simple protocol, and is registered (see `intelligence_strategies/__init__.py`) with an explicit run order. After execution, results are merged into a uniform **overlay** object using canonical models.
-- **Intelligence Strategies** ([`logic/intelligence_strategies/`](../../../src/oci_policy_analysis/logic/intelligence_strategies/)):  
+- **Intelligence Strategies** ([`logic/intelligence_strategies/`](../../../src/oci_policy_analysis/logic/intelligence_strategies/)):
   These are single-responsibility, protocol-driven Python classes implementing specific analyses—such as risk scoring, overlap checks, or cleanup detection. Strategies are completely decoupled from the engine and UI. Adding a new strategy is a matter of subclassing and registering.
-- **PolicyIntelligence Overlay Model** ([`common/models.py`](../../../src/oci_policy_analysis/common/models.py)):  
+- **PolicyIntelligence Overlay Model** ([`common/models.py`](../../../src/oci_policy_analysis/common/models.py)):
   All analytics output is attached to a single overlay dictionary (see `PolicyIntelligence` TypedDict). Keys include: `risk_scores`, `overlaps`, `consolidations`, `cleanup_items`, `recommendations`, etc., each matching their analytics category and documented canonical shape.
-- **Recommendations UI Tab** ([`ui/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/ui/policy_recommendations_tab.py)):  
+- **Recommendations UI Tab** ([`presentation/desktop/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py)):
   A multi-subtab UI notebook that simply **renders the overlay**. Each subtab selects/filters/presents a specific overlay key or overlay-internal section. The UI never recomputes analytics itself—it responds to overlay updates and (re)loads by re-pulling from the model.
 
 ---
@@ -75,7 +75,7 @@ class PolicyIntelligence(TypedDict, total=False):
     consolidations: list[dict]
     cleanup_items: NotRequired[dict]
 ```
-- See [`common/models.py`](../../../src/oci_policy_analysis/common/models.py) for detailed data model definitions (e.g., `RegularPolicyStatement`, `PolicyOverlap`).  
+- See [`common/models.py`](../../../src/oci_policy_analysis/common/models.py) for detailed data model definitions (e.g., `RegularPolicyStatement`, `PolicyOverlap`).
 - Each strategy writes its results into a corresponding overlay key or subkey (conventionally documented inline in the TypedDict or strategy comments).
 
 In addition to overlay structure, the intelligence layer now relies on a **canonical principal key format** shared with the simulation engine and certain UI tabs. See the next section.
@@ -264,21 +264,21 @@ have a well-defined key space.
 
 Each subtab in the unified recommendations UI directly reflects an overlay key or subkey as follows:
 
-- **Summary Table** (top):  
+- **Summary Table** (top):
   Renders the contents of `overlay['recommendations']` (aggregated by `OverallRecommendationStrategy` plus limits logic from compartment analysis).
-- **Risk Overview (Statement/Policy)**:  
+- **Risk Overview (Statement/Policy)**:
   Draws from `overlay['risk_scores']` and policy statement metadata.
-- **Overlap Analysis**:  
+- **Overlap Analysis**:
   Renders `overlay['overlaps']`.
-- **Policy Consolidation**:  
+- **Policy Consolidation**:
   Uses `overlay['consolidations']`.
-- **Cleanup / Fix**:  
+- **Cleanup / Fix**:
   Aggregates all lists inside `overlay['cleanup_items']`.
     - Ignore/hide and “Show Previously Ignored” features use a persistent set of ignored item keys (see UI for per-tenancy state).
     - “Take Action” wires to the Recommendation Workbench (see below).
-- **Limits**:  
+- **Limits**:
   Compartment/boundary analysis is shown directly from compartment metadata and statement counts, not overlay.
-- **Recommendation Workbench**:  
+- **Recommendation Workbench**:
   Accumulates per-action CLI/UI steps, rollback, and history, appended whenever a subtabs's “Take Action” is used.
 
 ---
@@ -287,7 +287,7 @@ Each subtab in the unified recommendations UI directly reflects an overlay key o
 
 **A. To Add a New Strategy:**
 
-1. **Implement the Protocol**  
+1. **Implement the Protocol**
    Create a new Python class in `logic/intelligence_strategies/`, implementing the `IntelligenceStrategy` protocol (see `base.py`). For example:
    ```python
    from dataclasses import dataclass
@@ -304,13 +304,13 @@ Each subtab in the unified recommendations UI directly reflects an overlay key o
            results = ... # list of dicts, TypedDict, etc.
            overlay.setdefault("cleanup_items", {})[self.strategy_id] = results
    ```
-2. **Register the Strategy**  
+2. **Register the Strategy**
    Add your class to the return list in `get_default_intelligence_strategies()` in `logic/intelligence_strategies/__init__.py`, placing it appropriately in run order.
-3. **Update Docs and UI**  
-   a. Document the overlay key output by your strategy here, under the relevant section/list.  
+3. **Update Docs and UI**
+   a. Document the overlay key output by your strategy here, under the relevant section/list.
    b. Modify the appropriate UI subtab in `policy_recommendations_tab.py` to present the new overlay result (if needed).
 
-**B. Overlay and Model Contracts**  
+**B. Overlay and Model Contracts**
 - All analytic and remediation data passed from strategy to overlay to UI should use explicit Python types or TypedDicts as defined in `common/models.py`. This ensures UI and strategy code remain compatible and maintainable.
 
 ---
@@ -318,8 +318,8 @@ Each subtab in the unified recommendations UI directly reflects an overlay key o
 ## 6. Workbench and "Take Action" Integration
 
 - Each “Take Action” operation in a subtab (Cleanup/Fix, and future Risk/Overlap/Consolidation extensions) creates action items in the **Recommendation Workbench**.
-- Workbench action entries must include source, description, CLI and rollback instructions, and can accrue history/audit data over time.  
-- See `policy_recommendations_tab.py` for workbench API details and per-action semantics; all actions are per-session and cleared on reload.  
+- Workbench action entries must include source, description, CLI and rollback instructions, and can accrue history/audit data over time.
+- See `policy_recommendations_tab.py` for workbench API details and per-action semantics; all actions are per-session and cleared on reload.
 - A diagram for workbench action flow:
 
 ```mermaid
@@ -351,10 +351,10 @@ sequenceDiagram
 - **Engine:** [`src/oci_policy_analysis/logic/policy_intelligence.py`](../../../src/oci_policy_analysis/logic/policy_intelligence.py)
 - **Strategies/Registry/Protocol:** [`src/oci_policy_analysis/logic/intelligence_strategies/`](../../../src/oci_policy_analysis/logic/intelligence_strategies/)
 - **Overlay Data Models:** [`src/oci_policy_analysis/common/models.py`](../../../src/oci_policy_analysis/common/models.py)
-- **Recommendations Tab UI:** [`src/oci_policy_analysis/ui/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/ui/policy_recommendations_tab.py)
-- **Consolidation Workbench (proposal/demo):** [`src/oci_policy_analysis/ui/consolidation_workbench_tab.py`](../../../src/oci_policy_analysis/ui/consolidation_workbench_tab.py)
+- **Recommendations Tab UI:** [`src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/policy_recommendations_tab.py)
+- **Consolidation Workbench (proposal/demo):** [`src/oci_policy_analysis/presentation/desktop/consolidation_workbench_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/consolidation_workbench_tab.py)
 
 ---
 
-**Summary:**  
+**Summary:**
 This contract decouples the logic of analytics, extensibility, overlay modeling, and UI rendering—ensuring you can add, modify, or reason about any kind of policy intelligence or recommendation in a single place. Use this file as your reference for all future strategy or overlay-related updates.

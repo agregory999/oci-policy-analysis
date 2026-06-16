@@ -16,9 +16,10 @@
 import glob
 import json
 import os
+from importlib.resources import files
 from pathlib import Path
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.repo.reference_data_repo')
 
@@ -57,9 +58,7 @@ class ReferenceDataRepo:
         if json_dir:
             self.json_dir = str(Path(json_dir).expanduser().resolve())
         else:
-            # Resolve from package root, independent of this module location.
-            package_root = Path(__file__).resolve().parents[3]
-            self.json_dir = str(package_root / 'logic' / 'permissions')
+            self.json_dir = str(files('oci_policy_analysis.application.core.resources.permissions'))
         # Always define keys needed by consumers, even if load_data hasn't run yet
         self.data = {'resources': {}, 'families': {}}
         self.resource_name_map = {}

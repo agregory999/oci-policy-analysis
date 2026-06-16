@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.models.models import PolicySearch, RegularPolicyStatement
+from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import PolicySearch, RegularPolicyStatement
 
 
 @dataclass

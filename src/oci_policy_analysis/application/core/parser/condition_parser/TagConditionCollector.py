@@ -61,7 +61,7 @@ from oci_policy_analysis.application.core.parser.condition_parser.OciIamPolicyCo
 from oci_policy_analysis.application.core.parser.condition_parser.OciIamPolicyConditionVisitor import (
     OciIamPolicyConditionVisitor,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='tag_condition_collector')
 
@@ -175,7 +175,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         returns the final structure string built from internal helpers.
         """
 
-        logger.info('TagConditionCollector: visiting condition_clause: %s', ctx.getText())
+        logger.debug('TagConditionCollector: visiting condition_clause: %s', ctx.getText())
         # Traverse the expression tree exactly once and cache the raw
         # structure string so :func:`collect_tag_conditions` does not
         # need to re-walk the tree (which would allocate a second set of
@@ -191,7 +191,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         # ``all_or_any { condition_list }``.
         if ctx.single_condition():
             struct_id = self._visit_single_condition(ctx.single_condition())
-            logger.info('TagConditionCollector: single_condition -> %s', struct_id)
+            logger.debug('TagConditionCollector: single_condition -> %s', struct_id)
             return struct_id
         if ctx.all_or_any():
             keyword = ctx.all_or_any().getText().upper()
@@ -207,7 +207,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
                 if not s:
                     continue
                 mapped = self._struct_to_tag.get(s, s)
-                logger.info(
+                logger.debug(
                     "TagConditionCollector: mapping child struct '%s' -> '%s' (struct_to_tag=%s)",
                     s,
                     mapped,
@@ -227,7 +227,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         # terms of cN elements, regardless of whether the condition is
         # tag-based or not.
         struct_id = self._alloc_id()
-        logger.info('TagConditionCollector: new single_condition struct_id=%s', struct_id)
+        logger.debug('TagConditionCollector: new single_condition struct_id=%s', struct_id)
 
         # Extract the raw subexpression text directly from context.
         subexpr = ctx.getText()
@@ -254,7 +254,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         # tag-bearing side.
         variable_ctx = ctx.variable_name()
         lhs_var = variable_ctx.getText() if variable_ctx is not None else ''
-        logger.info('TagConditionCollector: lhs_var=%r', lhs_var)
+        logger.debug('TagConditionCollector: lhs_var=%r', lhs_var)
 
         rhs_text = ''
         try:
@@ -263,7 +263,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
                 rhs_text = value_ctx.getText().strip()
         except Exception:  # pragma: no cover - defensive only
             rhs_text = ''
-        logger.info('TagConditionCollector: rhs_text=%r', rhs_text)
+        logger.debug('TagConditionCollector: rhs_text=%r', rhs_text)
 
         # Decide which side is the tag-bearing variable. If *both*
         # sides look like tag variables, we currently treat this as a
@@ -279,7 +279,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         lhs_access, lhs_ns, lhs_key = self._split_tag_variable(lhs_var)
         rhs_access, rhs_ns, rhs_key = self._split_tag_variable(rhs_text)
 
-        logger.info(
+        logger.debug(
             'TagConditionCollector: split_tag_variable lhs=(%r,%r,%r) rhs=(%r,%r,%r)',
             lhs_access,
             lhs_ns,
@@ -303,7 +303,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
         # structure references the corresponding cN identifier.
         if access_type and ns and key:
             tag_id = self._alloc_tag_id()
-            logger.info(
+            logger.debug(
                 'TagConditionCollector: creating TagCondition id=%s access_type=%r ns=%r key=%r operator=%r value=%r subexpr=%r',
                 tag_id,
                 access_type,
@@ -327,7 +327,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
             # a tag-based condition so we can render it as tcN in the
             # final structure string.
             self._struct_to_tag[struct_id] = tag_id
-            logger.info(
+            logger.debug(
                 'TagConditionCollector: mapped struct_id %s -> tag_id %s (struct_to_tag=%s)',
                 struct_id,
                 tag_id,
@@ -393,7 +393,7 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
                 raw = value_ctx.getText().strip()
                 return self._strip_quotes(raw)
         except Exception as exc:  # pragma: no cover - defensive only
-            logger.info('TagConditionCollector: failed extracting value string: %s', exc, exc_info=True)
+            logger.debug('TagConditionCollector: failed extracting value string: %s', exc, exc_info=True)
         return ''
 
     @staticmethod

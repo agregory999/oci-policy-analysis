@@ -81,7 +81,7 @@ Additional policy intelligence methods or analytics may be added to this post-lo
 ## 6. References
 
 - MCP Standalone/Embedded Server: [`src/oci_policy_analysis/mcp_server.py`](../../../src/oci_policy_analysis/mcp_server.py)
-- Embedded MCP Tab (UI): [`src/oci_policy_analysis/ui/mcp_tab.py`](../../../src/oci_policy_analysis/ui/mcp_tab.py)
+- Embedded MCP Tab (UI): [`src/oci_policy_analysis/presentation/desktop/mcp_tab.py`](../../../src/oci_policy_analysis/presentation/desktop/mcp_tab.py)
 - Tool Inventory and Protocol Details: [`docs/source/mcp.md`](../../../docs/source/mcp.md)
 
 ---

@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.post_load import run_post_load_pipeline
-from oci_policy_analysis.common.logger import get_logger
 
 
 @dataclass

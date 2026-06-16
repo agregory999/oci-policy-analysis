@@ -11,12 +11,12 @@ from oci_policy_analysis.application.core.engine import (
     PolicySimulationEngine,
 )
 from oci_policy_analysis.application.core.repo import AI, PolicyAnalysisRepository, ReferenceDataRepo
+from oci_policy_analysis.application.core.support.caching import CacheManager
+from oci_policy_analysis.application.core.support.logger import set_component_level, set_log_level
 from oci_policy_analysis.application.services.cache_service import CacheService
 from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.settings_service import SettingsService
-from oci_policy_analysis.common.caching import CacheManager
-from oci_policy_analysis.common.logger import set_component_level, set_log_level
 
 
 @dataclass

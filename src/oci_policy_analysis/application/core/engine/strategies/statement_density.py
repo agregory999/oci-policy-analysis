@@ -23,10 +23,10 @@ from oci_policy_analysis.application.core.common.consolidation_helpers import (
     resolve_policy_compartment_path,
     trace_and_rewrite_candidate_statement_location,
 )
+from oci_policy_analysis.application.core.models.models import BasePolicy
+from oci_policy_analysis.application.core.models.models_consolidation import ConsolidationPlan, PlanStep
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
-from oci_policy_analysis.common.logger import get_logger
-from oci_policy_analysis.common.models import BasePolicy
-from oci_policy_analysis.common.models_consolidation import ConsolidationPlan, PlanStep
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.engine.strategies.consolidation')
 

@@ -62,6 +62,7 @@ The first heading of each file will appear as its title in the documentation nav
    context/project/CONTEXT_logging.md
    context/project/CONTEXT_logic.md
    context/project/CONTEXT_mcp_server_and_tab.md
+   context/project/CONTEXT_mcp_token_usage.md
    context/project/CONTEXT_policies_tab.md
    context/project/CONTEXT_policy_browser_tab.md
    context/project/CONTEXT_policy_intelligence_and_recommendations.md

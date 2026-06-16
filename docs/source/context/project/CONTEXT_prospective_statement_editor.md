@@ -423,13 +423,13 @@ shared source of truth for prospective what‑if statements.
 - Prospective service and model:
   - `src/oci_policy_analysis/logic/prospective_statements_service.py`
 - Prospective editor window (this UI):
-  - `src/oci_policy_analysis/ui/prospective_editor_window.py`
+  - `src/oci_policy_analysis/presentation/desktop/prospective_editor_window.py`
 - Simulation engine and prospective behavior:
   - [`CONTEXT_simulation_engine.md`](CONTEXT_simulation_engine.md)
   - `src/oci_policy_analysis/logic/simulation_engine.py`
 - Policies tab (prospective view and editor entry point):
   - [`CONTEXT_policies_tab.md`](CONTEXT_policies_tab.md)
-  - `src/oci_policy_analysis/ui/policies_tab.py`
+  - `src/oci_policy_analysis/presentation/desktop/policies_tab.py`
 - Tag‑based Access tab (builder integration):
   - [`CONTEXT_tag_based_access_tab.md`](CONTEXT_tag_based_access_tab.md)
-  - `src/oci_policy_analysis/ui/tag_based_access_tab.py`
+  - `src/oci_policy_analysis/presentation/desktop/tag_based_access_tab.py`

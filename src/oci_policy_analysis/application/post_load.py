@@ -10,11 +10,11 @@ from oci_policy_analysis.application.core.engine import (
     PolicyIntelligenceEngine,
     PolicySimulationEngine,
 )
+from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.services.settings_service import (
     DEFAULT_SERVICE_PRINCIPAL_REDUCTION_PCT,
     DEFAULT_WHERE_CLAUSE_REDUCTION_PCT,
 )
-from oci_policy_analysis.common.logger import get_logger
 
 LOGGER = get_logger(component='post_load')
 

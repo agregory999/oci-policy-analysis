@@ -73,7 +73,9 @@ print(matches[0] if matches else '')")
       --collect-all=sys \
       --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_LIB:Frameworks/Python" \
       src/oci_policy_analysis/main.py
 
@@ -100,7 +102,9 @@ print(matches[0] if matches else '')")
       --collect-all=sys \
       --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt:oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/logic/permissions:oci_policy_analysis/logic/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/permissions:oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list:oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "src/oci_policy_analysis/application/core/resources/parsers:oci_policy_analysis/application/core/resources/parsers" \
       --add-binary="$PY_SO:." \
       src/oci_policy_analysis/main.py
 
@@ -130,7 +134,9 @@ EOF
       --collect-all sys \
       --copy-metadata fastmcp \
       --add-data "src/oci_policy_analysis/version.txt;oci_policy_analysis" \
-      --add-data "src/oci_policy_analysis/logic/permissions;oci_policy_analysis/logic/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/permissions;oci_policy_analysis/application/core/resources/permissions" \
+      --add-data "src/oci_policy_analysis/application/core/resources/mcp_tools_list;oci_policy_analysis/application/core/resources/mcp_tools_list" \
+      --add-data "src/oci_policy_analysis/application/core/resources/parsers;oci_policy_analysis/application/core/resources/parsers" \
       --add-binary "$PY_DLL;." \
       src/oci_policy_analysis/main.py
 

@@ -73,3 +73,31 @@ def test_by_subjects_empty_selector_returns_no_results(monkeypatch) -> None:
     assert repo.last_filters is None
     assert result.get('matched') == 0
     assert result.get('statements') == []
+
+
+def test_by_subjects_any_user_subject_reaches_repo_filter(monkeypatch) -> None:
+    repo = _Repo()
+    monkeypatch.setattr(routes_core, 'get_context', lambda: _Ctx(repo))
+
+    result = routes_core.filter_policies_by_subjects({'subject': 'any-user'})
+
+    assert repo.last_filters == {'subject': ['any-user']}
+    assert result.get('matched') == 0
+
+
+def test_by_subjects_resource_compartment_ocid_maps_to_conditions_filter(monkeypatch) -> None:
+    repo = _Repo()
+    monkeypatch.setattr(routes_core, 'get_context', lambda: _Ctx(repo))
+    compartment_ocid = 'ocid1.compartment.oc1..exampleuniqueid'
+
+    routes_core.filter_policies_by_subjects(
+        {
+            'subject': 'any-group',
+            'resource_compartment_ocid': compartment_ocid,
+        }
+    )
+
+    assert repo.last_filters == {
+        'subject': ['any-group'],
+        'conditions': [compartment_ocid],
+    }

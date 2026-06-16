@@ -28,7 +28,7 @@ from oci_policy_analysis.application.core.parser import (
     evaluate_condition_clause,
     extract_variable_names,
 )
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.engine.policy_simulation_engine')
 

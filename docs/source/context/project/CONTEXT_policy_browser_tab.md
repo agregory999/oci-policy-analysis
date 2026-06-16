@@ -84,10 +84,10 @@ The **Policy Browser** tab provides a focused, read-only, hierarchical view of a
 
 | Area                  | File/Module                                                                                      |
 |-----------------------|-------------------------------------------------------------------------------------------------|
-| Main UI Tab           | `src/oci_policy_analysis/ui/policy_browser_tab.py`                                              |
+| Main UI Tab           | `src/oci_policy_analysis/presentation/desktop/policy_browser_tab.py`                                              |
 | Tab Registration      | `src/oci_policy_analysis/main.py`                                                               |
 | Compartment/Policy Repo| `PolicyAnalysisRepository` object, from `logic/data_repo.py`, used as `app.policy_compartment_analysis` |
-| UI Context Help System| `src/oci_policy_analysis/ui/base_tab.py`                                                        |
+| UI Context Help System| `src/oci_policy_analysis/presentation/desktop/base_tab.py`                                                        |
 
 ---
 

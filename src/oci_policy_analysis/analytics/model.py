@@ -7,7 +7,7 @@
 # analytics/model.py
 #
 # Read-side data model for anonymous usage tracking documents written by
-# oci_policy_analysis.common.usage_tracking. Provides defensive parsing
+# oci_policy_analysis.application.core.support.usage_tracking. Provides defensive parsing
 # helpers that keep a single malformed document or item from breaking
 # analytics loading.
 #
@@ -19,7 +19,7 @@
 """Read-side models for usage analytics.
 
 The structures in this module intentionally mirror the JSON shape produced
-by :mod:`oci_policy_analysis.common.usage_tracking`, but with parsed
+by :mod:`oci_policy_analysis.application.core.support.usage_tracking`, but with parsed
 datetimes and a derived tenancy suffix attached at the document level.
 
 All ``from_dict`` helpers are defensive: they log and return ``None`` when
@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from oci_policy_analysis.common.logger import get_logger
+from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='analytics.model')
 
