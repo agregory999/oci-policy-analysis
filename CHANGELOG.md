@@ -1,3 +1,28 @@
+## [6.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.3.0...v6.0.0) (2026-06-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* release MCP token usage and workload principal updates as 6.0.0.
+* merge mcp token usage updates
+* finalize workload principal desktop updates
+* refine MCP meta-tools
+* consolidate MCP tools
+* restructure app layers and add workload principal match details
+
+### Features
+
+* consolidate MCP tools ([d3e8cff](https://github.com/agregory999/oci-policy-analysis/commit/d3e8cffeeb49c8157f2cdc3cf40292c9d8fc546c))
+* finalize workload principal desktop updates ([50b44c6](https://github.com/agregory999/oci-policy-analysis/commit/50b44c616a6615b025f2caba4c7000534be7da81))
+* merge mcp token usage updates ([1d6ca98](https://github.com/agregory999/oci-policy-analysis/commit/1d6ca98ca482950499ab5c16814768093c952156))
+* refine MCP meta-tools ([977537a](https://github.com/agregory999/oci-policy-analysis/commit/977537a08ece7442f5129e8be1b63a0f19d31abb))
+* restructure app layers and add workload principal match details ([ee07dba](https://github.com/agregory999/oci-policy-analysis/commit/ee07dba646f252bf17217eda1ccfdf91eb84d263))
+
+
+### Bug Fixes
+
+* parse conventional breaking releases ([9d21e14](https://github.com/agregory999/oci-policy-analysis/commit/9d21e1443fbbccbc3f1e072a29d29d3f1de2a1ee))
+
 # [5.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.2.1...v5.3.0) (2026-06-04)
 
 
