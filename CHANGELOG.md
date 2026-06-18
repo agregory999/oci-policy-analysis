@@ -1,3 +1,10 @@
+## [6.1.0-tag-based-policy-query-service.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.0.0...v6.1.0-tag-based-policy-query-service.1) (2026-06-18)
+
+
+### Features
+
+* Add tag and workload principal query support ([2ed7018](https://github.com/agregory999/oci-policy-analysis/commit/2ed7018ace638809d5acbaf1fd47fb550b1a47cb))
+
 ## [6.0.0](https://github.com/agregory999/oci-policy-analysis/compare/v5.3.0...v6.0.0) (2026-06-16)
 
 
