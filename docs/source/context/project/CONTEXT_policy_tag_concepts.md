@@ -270,6 +270,14 @@ policy authors through best practices and tenancy-specific constraints.
 
 ## Future Enhancements
 
+## Current Search Modes
+
+Policy statement tag conditions are represented by parsed `tag_conditions`
+enriched by `TagBasedPolicyService`. Policy object metadata tags are searched
+separately with `policy_tag`, `policy_defined_tag`, and
+`policy_freeform_tag`; a matching policy object returns its contained
+statements and still ANDs with regular statement filters.
+
 - Automate reconciliation of tag catalogs with policy analyses to spot
   unused or deprecated tags.
 - Extend the CLI harvesting step to also gather **tag defaults** and

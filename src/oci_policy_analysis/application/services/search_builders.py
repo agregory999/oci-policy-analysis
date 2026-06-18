@@ -162,4 +162,20 @@ def build_policy_search_from_dict(payload: dict[str, object]) -> PolicySearch:
     if principal_key:
         filters['principal_key'] = principal_key
 
+    for field in (
+        'tag_access_type',
+        'tag_access_semantics',
+        'tag_namespace',
+        'tag_key',
+        'tag_value',
+        'tag_operator',
+        'condition_atom_terms',
+        'policy_tag',
+        'policy_defined_tag',
+        'policy_freeform_tag',
+    ):
+        values = _as_str_list(payload.get(field))
+        if values:
+            filters[field] = values  # type: ignore[literal-required]
+
     return filters

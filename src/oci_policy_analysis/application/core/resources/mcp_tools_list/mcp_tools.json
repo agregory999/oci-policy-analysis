@@ -50,6 +50,176 @@
         }
       },
       {
+        "name": "tag_based_policy_search",
+        "description": "Search parsed tag-based policy conditions with contextual warnings.",
+        "inputSchema": {
+          "properties": {
+            "tag_access_type": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "tag_access_semantics": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "tag_namespace": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "tag_key": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "tag_value": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "tag_operator": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "condition_atom_terms": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "policy_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "policy_defined_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "policy_freeform_tag": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "verb": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "resource": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "permission": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "principal_keys": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "effective_path": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null},
+            "limit": {"default": 50, "type": "integer"}
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
+        "name": "oke_workload_identity_search",
+        "description": "Search OCI IAM policies for OKE workload identity coverage with guided namespace and service account filters.",
+        "inputSchema": {
+          "properties": {
+            "workload_namespace": {
+              "default": "",
+              "type": "string"
+            },
+            "workload_service_account": {
+              "default": "",
+              "type": "string"
+            },
+            "workload_cluster_id": {
+              "default": "",
+              "type": "string"
+            },
+            "verb": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "resource": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "permission": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "effective_path": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "condition_atom_terms": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_defined_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "policy_freeform_tag": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "limit": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      {
         "name": "policy_search_set",
         "description": "Run related policy searches and summarize coverage.",
         "inputSchema": {

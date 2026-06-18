@@ -18,8 +18,10 @@ Contents
    architecture
    simulation
    recommendations
+   tag_based
    mcp
    mcp_examples
+   oke_workload_identity
    cli
    web_ui_styling
    limited_mode

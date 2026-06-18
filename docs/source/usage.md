@@ -9,9 +9,51 @@ OCI Policy Analysis is multi-modal. The main startup modes are:
 3. Command Line access (CLI)
 4. Model Context Protocol (MCP Server)
 
-For CLI/MCP details, see their dedicated pages. This page focuses on interactive UI usage (desktop/web).
+For CLI/MCP details, see their dedicated pages. This page focuses on the interactive UI, with the MCP server kept on its own page.
 
 If you have not yet built or installed the application, please see the [Setup Guide](./setup.md).
+
+## Analysis Concepts
+
+Before using the tabs, it helps to separate the search styles this app supports.
+
+### Basic vs Advanced Filters
+
+Basic filters are the fast, text-oriented controls you use for general policy browsing:
+
+- statement text
+- subject / principal text
+- resource, verb, permission, and path filters
+- validity and compartment scoping
+
+Advanced filters are for parsed policy structure and identity evidence:
+
+- structured principals
+- parsed `where`-clause atoms
+- tag conditions
+- resource principals and OKE workload identities
+- confidence and residual-condition details
+
+Use basic filters when you know the text you want to find. Use advanced filters when you need to explain why a statement matches.
+
+### Principals
+
+This app treats principals as a first-class concept.
+
+- **Human principals**: users and groups
+- **Dynamic groups**: resource-based membership rules
+- **Resource principals**: OCI services or compute-style principals represented by `any-user` / `any-group` statements with `request.principal.*` conditions
+- **OKE workload identities**: a resource-principal variant constrained by `request.principal.type = 'workload'`, namespace, service account, and cluster OCID
+
+The OKE workflow has its own dedicated page: [OKE Workload Identity Querying](./oke_workload_identity.md).
+
+### Tag-Based Access
+
+Tag-based policy search is also a distinct advanced path.
+
+- Use the dedicated [Tag-based Policy Search](./tag_based.md) page for parsed tag conditions, semantic tag access, and tag metadata filters.
+- The Policy tab still exposes a `Tag-based` helper for quick filtering.
+- Tag-based workflows share the same underlying parsed-condition model as the tag-focused page and MCP tool.
 
 ## Starting the UI
 
@@ -47,7 +89,7 @@ If you run into issues, consult the [Setup Guide](./setup.md) for troubleshootin
 
 ---
 
-## Working with Tabs in the Application
+## Desktop UI
 
 Each tab in the UI provides a specific area of functionality. To understand the full technical rationale and data flow for each area, see the [Architecture](./architecture.md) page.
 
@@ -238,28 +280,29 @@ Use this tab when you’re investigating **resource-based identities and their a
 ### Resource Principals Tab
 <!-- Anchor link; do not change or remove this line! -->
 
-The **Resource Principals Tab** surfaces policies and permissions related to **workload identities** (such as compute instances, functions, and other OCI services acting as principals).
+The **Resource Principals Tab** surfaces policies and permissions related to **resource principals and workload identities**.
 
 **Purpose**  
-- Identify where non-human identities have been granted access via dynamic groups or `any-user` statements.  
-- Understand which workloads are allowed to call which services and APIs.  
-- Support security reviews focused on workload-to-service access.
+- Identify where non-human identities have been granted access via dynamic groups or `any-user` statements.
+- Understand which OCI services, compute-style principals, and OKE workload identities are allowed to call which services and APIs.
+- Support security reviews focused on workload-to-service access and parsed `request.principal.*` evidence.
 
 **General Flow**  
-1. Browse or filter for dynamic groups and statements that correspond to resource principals.  
-2. Review which services, compartments, and operations those principals can access.  
-3. Pivot to Dynamic Groups or Policy tabs to refine or correct identified risks.  
+1. Browse or filter for dynamic groups and statements that correspond to resource principals.
+2. Review which services, compartments, and operations those principals can access.
+3. Pivot to Dynamic Groups or Policy tabs to refine or correct identified risks.
 4. Use Permissions Report to generate a full list of effective permissions for a given resource principal identity.
+5. Switch to the OKE mode described in [OKE Workload Identity Querying](./oke_workload_identity.md) when you want namespace/service-account/cluster filtering rather than generic resource-principal matching.
 
 **Key Widgets and Right-Click Actions**  
 - **Resource Principal Summary Table:** Shows which dynamic groups and policies are tied to resource-based identities.  
-- **Statement Breakdown View:** Parses statements that mention dynamic groups or `any-user` in the context of resource principals.  
+- **Statement Breakdown View:** Parses statements that mention dynamic groups or `any-user` in the context of resource principals and workload identities.
 - **Right-click on a Row / Statement:**
   - "Open in Dynamic Groups" – see the underlying dynamic group configuration.  
   - "Open in Policy Tab" – detailed view of the source statement.  
   - "Open in Permissions Report" – generate or navigate to an effective-access view.
 
-Use this tab when your question is **“What can this compute instance or function actually do?”**
+Use this tab when your question is **“What can this compute instance, function, or OKE workload actually do?”**
 
 ### Cross Tenancy Tab
 <!-- Anchor link; do not change or remove this line! -->
@@ -424,10 +467,29 @@ The **API Simulation Tab** provides a full **what-if simulation environment** fo
 
 For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page and the project context document [Simulation Engine](./context/project/CONTEXT_simulation_engine.md).
 
+## Web UI
+
+The web interface mirrors the same analysis model, but the entry points are card- and page-based instead of tab-based.
+
+### Policy Analysis Page
+
+Use the Policy Analysis page for broad statement browsing and advanced filtering.
+
+- Basic filters cover statement text, subject, resource, verb, permission, and path.
+- Advanced filter panels expose tag conditions, parsed atoms, and structured principals.
+- OKE workload identity filters are available in the advanced workload-principal mode and map into the same `policy_search`/principal model described in [OKE Workload Identity Querying](./oke_workload_identity.md).
+
+### Workload Principals Analysis Page
+
+Use this page for resource principals and workload identities.
+
+- It supports the same OKE namespace, service-account, and cluster filters as the desktop resource-principal tab.
+- It is the right place for advanced `request.principal.*` analysis when you do not want to work through raw policy text.
+
 ### Tag-based Access Tab
 <!-- Anchor link; do not change or remove this line! -->
 
-The **Tag-based Access Tab** is an advanced, mostly read-only workspace for understanding IAM statements that use `.tag.` conditions.
+The **Tag-based Access Tab** is an advanced, mostly read-only workspace for understanding IAM statements that use `.tag.` conditions. For a more detailed breakdown of tag condition semantics, see [Tag-based Policy Search](./tag_based.md).
 
 **Purpose**
 - Discover and review policy statements that rely on tag-based access logic.
@@ -541,6 +603,12 @@ Use the Console tab when you need to **see what the app is doing under the hood*
 - **Status Messages:** Indicate when maintenance tasks complete and whether any issues were found.
 
 Because maintenance actions can affect data used by other tabs, re-open or refresh impacted tabs (Policy, Simulation, Recommendations, etc.) after performing operations here.
+
+## MCP
+
+The MCP server is documented separately in [MCP Server](./mcp.md). It is kept on its own page because it has its own tool catalog, transport modes, and client setup patterns.
+
+Use MCP when you want AI tooling or automation to query the same policy model from outside the UI.
 
 ---
 

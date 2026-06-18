@@ -201,6 +201,33 @@ class PrincipalAnalysisService:
         statements = list(self.analysis.filter_policy_statements(filters=filters).statements)
         return PrincipalPolicyResult(statements=statements)
 
+    def by_oke_workload_identity(
+        self,
+        *,
+        workload_namespace: str = '',
+        workload_service_account: str = '',
+        workload_cluster_id: str = '',
+        subject_types: list[AllowedSubjectType] | None = None,
+    ) -> PrincipalPolicyResult:
+        """Find statements matching OKE workload identity evidence."""
+        self.logger.info(
+            'Filtering policies by OKE workload identity: namespace=%s service_account=%s cluster_id=%s',
+            bool(str(workload_namespace or '').strip()),
+            bool(str(workload_service_account or '').strip()),
+            bool(str(workload_cluster_id or '').strip()),
+        )
+        principal: Principal = {'principal_type': 'oke-workload-identity'}
+        if workload_namespace:
+            principal['workload_namespace'] = workload_namespace
+        if workload_service_account:
+            principal['workload_service_account'] = workload_service_account
+        if workload_cluster_id:
+            principal['workload_cluster_id'] = workload_cluster_id
+        filters: PolicySearch = {'principal': principal}
+        if subject_types:
+            filters['subject_type'] = subject_types
+        return PrincipalPolicyResult(statements=self.analysis.filter_policy_statements(filters=filters).statements)
+
     @staticmethod
     def merge_unique(*statement_lists: list[RegularPolicyStatement]) -> list[RegularPolicyStatement]:
         """Merge statement lists while removing duplicates by internal identifier.
@@ -237,6 +264,43 @@ class PrincipalAnalysisService:
                     discovered[resource_type] = resource_type
 
         return ['Any', *sorted(discovered.values(), key=str.casefold)]
+
+    def get_workload_identity_values(self) -> dict[str, list[str]]:
+        """Return discovered OKE workload identity selector values from parsed conditions."""
+        statements = list(getattr(self.context.policy_repo, 'regular_statements', []) or [])
+        namespaces: dict[str, str] = {}
+        service_accounts: dict[str, str] = {}
+        cluster_ids: dict[str, str] = {}
+
+        for st in statements:
+            cond = str(st.get('conditions') or '')
+            atoms = st.get('condition_atoms')
+            if not isinstance(atoms, list):
+                atoms = []
+            if not atoms and cond:
+                try:
+                    atoms = list((st.get('where_clause_structure') or {}).get('atoms', []))
+                except Exception:
+                    atoms = []
+            for atom in atoms:
+                if not isinstance(atom, dict):
+                    continue
+                left = str(atom.get('normalized_left') or atom.get('left') or '').casefold()
+                right = str(atom.get('right') or '').strip()
+                if not right:
+                    continue
+                if left == 'request.principal.namespace':
+                    namespaces.setdefault(right, right)
+                elif left == 'request.principal.service_account':
+                    service_accounts.setdefault(right, right)
+                elif left == 'request.principal.cluster_id':
+                    cluster_ids.setdefault(right, right)
+
+        return {
+            'namespaces': sorted(namespaces.values(), key=str.casefold),
+            'service_accounts': sorted(service_accounts.values(), key=str.casefold),
+            'cluster_ids': sorted(cluster_ids.values(), key=str.casefold),
+        }
 
     @classmethod
     def _extract_resource_types_from_conditions(cls, conditions: str) -> set[str]:

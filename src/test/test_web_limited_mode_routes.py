@@ -18,9 +18,15 @@ class _Repo:
     def __init__(self, tenancy_ocid: str, users: list[dict[str, Any]] | None = None) -> None:
         self.tenancy_ocid = tenancy_ocid
         self.users = users or []
+        self.regular_statements: list[dict[str, Any]] = []
+        self.last_policy_filters: dict[str, Any] | None = None
 
     def filter_users(self, user_filter: dict[str, Any]) -> list[dict[str, Any]]:
         return list(self.users)
+
+    def filter_policy_statements(self, filters: dict[str, Any]) -> list[dict[str, Any]]:
+        self.last_policy_filters = filters
+        return list(self.regular_statements)
 
 
 class _Ctx:
@@ -258,6 +264,55 @@ def test_limited_simulation_run_rejects_disallowed_principal_key(monkeypatch: py
         )
     assert exc.value.status_code == 403
     assert 'identity-domain scope' in str(exc.value.detail)
+
+
+def test_filter_policies_by_subjects_maps_oke_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _Repo('ocid1.tenancy.oc1..scope')
+    repo.regular_statements = [
+        {
+            'policy_name': 'oke-policy',
+            'policy_ocid': 'ocid1.policy.oc1..oke',
+            'compartment_ocid': 'ocid1.compartment.oc1..root',
+            'compartment_path': 'ROOT',
+            'statement_text': 'allow any-user to read buckets in tenancy',
+            'creation_time': '2024-01-01T00:00:00Z',
+            'internal_id': 's1',
+            'parsed': True,
+            'subject_type': 'any-user',
+            'subject': ['any-user'],
+            'principals': [{'principal_type': 'oke-workload-identity'}],
+            'principal_keys': ['any-user:None/any-user'],
+            'verb': 'read',
+            'resource': 'buckets',
+            'permission': ['BUCKET_READ'],
+            'location_type': 'tenancy',
+            'location': 'tenancy',
+            'effective_path': 'root',
+            'conditions': "all { request.principal.type = 'workload', request.principal.namespace = 'finance' }",
+            'valid': True,
+            'comments': '',
+            'parsing_notes': [],
+        }
+    ]
+    monkeypatch.setattr(routes_core, 'get_context', lambda: _Ctx(repo))
+
+    result = routes_core.filter_policies_by_subjects(
+        {
+            'principal_style': 'OKE Workload Identity',
+            'workload_namespace': 'finance',
+            'workload_service_account': 'financesa',
+            'workload_cluster_id': 'ocid1.cluster.oc1..oke1',
+            'subject': 'any-user|any-group',
+        }
+    )
+
+    assert result['matched'] == 1
+    assert repo.last_policy_filters is not None
+    assert repo.last_policy_filters['subject_type'] == ['any-user', 'any-group']
+    assert repo.last_policy_filters['principal']['principal_type'] == 'oke-workload-identity'
+    assert repo.last_policy_filters['principal']['workload_namespace'] == 'finance'
+    assert repo.last_policy_filters['principal']['workload_service_account'] == 'financesa'
+    assert repo.last_policy_filters['principal']['workload_cluster_id'] == 'ocid1.cluster.oc1..oke1'
 
 
 def test_limited_filter_policies_applies_scope(monkeypatch: pytest.MonkeyPatch) -> None:

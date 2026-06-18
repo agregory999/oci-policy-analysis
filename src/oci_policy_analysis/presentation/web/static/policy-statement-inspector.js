@@ -85,6 +85,7 @@
     policy_name: 'Policy Name',
     policy_ocid: 'Policy OCID',
     policy_path: 'Policy Path',
+    policy_tags: 'Policy Tags',
     principal_keys: 'Principal Keys',
     statement_text: 'Statement Text',
     subject_type: 'Subject Type',
@@ -100,6 +101,7 @@
     'internal_id',
     'effective_path',
     'statement_text',
+    'policy_tags',
     'creation_time',
     'invalid',
     'invalid_reasons',
@@ -150,6 +152,22 @@
   const MATCH_REASON_KEYS = ['match_confidence_reason', 'Match Confidence Reason'];
   const PRINCIPAL_EVIDENCE_KEYS = ['principal_evidence', 'Principal Evidence'];
   const RESIDUAL_CONDITION_KEYS = ['residual_conditions', 'Residual Conditions'];
+  const POLICY_TAG_KEYS = [
+    'policy_tags',
+    'Policy Tags',
+    'policy_defined_tags',
+    'Policy Defined Tags',
+    'defined_tags',
+    'Defined Tags',
+    'policy_freeform_tags',
+    'Policy Freeform Tags',
+    'freeform_tags',
+    'Freeform Tags',
+    'tags',
+    'Tags',
+  ];
+  const TAG_CONDITION_KEYS = ['tag_conditions', 'Tag Conditions'];
+  const TAG_WARNING_KEYS = ['tag_context_warnings', 'Tag Context Warnings'];
   const DEFAULT_EXCLUDED_FIELDS = [
     '_row_id',
     'internal_id',
@@ -179,6 +197,22 @@
     'Residual Conditions',
     'match_confidence_reason',
     'Match Confidence Reason',
+    'policy_tags',
+    'Policy Tags',
+    'policy_defined_tags',
+    'Policy Defined Tags',
+    'defined_tags',
+    'Defined Tags',
+    'policy_freeform_tags',
+    'Policy Freeform Tags',
+    'freeform_tags',
+    'Freeform Tags',
+    'tags',
+    'Tags',
+    'tag_conditions',
+    'Tag Conditions',
+    'tag_context_warnings',
+    'Tag Context Warnings',
   ];
 
   function defaultLabelForKey(key) {
@@ -236,6 +270,15 @@
       normalized === 'where_structure'
     ) {
       return 'where_clause_structure';
+    }
+    if (POLICY_TAG_KEYS.includes(raw) || normalized === 'policy_tags') {
+      return 'policy_tags';
+    }
+    if (TAG_CONDITION_KEYS.includes(raw) || normalized === 'tag_conditions') {
+      return 'tag_conditions';
+    }
+    if (TAG_WARNING_KEYS.includes(raw) || normalized === 'tag_context_warnings') {
+      return 'tag_context_warnings';
     }
     return raw;
   }
@@ -342,6 +385,53 @@
     return Array.isArray(value) ? value : [];
   }
 
+  function policyTagsValue(row, getRowValue) {
+    const normalized = readFirst(row, ['policy_tags', 'Policy Tags'], getRowValue);
+    const parsedNormalized = parseJsonArray(normalized);
+    if (parsedNormalized.length) return parsedNormalized;
+    if (Array.isArray(normalized)) return normalized;
+
+    const rows = [];
+    const freeform = readFirst(row, ['policy_freeform_tags', 'Policy Freeform Tags', 'freeform_tags', 'Freeform Tags'], getRowValue);
+    if (freeform && typeof freeform === 'object' && !Array.isArray(freeform)) {
+      Object.entries(freeform).forEach(([key, value]) => {
+        rows.push({ kind: 'Freeform', namespace: '', key, value });
+      });
+    }
+    const defined = readFirst(row, ['policy_defined_tags', 'Policy Defined Tags', 'defined_tags', 'Defined Tags'], getRowValue);
+    if (defined && typeof defined === 'object' && !Array.isArray(defined)) {
+      Object.entries(defined).forEach(([namespace, tags]) => {
+        if (!tags || typeof tags !== 'object' || Array.isArray(tags)) return;
+        Object.entries(tags).forEach(([key, value]) => {
+          rows.push({ kind: 'Defined', namespace, key, value });
+        });
+      });
+    }
+    const flattened = readFirst(row, ['tags', 'Tags'], getRowValue);
+    if (!rows.length && flattened && typeof flattened === 'object' && !Array.isArray(flattened)) {
+      Object.entries(flattened).forEach(([key, value]) => {
+        const textKey = String(key || '');
+        const [namespace, tagKey] = textKey.includes(':') ? textKey.split(':', 2) : ['', textKey];
+        rows.push({ kind: namespace ? 'Defined' : 'Freeform', namespace, key: tagKey, value });
+      });
+    }
+    return rows;
+  }
+
+  function tagConditionsValue(row, getRowValue) {
+    const value = readFirst(row, TAG_CONDITION_KEYS, getRowValue);
+    const parsed = parseJsonArray(value);
+    if (parsed.length) return parsed;
+    return Array.isArray(value) ? value : [];
+  }
+
+  function tagWarningsValue(row, getRowValue) {
+    const value = readFirst(row, TAG_WARNING_KEYS, getRowValue);
+    const parsed = parseJsonArray(value);
+    if (parsed.length) return parsed;
+    return Array.isArray(value) ? value : [];
+  }
+
   function fieldValue(row, key, getRowValue) {
     if (key === 'invalid') return invalidValue(row, getRowValue);
     if (key === 'invalid_reasons') return invalidReasonsValue(row, getRowValue);
@@ -437,6 +527,47 @@
     return '-';
   }
 
+  function policyTagsHtml(tags) {
+    if (!Array.isArray(tags) || !tags.length) return '-';
+    return `<ul class="condition-elements-list">${tags
+      .map((tag) => {
+        if (!tag || typeof tag !== 'object') return `<li><span>${esc(tag)}</span></li>`;
+        const kind = String(tag.kind || '').trim();
+        const namespace = String(tag.namespace || '').trim();
+        const key = String(tag.key || '').trim();
+        const value = String(tag.value ?? '').trim();
+        const label = namespace ? `${namespace}.${key}` : key;
+        return `<li><span>[${esc(kind || 'Tag')}] ${esc(label || '(unnamed)')}${value ? ` = ${esc(value)}` : ''}</span></li>`;
+      })
+      .join('')}</ul>`;
+  }
+
+  function tagConditionsHtml(tagConditions) {
+    if (!Array.isArray(tagConditions) || !tagConditions.length) return '-';
+    return `<ul class="condition-elements-list">${tagConditions
+      .map((condition) => {
+        if (!condition || typeof condition !== 'object') return `<li><span>${esc(condition)}</span></li>`;
+        const cid = String(condition.condition_id || '').trim();
+        const semantics = String(condition.access_semantics || '').trim();
+        const access = String(condition.access_type || '').trim();
+        const namespace = String(condition.tag_namespace || '').trim();
+        const key = String(condition.tag_key || '').trim();
+        const operator = String(condition.operator || '').trim();
+        const value = String(condition.value ?? '').trim();
+        const subexpression = String(condition.subexpression || '').trim();
+        const expression = `${namespace}${namespace && key ? '.' : ''}${key} ${operator} ${value}`.trim();
+        const prefix = cid ? `${cid}: ` : '';
+        const meta = [semantics, access].filter(Boolean).join(' / ');
+        return `<li><span>${esc(prefix + (expression || subexpression || JSON.stringify(condition)))}</span>${meta ? `<div class="condition-element-meta">${esc(meta)}</div>` : ''}</li>`;
+      })
+      .join('')}</ul>`;
+  }
+
+  function warningsHtml(warnings) {
+    if (!Array.isArray(warnings) || !warnings.length) return '-';
+    return `<ul class="condition-elements-list">${warnings.map((warning) => `<li><span>${esc(warning)}</span></li>`).join('')}</ul>`;
+  }
+
   function separatorRow(label) {
     return `<tr class="inspector-separator"><th colspan="2">${esc(label)}</th></tr>`;
   }
@@ -458,10 +589,16 @@
     const basicHeader = config.basicSeparatorText || '- Basic Details -';
     const parsedHeader = config.separatorText || '- Parsed Details -';
     const conditionHeader = config.conditionSeparatorText || '- Condition Details -';
+    const tagHeader = config.tagSeparatorText || '- Tag-based Details -';
     const workloadHeader = config.workloadSeparatorText || '- Workload Principal Match -';
 
     const rows = [separatorRow(basicHeader)];
     buildBasicFieldOrder(config).forEach((key) => {
+      if (key === 'policy_tags') {
+        const policyTags = policyTagsValue(row, getRowValue);
+        if (hasDisplayValue(policyTags)) rows.push(htmlRow('Policy Tags', policyTagsHtml(policyTags)));
+        return;
+      }
       if (excludedFields.has(key)) return;
       const value = fieldValue(row, key, getRowValue);
       if (!shouldShowBasicField(row, key, value, getRowValue)) return;
@@ -488,6 +625,14 @@
           conditionElementsHtml(conditionAtomsValue(row, getRowValue), conditionElementsFallbackValue(row, getRowValue))
         )
       );
+    }
+
+    const tagConditions = tagConditionsValue(row, getRowValue);
+    if (tagConditions.length) {
+      rows.push(separatorRow(tagHeader));
+      rows.push(htmlRow('Tag Conditions', tagConditionsHtml(tagConditions)));
+      const warnings = tagWarningsValue(row, getRowValue);
+      if (warnings.length) rows.push(htmlRow('Context Warnings', warningsHtml(warnings)));
     }
 
     const matchConfidence = matchConfidenceValue(row, getRowValue);

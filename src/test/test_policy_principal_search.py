@@ -264,3 +264,78 @@ def test_policy_search_matches_resource_principal_by_compartment_ocid() -> None:
         'request.principal.compartment.id',
     ]
     assert results[0]['residual_conditions'] == []
+
+
+def test_policy_search_matches_oke_workload_identity_by_namespace_service_account_and_cluster() -> None:
+    """Verify OKE workload identity filters match workload evidence and preserve residual conditions."""
+    repo = PolicyAnalysisRepository()
+    repo.regular_statements = [
+        {
+            'policy_name': 'oke-workload-policy',
+            'statement_text': 'allow any-user to use buckets in tenancy',
+            'subject_type': 'any-user',
+            'subject': ['any-user'],
+            'principal_keys': ['any-user:None/any-user'],
+            'conditions': (
+                "all { request.principal.type = 'workload', "
+                "request.principal.namespace = 'finance', "
+                "request.principal.service_account = 'financesa', "
+                "request.principal.cluster_id = 'ocid1.cluster.oc1..oke1', "
+                "request.operation = 'GetObject' }"
+            ),
+        }
+    ]
+
+    results = repo.filter_policy_statements(
+        {
+            'principal': {
+                'principal_type': 'oke-workload-identity',
+                'workload_namespace': 'finance',
+                'workload_service_account': 'financesa',
+                'workload_cluster_id': 'ocid1.cluster.oc1..oke1',
+            }
+        }
+    )
+
+    assert [statement['policy_name'] for statement in results] == ['oke-workload-policy']
+    assert results[0]['match_confidence'] == 'identity_match_with_residual'
+    assert [atom['left'] for atom in results[0]['principal_evidence']] == [
+        'request.principal.type',
+        'request.principal.namespace',
+        'request.principal.service_account',
+        'request.principal.cluster_id',
+    ]
+    assert [atom['left'] for atom in results[0]['residual_conditions']] == ['request.operation']
+
+
+def test_policy_search_rejects_oke_workload_identity_when_namespace_does_not_match() -> None:
+    """Verify OKE workload identity matching remains strict across namespace/service account values."""
+    repo = PolicyAnalysisRepository()
+    repo.regular_statements = [
+        {
+            'policy_name': 'oke-workload-policy',
+            'statement_text': 'allow any-user to use buckets in tenancy',
+            'subject_type': 'any-user',
+            'subject': ['any-user'],
+            'principal_keys': ['any-user:None/any-user'],
+            'conditions': (
+                "all { request.principal.type = 'workload', "
+                "request.principal.namespace = 'finance', "
+                "request.principal.service_account = 'financesa', "
+                "request.principal.cluster_id = 'ocid1.cluster.oc1..oke1' }"
+            ),
+        }
+    ]
+
+    results = repo.filter_policy_statements(
+        {
+            'principal': {
+                'principal_type': 'oke-workload-identity',
+                'workload_namespace': 'finance',
+                'workload_service_account': 'other-sa',
+                'workload_cluster_id': 'ocid1.cluster.oc1..oke1',
+            }
+        }
+    )
+
+    assert results == []

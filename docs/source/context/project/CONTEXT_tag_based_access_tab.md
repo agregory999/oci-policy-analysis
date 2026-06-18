@@ -623,6 +623,27 @@ Potential follow-ons include:
 
 ## Related Context and References
 
+## Current Service Contract
+
+Tag-based policy discovery now flows through
+`src/oci_policy_analysis/application/services/tag_based_policy_service.py`.
+The desktop tab should consume enriched `tag_conditions` and
+`tag_context_warnings` from that service/repository path. Do not add new
+tab-local `.tag.` raw-text scanning except as an explicitly degraded fallback
+for unparsed legacy rows.
+
+Supported shared filters include `tag_access_type`,
+`tag_access_semantics`, `tag_namespace`, `tag_key`, `tag_value`,
+`tag_operator`, `condition_atom_terms`, `policy_tag`,
+`policy_defined_tag`, and `policy_freeform_tag`.
+
+Desktop UX notes:
+
+- `tag_operator` should stay a finite dropdown, with `Any` plus the parser-supported operators.
+- `tag_access_semantics` needs explanatory context help because it is a normalized service concept, not Oracle syntax.
+- `condition_atom_terms` should be described as a broad parsed-condition search across atom fields, not as tag-only search.
+- A dedicated web UI page is deferred until the shared service and desktop UX settle; current web support is API-level plus statement inspector fields.
+
 - Condition parser and tester:
   - `src/oci_policy_analysis/logic/parsers/condition_parser/`
   - `src/oci_policy_analysis/presentation/desktop/condition_tester_tab.py`

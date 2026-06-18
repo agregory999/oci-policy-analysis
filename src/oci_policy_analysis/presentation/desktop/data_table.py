@@ -90,7 +90,7 @@ class DataTable(ttk.Frame):
         self.row_context_menu_callback = row_context_menu_callback
         self.data_map: dict[str, int] = {}
         self.selected_cell: tuple[str, int] | None = None  # (column, row_index)
-        self.max_auto_row_lines = 4
+        self.max_auto_row_lines = 6
         self._tree_style_name = f'DataTable{id(self)}.Treeview'
 
         # Configure frame to expand in grid layout
