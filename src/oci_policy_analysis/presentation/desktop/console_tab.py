@@ -21,10 +21,11 @@ from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.application.core.support.logger import get_logger, set_component_level, set_log_level
+from oci_policy_analysis.application.services.logging_service import LoggingService
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 
 # Logger for this module
-logger = get_logger('internal.console_tab')
+logger = get_logger(component='presentation.desktop.console_tab')
 
 
 # Dedicated UI handler (unfiltered, shows everything)
@@ -178,9 +179,25 @@ class ConsoleTab(BaseUITab):
 
         # --- Individual logger controls: grid layout in a separate frame ---
         # Package mapping for loggers
+        logging_settings = LoggingService(self.app.settings).get_log_settings()
+        self.app.settings['log_levels'] = dict(logging_settings.get('log_levels', {}))
         self.logger_components_by_pkg = {
-            'Platform': ['cli.main', 'ui.main', 'mcp.server', 'caching', 'config', 'logger', 'usage_tracking'],
-            'Core Repo': ['core.repo.policy_analysis_repository', 'core.repo.reference_data_repo', 'core.repo.ai'],
+            'Platform': [
+                'cli',
+                'main',
+                'mcp_server',
+                'web_routes',
+                'web_auth',
+                'caching',
+                'config',
+                'logger',
+                'usage_tracking',
+            ],
+            'Core Repo': [
+                'core.repo.policy_analysis_repository',
+                'core.repo.reference_data_repo',
+                'core.repo.ai_repo',
+            ],
             'Core Engine': [
                 'core.engine.policy_intelligence_engine',
                 'core.engine.policy_simulation_engine',
@@ -217,19 +234,21 @@ class ConsoleTab(BaseUITab):
                 'policy_browser_tab',
                 'dynamic_group_tab',
                 'users_tab',
-                'resource_principals_tab',
+                'workload_principals_tab',
                 'historical_tab',
                 'cross_tenancy_tab',
                 'condition_tester_tab',
                 'tag_based_access_tab',
-                'permissions_report',
+                'permissions_report_tab',
                 'simulation_tab',
                 'policy_recommendations_tab',
+                'limits_tab',
                 'mcp_tab',
+                'presentation.desktop.console_tab',
                 'data_table',
                 'prospective_editor_window',
+                'consolidation_workbench_tab',
                 'builder_helpers',
-                # 'consolidation_workbench_tab',
                 'maintenance_tab',
             ],
         }
@@ -252,7 +271,7 @@ class ConsoleTab(BaseUITab):
         # Don't show by default
         self.logger_grid_frame.pack_forget()
 
-        log_levels = getattr(self.app, 'settings', {}).get('log_levels', {})
+        log_levels = logging_settings.get('log_levels', {})
 
         def on_logger_level_change(event, comp, var):
             val = var.get()
@@ -346,7 +365,7 @@ class ConsoleTab(BaseUITab):
             config.save_settings(self.app.settings)
 
         # On startup: only reflect/restore UI state; don't set loggers
-        global_level = log_levels.get('global_log_level') or self.app.settings.get('global_log_level')
+        global_level = logging_settings.get('global_log_level') or self.app.settings.get('global_log_level')
         if global_level:
             self.app.log_level_var.set(global_level)
         for comp, var in self.logger_level_vars.items():

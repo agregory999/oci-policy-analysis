@@ -67,6 +67,7 @@ from oci_policy_analysis.application.core.support.caching import CacheManager  #
 from oci_policy_analysis.application.core.support.logger import get_logger, set_log_level  # noqa: E402
 from oci_policy_analysis.application.services.load_service import LoadService  # noqa: E402
 from oci_policy_analysis.application.services.mcp_query_service import MCPQueryService  # noqa: E402
+from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService  # noqa: E402
 
 try:  # usage tracking is optional when running embedded; ignore if unavailable
     from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker  # type: ignore[import]
@@ -553,6 +554,16 @@ def _policy_filters_from_request(filters: dict[str, Any] | None) -> PolicySearch
         'permission',
         'comments',
         'conditions',
+        'tag_access_type',
+        'tag_access_semantics',
+        'tag_namespace',
+        'tag_key',
+        'tag_value',
+        'tag_operator',
+        'condition_atom_terms',
+        'policy_tag',
+        'policy_defined_tag',
+        'policy_freeform_tag',
         'valid',
     )
     for field in passthrough_fields:
@@ -632,6 +643,8 @@ def _statement_advanced(
         'principal_evidence': statement.get('principal_evidence') or [],
         'where_clause': statement.get('where_clause') or statement.get('where_clause_structure') or {},
         'condition_atoms': statement.get('condition_atoms') or [],
+        'tag_conditions': statement.get('tag_conditions') or [],
+        'tag_context_warnings': statement.get('tag_context_warnings') or [],
         'dynamic_group_rule_evidence': statement.get('dynamic_group_rule_evidence') or [],
         'residual_conditions': statement.get('residual_conditions') or [],
         'match_confidence': statement.get('match_confidence') or statement.get('confidence') or '',
@@ -712,6 +725,13 @@ def _dynamic_group_rule_search_terms(principal: dict[str, Any]) -> list[str]:
     return terms
 
 
+def _oke_workload_identity_search_terms(principal: dict[str, Any]) -> list[str]:
+    terms: list[str] = []
+    for key in ('workload_namespace', 'workload_service_account', 'workload_cluster_id'):
+        terms.extend(_as_str_list(principal.get(key)))
+    return terms
+
+
 def _search_instance_principal_statements(
     filters: PolicySearch,
     principal: dict[str, Any],
@@ -757,6 +777,44 @@ def _search_instance_principal_statements(
     return annotated, []
 
 
+def _search_oke_workload_identity_statements(
+    filters: PolicySearch,
+    principal: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    policy_filters = PolicySearch(**{k: v for k, v in filters.items() if k not in {'principal', 'principals'}})
+    policy_filters['subject_type'] = ['any-user', 'any-group']
+    policy_filters['principal'] = {
+        'principal_type': 'oke-workload-identity',
+        **(
+            {'workload_namespace': _as_str_list(principal.get('workload_namespace'))[0]}
+            if principal.get('workload_namespace')
+            else {}
+        ),
+        **(
+            {'workload_service_account': _as_str_list(principal.get('workload_service_account'))[0]}
+            if principal.get('workload_service_account')
+            else {}
+        ),
+        **(
+            {'workload_cluster_id': _as_str_list(principal.get('workload_cluster_id'))[0]}
+            if principal.get('workload_cluster_id')
+            else {}
+        ),
+    }
+    statements = _query_service().filter_policy_statements(policy_filters)
+
+    annotated: list[dict[str, Any]] = []
+    for statement in statements:
+        row = dict(statement)
+        row['match_confidence'] = row.get('match_confidence') or 'rule_evidence'
+        row['confidence'] = row.get('confidence') or row['match_confidence']
+        row['match_confidence_reason'] = row.get('match_confidence_reason') or (
+            'Matched policy any-user/any-group subject through OKE workload identity evidence.'
+        )
+        annotated.append(row)
+    return annotated, []
+
+
 def _run_policy_search_request(
     request: dict[str, Any], *, repo: PolicyAnalysisRepository | None = None
 ) -> dict[str, Any]:
@@ -772,6 +830,12 @@ def _run_policy_search_request(
         and repo is None
     ):
         statements, warnings = _search_instance_principal_statements(filters, principal)
+    elif (
+        isinstance(principal, dict)
+        and str(principal.get('principal_type') or '') in {'oke-workload-identity', 'oke_workload_identity'}
+        and repo is None
+    ):
+        statements, warnings = _search_oke_workload_identity_statements(filters, principal)
     elif repo is not None:
         statements = list(repo.filter_policy_statements(filters=filters))
     else:
@@ -1143,6 +1207,129 @@ def policy_search(
         _track_mcp_tool(tool_name, status='error')
         logger.error('Unhandled error in policy_search: %s', exc, exc_info=True)
         raise ToolError(f'Unhandled error in policy_search: {exc}') from exc
+
+
+@mcp.tool(
+    name='tag_based_policy_search', description='Search parsed tag-based policy conditions with contextual warnings.'
+)
+def tag_based_policy_search(
+    tag_access_type: list[str] | None = None,
+    tag_access_semantics: list[str] | None = None,
+    tag_namespace: list[str] | None = None,
+    tag_key: list[str] | None = None,
+    tag_value: list[str] | None = None,
+    tag_operator: list[str] | None = None,
+    condition_atom_terms: list[str] | None = None,
+    policy_tag: list[str] | None = None,
+    policy_defined_tag: list[str] | None = None,
+    policy_freeform_tag: list[str] | None = None,
+    verb: list[str] | None = None,
+    resource: list[str] | None = None,
+    permission: list[str] | None = None,
+    principal_keys: list[str] | None = None,
+    effective_path: list[str] | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Run a tag-focused policy search using parsed where-clause data."""
+
+    tool_name = 'tag_based_policy_search'
+    filters = {
+        key: value
+        for key, value in {
+            'tag_access_type': tag_access_type,
+            'tag_access_semantics': tag_access_semantics,
+            'tag_namespace': tag_namespace,
+            'tag_key': tag_key,
+            'tag_value': tag_value,
+            'tag_operator': tag_operator,
+            'condition_atom_terms': condition_atom_terms,
+            'policy_tag': policy_tag,
+            'policy_defined_tag': policy_defined_tag,
+            'policy_freeform_tag': policy_freeform_tag,
+            'verb': verb,
+            'resource': resource,
+            'permission': permission,
+            'principal_keys': principal_keys,
+            'effective_path': effective_path,
+        }.items()
+        if value
+    }
+    _log_mcp_call_input(tool_name, {'filters': filters, 'limit': limit})
+    try:
+        if not any(key.startswith('tag_') or key.startswith('policy_') for key in filters):
+            filters['condition_atom_terms'] = condition_atom_terms or ['.tag.']
+        response = _run_policy_search_request(
+            {'mode': 'advanced', 'detail_level': 'full', 'filters': filters, 'limit': limit}
+        )
+        repo = _current_policy_repo()
+        statements = list(repo.filter_policy_statements(filters=PolicySearch(**filters))) if repo is not None else []
+        response['tag_summary'] = TagBasedPolicyService.query(statements, PolicySearch(**filters)).get('summary', {})
+        _track_mcp_tool(tool_name, status='success', total_statements=response.get('total_count'))
+        return _log_mcp_call_output(tool_name, response)
+    except ToolError:
+        _track_mcp_tool(tool_name, status='error')
+        raise
+    except Exception as exc:
+        _track_mcp_tool(tool_name, status='error')
+        logger.error('Unhandled error in tag_based_policy_search: %s', exc, exc_info=True)
+        raise ToolError(f'Unhandled error in tag_based_policy_search: {exc}') from exc
+
+
+@mcp.tool(
+    name='oke_workload_identity_search',
+    description='Search OCI IAM policies for OKE workload identity coverage with guided namespace and service account filters.',
+)
+def oke_workload_identity_search(
+    workload_namespace: str = '',
+    workload_service_account: str = '',
+    workload_cluster_id: str = '',
+    verb: list[str] | None = None,
+    resource: list[str] | None = None,
+    permission: list[str] | None = None,
+    effective_path: list[str] | None = None,
+    condition_atom_terms: list[str] | None = None,
+    policy_tag: list[str] | None = None,
+    policy_defined_tag: list[str] | None = None,
+    policy_freeform_tag: list[str] | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Run a guided OKE workload identity policy search."""
+
+    tool_name = 'oke_workload_identity_search'
+    filters = {
+        key: value
+        for key, value in {
+            'principal': {
+                'principal_type': 'oke-workload-identity',
+                'workload_namespace': workload_namespace,
+                'workload_service_account': workload_service_account,
+                'workload_cluster_id': workload_cluster_id,
+            },
+            'verb': verb,
+            'resource': resource,
+            'permission': permission,
+            'effective_path': effective_path,
+            'condition_atom_terms': condition_atom_terms,
+            'policy_tag': policy_tag,
+            'policy_defined_tag': policy_defined_tag,
+            'policy_freeform_tag': policy_freeform_tag,
+        }.items()
+        if value
+    }
+    _log_mcp_call_input(tool_name, {'filters': filters, 'limit': limit})
+    try:
+        response = _run_policy_search_request(
+            {'mode': 'advanced', 'detail_level': 'full', 'filters': filters, 'limit': limit}
+        )
+        _track_mcp_tool(tool_name, status='success', total_statements=response.get('total_count'))
+        return _log_mcp_call_output(tool_name, response)
+    except ToolError:
+        _track_mcp_tool(tool_name, status='error')
+        raise
+    except Exception as exc:
+        _track_mcp_tool(tool_name, status='error')
+        logger.error('Unhandled error in oke_workload_identity_search: %s', exc, exc_info=True)
+        raise ToolError(f'Unhandled error in oke_workload_identity_search: {exc}') from exc
 
 
 @mcp.tool(name='policy_search_set', description='Run related policy searches and summarize coverage.')

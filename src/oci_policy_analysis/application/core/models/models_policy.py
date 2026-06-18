@@ -21,6 +21,9 @@ class Principal(TypedDict, total=False):
     resource_ocid: NotRequired[Annotated[str, 'Resource principal OCID from request.principal.id.']]
     compartment_ocid: NotRequired[Annotated[str, 'Resource principal compartment OCID.']]
     resource_compartment_ocid: NotRequired[Annotated[str, 'Resource principal compartment OCID.']]
+    workload_namespace: NotRequired[Annotated[str, 'OKE workload identity namespace.']]
+    workload_service_account: NotRequired[Annotated[str, 'OKE workload identity service account.']]
+    workload_cluster_id: NotRequired[Annotated[str, 'OKE workload identity cluster OCID.']]
     match_mode: NotRequired[Annotated[str, 'Principal match mode hint.']]
 
 
@@ -122,6 +125,16 @@ class PolicySearch(TypedDict, total=False):
     permission: Annotated[list[str], 'Permission names.']
     comments: Annotated[list[str], 'Statement comment substrings.']
     conditions: Annotated[list[str], 'Condition substrings.']
+    tag_access_type: Annotated[list[str], 'Parsed tag condition access type filters.']
+    tag_access_semantics: Annotated[list[str], 'Parsed tag condition semantic access filters.']
+    tag_namespace: Annotated[list[str], 'Parsed tag namespace filters.']
+    tag_key: Annotated[list[str], 'Parsed tag key filters.']
+    tag_value: Annotated[list[str], 'Parsed tag value filters.']
+    tag_operator: Annotated[list[str], 'Parsed tag operator filters.']
+    condition_atom_terms: Annotated[list[str], 'Terms searched across parsed condition atom fields.']
+    policy_tag: Annotated[list[str], 'Terms searched across policy object tags.']
+    policy_defined_tag: Annotated[list[str], 'Terms searched across policy object defined tags.']
+    policy_freeform_tag: Annotated[list[str], 'Terms searched across policy object freeform tags.']
     valid: Annotated[
         bool,
         'True for valid statements; false for invalid.',
@@ -280,6 +293,8 @@ class RegularPolicyStatement(BasePolicyStatement, total=False):
     confidence: NotRequired[Annotated[str, 'Display confidence alias.']]
     where_clause: NotRequired[Annotated[ConditionStructure, 'Parsed where-clause structure.']]
     where_clause_structure: NotRequired[Annotated[ConditionStructure, 'Parsed where-clause structure.']]
+    tag_conditions: NotRequired[Annotated[list[dict[str, object]], 'Parsed tag condition details.']]
+    tag_context_warnings: NotRequired[Annotated[list[str], 'Contextual tag-based access warnings.']]
     comments: Annotated[str, 'Statement comments.']
     parsing_notes: Annotated[list[str], 'Parser notes.']
 

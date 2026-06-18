@@ -21,6 +21,7 @@ from oci_policy_analysis.application.core.models.models import (
     Group,
     GroupSearch,
     PolicySearch,
+    RegularPolicyStatement,
     User,
     UserSearch,
 )
@@ -51,6 +52,7 @@ from oci_policy_analysis.application.services.prospective_statements_service imp
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
+from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService
 from oci_policy_analysis.presentation.web.auth import current_key_fingerprint, verify_access_key
 from oci_policy_analysis.presentation.web.dependencies import get_context, get_settings
 
@@ -747,6 +749,35 @@ def _simulation_context_options(ctx, request: Request | None = None) -> dict[str
 def _statement_to_web_row(stmt: dict[str, Any]) -> dict[str, Any]:
     """Normalize statement payload for simulation workbench table/inspector."""
 
+    def _policy_tags_to_web_rows() -> list[dict[str, str]]:
+        rows: list[dict[str, str]] = []
+        freeform = stmt.get('policy_freeform_tags') or stmt.get('freeform_tags') or {}
+        if isinstance(freeform, dict):
+            for key, value in sorted(freeform.items(), key=lambda item: str(item[0]).casefold()):
+                rows.append(
+                    {
+                        'kind': 'Freeform',
+                        'namespace': '',
+                        'key': str(key),
+                        'value': '' if value is None else str(value),
+                    }
+                )
+        defined = stmt.get('policy_defined_tags') or stmt.get('defined_tags') or {}
+        if isinstance(defined, dict):
+            for namespace, tags in sorted(defined.items(), key=lambda item: str(item[0]).casefold()):
+                if not isinstance(tags, dict):
+                    continue
+                for key, value in sorted(tags.items(), key=lambda item: str(item[0]).casefold()):
+                    rows.append(
+                        {
+                            'kind': 'Defined',
+                            'namespace': str(namespace),
+                            'key': str(key),
+                            'value': '' if value is None else str(value),
+                        }
+                    )
+        return rows
+
     action = str(stmt.get('action') or 'allow').lower()
     conditions = stmt.get('conditions')
     condition_structure = stmt.get('where_clause_structure') or stmt.get('where_clause') or {}
@@ -773,6 +804,11 @@ def _statement_to_web_row(stmt: dict[str, Any]) -> dict[str, Any]:
         'conditions_where_clause': stmt.get('conditions_where_clause') or conditions,
         'conditions_parsed_structure': condition_summary or '',
         'condition_atoms': condition_atoms if isinstance(condition_atoms, list) else [],
+        'policy_tags': _policy_tags_to_web_rows(),
+        'tag_conditions': stmt.get('tag_conditions') if isinstance(stmt.get('tag_conditions'), list) else [],
+        'tag_context_warnings': stmt.get('tag_context_warnings')
+        if isinstance(stmt.get('tag_context_warnings'), list)
+        else [],
         'valid': stmt.get('valid'),
         'parsed': stmt.get('parsed'),
         'is_prospective': bool(stmt.get('is_prospective')),
@@ -1042,6 +1078,27 @@ def filter_policies(request: Request, payload: dict[str, object]) -> dict[str, o
     }
 
 
+@router.post('/filter/policies/tag-based')
+def filter_tag_based_policies(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Return tag-focused policy search results using parsed conditions."""
+
+    logger.info('POST /filter/policies/tag-based')
+    _require_authenticated(request)
+    ctx = get_context()
+    raw_filters = payload.get('filters') or {}
+    filters = build_policy_search_from_dict(raw_filters if isinstance(raw_filters, dict) else {})
+    statements = ctx.policy_repo.filter_policy_statements(filters=filters)
+    statements = _apply_policy_scope(request, list(statements))
+    tag_result = TagBasedPolicyService.query(cast(list[RegularPolicyStatement], statements), filters)
+    rows = [_statement_to_web_row(cast(dict[str, Any], statement)) for statement in tag_result['statements']]
+    return {
+        'total': len(getattr(ctx.policy_repo, 'regular_statements', []) or []),
+        'matched': len(rows),
+        'statements': rows,
+        'summary': tag_result.get('summary', {}),
+    }
+
+
 @router.get('/entities/groups')
 def list_groups(request: Request, search: str = '') -> dict[str, object]:
     """Return groups for User/Group analysis with optional pipe-delimited search."""
@@ -1129,6 +1186,15 @@ def list_resource_types() -> dict[str, list[str]]:
     return {'resource_types': principal_service.get_resource_types()}
 
 
+@router.get('/metadata/workload-identity-values')
+def list_workload_identity_values() -> dict[str, list[str]]:
+    """Return discovered OKE workload identity selector values."""
+    logger.info('GET /metadata/workload-identity-values')
+    ctx = get_context()
+    principal_service = PrincipalAnalysisService(ctx)
+    return principal_service.get_workload_identity_values()
+
+
 @router.post('/filter/policies/by-subjects')
 def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]:  # noqa: C901
     """Filter policies by exact selected groups/users/dynamic groups and optional any-user/group expansion."""
@@ -1141,6 +1207,7 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
     exact_users_payload = payload.get('exact_users')
     exact_dynamic_groups_payload = payload.get('exact_dynamic_groups')
     principal_keys_payload = payload.get('principal_keys')
+    principal_style = str(payload.get('principal_style') or '').strip()
     include_any_subjects = bool(payload.get('include_any_subjects'))
     subject_type_filter = _split_pipe(str(payload.get('subject_type') or ''))
     subject_filter_terms = _split_pipe(str(payload.get('subject') or ''))
@@ -1148,9 +1215,19 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
     conditions_filter_terms = _split_pipe(str(payload.get('conditions') or ''))
     resource_type_terms = [term for term in _split_pipe(str(payload.get('resource_type') or '')) if term != 'Any']
     resource_compartment_ocid_terms = _split_pipe(str(payload.get('resource_compartment_ocid') or ''))
+    workload_namespace_terms = _split_pipe(str(payload.get('workload_namespace') or ''))
+    workload_service_account_terms = _split_pipe(str(payload.get('workload_service_account') or ''))
+    workload_cluster_id_terms = _split_pipe(str(payload.get('workload_cluster_id') or ''))
     workload_subject_terms = [term for term in subject_filter_terms if term.casefold() in {'any-user', 'any-group'}]
     use_workload_principal_filter = bool(
         workload_subject_terms and (resource_type_terms or resource_compartment_ocid_terms)
+    )
+    use_oke_principal_filter = bool(
+        principal_style.casefold() == 'oke workload identity'
+        or principal_style.casefold() == 'oke-workload-identity'
+        or workload_namespace_terms
+        or workload_service_account_terms
+        or workload_cluster_id_terms
     )
 
     exact_groups: list[Group] = []
@@ -1192,7 +1269,7 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         principal_keys = [str(v).strip() for v in principal_keys_payload if str(v).strip()]
 
     logger.debug(
-        '[by-subjects] payload summary: exact_groups=%d exact_users=%d exact_dynamic_groups=%d principal_keys=%d include_any_subjects=%s subject_type_terms=%d subject_terms=%d principal_terms=%d conditions_terms=%d resource_type_terms=%d resource_compartment_ocid_terms=%d',
+        '[by-subjects] payload summary: exact_groups=%d exact_users=%d exact_dynamic_groups=%d principal_keys=%d include_any_subjects=%s subject_type_terms=%d subject_terms=%d principal_terms=%d conditions_terms=%d resource_type_terms=%d resource_compartment_ocid_terms=%d workload_namespace_terms=%d workload_service_account_terms=%d workload_cluster_id_terms=%d principal_style=%s',
         len(exact_groups),
         len(exact_users),
         len(exact_dynamic_groups),
@@ -1204,6 +1281,10 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
         len(conditions_filter_terms),
         len(resource_type_terms),
         len(resource_compartment_ocid_terms),
+        len(workload_namespace_terms),
+        len(workload_service_account_terms),
+        len(workload_cluster_id_terms),
+        principal_style,
     )
     logger.debug('[by-subjects] exact_groups=%s', exact_groups)
     if exact_users:
@@ -1260,6 +1341,16 @@ def filter_policies_by_subjects(payload: dict[str, object]) -> dict[str, object]
             principal_selector['resource_type'] = resource_type_terms[0]
         if resource_compartment_ocid_terms:
             principal_selector['resource_compartment_ocid'] = resource_compartment_ocid_terms[0]
+        policy_filter['principal'] = principal_selector
+    elif use_oke_principal_filter:
+        policy_filter['subject_type'] = workload_subject_terms or ['any-user', 'any-group']
+        principal_selector = {'principal_type': 'oke-workload-identity'}
+        if workload_namespace_terms:
+            principal_selector['workload_namespace'] = workload_namespace_terms[0]
+        if workload_service_account_terms:
+            principal_selector['workload_service_account'] = workload_service_account_terms[0]
+        if workload_cluster_id_terms:
+            principal_selector['workload_cluster_id'] = workload_cluster_id_terms[0]
         policy_filter['principal'] = principal_selector
     elif subject_filter_terms:
         policy_filter['subject'] = subject_filter_terms

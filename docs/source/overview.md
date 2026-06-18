@@ -13,7 +13,7 @@ The core goal across all modes is the same: analyze and explain OCI IAM policies
 
 - **Policy Analysis**: Parse/filter IAM policy statements by subject, verb, resource, compartment, and conditions.
 - **Dynamic Group Analysis**: Review dynamic-group rules, usage, and related policy grants.
-- **Principal-Centric Analysis**: Analyze access for users, groups, and resource principals.
+- **Principal-Centric Analysis**: Analyze access for users, groups, resource principals, and OKE workload identities.
 - **Historical Comparison**: Compare policy snapshots over time.
 - **Caching**: Save/load combined tenancy data for repeatable, offline, or remote workflows.
 - **Export & Import**: Export analysis data to JSON/CSV and re-import as needed.
@@ -108,4 +108,5 @@ flowchart LR
 
 MCP usage patterns (STDIO, HTTP, embedded vs standalone) are documented in detail on the dedicated [MCP Server](mcp.md) page.
 
+The higher-level interactive workflow, including basic vs advanced filters, tag-based search, resource principals, and OKE workload identities, is organized in the [Usage](usage.md) guide. For the OKE-specific query pattern, see [OKE Workload Identity Querying](oke_workload_identity.md).
 

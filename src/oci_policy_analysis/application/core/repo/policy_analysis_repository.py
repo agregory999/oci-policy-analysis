@@ -68,9 +68,14 @@ from oci_policy_analysis.application.core.parser.condition_structure import (
 )
 from oci_policy_analysis.application.core.parser.policy_statement_normalizer import PolicyStatementNormalizer
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.tag_based_policy_service import (
+    POLICY_TAG_FILTER_FIELDS,
+    TAG_FILTER_FIELDS,
+    TagBasedPolicyService,
+)
 
 # Global logger for this module
-logger = get_logger(component='data_repo')
+logger = get_logger(component='core.repo.policy_analysis_repository')
 
 # Constants
 THREADS = 6
@@ -583,34 +588,31 @@ class PolicyAnalysisRepository:
         conditions = str(stmt.get('conditions') or '').casefold()
         return left.casefold() in conditions and expected_value in conditions
 
-    def _resource_principal_match_details(
-        self, stmt: RegularPolicyStatement, selector: Principal
+    def _condition_principal_match_details(
+        self,
+        stmt: RegularPolicyStatement,
+        selector: Principal,
+        *,
+        required_checks: list[tuple[str, str]],
+        confidence_identity_lefts: set[str],
+        match_confidence_reason: str,
+        allow_type_only: bool = False,
     ) -> dict[str, object] | None:
-        """Match resource-principal selectors and return confidence/evidence details."""
+        """Match condition-backed principal selectors and return evidence details."""
         subject_type = self._normalize_principal_field(stmt.get('subject_type'))
         if subject_type not in {'any-user', 'any-group'}:
             return None
 
-        resource_type = self._normalize_principal_field(selector.get('resource_type') or selector.get('type'))
-        principal_ocid = self._normalize_principal_field(selector.get('ocid') or selector.get('resource_ocid'))
-        compartment_ocid = self._normalize_principal_field(
-            selector.get('compartment_ocid') or selector.get('resource_compartment_ocid')
-        )
-        if not any([resource_type, principal_ocid, compartment_ocid]):
+        checks = [(left, self._normalize_principal_field(expected)) for left, expected in required_checks]
+        checks = [(left, expected) for left, expected in checks if expected]
+        if not checks and not allow_type_only:
             return None
 
         atoms = self._condition_atoms_for_statement(stmt)
         used_parsed_atoms = bool(atoms)
         identity_evidence: list[dict[str, object]] = []
 
-        checks = [
-            ('request.principal.type', resource_type),
-            ('request.principal.id', principal_ocid),
-            ('request.principal.compartment.id', compartment_ocid),
-        ]
         for left, expected in checks:
-            if not expected:
-                continue
             if used_parsed_atoms:
                 atom = self._condition_atom_with_value(atoms, left, expected)
                 if atom is None:
@@ -622,32 +624,91 @@ class PolicyAnalysisRepository:
         if not used_parsed_atoms:
             return {
                 'match_confidence': 'identity_match_unparsed_conditions',
-                'match_confidence_reason': 'Matched requested principal evidence in raw where-clause text, but parsed condition atoms were unavailable.',
+                'match_confidence_reason': match_confidence_reason,
                 'principal_evidence': [],
                 'residual_conditions': [],
             }
 
-        identity_lefts = {'request.principal.type', 'request.principal.id', 'request.principal.compartment.id'}
         residual_atoms = [
             atom
             for atom in atoms
-            if self._normalize_principal_field(atom.get('normalized_left') or atom.get('left')) not in identity_lefts
+            if self._normalize_principal_field(atom.get('normalized_left') or atom.get('left'))
+            not in confidence_identity_lefts
         ]
         if residual_atoms:
             confidence = 'identity_match_with_residual'
-            reason = (
-                'Matched requested request.principal.* identity evidence, but residual where-clause conditions remain '
-                'and were not evaluated as part of principal identity.'
-            )
+            reason = match_confidence_reason
         else:
             confidence = 'exact'
-            reason = 'Matched requested request.principal.* identity evidence with no residual where-clause conditions.'
+            reason = match_confidence_reason
         return {
             'match_confidence': confidence,
             'match_confidence_reason': reason,
             'principal_evidence': identity_evidence,
             'residual_conditions': residual_atoms,
         }
+
+    def _resource_principal_match_details(
+        self, stmt: RegularPolicyStatement, selector: Principal
+    ) -> dict[str, object] | None:
+        """Match resource-principal selectors and return confidence/evidence details."""
+        resource_type = self._normalize_principal_field(selector.get('resource_type') or selector.get('type'))
+        principal_ocid = self._normalize_principal_field(selector.get('ocid') or selector.get('resource_ocid'))
+        compartment_ocid = self._normalize_principal_field(
+            selector.get('compartment_ocid') or selector.get('resource_compartment_ocid')
+        )
+        if not any([resource_type, principal_ocid, compartment_ocid]):
+            return None
+        return self._condition_principal_match_details(
+            stmt,
+            selector,
+            required_checks=[
+                ('request.principal.type', resource_type),
+                ('request.principal.id', principal_ocid),
+                ('request.principal.compartment.id', compartment_ocid),
+            ],
+            confidence_identity_lefts={
+                'request.principal.type',
+                'request.principal.id',
+                'request.principal.compartment.id',
+            },
+            match_confidence_reason=(
+                'Matched requested request.principal.* identity evidence, but residual where-clause conditions remain '
+                'and were not evaluated as part of principal identity.'
+            ),
+        )
+
+    def _oke_workload_identity_match_details(
+        self, stmt: RegularPolicyStatement, selector: Principal
+    ) -> dict[str, object] | None:
+        """Match OKE workload identity selectors and return confidence/evidence details."""
+        namespace = self._normalize_principal_field(selector.get('workload_namespace'))
+        service_account = self._normalize_principal_field(selector.get('workload_service_account'))
+        cluster_id = self._normalize_principal_field(selector.get('workload_cluster_id'))
+        allow_type_only = bool(self._normalize_principal_field(selector.get('principal_type')))
+        if not any([namespace, service_account, cluster_id]) and not allow_type_only:
+            return None
+        return self._condition_principal_match_details(
+            stmt,
+            selector,
+            required_checks=[
+                ('request.principal.type', 'workload'),
+                ('request.principal.namespace', namespace),
+                ('request.principal.service_account', service_account),
+                ('request.principal.cluster_id', cluster_id),
+            ],
+            confidence_identity_lefts={
+                'request.principal.type',
+                'request.principal.namespace',
+                'request.principal.service_account',
+                'request.principal.cluster_id',
+            },
+            match_confidence_reason=(
+                'Matched requested OKE workload identity evidence in the where-clause; residual conditions, if any, '
+                'were not evaluated as part of workload identity identity matching.'
+            ),
+            allow_type_only=True,
+        )
 
     def _resource_principal_match_confidence(self, stmt: RegularPolicyStatement, selector: Principal) -> str | None:
         """Match resource-principal selectors against any-user/any-group condition evidence."""
@@ -661,6 +722,8 @@ class PolicyAnalysisRepository:
         principal_type = self._normalize_principal_field(selector.get('principal_type'))
         if principal_type in {'resource-principal', 'resource_principal', 'workload-principal', 'workload_principal'}:
             return self._resource_principal_match_details(stmt, selector)
+        if principal_type in {'oke-workload-identity', 'oke_workload_identity'}:
+            return self._oke_workload_identity_match_details(stmt, selector)
         if self._identity_principal_matches_statement(stmt, selector):
             return {'match_confidence': 'matched'}
         return None
@@ -798,6 +861,7 @@ class PolicyAnalysisRepository:
                 statement['conditions_where_clause'] = conditions
                 statement['conditions_parsed_structure'] = format_condition_structure_summary(structure)
                 statement['condition_atoms'] = structure.get('atoms', [])
+            TagBasedPolicyService.enrich_statement(statement)
 
         for dynamic_group in self.dynamic_groups or []:
             if not isinstance(dynamic_group, dict):
@@ -1333,8 +1397,14 @@ class PolicyAnalysisRepository:
             normalized = self.normalizer.normalize(
                 statement_text=statement['statement_text'], statement_type='regular', base_fields=base
             )
+            policy_tags = {
+                'policy_tags': policy.get('tags', {}),
+                'policy_freeform_tags': policy.get('freeform_tags', {}),
+                'policy_defined_tags': policy.get('defined_tags', {}),
+            }
             if isinstance(normalized, dict) and not normalized.get('parsed', True):
                 statement_dict = dict(statement)
+                statement_dict.update(policy_tags)
                 statement_dict['action'] = 'unknown'
                 statement_dict['parsed'] = False
                 statement_dict['valid'] = False
@@ -1345,6 +1415,8 @@ class PolicyAnalysisRepository:
                 logger.debug(f'Full invalid statement data: {statement_dict}')
                 self.regular_statements.append(statement_dict)
                 return False
+            normalized.update(policy_tags)
+            TagBasedPolicyService.enrich_statement(normalized)
             # Build principals first (raw subject), resolve OCIDs, then rebuild principals
             # so they reflect resolved domain/name tuples.
             self._build_principals_from_statement(normalized)
@@ -2349,12 +2421,30 @@ class PolicyAnalysisRepository:
 
         # Apply regular search - AND all provided fields except fuzzy search
         results = []
+        tag_filter_keys = TAG_FILTER_FIELDS & set(filters)
 
         for stmt in candidate_statements:
             match = True
 
             for key, values in filters.items():
-                if key == 'principal_key':
+                if key in TAG_FILTER_FIELDS:
+                    if key != sorted(tag_filter_keys)[0]:
+                        continue
+                    if not TagBasedPolicyService.matches_tag_filters(stmt, filters):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to tag condition filter mismatch')
+                        match = False
+                        break
+                elif key == 'condition_atom_terms':
+                    if not TagBasedPolicyService.matches_condition_atom_terms(stmt, values):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to condition atom term mismatch')
+                        match = False
+                        break
+                elif key in POLICY_TAG_FILTER_FIELDS:
+                    if not TagBasedPolicyService.matches_policy_metadata_tags(stmt, key, values):
+                        logger.debug(f'Rejecting {stmt.get("policy_name")} due to policy metadata tag mismatch')
+                        match = False
+                        break
+                elif key == 'principal_key':
                     raw_values = values if isinstance(values, list) else [values]
                     expected_keys = {str(v).strip() for v in raw_values if str(v).strip()}
                     if not expected_keys:

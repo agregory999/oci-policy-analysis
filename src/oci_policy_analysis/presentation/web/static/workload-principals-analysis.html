@@ -20,16 +20,54 @@
       #entitiesTable tbody input[type="checkbox"] {
         cursor: pointer;
       }
+
+      .policy-context-menu {
+        position: fixed;
+        z-index: 1200;
+        min-width: 220px;
+        background: #ffffff;
+        border: 1px solid var(--oci-line);
+        border-radius: 10px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+        padding: 0.3rem;
+      }
+
+      .policy-context-menu[hidden] {
+        display: none;
+      }
+
+      .policy-context-menu button {
+        display: block;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        text-align: left;
+        font-size: 0.85rem;
+        color: #2f2a27;
+        padding: 0.45rem 0.55rem;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .policy-context-menu button:hover:not(:disabled) {
+        background: #fdf1ef;
+      }
+
+      .policy-context-menu button:disabled {
+        color: #9ca3af;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
     <div class="top-row has-fixed-help">
-      <header class="app-masthead" data-help-title="Workload Principals Analysis" data-help-body="Analyze resource and instance principal policy coverage by dynamic group or any-user/any-group subjects and inspect parsed rule/where structures.">
+      <header class="app-masthead" data-help-title="Workload Principals Analysis" data-help-body="Analyze workload principal policy coverage by dynamic group or any-user/any-group subjects and inspect parsed rule/where structures.">
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
           <div>
             <h1>Workload Principals Analysis</h1>
-            <p>Dynamic Groups + Resource Principals + Parsed Conditions</p>
+            <p>Dynamic Groups + Workload Identities + Parsed Conditions</p>
           </div>
         </div>
         <div class="policy-toolbar">
@@ -48,32 +86,54 @@
       <div id="topAnalysisRow" class="layout-row layout-row-4">
         <div class="card">
           <h3 class="section-heading">Filters</h3>
-          <div class="dynamic-group-filter-grid">
-            <div class="dynamic-group-filter-row">
-              <label for="principalsStyle">Resource Principal Type</label>
-              <select id="principalsStyle" data-help-title="Resource Principal Type" data-help-body="Switch between Dynamic Group and any-user/any-group subject analysis modes.">
-                <option>Dynamic Group</option>
-                <option>any-user</option>
-                <option>any-group</option>
-                <option>any-user / any-group</option>
-              </select>
+          <div class="dynamic-group-filter-grid workload-principals-filter-grid">
+            <div class="workload-filter-row workload-filter-primary-row">
+              <div class="dynamic-group-filter-row workload-filter-type">
+                <label for="principalsStyle">Workload Type</label>
+                <select id="principalsStyle" data-help-title="Workload Type" data-help-body="Switch between Dynamic Group, any-user/any-group, and OKE workload identity analysis modes.">
+                  <option>Dynamic Group</option>
+                  <option>any-user</option>
+                  <option>any-group</option>
+                  <option>any-user / any-group</option>
+                  <option>OKE Workload Identity</option>
+                </select>
+              </div>
+              <div class="dynamic-group-filter-row workload-filter-text">
+                <label for="textFilter">Text Filter</label>
+                <input id="textFilter" placeholder="Text Filter" data-help-title="Text Filter" data-help-body="Filter by matching rule (Dynamic Group mode) or statement text (non-Dynamic Group mode)." />
+              </div>
+              <button id="clearBtn" class="ghost workload-filter-clear" type="button" data-help-title="Clear filters" data-help-body="Reset all filters to defaults and rerun analysis.">Clear</button>
             </div>
-            <div class="dynamic-group-filter-row">
-              <label for="resourceType">Resource Type</label>
-              <select id="resourceType" data-help-title="Resource Type" data-help-body="In non-Dynamic Group mode, restrict statements using request.principal.type values from where clauses (for example type autonomousdatabase in ocid1.autonomousdatabase.xx.yy.zz).">
-                <option>Any</option>
-              </select>
+            <div class="workload-filter-row workload-filter-resource-row">
+              <div class="dynamic-group-filter-row workload-filter-resource">
+                <label for="resourceType">Resource Type</label>
+                <select id="resourceType" data-help-title="Resource Type" data-help-body="In non-Dynamic Group mode, restrict statements using request.principal.type values from where clauses (for example type autonomousdatabase in ocid1.autonomousdatabase.xx.yy.zz).">
+                  <option>Any</option>
+                </select>
+              </div>
+              <div class="dynamic-group-filter-row workload-filter-resource">
+                <label for="resourceCompartmentOcid">Resource Compartment OCID</label>
+                <input id="resourceCompartmentOcid" placeholder="ocid1.compartment..." data-help-title="Resource Compartment OCID" data-help-body="In any-user or any-group mode, filter statements by resource compartment OCID text in the where clause." />
+              </div>
             </div>
-            <div class="dynamic-group-filter-row">
-              <label for="resourceCompartmentOcid">Resource Compartment OCID</label>
-              <input id="resourceCompartmentOcid" placeholder="ocid1.compartment..." data-help-title="Resource Compartment OCID" data-help-body="In any-user or any-group mode, filter statements by resource compartment OCID text in the where clause." />
-            </div>
-            <div class="dynamic-group-filter-row">
-              <label for="textFilter">Text Filter</label>
-              <input id="textFilter" placeholder="Text Filter" data-help-title="Text Filter" data-help-body="Filter by matching rule (Dynamic Group mode) or statement text (non-Dynamic Group mode)." />
+            <div class="workload-filter-row workload-filter-oke-row">
+              <div class="dynamic-group-filter-row workload-filter-oke">
+                <label for="okeNamespace">OKE Namespace</label>
+                <input id="okeNamespace" list="okeNamespaces" placeholder="finance" data-help-title="OKE Namespace" data-help-body="Filter OKE workload identity statements by request.principal.namespace. Text entry remains supported." />
+                <datalist id="okeNamespaces"></datalist>
+              </div>
+              <div class="dynamic-group-filter-row workload-filter-oke">
+                <label for="okeServiceAccount">OKE Service Account</label>
+                <input id="okeServiceAccount" list="okeServiceAccounts" placeholder="financesa" data-help-title="OKE Service Account" data-help-body="Filter OKE workload identity statements by request.principal.service_account. Text entry remains supported." />
+                <datalist id="okeServiceAccounts"></datalist>
+              </div>
+              <div class="dynamic-group-filter-row workload-filter-oke">
+                <label for="okeClusterId">OKE Cluster OCID</label>
+                <input id="okeClusterId" list="okeClusterIds" placeholder="ocid1.cluster..." data-help-title="OKE Cluster OCID" data-help-body="Filter OKE workload identity statements by request.principal.cluster_id. Text entry remains supported." />
+                <datalist id="okeClusterIds"></datalist>
+              </div>
             </div>
           </div>
-          <div class="dynamic-group-actions"><button id="runBtn" data-help-title="Run analysis" data-help-body="Load entities and policy statements using the selected mode and filters.">Apply</button><button id="clearBtn" class="ghost" data-help-title="Clear filters" data-help-body="Reset all filters to defaults and rerun analysis.">Clear</button></div>
         </div>
 
         <div id="entitiesCard" class="card layout-col-span-3">
@@ -103,6 +163,10 @@
           <div class="inspector-body custom-scrollbar" data-help-title="Statement details inspector" data-help-body="Displays normalized and parsed fields for the selected policy row."><div id="inspectorEmpty" class="inspector-empty">No policy selected.</div><table id="inspectorTable" class="inspector-table" style="display:none;"><tbody></tbody></table></div>
         </aside>
       </div>
+
+      <div id="policyContextMenu" class="policy-context-menu" hidden>
+        <button id="sendConditionToTesterBtn" type="button">Send condition to Condition Tester</button>
+      </div>
     </main>
     <script src="/shared-formatters.js"></script>
     <script src="/policy-statement-inspector.js"></script>
@@ -110,6 +174,18 @@
       const principalsStyleEl = document.getElementById('principalsStyle');
       const resourceTypeEl = document.getElementById('resourceType');
       const resourceCompartmentOcidEl = document.getElementById('resourceCompartmentOcid');
+      const filtersGridEl = document.querySelector('.workload-principals-filter-grid');
+      const primaryFilterRowEl = document.querySelector('.workload-filter-primary-row');
+      const textFilterRowEl = document.querySelector('.workload-filter-text');
+      const clearFilterBtnEl = document.getElementById('clearBtn');
+      const resourceFilterRowEl = document.querySelector('.workload-filter-resource-row');
+      const okeFilterRowEl = document.querySelector('.workload-filter-oke-row');
+      const okeNamespaceEl = document.getElementById('okeNamespace');
+      const okeServiceAccountEl = document.getElementById('okeServiceAccount');
+      const okeClusterIdEl = document.getElementById('okeClusterId');
+      const okeNamespacesEl = document.getElementById('okeNamespaces');
+      const okeServiceAccountsEl = document.getElementById('okeServiceAccounts');
+      const okeClusterIdsEl = document.getElementById('okeClusterIds');
       const textFilterEl = document.getElementById('textFilter');
       const entitiesCard = document.getElementById('entitiesCard');
       const entityCount = document.getElementById('entityCount');
@@ -124,6 +200,8 @@
       const inspectorEmpty = document.getElementById('inspectorEmpty');
       const inspectorTable = document.getElementById('inspectorTable');
       const inspectorTableBody = document.querySelector('#inspectorTable tbody');
+      const policyContextMenu = document.getElementById('policyContextMenu');
+      const sendConditionToTesterBtn = document.getElementById('sendConditionToTesterBtn');
       const dynamicGroupInspector = document.getElementById('dynamicGroupInspector');
       const dynamicGroupInspectorTitle = document.getElementById('dynamicGroupInspectorTitle');
       const dynamicGroupInspectorEmpty = document.getElementById('dynamicGroupInspectorEmpty');
@@ -139,10 +217,14 @@
 
       const DG_BASIC = ['Domain','DG Name','Matching Rule','In Use'];
       let entityRows = []; let selectedEntityIndexes = new Set(); let currentPolicies = [];
+      let contextMenuRow = null;
       let resourceTypeOptions = ['Any'];
+      let workloadIdentityOptions = { namespaces: [], service_accounts: [], cluster_ids: [] };
+      const CONDITION_TESTER_STORAGE_KEY = 'ociConditionTesterClause';
       const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
       const dgCols = () => DG_BASIC;
       const isDynamicGroupMode = () => principalsStyleEl.value === 'Dynamic Group';
+      const isOkeMode = () => principalsStyleEl.value === 'OKE Workload Identity';
 
       function setContextHelp(title, body) {
         if (contextHelpTitle) contextHelpTitle.textContent = title || defaultContextHelp.title;
@@ -170,6 +252,17 @@
         }
         const titleKey = String(key || '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         return row?.[key] ?? row?.[titleKey] ?? '';
+      }
+
+      function conditionTextForRow(row){
+        return String(
+          getRowValue(row, 'conditions_where_clause') ||
+          getRowValue(row, 'Conditions (where clause)') ||
+          getRowValue(row, 'Conditions (Where Clause)') ||
+          getRowValue(row, 'conditions') ||
+          getRowValue(row, 'Conditions') ||
+          ''
+        ).trim();
       }
 
       const inspector = window.createPolicyStatementInspector({
@@ -219,7 +312,41 @@
 
       function renderPolicies(){
         resultsBody.innerHTML = currentPolicies.map((p,i)=>`<tr data-row-id="${i+1}"><td>${esc(formatPolicyHybrid(p))}</td><td>${esc(p['Statement Text'])}</td><td>${esc(p['Conditions (parsed structure)'] || p.conditions_parsed_structure || '')}</td><td>${esc(p['Effective Path'])}</td><td>${esc(formatVerbResourcePermission(p))}</td><td>${esc(formatConfidence(p))}</td><td>${esc(p['Valid'])}</td></tr>`).join('');
-        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> tr.addEventListener('click', ()=>{ closeDynamicGroupInspector(); inspector.setInspector(currentPolicies[Number(tr.dataset.rowId)-1]); }));
+        [...resultsBody.querySelectorAll('tr')].forEach((tr)=> {
+          const row = currentPolicies[Number(tr.dataset.rowId)-1];
+          tr.addEventListener('click', ()=>{ closeDynamicGroupInspector(); inspector.setInspector(row); });
+          tr.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            openRowContextMenu(event, row);
+          });
+        });
+      }
+
+      function hideRowContextMenu() {
+        if (policyContextMenu) {
+          policyContextMenu.hidden = true;
+        }
+        contextMenuRow = null;
+      }
+
+      function openRowContextMenu(event, row) {
+        if (!policyContextMenu || !sendConditionToTesterBtn) return;
+        contextMenuRow = row || null;
+
+        const conditionText = conditionTextForRow(row);
+        sendConditionToTesterBtn.disabled = !conditionText;
+        sendConditionToTesterBtn.textContent = conditionText
+          ? 'Send condition to Condition Tester'
+          : 'No condition available for this row';
+
+        const menuWidth = 240;
+        const menuHeight = 44;
+        const x = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8));
+        const y = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8));
+
+        policyContextMenu.style.left = `${x}px`;
+        policyContextMenu.style.top = `${y}px`;
+        policyContextMenu.hidden = false;
       }
 
       function selectedDynamicGroupsPayload(){
@@ -270,8 +397,20 @@
 
       function normalizeModeUi(){
         const dgMode = isDynamicGroupMode();
-        resourceTypeEl.disabled = dgMode;
-        resourceCompartmentOcidEl.disabled = dgMode;
+        const okeMode = isOkeMode();
+        filtersGridEl?.classList.toggle('dg-mode', dgMode);
+        filtersGridEl?.classList.toggle('resource-mode', !dgMode && !okeMode);
+        filtersGridEl?.classList.toggle('oke-mode', okeMode);
+        resourceTypeEl.disabled = dgMode || okeMode;
+        resourceCompartmentOcidEl.disabled = dgMode || okeMode;
+        okeNamespaceEl.disabled = !okeMode;
+        okeServiceAccountEl.disabled = !okeMode;
+        okeClusterIdEl.disabled = !okeMode;
+        primaryFilterRowEl?.classList.toggle('dg-mode', dgMode);
+        textFilterRowEl.style.display = dgMode ? 'none' : '';
+        clearFilterBtnEl.style.display = dgMode ? 'none' : '';
+        okeFilterRowEl.style.display = okeMode ? '' : 'none';
+        resourceFilterRowEl.style.display = dgMode || okeMode ? 'none' : '';
         entitiesCard.style.display = dgMode ? '' : 'none';
         topAnalysisRow?.classList.toggle('layout-row-4', dgMode);
         topAnalysisRow?.classList.toggle('layout-row-1', !dgMode);
@@ -323,6 +462,27 @@
         }
       }
 
+      function populateWorkloadIdentityValues(payload){
+        workloadIdentityOptions = {
+          namespaces: Array.from(new Set((payload?.namespaces || []).map((v)=>String(v || '').trim()).filter(Boolean))).sort((a, b)=>a.localeCompare(b)),
+          service_accounts: Array.from(new Set((payload?.service_accounts || []).map((v)=>String(v || '').trim()).filter(Boolean))).sort((a, b)=>a.localeCompare(b)),
+          cluster_ids: Array.from(new Set((payload?.cluster_ids || []).map((v)=>String(v || '').trim()).filter(Boolean))).sort((a, b)=>a.localeCompare(b)),
+        };
+        okeNamespacesEl.innerHTML = workloadIdentityOptions.namespaces.map((v)=>`<option value="${esc(v)}"></option>`).join('');
+        okeServiceAccountsEl.innerHTML = workloadIdentityOptions.service_accounts.map((v)=>`<option value="${esc(v)}"></option>`).join('');
+        okeClusterIdsEl.innerHTML = workloadIdentityOptions.cluster_ids.map((v)=>`<option value="${esc(v)}"></option>`).join('');
+      }
+
+      async function loadWorkloadIdentityValues(){
+        try {
+          const resp = await fetch('/metadata/workload-identity-values');
+          const data = await resp.json();
+          populateWorkloadIdentityValues(data);
+        } catch (_err) {
+          populateWorkloadIdentityValues({});
+        }
+      }
+
       async function loadEntities(){
         selectedEntityIndexes.clear();
         entityRows = [];
@@ -333,10 +493,7 @@
           return;
         }
 
-        const params = new URLSearchParams();
-        const search = (textFilterEl.value || '').trim();
-        if (search) params.set('matching_rule', search);
-        const resp = await fetch('/entities/dynamic-groups?' + params.toString());
+        const resp = await fetch('/entities/dynamic-groups');
         const data = await resp.json();
         entityRows = data.dynamic_groups || [];
         const matched = Number(data.matched || entityRows.length || 0);
@@ -349,6 +506,17 @@
         let payload = {};
         if (isDynamicGroupMode()) {
           payload = { exact_dynamic_groups: selectedDynamicGroupsPayload() };
+        } else if (isOkeMode()) {
+          payload = {
+            subject: 'any-user|any-group',
+            principal_style: 'OKE Workload Identity',
+          };
+          const ns = String(okeNamespaceEl.value || '').trim();
+          const sa = String(okeServiceAccountEl.value || '').trim();
+          const clusterId = String(okeClusterIdEl.value || '').trim();
+          if (ns) payload.workload_namespace = ns;
+          if (sa) payload.workload_service_account = sa;
+          if (clusterId) payload.workload_cluster_id = clusterId;
         } else {
           payload = { subject: modeSubjectValue() };
           const selectedResourceType = String(resourceTypeEl.value || '').trim();
@@ -372,24 +540,44 @@
         await loadPolicies();
       }
 
-      document.getElementById('runBtn').addEventListener('click', runAnalysis);
       document.getElementById('clearBtn').addEventListener('click', ()=>{
         principalsStyleEl.value='Dynamic Group';
         resourceTypeEl.value='Any';
         resourceCompartmentOcidEl.value='';
+        okeNamespaceEl.value='';
+        okeServiceAccountEl.value='';
+        okeClusterIdEl.value='';
         textFilterEl.value='';
         runAnalysis();
       });
       document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
       document.getElementById('closeDynamicGroupInspectorBtn').addEventListener('click', closeDynamicGroupInspector);
+      sendConditionToTesterBtn.addEventListener('click', () => {
+        if (!contextMenuRow) return;
+        const conditionText = conditionTextForRow(contextMenuRow);
+        if (!conditionText) return;
+        sessionStorage.setItem(CONDITION_TESTER_STORAGE_KEY, conditionText);
+        hideRowContextMenu();
+        window.location.href = '/condition-tester.html?from=workload-principals-analysis';
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!policyContextMenu || policyContextMenu.hidden) return;
+        if (!policyContextMenu.contains(event.target)) {
+          hideRowContextMenu();
+        }
+      });
       principalsStyleEl.addEventListener('change', runAnalysis);
       resourceTypeEl.addEventListener('change', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
       resourceCompartmentOcidEl.addEventListener('input', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
+      okeNamespaceEl.addEventListener('input', ()=>{ if (isOkeMode()) loadPolicies(); });
+      okeServiceAccountEl.addEventListener('input', ()=>{ if (isOkeMode()) loadPolicies(); });
+      okeClusterIdEl.addEventListener('input', ()=>{ if (isOkeMode()) loadPolicies(); });
       textFilterEl.addEventListener('input', ()=>{ if (!isDynamicGroupMode()) loadPolicies(); });
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
-      loadResourceTypes().then(runAnalysis);
+      Promise.all([loadResourceTypes(), loadWorkloadIdentityValues()]).then(runAnalysis);
     </script>
       <script src="/app-version.js"></script>
       <script src="/auth-gate.js"></script>

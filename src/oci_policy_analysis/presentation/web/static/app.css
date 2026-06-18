@@ -1687,6 +1687,42 @@ html {
   grid-template-columns: 1fr;
 }
 
+.workload-principals-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.workload-filter-row {
+  display: grid;
+  gap: 0.55rem 0.75rem;
+  align-items: end;
+}
+
+.workload-filter-primary-row {
+  grid-template-columns: minmax(210px, 0.9fr) minmax(240px, 1.4fr) auto;
+}
+
+.workload-filter-primary-row.dg-mode {
+  grid-template-columns: minmax(210px, 1fr);
+}
+
+.workload-filter-resource-row {
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+}
+
+.workload-filter-oke-row {
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
+.workload-filter-row .dynamic-group-filter-row {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.workload-filter-clear {
+  align-self: end;
+}
+
 .dynamic-group-actions {
   margin-top: 0.7rem;
   display: flex;
@@ -2079,6 +2115,12 @@ html {
   }
 
   .users-groups-top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workload-filter-primary-row,
+  .workload-filter-resource-row,
+  .workload-filter-oke-row {
     grid-template-columns: 1fr;
   }
 }

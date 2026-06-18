@@ -75,6 +75,9 @@ Additional policy intelligence methods or analytics may be added to this post-lo
 
 - **Adding new tools**: MCP tools should be thin adapters over application services. Add or extend service methods first, then register the MCP tool around that service call. New analytics or actions should be documented here and in `mcp.md` prior to implementation.
 - **UI-to-MCP integration**: The Embedded MCP Tab can be extended to monitor new server actions, display tool health/status, or even expose limited UI for tool-specific queries directly in the application.
+- **Tag-based search**: `policy_search` accepts parsed tag/atom/policy-tag
+  filters, and `tag_based_policy_search` is the guided adapter over
+  `TagBasedPolicyService`.
 
 ---
 

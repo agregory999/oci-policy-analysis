@@ -126,9 +126,11 @@ def test_mcp_tool_surface_is_compact_meta_tools_only():
         'cross_tenancy_search',
         'data_operations',
         'identity_search',
+        'oke_workload_identity_search',
         'policy_history_search',
         'policy_search',
         'policy_search_set',
+        'tag_based_policy_search',
     ]
 
 
@@ -141,6 +143,8 @@ def test_packaged_mcp_tools_artifact_matches_compact_surface():
     tools = data['result']['tools']
     assert [tool['name'] for tool in tools] == [
         'policy_search',
+        'tag_based_policy_search',
+        'oke_workload_identity_search',
         'policy_search_set',
         'policy_history_search',
         'identity_search',
@@ -162,6 +166,44 @@ def test_policy_search_returns_bounded_simple_rows(monkeypatch):
     assert response['statements'][0]['policy_name'] == 'PolicyA'
     assert response['statements'][0]['match_confidence'] == 'exact'
     assert service.last_policy_filters['resource'] == ['repos']
+
+
+def test_oke_workload_identity_search_routes_through_policy_search(monkeypatch):
+    service = _FakeQueryService(statements=[_statement(match_confidence='exact')])
+    monkeypatch.setattr(mcp_server, '_query_service', lambda: service)
+
+    response = mcp_server.oke_workload_identity_search.fn(
+        workload_namespace='finance',
+        workload_service_account='financesa',
+        workload_cluster_id='ocid1.cluster.oc1..oke1',
+    )
+
+    assert response['total_count'] == 1
+    assert service.last_policy_filters['principal']['principal_type'] == 'oke-workload-identity'
+    assert service.last_policy_filters['principal']['workload_namespace'] == 'finance'
+    assert service.last_policy_filters['principal']['workload_service_account'] == 'financesa'
+    assert service.last_policy_filters['principal']['workload_cluster_id'] == 'ocid1.cluster.oc1..oke1'
+
+
+def test_policy_search_accepts_tag_and_atom_filters(monkeypatch):
+    service = _FakeQueryService(statements=[_statement(tag_conditions=[{'tag_namespace': 'Ops'}])])
+    monkeypatch.setattr(mcp_server, '_query_service', lambda: service)
+
+    response = mcp_server.policy_search.fn(
+        mode='advanced',
+        filters={
+            'tag_namespace': ['Ops'],
+            'tag_key': ['Env'],
+            'condition_atom_terms': ['target.resource.tag'],
+            'policy_tag': ['owner'],
+        },
+    )
+
+    assert response['total_count'] == 1
+    assert service.last_policy_filters['tag_namespace'] == ['Ops']
+    assert service.last_policy_filters['tag_key'] == ['Env']
+    assert service.last_policy_filters['condition_atom_terms'] == ['target.resource.tag']
+    assert service.last_policy_filters['policy_tag'] == ['owner']
 
 
 def test_mcp_call_logging_is_info_only_with_full_input_and_truncated_output(monkeypatch):

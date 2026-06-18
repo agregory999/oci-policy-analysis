@@ -34,7 +34,7 @@ from oci.signer import load_private_key_from_file
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 # Global logger for this module
-logger = get_logger(component='ai_repo')
+logger = get_logger(component='core.repo.ai_repo')
 
 
 class AI:

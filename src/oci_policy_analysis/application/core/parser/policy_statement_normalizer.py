@@ -50,7 +50,7 @@ from oci_policy_analysis.application.core.parser.generated.policy_parser import 
 from oci_policy_analysis.application.core.parser.policy_subject_parser import parse_policy_subjects
 from oci_policy_analysis.application.core.support.logger import get_logger
 
-logger = get_logger(component='policy_parser')
+logger = get_logger(component='core.parser.policy_statement_normalizer')
 
 
 class LoggingErrorListener(ErrorListener):

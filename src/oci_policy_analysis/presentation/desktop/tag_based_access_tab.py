@@ -46,10 +46,10 @@ from tkinter import messagebox, ttk
 
 from oci_policy_analysis.application.core.parser import (
     TagCondition,
-    collect_tag_conditions,
 )
 from oci_policy_analysis.application.core.support.helpers import for_display_tag_based_policy_row
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import DataTable
 
@@ -130,6 +130,21 @@ CONDITION_DETAIL_COLUMN_WIDTHS = {
     'Subexpression': 360,
 }
 
+TAG_OPERATOR_FILTER_VALUES = [
+    'Any',
+    '=',
+    '!=',
+    'in',
+    'not in',
+    '>',
+    '<',
+    '>=',
+    '<=',
+    'before',
+    'after',
+    'between',
+]
+
 
 class TagBasedAccessTab(BaseUITab):
     """Advanced UI tab for discovering and designing tag-based access.
@@ -183,7 +198,7 @@ class TagBasedAccessTab(BaseUITab):
         # identifier is stored on each statement row so that selection
         # callbacks can look up the matching condition elements without
         # recomputing the parse.
-        self._statement_to_conditions: dict[str, list[TagCondition]] = {}
+        self._statement_to_conditions: dict[str, list[dict[str, object]]] = {}
 
         # --- Internal state ---
         # One row per policy statement that has a tag-based condition.
@@ -199,6 +214,9 @@ class TagBasedAccessTab(BaseUITab):
         self.tag_namespace_var = tk.StringVar()
         self.tag_key_var = tk.StringVar()
         self.tag_value_var = tk.StringVar()
+        self.tag_operator_var = tk.StringVar(value='Any')
+        self.access_semantics_var = tk.StringVar(value='Any')
+        self.condition_atom_terms_var = tk.StringVar()
         self.access_type_var = tk.StringVar(value='Any')
         # Controls whether parsed-statement columns are visible in the
         # top-level statement table.
@@ -278,28 +296,23 @@ class TagBasedAccessTab(BaseUITab):
         self._statement_to_conditions = {}
         self._all_condition_rows = []
 
+        service_filters = self._current_service_filters()
+        source_statements = (
+            repo.filter_policy_statements(service_filters) if service_filters else repo.regular_statements
+        )
+
         all_statements: list[tuple[str, dict]] = []
-        for idx, stmt in enumerate(repo.regular_statements, start=1):
+        for idx, stmt in enumerate(source_statements, start=1):
             all_statements.append((f's{idx}', stmt))
         for pidx, pst in enumerate(prospective_statements, start=1):
             all_statements.append((f'p{pidx}', pst))
 
         for stmt_id, stmt in all_statements:
+            TagBasedPolicyService.enrich_statement(stmt)
             cond_text = str(stmt.get('conditions') or '').strip()
-            if not cond_text or '.tag.' not in cond_text:
+            tag_conds = [dict(cond) for cond in (stmt.get('tag_conditions') or []) if isinstance(cond, dict)]
+            if not tag_conds:
                 continue
-
-            # Use the dedicated TagConditionCollector helper to parse
-            # the where-clause. Any syntax errors are handled inside the
-            # helper; we only log a brief message here for context.
-            try:
-                structure, tag_conds = collect_tag_conditions(cond_text)
-            except Exception:  # pragma: no cover - defensive, helper already logs
-                logger.info(
-                    'In populate_data: TagConditionCollector failed; using raw condition as structure',
-                    exc_info=True,
-                )
-                structure, tag_conds = cond_text, []
 
             # Build a display-friendly row using the shared helper so the
             # column names remain consistent with other tabs.
@@ -321,7 +334,7 @@ class TagBasedAccessTab(BaseUITab):
                 'Verb': display_row.get('Verb') or '',
                 'Resource': display_row.get('Resource') or '',
                 'Raw Condition': cond_text,
-                'Parsed Condition Structure': structure or cond_text,
+                'Parsed Condition Structure': str(stmt.get('conditions_parsed_structure') or cond_text),
                 '_Statement ID': stmt_id,
             }
             statement_rows.append(row)
@@ -456,18 +469,74 @@ class TagBasedAccessTab(BaseUITab):
         bottom_left = ttk.Frame(filter_row_bottom)
         bottom_left.grid(row=0, column=0, sticky='w')
 
+        ttk.Label(bottom_left, text='Semantics:').grid(row=0, column=0, padx=3, pady=2, sticky='w')
+        semantics_combo = ttk.Combobox(
+            bottom_left,
+            textvariable=self.access_semantics_var,
+            state='readonly',
+            width=26,
+            values=[
+                'Any',
+                'requestor_group_tag',
+                'requestor_compartment_tag',
+                'target_resource_tag',
+                'target_compartment_tag',
+            ],
+        )
+        semantics_combo.grid(row=0, column=1, padx=3, pady=2, sticky='w')
+        self.add_context_help(
+            semantics_combo,
+            'Semantic grouping for the parsed tag condition. Requestor values constrain the caller principal; '
+            'target values constrain the resource or its compartment. Use this when you know the access pattern '
+            'you want, but not the exact Oracle condition variable.',
+        )
+
+        ttk.Label(bottom_left, text='Operator:').grid(row=0, column=2, padx=3, pady=2, sticky='w')
+        operator_combo = ttk.Combobox(
+            bottom_left,
+            textvariable=self.tag_operator_var,
+            state='readonly',
+            width=10,
+            values=TAG_OPERATOR_FILTER_VALUES,
+        )
+        operator_combo.grid(row=0, column=3, padx=3, pady=2, sticky='w')
+        self.add_context_help(
+            operator_combo,
+            'Filter by the parsed condition operator. Choose Any to ignore operator. Common tag policies use =, !=, in, or not in.',
+        )
+
+        ttk.Label(bottom_left, text='Atom Terms:').grid(row=0, column=4, padx=3, pady=2, sticky='w')
+        atom_terms_entry = ttk.Entry(bottom_left, textvariable=self.condition_atom_terms_var, width=18)
+        atom_terms_entry.grid(row=0, column=5, padx=3, pady=2, sticky='w')
+        self.add_context_help(
+            atom_terms_entry,
+            'Broad parsed-condition search across atom left side, right side, operator, value type, evidence kind, and subexpression. '
+            'Use this when you are not sure the condition is a tag condition.',
+        )
+
+        controls_row = ttk.Frame(parent)
+        controls_row.pack(fill='x', padx=6, pady=(0, 4))
+        controls_row.columnconfigure(0, weight=1)
+        controls_left = ttk.Frame(controls_row)
+        controls_left.grid(row=0, column=0, sticky='w')
+
         # Simple trace wiring: any change to namespace/key/access type will
         # re-apply filters to the in-memory tag rows without re-scanning
         # policies.
         self.tag_namespace_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
         self.tag_key_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
         self.tag_value_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
+        self.tag_operator_var.trace_add('write', lambda *_: self.populate_data())
+        self.access_semantics_var.trace_add('write', lambda *_: self.populate_data())
+        self.condition_atom_terms_var.trace_add('write', lambda *_: self.populate_data())
         self.access_type_var.trace_add('write', lambda *_: self._apply_filters_and_refresh())
+        operator_combo.bind('<<ComboboxSelected>>', lambda _event: self.populate_data())
+        semantics_combo.bind('<<ComboboxSelected>>', lambda _event: self.populate_data())
 
         # Checkbox to toggle visibility of parsed-statement columns in the
         # statement overview table.
         parsed_chk = ttk.Checkbutton(
-            bottom_left,
+            controls_left,
             text='Show parsed statement',
             variable=self.show_parsed_statement_var,
             command=self._on_toggle_parsed_statement,
@@ -481,7 +550,7 @@ class TagBasedAccessTab(BaseUITab):
         # Prospective toggle mirrors the PoliciesTab experience so users can
         # include what-if statements authored in the Prospective editor.
         show_prospective_chk = ttk.Checkbutton(
-            bottom_left,
+            controls_left,
             text='Show Prospective',
             variable=self.show_prospective_var,
             command=self._on_toggle_prospective,
@@ -494,7 +563,7 @@ class TagBasedAccessTab(BaseUITab):
         )
 
         open_prospective_btn = ttk.Button(
-            bottom_left,
+            controls_left,
             text='Prospective Editor…',
             command=self._open_prospective_editor_from_tag_tab,
         )
@@ -511,6 +580,9 @@ class TagBasedAccessTab(BaseUITab):
         self.tag_namespace_var.set('')
         self.tag_key_var.set('')
         self.tag_value_var.set('')
+        self.tag_operator_var.set('Any')
+        self.access_semantics_var.set('Any')
+        self.condition_atom_terms_var.set('')
         self.access_type_var.set('Any')
         self._apply_filters_and_refresh()
 
@@ -556,20 +628,23 @@ class TagBasedAccessTab(BaseUITab):
             for cond in tag_conds:
                 condition_rows.append(
                     {
-                        'Condition ID': cond.condition_id,
+                        'Condition ID': self._cond_value(cond, 'condition_id'),
                         'Policy Name': first.get('Policy Name', ''),
                         'Effective Path': first.get('Effective Path', ''),
-                        'Access Type': cond.access_type,
-                        'Tag Namespace': cond.tag_namespace,
-                        'Tag Key': cond.tag_key,
-                        'Operator': cond.operator,
-                        'Value': cond.value,
-                        'Subexpression': cond.subexpression,
+                        'Access Type': self._cond_value(cond, 'access_type'),
+                        'Tag Namespace': self._cond_value(cond, 'tag_namespace'),
+                        'Tag Key': self._cond_value(cond, 'tag_key'),
+                        'Operator': self._cond_value(cond, 'operator'),
+                        'Value': self._cond_value(cond, 'value'),
+                        'Subexpression': self._cond_value(cond, 'subexpression'),
                     }
                 )
 
             logger.info(
-                f'Statement id={stmt_id} has {len(tag_conds)} tag conditions: {[c.condition_id for c in tag_conds]}'
+                'Statement id=%s has %d tag conditions: %s',
+                stmt_id,
+                len(tag_conds),
+                [self._cond_value(c, 'condition_id') for c in tag_conds],
             )
 
             self._condition_rows = condition_rows
@@ -816,7 +891,31 @@ class TagBasedAccessTab(BaseUITab):
 
         return prospective_like
 
-    def _condition_matches_active_filters(self, cond: TagCondition) -> bool:
+    def _current_service_filters(self) -> dict[str, list[str]]:
+        filters: dict[str, list[str]] = {}
+        if self.access_type_var.get().strip() and self.access_type_var.get().strip() != 'Any':
+            filters['tag_access_type'] = [self.access_type_var.get().strip()]
+        if self.tag_namespace_var.get().strip():
+            filters['tag_namespace'] = [self.tag_namespace_var.get().strip()]
+        if self.tag_key_var.get().strip():
+            filters['tag_key'] = [self.tag_key_var.get().strip()]
+        if self.tag_value_var.get().strip():
+            filters['tag_value'] = [self.tag_value_var.get().strip()]
+        if self.tag_operator_var.get().strip() and self.tag_operator_var.get().strip() != 'Any':
+            filters['tag_operator'] = [self.tag_operator_var.get().strip()]
+        if self.access_semantics_var.get().strip() and self.access_semantics_var.get().strip() != 'Any':
+            filters['tag_access_semantics'] = [self.access_semantics_var.get().strip()]
+        if self.condition_atom_terms_var.get().strip():
+            filters['condition_atom_terms'] = [self.condition_atom_terms_var.get().strip()]
+        return filters
+
+    @staticmethod
+    def _cond_value(cond: object, key: str) -> str:
+        if isinstance(cond, dict):
+            return str(cond.get(key) or '')
+        return str(getattr(cond, key, '') or '')
+
+    def _condition_matches_active_filters(self, cond: dict[str, object] | TagCondition) -> bool:
         """Return True if the TagCondition matches the current filters.
 
         Filters are applied against the parsed TagCondition fields:
@@ -830,36 +929,47 @@ class TagBasedAccessTab(BaseUITab):
         ns_filter = self.tag_namespace_var.get().strip().lower()
         key_filter = self.tag_key_var.get().strip().lower()
         value_filter = self.tag_value_var.get().strip().lower()
+        operator_filter = self.tag_operator_var.get().strip().lower()
+        if operator_filter == 'any':
+            operator_filter = ''
         access_filter = self.access_type_var.get().strip()
+        semantics_filter = self.access_semantics_var.get().strip()
 
         if access_filter and access_filter != 'Any':
-            if (cond.access_type or '') != access_filter:
+            if self._cond_value(cond, 'access_type') != access_filter:
+                return False
+        if semantics_filter and semantics_filter != 'Any':
+            if self._cond_value(cond, 'access_semantics') != semantics_filter:
                 return False
 
-        if ns_filter and ns_filter not in (cond.tag_namespace or '').lower():
+        if ns_filter and ns_filter not in self._cond_value(cond, 'tag_namespace').lower():
             return False
 
-        if key_filter and key_filter not in (cond.tag_key or '').lower():
+        if key_filter and key_filter not in self._cond_value(cond, 'tag_key').lower():
             return False
 
-        if value_filter and value_filter not in (cond.value or '').lower():
+        if value_filter and value_filter not in self._cond_value(cond, 'value').lower():
+            return False
+        if operator_filter and operator_filter not in self._cond_value(cond, 'operator').lower():
             return False
 
         return True
 
-    def _project_condition_row(self, stmt_row: dict[str, str], cond: TagCondition) -> dict[str, str]:
+    def _project_condition_row(
+        self, stmt_row: dict[str, str], cond: dict[str, object] | TagCondition
+    ) -> dict[str, str]:
         """Project a TagCondition into a flat row for the detail table."""
 
         return {
-            'Condition ID': cond.condition_id,
+            'Condition ID': self._cond_value(cond, 'condition_id'),
             'Policy Name': stmt_row.get('Policy Name', ''),
             'Effective Path': stmt_row.get('Effective Path', ''),
-            'Access Type': cond.access_type,
-            'Tag Namespace': cond.tag_namespace,
-            'Tag Key': cond.tag_key,
-            'Operator': cond.operator,
-            'Value': cond.value,
-            'Subexpression': cond.subexpression,
+            'Access Type': self._cond_value(cond, 'access_type'),
+            'Tag Namespace': self._cond_value(cond, 'tag_namespace'),
+            'Tag Key': self._cond_value(cond, 'tag_key'),
+            'Operator': self._cond_value(cond, 'operator'),
+            'Value': self._cond_value(cond, 'value'),
+            'Subexpression': self._cond_value(cond, 'subexpression'),
         }
 
     def _apply_filters_and_refresh(self) -> None:  # noqa: C901

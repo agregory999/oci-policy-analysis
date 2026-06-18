@@ -564,6 +564,53 @@
           </div>
         </details>
         <details style="margin-top:0.7rem;">
+          <summary style="cursor:pointer; font-weight:600;">Advanced: tag-based policy filters</summary>
+          <div class="advanced-helper-grid">
+            <div class="advanced-helper-card">
+              <h4>Tag Condition</h4>
+              <div class="advanced-helper-inline-row">
+                <label for="tagSemanticsFilter">Semantics</label>
+                <select id="tagSemanticsFilter" data-help-title="Tag semantics" data-help-body="Filter by normalized tag access pattern. Requestor values constrain the caller principal; target values constrain the resource or its compartment.">
+                  <option value="">Any</option>
+                  <option value="requestor_group_tag">requestor_group_tag</option>
+                  <option value="requestor_compartment_tag">requestor_compartment_tag</option>
+                  <option value="target_resource_tag">target_resource_tag</option>
+                  <option value="target_compartment_tag">target_compartment_tag</option>
+                </select>
+                <label for="tagOperatorFilter">Operator</label>
+                <select id="tagOperatorFilter" data-help-title="Tag operator" data-help-body="Filter by parsed tag condition operator. Common tag policies use =, !=, in, or not in.">
+                  <option value="">Any</option>
+                  <option value="=">=</option>
+                  <option value="!=">!=</option>
+                  <option value="in">in</option>
+                  <option value="not in">not in</option>
+                  <option value="&gt;">&gt;</option>
+                  <option value="&lt;">&lt;</option>
+                  <option value="&gt;=">&gt;=</option>
+                  <option value="&lt;=">&lt;=</option>
+                  <option value="before">before</option>
+                  <option value="after">after</option>
+                  <option value="between">between</option>
+                </select>
+              </div>
+              <div class="helper-text">Use these with regular filters like Verb, Resource, Permission, and Effective Path.</div>
+            </div>
+            <div class="advanced-helper-card">
+              <h4>Namespace / Key / Value</h4>
+              <div class="advanced-helper-inline-row">
+                <label for="tagNamespaceFilter">Namespace</label>
+                <input id="tagNamespaceFilter" placeholder="Operations" data-help-title="Tag namespace" data-help-body="Filter by parsed tag namespace. Example: Operations." />
+                <label for="tagKeyFilter">Key</label>
+                <input id="tagKeyFilter" placeholder="Environment" data-help-title="Tag key" data-help-body="Filter by parsed tag key. Example: Environment." />
+                <label for="tagValueFilter">Value</label>
+                <input id="tagValueFilter" placeholder="Prod" data-help-title="Tag value" data-help-body="Filter by parsed tag value. Example: Prod." />
+              </div>
+              <div class="helper-text">When several tag fields are entered, one parsed tag condition must match all of them.</div>
+            </div>
+          </div>
+          <div class="helper-text" style="margin-top:0.5rem;">After filtering, click a statement and check Statement Details for Tag-based Details and context warnings.</div>
+        </details>
+        <details style="margin-top:0.7rem;">
           <summary style="cursor:pointer; font-weight:600;">Advanced: raw JSON payload override</summary>
           <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
             <button id="loadJsonExampleBtn" class="ghost" style="margin-top:0;">Load Example JSON</button>
@@ -747,6 +794,11 @@
       const policyNameFilter = document.getElementById('policyNameFilter');
       const effectivePathFilter = document.getElementById('effectivePathFilter');
       const conditionsFilter = document.getElementById('conditionsFilter');
+      const tagSemanticsFilter = document.getElementById('tagSemanticsFilter');
+      const tagOperatorFilter = document.getElementById('tagOperatorFilter');
+      const tagNamespaceFilter = document.getElementById('tagNamespaceFilter');
+      const tagKeyFilter = document.getElementById('tagKeyFilter');
+      const tagValueFilter = document.getElementById('tagValueFilter');
       const validFilter = document.getElementById('validFilter');
       const tbody = document.querySelector('#resultsTable tbody');
       const summary = document.getElementById('summary');
@@ -932,6 +984,11 @@
         setIfPresent('policy_name', policyNameFilter.value);
         setIfPresent('effective_path', effectivePathFilter.value);
         setIfPresent('conditions', conditionsFilter.value);
+        setIfPresent('tag_access_semantics', tagSemanticsFilter.value);
+        setIfPresent('tag_operator', tagOperatorFilter.value);
+        setIfPresent('tag_namespace', tagNamespaceFilter.value);
+        setIfPresent('tag_key', tagKeyFilter.value);
+        setIfPresent('tag_value', tagValueFilter.value);
         if (validFilter.value === 'true') payload.valid = true;
         if (validFilter.value === 'false') payload.valid = false;
         return payload;
@@ -964,6 +1021,11 @@
           policy_name: String(policyNameFilter.value || '').trim(),
           effective_path: String(effectivePathFilter.value || '').trim(),
           conditions: String(conditionsFilter.value || '').trim(),
+          tag_access_semantics: String(tagSemanticsFilter.value || '').trim(),
+          tag_operator: String(tagOperatorFilter.value || '').trim(),
+          tag_namespace: String(tagNamespaceFilter.value || '').trim(),
+          tag_key: String(tagKeyFilter.value || '').trim(),
+          tag_value: String(tagValueFilter.value || '').trim(),
           valid: String(validFilter.value || '').trim(),
         };
       }
@@ -981,6 +1043,11 @@
         policyNameFilter.value = String(data.policy_name || '');
         effectivePathFilter.value = String(data.effective_path || '');
         conditionsFilter.value = String(data.conditions || '');
+        tagSemanticsFilter.value = String(data.tag_access_semantics || '');
+        tagOperatorFilter.value = String(data.tag_operator || '');
+        tagNamespaceFilter.value = String(data.tag_namespace || '');
+        tagKeyFilter.value = String(data.tag_key || '');
+        tagValueFilter.value = String(data.tag_value || '');
         validFilter.value = String(data.valid || '');
       }
 
@@ -1427,6 +1494,11 @@
         policyNameFilter.value = '';
         effectivePathFilter.value = '';
         conditionsFilter.value = '';
+        tagSemanticsFilter.value = '';
+        tagOperatorFilter.value = '';
+        tagNamespaceFilter.value = '';
+        tagKeyFilter.value = '';
+        tagValueFilter.value = '';
         validFilter.value = '';
         setFiltersJsonValue('');
         jsonOverrideArmed = false;

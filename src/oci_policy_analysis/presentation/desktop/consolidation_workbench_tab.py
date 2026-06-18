@@ -37,7 +37,7 @@ from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, D
 
 # Each instance will have self.logger for timing and info
 def get_module_logger():
-    return get_logger('ui.consolidation_workbench_tab')
+    return get_logger(component='consolidation_workbench_tab')
 
 
 # Locked/system policies whose statements are omitted from consolidation (by policy name)

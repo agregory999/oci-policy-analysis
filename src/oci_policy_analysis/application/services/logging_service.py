@@ -6,15 +6,15 @@ from dataclasses import dataclass
 
 from oci_policy_analysis.application.core.support.logger import get_logger, set_component_level, set_log_level
 
-LEGACY_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
+CANONICAL_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     # Core repo
     'data_repo': ('core.repo.policy_analysis_repository',),
     'reference_data_repo': ('core.repo.reference_data_repo',),
-    'ai_repo': ('core.repo.ai',),
+    'ai_repo': ('core.repo.ai_repo',),
     # Core engines/parsers
     'policy_intelligence': ('core.engine.policy_intelligence_engine',),
     'policy_simulation_engine': ('core.engine.policy_simulation_engine',),
-    'policy_parser': ('core.parser.policy_statement_normalizer',),
+    'policy_parser': ('core.parser.policy_statement_normalizer', 'core.parser.policy_subject_parser'),
     'policy_subject_parser': ('core.parser.policy_subject_parser',),
     # Application services
     'analysis_service': ('application.services.analysis',),
@@ -32,27 +32,27 @@ LEGACY_COMPONENT_ALIASES: dict[str, tuple[str, ...]] = {
     'settings_service': ('application.services.settings',),
     'simulation_service': ('application.services.simulation',),
     # Consumers
-    'web_routes': ('web.api.routes_core',),
-    'web_auth': ('web.auth',),
-    'mcp_server': ('mcp.server',),
-    'cli': ('cli.main',),
-    'main': ('ui.main',),
+    'web.api.routes_core': ('web_routes',),
+    'web.auth': ('web_auth',),
+    'mcp.server': ('mcp_server',),
+    'mcp_server': ('mcp_server',),
+    'cli.main': ('cli',),
+    'cli': ('cli',),
+    'ui.main': ('main',),
+    'main': ('main',),
+    'ui.consolidation_workbench_tab': ('consolidation_workbench_tab',),
 }
 
 
-def _expand_component_aliases(log_levels: dict[str, str]) -> dict[str, str]:
-    """Expand user-provided component levels to include legacy/new alias pairs."""
+def _canonicalize_component_levels(log_levels: dict[str, str]) -> dict[str, str]:
+    """Normalize user-provided component levels to canonical component names."""
 
-    expanded = dict(log_levels)
-    for component, level in list(log_levels.items()):
-        aliases = LEGACY_COMPONENT_ALIASES.get(component, ())
+    canonical: dict[str, str] = {}
+    for component, level in log_levels.items():
+        aliases = CANONICAL_COMPONENT_ALIASES.get(component, (component,))
         for alias in aliases:
-            expanded.setdefault(alias, level)
-        # Reverse-map: if user provides new taxonomy name only, apply to legacy too.
-        for legacy, legacy_aliases in LEGACY_COMPONENT_ALIASES.items():
-            if component in legacy_aliases:
-                expanded.setdefault(legacy, level)
-    return expanded
+            canonical[alias] = level
+    return canonical
 
 
 @dataclass
@@ -76,7 +76,7 @@ class LoggingService:
             dict: Effective logging settings.
         """
         base_levels = self.settings.get('log_levels', {})
-        effective_levels = _expand_component_aliases(base_levels) if isinstance(base_levels, dict) else {}
+        effective_levels = _canonicalize_component_levels(base_levels) if isinstance(base_levels, dict) else {}
         return {
             'global_log_level': self.settings.get('global_log_level', 'WARNING'),
             'log_levels': effective_levels,
@@ -105,9 +105,10 @@ class LoggingService:
         if 'log_levels' in updates and isinstance(updates['log_levels'], dict):
             if 'log_levels' not in self.settings:
                 self.settings['log_levels'] = {}
-            expanded_levels = _expand_component_aliases(updates['log_levels'])
-            self.settings['log_levels'].update(expanded_levels)
-            for comp, level in expanded_levels.items():
+            self.settings['log_levels'] = _canonicalize_component_levels(self.settings['log_levels'])
+            canonical_levels = _canonicalize_component_levels(updates['log_levels'])
+            self.settings['log_levels'].update(canonical_levels)
+            for comp, level in canonical_levels.items():
                 set_component_level(comp, level)
 
         if 'always_log_timings' in updates:

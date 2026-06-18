@@ -14,7 +14,7 @@ import re
 
 from oci_policy_analysis.application.core.support.logger import get_logger
 
-logger = get_logger(component='policy_parser')
+logger = get_logger(component='core.parser.policy_subject_parser')
 
 
 def parse_policy_subjects(subject_type: str, raw_subject: str):  # noqa: C901

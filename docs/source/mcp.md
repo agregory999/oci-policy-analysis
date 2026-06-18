@@ -547,6 +547,8 @@ Full procedure:
 
 ## Available MCP Tools
 
+For the OKE workload identity tool and advanced principal filter shape, see [OKE Workload Identity Querying](./oke_workload_identity.md). The top-level [Usage](./usage.md) guide explains where MCP sits relative to the UI tabs and advanced filters.
+
 MCP clients choose tools from concise descriptions and JSON schemas. The server keeps tool schemas intentionally small; full examples and response notes live here instead of in the tool description payload.
 
 ### Tool Schema Token Metrics
@@ -602,6 +604,8 @@ Common inputs:
 
 Use structured `principal` filters for human, service, dynamic-group, instance-principal, and resource-principal lookups. Advanced workload-principal results can include `principal_evidence`, `condition_atoms`, `dynamic_group_rule_evidence`, `residual_conditions`, `resolved_compartments`, `match_confidence`, and `match_confidence_reason`.
 
+Parsed tag filters are also supported: `tag_access_type`, `tag_access_semantics`, `tag_namespace`, `tag_key`, `tag_value`, `tag_operator`, `condition_atom_terms`, `policy_tag`, `policy_defined_tag`, and `policy_freeform_tag`. Advanced/full responses include `tag_conditions` and `tag_context_warnings`.
+
 Example:
 
 ```json
@@ -619,6 +623,9 @@ Example:
   "limit": 25
 }
 ```
+
+### tag_based_policy_search
+Runs a guided parsed tag-condition search. It accepts the parsed tag filters above plus common policy filters such as `verb`, `resource`, `permission`, `principal_keys`, and `effective_path`. See [Tag-Based Policy Search](tag_based.md) for examples.
 
 ### policy_search_set
 Runs multiple related policy searches and returns a conservative set summary. Use this for install validation, service enablement checks, or any workflow that needs human, service, and workload principal coverage together.

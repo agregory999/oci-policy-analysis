@@ -183,7 +183,13 @@ class WorkloadPrincipalsTab(BaseUITab):
             row=0, column=0, padx=5, pady=2, sticky='w'
         )
         self.principals_style_var = tk.StringVar(value='Dynamic Group')
-        self.principals_style_list = ['Dynamic Group', 'any-user', 'any-group', 'any-user / any-group']
+        self.principals_style_list = [
+            'Dynamic Group',
+            'any-user',
+            'any-group',
+            'any-user / any-group',
+            'OKE Workload Identity',
+        ]
         self.principals_style_dropdown = ttk.OptionMenu(
             filters_labelframe, self.principals_style_var, self.principals_style_var.get(), *self.principals_style_list
         )
@@ -193,37 +199,69 @@ class WorkloadPrincipalsTab(BaseUITab):
         )
 
         # Resource Type dropdown
-        ttk.Label(filters_labelframe, text='Resource Type:').grid(row=0, column=2, padx=5, pady=2, sticky='w')
+        self.resource_type_label = ttk.Label(filters_labelframe, text='Resource Type:')
+        self.resource_type_label.grid(row=1, column=0, padx=5, pady=2, sticky='w')
         self.resource_type_list = self.principal_analysis.get_resource_types()
         self.resource_type_var = tk.StringVar(value=self.resource_type_list[0] if self.resource_type_list else 'Any')
         self.resource_type_dropdown = ttk.OptionMenu(
             filters_labelframe, self.resource_type_var, self.resource_type_var.get(), *self.resource_type_list
         )
-        self.resource_type_dropdown.grid(row=0, column=3, padx=5, pady=2, sticky='ew')
+        self.resource_type_dropdown.grid(row=1, column=1, padx=5, pady=2, sticky='ew')
         self.add_context_help(
             self.resource_type_dropdown,
             'Filter by request.principal.type in where clauses. This commonly maps to the named type in OCIDs '
             '(for example: ocid1.autonomousdatabase.xx.yy.zz).',
         )
 
-        ttk.Label(filters_labelframe, text='Resource Compartment OCID:').grid(
-            row=0, column=4, padx=(14, 2), pady=2, sticky='w'
-        )
+        self.resource_compartment_ocid_label = ttk.Label(filters_labelframe, text='Resource Compartment OCID:')
+        self.resource_compartment_ocid_label.grid(row=1, column=2, padx=(14, 2), pady=2, sticky='w')
         self.resource_compartment_ocid_var = tk.StringVar()
         self.resource_compartment_ocid_entry = ttk.Entry(
             filters_labelframe, textvariable=self.resource_compartment_ocid_var, width=28
         )
-        self.resource_compartment_ocid_entry.grid(row=0, column=5, padx=2, pady=2, sticky='w')
+        self.resource_compartment_ocid_entry.grid(row=1, column=3, padx=2, pady=2, sticky='w')
         self.add_context_help(
             self.resource_compartment_ocid_entry,
             'Filter any-user/any-group workload policies by request.principal.compartment.id.',
         )
 
+        self.oke_namespace_label = ttk.Label(filters_labelframe, text='OKE Namespace:')
+        self.oke_namespace_label.grid(row=2, column=0, padx=5, pady=2, sticky='w')
+        self.oke_namespace_var = tk.StringVar()
+        self.oke_namespace_dropdown = ttk.Combobox(filters_labelframe, textvariable=self.oke_namespace_var, width=24)
+        self.oke_namespace_dropdown.grid(row=2, column=1, padx=5, pady=2, sticky='ew')
+        self.add_context_help(
+            self.oke_namespace_dropdown,
+            'Filter OKE workload identity policies by request.principal.namespace. Text entry is allowed.',
+        )
+
+        self.oke_service_account_label = ttk.Label(filters_labelframe, text='OKE Service Account:')
+        self.oke_service_account_label.grid(row=2, column=2, padx=(14, 2), pady=2, sticky='w')
+        self.oke_service_account_var = tk.StringVar()
+        self.oke_service_account_dropdown = ttk.Combobox(
+            filters_labelframe, textvariable=self.oke_service_account_var, width=24
+        )
+        self.oke_service_account_dropdown.grid(row=2, column=3, padx=2, pady=2, sticky='ew')
+        self.add_context_help(
+            self.oke_service_account_dropdown,
+            'Filter OKE workload identity policies by request.principal.service_account. Text entry is allowed.',
+        )
+
+        self.oke_cluster_id_label = ttk.Label(filters_labelframe, text='OKE Cluster OCID:')
+        self.oke_cluster_id_label.grid(row=2, column=4, padx=(14, 2), pady=2, sticky='w')
+        self.oke_cluster_id_var = tk.StringVar()
+        self.oke_cluster_id_dropdown = ttk.Combobox(filters_labelframe, textvariable=self.oke_cluster_id_var, width=34)
+        self.oke_cluster_id_dropdown.grid(row=2, column=5, padx=2, pady=2, sticky='ew')
+        self.add_context_help(
+            self.oke_cluster_id_dropdown,
+            'Filter OKE workload identity policies by request.principal.cluster_id. Text entry is allowed.',
+        )
+
         # Text Filter and Clear
-        ttk.Label(filters_labelframe, text='Text Filter:').grid(row=0, column=6, padx=(14, 2), pady=2, sticky='w')
+        ttk.Label(filters_labelframe, text='Text Filter:').grid(row=0, column=2, padx=(14, 2), pady=2, sticky='w')
         self.text_filter_var = tk.StringVar()
         self.text_filter_entry = ttk.Entry(filters_labelframe, textvariable=self.text_filter_var, width=24)
-        self.text_filter_entry.grid(row=0, column=7, padx=2, pady=2, sticky='w')
+        self.text_filter_entry.grid(row=0, column=3, padx=2, pady=2, sticky='ew')
         self.add_context_help(
             self.text_filter_entry,
             'Narrow results: filter matching rule (DG) or policy statement by text. Case-insensitive.',
@@ -233,7 +271,7 @@ class WorkloadPrincipalsTab(BaseUITab):
             self.text_filter_var.set('')
 
         self.clear_filter_btn = ttk.Button(filters_labelframe, text='Clear', width=5, command=clear_text_filter)
-        self.clear_filter_btn.grid(row=0, column=8, padx=(2, 8), pady=2, sticky='w')
+        self.clear_filter_btn.grid(row=0, column=4, padx=(2, 8), pady=2, sticky='w')
         self.add_context_help(self.clear_filter_btn, 'Clear text filter and show all results.')
 
         # Add "AI Assist" button inside Filters Label Frame (to the right of "Clear")
@@ -248,11 +286,11 @@ class WorkloadPrincipalsTab(BaseUITab):
         self.ai_assist_btn = ttk.Button(
             filters_labelframe,
             text='AI Assist',
-            command=self.app.toggle_bottom,
+            command=lambda: (ai_assist_callback(), self.app.toggle_bottom()),
             width=10,
             state=tk.DISABLED,  # Initially disabled until AI enablement is successful
         )
-        self.ai_assist_btn.grid(row=0, column=9, padx=(8, 8), pady=2, sticky='w')
+        self.ai_assist_btn.grid(row=0, column=5, padx=(8, 8), pady=2, sticky='w')
         self.add_context_help(
             self.ai_assist_btn, 'Use Generative AI to analyze workload principals context and matching policies.'
         )
@@ -398,6 +436,9 @@ class WorkloadPrincipalsTab(BaseUITab):
         self.principals_style_var.trace_add('write', self.update_principals_sheets)
         self.resource_type_var.trace_add('write', self.update_principals_sheets)
         self.resource_compartment_ocid_var.trace_add('write', self.update_principals_sheets)
+        self.oke_namespace_var.trace_add('write', self.update_principals_sheets)
+        self.oke_service_account_var.trace_add('write', self.update_principals_sheets)
+        self.oke_cluster_id_var.trace_add('write', self.update_principals_sheets)
         # (text filter wired above)
 
     def update_principals_sheets(self, *args):
@@ -410,20 +451,41 @@ class WorkloadPrincipalsTab(BaseUITab):
         """
         principals_style = self.principals_style_var.get()
         self._refresh_resource_type_options()
+        self._refresh_workload_identity_options()
         resource_type = self.resource_type_var.get()
         resource_compartment_ocid = (self.resource_compartment_ocid_var.get() or '').strip()
+        oke_namespace = (self.oke_namespace_var.get() or '').strip()
+        oke_service_account = (self.oke_service_account_var.get() or '').strip()
+        oke_cluster_id = (self.oke_cluster_id_var.get() or '').strip()
         search_text = (self.text_filter_var.get() or '').strip().lower()
 
         # Enable/disable dropdowns as needed
         self.resource_type_dropdown.configure(state='normal')
         self.resource_compartment_ocid_entry.configure(state='normal')
         self.principals_style_dropdown.configure(state='normal')
+        self.oke_namespace_dropdown.configure(state='normal')
+        self.oke_service_account_dropdown.configure(state='normal')
+        self.oke_cluster_id_dropdown.configure(state='normal')
 
         # Always hide both, then re-grid appropriately
         self.dg_labelframe.grid_remove()
         self.rp_labelframe.grid_remove()
+        self.resource_type_label.grid_remove()
+        self.resource_type_dropdown.grid_remove()
+        self.resource_compartment_ocid_label.grid_remove()
+        self.resource_compartment_ocid_entry.grid_remove()
+        self.oke_namespace_label.grid_remove()
+        self.oke_namespace_dropdown.grid_remove()
+        self.oke_service_account_label.grid_remove()
+        self.oke_service_account_dropdown.grid_remove()
+        self.oke_cluster_id_label.grid_remove()
+        self.oke_cluster_id_dropdown.grid_remove()
 
         if principals_style in ('any-user', 'any-group', 'any-user / any-group'):
+            self.resource_type_label.grid()
+            self.resource_type_dropdown.grid()
+            self.resource_compartment_ocid_label.grid()
+            self.resource_compartment_ocid_entry.grid()
             self.resource_type_dropdown.configure(state='normal')
             self.rp_labelframe.grid(row=0, column=0, rowspan=2, sticky='nsew')
             logger.info(f'{principals_style} selected - only showing Policy table with resource dropdown')
@@ -450,6 +512,36 @@ class WorkloadPrincipalsTab(BaseUITab):
             self._update_policy_count(len(display_data), context=principals_style)
             logger.info(
                 f'Filtered to {len(display_data)} policies with principals: {subjects} filtering by resource: {resource_type} compartment_filter={bool(resource_compartment_ocid)}'
+            )
+
+        elif principals_style == 'OKE Workload Identity':
+            self.oke_namespace_label.grid()
+            self.oke_namespace_dropdown.grid()
+            self.oke_service_account_label.grid()
+            self.oke_service_account_dropdown.grid()
+            self.oke_cluster_id_label.grid()
+            self.oke_cluster_id_dropdown.grid()
+            self.rp_labelframe.grid(row=0, column=0, rowspan=2, sticky='nsew')
+            logger.info('Showing OKE Workload Identity policy table')
+
+            policies: list[RegularPolicyStatement] = self.principal_analysis.by_oke_workload_identity(
+                workload_namespace=oke_namespace,
+                workload_service_account=oke_service_account,
+                workload_cluster_id=oke_cluster_id,
+                subject_types=['any-user', 'any-group'],
+            ).statements
+
+            display_data = [for_display_policy(statement) for statement in policies]
+            if search_text:
+                display_data = [row for row in display_data if search_text in (row.get('Statement Text') or '').lower()]
+            self.rp_policy_table.update_data(display_data)
+            self._update_policy_count(len(display_data), context='OKE Workload Identity')
+            logger.info(
+                'Filtered to %d OKE workload identity policies: namespace=%s service_account=%s cluster_id=%s',
+                len(display_data),
+                bool(oke_namespace),
+                bool(oke_service_account),
+                bool(oke_cluster_id),
             )
 
         elif principals_style == 'Dynamic Group':
@@ -496,3 +588,13 @@ class WorkloadPrincipalsTab(BaseUITab):
         for value in self.resource_type_list:
             menu.add_command(label=value, command=tk._setit(self.resource_type_var, value))
         self.resource_type_var.set(current if current in self.resource_type_list else 'Any')
+
+    def _refresh_workload_identity_options(self) -> None:
+        """Refresh OKE workload identity dropdown values from current condition evidence."""
+        values = self.principal_analysis.get_workload_identity_values()
+        namespace_values = values.get('namespaces', [])
+        service_account_values = values.get('service_accounts', [])
+        cluster_id_values = values.get('cluster_ids', [])
+        self.oke_namespace_dropdown['values'] = namespace_values
+        self.oke_service_account_dropdown['values'] = service_account_values
+        self.oke_cluster_id_dropdown['values'] = cluster_id_values
