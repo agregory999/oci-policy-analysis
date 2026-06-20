@@ -540,6 +540,18 @@
         await loadPolicies();
       }
 
+      function applyInboundFiltersFromUrl(){
+        const params = new URLSearchParams(window.location.search || '');
+        const mode = params.get('mode') || params.get('principal_style');
+        if (mode) principalsStyleEl.value = mode;
+        if (params.get('resource_type')) resourceTypeEl.value = params.get('resource_type');
+        resourceCompartmentOcidEl.value = params.get('resource_compartment_ocid') || resourceCompartmentOcidEl.value || '';
+        textFilterEl.value = params.get('text') || params.get('statement_text') || textFilterEl.value || '';
+        okeNamespaceEl.value = params.get('workload_namespace') || params.get('namespace') || okeNamespaceEl.value || '';
+        okeServiceAccountEl.value = params.get('workload_service_account') || params.get('service_account') || okeServiceAccountEl.value || '';
+        okeClusterIdEl.value = params.get('workload_cluster_id') || params.get('cluster_id') || okeClusterIdEl.value || '';
+      }
+
       document.getElementById('clearBtn').addEventListener('click', ()=>{
         principalsStyleEl.value='Dynamic Group';
         resourceTypeEl.value='Any';
@@ -577,7 +589,10 @@
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
-      Promise.all([loadResourceTypes(), loadWorkloadIdentityValues()]).then(runAnalysis);
+      Promise.all([loadResourceTypes(), loadWorkloadIdentityValues()]).then(() => {
+        applyInboundFiltersFromUrl();
+        runAnalysis();
+      });
     </script>
       <script src="/app-version.js"></script>
       <script src="/auth-gate.js"></script>

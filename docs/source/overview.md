@@ -44,7 +44,8 @@ The application supports **Instance Principal**, **OCI profile/config**, and **S
 | Historical comparison | ✅ | ✅ | ❌ | ⚠️ Limited |
 | Consolidation workflows/workbench | ✅ | ✅ | ❌ | ❌ |
 | Prospective statements editor/workbench | ✅ | ✅ | ❌ | ⚠️ Via tools |
-| Recommendations Calculation/Display | ✅ | ✅ | ❌ | ❌ |
+| Recommendations calculation/display and actionable guidance | ✅ | ✅ | ❌ Not exposed | ❌ Not exposed |
+| Permissions report | ✅ | ✅ | ⚠️ Export only | ❌ Not exposed |
 | API simulation | ✅ | ✅ | ❌ | ✅ (tool calls) |
 | AI assistant integration | ✅ (embedded MCP tab) | ⚠️ Indirect | ⚠️ Indirect | ✅ Native purpose |
 | Best fit: human exploratory analysis | ✅ Best | ✅ Good | ❌ | ❌ |
@@ -109,4 +110,3 @@ flowchart LR
 MCP usage patterns (STDIO, HTTP, embedded vs standalone) are documented in detail on the dedicated [MCP Server](mcp.md) page.
 
 The higher-level interactive workflow, including basic vs advanced filters, tag-based search, resource principals, and OKE workload identities, is organized in the [Usage](usage.md) guide. For the OKE-specific query pattern, see [OKE Workload Identity Querying](oke_workload_identity.md).
-

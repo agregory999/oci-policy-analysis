@@ -53,6 +53,7 @@ The first heading of each file will appear as its title in the documentation nav
    :caption: Project-specific Context
 
    context/project/CONTEXT_cli.md
+   context/project/CONTEXT_actionable_recommendations.md
    context/project/CONTEXT_cross_tenancy.md
    context/project/CONTEXT_data_repo.md
    context/project/CONTEXT_historical_analysis.md
@@ -66,6 +67,7 @@ The first heading of each file will appear as its title in the documentation nav
    context/project/CONTEXT_policies_tab.md
    context/project/CONTEXT_policy_browser_tab.md
    context/project/CONTEXT_policy_intelligence_and_recommendations.md
+   context/project/CONTEXT_risk_scoring.md
    context/project/CONTEXT_settings_tab.md
    context/project/CONTEXT_simulation_engine.md
    context/project/CONTEXT_tests.md

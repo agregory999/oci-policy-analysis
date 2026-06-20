@@ -373,6 +373,14 @@
         renderPolicies();
       }
 
+      function applyInboundFiltersFromUrl(){
+        const params = new URLSearchParams(window.location.search || '');
+        const mode = params.get('mode');
+        if (mode && ['GROUPS', 'USERS'].includes(mode.toUpperCase())) modeEl.value = mode.toUpperCase();
+        searchEl.value = params.get('search') || params.get('name') || searchEl.value || '';
+        includeAnyEl.checked = params.get('include_any') === 'true' || includeAnyEl.checked;
+      }
+
       document.getElementById('runBtn').addEventListener('click', loadEntities);
       document.getElementById('clearBtn').addEventListener('click', ()=>{ searchEl.value=''; includeAnyEl.checked=false; loadEntities(); });
       document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
@@ -403,6 +411,7 @@
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      applyInboundFiltersFromUrl();
       loadEntities();
     </script>
       <script src="/app-version.js"></script>

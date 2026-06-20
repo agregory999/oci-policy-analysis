@@ -35,6 +35,54 @@
         padding: 0.32rem 0.6rem;
         font-size: 0.78rem;
       }
+
+      .recommendation-filter-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+        gap: 0.75rem;
+        margin: 0.75rem 0;
+      }
+
+      .context-menu {
+        position: fixed;
+        z-index: 3000;
+        display: none;
+        min-width: 210px;
+        padding: 0.35rem;
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        background: #ffffff;
+        box-shadow: 0 14px 35px rgba(15, 23, 42, 0.18);
+      }
+
+      .context-menu.open {
+        display: block;
+      }
+
+      .context-menu button {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0.45rem 0.55rem;
+        border: 0;
+        border-radius: 4px;
+        background: #ffffff;
+        color: var(--oci-steel);
+        text-align: left;
+        font-size: 0.84rem;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+
+      .context-menu button:hover:not(:disabled) {
+        background: #fdf1ef;
+      }
+
+      .context-menu button:disabled {
+        background: #ffffff;
+        color: #9ca3af;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -106,7 +154,18 @@
         <!-- Overall recommendation summary section -->
         <article id="cardSummary" class="card compact-card" data-help-title="Overall Recommendation Summary" data-help-body="Top recommendation rows from intelligence overlay.">
           <div class="card-title-row"><p class="card-title">Overall Recommendation Summary</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
-          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 280px"><table class="analysis-table" id="summaryTable"><thead><tr><th>Recommendation</th><th>Priority</th><th>Category</th><th>Notes</th><th>Action</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="recommendation-filter-row">
+            <div class="inline-field">
+              <label for="summarySeverityFilter" class="no-margin-label">Severity</label>
+              <select id="summarySeverityFilter" data-help-title="Severity Filter" data-help-body="Filters recommendations by priority while preserving the source rows."><option value="">All severities</option></select>
+            </div>
+            <div class="inline-field">
+              <label for="summaryCategoryFilter" class="no-margin-label">Category</label>
+              <select id="summaryCategoryFilter" data-help-title="Category Filter" data-help-body="Filters recommendations by category."><option value="">All categories</option></select>
+            </div>
+          </div>
+          <p id="summaryFilterCount" class="helper-text">Showing 0 of 0</p>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 520px"><table class="analysis-table" id="summaryTable"><thead><tr><th>Recommendation</th><th>Priority</th><th>Category</th><th>Notes</th><th>Action</th><th>Action Detail</th></tr></thead><tbody></tbody></table></div></div>
         </article>
 
         <!-- Policy risk section -->
@@ -165,12 +224,18 @@
           <pre id="rowDetail" class="workflow-mini-log" style="max-height:none;height:100%;border:0;">Select a table row to inspect full JSON detail.</pre>
         </div>
       </aside>
+
+      <div id="recommendationContextMenu" class="context-menu" role="menu" aria-label="Recommendation actions">
+        <div id="recommendationContextMenuActions"></div>
+      </div>
     </main>
 
     <script>
       // Page state + shared refs.
       const state = { payload: null };
       const filterState = {
+        summarySeverity: '',
+        summaryCategory: '',
         policyRisk: '',
         statementRisk: '',
       };
@@ -179,6 +244,10 @@
       const rowDetail = document.getElementById('rowDetail');
       const rowDetailInspector = document.getElementById('rowDetailInspector');
       const closeRowDetailInspector = document.getElementById('closeRowDetailInspector');
+      const recommendationContextMenu = document.getElementById('recommendationContextMenu');
+      const recommendationContextMenuActions = document.getElementById('recommendationContextMenuActions');
+      let contextMenuRow = null;
+      let contextMenuTableId = '';
       const defaultContextHelp = {
         title: 'How To Use This Page',
         body: 'Review recommendations and analytics in read-only mode. Use table row clicks to inspect full row details.',
@@ -250,6 +319,11 @@
             rowDetail.textContent = formatRowDetail(row);
             rowDetailInspector?.classList.add('open');
           });
+          tr.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const idx = Number(tr.dataset.idx);
+            openRecommendationContextMenu(event, tableId, rows[idx] || {});
+          });
         });
       }
 
@@ -296,9 +370,33 @@
         updateFilterCount('statementRiskFilterCount', filteredStatementRows.length, allStatementRows.length);
       }
 
+      function fillSelectFromCounts(selectId, counts, allLabel) {
+        const node = document.getElementById(selectId);
+        if (!node) return;
+        const current = node.value || '';
+        const options = Object.entries(counts || {}).sort(([a], [b]) => a.localeCompare(b));
+        node.innerHTML = [`<option value="">${esc(allLabel)}</option>`]
+          .concat(options.map(([value, count]) => `<option value="${esc(value)}">${esc(value)} (${count})</option>`))
+          .join('');
+        node.value = options.some(([value]) => value === current) ? current : '';
+      }
+
+      function renderSummaryTable(payload) {
+        const summary = payload.summary || [];
+        const rows = summary.filter((row) => {
+          const severityOk = !filterState.summarySeverity || String(row.Priority || '') === filterState.summarySeverity;
+          const categoryOk = !filterState.summaryCategory || String(row.Category || '') === filterState.summaryCategory;
+          return severityOk && categoryOk;
+        });
+        renderTable('summaryTable', rows, ['Recommendation', 'Priority', 'Category', 'Notes', 'Action', 'ActionDetail']);
+        updateFilterCount('summaryFilterCount', rows.length, summary.length);
+      }
+
       function bindTableFilters() {
         const policyInput = document.getElementById('policyRiskFilter');
         const statementInput = document.getElementById('statementRiskFilter');
+        const summarySeverity = document.getElementById('summarySeverityFilter');
+        const summaryCategory = document.getElementById('summaryCategoryFilter');
 
         if (policyInput) {
           policyInput.addEventListener('input', (event) => {
@@ -313,6 +411,181 @@
             if (state.payload) renderRiskTables(state.payload);
           });
         }
+
+        if (summarySeverity) {
+          summarySeverity.addEventListener('change', (event) => {
+            filterState.summarySeverity = event.target.value || '';
+            if (state.payload) renderSummaryTable(state.payload);
+          });
+        }
+
+        if (summaryCategory) {
+          summaryCategory.addEventListener('change', (event) => {
+            filterState.summaryCategory = event.target.value || '';
+            if (state.payload) renderSummaryTable(state.payload);
+          });
+        }
+      }
+
+      function compact(value) {
+        return String(value ?? '').trim();
+      }
+
+      function firstValue(row, keys) {
+        for (const key of keys) {
+          const value = row?.[key];
+          if (value !== undefined && value !== null && compact(value)) return compact(value);
+        }
+        return '';
+      }
+
+      function statementTextForRow(row) {
+        return firstValue(row, ['Statement Text', 'Statement', 'Name', 'Example Statement']);
+      }
+
+      function policyNameForRow(row) {
+        const direct = firstValue(row, ['Policy Name', 'Policy', 'policy_name']);
+        if (direct) return direct;
+        const path = firstValue(row, ['Policy Path']);
+        if (!path) return '';
+        const parts = path.split('/').filter(Boolean);
+        return parts[parts.length - 1] || '';
+      }
+
+      function policyFilterUrl(filter) {
+        const params = new URLSearchParams();
+        params.set('filter', JSON.stringify(filter || {}));
+        return `/policy-analysis.html?${params.toString()}`;
+      }
+
+      function dynamicGroupUrl(row) {
+        const text = statementTextForRow(row);
+        const params = new URLSearchParams();
+        const ocidMatch = text.match(/dynamic-group\s+id\s+([A-Za-z0-9._:-]+)/i);
+        if (ocidMatch) params.set('dynamic_group_ocid', ocidMatch[1]);
+        const nameMatch = text.match(/dynamic-group\s+(?:id\s+)?([A-Za-z0-9_.@/: -]+?)\s+to\s+/i);
+        if (!ocidMatch && nameMatch) {
+          const raw = compact(nameMatch[1]);
+          const name = raw.includes('/') ? raw.split('/').pop() : raw;
+          params.set('name', name);
+        } else if (!ocidMatch && firstValue(row, ['Type']) === 'Unused Dynamic Group') {
+          const raw = firstValue(row, ['Name']);
+          const name = raw.includes('/') ? raw.split('/').pop() : raw;
+          if (name) params.set('name', name);
+        }
+        return params.toString() ? `/dynamic-group-analysis.html?${params.toString()}` : '/dynamic-group-analysis.html';
+      }
+
+      function usersGroupsUrl(row) {
+        const params = new URLSearchParams();
+        params.set('mode', 'GROUPS');
+        const raw = firstValue(row, ['Name']);
+        const name = raw.includes('/') ? raw.split('/').pop() : raw;
+        if (name) params.set('search', name);
+        return `/users-groups-analysis.html?${params.toString()}`;
+      }
+
+      function workloadUrl(row) {
+        const text = statementTextForRow(row);
+        const conditions = firstValue(row, ['Conditions', 'conditions', 'Risk Notes', 'Reason']);
+        const combined = `${text}\n${conditions}`;
+        const params = new URLSearchParams();
+        if (/request\.principal\.type\s*=\s*['"]workload['"]/i.test(combined)) {
+          params.set('mode', 'OKE Workload Identity');
+          const ns = combined.match(/request\.principal\.namespace\s*=\s*['"]([^'"]+)['"]/i);
+          const sa = combined.match(/request\.principal\.service_account\s*=\s*['"]([^'"]+)['"]/i);
+          const cluster = combined.match(/request\.principal\.cluster_id\s*=\s*['"]([^'"]+)['"]/i);
+          if (ns) params.set('workload_namespace', ns[1]);
+          if (sa) params.set('workload_service_account', sa[1]);
+          if (cluster) params.set('workload_cluster_id', cluster[1]);
+        } else {
+          params.set('mode', /any-group/i.test(text) ? 'any-group' : 'any-user / any-group');
+          const resourceType = combined.match(/request\.principal\.type\s*=\s*['"]([^'"]+)['"]/i);
+          const compartment = combined.match(/request\.principal\.compartment\.id\s*=\s*['"]([^'"]+)['"]/i);
+          if (resourceType) params.set('resource_type', resourceType[1]);
+          if (compartment) params.set('resource_compartment_ocid', compartment[1]);
+        }
+        if (text) params.set('text', text.slice(0, 160));
+        return `/workload-principals-analysis.html?${params.toString()}`;
+      }
+
+      function rowMentionsDynamicGroup(row) {
+        return /dynamic-group/i.test(statementTextForRow(row)) || /Dynamic Group/i.test(firstValue(row, ['Type', 'Category', 'Principal']));
+      }
+
+      function rowMentionsGroup(row) {
+        return firstValue(row, ['Type']) === 'Group w/ No Users';
+      }
+
+      function rowMentionsResourcePrincipal(row) {
+        const text = `${statementTextForRow(row)} ${firstValue(row, ['Category', 'Reason', 'Risk Notes'])}`;
+        return /request\.principal|any-user|any-group|resource principal|workload/i.test(text);
+      }
+
+      function addMenuAction(actions, label, url, enabled = true) {
+        actions.push({ label, url, enabled });
+      }
+
+      function contextActionsForRow(tableId, row) {
+        const actions = [];
+        const statement = statementTextForRow(row);
+        const policyName = policyNameForRow(row);
+        const effectivePath = firstValue(row, ['Effective Path']);
+        if (statement) addMenuAction(actions, 'Open statement in Policy Analysis', policyFilterUrl({ statement_text: statement }));
+        if (policyName) addMenuAction(actions, 'Open policy in Policy Analysis', policyFilterUrl({ policy_name: policyName }));
+        if (effectivePath) addMenuAction(actions, 'Open effective path in Policy Analysis', policyFilterUrl({ effective_path: effectivePath }));
+
+        if (tableId === 'overlapTable') {
+          const overlap = firstValue(row, ['Policy Overlap']);
+          const filter = {};
+          if (policyName && overlap) filter.policy_name = `${policyName}|${overlap}`;
+          else if (policyName) filter.policy_name = policyName;
+          if (firstValue(row, ['Action'])) filter.action = firstValue(row, ['Action']);
+          if (statement) filter.statement_text = statement;
+          addMenuAction(actions, 'Show overlap context in Policy Analysis', policyFilterUrl(filter), Boolean(policyName || statement));
+        }
+
+        if (rowMentionsDynamicGroup(row)) addMenuAction(actions, 'Open Dynamic Group Analysis', dynamicGroupUrl(row));
+        if (rowMentionsGroup(row)) addMenuAction(actions, 'Open Users/Groups Analysis', usersGroupsUrl(row));
+        if (rowMentionsResourcePrincipal(row)) addMenuAction(actions, 'Open Workload/Resource Principal Analysis', workloadUrl(row));
+        if (tableId === 'summaryTable' && row?.Destination) addMenuAction(actions, 'Open related recommendation view', String(row.Destination));
+        return actions;
+      }
+
+      function openRecommendationContextMenu(event, tableId, row) {
+        if (!recommendationContextMenu || !recommendationContextMenuActions) return;
+        contextMenuRow = row || {};
+        contextMenuTableId = tableId || '';
+        const actions = contextActionsForRow(contextMenuTableId, contextMenuRow);
+        recommendationContextMenuActions.innerHTML = actions.length
+          ? actions.map((action, idx) => `<button type="button" class="ghost" data-action-idx="${idx}" ${action.enabled === false ? 'disabled' : ''}>${esc(action.label)}</button>`).join('')
+          : '<button type="button" class="ghost" disabled>No navigation target for this row</button>';
+        [...recommendationContextMenuActions.querySelectorAll('button[data-action-idx]')].forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const action = actions[Number(btn.dataset.actionIdx)];
+            if (!action || action.enabled === false) return;
+            recommendationContextMenu.classList.remove('open');
+            if (String(action.url || '').startsWith('#')) {
+              document.querySelector(action.url)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+              window.location.href = action.url;
+            }
+          });
+        });
+        const menuWidth = 280;
+        const menuHeight = Math.min(260, 44 * Math.max(1, actions.length));
+        const x = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8));
+        const y = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8));
+        recommendationContextMenu.style.left = `${x}px`;
+        recommendationContextMenu.style.top = `${y}px`;
+        recommendationContextMenu.classList.add('open');
+      }
+
+      function bindRecommendationContextMenu() {
+        document.addEventListener('click', () => recommendationContextMenu?.classList.remove('open'));
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') recommendationContextMenu?.classList.remove('open');
+        });
       }
 
       function renderSummary(payload) {
@@ -329,6 +602,8 @@
         document.getElementById('sumStatementRisk').textContent = String((payload.risk_statement || []).length);
         document.getElementById('sumCleanup').textContent = String((payload.cleanup || []).length);
         document.getElementById('sumLimitAlerts').textContent = String(limitAlerts);
+        fillSelectFromCounts('summarySeverityFilter', (payload.summary_counts || {}).severity || {}, 'All severities');
+        fillSelectFromCounts('summaryCategoryFilter', (payload.summary_counts || {}).category || {}, 'All categories');
       }
 
       function renderMeta(payload) {
@@ -455,7 +730,7 @@
         const payload = await resp.json();
         state.payload = payload;
 
-        renderTable('summaryTable', payload.summary || [], ['Recommendation', 'Priority', 'Category', 'Notes', 'Action']);
+        renderSummaryTable(payload);
         renderRiskTables(payload);
         renderTable('overlapTable', payload.overlap || [], ['Policy Name', 'Effective Path', 'Action', 'Overlap Count', 'Policy Overlap']);
         renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason']);
@@ -470,6 +745,7 @@
         bindTableFilters();
         bindContextHelp();
         bindBackToTopButtons();
+        bindRecommendationContextMenu();
         closeRowDetailInspector?.addEventListener('click', clearRowDetailInspector);
         setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
         syncJumpLinks();

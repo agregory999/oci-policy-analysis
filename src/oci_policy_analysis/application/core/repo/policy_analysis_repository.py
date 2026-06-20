@@ -2208,7 +2208,7 @@ class PolicyAnalysisRepository:
 
             # Ensure compartments are loaded (critical for depth BFS)
             if not hasattr(self, 'compartments') or not self.compartments:
-                logger.warning('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
+                logger.info('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
                 self.load_policies_and_compartments()
             if not self.compartments:
                 logger.error('Compartment load failed or returned empty. Falling back to root-only search.')

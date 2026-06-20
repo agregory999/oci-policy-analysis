@@ -34,6 +34,8 @@ All flags and arguments supported by `cli.py`:
 | `--profile <name>`               | OCI config profile to use (default: DEFAULT).                    |
 | `--filter-json <JSONstr>`        | JSON expression to filter policy statements.                     |
 | `--export-json <file>`           | Export full loaded dataset (policies, DGs, users, etc.) as JSON. |
+| `--export-permissions-report <path>` | Export the calculated permissions report to JSON/CSV.         |
+| `--export-permissions-report-format <format>` | Permissions report format: `json`, `csv`, or `both`. |
 
 _Most session, filter, and export options are mutually compatible—e.g., you can load from cache and export JSON, or load fresh with a profile and filter statements in one invocation._
 
@@ -52,16 +54,18 @@ _Most session, filter, and export options are mutually compatible—e.g., you ca
    - `--filter-json`: Applies the filter to loaded policy statements and prints a summary to the log.
    - `--print-all`: Prints out all loaded policies, their statements (with parsed fields), and dynamic groups.
    - `--export-json`: Dumps the complete repository (post-analysis) as a JSON file.
+   - `--export-permissions-report`: Builds the permissions report only for export, without running UI recommendations.
    - As each output mode is invoked, standard policy overlays (effective compartment, validity, DG in-use) are present.
 
 ---
 
 ## 4. Output/Intents
 
-- Output is **plain text or JSON** only (no GUI, no HTML/Markdown, etc.).
+- Output is **plain text, JSON, or CSV** only (no GUI, no HTML/Markdown, etc.).
 - For `--print-all`, each statement is displayed with all known fields, overlays, and parse results.
 - For filtered output, results include parsing and intelligence overlays (e.g., showing statements marked invalid, with compartment path, etc.).
 - For JSON exports, the data matches what the main UI caches or operates on for maximum interchange.
+- For permissions report exports, JSON preserves the nested report and flat grant rows; CSV flattens effective path, direct grant path, principal key, original subject key, allow/deny action, permission, condition flag, inherited status/source, and statement provenance.
 
 ---
 

@@ -508,6 +508,7 @@ class PolicyRecommendationsTab(BaseUITab):
                     'Review the Limits tab below for details and mitigation steps.'
                 ),
                 'Action': 'Use the Limits tab to review and reduce/consolidate compartment statements as needed.',
+                'ActionDetail': 'Review the affected compartment hierarchy paths in the Limits tab before planning policy cleanup.',
             }
             new_recs.insert(0, rec)
         return new_recs
@@ -1172,6 +1173,13 @@ class PolicyRecommendationsTab(BaseUITab):
         normalized_recs = []
         for row in recs:
             norm = {col: row.get(col, '') for col in required_cols}
+            action_detail = row.get('ActionDetail')
+            action_steps = row.get('ActionSteps')
+            if action_detail or action_steps:
+                detail_parts = [str(action_detail or '')]
+                if isinstance(action_steps, list) and action_steps:
+                    detail_parts.append(' Steps: ' + ' | '.join(str(step) for step in action_steps))
+                norm['Action'] = f"{norm.get('Action', '')} -- {' '.join(part for part in detail_parts if part)}"
             normalized_recs.append(norm)
         self.recommendation_table.update_data(normalized_recs)
 

@@ -9,7 +9,9 @@ from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
 from oci_policy_analysis.application.core.support.logger import get_logger
-from oci_policy_analysis.application.post_load import run_post_load_pipeline
+from oci_policy_analysis.application.post_load import run_minimal_post_load_enrichment, run_post_load_pipeline
+
+PostLoadProfile = str
 
 
 @dataclass
@@ -73,13 +75,15 @@ class LoadService:
         cache_name: str,
         *,
         run_post_load_intelligence: bool = True,
+        post_load_profile: PostLoadProfile = 'full',
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> LoadResult:
         """Load repository data from a named cache entry.
 
         Args:
             cache_name: Cache entry to load.
-            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            run_post_load_intelligence: Whether to run post-load processing.
+            post_load_profile: ``full`` for UI overlays/recommendations, ``minimal`` for CLI/MCP enrichment, ``none`` to skip.
             on_stage: Optional stage progress callback.
 
         Returns:
@@ -91,7 +95,7 @@ class LoadService:
         self._reset_repo_state_before_load()
         success = self.context.cache.load_combined_cache(repo, named_cache=cache_name)
         if success and run_post_load_intelligence:
-            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
+            self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)
         elif not success:
             self.logger.error('Cache load failed: cache_name=%s', cache_name)
         summary = self._build_summary(repo)
@@ -109,13 +113,15 @@ class LoadService:
         file_path: str,
         *,
         run_post_load_intelligence: bool = True,
+        post_load_profile: PostLoadProfile = 'full',
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> LoadResult:
         """Load repository data from an exported JSON file.
 
         Args:
             file_path: Path to export JSON file.
-            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            run_post_load_intelligence: Whether to run post-load processing.
+            post_load_profile: ``full`` for UI overlays/recommendations, ``minimal`` for CLI/MCP enrichment, ``none`` to skip.
             on_stage: Optional stage progress callback.
 
         Returns:
@@ -136,7 +142,7 @@ class LoadService:
 
         success = bool(self.context.cache_service.import_from_json(loaded_json=loaded_json, policy_repo=repo))
         if success and run_post_load_intelligence:
-            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
+            self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)
         elif not success:
             self.logger.error('Export JSON import failed: file_path=%s', file_path)
         summary = self._build_summary(repo)
@@ -155,6 +161,7 @@ class LoadService:
         *,
         load_all_users: bool = True,
         run_post_load_intelligence: bool = True,
+        post_load_profile: PostLoadProfile = 'full',
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> LoadResult:
         """Load repository data from compliance output directory.
@@ -162,7 +169,8 @@ class LoadService:
         Args:
             dir_path: Directory containing compliance output artifacts.
             load_all_users: Whether to load all users from identity data.
-            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            run_post_load_intelligence: Whether to run post-load processing.
+            post_load_profile: ``full`` for UI overlays/recommendations, ``minimal`` for CLI/MCP enrichment, ``none`` to skip.
             on_stage: Optional stage progress callback.
 
         Returns:
@@ -174,7 +182,7 @@ class LoadService:
         self._reset_repo_state_before_load()
         success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
         if success and run_post_load_intelligence:
-            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
+            self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)
             try:
                 self.context.cache_service.save_cache(repo)
             except Exception as exc:
@@ -202,6 +210,7 @@ class LoadService:
         load_all_users: bool = True,
         compartment_domain_search_depth: int = 1,
         run_post_load_intelligence: bool = True,
+        post_load_profile: PostLoadProfile = 'full',
         save_cache_after_load: bool = True,
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> LoadResult:
@@ -215,7 +224,8 @@ class LoadService:
             recursive: Whether tenancy traversal should be recursive.
             load_all_users: Whether to load all users for identity domains.
             compartment_domain_search_depth: Identity domain search depth.
-            run_post_load_intelligence: Whether to rebuild intelligence/simulation state.
+            run_post_load_intelligence: Whether to run post-load processing.
+            post_load_profile: ``full`` for UI overlays/recommendations, ``minimal`` for CLI/MCP enrichment, ``none`` to skip.
             save_cache_after_load: Whether to persist a fresh cache entry after live load.
             on_stage: Optional stage progress callback.
 
@@ -292,7 +302,7 @@ class LoadService:
             return LoadResult(success=False, message='Failed to load policies')
 
         if run_post_load_intelligence:
-            self._post_load_create_intelligence_with_stage(on_stage=on_stage)
+            self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)
 
         if save_cache_after_load:
             # Persist a fresh cache entry for web/API-driven tenancy loads.
@@ -315,27 +325,25 @@ class LoadService:
         )
         return LoadResult(success=True, message='Loaded tenancy data', summary=summary)
 
-    def _post_load_create_intelligence(self) -> None:
-        """Run post-load intelligence and simulation refresh orchestration.
-
-        Returns:
-            None
-        """
-        run_post_load_pipeline(self.context)
-
-    def _post_load_create_intelligence_with_stage(
+    def _run_post_load_with_stage(
         self,
         *,
+        post_load_profile: PostLoadProfile,
         on_stage: Callable[[str, str, str], None] | None = None,
     ) -> None:
-        """Run post-load orchestration while emitting stage updates.
+        """Run the selected post-load processing profile."""
 
-        Args:
-            on_stage: Optional callback for stage notifications.
-
-        Returns:
-            None
-        """
+        profile = str(post_load_profile or 'full').lower()
+        if profile == 'none':
+            self.logger.info('Skipping post-load processing by requested profile.')
+            return
+        if profile == 'minimal':
+            self.logger.info('Running minimal post-load profile for non-UI consumer.')
+            run_minimal_post_load_enrichment(self.context, on_stage=on_stage)
+            return
+        if profile != 'full':
+            self.logger.warning('Unknown post-load profile %s; defaulting to full UI profile.', post_load_profile)
+        self.logger.info('Running full post-load profile for UI consumer.')
         run_post_load_pipeline(self.context, on_stage=on_stage)
 
     @staticmethod

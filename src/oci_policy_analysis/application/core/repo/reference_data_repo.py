@@ -23,6 +23,8 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 
 logger = get_logger(component='core.repo.reference_data_repo')
 
+VERB_RISK_WEIGHTS = {'inspect': 1, 'read': 5, 'use': 50, 'manage': 100}
+
 
 class ReferenceDataRepo:
     """
@@ -74,7 +76,6 @@ class ReferenceDataRepo:
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
         self.data['operations_by_api'] = {}
         # Per-verb risk weights: each permission is scored by the verb it belongs to (exposure points)
-        verb_risk = {'inspect': 1, 'read': 5, 'use': 50, 'manage': 100}
         for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
@@ -87,7 +88,7 @@ class ReferenceDataRepo:
                     for _res_name, resdata in debug_resources.items():
                         verbs = resdata.get('verbs', {})
                         for verb, perms in verbs.items():
-                            risk = verb_risk.get(verb, 1)
+                            risk = VERB_RISK_WEIGHTS.get(str(verb).lower(), 1)
                             if not isinstance(perms, list):
                                 continue
                             # Store per-resource dictionary so we can find the risk for a permission

@@ -1756,9 +1756,12 @@ def _reload_mcp_data() -> dict[str, Any]:
 
         result = LoadService(ctx).load_from_tenancy(
             use_instance_principal=bool(getattr(auth_args, 'instance_principal', False)),
+            use_resource_principal=bool(getattr(auth_args, 'resource_principal', False)),
             profile=getattr(auth_args, 'profile', None) or None,
             session_token=getattr(auth_args, 'session_token', None) or None,
             recursive=bool(getattr(auth_args, 'recursive', True)),
+            compartment_domain_search_depth=int(getattr(auth_args, 'compartment_domain_search_depth', 1) or 1),
+            post_load_profile='minimal',
             save_cache_after_load=True,
         )
         if not result.success:
@@ -1909,7 +1912,7 @@ def main():
 
     try:
         if args.use_cache:
-            result = load_service.load_from_cache(args.use_cache)
+            result = load_service.load_from_cache(args.use_cache, post_load_profile='minimal')
         else:
             result = load_service.load_from_tenancy(
                 use_instance_principal=args.instance_principal,
@@ -1918,6 +1921,7 @@ def main():
                 session_token=args.session_token or None,
                 recursive=recursive,
                 compartment_domain_search_depth=args.compartment_domain_search_depth,
+                post_load_profile='minimal',
                 save_cache_after_load=not args.dont_save_cache_after_load,
             )
         if not result.success:

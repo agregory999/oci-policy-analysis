@@ -271,6 +271,14 @@
         renderPolicies();
       }
 
+      function applyInboundFiltersFromUrl(){
+        const params = new URLSearchParams(window.location.search || '');
+        domainEl.value = params.get('domain') || domainEl.value || '';
+        nameEl.value = params.get('name') || params.get('dynamic_group_name') || nameEl.value || '';
+        ruleEl.value = params.get('matching_rule') || ruleEl.value || '';
+        ocidEl.value = params.get('dynamic_group_ocid') || params.get('ocid') || ocidEl.value || '';
+      }
+
       document.getElementById('runBtn').addEventListener('click', loadEntities);
       document.getElementById('clearBtn').addEventListener('click', ()=>{ domainEl.value=''; nameEl.value=''; ruleEl.value=''; ocidEl.value=''; loadEntities(); });
       document.getElementById('closeInspectorBtn').addEventListener('click', ()=> inspector.clear());
@@ -280,6 +288,7 @@
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
+      applyInboundFiltersFromUrl();
       loadEntities();
     </script>
       <script src="/app-version.js"></script>

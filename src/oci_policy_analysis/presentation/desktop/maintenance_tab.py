@@ -524,7 +524,7 @@ class MaintenanceTab(ttk.Frame):
                     lines.append(f'  {p}')
                 lines.append('')
                 lines.append('Risk score (exposure points) calculation:')
-                lines.append('  Verb weights: inspect=1, read=5, use=20, manage=50')
+                lines.append('  Verb weights: inspect=1, read=5, use=50, manage=100')
                 for p in sorted(perms):
                     r = ref_repo.get_permission_risk(p, entity)
                     lines.append(f'  {p} -> {r}')

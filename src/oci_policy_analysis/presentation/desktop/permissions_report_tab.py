@@ -17,8 +17,10 @@ import json
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 from tkinter import ttk
+from types import SimpleNamespace
 
 from oci_policy_analysis.application.core.support.logger import get_logger
+from oci_policy_analysis.application.services.permissions_report_service import PermissionsReportService
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import DataTable
 
@@ -171,6 +173,13 @@ class PermissionsReportTab(BaseUITab):
         self.permissions_tree.tag_configure('compartment', font=('TkDefaultFont', 10, 'bold'))
         self.permissions_tree.tag_configure('subject', font=('TkDefaultFont', 9))
 
+    def _report_service(self) -> PermissionsReportService:
+        context = getattr(self.app, 'app_context', None)
+        if context is not None:
+            context.intelligence = self.app.policy_intelligence
+            return PermissionsReportService(context)
+        return PermissionsReportService(SimpleNamespace(intelligence=self.app.policy_intelligence))
+
     def enable_widgets_after_load(self):
         # Always enable expand/collapse/export, since permissions_report is always built after load
         self.btn_expand_all.configure(state='normal')
@@ -187,27 +196,29 @@ class PermissionsReportTab(BaseUITab):
         super().apply_settings(context_help, font_size)
 
     def populate_tree(self):
-        # Always use the centralized report data
-        perm_engine = self.app.policy_intelligence.permissions_report
-        report_data = perm_engine.get('report', {}) if perm_engine else {}
         for item in self.permissions_tree.get_children():
             self.permissions_tree.delete(item)
-        if not report_data:
+        tree_payload = self._report_service().get_tree(
+            show_inherited_principals=self.show_inherited_principals_var.get()
+        )
+        paths = tree_payload.get('paths', [])
+        if not paths:
             logger.info('No permissions report data available to populate tree')
             return
-        for path in sorted(report_data.keys()):
+        for path_row in paths:
+            path = path_row.get('path', '')
             path_node = self.permissions_tree.insert(
                 '', 'end', text=path, values=('Compartment',), tags=('compartment',)
             )
-            for subject_key, subject_type, inherited_from in self._get_subjects_for_path(path, report_data):
-                display_name = subject_key
-                if inherited_from:
-                    display_name = f'{subject_key} (inherited from {inherited_from})'
+            for subject_row in path_row.get('subjects', []):
+                subject_key = subject_row.get('subject_key', '')
+                subject_type = subject_row.get('subject_type', 'unknown')
+                inherited_from = subject_row.get('inherited_from') or ''
                 self.permissions_tree.insert(
                     path_node,
                     'end',
-                    text=display_name,
-                    values=(subject_type, subject_key, inherited_from or ''),
+                    text=subject_row.get('display_name') or subject_key,
+                    values=(subject_type, subject_key, inherited_from),
                     tags=('subject',),
                 )
 
@@ -294,42 +305,23 @@ class PermissionsReportTab(BaseUITab):
             return
         subject_key = node.get('values', [None, None])[1] or node['text']
         path_key = self.permissions_tree.item(parent)['text']
-        perm_engine = self.app.policy_intelligence.permissions_report
-        report_data = perm_engine.get('report', {}) if perm_engine else {}
-        perm_conditionals = perm_engine.get('perm_conditionals', {}) if perm_engine else {}
-        perm_statements = perm_engine.get('perm_statements', {}) if perm_engine else {}
-        subject_data = report_data.get(path_key, {}).get(subject_key, {})
-        allow = list(subject_data.get('allow', []))
-        deny = list(subject_data.get('deny', []))
-        # Inheritance: collect from parent compartments as well
-        parent_nodes = self._get_ancestor_paths(path_key)
-        parent_perms = []
-        parent_denies = []
-        for ancestor in parent_nodes:
-            ancestor_data = report_data.get(ancestor, {}).get(subject_key, {})
-            ap_all = ancestor_data.get('allow', [])
-            ap_deny = ancestor_data.get('deny', [])
-            if ap_all:
-                parent_perms.append((ancestor, ap_all))
-            if ap_deny:
-                parent_denies.append((ancestor, ap_deny))
-
-        allow_rows = self._build_permission_rows(
-            allow,
-            parent_perms,
-            perm_conditionals,
-            perm_statements,
-            path_key,
-            subject_key,
-        )
-        deny_rows = self._build_permission_rows(
-            deny,
-            parent_denies,
-            perm_conditionals,
-            perm_statements,
-            path_key,
-            subject_key,
-        )
+        detail_payload = self._report_service().get_details(path_key=path_key, subject_key=subject_key)
+        allow_rows = [
+            {
+                'Permission': row.get('permission') or '',
+                'Conditional': str(row.get('conditional', False)),
+                'Statement Text': row.get('statement_text') or '',
+            }
+            for row in detail_payload.get('allow_rows', [])
+        ]
+        deny_rows = [
+            {
+                'Permission': row.get('permission') or '',
+                'Conditional': str(row.get('conditional', False)),
+                'Statement Text': row.get('statement_text') or '',
+            }
+            for row in detail_payload.get('deny_rows', [])
+        ]
 
         # Destroy existing tables to avoid duplication
         for widget in self.allow_dt_frame.winfo_children():
@@ -407,16 +399,14 @@ class PermissionsReportTab(BaseUITab):
             collapse_children(item)
 
     def export_to_json(self):
-        # For export, use the latest centralized report data again
-        perm_engine = self.app.policy_intelligence.permissions_report
-        report_data = perm_engine.get('report', {}) if perm_engine else {}
-        if not report_data:
+        payload = self._report_service().get_export_payload()
+        if not payload.get('report'):
             return
         filepath = tkfiledialog.asksaveasfilename(defaultextension='.json', filetypes=[('JSON Files', '*.json')])
         if filepath:
             try:
                 with open(filepath, 'w', encoding='utf-8') as f:
-                    json.dump(report_data, f, indent=2, ensure_ascii=False)
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
                 self.info_label.config(text=f'Report exported to {filepath}')
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning('Failed to export permissions report: %s', exc)
