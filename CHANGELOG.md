@@ -1,3 +1,10 @@
+## [6.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.0...v6.2.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* trigger 6.2.1 PIP ([3498ae9](https://github.com/agregory999/oci-policy-analysis/commit/3498ae946a0b39450c7c6f8158478eb0e1815a43))
+
 ## [6.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.1.0...v6.2.0) (2026-06-22)
 
 
