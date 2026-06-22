@@ -33,6 +33,8 @@ Whenever the MCP server loads tenancy/policy data (from live OCI or from cache),
 **Why this matters:**  
 These overlays ensure that all MCP tools (e.g., policy filtering and group/user lookups) have access to up-to-date, derived data such as effective policy scopes, invalidity reasons, and active/inactive dynamic groups—even if the server loaded from a static cache. Logs will explicitly record this step, including elapsed analysis time and any exceptions.
 
+The MCP load path intentionally does **not** run the full UI intelligence strategy overlay (`run_all`) and does **not** calculate actionable recommendations. Those are desktop/web UI workflows, not MCP tools.
+
 **Extensibility:**  
 Additional policy intelligence methods or analytics may be added to this post-load step as new overlays and tools are developed, ensuring a consistent data enhancement path for both core MCP server operations and future extensions.
 

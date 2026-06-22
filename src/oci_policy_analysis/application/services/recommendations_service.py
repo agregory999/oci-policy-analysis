@@ -53,6 +53,7 @@ class RecommendationsService:
 
         payload = {
             'summary': list(overlay.get('recommendations', []) or []),
+            'summary_counts': self._summary_counts(list(overlay.get('recommendations', []) or [])),
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
             'overlap': self._overlap_rows(),
@@ -77,6 +78,16 @@ class RecommendationsService:
             len(payload['limits']),
         )
         return payload
+
+    def _summary_counts(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
+        """Return severity/category counts for recommendation summary filters."""
+
+        severity: dict[str, int] = defaultdict(int)
+        category: dict[str, int] = defaultdict(int)
+        for row in rows:
+            severity[str(row.get('Priority') or 'Unspecified')] += 1
+            category[str(row.get('Category') or 'Unspecified')] += 1
+        return {'severity': dict(severity), 'category': dict(category)}
 
     def _policy_path(self, policy_ocid: str | None = None, policy_obj: dict[str, Any] | None = None) -> str:
         """Resolve canonical policy path for display.

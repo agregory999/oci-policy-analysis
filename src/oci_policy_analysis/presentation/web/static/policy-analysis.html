@@ -1051,6 +1051,23 @@
         validFilter.value = String(data.valid || '');
       }
 
+      function applyInboundFilterFromUrl() {
+        const params = new URLSearchParams(window.location.search || '');
+        const raw = params.get('filter');
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          applySearchSnapshot(parsed);
+          setFiltersJsonValue(prettyJson(parsed));
+          jsonOverrideArmed = true;
+          status.textContent = 'Loaded filter from navigation context.';
+          status.className = 'status success';
+        } catch (err) {
+          status.textContent = `Could not apply navigation filter: ${err}`;
+          status.className = 'status error';
+        }
+      }
+
       function getSavedSearches() {
         const searches = appSettings.saved_policy_searches;
         return Array.isArray(searches) ? searches : [];
@@ -1655,6 +1672,7 @@
           await loadSettings();
           await loadResourceHelperOptions();
           await loadPermissionHelperOptions();
+          applyInboundFilterFromUrl();
           updateMutualExclusionBadges();
           if (String(authStatus?.auth_mode || '') === 'limited') {
             if (manageProspectiveBtn) {

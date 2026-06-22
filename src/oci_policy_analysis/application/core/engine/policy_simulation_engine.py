@@ -33,6 +33,36 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 logger = get_logger(component='core.engine.policy_simulation_engine')
 
 
+def _normalize_related_permission_checks(raw_checks: object, granted_permissions: set[str]) -> list[dict[str, object]]:
+    """Normalize related-check metadata and evaluate it against granted permissions."""
+
+    if not isinstance(raw_checks, list):
+        return []
+    checks: list[dict[str, object]] = []
+    for raw in raw_checks:
+        if not isinstance(raw, dict):
+            continue
+        permissions = [
+            str(permission).strip().upper() for permission in raw.get('permissions', []) if str(permission).strip()
+        ]
+        resource = str(raw.get('resource') or '').strip()
+        if not resource and not permissions:
+            continue
+        missing = sorted(permission for permission in permissions if permission not in granted_permissions)
+        check: dict[str, object] = {
+            'resource': resource,
+            'permissions': permissions,
+            'missing_permissions': missing,
+            'satisfied': not missing,
+        }
+        for key in ('operation', 'applies_when', 'principal', 'reason', 'failure_hint'):
+            value = str(raw.get(key) or '').strip()
+            if value:
+                check[key] = value
+        checks.append(check)
+    return checks
+
+
 class PolicySimulationEngine:
     """
     Central simulation service for OCI policies.
@@ -673,17 +703,24 @@ class PolicySimulationEngine:
             # Collect required permissions for API operation (empty if not found)
             required = []
             missing = set()
+            related_checks = []
             if self.ref_data_repo:
-                required = self.ref_data_repo.data.get('operations', {}).get(api_operation, {}).get('permissions', [])
+                op_meta = self.ref_data_repo.data.get('operations', {}).get(api_operation, {})
+                if not isinstance(op_meta, dict):
+                    op_meta = {}
+                required = op_meta.get('permissions', [])
                 missing = {p.upper() for p in required if p.upper() not in perm_set}
+                related_checks = _normalize_related_permission_checks(op_meta.get('related_checks', []), perm_set)
 
             trace_obj['required_permissions_for_api_operation'] = sorted([p.upper() for p in required])
+            trace_obj['related_permission_checks'] = related_checks
 
             # Base result: summary fields always at the top level.
             sim_result: dict[str, Any] = {
                 'api_call_allowed': has_permission,
                 'missing_permissions': sorted(missing),
                 'required_permissions_for_api_operation': trace_obj['required_permissions_for_api_operation'],
+                'related_permission_checks': related_checks,
                 'failure_reason': '' if has_permission else f'Missing required permissions: {sorted(missing)}',
                 'scenario_internal_id': scenario_internal_id or '',
                 'scenario_name': scenario_name or '',

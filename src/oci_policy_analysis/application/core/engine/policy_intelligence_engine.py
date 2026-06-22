@@ -17,9 +17,10 @@ import time
 from typing import TYPE_CHECKING
 
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.engine.recommendation_actions import catalog_guidance
 from oci_policy_analysis.application.core.models.models import PolicyIntelligence, PolicyOverlap
-from oci_policy_analysis.application.core.parser import collect_tag_conditions
-from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.application.core.parser import collect_tag_conditions, parse_condition_structure
+from oci_policy_analysis.application.core.repo.reference_data_repo import VERB_RISK_WEIGHTS, ReferenceDataRepo
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 if TYPE_CHECKING:
@@ -32,6 +33,93 @@ def _append_unique(items: list, value) -> None:
     """Append value only if not already present (preserve order)."""
     if value not in items:
         items.append(value)
+
+
+def _condition_text(statement: dict) -> str:
+    """Return condition text as a normalized lower-case string."""
+
+    return str(statement.get('conditions') or statement.get('condition') or '').lower()
+
+
+def _is_any_principal_statement(statement: dict) -> bool:
+    """Return True for any-user/any-group policy subjects."""
+
+    return str(statement.get('subject_type') or '').lower() in {'any-user', 'any-group'}
+
+
+def _normalize_subjects(subjects, subject_type: str) -> list[tuple[str | None, str]]:
+    """Return policy subjects as ``(domain, name)`` tuples."""
+
+    if subjects is None:
+        return [('Default', 'UNKNOWN')]
+    if isinstance(subjects, str):
+        return [(None, subjects)]
+    normalized = []
+    for subject in subjects:
+        if isinstance(subject, tuple | list) and len(subject) >= 2:
+            normalized.append((subject[0], subject[1]))
+        else:
+            normalized.append((None, str(subject or subject_type or 'UNKNOWN')))
+    return normalized or [('Default', 'UNKNOWN')]
+
+
+def _condition_atoms(statement: dict) -> list[dict]:
+    """Return parsed condition atoms from a statement, parsing raw text if needed."""
+
+    atoms = statement.get('condition_atoms')
+    if isinstance(atoms, list):
+        return [atom for atom in atoms if isinstance(atom, dict)]
+    structure = statement.get('where_clause_structure') or statement.get('where_clause') or {}
+    if isinstance(structure, dict) and isinstance(structure.get('atoms'), list):
+        return [atom for atom in structure.get('atoms', []) if isinstance(atom, dict)]
+    parsed = parse_condition_structure(statement.get('conditions') or statement.get('condition') or '')
+    parsed_atoms = parsed.get('atoms') if isinstance(parsed, dict) else []
+    return [atom for atom in parsed_atoms if isinstance(atom, dict)] if isinstance(parsed_atoms, list) else []
+
+
+def _condition_atom_values(statement: dict) -> dict[str, str]:
+    """Return first right-side value for each condition atom left side."""
+
+    values = {}
+    for atom in _condition_atoms(statement):
+        left = str(atom.get('normalized_left') or atom.get('left') or '').casefold()
+        right = str(atom.get('right') or '').strip().strip('\'"')
+        if left and right and left not in values:
+            values[left] = right
+    return values
+
+
+def _derived_principal_identity(statement: dict, original_subject_key: str, subject_type: str) -> tuple[str, str]:
+    """Return display principal key/kind, deriving resource/workload identities from conditions."""
+
+    if not _is_any_principal_statement(statement):
+        return original_subject_key, subject_type
+    values = _condition_atom_values(statement)
+    principal_type = str(values.get('request.principal.type') or '').strip()
+    if not principal_type:
+        return original_subject_key, subject_type
+    if principal_type.casefold() == 'workload':
+        cluster_id = values.get('request.principal.cluster_id') or 'unknown'
+        namespace = values.get('request.principal.namespace') or 'unknown'
+        service_account = values.get('request.principal.service_account') or 'unknown'
+        return f'oke-workload-identity:{cluster_id}/{namespace}/{service_account}', 'oke-workload-identity'
+    compartment_id = values.get('request.principal.compartment.id') or 'unknown'
+    return f'resource-principal:{principal_type}/{compartment_id}', 'resource-principal'
+
+
+def _path_is_self_or_descendant(candidate_path: str, effective_path: str) -> bool:
+    """Return True when candidate path is the effective path or a descendant path."""
+
+    candidate = str(candidate_path or '').strip('/').lower()
+    effective = str(effective_path or '').strip('/').lower()
+    return bool(candidate and effective and (candidate == effective or candidate.startswith(f'{effective}/')))
+
+
+def _path_sort_key(path: str) -> tuple[int, str]:
+    """Sort root before child paths, then alphabetically."""
+
+    clean = str(path or '').strip('/')
+    return (0 if clean.casefold() == 'root' else clean.count('/') + 1, clean.casefold())
 
 
 # OCI Identity Domains system group that cannot be deleted and may have zero members; exclude from cleanup.
@@ -279,16 +367,23 @@ class PolicyIntelligenceEngine:
         resource_map = {}
         perm_conditionals = {}  # (path,subject,perm) -> True/False
         perm_statements = {}  # (path,subject,perm) -> statement_text
+        direct_grant_rows = []
+        skipped_count = 0
+        allow_count = 0
+        deny_count = 0
         statements = self.policy_repo.regular_statements
-        for _idx, stmt in enumerate(statements):
+        logger.info('Permissions report input statements: %d', len(statements or []))
+        for idx, stmt in enumerate(statements or []):
             try:
                 effective_path = stmt.get('effective_path')
                 if not effective_path or effective_path is None:
                     effective_path = 'UNKNOWN'
                 action = stmt.get('action', 'allow').lower()
-                subjects = stmt.get('subject', [])
+                subjects = _normalize_subjects(stmt.get('subject', []), str(stmt.get('subject_type') or 'unknown'))
                 subject_type = stmt.get('subject_type', 'unknown')
                 permissions = stmt.get('permission', [])
+                if isinstance(permissions, str):
+                    permissions = [permissions]
                 resource_str = stmt.get('resource')
                 statement_text = stmt.get('statement_text', '')
                 is_conditional = bool(stmt.get('conditions'))
@@ -303,31 +398,62 @@ class PolicyIntelligenceEngine:
                             permissions = [f'{verb.upper()}_{resource.upper()}']
                     else:
                         permissions = ['UNKNOWN_PERMISSION']
-                if subjects is None:
-                    subjects = [('Default', 'UNKNOWN')]
                 for subject_domain, subject_name in subjects:
                     # Use shared helper to ensure principal_key / subject_key
                     # format is consistent with simulation and UI surfaces.
-                    subject_key = self.calculate_principal_key(subject_type, subject_domain, subject_name)
+                    original_subject_key = self.calculate_principal_key(subject_type, subject_domain, subject_name)
+                    subject_key, principal_kind = _derived_principal_identity(
+                        stmt, original_subject_key, str(subject_type or 'unknown')
+                    )
                     if effective_path not in report:
                         report[effective_path] = {}
                     if subject_key not in report[effective_path]:
                         report[effective_path][subject_key] = {
                             'allow': set(),
                             'deny': set(),
-                            'subject_type': subject_type,
+                            'subject_type': principal_kind,
+                            'original_subject_keys': set(),
                         }
+                    report[effective_path][subject_key]['original_subject_keys'].add(original_subject_key)
                     if action == 'deny':
                         report[effective_path][subject_key]['deny'].update(permissions)
+                        deny_count += len(permissions)
                     else:
                         report[effective_path][subject_key]['allow'].update(permissions)
+                        allow_count += len(permissions)
                     for perm in permissions:
                         perm_conditionals[(effective_path, subject_key, perm)] = is_conditional
                         perm_statements[(effective_path, subject_key, perm)] = statement_text
+                        direct_grant_rows.append(
+                            {
+                                'effective_path': effective_path,
+                                'grant_path': effective_path,
+                                'principal_key': subject_key,
+                                'original_subject_key': original_subject_key,
+                                'principal_kind': principal_kind,
+                                'action': 'deny' if action == 'deny' else 'allow',
+                                'resource': resource_str or '',
+                                'permission': perm,
+                                'conditional': is_conditional,
+                                'inherited': False,
+                                'inherited_from': '',
+                                'statement_text': statement_text,
+                                'policy_name': stmt.get('policy_name') or '',
+                                'statement_id': stmt.get('internal_id') or stmt.get('id') or '',
+                            }
+                        )
                     rsrc = resource_str if resource_str else ('Permissions (select row)' if permissions else '')
                     resource_map[(effective_path, subject_key)] = rsrc
-            except Exception:
-                pass
+            except Exception as exc:
+                skipped_count += 1
+                logger.debug(
+                    'Skipping statement while building permissions report: index=%s policy=%s error=%s statement=%r',
+                    idx,
+                    stmt.get('policy_name') if isinstance(stmt, dict) else '',
+                    exc,
+                    stmt,
+                    exc_info=True,
+                )
         for path in report:
             for subject in report[path]:
                 report[path][subject]['allow'] = sorted(
@@ -336,14 +462,78 @@ class PolicyIntelligenceEngine:
                 report[path][subject]['deny'] = sorted(
                     [perm for perm in list(report[path][subject]['deny']) if perm is not None]
                 )
+                report[path][subject]['original_subject_keys'] = sorted(report[path][subject]['original_subject_keys'])
+        if skipped_count:
+            logger.warning(
+                'Permissions report skipped %d malformed statement(s); enable DEBUG for details', skipped_count
+            )
+        grant_rows = self._expand_effective_permission_rows(direct_grant_rows)
+        principal_count = sum(len(subjects) for subjects in report.values())
+        logger.info(
+            'Permissions report built: paths=%d principals=%d direct_allow_grants=%d direct_deny_grants=%d effective_rows=%d skipped=%d',
+            len(report),
+            principal_count,
+            allow_count,
+            deny_count,
+            len(grant_rows),
+            skipped_count,
+        )
         # Store both the report and auxiliary maps for selection/detail lookups:
         self.permissions_report = {
             'report': report,
             'resource_map': resource_map,
             'perm_conditionals': perm_conditionals,
             'perm_statements': perm_statements,
+            'grant_rows': grant_rows,
+            'summary': {
+                'statement_count': len(statements or []),
+                'path_count': len(report),
+                'principal_count': principal_count,
+                'allow_grant_count': allow_count,
+                'deny_grant_count': deny_count,
+                'direct_grant_row_count': len(direct_grant_rows),
+                'effective_grant_row_count': len(grant_rows),
+                'skipped_statement_count': skipped_count,
+            },
         }
         return self.permissions_report
+
+    def _expand_effective_permission_rows(self, direct_rows: list[dict]) -> list[dict]:
+        """Expand direct grants to each descendant compartment where they are effective."""
+
+        if not direct_rows:
+            return []
+        known_paths = set()
+        for row in direct_rows:
+            grant_path = str(row.get('grant_path') or row.get('effective_path') or '').strip()
+            if grant_path:
+                known_paths.add(grant_path)
+        for path in getattr(self, 'compartments_by_path', {}) or {}:
+            if path:
+                known_paths.add(str(path))
+        for comp in getattr(self.policy_repo, 'compartments', []) or []:
+            path = comp.get('hierarchy_path') if isinstance(comp, dict) else None
+            if path:
+                known_paths.add(str(path).lower())
+
+        expanded_rows = []
+        for row in direct_rows:
+            grant_path = str(row.get('grant_path') or row.get('effective_path') or '').strip()
+            if not grant_path or grant_path == 'UNKNOWN':
+                expanded_rows.append(dict(row))
+                continue
+            descendant_paths = [path for path in known_paths if _path_is_self_or_descendant(path, grant_path)] or [
+                grant_path
+            ]
+            for path in sorted(descendant_paths, key=_path_sort_key):
+                expanded = dict(row)
+                expanded['effective_path'] = path
+                expanded['grant_path'] = grant_path
+                inherited = path.strip('/').casefold() != grant_path.strip('/').casefold()
+                expanded['inherited'] = inherited
+                expanded['inherited_from'] = grant_path if inherited else ''
+                expanded_rows.append(expanded)
+        return expanded_rows
 
     def run_dg_in_use_analysis(self):  # noqa: C901
         """
@@ -852,7 +1042,7 @@ class PolicyIntelligenceEngine:
 
         Formula: risk = exposure_points × compartments_in_scope (then optional reductions for WHERE clause
         or service principal). Exposure points = sum of each permission's risk by verb level from the
-        reference data (inspect=1, read=5, use=20, manage=50). When the statement has a permission list,
+        reference data (inspect=1, read=5, use=50, manage=100). When the statement has a permission list,
         each permission is looked up and its verb-level risk is summed. When it has no permission list,
         the reference repo returns the sum of all permissions for that verb/resource (each weighted by
         its verb). Compartments in scope = number of compartments at or below the statement's effective
@@ -891,7 +1081,7 @@ class PolicyIntelligenceEngine:
             notes = []
             recommendations = []
 
-            # Exposure points: sum of each permission's risk by verb level (inspect=1, read=5, use=20, manage=50 from reference data)
+            # Exposure points: sum of each permission's risk by verb level (inspect=1, read=5, use=50, manage=100 from reference data)
             if permissions:
                 exposure_points = ref_repo.get_permissions_risk_sum(permissions, resource)
                 notes.append(
@@ -902,8 +1092,7 @@ class PolicyIntelligenceEngine:
                 exposure_points = ref_repo.get_verb_resource_risk(verb, resource)
                 if exposure_points == 0:
                     # Unknown resource or no permissions in reference data; use a small rubric and cap later
-                    verb_risk_map = {'inspect': 1, 'read': 5, 'use': 20, 'manage': 50}
-                    risk_factor = verb_risk_map.get(verb, 1)
+                    risk_factor = VERB_RISK_WEIGHTS.get(verb, 1)
                     is_family = '-family' in resource
                     base = 2 if is_family else 1
                     exposure_points = base * risk_factor
@@ -935,7 +1124,7 @@ class PolicyIntelligenceEngine:
             compartments_in_scope = 0
             if path_lower:
                 for other_path in self.compartments_by_path or {}:
-                    if other_path and other_path.lower().startswith(path_lower):
+                    if _path_is_self_or_descendant(other_path, path_lower):
                         compartments_in_scope += 1
                 if compartments_in_scope == 0:
                     compartments_in_scope = 1
@@ -1136,11 +1325,13 @@ class PolicyIntelligenceEngine:
                         f'{len(consolidations)} consolidation opportunity(ies) detected. '
                         'Refer to OCI documentation, Oracle Cloud security blogs, and your local security/identity experts to develop a consolidation plan.'
                     ),
-                    'Action': 'Plan: Review consolidation opportunities with documentation and local experts',
-                    'ActionDetail': (
-                        'Review the listed consolidation candidates, then consult OCI policy documentation, Oracle Security/Cloud blogs, '
-                        'and your local cloud security/identity experts to design and implement a safe consolidation approach.'
-                        f'{strategy_hint}'
+                    **catalog_guidance(
+                        'consolidate_policies',
+                        ActionDetail=(
+                            'Review the listed consolidation candidates, then consult OCI policy documentation, Oracle Security/Cloud blogs, '
+                            'and your local cloud security/identity experts to design and implement a safe consolidation approach.'
+                            f'{strategy_hint}'
+                        ),
                     ),
                 }
             )
@@ -1152,8 +1343,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'High',
                     'Category': 'Policy Hygiene',
                     'Notes': f'{len(cleanup["invalid_statements"])} invalid policy statement(s) detected. Review the cleanup/fix tab for details.',
-                    'Action': 'Plan: Review and remediate invalid policy statements',
-                    'ActionDetail': 'Examine policies with invalid statements and resolve as appropriate.',
+                    **catalog_guidance('invalid_statements'),
                 }
             )
         if cleanup.get('unused_groups'):
@@ -1163,8 +1353,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Medium',
                     'Category': 'Identity Management',
                     'Notes': f'{len(cleanup["unused_groups"])} unused group(s) (0 members) detected. See cleanup/fix tab for actionable list.',
-                    'Action': 'Plan: Remove or repurpose unused groups',
-                    'ActionDetail': 'Review business need for empty groups and remove unless justified.',
+                    **catalog_guidance('unused_groups'),
                 }
             )
         if cleanup.get('unused_dynamic_groups'):
@@ -1174,8 +1363,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Medium',
                     'Category': 'Identity Management',
                     'Notes': f'{len(cleanup["unused_dynamic_groups"])} unused dynamic group(s) detected. See cleanup/fix tab for actionable list.',
-                    'Action': 'Plan: Remove unused dynamic groups',
-                    'ActionDetail': 'Delete or reassign dynamic groups not referenced in policy statements.',
+                    **catalog_guidance('unused_dynamic_groups'),
                 }
             )
         if cleanup.get('statements_too_open'):
@@ -1185,8 +1373,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'High',
                     'Category': 'Access Scope',
                     'Notes': f"{len(cleanup['statements_too_open'])} policy statement(s) granting 'manage all-resources' broadly detected. See cleanup/fix tab for details.",
-                    'Action': "Plan: Restrict broad 'manage all-resources' statements",
-                    'ActionDetail': 'Replace with least privilege and restrict to smallest viable compartment and subject.',
+                    **catalog_guidance('statements_too_open'),
                 }
             )
         if cleanup.get('anyuser_no_where'):
@@ -1196,8 +1383,55 @@ class PolicyIntelligenceEngine:
                     'Priority': 'High',
                     'Category': 'Access Scope',
                     'Notes': f"{len(cleanup['anyuser_no_where'])} policy statement(s) with 'any-user' subject and no where clause detected. See cleanup/fix tab for details.",
-                    'Action': 'Plan: Add where clauses to any-user statements',
-                    'ActionDetail': 'Enforce least privilege by specifying a concise where clause for all any-user policies.',
+                    **catalog_guidance('anyuser_no_where'),
+                }
+            )
+
+        workload_findings = self._workload_identity_hygiene_findings()
+        if workload_findings:
+            recommendations.append(
+                {
+                    'Recommendation': 'Tighten OKE workload identity policy conditions',
+                    'Priority': 'High',
+                    'Category': 'Workload Identity',
+                    'Notes': (
+                        f'{len(workload_findings)} any-user workload policy statement(s) have incomplete OKE workload identity constraints. '
+                        'This check validates policy condition shape only; it does not claim Kubernetes namespace existence.'
+                    ),
+                    'EvidenceCount': len(workload_findings),
+                    'Evidence': workload_findings[:10],
+                    **catalog_guidance('oke_workload_identity_hygiene'),
+                }
+            )
+
+        resource_principal_findings = self._resource_principal_hygiene_findings()
+        if resource_principal_findings:
+            recommendations.append(
+                {
+                    'Recommendation': 'Tighten resource principal policy conditions',
+                    'Priority': 'Medium',
+                    'Category': 'Resource Principal',
+                    'Notes': (
+                        f'{len(resource_principal_findings)} any-user/any-group resource principal policy statement(s) '
+                        'lack recommended principal type or compartment constraints.'
+                    ),
+                    'EvidenceCount': len(resource_principal_findings),
+                    'Evidence': resource_principal_findings[:10],
+                    **catalog_guidance('resource_principal_hygiene'),
+                }
+            )
+
+        tag_findings = self._tag_based_policy_hygiene_findings()
+        if tag_findings:
+            recommendations.append(
+                {
+                    'Recommendation': 'Review tag-based policy condition coverage',
+                    'Priority': 'Medium',
+                    'Category': 'Tag-Based Access',
+                    'Notes': f'{len(tag_findings)} policy statement(s) use tag-based conditions that should be reviewed for access-control hygiene.',
+                    'EvidenceCount': len(tag_findings),
+                    'Evidence': tag_findings[:10],
+                    **catalog_guidance('tag_based_policy_hygiene'),
                 }
             )
 
@@ -1219,8 +1453,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Low',
                     'Category': 'Identity Management',
                     'Notes': f"{all_domain_users_refs} policy statement(s) reference the special 'All Domain Users' group. Consider reviewing whether this broad membership is appropriate.",
-                    'Action': 'No action recommended',
-                    'ActionDetail': 'Informational only. The All Domain Users group cannot be deleted and may appear in each Identity Domain.',
+                    **catalog_guidance('all_domain_users'),
                 }
             )
 
@@ -1238,8 +1471,10 @@ class PolicyIntelligenceEngine:
                         'Priority': 'High',
                         'Category': 'Compartment Resolution',
                         'Notes': f'Statement in policy {policy_name} has no effective path calculated. Ensure compartments are loaded and statement locations are valid.',
-                        'Action': 'Plan: Review statement locations',
-                        'ActionDetail': f"Check statement: '{st.get('statement_text', '')}' in policy '{policy_name}' for location issues.",
+                        **catalog_guidance(
+                            'undefined_effective_path',
+                            ActionDetail=f"Check statement: '{st.get('statement_text', '')}' in policy '{policy_name}' for location issues.",
+                        ),
                     }
                 )
                 continue
@@ -1258,8 +1493,10 @@ class PolicyIntelligenceEngine:
                         'Priority': 'Critical',
                         'Category': 'Policy Scope',
                         'Notes': f'Policy {policy_name} grants manage all-resources at root with no conditions. Consider limiting scope or adding conditions.',
-                        'Action': 'Plan: Restrict scope for manage all-resources',
-                        'ActionDetail': f"Work with compartment admins to restrict '{policy_name}' or replace 'manage all-resources' with least privilege.",
+                        **catalog_guidance(
+                            'manage_all_root',
+                            ActionDetail=f"Work with compartment admins to restrict '{policy_name}' or replace 'manage all-resources' with least privilege.",
+                        ),
                     }
                 )
 
@@ -1280,10 +1517,12 @@ class PolicyIntelligenceEngine:
                         'One or more compartments are near or have exceeded policy statement count limits. '
                         f'See the Limits tab for details and affected compartments (limit: {POLICY_STATEMENT_HARD_LIMIT} per compartment).'
                     ),
-                    'Action': 'Review the Limits tab and reduce/consolidate compartment statements as needed.',
-                    'ActionDetail': (
-                        'Review, consolidate, or delete policy statements in affected compartments.'
-                        ' Only a single summary recommendation appears even if multiple limits are exceeded.'
+                    **catalog_guidance(
+                        'limits',
+                        ActionDetail=(
+                            'Review, consolidate, or delete policy statements in affected compartments.'
+                            ' Only a single summary recommendation appears even if multiple limits are exceeded.'
+                        ),
                     ),
                 }
             )
@@ -1296,8 +1535,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Info',
                     'Category': 'General',
                     'Notes': 'No critical risks found in current policy set.',
-                    'Action': 'No action needed',
-                    'ActionDetail': 'No action is required at this time.',
+                    **catalog_guidance('no_critical'),
                 }
             )
         self.overlay['recommendations'] = recommendations
@@ -1307,6 +1545,91 @@ class PolicyIntelligenceEngine:
         logger.info(
             f'Built overall recommendations: {len(recommendations)} total, {critical_count} critical, {high_count} high.'
         )
+
+    def _workload_identity_hygiene_findings(self) -> list[dict]:
+        """Find any-user OKE workload identity policies missing key workload atoms."""
+
+        findings = []
+        required_atoms = (
+            'request.principal.type',
+            'request.principal.cluster_id',
+            'request.principal.namespace',
+            'request.principal.service_account',
+        )
+        for st in getattr(self.policy_repo, 'regular_statements', []) or []:
+            conditions = _condition_text(st)
+            if not _is_any_principal_statement(st) or 'request.principal.type' not in conditions:
+                continue
+            if "'workload'" not in conditions and '"workload"' not in conditions:
+                continue
+            missing = [atom for atom in required_atoms if atom not in conditions]
+            if missing:
+                findings.append(
+                    {
+                        'Policy': st.get('policy_name') or '',
+                        'Statement': st.get('statement_text') or '',
+                        'Missing Conditions': ', '.join(missing),
+                    }
+                )
+        return findings
+
+    def _resource_principal_hygiene_findings(self) -> list[dict]:
+        """Find broad resource-principal policies missing type or compartment constraints."""
+
+        findings = []
+        for st in getattr(self.policy_repo, 'regular_statements', []) or []:
+            conditions = _condition_text(st)
+            if not _is_any_principal_statement(st) or 'request.principal.' not in conditions:
+                continue
+            if "'workload'" in conditions or '"workload"' in conditions:
+                continue
+            missing = []
+            if 'request.principal.type' not in conditions:
+                missing.append('request.principal.type')
+            if 'request.principal.compartment.id' not in conditions:
+                missing.append('request.principal.compartment.id')
+            if missing:
+                findings.append(
+                    {
+                        'Policy': st.get('policy_name') or '',
+                        'Statement': st.get('statement_text') or '',
+                        'Missing Conditions': ', '.join(missing),
+                    }
+                )
+        return findings
+
+    def _tag_based_policy_hygiene_findings(self) -> list[dict]:
+        """Find tag-condition policy statements that merit review."""
+
+        findings = []
+        for st in getattr(self.policy_repo, 'regular_statements', []) or []:
+            conditions = str(st.get('conditions') or st.get('condition') or '')
+            if '.tag.' not in conditions.lower():
+                continue
+            tag_conditions = []
+            try:
+                tag_conditions = collect_tag_conditions(conditions) or []
+            except Exception:
+                tag_conditions = []
+            access_types = {
+                str(getattr(cond, 'access_type', '') or getattr(cond, 'left', '')).lower() for cond in tag_conditions
+            }
+            if not tag_conditions:
+                reason = 'Tag condition could not be parsed into structured tag atoms.'
+            elif any('freeform' in access_type for access_type in access_types):
+                reason = 'Freeform tag conditions are present; defined tags are preferred for access control.'
+            else:
+                reason = (
+                    'Tag-based access condition present; review request/target tag semantics and catalog alignment.'
+                )
+            findings.append(
+                {
+                    'Policy': st.get('policy_name') or '',
+                    'Statement': st.get('statement_text') or '',
+                    'Reason': reason,
+                }
+            )
+        return findings
 
     def build_policy_consolidation(self):
         """

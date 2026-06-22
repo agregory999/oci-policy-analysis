@@ -335,24 +335,29 @@ Use this tab when you’re asking **“Where do we trust or get trusted by other
 The **Permissions Report Tab** is the application’s **effective-access auditor**.
 
 **Purpose**  
-- Generate comprehensive reports of effective permissions for principals across compartments.  
-- Trace back which statements and policies grant a specific permission.  
-- Produce artifacts for audits, reviews, and compliance evidence.
+- Generate comprehensive reports of allow and deny permissions by effective compartment and principal.
+- Trace each listed permission back to source policy statement text where available.
+- Produce JSON artifacts from desktop/web, or JSON/CSV artifacts from CLI, for audits and offline reviews.
 
 **General Flow**  
-1. Choose a scope (compartment path, principal type, principal name) for your report.  
-2. Run the report to compute effective permissions, resolving group memberships, dynamic groups, and any deny statements.  
-3. Use filters to focus on specific services, permissions, or principals.  
-4. Drill into a row to see source statements and relevant context.  
-5. Export the report (e.g., CSV/JSON) for offline analysis or documentation.
+1. Load tenancy data through desktop or web so the full post-load pipeline builds the report.  
+2. Expand an effective compartment path and select a principal key.  
+3. Review explicit and inherited allow/deny permission rows.  
+4. Right-click a permission row to open the source policy statement.  
+5. Export the report for offline analysis or documentation.
+
+**Principal Keys**
+- Named identities use canonical keys such as `group:Default/Admins`, `dynamic-group:Default/Builders`, and `service:None/objectstorage`.
+- Broad `any-user` and `any-group` statements remain visible as original subject keys unless their where clause identifies a resource principal or OKE workload identity.
+- Resource-principal statements with `request.principal.type` are shown with keys like `resource-principal:computecontainerinstance/ocid1.compartment...`.
+- OKE workload identity statements with workload conditions are shown with keys like `oke-workload-identity:<cluster_id>/<namespace>/<service_account>`.
+- These keys come from policy condition evidence only; the report does not validate live OCI resources, Kubernetes namespaces, or service accounts.
 
 **Key Widgets and Right-Click Actions**  
-- **Report Criteria / Filter Panel:** Select compartments, principal types, specific principals, and optional filters like service family or permission name.  
-- **Effective Permissions Table:** Lists each permission with its principal, compartment, resource type, and source statements.  
+- **Effective Path / Subject Tree:** Lists effective compartment paths and principal keys.
+- **Allow/Deny Permission Tables:** Lists each permission with condition status and source statement text.
 - **Right-click on a Permission Row:**
-  - "Open Source Policy" – jump to the Policy Tab with filters pre-applied.  
-  - "Open Principal" – open the related Groups/Users, Dynamic Groups, or Resource Principals tab.  
-  - "Copy as Evidence" – copy a structured summary for ticketing or audit notes.  
+  - "Show Policy Statement" – jump to the Policy Analysis tab with the statement text pre-applied.
 
 Use this tab when you want a **clear, report-style view** of what access actually exists.
 

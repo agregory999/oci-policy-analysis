@@ -10,6 +10,22 @@ from oci_policy_analysis.application.core.common.policy_helpers import calculate
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
 
 
+class _RiskRefRepo:
+    """Minimal reference repo for risk-scoring tests."""
+
+    family_name_map: dict[str, str] = {}
+    resource_name_map: dict[str, str] = {}
+    data = {'resources': {}, 'families': {}}
+
+    def get_verb_resource_risk(self, verb: str, resource: str) -> int:
+        if verb == 'manage' and resource == 'all-resources':
+            return 1000
+        return 0
+
+    def get_permissions_risk_sum(self, _permissions, _resource=None) -> int:
+        return 0
+
+
 def _build_engine_with_statement(statement: dict, catalog: dict):
     """Create a PolicyIntelligenceEngine with a minimal repo stub for tests."""
     repo = SimpleNamespace(
@@ -340,6 +356,308 @@ def test_build_permissions_report_includes_subject_type_and_principal_key():
     subject_key = calculate_principal_key('group', 'Default', 'Administrators')
     assert subject_key in report.get('root', {})
     assert report['root'][subject_key].get('subject_type') == 'group'
+
+
+def test_build_permissions_report_handles_any_user_string_subject():
+    statement = {
+        'statement_text': 'allow any-user to read buckets in tenancy',
+        'subject_type': 'any-user',
+        'subject': ['any-user'],
+        'permission': ['BUCKET_READ'],
+        'effective_path': 'root',
+    }
+    engine, _repo = _build_engine_with_statement(statement, {})
+
+    payload = engine.build_permissions_report()
+    subject_key = calculate_principal_key('any-user', None, 'any-user')
+
+    assert subject_key in payload.get('report', {}).get('root', {})
+    assert payload['grant_rows'][0]['principal_key'] == subject_key
+
+
+def test_build_permissions_report_derives_resource_principal_key():
+    statement = {
+        'policy_name': 'resource-principal-policy',
+        'statement_text': 'allow any-group to use objects in tenancy',
+        'subject_type': 'any-group',
+        'subject': ['any-group'],
+        'permission': ['OBJECT_READ'],
+        'effective_path': 'root',
+        'conditions': (
+            "all { request.principal.type = 'computecontainerinstance', "
+            "request.principal.compartment.id = 'ocid1.compartment.oc1..app' }"
+        ),
+    }
+    engine, _repo = _build_engine_with_statement(statement, {})
+
+    payload = engine.build_permissions_report()
+    principal_key = 'resource-principal:computecontainerinstance/ocid1.compartment.oc1..app'
+
+    assert principal_key in payload.get('report', {}).get('root', {})
+    assert payload['report']['root'][principal_key]['subject_type'] == 'resource-principal'
+    assert payload['grant_rows'][0]['original_subject_key'] == 'any-group:None/any-group'
+
+
+def test_build_permissions_report_derives_oke_workload_identity_key():
+    statement = {
+        'policy_name': 'oke-workload-policy',
+        'statement_text': 'allow any-user to read repos in tenancy',
+        'subject_type': 'any-user',
+        'subject': ['any-user'],
+        'permission': ['REPOSITORY_READ'],
+        'effective_path': 'root',
+        'conditions': (
+            "all { request.principal.type = 'workload', "
+            "request.principal.namespace = 'finance', "
+            "request.principal.service_account = 'financesa', "
+            "request.principal.cluster_id = 'ocid1.cluster.oc1..oke1' }"
+        ),
+    }
+    engine, _repo = _build_engine_with_statement(statement, {})
+
+    payload = engine.build_permissions_report()
+    principal_key = 'oke-workload-identity:ocid1.cluster.oc1..oke1/finance/financesa'
+
+    assert principal_key in payload.get('report', {}).get('root', {})
+    assert payload['report']['root'][principal_key]['subject_type'] == 'oke-workload-identity'
+    assert payload['grant_rows'][0]['principal_key'] == principal_key
+
+
+def test_build_permissions_report_preserves_deny_rows_and_summary():
+    statement = {
+        'statement_text': 'deny group Developers to read buckets in tenancy',
+        'action': 'deny',
+        'subject_type': 'group',
+        'subject': [('Default', 'Developers')],
+        'permission': ['BUCKET_READ'],
+        'effective_path': 'root',
+    }
+    engine, _repo = _build_engine_with_statement(statement, {})
+
+    payload = engine.build_permissions_report()
+    subject_key = calculate_principal_key('group', 'Default', 'Developers')
+
+    assert payload['report']['root'][subject_key]['deny'] == ['BUCKET_READ']
+    assert payload['grant_rows'][0]['action'] == 'deny'
+    assert payload['summary']['deny_grant_count'] == 1
+
+
+def test_build_permissions_report_expands_effective_rows_to_descendant_compartments():
+    statement = {
+        'statement_text': 'allow group Developers to read buckets in tenancy',
+        'subject_type': 'group',
+        'subject': [('Default', 'Developers')],
+        'permission': ['BUCKET_READ'],
+        'effective_path': 'root',
+    }
+    repo = SimpleNamespace(
+        regular_statements=[statement],
+        dynamic_groups=[],
+        groups=[],
+        defined_tag_namespace_keys={},
+        compartments=[
+            {'id': 'tenancy', 'name': 'root', 'hierarchy_path': 'root'},
+            {'id': 'dev', 'name': 'Dev', 'hierarchy_path': 'root/dev'},
+            {'id': 'app', 'name': 'App', 'hierarchy_path': 'root/dev/app'},
+        ],
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+
+    payload = engine.build_permissions_report()
+    rows = sorted(payload['grant_rows'], key=lambda row: row['effective_path'])
+
+    assert [row['effective_path'] for row in rows] == ['root', 'root/dev', 'root/dev/app']
+    inherited_rows = [row for row in rows if row['inherited']]
+    assert {row['inherited_from'] for row in inherited_rows} == {'root'}
+    assert payload['summary']['direct_grant_row_count'] == 1
+    assert payload['summary']['effective_grant_row_count'] == 3
+
+
+def test_build_overall_recommendations_flags_incomplete_oke_workload_identity_conditions():
+    repo = SimpleNamespace(
+        regular_statements=[
+            {
+                'policy_name': 'oke-workload-policy',
+                'statement_text': 'allow any-user to read repos in tenancy',
+                'subject_type': 'any-user',
+                'subject': ['any-user'],
+                'verb': 'read',
+                'resource': 'repos',
+                'effective_path': 'root',
+                'conditions': (
+                    "all { request.principal.type = 'workload', " "request.principal.namespace = 'finance' }"
+                ),
+            }
+        ],
+        dynamic_groups=[],
+        groups=[],
+        compartments=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.overlay['cleanup_items'] = {}
+    engine.overlay['consolidations'] = []
+
+    engine.build_overall_recommendations()
+
+    rec = next(r for r in engine.overlay['recommendations'] if r.get('ActionId') == 'oke_workload_identity_hygiene')
+    assert rec['Priority'] == 'High'
+    assert rec['Category'] == 'Workload Identity'
+    assert rec['Recommendation']
+    assert rec['Action']
+    assert rec['ActionDetail']
+    assert rec['Destination'] == '/workload-principals-analysis.html'
+    assert 'namespace existence' in rec['Notes']
+    assert 'request.principal.cluster_id' in rec['Evidence'][0]['Missing Conditions']
+
+
+def test_build_overall_recommendations_flags_resource_principal_without_compartment_constraint():
+    repo = SimpleNamespace(
+        regular_statements=[
+            {
+                'policy_name': 'resource-principal-policy',
+                'statement_text': 'allow any-group to use objects in tenancy',
+                'subject_type': 'any-group',
+                'subject': ['any-group'],
+                'verb': 'use',
+                'resource': 'objects',
+                'effective_path': 'root',
+                'conditions': "request.principal.type = 'computecontainerinstance'",
+            }
+        ],
+        dynamic_groups=[],
+        groups=[],
+        compartments=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.overlay['cleanup_items'] = {}
+    engine.overlay['consolidations'] = []
+
+    engine.build_overall_recommendations()
+
+    rec = next(r for r in engine.overlay['recommendations'] if r.get('ActionId') == 'resource_principal_hygiene')
+    assert rec['Category'] == 'Resource Principal'
+    assert 'request.principal.compartment.id' in rec['Evidence'][0]['Missing Conditions']
+
+
+def test_build_overall_recommendations_flags_tag_based_policy_hygiene():
+    repo = SimpleNamespace(
+        regular_statements=[
+            {
+                'policy_name': 'tag-policy',
+                'statement_text': 'allow group Developers to use buckets in tenancy',
+                'subject_type': 'group',
+                'subject': [('Default', 'Developers')],
+                'verb': 'use',
+                'resource': 'buckets',
+                'effective_path': 'root',
+                'conditions': "target.resource.tag.Operations.Environment = 'prod'",
+            }
+        ],
+        dynamic_groups=[],
+        groups=[],
+        compartments=[],
+        defined_tag_namespace_keys={'Operations': {'keys': {'Environment': None}}},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.overlay['cleanup_items'] = {}
+    engine.overlay['consolidations'] = []
+
+    engine.build_overall_recommendations()
+
+    rec = next(r for r in engine.overlay['recommendations'] if r.get('ActionId') == 'tag_based_policy_hygiene')
+    assert rec['Category'] == 'Tag-Based Access'
+    assert rec['Action']
+    assert rec['ActionDetail']
+    assert rec['EvidenceCount'] == 1
+
+
+def test_recommendation_rows_preserve_legacy_fields_with_catalog_details():
+    repo = SimpleNamespace(
+        regular_statements=[],
+        dynamic_groups=[],
+        groups=[],
+        compartments=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.overlay['cleanup_items'] = {'invalid_statements': [{'statement_text': 'bad', 'invalid_reasons': ['x']}]}
+    engine.overlay['consolidations'] = []
+
+    engine.build_overall_recommendations()
+
+    rec = engine.overlay['recommendations'][0]
+    for key in ['Recommendation', 'Priority', 'Category', 'Notes', 'Action']:
+        assert key in rec
+    assert rec['ActionId'] == 'invalid_statements'
+    assert rec['ActionDetail']
+
+
+def test_risk_scoring_unknown_resource_uses_current_verb_weights():
+    repo = SimpleNamespace(
+        permission_reference_repo=_RiskRefRepo(),
+        regular_statements=[
+            {
+                'internal_id': 'st1',
+                'statement_text': 'allow group Devs to use mystery-widgets in compartment Dev',
+                'subject_type': 'group',
+                'verb': 'use',
+                'resource': 'mystery-widgets',
+                'permission': [],
+                'effective_path': 'root/dev',
+            }
+        ],
+        compartments=[
+            {'id': 'tenancy', 'name': 'root', 'parent_id': None, 'hierarchy_path': 'root'},
+            {'id': 'dev', 'name': 'Dev', 'parent_id': 'tenancy', 'hierarchy_path': 'root/dev'},
+        ],
+        tenancy_ocid='tenancy',
+        dynamic_groups=[],
+        groups=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+
+    engine.calculate_potential_risk_scores()
+
+    risk = engine.overlay['risk_scores'][0]
+    assert risk['score'] == 50
+    assert 'verb weight 50' in risk['notes']
+
+
+def test_risk_scoring_compartment_exposure_uses_path_boundaries():
+    repo = SimpleNamespace(
+        permission_reference_repo=_RiskRefRepo(),
+        regular_statements=[
+            {
+                'internal_id': 'st1',
+                'statement_text': 'allow group Devs to read mystery-widgets in compartment Dev',
+                'subject_type': 'group',
+                'verb': 'read',
+                'resource': 'mystery-widgets',
+                'permission': [],
+                'effective_path': 'root/dev',
+            }
+        ],
+        compartments=[
+            {'id': 'tenancy', 'name': 'root', 'parent_id': None, 'hierarchy_path': 'root'},
+            {'id': 'dev', 'name': 'Dev', 'parent_id': 'tenancy', 'hierarchy_path': 'root/dev'},
+            {'id': 'app', 'name': 'App', 'parent_id': 'dev', 'hierarchy_path': 'root/dev/app'},
+            {'id': 'development', 'name': 'Development', 'parent_id': 'tenancy', 'hierarchy_path': 'root/development'},
+        ],
+        tenancy_ocid='tenancy',
+        dynamic_groups=[],
+        groups=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+
+    engine.calculate_potential_risk_scores()
+
+    risk = engine.overlay['risk_scores'][0]
+    assert risk['score'] == 10
+    assert 'Compartments at or below effective path "root/dev": 2' in risk['notes']
 
 
 # ---------------------------------------------------------------------------

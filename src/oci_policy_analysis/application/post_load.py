@@ -19,12 +19,47 @@ from oci_policy_analysis.application.services.settings_service import (
 LOGGER = get_logger(component='post_load')
 
 
+def run_minimal_post_load_enrichment(
+    context: AppContext,
+    *,
+    on_stage: Callable[[str, str, str], None] | None = None,
+) -> None:
+    """Run non-UI post-load enrichment needed by CLI/MCP query surfaces.
+
+    This intentionally avoids the full intelligence strategy overlay and
+    recommendation calculation. CLI/MCP do not expose the recommendations
+    workflow, but still need effective paths, invalidity flags, and dynamic
+    group usage state for reliable search and cache content.
+    """
+
+    def _emit(stage: str, detail: str, state: str = 'running') -> None:
+        if callable(on_stage):
+            on_stage(stage, detail, state)
+
+    repo = context.policy_repo
+    LOGGER.info('Running minimal post-load enrichment: effective paths, invalid statements, dynamic-group usage')
+    _emit('Preparing Enrichment', 'Initializing policy intelligence engine')
+
+    context.intelligence = PolicyIntelligenceEngine(repo)
+    _emit('Calculating Effective Paths', 'Computing effective path and principal-key foundations')
+    context.intelligence.calculate_all_effective_compartments()
+
+    _emit('Validating Statements', 'Checking invalid policy statements')
+    context.intelligence.find_invalid_statements()
+
+    _emit('Analyzing Dynamic Groups', 'Marking dynamic groups referenced by policy statements')
+    context.intelligence.run_dg_in_use_analysis()
+
+    _emit('Enrichment Complete', 'Minimal post-load enrichment is ready', 'success')
+    LOGGER.info('Minimal post-load enrichment completed successfully')
+
+
 def run_post_load_pipeline(
     context: AppContext,
     *,
     on_stage: Callable[[str, str, str], None] | None = None,
 ) -> None:
-    """Rebuild intelligence/simulation state after policy data loads.
+    """Rebuild full UI intelligence/simulation state after policy data loads.
 
     Args:
         context: Shared application context containing repo and engine state.

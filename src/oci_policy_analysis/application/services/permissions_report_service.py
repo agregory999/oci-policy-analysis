@@ -130,7 +130,18 @@ class PermissionsReportService:
         Returns:
             dict[str, Any]: Current permissions report mapping grouped by path and subject.
         """
-        return {'report': self._report_data()}
+        payload = self._engine_payload()
+        return {
+            'report': self._report_data(),
+            'grant_rows': list(payload.get('grant_rows') or []),
+            'summary': dict(payload.get('summary') or {}),
+        }
+
+    def get_export_rows(self) -> list[dict[str, Any]]:
+        """Return flat report rows for CSV and tabular export workflows."""
+        payload = self._engine_payload()
+        rows = payload.get('grant_rows') or []
+        return [dict(row) for row in rows if isinstance(row, dict)]
 
     def _engine_payload(self) -> dict[str, Any]:
         payload = getattr(self.context.intelligence, 'permissions_report', {}) or {}

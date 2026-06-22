@@ -1964,39 +1964,57 @@ class PolicyAnalysisRepository:
         dg_list = []
         dg_lock = threading.Lock()
         try:
-            dg_response = self._api_call_with_logging(
-                'IdentityDomainsClient.list_dynamic_resource_groups',
-                domain_client.list_dynamic_resource_groups,
-                attribute_sets=['never'],
-            )
-            if dg_response and dg_response.data:
-                logger.debug(f'Got the List of DG for {domain.display_name}.  Count: {len(dg_response.data.resources)}')
 
-                def fetch_full_dg(_dg):
-                    try:
-                        thread_id = threading.get_ident()
-                        thread_name = threading.current_thread().name
-                        logger.debug(
-                            f"Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
-                        )
-                        full_dg = self._api_call_with_logging(
-                            'IdentityDomainsClient.get_dynamic_resource_group',
-                            domain_client.get_dynamic_resource_group,
-                            dynamic_resource_group_id=_dg.id,
-                            attribute_sets=['all'],
-                        ).data
-                        logger.debug(
-                            f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
-                        )
-                        parsed = self._parse_dynamic_group(domain=domain, dg=full_dg)
-                        with dg_lock:
-                            self.dynamic_groups.append(parsed)
-                        return parsed
-                    except Exception as e:
-                        logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {e}')
-                        return None
+            def fetch_full_dg(_dg):
+                try:
+                    thread_id = threading.get_ident()
+                    thread_name = threading.current_thread().name
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) starting fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                    )
+                    full_dg = self._api_call_with_logging(
+                        'IdentityDomainsClient.get_dynamic_resource_group',
+                        domain_client.get_dynamic_resource_group,
+                        dynamic_resource_group_id=_dg.id,
+                        attribute_sets=['all'],
+                    ).data
+                    logger.debug(
+                        f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
+                    )
+                    parsed = self._parse_dynamic_group(domain=domain, dg=full_dg)
+                    with dg_lock:
+                        self.dynamic_groups.append(parsed)
+                    return parsed
+                except Exception as e:
+                    logger.error(f'Failed to fetch dynamic group details for: {_dg.id}: {e}')
+                    return None
 
-                from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            start_index = 1
+            limit = 1000
+            while True:
+                dg_response = self._api_call_with_logging(
+                    'IdentityDomainsClient.list_dynamic_resource_groups',
+                    domain_client.list_dynamic_resource_groups,
+                    start_index=start_index,
+                    count=limit,
+                    sort_by='displayName',
+                    sort_order='ASCENDING',
+                    attribute_sets=['never'],
+                )
+                if dg_response is None or dg_response.data is None:
+                    logger.error('Failed to list dynamic groups')
+                    return []
+                if not dg_response.data.resources:
+                    break
+                logger.debug(
+                    'Got dynamic group page for %s: start_index=%s count=%s total_results=%s',
+                    domain.display_name,
+                    start_index,
+                    len(dg_response.data.resources),
+                    getattr(dg_response.data, 'total_results', None),
+                )
 
                 with ThreadPoolExecutor(max_workers=THREADS) as executor:
                     futures = [executor.submit(fetch_full_dg, _dg) for _dg in dg_response.data.resources]
@@ -2004,9 +2022,11 @@ class PolicyAnalysisRepository:
                         result = f.result()
                         if result:
                             dg_list.append(result)
-            else:
-                logger.error('Failed to list dynamic groups')
-                return []
+
+                total_results = getattr(dg_response.data, 'total_results', 0) or 0
+                if len(dg_response.data.resources) < limit or start_index + limit > total_results:
+                    break
+                start_index += limit
         except Exception as e:
             logger.error(f'Exception during dynamic group fetch: {e}')
             return []
@@ -2208,7 +2228,7 @@ class PolicyAnalysisRepository:
 
             # Ensure compartments are loaded (critical for depth BFS)
             if not hasattr(self, 'compartments') or not self.compartments:
-                logger.warning('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
+                logger.info('Compartments not loaded yet; calling load_policies_and_compartments() to load.')
                 self.load_policies_and_compartments()
             if not self.compartments:
                 logger.error('Compartment load failed or returned empty. Falling back to root-only search.')
@@ -3152,7 +3172,10 @@ class PolicyAnalysisRepository:
             for key, values in filters.items():
                 # Check in-use first because it is special
                 if key == 'in_use':
-                    if not values and not dg.get('in_use', False):
+                    if values is None:
+                        logger.debug('Skipping empty in_use filter')
+                        continue
+                    if bool(dg.get('in_use', False)) is bool(values):
                         logger.debug(
                             f'DG included {dg.get("dynamic_group_name")} due to in_use match: {dg.get("in_use")} = {values}'
                         )

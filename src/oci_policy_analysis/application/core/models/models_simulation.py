@@ -90,6 +90,9 @@ class SimulationResult(TypedDict):
     final_permission_set: Annotated[list[str], 'Permissions granted after simulation']
     required_permissions_for_api_operation: Annotated[list[str], 'Permissions required for op']
     missing_permissions: Annotated[list[str], 'Any permissions missing for full allow']
+    related_permission_checks: NotRequired[
+        Annotated[list[dict], 'Advisory related resource/permission checks for troubleshooting']
+    ]
     failure_reason: Annotated[str, 'Reason for denial or error, empty if successful']
     scenario_internal_id: NotRequired[Annotated[str, 'Scenario identifier associated with this result']]
     scenario_name: NotRequired[Annotated[str, 'Scenario name associated with this result']]

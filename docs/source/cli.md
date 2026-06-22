@@ -59,6 +59,8 @@ See also:
 | `--filter-json FILTER`       | A JSON filter expression for policy statements                                                               |
 | `--load-from-compliance DIR` | Load policy data from a directory of OCI CIS compliance output CSVs                                           |
 | `--export-json FILE`         | Export all collected data to the specified JSON file                                                          |
+| `--export-permissions-report PATH` | Export the calculated permissions report to `PATH.json`, `PATH.csv`, or both                         |
+| `--export-permissions-report-format FORMAT` | Permissions report format: `json`, `csv`, or `both` (default: `both`)                         |
 | `-h`, `--help`               | Show usage and options                                                                                        |
 
 ---
@@ -78,6 +80,16 @@ Or, if installed as an application:
 ```sh
 oci-policy-analysis --help
 ```
+
+### Exporting the Permissions Report
+
+The permissions report is not exposed through MCP. From the CLI, it is available as an explicit export option for offline review:
+
+```sh
+python -m oci_policy_analysis.cli --use-cache CACHE_NAME --export-permissions-report permissions_report
+```
+
+By default this writes `permissions_report.json` and `permissions_report.csv`. The flat rows list each permission at each effective compartment/principal, including whether the grant is direct or inherited from a higher compartment and the statement that granted it. For broad `any-user` or `any-group` statements with `request.principal.*` conditions, the principal key column uses derived resource-principal or OKE workload identity keys while preserving the original subject key in the export.
 
 ---
 

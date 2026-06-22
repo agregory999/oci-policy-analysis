@@ -7,6 +7,7 @@ the project.
 """
 
 from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo
+from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
 
 
 def _load_repo():
@@ -80,3 +81,31 @@ def test_resource_allow_vs_deny_monotonicity():
     # "broader" deny semantics without tying us to exact verb mappings.
     assert deny_read_buckets
     assert len(deny_read_buckets) >= len(allow_read_buckets)
+
+
+def test_change_instance_compartment_exposes_related_capacity_reservation_check():
+    repo = _load_repo()
+    service = ReferenceDataService(repo)
+
+    detail = service.get_operation_detail('ChangeInstanceCompartment')
+
+    related_checks = detail.get('related_checks') or []
+    assert related_checks
+    capacity_check = next(check for check in related_checks if check.get('resource') == 'compute-capacity-reservations')
+    assert capacity_check['operation'] == 'ChangeComputeCapacityReservationCompartment'
+    assert capacity_check['permissions'] == ['CAPACITY_RESERVATION_MOVE']
+    assert 'capacity reservation' in capacity_check['applies_when'].lower()
+
+
+def test_operation_listing_includes_related_checks():
+    repo = _load_repo()
+    service = ReferenceDataService(repo)
+
+    row = next(
+        row
+        for row in service.list_operations_with_permissions()
+        if row['operation_name'] == 'ChangeInstanceCompartment'
+    )
+
+    assert row['related_checks']
+    assert row['notes']

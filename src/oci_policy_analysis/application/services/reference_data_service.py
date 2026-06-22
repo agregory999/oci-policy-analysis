@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from oci_policy_analysis.application.core.models.models_reference_data import (
     FamilyResourcesRow,
     OperationPermissionsRow,
+    RelatedPermissionCheck,
     ResourceFamilyRow,
 )
 from oci_policy_analysis.application.core.repo import ReferenceDataRepo
@@ -169,9 +170,51 @@ class ReferenceDataService:
                         'operation_name': str(operation_name),
                         'label': f'{api_name}:{operation_name}',
                         'permissions': permissions,
+                        'notes': str(meta.get('notes') or '') if isinstance(meta, dict) else '',
+                        'related_checks': self._normalize_related_checks(
+                            meta.get('related_checks') if isinstance(meta, dict) else []
+                        ),
                     }
                 )
         return rows
+
+    def get_operation_detail(self, operation_name: str) -> dict[str, object]:
+        """Return permissions, notes, and related checks for an operation."""
+
+        op_name = str(operation_name or '').strip()
+        meta = self.reference_data.data.get('operations', {}).get(op_name, {})
+        if not isinstance(meta, dict):
+            meta = {}
+        return {
+            'operation_name': op_name,
+            'permissions': [str(p).strip().upper() for p in meta.get('permissions', []) if str(p).strip()],
+            'notes': str(meta.get('notes') or ''),
+            'related_checks': self._normalize_related_checks(meta.get('related_checks', [])),
+        }
+
+    @staticmethod
+    def _normalize_related_checks(raw_checks: object) -> list[RelatedPermissionCheck]:
+        """Normalize optional operation related-check metadata."""
+
+        if not isinstance(raw_checks, list):
+            return []
+        checks: list[RelatedPermissionCheck] = []
+        for raw in raw_checks:
+            if not isinstance(raw, dict):
+                continue
+            permissions = [
+                str(permission).strip().upper() for permission in raw.get('permissions', []) if str(permission).strip()
+            ]
+            resource = str(raw.get('resource') or '').strip()
+            if not resource and not permissions:
+                continue
+            check: RelatedPermissionCheck = {'resource': resource, 'permissions': permissions}
+            for key in ('operation', 'applies_when', 'principal', 'reason', 'failure_hint'):
+                value = str(raw.get(key) or '').strip()
+                if value:
+                    check[key] = value
+            checks.append(check)
+        return checks
 
     def build_resource_filter_from_resource(
         self, resource: str, *, include_all_resources: bool = False

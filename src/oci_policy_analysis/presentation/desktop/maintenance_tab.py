@@ -524,7 +524,7 @@ class MaintenanceTab(ttk.Frame):
                     lines.append(f'  {p}')
                 lines.append('')
                 lines.append('Risk score (exposure points) calculation:')
-                lines.append('  Verb weights: inspect=1, read=5, use=20, manage=50')
+                lines.append('  Verb weights: inspect=1, read=5, use=50, manage=100')
                 for p in sorted(perms):
                     r = ref_repo.get_permission_risk(p, entity)
                     lines.append(f'  {p} -> {r}')
@@ -642,6 +642,16 @@ class MaintenanceTab(ttk.Frame):
             api_name, op_name = self._apiop_map[op_label]
             opmeta = self._ref_repo.data.get('operations_by_api', {}).get(api_name, {}).get(op_name, {})
             note = opmeta.get('notes', '') or ''
+            related_checks = opmeta.get('related_checks') or []
+            if related_checks:
+                related_lines = ['Related permission checks:']
+                for check in related_checks:
+                    permissions = ', '.join(check.get('permissions') or []) or '[none]'
+                    related_lines.append(
+                        f"- {check.get('resource') or '[resource unknown]'}: {permissions}; "
+                        f"applies when: {check.get('applies_when') or 'conditional dependency'}"
+                    )
+                note = '\n'.join([line for line in [note, *related_lines] if line])
         self.apiop_note_label.config(text=note if note else '')
 
     def _maintenance_check_overlap(self):

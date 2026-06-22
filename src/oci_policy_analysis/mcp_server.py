@@ -1544,15 +1544,15 @@ def identity_search(
             response['total_groups'] = len(groups)
             total += len(groups)
         if 'dynamic-group' in requested_types:
-            dynamic_groups = _query_service().search_dynamic_groups(
-                DynamicGroupSearch(
-                    domain_name=domains,
-                    dynamic_group_name=names,
-                    dynamic_group_ocid=ocids[0] if ocids else '',
-                    matching_rule=matching_rule or [],
-                    in_use=in_use,
-                )
+            dynamic_group_filters: DynamicGroupSearch = DynamicGroupSearch(
+                domain_name=domains,
+                dynamic_group_name=names,
+                dynamic_group_ocid=ocids[0] if ocids else '',
+                matching_rule=matching_rule or [],
             )
+            if in_use is not None:
+                dynamic_group_filters['in_use'] = in_use
+            dynamic_groups = _query_service().search_dynamic_groups(dynamic_group_filters)
             response['dynamic_groups'] = dynamic_groups[:bounded_limit]
             response['total_dynamic_groups'] = len(dynamic_groups)
             total += len(dynamic_groups)
@@ -1756,9 +1756,12 @@ def _reload_mcp_data() -> dict[str, Any]:
 
         result = LoadService(ctx).load_from_tenancy(
             use_instance_principal=bool(getattr(auth_args, 'instance_principal', False)),
+            use_resource_principal=bool(getattr(auth_args, 'resource_principal', False)),
             profile=getattr(auth_args, 'profile', None) or None,
             session_token=getattr(auth_args, 'session_token', None) or None,
             recursive=bool(getattr(auth_args, 'recursive', True)),
+            compartment_domain_search_depth=int(getattr(auth_args, 'compartment_domain_search_depth', 1) or 1),
+            post_load_profile='minimal',
             save_cache_after_load=True,
         )
         if not result.success:
@@ -1909,7 +1912,7 @@ def main():
 
     try:
         if args.use_cache:
-            result = load_service.load_from_cache(args.use_cache)
+            result = load_service.load_from_cache(args.use_cache, post_load_profile='minimal')
         else:
             result = load_service.load_from_tenancy(
                 use_instance_principal=args.instance_principal,
@@ -1918,6 +1921,7 @@ def main():
                 session_token=args.session_token or None,
                 recursive=recursive,
                 compartment_domain_search_depth=args.compartment_domain_search_depth,
+                post_load_profile='minimal',
                 save_cache_after_load=not args.dont_save_cache_after_load,
             )
         if not result.success:

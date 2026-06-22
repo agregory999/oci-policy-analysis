@@ -14,8 +14,11 @@
 ##########################################################################
 
 import argparse
+import csv
+import json
 import time
 import warnings
+from pathlib import Path
 
 from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine
 from oci_policy_analysis.application.core.models.models import PolicySearch
@@ -28,6 +31,116 @@ from oci_policy_analysis.application.core.support.logger import get_logger, set_
 
 # Suppress DeprecationWarnings from libraries
 warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+
+def _run_minimal_cli_intelligence(policy_analysis: PolicyAnalysisRepository, logger) -> None:
+    """Run CLI-only post-load enrichment without recommendations overlays."""
+
+    logger.warning('[CLI] Running minimal post-load enrichment')
+    t0 = time.perf_counter()
+    try:
+        policy_intel = PolicyIntelligenceEngine(policy_analysis)
+        policy_intel.calculate_all_effective_compartments()
+        policy_intel.find_invalid_statements()
+        policy_intel.run_dg_in_use_analysis()
+    except Exception as exc:
+        logger.warning('[CLI] Minimal post-load enrichment raised exception: %s', exc)
+    t1 = time.perf_counter()
+    logger.warning('[CLI] Minimal post-load enrichment completed in %.2fs', t1 - t0)
+
+
+def _build_cli_permissions_report(policy_analysis: PolicyAnalysisRepository, logger) -> dict:
+    """Build the permissions report for explicit CLI export requests."""
+
+    logger.warning('[CLI] Building permissions report for export')
+    t0 = time.perf_counter()
+    engine = PolicyIntelligenceEngine(policy_analysis)
+    report = engine.build_permissions_report()
+    summary = report.get('summary', {}) if isinstance(report, dict) else {}
+    logger.warning(
+        '[CLI] Permissions report generated in %.2fs: direct_rows=%s effective_rows=%s paths=%s principals=%s',
+        time.perf_counter() - t0,
+        summary.get('direct_grant_row_count', 0),
+        summary.get('effective_grant_row_count', len(report.get('grant_rows', []) if isinstance(report, dict) else [])),
+        summary.get('path_count', 0),
+        summary.get('principal_count', 0),
+    )
+    return report
+
+
+def _log_cli_dataset_size(policy_analysis: PolicyAnalysisRepository, logger, *, label: str) -> None:
+    """Log a concise dataset size summary visible at the default CLI log level."""
+
+    logger.warning(
+        '[CLI] %s: identity_domains=%d dynamic_groups=%d users=%d groups=%d compartments=%d policy_statements=%d cross_tenancy_statements=%d',
+        label,
+        len(getattr(policy_analysis, 'identity_domains', []) or []),
+        len(getattr(policy_analysis, 'dynamic_groups', []) or []),
+        len(getattr(policy_analysis, 'users', []) or []),
+        len(getattr(policy_analysis, 'groups', []) or []),
+        len(getattr(policy_analysis, 'compartments', []) or []),
+        len(getattr(policy_analysis, 'regular_statements', []) or []),
+        len(getattr(policy_analysis, 'cross_tenancy_statements', []) or []),
+    )
+
+
+def _permissions_report_paths(path_prefix: str, export_format: str) -> list[tuple[str, Path]]:
+    """Return concrete output paths for a permissions report export request."""
+
+    base = Path(path_prefix)
+    suffix = base.suffix.lower()
+    formats = ['json', 'csv'] if export_format == 'both' else [export_format]
+    paths = []
+    for fmt in formats:
+        if suffix == f'.{fmt}' and len(formats) == 1:
+            paths.append((fmt, base))
+        elif suffix in {'.json', '.csv'}:
+            paths.append((fmt, base.with_suffix(f'.{fmt}')))
+        else:
+            paths.append((fmt, Path(f'{base}.{fmt}')))
+    return paths
+
+
+def _export_permissions_report(report: dict, path_prefix: str, export_format: str, logger) -> None:
+    """Write permissions report JSON and/or CSV files."""
+
+    fieldnames = [
+        'effective_path',
+        'grant_path',
+        'principal_key',
+        'original_subject_key',
+        'principal_kind',
+        'action',
+        'resource',
+        'permission',
+        'conditional',
+        'inherited',
+        'inherited_from',
+        'policy_name',
+        'statement_id',
+        'statement_text',
+    ]
+    for fmt, path in _permissions_report_paths(path_prefix, export_format):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if fmt == 'json':
+            with path.open('w', encoding='utf-8') as file_object:
+                json.dump(
+                    {
+                        'report': report.get('report', {}),
+                        'grant_rows': report.get('grant_rows', []),
+                        'summary': report.get('summary', {}),
+                    },
+                    file_object,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+        else:
+            with path.open('w', encoding='utf-8', newline='') as file_object:
+                writer = csv.DictWriter(file_object, fieldnames=fieldnames, extrasaction='ignore')
+                writer.writeheader()
+                for row in report.get('grant_rows', []) or []:
+                    writer.writerow(row)
+        logger.warning('[CLI] Wrote permissions report %s export to %s', fmt.upper(), path)
 
 
 def main():  # noqa: C901
@@ -63,6 +176,8 @@ def main():  # noqa: C901
         A JSON filter expression for policies.
     --export-json : str, optional
         Write collected data to a JSON file.
+    --export-permissions-report : str, optional
+        Write the calculated permissions report to a JSON/CSV path prefix.
 
     Usage Examples:
         To print all policies and dynamic groups using the ADMIN profile with verbose logging:
@@ -85,6 +200,7 @@ def main():  # noqa: C901
         None. Provides console output and/or writes files as specified.
 
     """
+    cli_start_time = time.perf_counter()
     parser = argparse.ArgumentParser(description='OCI Policy and Dynamic Group Viewer CLI')
     parser.add_argument('--verbose', action='store_true', help='Enable DEBUG logging')
     parser.add_argument(
@@ -118,6 +234,16 @@ def main():  # noqa: C901
     parser.add_argument(
         '--export-json',
         help='Export everything that is collected (Policies, Dynamic Groups, Users, Groups, Cross-tenancy Policies) to  provided JSON file',
+    )
+    parser.add_argument(
+        '--export-permissions-report',
+        help='Export the permissions report to the provided path prefix. Use --export-permissions-report-format to choose JSON, CSV, or both.',
+    )
+    parser.add_argument(
+        '--export-permissions-report-format',
+        choices=('json', 'csv', 'both'),
+        default='both',
+        help='Permissions report export format (default: both).',
     )
     args = parser.parse_args()
 
@@ -155,20 +281,9 @@ def main():  # noqa: C901
             f'{len(policy_analysis.groups)} groups, {len(policy_analysis.compartments)} compartments, '
             f'{len(policy_analysis.regular_statements)} policy statements'
         )
+        _log_cli_dataset_size(policy_analysis, logger, label='Loaded compliance dataset')
 
-        # ---- Policy Intelligence step (CLI) ----
-        logger.info('[CLI] Running minimal post-load policy intelligence')
-        t0 = time.perf_counter()
-        try:
-            policy_intel = PolicyIntelligenceEngine(policy_analysis)
-            policy_intel.calculate_all_effective_compartments()
-            policy_intel.find_invalid_statements()
-            policy_intel.run_dg_in_use_analysis()
-        except Exception as exc:
-            logger.warning(f'[CLI] Post-load policy intelligence raised exception: {exc}')
-        t1 = time.perf_counter()
-        logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
-        # ----------------------------------------
+        _run_minimal_cli_intelligence(policy_analysis, logger)
 
     else:
         # Just show caches and quit
@@ -188,6 +303,7 @@ def main():  # noqa: C901
             if not cache_manager.load_combined_cache(named_cache=args.use_cache, policy_analysis=policy_analysis):
                 logger.error('Failed to load combined cache')
                 exit(2)
+            _log_cli_dataset_size(policy_analysis, logger, label=f'Loaded cache {args.use_cache}')
         else:
             if not policy_analysis.initialize_client(
                 use_instance_principal=args.instance_principal,
@@ -205,22 +321,11 @@ def main():  # noqa: C901
                 exit(2)
             # Completed the Load
             logger.info(f'Loaded policies and compartments for tenancy: {policy_analysis.tenancy_name}')
+            _log_cli_dataset_size(policy_analysis, logger, label='Loaded OCI tenancy dataset')
 
             save_cache_after_cli_post_load = not args.dont_save_cache_after_load
 
-        # ---- Policy Intelligence step (CLI) ----
-        logger.info('[CLI] Running minimal post-load policy intelligence')
-        t0 = time.perf_counter()
-        try:
-            policy_intel = PolicyIntelligenceEngine(policy_analysis)
-            policy_intel.calculate_all_effective_compartments()
-            policy_intel.find_invalid_statements()
-            policy_intel.run_dg_in_use_analysis()
-        except Exception as exc:
-            logger.warning(f'[CLI] Post-load policy intelligence raised exception: {exc}')
-        t1 = time.perf_counter()
-        logger.info(f'[CLI] Post-load policy intelligence completed in {t1 - t0:.2f}s')
-        # ----------------------------------------
+        _run_minimal_cli_intelligence(policy_analysis, logger)
 
         if save_cache_after_cli_post_load:
             logger.info('Saving combined cache after loading from OCI and post-load enrichment')
@@ -249,12 +354,24 @@ def main():  # noqa: C901
     if args.export_json:
         logger.info(f'The file is called {args.export_json}')
         # Save to provided file
-        file_object = open(args.export_json, 'w')
-        cache_file_name = cache_manager.save_combined_cache(export_file=file_object, policy_analysis=policy_analysis)
+        with open(args.export_json, 'w', encoding='utf-8') as file_object:
+            cache_file_name = cache_manager.save_combined_cache(
+                export_file=file_object, policy_analysis=policy_analysis
+            )
         logger.info(f'Wrote combined cache to {cache_file_name}')
         logger.info('-' * 80)
 
-    elif args.print_all:
+    if args.export_permissions_report:
+        permissions_report = _build_cli_permissions_report(policy_analysis, logger)
+        _export_permissions_report(
+            permissions_report,
+            args.export_permissions_report,
+            args.export_permissions_report_format,
+            logger,
+        )
+        logger.info('-' * 80)
+
+    if args.print_all:
         # Print regular policies
         logger.info('\nRegular Policies:')
         # Use helper to print nicely
@@ -322,6 +439,7 @@ def main():  # noqa: C901
     logger.info(f'Total Identity Domains: {len(policy_analysis.identity_domains)}')
     logger.info(f'Total Groups: {len(policy_analysis.groups)}')
     logger.info(f'Total Users: {len(policy_analysis.users)}')
+    logger.warning('[CLI] Completed in %.2fs', time.perf_counter() - cli_start_time)
 
 
 if __name__ == '__main__':
