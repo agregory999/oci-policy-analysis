@@ -5,7 +5,7 @@
     "tools": [
       {
         "name": "policy_search",
-        "description": "Search OCI IAM policies; supports simple text filters and advanced principal evidence.",
+        "description": "Search OCI IAM policies. Principal filters: use filters.principal for one structured selector (for example {\"principal_type\":\"group\",\"domain_name\":\"Default\",\"name\":\"Admins\"} or {\"principal_type\":\"dynamic-group\"}), filters.principals for OR selectors, and filters.principal_keys for exact canonical keys such as group:Default/Admins. Combine with resource, verb, permission, effective_path, policy_name, conditions, and statement_text.",
         "inputSchema": {
           "properties": {
             "mode": {
@@ -221,7 +221,7 @@
       },
       {
         "name": "policy_search_set",
-        "description": "Run related policy searches and summarize coverage.",
+        "description": "Run related policy searches and summarize coverage. Each item in searches may be a direct policy_search payload with search_id/label/required plus mode/detail_level/limit/filters, or the legacy wrapped form {\"search_id\":\"id\",\"query\":{...}}. For principal filters inside each search, use filters.principal for one selector, filters.principals for OR selectors, or filters.principal_keys for exact keys.",
         "inputSchema": {
           "properties": {
             "intent": {

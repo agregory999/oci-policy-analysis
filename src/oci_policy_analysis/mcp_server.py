@@ -851,6 +851,19 @@ def _run_policy_search_request(
     )
 
 
+def _policy_search_set_child_query(item: dict[str, Any]) -> dict[str, Any]:
+    """Return the policy-search query payload for a set item."""
+    nested = item.get('query')
+    if isinstance(nested, dict):
+        return nested
+
+    query_fields = {'mode', 'detail_level', 'filters', 'limit'}
+    if any(field in item for field in query_fields):
+        return {field: item[field] for field in query_fields if field in item}
+
+    return {}
+
+
 def _confidence_meets(value: str, minimum: str) -> bool:
     return CONFIDENCE_ORDER.get(value or '', -1) >= CONFIDENCE_ORDER.get(minimum or '', -1)
 
@@ -878,6 +891,7 @@ def _summarize_search_set(
         confidences = [
             str(row.get('match_confidence') or '') for row in result.get('statements') or [] if isinstance(row, dict)
         ]
+        confidences = [confidence for confidence in confidences if confidence]
         confidence_ok = not confidences or any(
             _confidence_meets(confidence, min_confidence) for confidence in confidences
         )
@@ -910,6 +924,33 @@ def _summarize_search_set(
                     return 'present'
         return 'missing'
 
+    def workload_coverage() -> str:
+        if not bool(evaluation.get('require_workload_principal_coverage')):
+            return 'not_requested'
+        workload_types = {
+            'dynamic-group',
+            'dynamic-group-id',
+            'resource-principal',
+            'resource_principal',
+            'workload-principal',
+            'workload_principal',
+            'oke-workload-identity',
+            'oke_workload_identity',
+        }
+        for result in results:
+            for row in result.get('statements') or []:
+                if not isinstance(row, dict):
+                    continue
+                if row.get('match_confidence') in {'exact', 'identity_match_with_residual', 'rule_evidence'}:
+                    return 'present'
+                principals = row.get('normalized_principals') or row.get('principals') or []
+                if any(
+                    isinstance(principal, dict) and str(principal.get('principal_type') or '') in workload_types
+                    for principal in principals
+                ):
+                    return 'present'
+        return 'missing'
+
     return {
         'intent': intent,
         'product_or_service': product_or_service,
@@ -918,14 +959,7 @@ def _summarize_search_set(
         'matched_required_searches': matched_required,
         'missing_required_searches': missing_required,
         'human_principal_coverage': coverage('require_human_principal_coverage', 'group'),
-        'workload_principal_coverage': 'present'
-        if any(
-            row.get('match_confidence') in {'exact', 'identity_match_with_residual', 'rule_evidence'}
-            for result in results
-            for row in (result.get('statements') or [])
-            if isinstance(row, dict)
-        )
-        else ('not_requested' if not bool(evaluation.get('require_workload_principal_coverage')) else 'missing'),
+        'workload_principal_coverage': workload_coverage(),
         'service_principal_coverage': coverage('require_service_principal_coverage', 'service'),
         'tag_condition_coverage': 'not_requested'
         if not bool(evaluation.get('require_tag_condition_coverage'))
@@ -1038,7 +1072,7 @@ def _run_query_for_history(
         for search in query.get('searches') or []:
             if not isinstance(search, dict):
                 continue
-            child_query = search.get('query') if isinstance(search.get('query'), dict) else {}
+            child_query = _policy_search_set_child_query(search)
             response = _run_policy_search_request(child_query, repo=repo)
             rows.extend(response.get('statements') or [])
         return rows
@@ -1182,7 +1216,13 @@ async def health_check(request):
 
 @mcp.tool(
     name='policy_search',
-    description='Search OCI IAM policies; supports simple text filters and advanced principal evidence.',
+    description=(
+        'Search OCI IAM policies. Principal filters: use filters.principal for one structured selector '
+        '(for example {"principal_type":"group","domain_name":"Default","name":"Admins"} or '
+        '{"principal_type":"dynamic-group"}), filters.principals for OR selectors, and filters.principal_keys '
+        'for exact canonical keys such as group:Default/Admins. Combine with resource, verb, permission, '
+        'effective_path, policy_name, conditions, and statement_text.'
+    ),
 )
 def policy_search(
     mode: Literal['simple', 'advanced'] = 'simple',
@@ -1332,7 +1372,15 @@ def oke_workload_identity_search(
         raise ToolError(f'Unhandled error in oke_workload_identity_search: {exc}') from exc
 
 
-@mcp.tool(name='policy_search_set', description='Run related policy searches and summarize coverage.')
+@mcp.tool(
+    name='policy_search_set',
+    description=(
+        'Run related policy searches and summarize coverage. Each item in searches may be a direct policy_search '
+        'payload with search_id/label/required plus mode/detail_level/limit/filters, or the legacy wrapped form '
+        '{"search_id":"id","query":{...}}. For principal filters inside each search, use filters.principal '
+        'for one selector, filters.principals for OR selectors, or filters.principal_keys for exact keys.'
+    ),
+)
 def policy_search_set(
     intent: Literal['install_validation', 'access_review', 'workload_analysis', 'custom'] = 'custom',
     product_or_service: str = '',
@@ -1356,7 +1404,7 @@ def policy_search_set(
         eval_config = dict(evaluation or {})
         results = []
         for idx, item in enumerate(search_items, start=1):
-            query = item.get('query') if isinstance(item.get('query'), dict) else {}
+            query = _policy_search_set_child_query(item)
             response = _run_policy_search_request(query)
             response['search_id'] = str(item.get('search_id') or idx)
             response['label'] = str(item.get('label') or response['search_id'])

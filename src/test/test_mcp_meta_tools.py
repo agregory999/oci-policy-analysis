@@ -253,6 +253,115 @@ def test_policy_search_set_summarizes_required_searches(monkeypatch):
     assert response['search_results'][0]['search_id'] == 'workload'
 
 
+def test_policy_search_set_accepts_direct_policy_search_payload(monkeypatch):
+    captured_queries = []
+
+    def fake_run_policy_search_request(query, *, repo=None):
+        captured_queries.append(query)
+        return {
+            'total_count': 1,
+            'returned_count': 1,
+            'statements': [
+                _statement(
+                    subject_type=query['filters']['principal']['principal_type'],
+                    principals=[query['filters']['principal']],
+                    resource=query['filters']['resource'],
+                    match_confidence='',
+                )
+            ],
+            'breakdowns': {},
+            'warnings': [],
+        }
+
+    monkeypatch.setattr(mcp_server, '_run_policy_search_request', fake_run_policy_search_request)
+
+    response = mcp_server.policy_search_set.fn(
+        searches=[
+            {
+                'search_id': 'human-run-command',
+                'mode': 'advanced',
+                'detail_level': 'full',
+                'limit': 1000,
+                'filters': {
+                    'principal': {'principal_type': 'group'},
+                    'resource': 'instance-agent-command',
+                },
+            },
+            {
+                'search_id': 'workload-run-command',
+                'mode': 'advanced',
+                'detail_level': 'full',
+                'limit': 1000,
+                'filters': {
+                    'principal': {'principal_type': 'dynamic-group'},
+                    'resource': 'instance-agent-command-execution',
+                },
+            },
+        ],
+    )
+
+    assert [query['filters']['principal']['principal_type'] for query in captured_queries] == [
+        'group',
+        'dynamic-group',
+    ]
+    assert [query['filters']['resource'] for query in captured_queries] == [
+        'instance-agent-command',
+        'instance-agent-command-execution',
+    ]
+    assert response['search_results'][0]['total_count'] == 1
+    assert response['search_results'][1]['total_count'] == 1
+    assert response['set_summary']['matched_required_searches'] == 2
+    assert response['set_summary']['workload_principal_coverage'] == 'not_requested'
+
+
+def test_policy_search_set_counts_unscored_dynamic_group_results_as_workload_coverage(monkeypatch):
+    def fake_run_policy_search_request(query, *, repo=None):
+        _ = query, repo
+        return {
+            'total_count': 1,
+            'returned_count': 1,
+            'statements': [
+                _statement(
+                    subject_type='dynamic-group',
+                    principals=[
+                        {
+                            'principal_type': 'dynamic-group',
+                            'principal_key': 'dynamic-group:Default/fams-customer-dg',
+                        }
+                    ],
+                    resource='instance-agent-command-execution-family',
+                    match_confidence='',
+                )
+            ],
+            'breakdowns': {},
+            'warnings': [],
+        }
+
+    monkeypatch.setattr(mcp_server, '_run_policy_search_request', fake_run_policy_search_request)
+
+    response = mcp_server.policy_search_set.fn(
+        searches=[
+            {
+                'search_id': 'workload-run-command',
+                'query': {
+                    'mode': 'advanced',
+                    'detail_level': 'full',
+                    'filters': {
+                        'principal': {'principal_type': 'dynamic-group'},
+                        'resource': 'instance-agent-command-execution',
+                    },
+                },
+            }
+        ],
+        evaluation={'require_workload_principal_coverage': True},
+    )
+
+    assert response['set_summary']['matched_required_searches'] == 1
+    assert response['set_summary']['missing_required_searches'] == []
+    assert response['set_summary']['workload_principal_coverage'] == 'present'
+    assert response['set_summary']['likely_ready'] is True
+
+
 def test_identity_search_dynamic_group_operation(monkeypatch):
     dynamic_group = {
         'domain_name': 'Default',
