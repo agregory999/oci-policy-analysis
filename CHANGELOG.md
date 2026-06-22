@@ -1,3 +1,15 @@
+## [6.2.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.1.0...v6.2.0) (2026-06-22)
+
+
+### Features
+
+* add related permission checks ([f8ea3e2](https://github.com/agregory999/oci-policy-analysis/commit/f8ea3e24af41092c971e99d5625539be4c1382db))
+
+
+### Bug Fixes
+
+* improve recommendations and permissions reporting ([7ea0d93](https://github.com/agregory999/oci-policy-analysis/commit/7ea0d9383b17b85c989f45cff7fe761b8de7613c))
+
 ## [6.2.0-actionable-recommendations-guidance.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.1.0...v6.2.0-actionable-recommendations-guidance.1) (2026-06-22)
 
 
