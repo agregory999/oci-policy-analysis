@@ -45,7 +45,23 @@ class DummyPolicyRepo:
 
 class DummyRefDataRepo:
     def __init__(self):
-        self.data = {'operations': {'oci:ListBuckets': {'permissions': ['INSPECT_BUCKETS', 'READ_BUCKETS']}}}
+        self.data = {
+            'operations': {
+                'oci:ListBuckets': {
+                    'permissions': ['INSPECT_BUCKETS', 'READ_BUCKETS'],
+                    'related_checks': [
+                        {
+                            'resource': 'compute-capacity-reservations',
+                            'operation': 'ChangeComputeCapacityReservationCompartment',
+                            'permissions': ['CAPACITY_RESERVATION_MOVE'],
+                            'applies_when': 'Resource is associated with a capacity reservation.',
+                            'principal': 'same-principal',
+                            'failure_hint': 'Check the associated reservation.',
+                        }
+                    ],
+                }
+            }
+        }
 
     def get_permissions(self, resource, verb, action=None):
         # For test, map resource/verb to operation permissions
@@ -69,8 +85,8 @@ class DummyRefDataRepo:
 def main():
     policy_repo = DummyPolicyRepo()
     ref_data_repo = DummyRefDataRepo()
+    ref_data_repo.data['operations']['oci:ListBuckets']['permissions'] = ['READ_BUCKETS']
     engine = PolicySimulationEngine(policy_repo=policy_repo, ref_data_repo=ref_data_repo)
-    engine.build_index()  # Build mapping for statements
 
     compartment_path = 'ROOT/Finance'
     principal_type = 'user'
@@ -107,6 +123,30 @@ def main():
     import pprint
 
     pprint.pprint(result)
+
+
+def test_simulation_reports_related_permission_checks_without_changing_primary_allow():
+    policy_repo = DummyPolicyRepo()
+    ref_data_repo = DummyRefDataRepo()
+    ref_data_repo.data['operations']['oci:ListBuckets']['permissions'] = ['READ_BUCKETS']
+    engine = PolicySimulationEngine(policy_repo=policy_repo, ref_data_repo=ref_data_repo)
+
+    result = engine.simulate_and_record(
+        'user:Default/anita',
+        'ROOT/Finance',
+        'oci:ListBuckets',
+        {},
+        ['stmt-002'],
+        trace=True,
+    )
+
+    assert result['api_call_allowed'] is True
+    assert result['missing_permissions'] == []
+    related_checks = result['related_permission_checks']
+    assert related_checks[0]['resource'] == 'compute-capacity-reservations'
+    assert related_checks[0]['missing_permissions'] == ['CAPACITY_RESERVATION_MOVE']
+    assert related_checks[0]['satisfied'] is False
+    assert result['simulation_trace']['related_permission_checks'] == related_checks
 
 
 if __name__ == '__main__':

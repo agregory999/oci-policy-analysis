@@ -206,6 +206,23 @@
         });
       }
 
+      function formatRelatedChecksText(checks, selectedPerms = new Set()) {
+        if (!Array.isArray(checks) || !checks.length) return ['Related permission checks: (none)'];
+        const lines = ['Related permission checks:'];
+        checks.forEach((check) => {
+          const permissions = Array.isArray(check.permissions)
+            ? check.permissions.map((p) => String(p || '').toUpperCase()).filter(Boolean)
+            : [];
+          const missing = permissions.filter((perm) => !selectedPerms.has(perm));
+          lines.push(`- ${String(check.resource || '[resource unknown]')}: ${permissions.length ? permissions.join(', ') : '[none]'}`);
+          if (check.applies_when) lines.push(`  Applies when: ${check.applies_when}`);
+          if (check.reason) lines.push(`  Reason: ${check.reason}`);
+          if (missing.length) lines.push(`  Missing from selected permissions: ${missing.join(', ')}`);
+          if (check.failure_hint) lines.push(`  Hint: ${check.failure_hint}`);
+        });
+        return lines;
+      }
+
       async function loadResources() {
         const response = await fetch('/reference/resources');
         const payload = await response.json();
@@ -357,6 +374,8 @@
           '',
           `Missing permissions (${missing.length}):`,
           missing.length ? missing.join('\n') : '(none)',
+          '',
+          ...formatRelatedChecksText(opMeta?.related_checks || [], selectedPerms),
         ].join('\n');
       }
 

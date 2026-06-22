@@ -1544,15 +1544,15 @@ def identity_search(
             response['total_groups'] = len(groups)
             total += len(groups)
         if 'dynamic-group' in requested_types:
-            dynamic_groups = _query_service().search_dynamic_groups(
-                DynamicGroupSearch(
-                    domain_name=domains,
-                    dynamic_group_name=names,
-                    dynamic_group_ocid=ocids[0] if ocids else '',
-                    matching_rule=matching_rule or [],
-                    in_use=in_use,
-                )
+            dynamic_group_filters: DynamicGroupSearch = DynamicGroupSearch(
+                domain_name=domains,
+                dynamic_group_name=names,
+                dynamic_group_ocid=ocids[0] if ocids else '',
+                matching_rule=matching_rule or [],
             )
+            if in_use is not None:
+                dynamic_group_filters['in_use'] = in_use
+            dynamic_groups = _query_service().search_dynamic_groups(dynamic_group_filters)
             response['dynamic_groups'] = dynamic_groups[:bounded_limit]
             response['total_dynamic_groups'] = len(dynamic_groups)
             total += len(dynamic_groups)

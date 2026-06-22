@@ -17,6 +17,7 @@ Contents
    usage
    architecture
    simulation
+   related_permission_checks
    recommendations
    tag_based
    mcp

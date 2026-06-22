@@ -42,7 +42,7 @@ A simulation consists of the following components:
   Any statement (real or prospective) can be unselected to test the impact of removing it from the simulation.
 - **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the merged policy set (real + prospective) that will affect the simulated permissions added to the final permission set.
 - **Variable Values:** Values required by where-clauses (OCIDs, strings, lists, booleans), which are set or simulated as part of the scenario.
-- **API Operation:** The specific operation to be tested.  All OCI API Operations require a set of permissions, and will fail if any required permission is missing.  
+- **API Operation:** The specific operation to be tested.  All OCI API Operations require a set of permissions, and will fail if any required permission is missing. Some operations also expose advisory [Related Permission Checks](./related_permission_checks.md) for conditional dependencies such as attached or associated resources.
 - **History:** If multiple simulations are run, the history of what has been performed, with the ability to export to JSON.
 
 ---

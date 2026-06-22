@@ -1578,6 +1578,16 @@ class SimulationTab(BaseUITab):
         if op_detail and isinstance(op_detail, dict):
             # Accept 'note' regardless of capitalization
             note = op_detail.get('notes') or ''
+            related_checks = op_detail.get('related_checks') or []
+            if related_checks:
+                related_lines = ['Related permission checks:']
+                for check in related_checks:
+                    permissions = ', '.join(check.get('permissions') or []) or '[none]'
+                    related_lines.append(
+                        f"- {check.get('resource') or '[resource unknown]'}: {permissions}; "
+                        f"applies when: {check.get('applies_when') or 'conditional dependency'}"
+                    )
+                note = '\n'.join([line for line in [note, *related_lines] if line])
         self.api_op_note_var.set(note or '')
         if note:
             self.api_op_note_label.grid()  # Show label
@@ -1812,6 +1822,19 @@ class SimulationTab(BaseUITab):
         summary.append(f"Required permissions for API: {', '.join(required) if required else '[none]'}")
         if missing:
             summary.append(f"Missing permissions: {', '.join(missing)}")
+        related_checks = result.get('related_permission_checks') or []
+        if related_checks:
+            summary.append('Related permission checks:')
+            for check in related_checks:
+                permissions = ', '.join(check.get('permissions') or []) or '[none]'
+                missing_related = ', '.join(check.get('missing_permissions') or [])
+                applies_when = check.get('applies_when') or 'Conditional related resource dependency'
+                status = 'satisfied' if check.get('satisfied') else 'missing'
+                line = f"  - {check.get('resource') or '[resource unknown]'}: {permissions} ({status})"
+                if missing_related:
+                    line += f'; missing {missing_related}'
+                line += f'; applies when: {applies_when}'
+                summary.append(line)
 
         # Always surface a compact count of ALLOW/DENY statements
         # considered for this simulation run so users can quickly see

@@ -1940,7 +1940,20 @@
             "permissions": [
                 "INSTANCE_MOVE"
             ],
-            "notes": ""
+            "notes": "If the instance is associated with related resources, OCI authorization can also depend on permissions for those resources.",
+            "related_checks": [
+                {
+                    "resource": "compute-capacity-reservations",
+                    "operation": "ChangeComputeCapacityReservationCompartment",
+                    "permissions": [
+                        "CAPACITY_RESERVATION_MOVE"
+                    ],
+                    "applies_when": "The instance is associated with a compute capacity reservation.",
+                    "principal": "same-principal",
+                    "reason": "Moving an instance that uses a compute capacity reservation can require permission to move the associated reservation.",
+                    "failure_hint": "If ChangeInstanceCompartment returns a 404/NotAuthorized-style error even though INSTANCE_MOVE is granted, check CAPACITY_RESERVATION_MOVE on the associated compute capacity reservation."
+                }
+            ]
         },
         "TerminateInstance": {
             "permissions": [
