@@ -1,3 +1,10 @@
+## [6.1.0-actionable-recommendations-guidance.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.1.0-actionable-recommendations-guidance.1...v6.1.0-actionable-recommendations-guidance.2) (2026-06-22)
+
+
+### Features
+
+* add related permission checks ([f8ea3e2](https://github.com/agregory999/oci-policy-analysis/commit/f8ea3e24af41092c971e99d5625539be4c1382db))
+
 ## [6.1.0-actionable-recommendations-guidance.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.0.0...v6.1.0-actionable-recommendations-guidance.1) (2026-06-20)
 
 
