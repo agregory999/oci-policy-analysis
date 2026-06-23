@@ -290,12 +290,12 @@ def main():  # noqa: C901
         if args.get_caches:  # If get_caches is provided, list available caches
             available_caches = cache_manager.get_available_cache(tenancy_name=args.get_caches)
             if available_caches:
-                logger.info('Available caches:')
+                logger.warning('Available caches:')
                 for cache in available_caches:
-                    logger.info(cache)
+                    logger.warning(cache)
             else:
-                logger.info('No caches available.')
-            logger.info('Exiting after listing caches as --get-caches was provided')
+                logger.warning('No caches available.')
+            logger.warning('Exiting after listing caches as --get-caches was provided')
             exit(0)
 
         # Load everything from named cache

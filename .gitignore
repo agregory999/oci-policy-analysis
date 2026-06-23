@@ -59,3 +59,6 @@ private/
 node_modules
 env.sh
 usage-par.txt
+
+# --- Codex ---
+.codex/
