@@ -1,3 +1,10 @@
+## [6.2.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.1...v6.2.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* CLI prints caches at WARNING level ([c8a16d0](https://github.com/agregory999/oci-policy-analysis/commit/c8a16d08c637cebfc719aff914e63ce2ab95e28c))
+
 ## [6.2.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.0...v6.2.1) (2026-06-22)
 
 
