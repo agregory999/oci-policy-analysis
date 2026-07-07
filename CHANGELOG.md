@@ -1,3 +1,10 @@
+## [6.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.2...v6.3.0) (2026-07-07)
+
+
+### Features
+
+* add OCI IAM OAuth for MCP ([836070d](https://github.com/agregory999/oci-policy-analysis/commit/836070d269b6c014fbab885e7e2a11d2535be441))
+
 ## [6.2.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.1...v6.2.2) (2026-06-23)
 
 
