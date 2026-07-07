@@ -23,9 +23,18 @@ $ErrorActionPreference = "Stop"
 #   MCP_TRANSPORT                       (default: streamable-http)
 #   MCP_HOST                            (default: 0.0.0.0)
 #   MCP_PORT                            (default: 8765)
-#   MCP_LOG_LEVEL                       (default: INFO)
+#   MCP_LOG_LEVEL                       (default: WARNING)
 #   MCP_SAVE_CACHE_AFTER_LOAD           (default: false)
 #   MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH (default: 1)
+#   MCP_OAUTH_ENABLED                   (default: false)
+#   MCP_OAUTH_ISSUER                    (required if MCP_OAUTH_ENABLED=true)
+#   MCP_OAUTH_JWKS_URI                  (required if MCP_OAUTH_ENABLED=true)
+#   MCP_OAUTH_AUDIENCE                  (required if MCP_OAUTH_ENABLED=true)
+#   MCP_OAUTH_REQUIRED_SCOPES           (required if MCP_OAUTH_ENABLED=true; token must include all listed scopes)
+#   MCP_OAUTH_UPDATE_SCOPE              (optional; required for reload when set)
+#   MCP_OAUTH_RESOURCE_SERVER_URL       (required if MCP_OAUTH_ENABLED=true)
+#   MCP_OAUTH_AUTHORIZATION_SERVER_URL  (required if MCP_OAUTH_ENABLED=true)
+#   MCP_OAUTH_ALGORITHM                 (default: RS256)
 
 if (-not (Get-Command oci -ErrorAction SilentlyContinue)) {
     Write-Error "OCI CLI is required but not installed."
@@ -71,9 +80,18 @@ $mcpAuthMode = [Environment]::GetEnvironmentVariable("MCP_AUTH_MODE"); if ([stri
 $mcpTransport = [Environment]::GetEnvironmentVariable("MCP_TRANSPORT"); if ([string]::IsNullOrWhiteSpace($mcpTransport)) { $mcpTransport = "streamable-http" }
 $mcpHost = [Environment]::GetEnvironmentVariable("MCP_HOST"); if ([string]::IsNullOrWhiteSpace($mcpHost)) { $mcpHost = "0.0.0.0" }
 $mcpPort = [Environment]::GetEnvironmentVariable("MCP_PORT"); if ([string]::IsNullOrWhiteSpace($mcpPort)) { $mcpPort = "8765" }
-$mcpLogLevel = [Environment]::GetEnvironmentVariable("MCP_LOG_LEVEL"); if ([string]::IsNullOrWhiteSpace($mcpLogLevel)) { $mcpLogLevel = "INFO" }
+$mcpLogLevel = [Environment]::GetEnvironmentVariable("MCP_LOG_LEVEL"); if ([string]::IsNullOrWhiteSpace($mcpLogLevel)) { $mcpLogLevel = "WARNING" }
 $mcpSaveCache = [Environment]::GetEnvironmentVariable("MCP_SAVE_CACHE_AFTER_LOAD"); if ([string]::IsNullOrWhiteSpace($mcpSaveCache)) { $mcpSaveCache = "false" }
 $mcpDepth = [Environment]::GetEnvironmentVariable("MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH"); if ([string]::IsNullOrWhiteSpace($mcpDepth)) { $mcpDepth = "1" }
+$mcpOauthEnabled = [Environment]::GetEnvironmentVariable("MCP_OAUTH_ENABLED"); if ([string]::IsNullOrWhiteSpace($mcpOauthEnabled)) { $mcpOauthEnabled = "false" }
+$mcpOauthIssuer = [Environment]::GetEnvironmentVariable("MCP_OAUTH_ISSUER")
+$mcpOauthJwksUri = [Environment]::GetEnvironmentVariable("MCP_OAUTH_JWKS_URI")
+$mcpOauthAudience = [Environment]::GetEnvironmentVariable("MCP_OAUTH_AUDIENCE")
+$mcpOauthRequiredScopes = [Environment]::GetEnvironmentVariable("MCP_OAUTH_REQUIRED_SCOPES")
+$mcpOauthUpdateScope = [Environment]::GetEnvironmentVariable("MCP_OAUTH_UPDATE_SCOPE")
+$mcpOauthResourceServerUrl = [Environment]::GetEnvironmentVariable("MCP_OAUTH_RESOURCE_SERVER_URL")
+$mcpOauthAuthorizationServerUrl = [Environment]::GetEnvironmentVariable("MCP_OAUTH_AUTHORIZATION_SERVER_URL")
+$mcpOauthAlgorithm = [Environment]::GetEnvironmentVariable("MCP_OAUTH_ALGORITHM"); if ([string]::IsNullOrWhiteSpace($mcpOauthAlgorithm)) { $mcpOauthAlgorithm = "RS256" }
 
 if (-not ($mcpDepth -match '^\d+$') -or [int]$mcpDepth -lt 1 -or [int]$mcpDepth -gt 6) {
     Write-Host "ERROR: MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH must be an integer between 1 and 6."
@@ -122,6 +140,15 @@ $containers = @(
             MCP_LOG_LEVEL = $mcpLogLevel
             MCP_SAVE_CACHE_AFTER_LOAD = $mcpSaveCache
             MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH = $mcpDepth
+            MCP_OAUTH_ENABLED = $mcpOauthEnabled
+            MCP_OAUTH_ISSUER = $mcpOauthIssuer
+            MCP_OAUTH_JWKS_URI = $mcpOauthJwksUri
+            MCP_OAUTH_AUDIENCE = $mcpOauthAudience
+            MCP_OAUTH_REQUIRED_SCOPES = $mcpOauthRequiredScopes
+            MCP_OAUTH_UPDATE_SCOPE = $mcpOauthUpdateScope
+            MCP_OAUTH_RESOURCE_SERVER_URL = $mcpOauthResourceServerUrl
+            MCP_OAUTH_AUTHORIZATION_SERVER_URL = $mcpOauthAuthorizationServerUrl
+            MCP_OAUTH_ALGORITHM = $mcpOauthAlgorithm
         }
     }
 )

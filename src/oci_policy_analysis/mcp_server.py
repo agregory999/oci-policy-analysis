@@ -39,6 +39,7 @@ import argparse  # noqa: E402
 import asyncio  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
+import os  # noqa: E402
 import re  # noqa: E402
 import threading  # noqa: E402
 from collections import Counter  # noqa: E402
@@ -47,6 +48,9 @@ from typing import Any, Literal  # noqa: E402
 
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
+from fastmcp.server.auth import RemoteAuthProvider  # noqa: E402
+from fastmcp.server.auth.providers.jwt import JWTVerifier  # noqa: E402
+from fastmcp.server.dependencies import get_access_token  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
@@ -84,6 +88,13 @@ mcp = FastMCP(name='OCI Policy MCP')
 app_context: AppContext | None = None
 
 MCP_OUTPUT_LOG_LIMIT = 4000
+MCP_OAUTH_REQUIRED_VARS = (
+    'MCP_OAUTH_ISSUER',
+    'MCP_OAUTH_JWKS_URI',
+    'MCP_OAUTH_AUDIENCE',
+    'MCP_OAUTH_RESOURCE_SERVER_URL',
+    'MCP_OAUTH_AUTHORIZATION_SERVER_URL',
+)
 
 
 CONFIDENCE_ORDER = {
@@ -173,7 +184,149 @@ def _truncate_log_text(text: str, limit: int = MCP_OUTPUT_LOG_LIMIT) -> str:
     return f'{text[:limit]}... <truncated {omitted} chars>'
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
+def _split_scopes(value: str) -> list[str]:
+    return [scope for scope in re.split(r'[\s,]+', value.strip()) if scope]
+
+
+def _oauth_update_scope() -> str:
+    return os.environ.get('MCP_OAUTH_UPDATE_SCOPE', '').strip()
+
+
+def _oauth_identity_details(access_token: Any) -> str:
+    """Return a small, non-secret identity summary for request logging."""
+
+    claims = getattr(access_token, 'claims', {}) or {}
+    if not isinstance(claims, dict):
+        return 'user=<unavailable>'
+    nested_user = claims.get('user') if isinstance(claims.get('user'), dict) else {}
+    candidates = (
+        ('username', 'username'),
+        ('user_name', 'user_name'),
+        ('user.name', 'user.name'),
+        ('userName', 'userName'),
+        ('preferred_username', 'preferred_username'),
+        ('user_displayname', 'user_displayname'),
+        ('ca_name', 'ca_name'),
+        ('login', 'login'),
+        ('upn', 'upn'),
+        ('email', 'email'),
+        ('user.email', 'user.email'),
+        ('name', 'name'),
+    )
+    details = []
+    for label, claim_name in candidates:
+        value = claims.get(claim_name) or nested_user.get(claim_name)
+        if value and not any(item.startswith(f'{label}=') for item in details):
+            safe_value = str(value).replace('\r', '\\r').replace('\n', '\\n')[:200]
+            details.append(f'{label}={safe_value}')
+    return ' '.join(details) if details else 'user=<unavailable>'
+
+
+def _require_oauth_scope(scope: str) -> None:
+    if not _env_flag('MCP_OAUTH_ENABLED', default=False):
+        return
+    try:
+        access_token = get_access_token()
+    except Exception:
+        access_token = None
+    if access_token is None or scope not in access_token.scopes:
+        raise ToolError(f'MCP OAuth scope required for this operation: {scope}')
+
+
+def _oauth_env_help() -> str:
+    return """OAuth for MCP is enabled, but required configuration is missing or invalid.
+
+Required environment variables:
+  export MCP_OAUTH_ENABLED="true"
+  export MCP_OAUTH_ISSUER="https://idcs-<id>.identity.oraclecloud.com/"
+  export MCP_OAUTH_JWKS_URI="https://idcs-<id>.identity.oraclecloud.com/admin/v1/SigningCert/jwk"
+  export MCP_OAUTH_AUDIENCE="<resource-server-primary-audience>"
+  export MCP_OAUTH_REQUIRED_SCOPES="read"
+  export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>/mcp"
+  export MCP_OAUTH_AUTHORIZATION_SERVER_URL="https://idcs-<id>.identity.oraclecloud.com/"
+
+Optional environment variables:
+  export MCP_OAUTH_UPDATE_SCOPE="update"
+  export MCP_OAUTH_ALGORITHM="RS256"
+
+Copy the required block, replace placeholder values from the OCI Identity Domain application, then rerun the MCP server."""
+
+
+def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
+    """Return a FastMCP auth provider when MCP OAuth is enabled."""
+
+    if not _env_flag('MCP_OAUTH_ENABLED', default=False):
+        logger.info('MCP OAuth is disabled.')
+        return None
+
+    missing = [name for name in MCP_OAUTH_REQUIRED_VARS if not os.environ.get(name, '').strip()]
+    raw_scopes = os.environ.get('MCP_OAUTH_REQUIRED_SCOPES', '')
+    scopes = _split_scopes(raw_scopes)
+
+    if not scopes:
+        missing.append('MCP_OAUTH_REQUIRED_SCOPES')
+
+    if missing:
+        message = f"Missing required OAuth environment variables: {', '.join(missing)}\n\n{_oauth_env_help()}"
+        logger.error(message)
+        raise ValueError(message)
+
+    issuer = os.environ['MCP_OAUTH_ISSUER'].strip()
+    jwks_uri = os.environ['MCP_OAUTH_JWKS_URI'].strip()
+    audience = os.environ['MCP_OAUTH_AUDIENCE'].strip()
+    resource_server_url = os.environ['MCP_OAUTH_RESOURCE_SERVER_URL'].strip()
+    authorization_server_url = os.environ['MCP_OAUTH_AUTHORIZATION_SERVER_URL'].strip()
+    algorithm = os.environ.get('MCP_OAUTH_ALGORITHM', 'RS256').strip() or 'RS256'
+
+    logger.info('MCP OAuth is enabled.')
+    logger.info('MCP OAuth issuer: %s', issuer)
+    logger.info('MCP OAuth JWKS URI: %s', jwks_uri)
+    logger.info('MCP OAuth audience: %s', audience)
+    logger.info('MCP OAuth required scopes: %s', ', '.join(scopes))
+    if _oauth_update_scope():
+        logger.info('MCP OAuth update scope: %s', _oauth_update_scope())
+    logger.info('MCP OAuth protected resource URL: %s', resource_server_url)
+
+    verifier = JWTVerifier(
+        jwks_uri=jwks_uri,
+        issuer=issuer,
+        audience=audience,
+        algorithm=algorithm,
+        required_scopes=scopes,
+        base_url=resource_server_url,
+    )
+    return RemoteAuthProvider(
+        token_verifier=verifier,
+        authorization_servers=[authorization_server_url],
+        base_url=resource_server_url,
+        resource_name='OCI Policy Analysis MCP',
+    )
+
+
 def _log_mcp_call_input(tool_name: str, inputs: dict[str, Any]) -> None:
+    if _env_flag('MCP_OAUTH_ENABLED', default=False) and logger.isEnabledFor(logging.WARNING):
+        try:
+            access_token = get_access_token()
+        except Exception:
+            access_token = None
+        if access_token is None:
+            logger.warning('MCP OAuth invoke %s client_id=<none> scopes=[]', tool_name)
+        else:
+            logger.warning(
+                'MCP OAuth invoke %s client_id=%s %s scopes=%s',
+                tool_name,
+                access_token.client_id,
+                _oauth_identity_details(access_token),
+                ','.join(access_token.scopes),
+            )
+
     if logger.isEnabledFor(logging.INFO):
         logger.info('MCP call %s input(full)=%s', tool_name, _json_for_log(inputs))
 
@@ -1789,6 +1942,10 @@ def cross_tenancy_search(
 def _reload_mcp_data() -> dict[str, Any]:
     """Reload live policy and identity data for the active standalone MCP context."""
 
+    update_scope = _oauth_update_scope()
+    if update_scope:
+        _require_oauth_scope(update_scope)
+
     ctx = _require_service_context()
     repo = ctx.policy_repo
 
@@ -1857,7 +2014,8 @@ def start_mcp_server_in_thread(settings: dict):
     def _run():
         global server_running
         try:
-            logger.info(
+            mcp.auth = _build_oauth_auth_provider_from_env()
+            logger.warning(
                 f'Starting FastMCP server on {settings.get("mcp_host", "127.0.0.1")}:{settings.get("mcp_port", 8765)}'
             )
             server_running = True
@@ -1945,6 +2103,11 @@ def main():
     logging.getLogger('mcp.server').setLevel(args.log_level)
     recursive = args.recursive
 
+    try:
+        mcp.auth = _build_oauth_auth_provider_from_env()
+    except ValueError:
+        sys.exit(2)
+
     logger.info(
         f'Loading MCP Server using Profile={args.profile or "DEFAULT"}, '
         f'InstancePrincipal={args.instance_principal}, '
@@ -1980,7 +2143,7 @@ def main():
         sys.exit(2)
 
     repo = app_context.policy_repo
-    logger.info(
+    logger.warning(
         f'Tenancy loaded ({"from cache" if args.use_cache else "live"}). Policies: {len(repo.regular_statements)} regular, '
         f'{len(repo.cross_tenancy_statements)} cross-tenancy; '
         f'Groups: {len(repo.groups)}; Users: {len(repo.users)}; '
@@ -1989,12 +2152,13 @@ def main():
 
     # --- Start MCP Server ---
     if args.transport == 'stdio':
-        logger.info(
+        logger.warning(
             'Starting MCP server in stdio mode - if you get errors, please ensure you set environment variable MCP_STDIO_MODE=1'
         )
         mcp.run(transport='stdio', show_banner=False, log_level=args.log_level.lower())
         # mcp.run(transport='stdio', show_banner=False)
     else:
+        logger.warning('Starting MCP server on %s:%s with streamable-http transport', args.host, args.port)
         mcp.run(
             transport='streamable-http',
             port=args.port,

@@ -19,6 +19,7 @@ The default runtime behavior in this guide is:
 - A private OCIR repository path (you said you are creating this).
 - A VCN/subnet where the Container Instance can reach OCI public APIs (typically via NAT Gateway in private subnet).
 - IAM policy for the Container Instance granting the read permissions needed by policy analysis. See [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
+- Optional OAuth setup for real-user or machine-to-machine MCP access. See [MCP OAuth Setup](mcp_oauth.md).
 
 ## 2. Build and Push to OCIR
 
@@ -65,13 +66,15 @@ Supported environment variables:
 - `MCP_TRANSPORT` (`streamable-http` default)
 - `MCP_HOST` (`0.0.0.0` default)
 - `MCP_PORT` (`8765` default)
-- `MCP_LOG_LEVEL` (`INFO` default)
+- `MCP_LOG_LEVEL` (`WARNING` default; use `INFO` temporarily for OAuth setup diagnostics and MCP call logging)
 - `MCP_RECURSIVE` (`true` default)
 - `MCP_SAVE_CACHE_AFTER_LOAD` (`false` default)
 - `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH` (`1` default; valid range `1-6`; set `2` to include direct child compartments)
 - `OCI_PROFILE` (required only if `MCP_AUTH_MODE=profile`)
 - `MCP_USE_CACHE` (required only if `MCP_AUTH_MODE=cache`)
 - `OCI_SESSION_TOKEN` (required only if `MCP_AUTH_MODE=session_token`)
+
+For OAuth configuration, use the single canonical guide: [MCP OAuth Setup](mcp_oauth.md).
 
 ## 4. Create OCI Container Instance
 
@@ -92,6 +95,8 @@ export OCI_AD=<target-availability-domain>
 # export MCP_LOG_LEVEL=WARNING
 # export MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2
 
+# For OAuth protection, follow [MCP OAuth Setup](mcp_oauth.md).
+
 ./local-deploy-mcp-container-instance.sh
 ```
 
@@ -109,6 +114,8 @@ $env:OCI_AD="<target-availability-domain>"
 # Optional MCP runtime overrides:
 # $env:MCP_LOG_LEVEL="WARNING"
 # $env:MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH="2"
+
+# For OAuth protection, follow [MCP OAuth Setup](mcp_oauth.md).
 
 .\local-deploy-mcp-container-instance.ps1
 ```
@@ -138,9 +145,10 @@ OCI Console manual flow (alternative):
      - `MCP_TRANSPORT=streamable-http`
      - `MCP_HOST=0.0.0.0`
      - `MCP_PORT=8765`
-     - `MCP_LOG_LEVEL=INFO`
+     - `MCP_LOG_LEVEL=WARNING`
      - `MCP_SAVE_CACHE_AFTER_LOAD=false`
      - `MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH=2` (recommended for tenancies where identity domains are in child compartments)
+     - optional OAuth variables from [MCP OAuth Setup](mcp_oauth.md)
 6. Attach IAM policy for the container instance resource principal auth path. See [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
 7. Create and wait until state is `Active`.
 
@@ -181,12 +189,14 @@ Example payload:
 
 ## 6. Optional: Front with Load Balancer
 
-For external consumers, front this private Container Instance with an OCI Load Balancer:
+For external consumers, front this private Container Instance with an OCI Load Balancer or API Gateway:
 
-- LB listener: HTTPS 443
+- listener: HTTPS 443
 - backend set target: container private IP port `8765`
 - health check path: `/health`
 - route MCP clients to `https://<lb-host>/mcp`
+
+For OAuth-protected deployments, see [MCP OAuth Setup](mcp_oauth.md).
 
 ## 7. Local Smoke Test Before Push
 

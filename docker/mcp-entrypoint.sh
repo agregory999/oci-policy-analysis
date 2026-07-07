@@ -5,7 +5,7 @@ AUTH_MODE="${MCP_AUTH_MODE:-instance_principal}"
 TRANSPORT="${MCP_TRANSPORT:-streamable-http}"
 HOST="${MCP_HOST:-0.0.0.0}"
 PORT="${MCP_PORT:-8765}"
-LOG_LEVEL="${MCP_LOG_LEVEL:-INFO}"
+LOG_LEVEL="${MCP_LOG_LEVEL:-WARNING}"
 RECURSIVE="${MCP_RECURSIVE:-true}"
 SAVE_CACHE_AFTER_LOAD="${MCP_SAVE_CACHE_AFTER_LOAD:-false}"
 COMPARTMENT_DOMAIN_SEARCH_DEPTH="${MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}"
@@ -13,6 +13,33 @@ COMPARTMENT_DOMAIN_SEARCH_DEPTH="${MCP_COMPARTMENT_DOMAIN_SEARCH_DEPTH:-1}"
 OCI_PROFILE_NAME="${OCI_PROFILE:-}"
 MCP_CACHE_NAME="${MCP_USE_CACHE:-}"
 OCI_SESSION_TOKEN_VALUE="${OCI_SESSION_TOKEN:-}"
+OAUTH_ENABLED="${MCP_OAUTH_ENABLED:-false}"
+
+to_lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+print_oauth_help() {
+  cat >&2 <<'EOF'
+
+OAuth for MCP is enabled, but required configuration is missing or invalid.
+
+Required environment variables:
+  export MCP_OAUTH_ENABLED="true"
+  export MCP_OAUTH_ISSUER="https://idcs-<id>.identity.oraclecloud.com/"
+  export MCP_OAUTH_JWKS_URI="https://idcs-<id>.identity.oraclecloud.com/admin/v1/SigningCert/jwk"
+  export MCP_OAUTH_AUDIENCE="<resource-server-primary-audience>"
+  export MCP_OAUTH_REQUIRED_SCOPES="read"
+  export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>/mcp"
+  export MCP_OAUTH_AUTHORIZATION_SERVER_URL="https://idcs-<id>.identity.oraclecloud.com/"
+
+Optional environment variables:
+  export MCP_OAUTH_UPDATE_SCOPE="update"
+  export MCP_OAUTH_ALGORITHM="RS256"
+
+Copy the required block, replace placeholder values from the OCI Identity Domain application, then rerun the MCP server.
+EOF
+}
 
 SERVER_ARGS=(
   "--transport" "${TRANSPORT}"
@@ -27,11 +54,33 @@ if [[ ! "${COMPARTMENT_DOMAIN_SEARCH_DEPTH}" =~ ^[0-9]+$ ]] || (( COMPARTMENT_DO
   exit 2
 fi
 
-if [[ "${RECURSIVE,,}" == "true" ]]; then
+if [[ "$(to_lower "${OAUTH_ENABLED}")" == "true" ]]; then
+  OAUTH_REQUIRED_VARS=(
+    "MCP_OAUTH_ISSUER"
+    "MCP_OAUTH_JWKS_URI"
+    "MCP_OAUTH_AUDIENCE"
+    "MCP_OAUTH_REQUIRED_SCOPES"
+    "MCP_OAUTH_RESOURCE_SERVER_URL"
+    "MCP_OAUTH_AUTHORIZATION_SERVER_URL"
+  )
+  OAUTH_MISSING_VARS=()
+  for var_name in "${OAUTH_REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      OAUTH_MISSING_VARS+=("${var_name}")
+    fi
+  done
+  if (( ${#OAUTH_MISSING_VARS[@]} > 0 )); then
+    echo "ERROR: Missing required OAuth environment variables: ${OAUTH_MISSING_VARS[*]}" >&2
+    print_oauth_help
+    exit 2
+  fi
+fi
+
+if [[ "$(to_lower "${RECURSIVE}")" == "true" ]]; then
   SERVER_ARGS+=("--recursive")
 fi
 
-if [[ "${SAVE_CACHE_AFTER_LOAD,,}" != "true" ]]; then
+if [[ "$(to_lower "${SAVE_CACHE_AFTER_LOAD}")" != "true" ]]; then
   SERVER_ARGS+=("--dont-save-cache-after-load")
 fi
 
@@ -70,5 +119,5 @@ case "${AUTH_MODE}" in
     ;;
 esac
 
-echo "Starting OCI Policy Analysis MCP server with auth=${AUTH_MODE}, transport=${TRANSPORT}, host=${HOST}, port=${PORT}, log_level=${LOG_LEVEL}" >&2
+echo "Starting OCI Policy Analysis MCP server with auth=${AUTH_MODE}, transport=${TRANSPORT}, host=${HOST}, port=${PORT}, log_level=${LOG_LEVEL}, oauth=${OAUTH_ENABLED}" >&2
 exec python -m oci_policy_analysis.mcp_server "${SERVER_ARGS[@]}"

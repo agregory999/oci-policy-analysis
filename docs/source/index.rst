@@ -14,6 +14,7 @@ Contents
    setup_desktop
    setup_web
    setup_mcp_container_instance
+   mcp_oauth
    usage
    architecture
    simulation

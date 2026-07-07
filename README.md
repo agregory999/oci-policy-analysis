@@ -8,6 +8,9 @@ Analyze Oracle Cloud IAM policies and identity data.
 For standalone MCP deployment on OCI Container Instances (OCIR image + instance principal), see:
 - [docs/source/setup_mcp_container_instance.md](docs/source/setup_mcp_container_instance.md)
 
+For optional OAuth protection of remote MCP deployments with OCI Identity Domains, see:
+- [docs/source/mcp_oauth.md](docs/source/mcp_oauth.md)
+
 ## Limited Mode (Web)
 
 - Overview doc: [docs/source/limited_mode.md](docs/source/limited_mode.md)
