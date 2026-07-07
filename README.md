@@ -1,31 +1,26 @@
 # OCI Policy Analysis
 
-Analyze Oracle Cloud IAM policies and identity data.
+Analyze Oracle Cloud IAM policies and identity data through a desktop application,
+a browser-based application, the CLI, or MCP.
 
-📘 **Full documentation:**  
-👉 [https://agregory999.github.io/oci-policy-analysis](https://agregory999.github.io/oci-policy-analysis)
+## Getting started
 
-For standalone MCP deployment on OCI Container Instances (OCIR image + instance principal), see:
-- [docs/source/setup_mcp_container_instance.md](docs/source/setup_mcp_container_instance.md)
+Choose one of the two interactive applications.
 
-For optional OAuth protection of remote MCP deployments with OCI Identity Domains, see:
-- [docs/source/mcp_oauth.md](docs/source/mcp_oauth.md)
+### Desktop application
 
-## Limited Mode (Web)
+Requires Python 3.12+ and a working Tk installation.
 
-- Overview doc: [docs/source/limited_mode.md](docs/source/limited_mode.md)
-
-## Quick Start (Desktop App)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python -m oci_policy_analysis.main
+oci-policy-analysis-ui
 ```
 
-## Quick Start (Web App Only)
+You can also launch the source entry point with `python -m oci_policy_analysis.main`.
 
-If you want web mode only (no desktop/Tk workflow):
+### Web application
 
 ```bash
 python3 -m venv .venv
@@ -34,84 +29,20 @@ pip install -e ".[web]"
 oci-policy-analysis-web --host 127.0.0.1 --port 8000
 ```
 
-Then open: `http://127.0.0.1:8000`
+Open <http://127.0.0.1:8000> in a browser.
 
-## Quick Start (Using Local Helper Scripts)
+## Full documentation
 
-Build and run by mode:
+See the [full documentation](https://agregory999.github.io/oci-policy-analysis)
+for setup details, authentication, UI workflows, CLI and MCP usage, deployment,
+architecture, and the API reference.
 
-```bash
-./local-build.sh --mode web
-./local-run.sh --mode web --host 127.0.0.1 --port 8000
-```
+The repository also contains [maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/README.md),
+which is kept separate from the published user documentation.
 
-Other supported modes:
+## Other entry points
 
-- `desktop`
-- `web`
-- `cli`
-- `mcp`
-- `all` (build script only)
+- `oci-policy-analysis-cli` for non-interactive policy analysis.
+- `oci-policy-analysis-mcp` for the standalone MCP server.
 
-## Server / Nohup Example (Web)
-
-```bash
-nohup ./local-run.sh --mode web --host 0.0.0.0 --port 8080 > oci-policy-analysis-web.log 2>&1 &
-```
-
-Check process/logs:
-
-```bash
-ps -ef | grep oci-policy-analysis-web
-tail -f oci-policy-analysis-web.log
-```
-
-## Run the Web App via PyPI (no repo clone)
-
-(Won't work until out of beta)
-
-Install in a virtual environment and run the packaged web entrypoint:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install "oci-policy-analysis[web]"
-oci-policy-analysis-web
-```
-
-For server usage, you can run with explicit bind options:
-
-```bash
-oci-policy-analysis-web --host 0.0.0.0 --port 8080
-```
-
-Example startup script (`start-oci-policy-analysis-web.sh`):
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-source /opt/oci-policy-analysis/.venv/bin/activate
-exec oci-policy-analysis-web --host 0.0.0.0 --port 8080
-```
-
-Then make executable and run:
-
-```bash
-chmod +x start-oci-policy-analysis-web.sh
-./start-oci-policy-analysis-web.sh
-```
-
-Or run a packaged release right from your desktop:
-```bash
-oci-policy-analysis.exe   # Windows
-oci-policy-analysis.app   # macOS
-```
-
-For the executables, disable the OS Security for the application so it can run.  
-- MAC: Settings -> Privacy & Security - Open Anyway
-- Windows: Double-click EXE -> More Info - Run Anyway
-
-![Mac](/images/mac_security_bypass.png)
-![Windows](/images/windows_security_bypass.png)
+The project is licensed under the UPL-1.0 license.

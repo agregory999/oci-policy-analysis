@@ -549,12 +549,7 @@ class _FieldCollectingVisitor(PolicyVisitor):
 
 # The core parser class moved here:
 class PolicyStatementParser:
-    """
-    Encapsulates OCI policy parsing using ANTLR.
-    Usage:
-        results = PolicyStatementParser().parse(text)
-        # results: List[dict] (1 per parsed top-level policy statement)
-    """
+    """Parse OCI policy text with the generated ANTLR grammar."""
 
     def __init__(self):
         pass
@@ -592,6 +587,7 @@ class PolicyStatementParser:
 
 
 def strip_quotes(val):
+    """Remove one matching pair of single or double quotes from a value."""
     if isinstance(val, str) and len(val) > 1:
         if (val[0] == val[-1]) and val[0] in '\'"':
             return val[1:-1]
@@ -617,6 +613,8 @@ def _build_unresolved_alias_map(aliases: list[str]) -> dict[str, dict[str, str |
 
 
 class PolicyStatementNormalizer:
+    """Normalize parsed OCI policy statements into application models."""
+
     def __init__(self):
         self.antlr_parser = PolicyStatementParser()
 

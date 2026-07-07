@@ -142,4 +142,4 @@ The CLI can be used to generate a combined policy analysis cache file (`.json`),
 
 A powerful workflow is to use the CLI to generate and update the cache, then deploy this cache—as input for the Model Context Protocol (MCP) server—on an OCI Compute Instance or within a managed, load-balanced environment. In this model, the CLI acts as an extract-and-publish step, with the MCP server providing fast API access to policy data, supporting scalable automation or federated review by multiple consumers.
 
-> For deployment and security considerations on running load-balanced MCP servers on OCI, see: [Secure Deployment on OCI — Outline Steps](/mcp.html#secure-deployment-on-oci-outline-steps)
+> For deployment and security considerations on running load-balanced MCP servers on OCI, see the [MCP Server](mcp.md) guide.

@@ -148,7 +148,7 @@ If users report “Invalid access key”:
 ## Permissions Required and Authentication
 
 Web mode uses the shared OCI IAM permissions and authentication models.
-For complete policy statements and auth details, see [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
+For complete policy statements and auth details, see the [Setup guide](setup.md).
 
 ## Quick Post-Deploy Validation (Web)
 
@@ -171,5 +171,5 @@ After login, validate a few core pages:
 
 If you do **not** need web hosting and want a lighter install profile:
 
-- CLI-only/core-only setup: [CLI docs](cli.md#install-profiles-core-vs-webdesktop)
-- MCP-only/core-only setup: [MCP docs](mcp.md#core-only-install-for-mcp-no-webdesktop-extras)
+- CLI-only/core-only setup: [CLI docs](cli.md)
+- MCP-only/core-only setup: [MCP docs](mcp.md)

@@ -4,120 +4,73 @@ OCI Policy Analysis Presentation
 Desktop UI
 ----------
 
-.. automodule:: oci_policy_analysis.presentation.desktop
-   :no-members:
+The desktop reference lists the maintained tab and reusable table modules. UI
+callbacks and private widget helpers remain implementation details.
 
-.. automodule:: oci_policy_analysis.presentation.desktop.dynamic_group_tab
-   :no-members:
+.. automodule:: oci_policy_analysis.presentation.desktop.base_tab
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.settings_tab
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.policies_tab
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.policy_browser_tab
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.policy_recommendations_tab
+   :members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.mcp_tab
+   :members:
+   :show-inheritance:
 
 .. automodule:: oci_policy_analysis.presentation.desktop.workload_principals_tab
-   :no-members:
-
-.. currentmodule:: oci_policy_analysis.presentation.desktop
-
-SettingsTab
------------
-
-.. autoclass:: SettingsTab
    :members:
-   :undoc-members:
-   :show-inheritance:
-
-PoliciesTab
------------
-
-.. autoclass:: PoliciesTab
-   :members:
-   :undoc-members:
    :show-inheritance:
    :no-index:
 
-DynamicGroupsTab
-----------------
-
-.. autoclass:: DynamicGroupsTab
+.. automodule:: oci_policy_analysis.presentation.desktop.dynamic_group_tab
    :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
-
-UsersTab
---------
-
-.. autoclass:: UsersTab
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
-
-ConsoleTab
-----------
-
-.. autoclass:: ConsoleTab
-   :members:
-   :undoc-members:
    :show-inheritance:
 
-PolicyRecommendationsTab
-------------------------
-
-.. autoclass:: PolicyRecommendationsTab
+.. automodule:: oci_policy_analysis.presentation.desktop.users_tab
    :members:
-   :undoc-members:
-   :show-inheritance:
-   :no-index:
-
-McpTab
-------
-
-.. autoclass:: McpTab
-   :members:
-   :undoc-members:
    :show-inheritance:
 
-WorkloadPrincipalsTab
----------------------
-
-.. autoclass:: WorkloadPrincipalsTab
+.. automodule:: oci_policy_analysis.presentation.desktop.permissions_report_tab
    :members:
-   :undoc-members:
    :show-inheritance:
 
-MaintenanceTab
---------------
-
-.. autoclass:: MaintenanceTab
+.. automodule:: oci_policy_analysis.presentation.desktop.historical_tab
    :members:
-   :undoc-members:
    :show-inheritance:
 
-DataTable
----------
-
-.. autoclass:: DataTable
+.. automodule:: oci_policy_analysis.presentation.desktop.simulation_tab
    :members:
-   :undoc-members:
    :show-inheritance:
 
-CheckboxTable
--------------
-
-.. autoclass:: CheckboxTable
+.. automodule:: oci_policy_analysis.presentation.desktop.condition_tester_tab
    :members:
-   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: oci_policy_analysis.presentation.desktop.data_table
+   :members:
    :show-inheritance:
 
 Web UI
 ------
 
-.. automodule:: oci_policy_analysis.presentation.web.main
+.. automodule:: oci_policy_analysis.web.main
    :members:
-   :undoc-members:
    :show-inheritance:
-   :no-index:
 
-.. automodule:: oci_policy_analysis.presentation.web.api.routes_core
+.. automodule:: oci_policy_analysis.web.api.routes_core
    :members:
-   :undoc-members:
    :show-inheritance:
-   :no-index:

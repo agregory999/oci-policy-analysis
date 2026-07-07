@@ -29,6 +29,7 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.risk im
 
 
 def get_default_intelligence_strategies():
+    """Return the default ordered set of policy intelligence strategies."""
     return [
         RiskScoreStrategy(),
         OverlapStrategy(),

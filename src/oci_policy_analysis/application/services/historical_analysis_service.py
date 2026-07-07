@@ -10,6 +10,8 @@ from oci_policy_analysis.application.core.support.logger import get_logger
 
 @dataclass
 class HistoricalDiffItem:
+    """Describe one added, removed, or modified item in a cache comparison."""
+
     action: str
     section: str
     stable_key: str
@@ -21,6 +23,8 @@ class HistoricalDiffItem:
 
 @dataclass
 class HistoricalSectionResult:
+    """Summarize changes for one historical comparison section."""
+
     section: str
     key: str
     added: int
@@ -31,6 +35,8 @@ class HistoricalSectionResult:
 
 @dataclass
 class HistoricalCompareResult:
+    """Contain the normalized results of comparing two cache snapshots."""
+
     left_cache: str
     right_cache: str
     policy_sections: list[HistoricalSectionResult]

@@ -6,7 +6,7 @@ OCI Policy Analysis web data.
 This page is user/admin-facing guidance (what it enables and how to use it).
 For architecture and implementation context, see:
 
-- `docs/source/context/project/CONTEXT_limited_mode.md`
+- [Limited mode maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_limited_mode.md)
 
 ---
 

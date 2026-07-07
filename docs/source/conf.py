@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join('..', '..', 'src')))
 project = 'OCI Policy Analysis'
 author = 'Andrew Gregory'
 copyright = f'{datetime.now().year}, {author}'
-release = '2.0.0'
+release = '6.2.2'
 
 extensions = [
     'myst_parser',
@@ -30,17 +30,16 @@ myst_enable_extensions = [
     'attrs_inline',
     'replacements',
 ]
+myst_heading_anchors = 4
 
-autodoc_mock_imports = [
-    'tkinter',
-    'ttkbootstrap',
-    '_tkinter',
-]
+autodoc_mock_imports = ['tkinter', 'ttkbootstrap', '_tkinter']
 myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-html_theme_options = {'navigation_depth': 3}  # only show H1 and H2 and H3 in sidebar
+# Keep the sidebar at page titles and H2 sections. H3/H4 remain useful in-page
+# detail without making the global navigation unwieldy.
+html_theme_options = {'navigation_depth': 2}
 html_favicon = '_static/favicon.ico'
 autosummary_generate = True
 autodoc_member_order = 'bysource'

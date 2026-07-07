@@ -85,7 +85,7 @@ python -m oci_policy_analysis.main
 ## Permissions & Authentication
 
 Desktop mode uses the shared OCI IAM permissions and authentication models.
-For complete policy statements and auth details, see [Setup: Permissions Required and Authentication](setup.md#permissions-required-and-authentication).
+For complete policy statements and auth details, see the [Setup guide](setup.md).
 
 ## Troubleshooting (Desktop)
 
@@ -97,5 +97,5 @@ For complete policy statements and auth details, see [Setup: Permissions Require
 
 If you want to run **without desktop UI** and keep pip install minimal:
 
-- CLI-only/core-only setup: [CLI docs](cli.md#install-profiles-core-vs-webdesktop)
-- MCP-only/core-only setup: [MCP docs](mcp.md#core-only-install-for-mcp-no-webdesktop-extras)
+- CLI-only/core-only setup: [CLI docs](cli.md)
+- MCP-only/core-only setup: [MCP docs](mcp.md)

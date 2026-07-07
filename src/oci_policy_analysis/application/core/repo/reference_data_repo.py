@@ -27,34 +27,7 @@ VERB_RISK_WEIGHTS = {'inspect': 1, 'read': 5, 'use': 50, 'manage': 100}
 
 
 class ReferenceDataRepo:
-    """
-    Repository for reference data on resources, families, and permissions.
-    Loads from JSON files in a specified directory.
-
-    JSON Structure Example:
-    {
-        "resources": {
-            "resource_name": {
-                "verbs": {
-                    "inspect": ["permission1", "permission2"],
-                    "read": ["permission3"],
-                    "use": ["permission4"],
-                    "manage": ["permission5"]
-                }
-            },
-            ...
-        },
-        "families": {
-            "family_name": {
-                "resources": ["resource_name1", "resource_name2"],
-                "source_url": "http://example.com/source"
-            },
-            ...
-        }
-    }
-
-    Once all files are loaded, provides methods to query permissions and check overlaps.
-    """
+    """Load OCI resource, permission, family, and operation reference data."""
 
     def __init__(self, json_dir: str | None = None):
         if json_dir:

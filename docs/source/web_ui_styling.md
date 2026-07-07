@@ -23,7 +23,7 @@ Use layered comments in `app.css`:
 
 Example:
 
-```css
+```text
 /* Card container used by all pages. Expected children: title/body/actions. */
 .card {
   ...

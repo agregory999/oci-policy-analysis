@@ -415,7 +415,7 @@ The **Embedded MCP Tab** lets you start and manage the **embedded Model Context 
 
 When using this tab, you are exposing your **loaded policy statement set** over MCP. For detailed information about available tools, payloads, and security considerations, see the dedicated [MCP Server](./mcp.md) documentation (pay particular attention to the sections describing the HTTP server mode used by the embedded server).  
 
-This is **different** from starting the standalone MCP server from the command line, which runs without the UI. In the Embedded MCP Tab, the MCP server and the UI share the same process lifecycle: when the UI closes, the embedded MCP server stops. For information about running MCP in a more permanent or remote configuration (for example on an OCI compute instance), see the "Secure deployment on OCI" outline in the [MCP Server](./mcp.md#secure-deployment-on-oci-outline-steps) docs.
+This is **different** from starting the standalone MCP server from the command line, which runs without the UI. In the Embedded MCP Tab, the MCP server and the UI share the same process lifecycle: when the UI closes, the embedded MCP server stops. For information about running MCP in a more permanent or remote configuration, see the [MCP Server](./mcp.md) documentation.
 
 ### Condition Tester Tab
 <!-- Anchor link; do not change or remove this line! -->
@@ -470,7 +470,7 @@ The **API Simulation Tab** provides a full **what-if simulation environment** fo
 - **API Operation Selector:** Drop-down or input for selecting the target OCI API operation.  
 - **Simulation History Subtab:** Shows previous runs, their inputs (principal, operation, variables, included prospective statements), and trace details; supports JSON export.
 
-For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page and the project context document [Simulation Engine](./context/project/CONTEXT_simulation_engine.md).
+For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page. Maintainers can also consult the [simulation engine context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_simulation_engine.md).
 
 ## Web UI
 

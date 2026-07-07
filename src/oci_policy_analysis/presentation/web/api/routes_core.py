@@ -297,6 +297,7 @@ def auth_logout(request: Request) -> dict[str, bool]:
 
 @router.get('/auth/limited/profiles')
 def list_limited_profiles(request: Request) -> dict[str, object]:
+    """List limited-mode profiles for the currently loaded tenancy."""
     _require_admin(request)
     tenancy_ocid = _get_current_tenancy_ocid()
     if not tenancy_ocid:
@@ -326,6 +327,7 @@ def list_limited_profiles(request: Request) -> dict[str, object]:
 
 @router.get('/auth/limited/options')
 def list_limited_options(request: Request) -> dict[str, object]:
+    """Return compartment and identity-domain choices for limited profiles."""
     _require_admin(request)
     ctx = get_context()
     repo = ctx.policy_repo
@@ -360,6 +362,7 @@ def list_limited_options(request: Request) -> dict[str, object]:
 
 @router.post('/auth/limited/profiles/upsert')
 def upsert_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Create or update a limited-mode access profile."""
     _require_admin(request)
     tenancy_ocid = _get_current_tenancy_ocid()
     if not tenancy_ocid:
@@ -417,6 +420,7 @@ def upsert_limited_profile(request: Request, payload: dict[str, object]) -> dict
 
 @router.post('/auth/limited/profiles/delete')
 def delete_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Delete a limited-mode profile and revoke its active keys."""
     _require_admin(request)
     tenancy_ocid = _get_current_tenancy_ocid()
     if not tenancy_ocid:
@@ -435,6 +439,7 @@ def delete_limited_profile(request: Request, payload: dict[str, object]) -> dict
 
 @router.post('/auth/limited/profiles/activate')
 def activate_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Activate a limited profile and return its runtime access key."""
     _require_admin(request)
     tenancy_ocid = _get_current_tenancy_ocid()
     if not tenancy_ocid:
@@ -464,6 +469,7 @@ def activate_limited_profile(request: Request, payload: dict[str, object]) -> di
 
 @router.post('/auth/limited/profiles/deactivate')
 def deactivate_limited_profile(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Deactivate all active runtime keys for a limited profile."""
     _require_admin(request)
     tenancy_ocid = _get_current_tenancy_ocid()
     if not tenancy_ocid:
@@ -838,12 +844,14 @@ def serve_index_html(request: Request):
 
 @router.get('/health')
 def health() -> dict[str, str]:
+    """Return the web application's health status."""
     logger.info('GET /health')
     return {'status': 'ok'}
 
 
 @router.get('/caches')
 def list_caches() -> dict[str, list[str]]:
+    """Return available tenancy cache names."""
     logger.info('GET /caches')
     ctx = get_context()
     caches = ctx.cache.get_available_cache(tenancy_name=None)
@@ -873,6 +881,7 @@ def list_cache_details() -> dict[str, list[dict[str, object]]]:
 
 @router.post('/caches/rename')
 def rename_cache(payload: dict[str, object]) -> dict[str, object]:
+    """Rename a persisted cache and report the operation result."""
     logger.info('POST /caches/rename')
     ctx = get_context()
     old_name = str(payload.get('old_name') or '').strip()
@@ -888,6 +897,7 @@ def rename_cache(payload: dict[str, object]) -> dict[str, object]:
 
 @router.post('/caches/delete')
 def delete_cache(payload: dict[str, object]) -> dict[str, object]:
+    """Delete a persisted cache and report the operation result."""
     logger.info('POST /caches/delete')
     ctx = get_context()
     cache_name = str(payload.get('name') or '').strip()
@@ -899,6 +909,7 @@ def delete_cache(payload: dict[str, object]) -> dict[str, object]:
 
 @router.get('/caches/download/{cache_name}')
 def download_cache(cache_name: str, export_name: str | None = None) -> FileResponse:
+    """Download a named cache as a JSON file."""
     logger.info('GET /caches/download/%s', cache_name)
     ctx = get_context()
     file_path = ctx.cache.cache_dir / f'combined_cache_{cache_name}.json'
@@ -931,6 +942,7 @@ def update_settings_api(payload: dict[str, object]) -> dict[str, object]:
 
 @router.post('/load/cache/{cache_name}')
 def load_cache(cache_name: str, payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Load a cache and return progress, status, and summary information."""
     logger.info('POST /load/cache/%s', cache_name)
     ctx = get_context()
     service = LoadService(ctx)
@@ -963,6 +975,7 @@ def load_cache(cache_name: str, payload: dict[str, object] | None = None) -> dic
 
 @router.post('/intelligence/run')
 def run_intelligence() -> dict[str, object]:
+    """Run configured intelligence strategies for the loaded dataset."""
     logger.info('POST /intelligence/run')
     ctx = get_context()
     service = IntelligenceService(ctx)
@@ -1037,6 +1050,7 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
 
 @router.post('/filter/policies')
 def filter_policies(request: Request, payload: dict[str, object]) -> dict[str, object]:
+    """Filter loaded policy statements using the web search payload."""
     logger.info('POST /filter/policies')
     _require_authenticated(request)
     ctx = get_context()

@@ -60,7 +60,7 @@ Some policy statements include *where-clauses* or conditions, which require addi
 
 **Example:**
 Suppose a statement contains:
-```plain
+```text
 allow group SecurityAdmins to use database-family in compartment Data where all {request.principal.name = 'alice', request.networkSource.name = 'trusted-src'}
 ```
 Simulation UI will prompt for:
@@ -176,10 +176,10 @@ Simulation runs are automatically stored for later review.
 
 ## Related Features & See Also
 
-- [Condition Tester Tab](./usage.md#condition-tester)  
+- [Condition Tester Tab](./usage.md#condition-tester-tab)
   - Quickly validate and experiment with where-clauses in isolation.
 
-- [Policy Overlap Tab](./usage.md#policy-overlap-tab)  
+- [Policy Overlap Tab](./usage.md)
   - Analyze which statements could interact or supersede each other.
 
 - [MCP Server](./mcp.md)  

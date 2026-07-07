@@ -10,6 +10,7 @@ def build_tag_variable_and_snippet(
     operator: str,
     value: str,
 ) -> tuple[str, str]:
+    """Build a tag variable name and OCI policy condition snippet."""
     access = (access or '').strip()
     namespace = (namespace or '').strip()
     key = (key or '').strip()
@@ -34,6 +35,7 @@ def build_subject_phrase(
     principal_key: str,
     principal_details: dict[str, tuple[str, str | None, str]] | None = None,
 ) -> str:
+    """Render a human-readable policy subject from a canonical principal key."""
     principal_key = (principal_key or '').strip()
     if not principal_key:
         return '<principal>'
@@ -55,6 +57,8 @@ def build_subject_phrase(
 
 
 def build_location_clause(location_path: str, effective_path: str) -> tuple[str, list[str], list[str]]:
+    """Build the policy location phrase and return normalized path components."""
+
     def _split(path: str) -> list[str]:
         parts = [p for p in (path or '').split('/') if p]
         return parts or ['root']
@@ -87,6 +91,7 @@ def build_full_statement(
     location_clause: str,
     where_snippet: str | None = None,
 ) -> str:
+    """Assemble an OCI policy statement from its normalized components."""
     eff = (effect or 'Allow').strip().title() or 'Allow'
     subj = subject_phrase or '<principal>'
     v = (verb or 'use').strip() or 'use'

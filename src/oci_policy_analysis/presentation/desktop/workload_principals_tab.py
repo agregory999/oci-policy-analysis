@@ -130,16 +130,7 @@ POLICY_COLUMN_WIDTHS = {
 
 
 class WorkloadPrincipalsTab(BaseUITab):
-    """
-    Workload Principals Tab for OCI Policy Analysis UI.
-
-    Allows viewing Dynamic Groups and associated policy statements, with contextual page help. Now inherits from BaseUITab.
-    Methods:
-        __init__: Initializes the WorkloadPrincipalsTab with UI components and context help.
-        _build_ui: (Internal) Builds the UI components for the tab.
-        apply_settings: Updates tab appearance and page help when global UI settings change.
-        update_principals_sheets: Updates sheets based on dropdown and DG selection (called from main app, or internally).
-    """
+    """Display workload principals and their associated policy statements."""
 
     def __init__(self, parent, app):
         """

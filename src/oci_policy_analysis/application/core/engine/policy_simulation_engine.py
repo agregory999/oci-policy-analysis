@@ -448,28 +448,10 @@ class PolicySimulationEngine:
             trace (bool, optional): If True, includes detailed step-by-step trace; else, summary only.
 
         Returns:
-            dict[str, Any]: Full simulation result. The engine *always* computes a full simulation trace
-                (permissions, context, per-statement evaluation). The return payload is shaped as follows:
-
-                Top-level keys (always present):
-                  - api_call_allowed (bool): Final YES/NO decision for the API operation.
-                  - missing_permissions (list[str]): Permissions required by the operation but not granted.
-                  - required_permissions_for_api_operation (list[str]): All permissions the operation needs.
-                  - failure_reason (str): Empty if allowed, else human-readable explanation.
-
-                Trace block (always present, but caller may choose whether to display it):
-                  - simulation_trace (dict):
-                        {
-                          'final_permission_set': [...],
-                          'simulation_context': {...},
-                          'permissions_denied': [...],
-                          'trace_statements': [...]   # present only when trace=True
-                        }
-
-                Notes:
-                  * The UI uses the trace flag to control how much of simulation_trace is displayed.
-                  * simulation_history always records the *full* simulation_trace (with trace_statements),
-                    independent of the trace flag used for the immediate UI response.
+            dict[str, Any]: Full simulation result containing the final decision,
+            missing permissions, required permissions, failure reason, and a
+            complete simulation trace. The UI controls how much trace detail it
+            displays; history always retains the complete trace.
 
         Example:
             result = engine.simulate_and_record('group:default/Admins', 'ROOT', 'oci:ListBuckets', {}, checked_ids, trace=True)

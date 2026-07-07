@@ -53,7 +53,7 @@ Once a policy statement is parsed, a series of derived fields are computed and a
 - **Policy Overlap**: Leveraging resource-to-permission data, the system computes which statements overlap in their effective permissions, enabling conflict/duplication analysis.
 - **Canonical Models**: All parsed data is mapped to strict TypedDict-based schemas, powering consistent filtering, UI rendering, and MCP responses.
 
-The ANTLR grammar and parser implementation ensure that all features and edge cases in the evolving OCI policy language are handled with a high degree of accuracy. See [CONTEXT_logic.md](context/project/CONTEXT_logic.md) and [CONTEXT_policies_tab.md](context/project/CONTEXT_policies_tab.md) for technical and tab-specific integration details.
+The ANTLR grammar and parser implementation ensure that all features and edge cases in the evolving OCI policy language are handled with a high degree of accuracy. Maintainers can see the [logic context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_logic.md) and [policies-tab context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_policies_tab.md) for deeper implementation details.
 
 ---
 
@@ -66,7 +66,7 @@ The application persistently caches full tenancy analyses (IAM, policies, derive
 
 The cache format reflects the canonical data model and overlays as computed at data load time. All filtering, policy intelligence, and tab workflows can operate seamlessly over in-memory or cached data; the data repository manages de-duplication and versioning.
 
-Cache management includes import, export, snapshotting, refreshing, and selection of caches—all directly exposed via the Settings Tab. See [CONTEXT_data_repo.md](context/project/CONTEXT_data_repo.md) and [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md) for more details.
+Cache management includes import, export, snapshotting, refreshing, and selection of caches—all directly exposed via the Settings Tab. Maintainers can see the [data repository context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_data_repo.md) and [settings context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_settings_tab.md) for more details.
 
 ---
 
@@ -80,7 +80,7 @@ A robust and extensible settings system governs configuration for all areas of t
 
 Settings are saved and loaded automatically to persistent storage, enabling reproducibility between sessions. The settings system ensures all tabs receive relevant configuration updates dynamically, leveraging a propagation mechanism orchestrated by the main UI controller.
 
-See [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md) for full architectural overview and field-by-field design.
+See the [settings maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_settings_tab.md) for the full field-by-field design.
 
 ---
 
@@ -94,43 +94,14 @@ Key characteristics:
 - Special modes (like CLI `--verbose`) override all levels and pin logging for troubleshooting.
 - ConsoleTab UI cannot enable global DEBUG logging, only component-level.
 
-See [CONTEXT_logging.md](context/project/CONTEXT_logging.md) for architecture diagrams, detailed workflows, and UI patterns.
+See the [logging maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_logging.md) for architecture diagrams, detailed workflows, and UI patterns.
 
 ---
 
-## Feature/Tab Architecture & Context File Reference
+## Maintainer context
 
-The following context files document the architecture, design patterns, and history for each major feature, tab, or engineering workflow. Use these files as the authoritative references for any technical question, refactor, or implementation detail.
-
-### Generic context:
-
-- [GENERIC_README](context/generic/GENERIC_README.md): Universal project documentation patterns and starter guidance.
-- [GENERIC_UI_GUIDELINES](context/generic/GENERIC_UI_GUIDELINES.md): Generic UI/UX standards for tab layout, naming, and interactions.
-- [GENERIC_CODING_STANDARDS](context/generic/GENERIC_CODING_STANDARDS.md): Foundational code quality, formatting, and structural requirements.
-
-### Project-specific context (with coverage summaries):
-
-- [CONTEXT_cli.md](context/project/CONTEXT_cli.md): Design, options, and usage of the Command Line Interface (CLI) for policy analysis.
-- [CONTEXT_config.md](context/project/CONTEXT_config.md): Rules and best practices for repository configuration and code quality automation.
-- [CONTEXT_cross_tenancy.md](context/project/CONTEXT_cross_tenancy.md): How cross-tenancy statements are modeled, filtered, and displayed in the Cross Tenancy Tab.
-- [CONTEXT_data_repo.md](context/project/CONTEXT_data_repo.md): Core architecture for canonical data models, repository logic, and persistent caching.
-- [CONTEXT_docs.md](context/project/CONTEXT_docs.md): Documentation standards and practices unique to this repository.
-- [CONTEXT_historical_analysis.md](context/project/CONTEXT_historical_analysis.md): Architecture, flow, and UX conventions for the Historical Comparison Tab (policy/IAM diffs over time).
-- [CONTEXT_intelligence_strategies.md](context/project/CONTEXT_intelligence_strategies.md): The strategy pattern and pluggable modules powering analytics and recommendations.
-- [CONTEXT_logging.md](context/project/CONTEXT_logging.md): Logging architecture, configuration, UI/console separation, and DEBUG/per-component controls.
-- [CONTEXT_logic.md](context/project/CONTEXT_logic.md): Business/processing logic layer structure, parsing system, and testability standards.
-- [CONTEXT_mcp_server_and_tab.md](context/project/CONTEXT_mcp_server_and_tab.md): MCP server architecture and how it integrates with the UI's Embedded MCP Tab.
-- [CONTEXT_policies_tab.md](context/project/CONTEXT_policies_tab.md): Details for the UI Policies Tab, including table layouts, filters, parsing flows, and sorting conventions.
-- [CONTEXT_policy_browser_tab.md](context/project/CONTEXT_policy_browser_tab.md): Patterns and architecture for the Policy Browser Tab (hierarchical tree view).
-- [CONTEXT_policy_intelligence_and_recommendations.md](context/project/CONTEXT_policy_intelligence_and_recommendations.md): How analytics overlays and cleanup/fix/recommendations are produced and surfaced in the Recommendations Tab.
-- [CONTEXT_settings_tab.md](context/project/CONTEXT_settings_tab.md): Architecture and features managed by the Settings Tab, including configuration fields, cache management, and UI control propagation.
-- [CONTEXT_simulation_engine.md](context/project/CONTEXT_simulation_engine.md): Simulation engine data flows, models, and automation for the API Simulation/Condition Tester tabs.
-- [CONTEXT_tests.md](context/project/CONTEXT_tests.md): Required test practices, edge cases, and integration with CI/CD and pre-commit.
-- [CONTEXT_ui.md](context/project/CONTEXT_ui.md): UI layer conventions, tab base class, context help/patterns, and registration requirements.
-
-For any new feature or major tab, start by documenting its rationale and conventions in a new or updated context file below `docs/context/project/`.
-
-For detailed table of contents and links to all supporting context files, see above and the [CONTEXT_INDEX.md](context/CONTEXT_INDEX.md).
+The detailed feature and subsystem corpus is maintained separately from the
+published documentation. Start at the [maintainer context index](https://github.com/agregory999/oci-policy-analysis/blob/main/context/README.md).
 
 ---
 

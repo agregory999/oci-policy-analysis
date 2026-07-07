@@ -18,36 +18,12 @@ from tkinter import ttk
 
 
 class BaseUITab(ttk.Frame):
-    """
-    Base UI Tab: Provides context (page) help label/area and simplified context help wiring for widgets.
-    Provides utility to open documentation/help links and reference a common doc root for documentation.
-    Usage:
-        - Inherit from BaseUITab.
-        - Pass parent and default_help_text on init.
-        - Call self.add_context_help(widget, message) on widgets needing hover help.
-        - Call self.set_page_help_text(msg) to override help area text.
-        - Use self.open_link(url) to open web links. Use self.DOCROOT for base docs root.
-    """
+    """Provide shared help, documentation-link, and timing behavior for UI tabs."""
 
     DOCROOT = 'https://agregory999.github.io/oci-policy-analysis'
 
     def create_doc_link_label(self, parent, text: str, url: str, **grid_kwargs) -> ttk.Label:
-        """Create a standardized documentation link label.
-
-        - Uses Tenancy Setup Guide styling (blue, underlined, hand cursor).
-        - Binds left-click to open the given URL via BaseUITab.open_link.
-
-        Args:
-            parent: Parent widget (frame/label frame) to attach the label to.
-            text:   Text to display for the link.
-            url:    Absolute or relative URL. If relative and starting with '/',
-                    callers should usually build it with self.DOCROOT first.
-            **grid_kwargs: Optional grid() keyword arguments. If provided, this
-                    helper will call .grid(**grid_kwargs) on the label.
-
-        Returns:
-            The created ttk.Label instance (already bound to open the link).
-        """
+        """Create a styled label that opens a documentation URL when clicked."""
 
         link_label = ttk.Label(
             parent,
@@ -258,20 +234,7 @@ class BaseUITab(ttk.Frame):
         )
 
     def timed_step(self, label, fn, *args, **kwargs):
-        """
-        Utility function to measure and log the elapsed time of a function call, using app settings for timing log level.
-        Usage: self.timed_step("my-action", callable[, args...])
-
-        Args:
-            label (str): Name of the step for log labeling.
-            fn (callable): Function to run/timed.
-            *args, **kwargs: Arguments passed to the function.
-
-        Returns:
-            The return value of fn(*args, **kwargs).
-
-        Logs at CRITICAL if self.app.settings['always_log_timings'] is True, else INFO.
-        """
+        """Run a callable, log its elapsed time, and return its result."""
         import logging
         import time
 

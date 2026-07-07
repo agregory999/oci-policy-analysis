@@ -31,30 +31,7 @@ logger = get_logger('historical_tab')
 
 
 class HistoricalTab(BaseUITab):
-    """
-    Tab for comparing two cached tenancy states using DeepDiff.
-
-    Key Features / UI Layout:
-    - Lets users select left and right (baseline/target) cache snapshots via dropdown.
-    - Immediately below each dropdown, tenancy name, OCID, and data_as_of fields are displayed.
-    - On comparison, runs a separate DeepDiff for each of:
-        Top display (Policies):
-          • Policies
-          • Regular Statements
-          • Defined Aliases
-          • Cross-Tenancy Statements
-        Bottom display (Identity):
-          • Identity Domains
-          • Groups
-          • Dynamic Groups
-          • Users
-      Each section gets its own diff (not a path-grouped section from a single DeepDiff).
-    - Info-level logging summarizes each diff result.
-    - Results for each element type appear in a dedicated tree node, regardless of changes.
-    - Keeps UI responsive by running diffs in a background thread.
-
-    Inherits from BaseUITab for context/page help and uniform UI look.
-    """
+    """Compare two cached tenancy states and display policy and identity changes."""
 
     def __init__(self, parent, caching, *args, **kwargs):
         # Default page help text (displayed at top)

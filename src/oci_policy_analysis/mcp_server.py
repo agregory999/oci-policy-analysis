@@ -23,6 +23,8 @@ import sys
 
 
 class DummyStream(io.StringIO):
+    """Provide a safe stream facade for windowed or embedded runtimes."""
+
     def isatty(self):
         return False
 
@@ -1358,6 +1360,7 @@ def get_registered_tools() -> list[dict[str, Any]]:
 # --- Resources and Tools (unchanged) ---
 @mcp.custom_route('/health', methods=['GET'])
 async def health_check(request):
+    """Return a lightweight health response for HTTP load balancers."""
     # Perform any necessary checks here (e.g., database connection, external service availability)
     return JSONResponse({'status': 'healthy'})
 

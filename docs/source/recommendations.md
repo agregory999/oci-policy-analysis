@@ -118,7 +118,7 @@ All analytic findings, dashboard subtabs, workbench logic, and extensibility are
 
 **Policy Intelligence Engine & Recommendations UI — AI Context**
 
-[context/project/CONTEXT_policy_intelligence_and_recommendations.md](context/project/CONTEXT_policy_intelligence_and_recommendations.md)
+[maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_policy_intelligence_and_recommendations.md)
 
 This "AI Context" is the source of truth for the analytic and UI contract. It covers:
 - Overlay data model and all canonical output structures

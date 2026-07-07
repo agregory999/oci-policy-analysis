@@ -27,20 +27,13 @@ class PrincipalPolicyResult:
 
 
 class PrincipalAnalysisService:
+    """Retrieve policy statements using structured principal selectors."""
+
     AllowedSubjectType = Literal['group', 'dynamic-group', 'any-user', 'any-group', 'service']
     _RESOURCE_TYPE_PATTERN = re.compile(
         r"request\.principal\.type\s*=\s*(['\"])(?P<rtype>[^'\"\s{}]+)\1",
         re.IGNORECASE,
     )
-
-    """Principal-key/subject-type-first policy retrieval helper.
-
-    Notes:
-        - Keeps legacy `subject` data on statements untouched.
-        - Avoids building new UI flows around `subject` filter; relies on
-          structured principal selectors, principal keys, and/or
-          `subject_type` filters.
-    """
 
     def __init__(self, context: AppContext) -> None:
         """Initialize the principal analysis service.

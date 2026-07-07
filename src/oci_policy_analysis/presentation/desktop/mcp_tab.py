@@ -33,6 +33,8 @@ from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 
 # Filter
 class MCPFilter(Filter):
+    """Keep only MCP-related records in the embedded MCP console."""
+
     def filter(self, record):
         return (
             record.name.startswith('oci-policy-analysis.mcp') or record.name.startswith('mcp.server')

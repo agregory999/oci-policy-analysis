@@ -37,6 +37,7 @@ from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, D
 
 # Each instance will have self.logger for timing and info
 def get_module_logger():
+    """Return the logger used by the consolidation workbench module."""
     return get_logger(component='consolidation_workbench_tab')
 
 

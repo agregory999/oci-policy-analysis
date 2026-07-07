@@ -85,6 +85,6 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 For deep technical details—covering logging architecture, log-level wiring, log persistence, per-component overrides, and programmatic/debug workflows—consult:
 
-- [Logging Context/Deep Dive](context/project/CONTEXT_logging.md)
+- [Logging maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_logging.md)
 
 _(Additional 3rd-party or advanced troubleshooting links may be added here in future updates. For a reference of architecture, simulation, and usage topics, see also: [Recommendations](recommendations.md) and the context section of the docs.)_
