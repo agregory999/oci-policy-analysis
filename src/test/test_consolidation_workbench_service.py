@@ -134,6 +134,34 @@ def test_render_script_includes_summary_header_and_body() -> None:
     assert 'UI INSTRUCTIONS (all)' in ui_txt
 
 
+def test_history_detail_rebuilds_rows_when_legacy_run_has_no_cached_results() -> None:
+    run = {
+        'consolidation_effort_id': 'E3',
+        'status': 'completed',
+        'plan': {
+            'plan_id': 'E3',
+            'plan_tags': {'strategy_id': 'statement_density_pack'},
+            'plan_steps': [
+                {
+                    'step_id': 's1',
+                    'action': 'modify',
+                    'policy_ocid': 'p1',
+                    'before_statements': ['a'],
+                    'after_statements': ['a', 'b'],
+                }
+            ],
+        },
+        'step_status': {'progress': {'s1': {'executed': True}}},
+    }
+    svc, _cache = _build_service(run, live=False)
+
+    detail = svc.get_history_run_detail('E3')
+
+    assert detail is not None
+    assert detail['proposal_rows'][0]['action'] == 'MODIFY'
+    assert detail['proposal_rows'][0]['status'] == 'Executed'
+
+
 def test_protection_and_candidates_share_canonical_service_filters() -> None:
     """The same service contract used by Web is suitable for the Tk workbench."""
 

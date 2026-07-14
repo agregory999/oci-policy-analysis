@@ -79,6 +79,8 @@
             <div class="inline-field"><label for="scriptFormat">Format</label><select id="scriptFormat"><option value="cli">OCI CLI</option><option value="ui">UI-based Steps</option></select></div>
             <div class="inline-field"><label for="scriptSection">Show</label><select id="scriptSection"><option value="execution">Execution</option><option value="rollback">Rollback</option><option value="both">Both</option></select></div>
             <div class="table-shell"><div class="table-scroll custom-scrollbar"><table id="proposalTable" class="analysis-table"><thead><tr><th>#</th><th>Action</th><th>Policy</th><th>Details</th><th>Status</th></tr></thead><tbody></tbody></table></div></div>
+            <div class="inline-field"><label for="planNotes">Plan Notes</label><textarea id="planNotes" rows="4" placeholder="Optional notes for this plan"></textarea><button id="savePlanNotes" type="button">Save Notes</button></div>
+            <div class="table-shell"><div class="table-scroll custom-scrollbar"><table id="skippedStatementsTable" class="analysis-table"><thead><tr><th>Skipped Statements</th><th>Reason</th></tr></thead><tbody></tbody></table></div></div>
             <pre id="scriptBox" class="workflow-mini-log" style="max-height:240px;"></pre>
           </article>
 
@@ -311,8 +313,22 @@
             tb.appendChild(tr);
           });
       }
-      async function generateProposal(){ const strategy_display_name=$('strategySelect').value; const r=await fetch('/consolidation/proposals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({strategy_display_name,candidate_internal_ids:[...state.candidateIds]})}); if(!r.ok){ const e=await r.json(); throw new Error(e.detail||'proposal failed'); } const d=await r.json(); renderProposalRows(d.rows||[]); state.selectedEffortId = (d.plan||{}).plan_id || state.selectedEffortId; updateSummary(); log(`Generated proposal ${state.selectedEffortId || ''}`); await loadHistory(); await loadScript(); activateStep(3); }
+      async function generateProposal(){ const strategy_display_name=$('strategySelect').value; const r=await fetch('/consolidation/proposals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({strategy_display_name,candidate_internal_ids:[...state.candidateIds]})}); if(!r.ok){ const e=await r.json(); const message=e.detail||'proposal failed'; window.alert(message); throw new Error(message); } const d=await r.json(); renderProposalRows(d.rows||[]); renderPlanMetadata(d.plan); state.selectedEffortId = (d.plan||{}).plan_id || state.selectedEffortId; updateSummary(); log(`Generated proposal ${state.selectedEffortId || ''}`); await loadHistory(); await loadScript(); activateStep(3); }
       function renderProposalRows(rows){ const tb=document.querySelector('#proposalTable tbody'); tb.innerHTML=''; rows.forEach((r,i)=>{ const tr=document.createElement('tr'); const idx = r.index ?? r['#'] ?? (i+1); const action = r.action ?? r.Action ?? ''; const policyName = r.policy_name ?? r['Policy Name'] ?? ''; const details = r.details ?? r.Details ?? ''; const status = r.status ?? r.Status ?? ''; tr.innerHTML=`<td>${esc(idx)}</td><td>${esc(action)}</td><td>${esc(policyName)}</td><td>${esc(details)}</td><td>${esc(status)}</td>`; tr.addEventListener('click',()=>openProposalDetail(r)); tb.appendChild(tr); }); }
+      function renderPlanMetadata(plan){
+        const currentPlan=plan||{};
+        $('planNotes').value=String(currentPlan.notes||'');
+        const tb=document.querySelector('#skippedStatementsTable tbody');
+        const skipped=Array.isArray(currentPlan.skipped_statements)?currentPlan.skipped_statements:[];
+        tb.innerHTML=skipped.length ? skipped.map((item)=>`<tr><td class="statement-cell">${esc(item.statement_text||item.internal_id||'')}</td><td>${esc(item.reason||'')}</td></tr>`).join('') : '<tr><td colspan="2" class="cw-selected-empty">No statements were skipped.</td></tr>';
+      }
+      async function savePlanNotes(){
+        if(!state.selectedEffortId) return;
+        const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:$('planNotes').value})});
+        const d=await r.json();
+        if(!r.ok || !d.success) throw new Error(d.detail||'could not save notes');
+        log(`Saved notes for ${state.selectedEffortId}.`);
+      }
 
       async function loadHistory(){ const r=await fetch('/consolidation/history'); const d=await r.json(); state.history=d.history||[]; const sel=$('historySelect'); sel.innerHTML=state.history.map((h)=>`<option value="${esc(h.effort_id)}">${esc(h.effort_id)} (${esc((h.created_at||'').slice(0,19))})</option>`).join(''); if(!state.selectedEffortId && state.history.length) state.selectedEffortId=state.history[0].effort_id; if(state.selectedEffortId) sel.value=state.selectedEffortId; renderHistoryTable(); updateSummary(); }
       function renderHistoryTable(){ const tb=document.querySelector('#historyTable tbody'); tb.innerHTML=''; state.history.forEach((h)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${esc(h.effort_id)}</td><td>${esc((h.created_at||'').slice(0,19))}</td><td>${esc(h.strategy)}</td><td>${esc(h.status)}</td><td>${esc(`${h.executed_steps}/${h.steps}`)}</td><td>${esc(h.validity)}</td>`; tr.addEventListener('click',()=>{ state.selectedEffortId=h.effort_id; $('historySelect').value=h.effort_id; loadRun(); openHistoryDetailByEffort(h.effort_id); }); tr.addEventListener('contextmenu',(e)=>{ e.preventDefault(); state.selectedEffortId=h.effort_id; $('historySelect').value=h.effort_id; const m=$('historyContextMenu'); m.style.left=`${e.clientX}px`; m.style.top=`${e.clientY}px`; m.style.display='block'; }); tb.appendChild(tr); }); }
@@ -331,7 +347,7 @@
         await loadHistory();
         await loadRun();
       }
-      async function loadRun(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}`); if(!r.ok) return; const d=await r.json(); const run=d.run||{}; const rows=(run.results||[]).map((x,i)=>({ index:x.index ?? x['#'] ?? (i+1), action:x.action ?? x.Action ?? '', policy_name:x.policy_name ?? x['Policy Name'] ?? '', details:x.details ?? x.Details ?? '', status:x.status ?? x.Status ?? '', ...x })); renderProposalRows(rows); await loadScript(); updateSummary(); }
+      async function loadRun(){ if(!state.selectedEffortId) return; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}`); if(!r.ok) return; const d=await r.json(); const run=d.run||{}; renderProposalRows(d.proposal_rows||[]); renderPlanMetadata(run.plan); await loadScript(); updateSummary(); }
       async function loadScript(){ if(!state.selectedEffortId){ $('scriptBox').textContent='(no plan selected)'; return; } const fmt=$('scriptFormat').value; const section=$('scriptSection').value; const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/script?fmt=${encodeURIComponent(fmt)}&section=${encodeURIComponent(section)}`); const d=await r.json(); $('scriptBox').textContent=d.script||'(no script)'; }
       async function checkProgress(){ if(!state.selectedEffortId) return; state.progressCheckRunning = true; syncReloadButtons(); log('Reload and Check Progress running...'); try { const r=await fetch(`/consolidation/history/${encodeURIComponent(state.selectedEffortId)}/check-progress`,{method:'POST'}); const d=await r.json(); if(!r.ok){ throw new Error(d.detail||'progress check failed'); } const status=String(d.reload_status||''); const executed=Number(d.executed||0); const total=Number(d.total||0); const msg=String(d.message||'').trim(); if(status==='success'){ log(`Reload and Check Progress succeeded: ${executed}/${total}${msg?` - ${msg}`:''}`); } else if(status==='noop'){ log(`Reload and Check Progress no-op: ${msg||'Dataset was not loaded live from tenancy.'}`); } else { log(`Reload and Check Progress result: ${executed}/${total}${msg?` - ${msg}`:''}`); } await loadStatus(); await loadHistory(); await loadRun(); } finally { state.progressCheckRunning = false; syncReloadButtons(); } }
       async function resetConsolidation(){
@@ -350,6 +366,7 @@
         renderCandidates();
         renderCandidateSelected();
         renderProposalRows([]);
+        renderPlanMetadata(null);
         $('scriptBox').textContent='(no plan selected)';
         await loadHistory();
         updateSummary();
@@ -366,6 +383,7 @@
       $('historySelect').addEventListener('change',(e)=>{ state.selectedEffortId=e.target.value; loadRun(); });
       $('scriptFormat').addEventListener('change',loadScript);
       $('scriptSection').addEventListener('change',loadScript);
+      $('savePlanNotes').addEventListener('click',()=>savePlanNotes().catch((e)=>log(`Error: ${e.message}`)));
       $('refreshHistory').addEventListener('click',()=>checkProgress().catch((e)=>log(`Error: ${e.message}`)));
       $('refreshProgress').addEventListener('click',()=>checkProgress().catch((e)=>log(`Error: ${e.message}`)));
       $('closeInspector').addEventListener('click',()=>$('detailInspector').classList.remove('open'));

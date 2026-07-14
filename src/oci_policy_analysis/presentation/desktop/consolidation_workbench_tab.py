@@ -19,12 +19,7 @@ import time
 import tkinter as tk
 import tkinter.messagebox as tkmessagebox
 from tkinter import ttk
-from typing import cast
 
-from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
-from oci_policy_analysis.application.core.models.models_consolidation import (
-    ConsolidationPlan,
-)
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
 from oci_policy_analysis.application.services.consolidation_workbench_service import ConsolidationWorkbenchService
@@ -82,12 +77,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
         )
         self.app = app
         # Keep all consolidation behavior behind the application service used by
-        # the web workbench.  ``engine`` remains a presentation compatibility
-        # alias for helper methods that only render plan data.
+        # the web workbench.
         self.service = getattr(self.app, 'consolidation_workbench_service', None)
         if self.service is None:
             self.service = ConsolidationWorkbenchService(self.app.app_context)
-        self.engine: ConsolidationEngine = self.service.engine
         self.protected_statement_ids = set()
         self.candidate_statement_ids = set()
         self.protect_table_selected_ids = set()  # Persist selection as Internal IDs
@@ -699,6 +692,22 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.view_plan_btn,
             'Load the selected plan in the Consolidation Proposal tab (dropdown and details).',
         )
+
+        def plan_history_context_menu(row_index: int) -> tk.Menu | None:
+            """Provide the same per-plan delete action available in the web UI."""
+            if row_index < 0 or row_index >= len(self.plan_history_table.data):
+                return None
+            row = self.plan_history_table.data[row_index]
+            effort_id = row.get('consolidation_effort_id') or row.get('Effort ID', '')
+            if not effort_id:
+                return None
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label='Delete plan from history',
+                command=lambda plan_id=effort_id: self._delete_history_plan(plan_id),
+            )
+            return menu
+
         self.plan_history_table = DataTable(
             parent,
             columns=['Effort ID', 'Created', 'Strategy', 'Status', 'Steps', 'Validity', 'consolidation_effort_id'],
@@ -714,6 +723,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 'Validity': 100,
             },
             selection_callback=self._on_plan_history_row_selected,
+            row_context_menu_callback=plan_history_context_menu,
         )
         self.plan_history_table.pack(fill='both', expand=True, padx=8, pady=(0, 4))
         self.add_context_help(
@@ -734,6 +744,35 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self._plan_history_selected_rows = []
         self._refresh_plan_history_table()
 
+    def _delete_history_plan(self, effort_id: str) -> None:
+        """Confirm and delete one persisted plan-history record."""
+        if not effort_id:
+            return
+        try:
+            confirmed = tkmessagebox.askyesno(
+                'Delete plan from history',
+                f'Delete consolidation plan {effort_id} from history?\n\nThis does not change OCI policies.',
+            )
+        except Exception:
+            confirmed = False
+        if not confirmed:
+            return
+
+        if not self.service.delete_history_run(effort_id):
+            try:
+                tkmessagebox.showerror('Delete failed', 'The plan could not be found or deleted from history.')
+            except Exception:
+                pass
+            return
+
+        self._plan_history_selected_rows = []
+        self._refresh_plan_history_dropdown()
+        self._refresh_plan_history_table()
+        try:
+            tkmessagebox.showinfo('Plan deleted', f'Deleted consolidation plan {effort_id} from history.')
+        except Exception:
+            pass
+
     def _refresh_plan_history_table(self):
         """Populate the Plan History table from canonical state and check validity of non-completed plans.
 
@@ -749,39 +788,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if not tenancy_ocid:
             self.plan_history_table.update_data([])
             return
-        history = [self.service.get_history_run(item.get('effort_id', '')) for item in self.service.get_history()]
-        history = [run for run in history if run]
-        sorted_hist = sorted(history, key=lambda r: r.get('created_at', ''), reverse=True)
+        history = self.service.get_history()
         rows = []
-        for run in sorted_hist:
-            plan = run.get('plan') or {}
-            steps_list = plan.get('plan_steps') or []
-            total_steps = len(steps_list)
-            step_status = run.get('step_status') or {}
-            progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else {}
-            executed = sum(1 for p in progress.values() if p.get('executed')) if progress else 0
-            steps_str = f'{executed}/{total_steps}' if total_steps else '—'
-            created = (run.get('created_at') or '')[:19].replace('T', ' ')
-            status = run.get('status') or 'in_progress'
-            # Validity: for non-completed plans with steps, check if policies are tagged by another plan
-            validity = '—'
-            if status != 'completed' and plan and steps_list and hasattr(self, 'engine') and self.engine:
-                try:
-                    conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
-                    validity = f'Conflicted ({len(conflicts)})' if conflicts else 'OK'
-                except Exception:
-                    validity = '—'
-            elif status == 'completed':
-                validity = '—'
+        for run in history:
             rows.append(
                 {
-                    'Effort ID': run.get('consolidation_effort_id', '—'),
-                    'Created': created,
+                    'Effort ID': run.get('effort_id', '—'),
+                    'Created': (run.get('created_at') or '')[:19].replace('T', ' '),
                     'Strategy': run.get('strategy', '—'),
-                    'Status': status,
-                    'Steps': steps_str,
-                    'Validity': validity,
-                    'consolidation_effort_id': run.get('consolidation_effort_id', ''),
+                    'Status': run.get('status', 'in_progress'),
+                    'Steps': f"{run.get('executed_steps', 0)}/{run.get('steps', 0)}" if run.get('steps') else '—',
+                    'Validity': run.get('validity', '—'),
+                    'consolidation_effort_id': run.get('effort_id', ''),
                 }
             )
         self.plan_history_table.update_data(rows)
@@ -812,11 +830,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
             detail.insert('end', 'No tenancy loaded.')
             detail.config(state='disabled')
             return
-        run = self.service.get_history_run(effort_id)
-        if not run:
+        detail_data = self.service.get_history_run_detail(effort_id)
+        if not detail_data:
             detail.insert('end', f'Plan {effort_id} not found in history.')
             detail.config(state='disabled')
             return
+        run = detail_data['run']
         lines = []
         lines.append('Plan summary')
         lines.append('-' * 40)
@@ -834,19 +853,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
         # Conflicts
         lines.append('Conflicts (policies tagged by another plan)')
         lines.append('-' * 40)
-        if plan and steps and hasattr(self, 'engine') and self.engine:
-            try:
-                conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
-                if conflicts:
-                    for c in conflicts:
-                        lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
-                        lines.append(f"    Current tag: {c.get('current_tag_value', '')}")
-                        lines.append(f"    Conflicting plan: {c.get('conflicting_plan_id', '')}")
-                else:
-                    lines.append('  None.')
-            except Exception as e:
-                lines.append(f'  (Error: {e})')
-                self.logger.debug('Error in conflict analysis: %s', e)
+        if plan and steps:
+            conflicts = detail_data['conflict_analysis']['conflicts']
+            if conflicts:
+                for c in conflicts:
+                    lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
+                    lines.append(f"    Current tag: {c.get('current_tag_value', '')}")
+                    lines.append(f"    Conflicting plan: {c.get('conflicting_plan_id', '')}")
+            else:
+                lines.append('  None.')
         else:
             lines.append('  (No plan or engine to check.)')
         lines.append('')
@@ -1044,27 +1059,9 @@ class ConsolidationWorkbenchTab(BaseUITab):
             effort_id = str(plan.get('plan_id') or '')
             fmt_key = 'ui' if fmt == 'UI-based Steps' else 'cli'
             section_key = 'execution' if show == 'Execution' else ('rollback' if show == 'Rollback' else 'both')
-            rendered = self.service.render_script(effort_id, fmt=fmt_key, section=section_key) if effort_id else ''
-            if rendered and rendered != '(no plan selected)':
-                self.script_text.insert('end', rendered)
-            elif fmt_key == 'ui':
-                self.script_text.insert(
-                    'end',
-                    self.engine.render_plan_ui_instructions(
-                        plan, section='all' if section_key == 'both' else section_key
-                    ),
-                )
-            else:
-                execution = self.engine.render_plan_commands(plan)
-                rollback = self.engine.render_plan_rollback_commands(plan)
-                self.script_text.insert(
-                    'end',
-                    execution
-                    if section_key == 'execution'
-                    else rollback
-                    if section_key == 'rollback'
-                    else f'{execution}\n\n{rollback}',
-                )
+            self.script_text.insert(
+                'end', self.service.render_plan(plan, fmt=fmt_key, section=section_key, effort_id=effort_id)
+            )
         except Exception as e:
             self.logger.warning('Failed to render script for plan: %s', e)
             self.script_text.insert('end', f'(failed to render: {e})')
@@ -1081,112 +1078,6 @@ class ConsolidationWorkbenchTab(BaseUITab):
         """
         if getattr(self, '_last_plan_for_script', None):
             self._set_script_content_from_plan(self._last_plan_for_script)
-
-    def _build_proposal_rows(self, plan=None, progress=None, results_fallback=None):  # noqa: C901
-        """Build proposal table rows from plan steps or legacy results.
-
-        Each row has #, Action, Policy Compartment, Policy Name, Effective Path, Details, Status,
-        and step_id (for script highlight on selection). If plan is set, Status comes from
-        progress dict; if results_fallback is set (no plan), Status is "—".
-
-        Args:
-            plan: Optional ConsolidationPlan; if present, rows built from plan_steps.
-            progress: Optional dict step_id -> {executed}; used to set Status (Executed/Pending).
-            results_fallback: Optional list of legacy result rows when plan is missing.
-
-        Returns:
-            list[dict]: List of row dicts for the proposal DataTable.
-        """
-        if plan and plan.get('plan_steps'):
-            repo = getattr(self.app, 'policy_compartment_analysis', None)
-            policies_by_ocid = {p.get('policy_ocid'): p for p in getattr(repo, 'policies', []) or []} if repo else {}
-            compartments = getattr(repo, 'compartments', []) or [] if repo else []
-            comp_by_id = {c.get('id'): c for c in compartments if c.get('id')}
-
-            def _policy_compartment_path(policy):
-                path = (policy.get('compartment_path') or '').strip()
-                if path:
-                    return path
-                coid = policy.get('compartment_ocid')
-                if coid and coid in comp_by_id:
-                    return (comp_by_id[coid].get('hierarchy_path') or '').strip()
-                return ''
-
-            rows = []
-            for i, step in enumerate(plan['plan_steps'], 1):
-                action_key = step.get('action') or ''
-                if action_key == 'add':
-                    # Use correct compartment path if available, otherwise fallback to compartment OCID, otherwise ROOT
-                    comp_obj = (
-                        comp_by_id.get(step.get('compartment_ocid', ''), {}) if step.get('compartment_ocid', '') else {}
-                    )
-                    policy_compartment = (
-                        comp_obj.get('hierarchy_path')
-                        or comp_obj.get('name')
-                        or step.get('compartment_ocid', '')
-                        or 'ROOT'
-                    )
-                    pol_name = (step.get('create_policy_name') or 'Consolidated-Root') + ' (suggested)'
-                    effective_path = policy_compartment
-                    n_stmts = len(step.get('after_statements', []))
-                    details = f'New Policy with {n_stmts} statements and updated location'
-                else:
-                    pol = policies_by_ocid.get(step.get('policy_ocid', ''), {}) or {}
-                    # For delete steps, retain compartment/name from plan when policy is gone (already deleted)
-                    if action_key == 'delete' and not pol:
-                        policy_compartment = (
-                            (
-                                (comp_by_id.get(step.get('compartment_ocid'), {}) or {}).get('hierarchy_path') or ''
-                            ).strip()
-                            or step.get('compartment_ocid')
-                            or ''
-                        )
-                        pol_name = (step.get('create_policy_name') or '(unknown policy)') + ' (deleted)'
-                        effective_path = policy_compartment
-                    else:
-                        pol_name = pol.get('policy_name', '(unknown policy)')
-                        policy_compartment = _policy_compartment_path(pol)
-                        effective_path = policy_compartment
-                    details = ''
-                    if action_key == 'modify':
-                        details = f"Statements: {len(step.get('before_statements', []))} -> {len(step.get('after_statements', []))}"
-                    elif action_key == 'delete':
-                        details = f"Delete policy (rollback recreates with {len(step.get('before_statements', []))} statements)"
-                action = (action_key or '').upper()
-                status = 'Pending'
-                if progress and isinstance(progress, dict):
-                    pi = progress.get(step.get('step_id'), {})
-                    status = 'Executed' if pi.get('executed') else 'Pending'
-                rows.append(
-                    {
-                        '#': i,
-                        'Action': action,
-                        'Policy Compartment': policy_compartment,
-                        'Policy Name': pol_name,
-                        'Effective Path': effective_path,
-                        'Details': details,
-                        'Status': status,
-                        'step_id': step.get('step_id', ''),
-                    }
-                )
-            return rows
-        if results_fallback:
-            rows = []
-            for i, r in enumerate(results_fallback, 1):
-                rows.append(
-                    {
-                        '#': r.get('index', r.get('#', i)),
-                        'Action': r.get('action', r.get('Action', '')),
-                        'Policy Compartment': r.get('policy_compartment', r.get('Policy Compartment', '')),
-                        'Policy Name': r.get('policy_name', r.get('Policy Name', '')),
-                        'Effective Path': r.get('Effective Path', ''),
-                        'Details': r.get('details', r.get('Details', '')),
-                        'Status': r.get('status', r.get('Status', '—')),
-                        'step_id': r.get('step_id', ''),
-                    }
-                )
-            return rows
-        return []
 
     def _on_proposal_row_selected(self, selected_rows):
         """Highlight the script line that corresponds to the selected proposal step.
@@ -1265,15 +1156,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
             step_status = run.get('step_status') or {}
             stored_progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else None
             progress = stored_progress
-            if progress is None and hasattr(self, 'engine') and self.engine:
+            if progress is None:
                 try:
-                    progress = self.engine.check_plan_progress(plan)
+                    progress = self.service.evaluate_progress(plan)
                 except Exception as e:
                     self.logger.debug('Could not check plan progress: %s', e)
-            data = self._build_proposal_rows(plan=plan, progress=progress)
+            data = self.service.get_proposal_rows(plan=plan, progress=progress)
             self._set_plan_notes_and_skipped_from_plan(plan)
         else:
-            data = self._build_proposal_rows(results_fallback=run.get('results', []))
+            data = self.service.get_proposal_rows(plan=None, results_fallback=run.get('results', []))
             self._set_plan_notes_and_skipped_from_plan(None)
         self.proposal_table.update_data(data)
         # Render script from plan (CLI or UI per format dropdown)
@@ -1702,23 +1593,20 @@ class ConsolidationWorkbenchTab(BaseUITab):
             except Exception:
                 pass
             return
-        # Move to Root Compartment: OCI allows max 50 statements per policy
-        if strategy_name == 'Move to Root Compartment' and len(self.candidate_statement_ids) > 50:
-            try:
-                tkmessagebox.showerror(
-                    'Too Many Statements',
-                    'Move to Root Compartment allows at most 50 policy statements. '
-                    f'You have selected {len(self.candidate_statement_ids)}. Please reduce the selection.',
-                )
-            except Exception:
-                pass
-            return
         try:
             result = self.service.create_proposal(
                 candidate_internal_ids=sorted(self.candidate_statement_ids),
                 strategy_display_name=strategy_name,
             )
             plan = result['plan']
+        except ValueError as e:
+            self.logger.warning('Consolidation plan was rejected: %s', e)
+            self.plan_status_label.config(text=str(e))
+            try:
+                tkmessagebox.showerror('Plan cannot be created', str(e))
+            except Exception:
+                pass
+            return
         except Exception as e:
             self.logger.warning('Failed to generate consolidation plan: %s', e)
             self.proposal_table.update_data([])
@@ -1849,7 +1737,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
         # At this point the repo and tags have been refreshed; ask engine to evaluate progress.
         try:
-            progress = self.engine.check_plan_progress(plan)
+            progress = self.service.evaluate_progress(plan)
         except Exception as e:
             self.logger.warning('Failed to evaluate plan progress: %s', e)
             tkmessagebox.showerror('Check Progress Failed', f'Could not evaluate plan progress: {e}')
@@ -1887,7 +1775,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.plan_status_label.config(text=(base_txt + suffix) if base_txt else suffix)
 
         # Refresh proposal table so Status column shows Executed/Pending per step
-        data = self._build_proposal_rows(plan=plan, progress=progress)
+        data = self.service.get_proposal_rows(plan=plan, progress=progress)
         self.proposal_table.update_data(data)
 
         for step_id, info in progress.items():
