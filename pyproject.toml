@@ -5,7 +5,7 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-version = "6.3.0"
+version = "6.3.1"
 
 dependencies = [
     "oci==2.168.0",

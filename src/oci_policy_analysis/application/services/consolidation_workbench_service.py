@@ -461,20 +461,7 @@ class ConsolidationWorkbenchService:
         progress = self.engine.check_plan_progress(run['plan'])
         total = len(progress)
         executed = sum(1 for p in progress.values() if p.get('executed'))
-        tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
-        if tenancy_ocid:
-            updates: dict[str, Any] = {
-                'step_status': {**(run.get('step_status') or {}), 'progress': progress},
-                # Keep proposal-table source rows in sync so the web Proposal view
-                # reflects latest executed/pending status immediately after reload.
-                'results': self._build_proposal_rows(
-                    plan=cast(ConsolidationPlan, run.get('plan') or {}), progress=progress
-                ),
-            }
-            if total > 0 and executed >= total:
-                updates['status'] = 'completed'
-                updates['completed_at'] = datetime.now(UTC).isoformat()
-            self.cache.update_run_record(tenancy_ocid, effort_id, updates)
+        self.save_progress(effort_id, progress)
         self.logger.info(
             'Checked consolidation progress: effort_id=%s executed=%s total=%s', effort_id, executed, total
         )
@@ -486,6 +473,31 @@ class ConsolidationWorkbenchService:
             'message': reload_message or 'Reload and progress check completed successfully.',
             'completed': bool(total > 0 and executed >= total),
         }
+
+    def save_progress(self, effort_id: str, progress: dict[str, Any]) -> dict[str, Any]:
+        """Persist plan progress and return refreshed proposal rows.
+
+        This is used when a presentation layer has already performed a live
+        reload and only needs the common persistence/rendering behavior.
+        """
+        run = self.get_history_run(effort_id)
+        if not run or not run.get('plan'):
+            raise ValueError('Plan not found.')
+        plan = cast(ConsolidationPlan, run['plan'])
+        total = len(plan.get('plan_steps') or [])
+        executed = sum(1 for item in progress.values() if isinstance(item, dict) and item.get('executed'))
+        tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
+        rows = self._build_proposal_rows(plan=plan, progress=progress)
+        if tenancy_ocid:
+            updates: dict[str, Any] = {
+                'step_status': {**(run.get('step_status') or {}), 'progress': progress},
+                'results': rows,
+            }
+            if total > 0 and executed >= total:
+                updates['status'] = 'completed'
+                updates['completed_at'] = datetime.now(UTC).isoformat()
+            self.cache.update_run_record(tenancy_ocid, effort_id, updates)
+        return {'rows': rows, 'executed': executed, 'total': total, 'completed': bool(total and executed >= total)}
 
     def _render_plan_summary_block(self, plan: ConsolidationPlan, effort_id: str) -> str:
         """Build a compact summary block for script/instructions output."""

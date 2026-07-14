@@ -1,3 +1,12 @@
+## [6.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.3.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* restore the Consolidation Workbench behind the desktop Advanced Tabs setting
+* share the consolidation planning, script rendering, and progress workflow between desktop and Web
+* flag statements inherited two or more levels below their policy compartment as consolidation opportunities
+
 ## [6.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.2...v6.3.0) (2026-07-07)
 
 

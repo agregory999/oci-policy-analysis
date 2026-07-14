@@ -128,3 +128,54 @@ def test_render_script_includes_summary_header_and_body() -> None:
     assert '# Effort ID: E2' in txt
     assert '# Step Outline:' in txt
     assert 'CLI EXECUTION BLOCK' in txt
+
+    ui_txt = svc.render_script('E2', fmt='ui', section='both')
+    assert '# Consolidation Plan Summary' in ui_txt
+    assert 'UI INSTRUCTIONS (all)' in ui_txt
+
+
+def test_protection_and_candidates_share_canonical_service_filters() -> None:
+    """The same service contract used by Web is suitable for the Tk workbench."""
+
+    repo = SimpleNamespace(
+        tenancy_ocid='ocid1.tenancy.oc1..example',
+        policies=[],
+        compartments=[],
+        regular_statements=[
+            {'internal_id': 'keep', 'policy_name': 'Policy A', 'statement_text': 'allow group a to read buckets'},
+            {
+                'internal_id': 'invalid',
+                'policy_name': 'Policy A',
+                'statement_text': 'allow group b to read buckets',
+                'invalid_reasons': ['invalid syntax'],
+            },
+            {
+                'internal_id': 'system',
+                'policy_name': 'Tenant Admin Policy',
+                'statement_text': 'allow group admins to manage all-resources',
+            },
+            {'internal_id': 'candidate', 'policy_name': 'Policy B', 'statement_text': 'allow group c to use buckets'},
+        ],
+        policies_loaded_from_tenancy=False,
+        loaded_from_compliance_output=False,
+    )
+
+    class Cache:
+        def __init__(self):
+            self.protected = {}
+
+        def get_protected_set(self, _tenancy):
+            return self.protected
+
+        def set_protected_set(self, _tenancy, value):
+            self.protected = value
+
+    ctx = SimpleNamespace(policy_repo=repo, cache=Cache(), reference_data=SimpleNamespace())
+    svc = ConsolidationWorkbenchService(cast(Any, ctx))
+
+    saved = svc.set_protected_set(['keep', 'unknown'])
+    assert [row['internal_id'] for row in saved['protected']] == ['keep']
+
+    candidates = svc.get_candidate_rows()
+    assert [row['internal_id'] for row in candidates['rows']] == ['candidate']
+    assert candidates['counts'] == {'protected': 1, 'invalid': 1, 'system': 1}

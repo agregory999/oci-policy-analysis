@@ -594,6 +594,52 @@ def test_recommendation_rows_preserve_legacy_fields_with_catalog_details():
     assert rec['ActionDetail']
 
 
+def test_consolidation_flags_statements_inherited_two_or_more_levels_below_policy() -> None:
+    repo = SimpleNamespace(
+        regular_statements=[
+            {
+                'policy_name': 'root-policy',
+                'statement_text': 'allow group A to read buckets in compartment A',
+                'compartment_path': 'ROOT',
+                'effective_path': 'ROOT/A',
+            },
+            {
+                'policy_name': 'root-policy',
+                'statement_text': 'allow group B to read buckets in compartment B',
+                'compartment_path': 'ROOT',
+                'effective_path': 'ROOT/A/B',
+            },
+            {
+                'policy_name': 'root-policy',
+                'statement_text': 'allow group C to read buckets in compartment C',
+                'compartment_path': 'ROOT',
+                'effective_path': 'ROOT/A/B/C',
+            },
+        ],
+        dynamic_groups=[],
+        groups=[],
+        compartments=[],
+        defined_tag_namespace_keys={},
+    )
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.build_policy_consolidation()
+
+    finding = next(
+        item
+        for item in engine.overlay['consolidations']
+        if item.get('Finding Type') == 'deeply_inherited_statement_count'
+    )
+    assert finding['Compartment'] == 'ROOT'
+    assert finding['Statement Count'] == 2
+    assert 'two or more levels deeper' in finding['Consolidation Reason']
+    assert 'Move Into Target Compartment' in finding['Action']
+
+    engine.overlay['cleanup_items'] = {}
+    engine.build_overall_recommendations()
+    recommendation = next(item for item in engine.overlay['recommendations'] if item['Category'] == 'Consolidation')
+    assert '2 statement(s) are inherited two or more levels' in recommendation['Notes']
+
+
 def test_risk_scoring_unknown_resource_uses_current_verb_weights():
     repo = SimpleNamespace(
         permission_reference_repo=_RiskRefRepo(),

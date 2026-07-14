@@ -199,7 +199,7 @@
         <!-- Consolidation section -->
         <article id="cardConsolidation" class="card compact-card" data-help-title="Policy Consolidation" data-help-body="Consolidation opportunities from intelligence overlay.">
           <div class="card-title-row"><p class="card-title">Policy Consolidation</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
-          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="consolidationTable"><thead><tr><th>Policy Name(s)</th><th>Compartment</th><th>Principal</th><th>Service/Resource</th><th>Consolidation Reason</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="consolidationTable"><thead><tr><th>Policy Name(s)</th><th>Compartment</th><th>Principal</th><th>Service/Resource</th><th>Consolidation Reason</th><th>Action</th></tr></thead><tbody></tbody></table></div></div>
         </article>
 
         <!-- Cleanup section -->
@@ -733,7 +733,7 @@
         renderSummaryTable(payload);
         renderRiskTables(payload);
         renderTable('overlapTable', payload.overlap || [], ['Policy Name', 'Effective Path', 'Action', 'Overlap Count', 'Policy Overlap']);
-        renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason']);
+        renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason', 'Action']);
         renderTable('cleanupTable', payload.cleanup || [], ['Type', 'Name', 'Reason', 'Action']);
         renderTable('limitsTable', payload.limits || [], ['Compartment Hierarchy Path', 'Direct Statements', 'Cumulative Statements', 'Status', 'Recommendation']);
 

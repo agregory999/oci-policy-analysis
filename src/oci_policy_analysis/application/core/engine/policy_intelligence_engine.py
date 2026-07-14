@@ -1316,6 +1316,17 @@ class PolicyIntelligenceEngine:
             strategy_hint = ''
             if consolidation_strategy_names:
                 strategy_hint = f' Consider strategies: {", ".join(consolidation_strategy_names)}.'
+            deeply_inherited_count = sum(
+                int(item.get('Statement Count') or 0)
+                for item in consolidations
+                if item.get('Finding Type') == 'deeply_inherited_statement_count'
+            )
+            inherited_note = (
+                f' {deeply_inherited_count} statement(s) are inherited two or more levels below their policy compartment; '
+                'moving them closer to their target can relieve source-compartment statement pressure.'
+                if deeply_inherited_count
+                else ''
+            )
             recommendations.append(
                 {
                     'Recommendation': 'Consider consolidating policies',
@@ -1324,6 +1335,7 @@ class PolicyIntelligenceEngine:
                     'Notes': (
                         f'{len(consolidations)} consolidation opportunity(ies) detected. '
                         'Refer to OCI documentation, Oracle Cloud security blogs, and your local security/identity experts to develop a consolidation plan.'
+                        f'{inherited_note}'
                     ),
                     **catalog_guidance(
                         'consolidate_policies',
@@ -1651,6 +1663,9 @@ class PolicyIntelligenceEngine:
             1. Policies with only a single statement (likely consolidation candidate).
             2. Statements with identical principal, compartment, and service/resource,
                but split across multiple differently-named policies (should suggest merge).
+            3. Statements inherited two or more levels below their policy compartment.
+               These statements add to the policy-statement count at the source
+               compartment while serving a deeper target scope.
 
         """
         repo = self.policy_repo
@@ -1713,6 +1728,54 @@ class PolicyIntelligenceEngine:
                         'ActionDetail': f'Statements: {statement_texts}.\nEvaluate details and propose a single policy.',
                     }
                 )
+
+        # 3. Policies applied far below their source compartment. A one-level
+        # inheritance (for example ROOT -> ROOT/A) is common and intentionally
+        # excluded. Group by source so operators see the total pressure created
+        # at that policy compartment and can select a focused relocation plan.
+        deeply_inherited_by_source = {}
+        for st in repo.regular_statements:
+            source = str(st.get('compartment_path') or '').strip('/')
+            target = str(st.get('effective_path') or '').strip('/')
+            source_parts = [part for part in source.split('/') if part]
+            target_parts = [part for part in target.split('/') if part]
+            if (
+                not source_parts
+                or len(target_parts) - len(source_parts) < 2
+                or [part.lower() for part in target_parts[: len(source_parts)]]
+                != [part.lower() for part in source_parts]
+            ):
+                continue
+            deeply_inherited_by_source.setdefault(source, []).append(st)
+
+        for source, statements in deeply_inherited_by_source.items():
+            targets = sorted({str(st.get('effective_path') or '') for st in statements if st.get('effective_path')})
+            policy_names = sorted({str(st.get('policy_name') or '') for st in statements if st.get('policy_name')})
+            count = len(statements)
+            target_summary = ', '.join(targets[:3]) + (' …' if len(targets) > 3 else '')
+            consolidation_findings.append(
+                {
+                    'Statement': f'{count} statement(s) inherited from {source} into deeper target compartments.',
+                    'Policy Name(s)': ', '.join(policy_names) or '(unnamed policy)',
+                    'Compartment': source,
+                    'Principal': 'Multiple',
+                    'Service/Resource': 'Multiple',
+                    'Consolidation Reason': (
+                        f'{count} statement(s) are stored in policy compartment {source} but take effect two or more '
+                        'levels deeper. They still contribute to the statement count at the policy compartment.'
+                    ),
+                    'Action': (
+                        'Plan: Review Move Into Target Compartment or Move Closer to Target Compartment to place '
+                        'these statements nearer their effective scope and relieve source-compartment statement pressure.'
+                    ),
+                    'ActionDetail': (
+                        f'Deeper effective paths: {target_summary}. Select these statements in the Consolidation '
+                        'Workbench, review the generated plan, and validate access before applying it.'
+                    ),
+                    'Finding Type': 'deeply_inherited_statement_count',
+                    'Statement Count': count,
+                }
+            )
 
         self.overlay['consolidations'] = consolidation_findings
 
