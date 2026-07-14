@@ -1,3 +1,10 @@
+## [6.3.1-restore-consolidation-workbench.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.3.1-restore-consolidation-workbench.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* restore consolidation workbench ([76677a0](https://github.com/agregory999/oci-policy-analysis/commit/76677a0a3185eca5868f7b2aef4e21fbdd9f457a))
+
 ## [6.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.3.1) (2026-07-14)
 
 
