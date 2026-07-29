@@ -53,6 +53,7 @@ from fastmcp.exceptions import ToolError  # noqa: E402
 from fastmcp.server.auth import RemoteAuthProvider  # noqa: E402
 from fastmcp.server.auth.providers.jwt import JWTVerifier  # noqa: E402
 from fastmcp.server.dependencies import get_access_token  # noqa: E402
+from mcp.server.auth.routes import create_protected_resource_routes  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
@@ -201,6 +202,45 @@ def _oauth_update_scope() -> str:
     return os.environ.get('MCP_OAUTH_UPDATE_SCOPE', '').strip()
 
 
+def _oauth_authorization_scopes(validation_scopes: list[str]) -> list[str]:
+    """Return scopes advertised to OAuth clients, defaulting to validation scopes.
+
+    OCI Identity Domains can require a fully-qualified scope in an authorization
+    request (for example ``oci-policy-analysis-mcpread``) while putting the
+    short scope value (``read``) in the resulting JWT.  Keeping these values
+    separate lets the resource server validate the token correctly without
+    advertising an unusable request scope to MCP clients.
+    """
+
+    configured = _split_scopes(os.environ.get('MCP_OAUTH_AUTHORIZATION_SCOPES', ''))
+    return configured or validation_scopes
+
+
+class _RemoteAuthProviderWithAdvertisedScopes(RemoteAuthProvider):
+    """Remote provider that can advertise request scopes distinct from JWT scopes."""
+
+    def __init__(self, *args: Any, advertised_scopes: list[str], **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.advertised_scopes = advertised_scopes
+
+    def get_routes(self, mcp_path: str | None = None, mcp_endpoint: Any | None = None):
+        # Keep the verifier's short scopes for request authentication, but
+        # publish OCI's fully-qualified scopes in protected-resource metadata.
+        routes = super(RemoteAuthProvider, self).get_routes(mcp_path, mcp_endpoint)
+        resource_url = self._get_resource_url(mcp_path)
+        if resource_url:
+            routes.extend(
+                create_protected_resource_routes(
+                    resource_url=resource_url,
+                    authorization_servers=self.authorization_servers,
+                    scopes_supported=self.advertised_scopes,
+                    resource_name=self.resource_name,
+                    resource_documentation=self.resource_documentation,
+                )
+            )
+        return routes
+
+
 def _oauth_identity_details(access_token: Any) -> str:
     """Return a small, non-secret identity summary for request logging."""
 
@@ -251,7 +291,8 @@ Required environment variables:
   export MCP_OAUTH_JWKS_URI="https://idcs-<id>.identity.oraclecloud.com/admin/v1/SigningCert/jwk"
   export MCP_OAUTH_AUDIENCE="<resource-server-primary-audience>"
   export MCP_OAUTH_REQUIRED_SCOPES="read"
-  export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>/mcp"
+  # Public origin only; FastMCP appends its /mcp endpoint for OAuth metadata.
+  export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>"
   export MCP_OAUTH_AUTHORIZATION_SERVER_URL="https://idcs-<id>.identity.oraclecloud.com/"
 
 Optional environment variables:
@@ -271,6 +312,7 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
     missing = [name for name in MCP_OAUTH_REQUIRED_VARS if not os.environ.get(name, '').strip()]
     raw_scopes = os.environ.get('MCP_OAUTH_REQUIRED_SCOPES', '')
     scopes = _split_scopes(raw_scopes)
+    authorization_scopes = _oauth_authorization_scopes(scopes)
 
     if not scopes:
         missing.append('MCP_OAUTH_REQUIRED_SCOPES')
@@ -292,6 +334,8 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
     logger.info('MCP OAuth JWKS URI: %s', jwks_uri)
     logger.info('MCP OAuth audience: %s', audience)
     logger.info('MCP OAuth required scopes: %s', ', '.join(scopes))
+    if authorization_scopes != scopes:
+        logger.info('MCP OAuth authorization request scopes: %s', ', '.join(authorization_scopes))
     if _oauth_update_scope():
         logger.info('MCP OAuth update scope: %s', _oauth_update_scope())
     logger.info('MCP OAuth protected resource URL: %s', resource_server_url)
@@ -304,11 +348,12 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
         required_scopes=scopes,
         base_url=resource_server_url,
     )
-    return RemoteAuthProvider(
+    return _RemoteAuthProviderWithAdvertisedScopes(
         token_verifier=verifier,
         authorization_servers=[authorization_server_url],
         base_url=resource_server_url,
         resource_name='OCI Policy Analysis MCP',
+        advertised_scopes=authorization_scopes,
     )
 
 

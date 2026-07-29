@@ -35,6 +35,7 @@ Required environment variables:
 
 Optional environment variables:
   export MCP_OAUTH_UPDATE_SCOPE="update"
+  export MCP_OAUTH_AUTHORIZATION_SCOPES="oci-policy-analysis-mcpread"
   export MCP_OAUTH_ALGORITHM="RS256"
 
 Copy the required block, replace placeholder values from the OCI Identity Domain application, then rerun the MCP server.

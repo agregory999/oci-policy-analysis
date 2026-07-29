@@ -35,6 +35,13 @@ deployment, the issued token contains the configured values directly:
 Set `MCP_OAUTH_REQUIRED_SCOPES` and `MCP_OAUTH_UPDATE_SCOPE` to the exact
 values in the JWT `scope` claim.
 
+When the authorization server requires a different scope spelling in the
+authorization request, set `MCP_OAUTH_AUTHORIZATION_SCOPES` to that request
+value. For OCI Identity Domains with primary audience
+`oci-policy-analysis-mcp`, use `MCP_OAUTH_REQUIRED_SCOPES=read` to validate
+the JWT and `MCP_OAUTH_AUTHORIZATION_SCOPES=oci-policy-analysis-mcpread` to
+advertise the request scope to Codex and other MCP clients.
+
 The token request may still require the fully qualified scope. With primary
 audience `oci-policy-analysis-mcp` and configured scope value `read`, request
 `oci-policy-analysis-mcpread`; OCI IAM then issues a token whose `scope` claim
@@ -135,7 +142,8 @@ export MCP_OAUTH_JWKS_URI="https://idcs-<id>.identity.oraclecloud.com/admin/v1/S
 export MCP_OAUTH_AUDIENCE="oci-policy-analysis-mcp"
 export MCP_OAUTH_REQUIRED_SCOPES="read"
 export MCP_OAUTH_UPDATE_SCOPE="update"
-export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>/mcp"
+export MCP_OAUTH_AUTHORIZATION_SCOPES="oci-policy-analysis-mcpread"
+export MCP_OAUTH_RESOURCE_SERVER_URL="https://<mcp-public-host>"
 export MCP_OAUTH_AUTHORIZATION_SERVER_URL="https://idcs-<id>.identity.oraclecloud.com/"
 export MCP_OAUTH_ALGORITHM="RS256"
 ```

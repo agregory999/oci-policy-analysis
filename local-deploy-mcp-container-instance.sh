@@ -17,6 +17,7 @@ set -euo pipefail
 #   OCI_CONTAINER_OCPUS                 (default: 1)
 #   OCI_CONTAINER_MEMORY_GBS            (default: 8)
 #   OCI_PRIVATE_IP                      (optional static private IP in selected subnet)
+#   OCI_NSG_IDS_JSON                    (optional JSON array of NSG OCIDs for the container VNIC)
 #   OCI_REDEPLOY                        (default: true)
 #
 #   MCP_AUTH_MODE                       (default: resource_principal)
@@ -32,6 +33,7 @@ set -euo pipefail
 #   MCP_OAUTH_AUDIENCE                  (required if MCP_OAUTH_ENABLED=true)
 #   MCP_OAUTH_REQUIRED_SCOPES           (required if MCP_OAUTH_ENABLED=true; token must include all listed scopes)
 #   MCP_OAUTH_UPDATE_SCOPE              (optional; required for reload when set)
+#   MCP_OAUTH_AUTHORIZATION_SCOPES      (optional; scopes advertised to OAuth clients)
 #   MCP_OAUTH_RESOURCE_SERVER_URL       (required if MCP_OAUTH_ENABLED=true)
 #   MCP_OAUTH_AUTHORIZATION_SERVER_URL  (required if MCP_OAUTH_ENABLED=true)
 #   MCP_OAUTH_ALGORITHM                 (default: RS256)
@@ -72,6 +74,7 @@ OCI_CONTAINER_SHAPE="${OCI_CONTAINER_SHAPE:-CI.Standard.A1.Flex}"
 OCI_CONTAINER_OCPUS="${OCI_CONTAINER_OCPUS:-1}"
 OCI_CONTAINER_MEMORY_GBS="${OCI_CONTAINER_MEMORY_GBS:-8}"
 OCI_PRIVATE_IP="${OCI_PRIVATE_IP:-}"
+OCI_NSG_IDS_JSON="${OCI_NSG_IDS_JSON:-[]}"
 OCI_REDEPLOY="${OCI_REDEPLOY:-true}"
 OCI_AD="${OCI_AD:-}"
 
@@ -88,6 +91,7 @@ MCP_OAUTH_JWKS_URI="${MCP_OAUTH_JWKS_URI:-}"
 MCP_OAUTH_AUDIENCE="${MCP_OAUTH_AUDIENCE:-}"
 MCP_OAUTH_REQUIRED_SCOPES="${MCP_OAUTH_REQUIRED_SCOPES:-}"
 MCP_OAUTH_UPDATE_SCOPE="${MCP_OAUTH_UPDATE_SCOPE:-}"
+MCP_OAUTH_AUTHORIZATION_SCOPES="${MCP_OAUTH_AUTHORIZATION_SCOPES:-}"
 MCP_OAUTH_RESOURCE_SERVER_URL="${MCP_OAUTH_RESOURCE_SERVER_URL:-}"
 MCP_OAUTH_AUTHORIZATION_SERVER_URL="${MCP_OAUTH_AUTHORIZATION_SERVER_URL:-}"
 MCP_OAUTH_ALGORITHM="${MCP_OAUTH_ALGORITHM:-RS256}"
@@ -125,6 +129,12 @@ fi
 
 if [[ "${OCI_IMAGE_URL}" != *".ocir.io/"* && "${OCI_IMAGE_URL}" != ocir.*.oci.oraclecloud.com/* ]]; then
   echo "ERROR: OCI_IMAGE_URL does not look like an OCIR image URL: ${OCI_IMAGE_URL}" >&2
+  exit 2
+fi
+
+if ! printf '%s' "${OCI_NSG_IDS_JSON}" | jq -e 'type == "array" and all(.[]; type == "string" and startswith("ocid1.networksecuritygroup."))' >/dev/null; then
+  echo "ERROR: OCI_NSG_IDS_JSON must be a JSON array of Network Security Group OCIDs." >&2
+  echo 'Example: OCI_NSG_IDS_JSON='\''["ocid1.networksecuritygroup.oc1.iad.<unique_id>"]'\''' >&2
   exit 2
 fi
 
@@ -192,6 +202,7 @@ cat > "${containers_json}" <<EOF
       "MCP_OAUTH_AUDIENCE": "${MCP_OAUTH_AUDIENCE}",
       "MCP_OAUTH_REQUIRED_SCOPES": "${MCP_OAUTH_REQUIRED_SCOPES}",
       "MCP_OAUTH_UPDATE_SCOPE": "${MCP_OAUTH_UPDATE_SCOPE}",
+      "MCP_OAUTH_AUTHORIZATION_SCOPES": "${MCP_OAUTH_AUTHORIZATION_SCOPES}",
       "MCP_OAUTH_RESOURCE_SERVER_URL": "${MCP_OAUTH_RESOURCE_SERVER_URL}",
       "MCP_OAUTH_AUTHORIZATION_SERVER_URL": "${MCP_OAUTH_AUTHORIZATION_SERVER_URL}",
       "MCP_OAUTH_ALGORITHM": "${MCP_OAUTH_ALGORITHM}"
@@ -211,6 +222,7 @@ cat > "${vnics_json}" <<EOF
     "displayName": "mcp-vnic",
     "subnetId": "${OCI_SUBNET_OCID}",
     ${private_ip_fragment}
+    "nsgIds": ${OCI_NSG_IDS_JSON},
     "isPublicIpAssigned": false
   }
 ]

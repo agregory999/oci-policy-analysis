@@ -40,7 +40,7 @@ allow dynamic-group <your_group> to use generative-ai-family in tenancy
 For resource principal usage with a container instance, grant as follows:
 
 ```text
-allow any-user to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy where all { request.principal.type = 'containerinstance', request.principal.id = '<ocid of container instance>' }
+allow any-user to {POLICY_READ, COMPARTMENT_INSPECT, DOMAIN_INSPECT, DYNAMIC_GROUP_INSPECT, GROUP_INSPECT, USER_INSPECT, LIMITS_VIEW_INSPECT} in tenancy where all { request.principal.type = 'computecontainerinstance', request.principal.id = '<ocid of container instance>' }
 ```
 
 ## Server-first pip installs (no git clone)

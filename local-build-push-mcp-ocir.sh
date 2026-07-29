@@ -8,8 +8,9 @@ set -euo pipefail
 #   OCI_NAMESPACE          Object Storage namespace used by OCIR.
 #   OCIR_REPO              OCIR repository path, for example oci-policy-analysis/mcp.
 #   OCI_COMPARTMENT_OCID   Compartment OCID that owns the container repository.
-#   OCIR_USERNAME          OCI username for docker login.
-#   OCIR_AUTH_TOKEN        OCI auth token for docker login.
+#   OCIR_USERNAME          OCI username for docker login (with OCIR_AUTH_TOKEN), or
+#                          use an existing Docker login for the OCIR registry.
+#   OCIR_AUTH_TOKEN        OCI auth token for docker login (with OCIR_USERNAME).
 #
 # Optional environment variables:
 #   IMAGE_TAG              Image tag to build and push. Defaults to current git short SHA.
@@ -25,8 +26,11 @@ Required environment variables:
   export OCI_NAMESPACE="<object-storage-namespace>"
   export OCIR_REPO="oci-policy-analysis/mcp"
   export OCI_COMPARTMENT_OCID="ocid1.compartment.oc1..<unique_id>"
+  # Either authenticate explicitly:
   export OCIR_USERNAME="<oci-username>"
   export OCIR_AUTH_TOKEN="<oci-auth-token>"
+
+  # Or omit both values and reuse an existing Docker login for OCI_REGION.ocir.io.
 
 Optional environment variables:
   export IMAGE_TAG="$(git rev-parse --short HEAD)"
@@ -44,8 +48,6 @@ REQUIRED_VARS=(
   "OCI_NAMESPACE"
   "OCIR_REPO"
   "OCI_COMPARTMENT_OCID"
-  "OCIR_USERNAME"
-  "OCIR_AUTH_TOKEN"
 )
 
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
@@ -64,6 +66,11 @@ done
 if (( ${#MISSING_VARS[@]} > 0 )); then
   echo "ERROR: Missing required environment variables: ${MISSING_VARS[*]}" >&2
   print_env_help
+  exit 2
+fi
+
+if [[ -n "${OCIR_USERNAME:-}" && -z "${OCIR_AUTH_TOKEN:-}" ]] || [[ -z "${OCIR_USERNAME:-}" && -n "${OCIR_AUTH_TOKEN:-}" ]]; then
+  echo "ERROR: Set both OCIR_USERNAME and OCIR_AUTH_TOKEN, or omit both to reuse an existing Docker login." >&2
   exit 2
 fi
 
@@ -126,10 +133,14 @@ if ! oci_cli artifacts container repository list \
 fi
 
 echo "Logging into OCIR registry ${OCI_REGION}.ocir.io..."
-echo "docker login ${OCI_REGION}.ocir.io --username ${OCI_NAMESPACE}/${OCIR_USERNAME} --password-stdin"
-echo "${OCIR_AUTH_TOKEN}" | docker login "${OCI_REGION}.ocir.io" \
-  --username "${OCI_NAMESPACE}/${OCIR_USERNAME}" \
-  --password-stdin
+if [[ -n "${OCIR_USERNAME:-}" ]]; then
+  echo "docker login ${OCI_REGION}.ocir.io --username ${OCI_NAMESPACE}/${OCIR_USERNAME} --password-stdin"
+  echo "${OCIR_AUTH_TOKEN}" | docker login "${OCI_REGION}.ocir.io" \
+    --username "${OCI_NAMESPACE}/${OCIR_USERNAME}" \
+    --password-stdin
+else
+  echo "Reusing the existing Docker login for ${OCI_REGION}.ocir.io."
+fi
 
 echo "Building image with ${DOCKERFILE_PATH}..."
 docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE_URI}" .
