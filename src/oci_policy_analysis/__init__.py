@@ -6,10 +6,13 @@ This package provides the main analysis, caching, and UI components.
 from ._version import get_app_version
 from .cli import main as cli_main
 
-try:
-    from .mcp_server import main as mcp_main
-except Exception:  # pragma: no cover - optional dependency (fastmcp)
-    mcp_main = None
+
+def mcp_main(*args, **kwargs):
+    """Run the optional MCP server without importing it for web or CLI use."""
+
+    from .mcp_server import main
+
+    return main(*args, **kwargs)
 
 
 def __getattr__(name: str):

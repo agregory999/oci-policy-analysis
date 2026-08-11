@@ -9,11 +9,12 @@ OCI Policy Analysis provides a robust simulation engine allowing users to test O
 1. [Introduction](#introduction)
 2. [Components of a Simulation](#components-of-a-simulation)
 3. [Loading and Editing Where-Clause Variables](#loading-and-editing-where-clause-variables)
-4. [Running the Simulation](#running-the-simulation)
-5. [Interpreting Results](#interpreting-results)
-6. [Simulation History](#simulation-history)
-7. [Best Practices & Advanced Usage](#best-practices--advanced-usage)
-8. [Related Features & See Also](#related-features--see-also)
+4. [Related Permission Checks](#related-permission-checks)
+5. [Running the Simulation](#running-the-simulation)
+6. [Interpreting Results](#interpreting-results)
+7. [Simulation History](#simulation-history)
+8. [Best Practices & Advanced Usage](#best-practices--advanced-usage)
+9. [Related Features & See Also](#related-features--see-also)
 
 ---
 
@@ -24,7 +25,7 @@ The simulation feature enables users to answer questions such as:
 - "What happens if a specific `where` clause or variable is set?"
 - "Why does a set of policy statements not grant expected permissions in a scenario?"
 
-Simulations are performed via the Simulation tab in the GUI, or in a simplere form via Condition Tester tab (for where-clause parsing)
+Simulations are performed via the Simulation tab in the desktop app or the Simulation page in the web UI. In a simpler form parts of the simualtion can be tested via Condition Tester tab (for where-clause parsing).
 
 ---
 
@@ -42,7 +43,7 @@ A simulation consists of the following components:
   Any statement (real or prospective) can be unselected to test the impact of removing it from the simulation.
 - **Where-Clause and Conditions:** Any conditions or expressions (e.g., `where request.principal.type = ...`) in the merged policy set (real + prospective) that will affect the simulated permissions added to the final permission set.
 - **Variable Values:** Values required by where-clauses (OCIDs, strings, lists, booleans), which are set or simulated as part of the scenario.
-- **API Operation:** The specific operation to be tested.  All OCI API Operations require a set of permissions, and will fail if any required permission is missing. Some operations also expose advisory [Related Permission Checks](./related_permission_checks.md) for conditional dependencies such as attached or associated resources.
+- **API Operation:** The specific operation to be tested. All OCI API operations require a set of permissions and fail if a required permission is missing. Some operations also expose the advisory related checks described below for conditional dependencies such as attached or associated resources.
 - **History:** If multiple simulations are run, the history of what has been performed, with the ability to export to JSON.
 
 ---
@@ -85,6 +86,36 @@ deny group A to {OBJECT_DELETE, BUCKET_DELETE} in compartment Top:Second
 In this case, `manage object-fmaily` is very broad and has many individual permissions.  Because it is granted at a top-level compartment, it cascades to all sub-compartments.  Denying deletion to a sub-compartment is a good way to pinpoint an action.  The simulation can easily show this. 
 
 More on [Deny Statements](https://docs.oracle.com/en-us/iaas/Content/Identity/policysyntax/denypolicies.htm).
+
+## Related Permission Checks
+
+OCI APIs can return 404 or authorization-style failures even when the caller has the direct permission for the selected operation. A related resource dependency is a common cause. For example, moving a compute instance can also require permission on an associated compute capacity reservation.
+
+OCI Policy Analysis models these as **related permission checks**. They are advisory troubleshooting hints, not live OCI inventory validation and not part of the primary simulation allow/deny decision.
+
+### How they are used
+
+Related checks are attached to API-operation reference data. When an operation is selected in simulation or reference-data tools, the application can show:
+
+- the primary permissions required by the selected operation;
+- related resources that may also need to be checked;
+- related permissions and operation names when known;
+- when the relationship applies; and
+- a troubleshooting hint for 404 or authorization failures.
+
+Where possible, simulation results evaluate these checks against the simulated final permission set. Missing related permissions are shown separately from the operation's primary `missing_permissions`.
+
+### Example
+
+`ChangeInstanceCompartment` requires `INSTANCE_MOVE`. If the instance is associated with a compute capacity reservation, the same principal may also need `CAPACITY_RESERVATION_MOVE` on that related reservation.
+
+This relationship is reference metadata, not a hard simulation requirement: the application may not know whether a specific instance is attached to a reservation.
+
+### Adding relationships
+
+Not every OCI operation has related checks. To suggest one, open an issue or pull request with the API operation name, related resource type, related permission or operation when known, the condition under which it applies, and a short source note or observed failure case.
+
+The preferred implementation is a structured `related_checks` entry in the appropriate permissions JSON file, with longer narrative in `notes`.
 
 ## Running the Simulation
 
@@ -136,6 +167,7 @@ A successful simulation gives you:
 - **Variable Substitution:** Actual variable values used in the where-clause for the decision.
 - **Match/No-Match Reasons:** Why a statement matched (or not); e.g., mismatched variables, compartment scoping, lack of group membership.
 - **Raw Evaluation Trace:** (Advanced/troubleshooting) Step-by-step evaluation—helpful when debugging unexpected outcomes.
+- **Related Permission Checks:** Advisory dependencies that can explain an OCI 404 or authorization-style failure even when the primary operation is allowed. These do not change the simulation's primary ALLOW/DENY decision.
 
 **Example Output:**
 ```
@@ -145,6 +177,22 @@ Effective Path: ROOT/Finance/Data
 Where Clause: request.principal.name = 'alice', request.networkSource.name = 'trusted-src'
 Trace: All conditions matched, group membership confirmed.
 ```
+
+### Example: primary permission allowed, related permission missing
+
+Suppose a principal moves an instance with `ChangeInstanceCompartment`. The selected operation requires `INSTANCE_MOVE`, and the simulated policy set grants that permission. The primary simulation result is therefore **ALLOW**.
+
+If the instance is attached to a compute capacity reservation, OCI may also require `CAPACITY_RESERVATION_MOVE` on the associated reservation. When that permission is absent from the simulated final permission set, the result can be interpreted as:
+
+```text
+Primary result: ALLOW
+Required permission: INSTANCE_MOVE (granted)
+Related check: CAPACITY_RESERVATION_MOVE (missing)
+Applies when: the instance has an associated capacity reservation
+Troubleshooting implication: verify permission on the related reservation if OCI returns 404 or an authorization failure.
+```
+
+This does not mean the simulation decision is contradictory. The related check is intentionally advisory because the application cannot determine from policy data alone whether the instance has an associated reservation. Use it to investigate the additional resource when a real OCI request fails unexpectedly.
 
 ---
 
@@ -182,13 +230,5 @@ Simulation runs are automatically stored for later review.
 - [Policy Overlap Tab](./usage.md)
   - Analyze which statements could interact or supersede each other.
 
-- [MCP Server](./mcp.md)  
-  - Run simulations programmatically, enabling integration with AI tools or CLI automation.
-
 - [Permissions Report](./usage.md#permissions-report-tab)  
   - See all permissions granted/denied as a result of current policies.
-
----
-
-**Need more details or have an advanced simulation scenario?**  
-Refer to the project's GitHub issues or submit a question for more simulation examples!

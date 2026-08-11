@@ -20,19 +20,21 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from oci_policy_analysis.application.core.repo import AI
+from oci_policy_analysis.application.core.repo.ai_repo import load_inference_model_overrides, load_tested_model_ids
 from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import DataTable
 
 # Constants for data table
-AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Capabilities', 'Lifecycle State', 'Creation Date']
+AI_MODEL_COLUMNS = ['Model Name', 'Model OCID', 'Capabilities', 'Lifecycle State', 'Creation Date', 'Tested']
 AI_MODEL_COLUMN_WIDTHS = {
     'Model Name': 250,
     'Model OCID': 450,
     'Capabilities': 200,
     'Lifecycle State': 125,
     'Creation Date': 250,
+    'Tested': 90,
 }
 
 # Context help messages for the SettingsTab
@@ -92,6 +94,13 @@ class SettingsTab(BaseUITab):
         self.app = app
         self.settings = settings
         self.ai_repo = ai_repo
+        # Test status is intentionally session-local; the model matrix documents
+        # repeatable results across environments and dates.
+        self.ai_test_results: dict[str, str] = {}
+        self.tested_model_ids = load_tested_model_ids()
+        self.inference_model_overrides = load_inference_model_overrides()
+        self.show_only_tested_var = tk.BooleanVar(value=True)
+        self._all_ai_models: list[dict] = []
         self.caching = caching
         self.page_help_text = self.default_help_text
         # Remove redundant page_help_frame, label, and methods; now in base
@@ -110,9 +119,7 @@ class SettingsTab(BaseUITab):
         self.context_help_var = tk.BooleanVar(value=self.settings.get('context_help', True))
         # ----- NEW: Load All Users Option -----
         self.load_all_users_var = tk.BooleanVar(value=self.settings.get('load_all_users', True))
-        self.ai_compartment_var = tk.StringVar(
-            value=self.settings.get('ai_compartment_ocid', '<use compartment or tenancy ocid with genai permission>')
-        )
+        self.ai_compartment_var = tk.StringVar(value=self.settings.get('ai_compartment_ocid', ''))
         self.format_var = tk.StringVar(value=self.settings.get('result_format', 'Markdown'))
         self.mcp_port_var = tk.StringVar(value=str(self.settings.get('mcp_port', '8765')))
         self.mcp_host_var = tk.StringVar(value=self.settings.get('mcp_host', '127.0.0.1'))
@@ -702,7 +709,7 @@ class SettingsTab(BaseUITab):
         self.ai_toggle_btn = ttk.Button(
             self.label_frm_ai_config, state=tk.DISABLED, text='(3) Toggle AI Pane', command=self.app.toggle_bottom
         )
-        self.ai_toggle_btn.grid(row=0, column=0, padx=3, pady=3, sticky='ew')
+        self.ai_toggle_btn.grid(row=0, column=0, padx=3, pady=3, sticky='w')
 
         def populate_model_tree():
             """Populate the model Treeview with available models from list_models."""
@@ -720,29 +727,55 @@ class SettingsTab(BaseUITab):
 
             if self.ai_repo.initialized:
                 ai_models = self.ai_repo.list_models()
+                self._all_ai_models = ai_models
+                for model in ai_models:
+                    model['Tested'] = self.ai_test_results.get(
+                        model.get('Model OCID', ''),
+                        'Yes' if model.get('Model OCID', '') in self.tested_model_ids else 'No',
+                    )
+                self._refresh_model_table()
                 logger.info(f'list_models returned {len(ai_models)} models')
 
                 # Put in Model Data Table
-                self.ai_model_table.update_data(new_data=ai_models)
             else:
                 logger.warning('AI client not initialized, cannot list models')
+
+        self.region_var = tk.StringVar(value='')
+        self.load_regions_button = ttk.Button(
+            self.label_frm_ai_config, text='Load Regions', command=self._load_subscribed_regions
+        )
+        self.load_regions_button.grid(row=0, column=1, padx=3, pady=3, sticky='w')
+        ttk.Label(self.label_frm_ai_config, text='Region:').grid(row=0, column=2, padx=(10, 2), pady=3, sticky='e')
+        self.region_combo = ttk.Combobox(
+            self.label_frm_ai_config, textvariable=self.region_var, state='readonly', width=18
+        )
+        self.region_combo.grid(row=0, column=3, padx=3, pady=3, sticky='w')
+        self.region_combo.bind('<<ComboboxSelected>>', self._on_ai_region_changed)
 
         self.refresh_button = ttk.Button(
             self.label_frm_ai_config, text='(1) Refresh Models (using selected profile)', command=populate_model_tree
         )
-        self.refresh_button.grid(row=0, column=1, padx=3, pady=3, sticky='ew')
+        self.refresh_button.grid(row=0, column=4, padx=3, pady=3, sticky='w')
+
+        ttk.Checkbutton(
+            self.label_frm_ai_config,
+            text='Show Only Tested Models',
+            variable=self.show_only_tested_var,
+            command=self._refresh_model_table,
+        ).grid(row=0, column=5, padx=12, pady=3, sticky='w')
 
         self.ai_progress_var = tk.StringVar(value='')
         self.ai_progress_label = ttk.Label(
             self.label_frm_ai_config, textvariable=self.ai_progress_var, foreground='blue'
         )
-        self.ai_progress_label.grid(row=0, column=2, padx=3, pady=3, sticky='w')
+        self.ai_progress_label.grid(row=0, column=6, columnspan=2, padx=3, pady=3, sticky='we')
 
         def update_model_ocid(selected_items):
             if selected_items:
                 model_ocid = selected_items[0].get('Model OCID', '')
-                self.model_id_var.set(model_ocid)
-                logger.info(f'Updated Model ID entry with OCID {model_ocid} from data table selection')
+                inference_model_id = self.inference_model_overrides.get(model_ocid, model_ocid)
+                self.model_id_var.set(inference_model_id)
+                logger.info('Selected model OCID=%s; inference model ID=%s', model_ocid, inference_model_id)
 
         # Data Table for models
         self.ai_model_table = DataTable(
@@ -755,28 +788,41 @@ class SettingsTab(BaseUITab):
             # row_context_menu_callback=model_ocid_right_click,
             multi_select=False,
         )
-        self.ai_model_table.grid(row=1, column=0, columnspan=3, padx=3, pady=3, sticky='ew')
+        self.ai_model_table.grid(row=1, column=0, columnspan=8, padx=3, pady=3, sticky='nsew')
+
+        self.create_doc_link_label(
+            self.label_frm_ai_config,
+            'Open AI model test matrix and troubleshooting notes',
+            self.DOCROOT + '/ai_model_testing.html',
+            row=2,
+            column=0,
+            columnspan=8,
+            padx=3,
+            pady=3,
+            sticky='w',
+        )
 
         self.model_id_var = tk.StringVar()
 
-        ttk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(
-            row=3, column=0, padx=2, pady=3, sticky='ew'
-        )
+        ttk.Label(self.label_frm_ai_config, text='Regional Endpoint:').grid(row=3, column=0, padx=2, pady=3, sticky='w')
         self.endpoint_var = tk.StringVar()
         self.endpoint_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.endpoint_var, width=80)
-        self.endpoint_entry.grid(row=3, column=1, padx=3, pady=3, sticky='ew')
+        self.endpoint_entry.grid(row=3, column=1, columnspan=6, padx=3, pady=3, sticky='ew')
 
         ttk.Label(self.label_frm_ai_config, text='Compartment (for GenAI):').grid(
-            row=4, column=0, padx=2, pady=3, sticky='ew'
+            row=4, column=0, padx=2, pady=3, sticky='w'
         )
         self.ai_compartment_var = tk.StringVar()
         self.ai_compartment_entry = ttk.Entry(self.label_frm_ai_config, textvariable=self.ai_compartment_var, width=80)
-        self.ai_compartment_entry.grid(row=4, column=1, padx=3, pady=3, sticky='ew')
+        self.ai_compartment_entry.grid(row=4, column=1, columnspan=6, padx=3, pady=3, sticky='ew')
 
         apply_button = ttk.Button(
             self.label_frm_ai_config, text='(2) Apply and Test GenAI Settings', command=self.apply_config
         )
-        apply_button.grid(row=2, column=2, rowspan=3, padx=3, pady=3, sticky='ew')
+        apply_button.grid(row=3, column=7, rowspan=2, padx=3, pady=3, sticky='ew')
+        for column in range(1, 6):
+            self.label_frm_ai_config.columnconfigure(column, weight=1)
+        self.label_frm_ai_config.rowconfigure(1, weight=1)
         logger.debug('Apply button created')
 
         # (Moved MCP block to top and made autosave; original section removed)
@@ -939,6 +985,48 @@ class SettingsTab(BaseUITab):
     # -------------------------
     # AI Enablement
     # -------------------------
+    def _refresh_model_table(self) -> None:
+        """Apply the model-list filters without making another OCI request."""
+        rows = []
+        for model in self._all_ai_models:
+            model_id = model.get('Model OCID', '')
+            model['Tested'] = self.ai_test_results.get(model_id, 'Yes' if model_id in self.tested_model_ids else 'No')
+            if self.show_only_tested_var.get() and model['Tested'] != 'Yes':
+                continue
+            rows.append(model)
+        self.ai_model_table.update_data(new_data=rows)
+
+    def _on_ai_region_changed(self, _event=None) -> None:
+        """Switch GenAI clients to the selected subscribed region."""
+        region = self.region_var.get().strip()
+        if not region or not self.ai_repo.initialized:
+            return
+        try:
+            self.ai_repo.set_region(region)
+            self.endpoint_var.set(self.ai_repo.base_endpoint)
+            self._all_ai_models = []
+            self.ai_model_table.update_data(new_data=[])
+            self.ai_progress_var.set(f'Region set to {region}; refresh models to continue')
+        except Exception as exc:
+            logger.error('Failed to change AI region to %s', region, exc_info=True)
+            self.ai_progress_var.set(f'Unable to change region: {exc}')
+
+    def _load_subscribed_regions(self) -> None:
+        """Load tenancy regions on explicit user request."""
+        try:
+            if not self.ai_repo.initialized:
+                self.ai_repo.initialize_client(use_instance_principal=self.ip_var.get(), profile=self.profile_var.get())
+            if not self.ai_repo.initialized:
+                raise RuntimeError('AI client could not be initialized')
+            regions = self.ai_repo.list_subscribed_regions()
+            self.region_combo['values'] = regions
+            if self.ai_repo.region in regions:
+                self.region_var.set(self.ai_repo.region)
+            self.ai_progress_var.set(f'Loaded {len(regions)} subscribed regions')
+        except Exception as exc:
+            logger.error('Unable to load subscribed AI regions', exc_info=True)
+            self.ai_progress_var.set(f'Unable to load subscribed regions: {exc}')
+
     def apply_config(self):
         """
         Apply changes to Model ID and Endpoint in AI client.
@@ -946,7 +1034,9 @@ class SettingsTab(BaseUITab):
         start_time = time.perf_counter()
         model_id = self.model_id_var.get().strip()
         endpoint = self.endpoint_var.get().strip()
-        compartment_ocid = self.ai_compartment_var.get().strip()
+        compartment_ocid = self.ai_compartment_var.get().strip() or getattr(self.ai_repo, 'tenancy_ocid', '')
+        if compartment_ocid:
+            self.ai_compartment_var.set(compartment_ocid)
         logger.info('Applying config changes: Model ID=%s, Endpoint=%s', model_id, endpoint)
         self.ai_progress_var.set('[-] Running AI test call…')
 
@@ -974,6 +1064,14 @@ class SettingsTab(BaseUITab):
             message (str): Message to display.
             clear (bool): Whether to clear the message after a delay.
         """
+        model_id = self.model_id_var.get().strip()
+        if model_id:
+            self.ai_test_results[model_id] = 'Yes' if success else 'No'
+            for row in self.ai_model_table.data:
+                if row.get('Model OCID') == model_id:
+                    row['Tested'] = self.ai_test_results[model_id]
+            self.ai_model_table.update_data(new_data=self.ai_model_table.data)
+
         if success:
             self.ai_progress_var.set(f'[OK] {message}')
             # Enable the toggle button

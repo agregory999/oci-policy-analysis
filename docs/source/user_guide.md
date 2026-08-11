@@ -6,9 +6,9 @@ guide; this page and the linked references contain the detail.
 
 ## Choose an application mode
 
-- [Desktop application](setup_desktop.md): local Tkinter workflow with the full
+- [Desktop application](setup.md#desktop-application): local Tkinter workflow with the full
   tabbed interface.
-- [Web application](setup_web.md): browser workflow for local or server-hosted
+- [Web application](setup.md#web-application): browser workflow for local or server-hosted
   use.
 - [CLI](cli.md): scripted loading, filtering, and export.
 - [MCP](mcp.md): policy and identity queries for MCP clients.
@@ -19,9 +19,12 @@ For a capability comparison and the relationship between the modes, see the
 ## First run
 
 1. Complete the [general setup](setup.md).
-2. Follow the [desktop](setup_desktop.md) or [web](setup_web.md) launch guide.
-3. Configure OCI authentication and load a tenancy or an existing cache.
-4. Start with the policy analysis workflow described in [UI usage](usage.md).
+2. Follow the [Desktop](setup.md#desktop-application) or [Web](setup.md#web-application) launch guide.
+3. Choose the dataset you will analyze:
+   - **Live tenancy data:** configure an OCI user/API-key profile, session token, instance principal, or resource principal. An OCI administrator must also grant the [required IAM permissions](setup.md#permissions-required) to the principal that runs the tool.
+   - **CIS Compliance output:** use a directory produced by the [CIS Compliance script](setup.md#obtain-cis-compliance-output), then import it with **Load Compliance Data**. This path does not require OCI credentials in OCI Policy Analysis.
+   - **Combined cache:** open a cache previously saved by the application when you need repeatable or offline analysis.
+4. Load the chosen data source from **Settings** in desktop mode or the web home page, then start with the policy analysis workflow described in [UI usage](usage.md).
 
 ## Core workflows
 
@@ -46,8 +49,8 @@ guide](usage.md) describes the available desktop tabs and web pages.
 ### Troubleshooting and deployment
 
 Use [logging and troubleshooting](logging_and_troubleshooting.md) for runtime
-diagnostics. For server deployments, see [web setup](setup_web.md), [MCP
-container deployment](setup_mcp_container_instance.md), and [MCP OAuth](mcp_oauth.md).
+diagnostics. For server deployments, see [web setup](setup.md#web-application), [containerized
+MCP](setup.md#containerized-mcp-on-oci-container-instances), and [MCP OAuth](mcp_oauth.md).
 
 ## Reference map
 

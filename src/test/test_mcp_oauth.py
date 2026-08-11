@@ -55,6 +55,44 @@ def test_oauth_enabled_builds_remote_auth_provider(monkeypatch) -> None:
     assert provider.resource_name == 'OCI Policy Analysis MCP'
 
 
+def test_oauth_metadata_shim_advertises_local_issuer_and_oci_endpoints(monkeypatch) -> None:
+    monkeypatch.setenv('MCP_OAUTH_ENABLED', 'true')
+    monkeypatch.setenv('MCP_OAUTH_ISSUER', 'https://identity.oraclecloud.com/')
+    monkeypatch.setenv('MCP_OAUTH_JWKS_URI', 'https://idcs-example.identity.oraclecloud.com/admin/v1/SigningCert/jwk')
+    monkeypatch.setenv('MCP_OAUTH_AUDIENCE', 'oci-policy-analysis-mcp')
+    monkeypatch.setenv('MCP_OAUTH_REQUIRED_SCOPES', 'read')
+    monkeypatch.setenv('MCP_OAUTH_AUTHORIZATION_SCOPES', 'oci-policy-analysis-mcpread')
+    monkeypatch.setenv('MCP_OAUTH_RESOURCE_SERVER_URL', 'https://mcp.example.com')
+    monkeypatch.setenv('MCP_OAUTH_AUTHORIZATION_SERVER_URL', 'https://idcs-example.identity.oraclecloud.com/')
+    monkeypatch.setenv('MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER', 'https://mcp.example.com/oauth/oci-idcs')
+    monkeypatch.setenv(
+        'MCP_OAUTH_AUTHORIZATION_ENDPOINT', 'https://idcs-example.identity.oraclecloud.com/oauth2/v1/authorize'
+    )
+    monkeypatch.setenv('MCP_OAUTH_TOKEN_ENDPOINT', 'https://idcs-example.identity.oraclecloud.com/oauth2/v1/token')
+
+    provider = mcp_server._build_oauth_auth_provider_from_env()
+
+    assert provider is not None
+    assert provider.authorization_servers == ['https://mcp.example.com/oauth/oci-idcs']
+    assert provider.authorization_server_metadata == (
+        'https://mcp.example.com/oauth/oci-idcs',
+        {
+            'issuer': 'https://mcp.example.com/oauth/oci-idcs',
+            'authorization_endpoint': 'https://idcs-example.identity.oraclecloud.com/oauth2/v1/authorize',
+            'token_endpoint': 'https://idcs-example.identity.oraclecloud.com/oauth2/v1/token',
+            'response_types_supported': ['code'],
+            'grant_types_supported': ['authorization_code'],
+            'token_endpoint_auth_methods_supported': ['none'],
+            'code_challenge_methods_supported': ['S256'],
+            'scopes_supported': ['oci-policy-analysis-mcpread'],
+        },
+    )
+    assert mcp_server._oauth_authorization_server_metadata_paths('https://mcp.example.com/oauth/oci-idcs') == (
+        '/.well-known/oauth-authorization-server/oauth/oci-idcs',
+        '/oauth/oci-idcs/.well-known/oauth-authorization-server',
+    )
+
+
 def test_oauth_enabled_requires_required_scopes(monkeypatch) -> None:
     monkeypatch.setenv('MCP_OAUTH_ENABLED', 'true')
     monkeypatch.setenv('MCP_OAUTH_ISSUER', 'https://idcs-example.identity.oraclecloud.com/')

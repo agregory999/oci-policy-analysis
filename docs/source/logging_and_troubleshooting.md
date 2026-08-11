@@ -2,7 +2,7 @@
 
 This page provides guidance on logging configuration, debugging, and troubleshooting for the application.
 
-## 1. Global Logging by Component
+## Global logging by component
 
 You can enable or adjust logging granularity across different components within the system. Logging levels can typically be set (ERROR, WARNING, INFO, DEBUG) to control verbosity.
 
@@ -16,19 +16,19 @@ There is a single Global Logger dropdown, which if set, will change the log leve
 
 Additionally, there is a "Show Loggers" checkbox, which allows inidividual override per component.  For example, set the global level to WARNING, and then override a compoment to INFO.  Doing this will allow you to see additional details for that component.
 
-### 1a. Debugging to Command Line
+### Debugging from the command line
 
 Due to the volume of logging, DEBUG output, if set, is only available on the shell.  Therefore debug logging is not really available via executable.   There are 2 ways to enable debug
 
 - Enable DEBUG-level log output using the UI to see detailed processing information in the command line.
 - Launch the application with an explicit `--verbose` parameter to force global DEBUG 
   ```bash
-  python -m oci_policy_analysis.main --verbose
+  oci-policy-analysis-ui --verbose
   ```
 
 **NOTE:** Global DEBUG is very noisy, so only do this if you really need to.
 
-### 1b. API and Timing Logging Options
+### API and timing logging
 
 In addition to standard component-based logging levels, the application offers dedicated logging for specific events such as API calls (external integrations, requests to OCI, etc.) and timing/performance data.
 
@@ -50,9 +50,22 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 *To configure more granular logging for API and timing, use either the UI log level overrides (via the "Show Loggers" checkbox) or set log levels programmatically in your environment/setup scripts.*
 
-## 2. JSON Debugger Tab
+## Web UI and command-line logging
 
-- The *JSON Debugger* tab in the UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
+The desktop application, web server, CLI, and MCP server use the same application logging system, but the place to inspect output differs by mode.
+
+| Mode | Useful startup options | Where to inspect issues |
+|---|---|---|
+| Desktop | `oci-policy-analysis-ui --verbose` | Console/Debugger tab and the application log; verbose detail is available when launched from a shell. |
+| Web UI | `oci-policy-analysis-web --host 127.0.0.1 --port 8000` | Server terminal/application log, browser developer console, and the web **Logging** page. `--reload` is for local development only. |
+| CLI | `oci-policy-analysis-cli --log-level INFO`, `--verbose`, `--app-log` | Terminal output by default; use `--app-log` when the application log is needed. |
+| MCP | `oci-policy-analysis-mcp --log-level INFO` | Server terminal/application log and the MCP client’s connection or tool-call error output. |
+
+Use `--help` with each command for the complete option list. For web startup, a runtime access key is printed in the server log; it is required to unlock the browser session and rotates after every server restart.
+
+## JSON Debugger tab
+
+- The *JSON Debugger* tab in the desktop UI is primarily a troubleshooting tool, intended to help developers and advanced users debug and inspect the application's internal state.
 - This tab displays internal JSON objects and data structures used by the app for policy analysis, simulation history, reference data, and policy intelligence overlays.
 - These objects are shown in their raw or near-raw form for maximum diagnostic value, making it possible to review exact internal representations, nested relationships, and unprocessed values that may not appear in regular user-facing UI components.
 
@@ -65,17 +78,20 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 - More internal objects will be added as needed.  
 
-## 3. Troubleshooting Topics
+## Troubleshooting topics
 
 - **Common Errors:** Review logs for full error traces or use the Console and JSON Debugger for more details.
 - **No Output or Silent Failure:**  
   - Ensure logging is not set to ERROR or CRITICAL for all components.
   - Check that the appropriate components are enabled.
+  - Check IAM permissions for the tool itself.  Permissions needed are [detailed here](./setup.md#permissions-required)
 - **Unexpected Behavior:**  
   - Use INFO level for the affected component(s), repeat the action, and consult logs/Console output.
   - DEBUG logging is available with the shell only, and should be used with caution as it is very verbose.
-- **UI Not Responding:**  
-  - Check backend logs for exceptions.
+- **UI Not Responding:**
+  - Desktop: check the Console/Debugger tab or shell logs.
+  - Web: check the server log, browser console, and `GET /health` when hosted behind a proxy or load balancer.
+- **Web login blocked:** confirm that the runtime access key came from the current server startup, not an earlier restart.
 
 *If you need more detailed guidance, refer to the main documentation or contact the maintainers.*
 

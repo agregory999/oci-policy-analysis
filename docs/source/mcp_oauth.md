@@ -55,6 +55,117 @@ scope. OAuth identifies and authorizes the caller; the MCP server still reads
 OCI using its configured profile, instance principal, resource principal, or
 session token.
 
+### OCI Identity Domain issuer/metadata-host compatibility
+
+There are two unrelated OCI OAuth details that are easy to conflate:
+
+1. **Scope translation** is expected for this deployment. Codex requests
+   `oci-policy-analysis-mcpread`, while OCI issues a JWT with `scope=read`.
+   `MCP_OAUTH_AUTHORIZATION_SCOPES` and `MCP_OAUTH_REQUIRED_SCOPES` handle
+   those two values respectively.
+2. **Authorization-server identity** is a client compatibility concern. The
+   tenant-specific Identity Domain discovery endpoint is hosted at
+   `https://idcs-<id>.identity.oraclecloud.com/`, but it can declare the
+   canonical JWT issuer `https://identity.oraclecloud.com/`. A strict OAuth
+   client can reject this metadata-host/issuer mismatch before opening the
+   browser, even when the client ID, scopes, and redirect URI are correct.
+
+Do **not** set `MCP_OAUTH_ISSUER` to the tenant-specific host merely to make
+those strings match. `MCP_OAUTH_ISSUER` validates the token's actual `iss`
+claim and must remain the issuer OCI emits.
+
+If Codex reports `No authorization support detected` after it successfully
+finds the protected-resource metadata, check the Identity Domain metadata
+first. Possible remediation paths are:
+
+- use an OCI Identity Domain endpoint/custom domain whose discovery URL and
+  declared issuer match exactly, if OCI supports that for the domain;
+- add an MCP-side authorization-server metadata compatibility endpoint that
+  has a stable matching issuer while retaining OCI's actual authorize/token
+  endpoints and JWT validation; or
+- use the explicit bearer-token configuration temporarily while the interactive
+  compatibility path is being completed.
+
+## Codex OAuth with the optional OCI metadata shim
+
+The optional shim is a static discovery document hosted by the MCP service. It
+does **not** proxy the browser, authorization code, token exchange, user
+credentials, client secret, or JWT validation. Codex still calls OCI IAM
+Identity Domains directly for `/authorize` and `/token`.
+
+Enable it only when a client rejects the tenant-specific metadata host and
+canonical OCI issuer as different identities. Configure these additional
+container variables:
+
+```bash
+# Stable local logical issuer, served by the MCP application.
+export MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER="https://<mcp-public-host>/oauth/oci-idcs"
+
+# OCI IAM endpoints; Codex calls these directly.
+export MCP_OAUTH_AUTHORIZATION_ENDPOINT="https://idcs-<id>.identity.oraclecloud.com/oauth2/v1/authorize"
+export MCP_OAUTH_TOKEN_ENDPOINT="https://idcs-<id>.identity.oraclecloud.com/oauth2/v1/token"
+```
+
+With those values, the service advertises the local logical issuer in protected
+resource metadata and serves its OAuth metadata at both:
+
+```text
+/.well-known/oauth-authorization-server/oauth/oci-idcs
+/oauth/oci-idcs/.well-known/oauth-authorization-server
+```
+
+The document has a matching local `issuer`, but its `authorization_endpoint`
+and `token_endpoint` remain the OCI Identity Domain URLs. Keep the separate
+`MCP_OAUTH_ISSUER=https://identity.oraclecloud.com/` value unchanged: that is
+for validating OCI's issued JWTs, not for client discovery.
+
+### Identity Domain application checklist
+
+The deploy script can pass environment variables and create the container, but
+these OAuth-client controls remain a deliberate Identity Domain administrator
+action:
+
+1. Enable **Authorization Code** for the application used by Codex.
+2. Enable PKCE with `S256` and permit public-client token exchange (`none`),
+   because Codex does not provide an OCI client secret.
+3. Grant the application the MCP resource scope (`read`; OCI may require its
+   fully-qualified request spelling `oci-policy-analysis-mcpread`).
+4. Assign the intended user/group access to the application.
+5. Do not register the LB's `/mcp` URL as a redirect URI. It is the resource
+   server, not Codex's callback receiver.
+6. After the first successful `codex mcp login` begins, copy the **full**
+   derived loopback redirect URI that Codex sends in `redirect_uri` and add it
+   exactly to the Integrated Application. Codex appends a server-specific
+   suffix to the configured base callback URL.
+
+For a local workstation, configure the Codex global callback base once:
+
+```toml
+mcp_oauth_callback_url = "http://127.0.0.1:9999/oauth/callback"
+mcp_oauth_callback_port = 9999
+mcp_oauth_credentials_store = "auto"
+```
+
+Then add or enable the Streamable HTTP MCP entry, set its OAuth client ID and
+resource URL, and run:
+
+```bash
+codex mcp login <server-name> --scopes oci-policy-analysis-mcpread
+```
+
+### Deployment order
+
+1. Create the OCIR repository and build/push an image with
+   `local-build-push-mcp-ocir.sh`.
+2. Configure the Identity Domain resource server/client controls above.
+3. Configure the HTTPS LB, certificate, backend health check, and NSGs.
+4. Run `local-deploy-mcp-container-instance.sh` with the regular OAuth values
+   plus the three shim variables when needed.
+5. Verify `/health`, protected-resource metadata, and authorization-server
+   metadata through the LB before enabling the Codex entry.
+6. Run `codex mcp login`, register its derived callback URI in the Identity
+   Domain app, and repeat login to complete the authorization-code flow.
+
 ## 1. App Creation: resource server, OAuth client, and scopes
 
 Create one **Confidential Application** in the target OCI IAM Identity Domain.

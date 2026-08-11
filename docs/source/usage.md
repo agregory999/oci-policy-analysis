@@ -1,17 +1,51 @@
-# UI Application - Usage
+# Usage
 
-## Getting Started
+This guide explains how to use the interactive desktop and web applications after installation. For installation, authentication, OCI permissions, and deployment options, see the [Setup Guide](./setup.md). CLI and standalone MCP workflows have their own [CLI](./cli.md) and [MCP Server](./mcp.md) guides.
 
-OCI Policy Analysis is multi-modal. The main startup modes are:
+## The usual workflow
 
-1. Desktop UI (Tkinter)
-2. Web UI (FastAPI/static pages)
-3. Command Line access (CLI)
-4. Model Context Protocol (MCP Server)
+1. **Choose a data source.** Load current data from OCI, open a saved combined cache, or import OCI CIS Compliance output. The [data-source setup](./setup.md#choose-a-data-source) section explains what each option provides and where the data comes from.
+2. **Load the dataset.** In the desktop application, start on **Settings**. In the web application, use the data operations on the home page. Every analysis page uses the currently loaded dataset.
+3. **Investigate the question.** Start with Policy Browser or Policy Analysis, then move to the identity, permissions, historical, or specialist views that fit the question.
+4. **Validate the result.** Use Condition Tester, API Simulation, Permissions Report, or the policy-statement detail view to understand why access is granted, denied, or flagged.
+5. **Export, compare, or share.** Save a cache for later comparison, export a report, or expose the loaded dataset through MCP when appropriate.
 
-For CLI/MCP details, see their dedicated pages. This page focuses on the interactive UI, with the MCP server kept on its own page.
+### Pick the right data source
 
-If you have not yet built or installed the application, please see the [Setup Guide](./setup.md).
+- **Live OCI load** reads the current tenancy through your configured OCI authentication. It is the best choice when current policy and identity data is required.
+- **Combined cache** reopens data previously saved by the application. It is useful for repeatable analysis, historical comparison, and working without current OCI access.
+- **CIS Compliance output** imports the supplied compliance CSV output directory. It is the best choice when the analysis environment must not connect directly to a tenancy.
+
+The application analyzes the selected data; it does not change IAM policies or other OCI resources.
+
+## Starting the interactive application
+
+Use the startup command for the interface you installed:
+
+```bash
+oci-policy-analysis-ui                 # desktop
+oci-policy-analysis-web                # web on http://127.0.0.1:8000
+```
+
+### Desktop startup options
+
+```bash
+oci-policy-analysis-ui --verbose
+```
+
+`--verbose` enables detailed application logging for troubleshooting. Desktop has no normal host, port, or data-source command-line options; select the data source from **Settings** after launch.
+
+### Web startup options
+
+```bash
+oci-policy-analysis-web --host 127.0.0.1 --port 8000
+oci-policy-analysis-web --host 0.0.0.0 --port 8080
+oci-policy-analysis-web --reload       # local development only
+```
+
+`--host` controls the listening interface and defaults to `127.0.0.1`; `--port` defaults to `8000`. Use `0.0.0.0` only when clients or a reverse proxy must reach the server. `--reload` restarts the server when source files change and is not intended for production. On each startup, copy the runtime access key from the server log into the browser login modal.
+
+For CLI and MCP startup options, use `oci-policy-analysis-cli --help` and `oci-policy-analysis-mcp --help`, then see their dedicated [CLI](./cli.md) and [MCP Server](./mcp.md) guides.
 
 ## Analysis Concepts
 
@@ -54,40 +88,6 @@ Tag-based policy search is also a distinct advanced path.
 - Use the dedicated [Tag-based Policy Search](./tag_based.md) page for parsed tag conditions, semantic tag access, and tag metadata filters.
 - The Policy tab still exposes a `Tag-based` helper for quick filtering.
 - Tag-based workflows share the same underlying parsed-condition model as the tag-focused page and MCP tool.
-
-## Starting the UI
-
-You can launch UI workflows in either desktop or web mode.
-
-**Desktop executable**  
-Most desktop users can double-click the downloaded executable. On first launch (Mac/Windows), you may need to allow permissions.
-
-**Desktop from source**  
-```bash
-python3 -V              # Should be 3.12.x
-python3 -m venv .venv
-source .venv/bin/activate    # On Windows: .venv\Scripts\activate
-pip install -e .
-python -m oci_policy_analysis.main
-```
-
-**Web from source (no desktop/Tk usage)**
-
-```bash
-python3 -V              # Should be 3.12.x
-python3 -m venv .venv
-source .venv/bin/activate    # On Windows: .venv\Scripts\activate
-pip install -e ".[web]"
-oci-policy-analysis-web --host 127.0.0.1 --port 8000
-```
-
-Then browse to: `http://127.0.0.1:8000`
-
-In web mode, start with the home page and follow card-based flows into Policy Analysis, Users/Groups, Dynamic Groups, Recommendations, Historical Analysis, Consolidation Workbench, and Reference Data utilities.
-
-If you run into issues, consult the [Setup Guide](./setup.md) for troubleshooting.
-
----
 
 ## Desktop UI
 

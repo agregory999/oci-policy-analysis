@@ -7,7 +7,7 @@
 - a **CLI** for automation and offline workflows
 - an **MCP Server** for AI tooling integrations (Claude, VS Code MCP, etc.)
 
-The core goal across all modes is the same: analyze and explain OCI IAM policies, dynamic groups, principals, and effective access.
+The core goal across all modes is the same: analyze and explain OCI IAM policies, dynamic groups, principals, and effective access. You can load data directly from OCI, reuse a local combined cache, or import OCI CIS Compliance output when the tool must not connect to a tenancy.
 
 ## Core Capabilities
 
@@ -34,28 +34,34 @@ The application supports **Instance Principal**, **OCI profile/config**, and **S
 
 > This is a living matrix and can be updated as parity evolves.
 
-| Capability | Desktop UI | Web UI | CLI | MCP |
+| Capability | Desktop | Web | CLI | MCP |
 |---|---|---|---|---|
-| Load live tenancy data from OCI | ✅ | ✅ | ✅ | ✅ |
-| Load/use local combined cache | ✅ | ✅ | ✅ | ✅ |
-| Load/use CIS Compliance Data | ✅ | ✅ | ❌ | ❌ |
+| Live OCI data | ✅ | ✅ | ✅ | ✅ |
+| Combined cache | ✅ | ✅ | ✅ | ✅ |
+| CIS data import | ✅ | ✅ | ✅ | ❌ |
 | Interactive UI | ✅ | ✅ | ❌ | ❌ |
-| Rich Policy filtering/search | ✅ | ✅ | ⚠️ Limited | ✅ (tool calls) |
-| Historical comparison | ✅ | ✅ | ❌ | ⚠️ Limited |
-| Consolidation workflows/workbench | ✅ | ✅ | ❌ | ❌ |
-| Prospective statements editor/workbench | ✅ | ✅ | ❌ | ⚠️ Via tools |
-| Recommendations calculation/display and actionable guidance | ✅ | ✅ | ❌ Not exposed | ❌ Not exposed |
-| Permissions report | ✅ | ✅ | ⚠️ Export only | ❌ Not exposed |
-| API simulation | ✅ | ✅ | ❌ | ✅ (tool calls) |
-| AI assistant integration | ✅ (embedded MCP tab) | ⚠️ Indirect | ⚠️ Indirect | ✅ Native purpose |
-| Best fit: human exploratory analysis | ✅ Best | ✅ Good | ❌ | ❌ |
-| Best fit: Admin Team Analysis | ✅ Best | ✅ Good | ⚠️ Limited | ⚠️ Tool-driven |
-| Best fit: automation/scripting | ⚠️ | ⚠️ | ✅ Best | ✅ Best |
+| Policy search | ✅ | ✅ | ⚠️ | ✅ |
+| Historical comparison | ✅ | ✅ | ❌ | ⚠️ |
+| Consolidation | ✅ | ✅ | ❌ | ❌ |
+| Prospective editor | ✅ | ✅ | ❌ | ⚠️ |
+| Recommendations | ✅ | ✅ | ❌ | ❌ |
+| Permissions report | ✅ | ✅ | ⚠️ | ❌ |
+| API simulation | ✅ | ✅ | ❌ | ✅ |
+| AI/MCP integration | ✅ | ⚠️ | ⚠️ | ✅ |
+| Human analysis | ✅ | ✅ | ❌ | ❌ |
+| Team analysis | ✅ | ✅ | ⚠️ | ⚠️ |
+| Automation | ⚠️ | ⚠️ | ✅ | ✅ |
 
 **Legend**
 - ✅ Fully supported
 - ⚠️ Partial/in progress
 - ❌ Not intended for that mode
+
+**Notes**
+
+- The CLI imports OCI CIS Compliance CSV output with `--load-from-compliance`; it does not provide an interactive UI.
+- MCP capabilities are exposed through tool calls. The desktop app includes an embedded MCP server; web and CLI can use MCP indirectly.
+- The CLI permissions report is export-only. See the mode-specific guides for supported options and workflows.
 
 ## Run Modes (Architecture-at-a-Glance)
 

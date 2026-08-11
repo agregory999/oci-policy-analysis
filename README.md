@@ -1,48 +1,84 @@
 # OCI Policy Analysis
 
-Analyze Oracle Cloud IAM policies and identity data through a desktop application,
-a browser-based application, the CLI, or MCP.
+Analyze OCI IAM policies, compartments, identity domains, groups, users, and dynamic groups from a desktop app, web app, CLI, or MCP server. The tool is read-only: it analyzes data but does not change your tenancy.
 
-## Getting started
+## Quick start
 
-Choose one of the two interactive applications.
+Choose the path that fits you:
 
-### Desktop application
+- **Desktop:** local, single-user visual analysis.
+- **Web:** browser-based access, locally or for a team.
+- **CLI:** scripting, exports, and automation.
+- **MCP:** use OCI policy data with an MCP client.
 
-Requires Python 3.12+ and a working Tk installation.
+### Easiest: download an application
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-oci-policy-analysis-ui
-```
+Download the latest macOS or Windows application from the [Releases page](https://github.com/agregory999/oci-policy-analysis/releases). If your operating system asks for approval, allow the downloaded application to run.
 
-You can also launch the source entry point with `python -m oci_policy_analysis.main`.
+### Install with pip
 
-### Web application
+You need Python 3.12 or later. Create and activate a virtual environment:
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
+
+# macOS/Linux
 source .venv/bin/activate
-pip install -e ".[web]"
-oci-policy-analysis-web --host 127.0.0.1 --port 8000
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
-Open <http://127.0.0.1:8000> in a browser.
+Install only the mode you intend to use:
 
-## Full documentation
+```bash
+# Desktop application (requires a working Tkinter installation)
+python -m pip install oci-policy-analysis
 
-See the [full documentation](https://agregory999.github.io/oci-policy-analysis)
-for setup details, authentication, UI workflows, CLI and MCP usage, deployment,
-architecture, and the API reference.
+# Browser-based web server
+python -m pip install "oci-policy-analysis[web]"
 
-The repository also contains [maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/README.md),
-which is kept separate from the published user documentation.
+# Command-line interface
+python -m pip install oci-policy-analysis
 
-## Other entry points
+# MCP server
+python -m pip install "oci-policy-analysis[mcp]"
+```
 
-- `oci-policy-analysis-cli` for non-interactive policy analysis.
-- `oci-policy-analysis-mcp` for the standalone MCP server.
+Start the selected mode:
 
-The project is licensed under the UPL-1.0 license.
+```bash
+oci-policy-analysis-ui                 # Desktop
+oci-policy-analysis-web                # Web: open http://127.0.0.1:8000
+oci-policy-analysis-cli --help         # CLI
+oci-policy-analysis-mcp --help         # MCP
+```
+
+For the desktop app, confirm Tkinter works before starting if needed - one time test:
+
+```bash
+python -m tkinter
+```
+
+## Choose your data source
+
+You do **not** have to connect this tool to a live tenancy.
+
+- **Live OCI load:** requires an OCI user/API-key profile, session token, instance principal, or resource principal **and** IAM permissions granted to that principal. Before loading a tenancy, complete [Authentication and principals](docs/source/setup.md#authentication-and-principals) and [Permissions required](docs/source/setup.md#permissions-required).
+- **Offline CIS compliance import:** import the directory of OCI CIS Compliance output files instead. This lets you analyze the supplied data without the tool connecting to your tenancy. In the desktop or web app, choose **Load Compliance Data**; from the CLI, use:
+
+  ```bash
+  oci-policy-analysis-cli --load-from-compliance /path/to/compliance_csv_output
+  ```
+
+  See the [CLI guide](docs/source/cli.md) for expected files and options.
+
+## More help
+
+The [full documentation](https://agregory999.github.io/oci-policy-analysis) covers mode-specific setup, OCI authentication and permissions, CIS compliance imports, web hosting, CLI and MCP usage, troubleshooting, architecture, and API reference.
+
+## License and support
+
+Licensed under UPL-1.0.
+
+This is not an Oracle-supported application. It uses supported OCI Python SDK calls and is designed to request the minimum access needed to read and analyze the selected data.

@@ -74,5 +74,6 @@ include = ["oci_policy_analysis*"]
     "logic/parsers/*.txt",
     "logic/parsers/*.jar",
     "ui/*.txt",
+    "ai_tested_models.json",
 ]
-"oci_policy_analysis.web" = ["static/*", "static/**/*"]
+"oci_policy_analysis.presentation.web" = ["static/*", "static/**/*"]

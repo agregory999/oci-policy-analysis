@@ -450,7 +450,7 @@ In this production deployment, the MCP server runs on an OCI compute instance wi
 
 For OCI Container Instance deployment (OCIR image + private subnet + instance principal default runtime), follow:
 
-- [MCP Deployment on OCI Container Instance](setup_mcp_container_instance.md)
+- [Containerized MCP on OCI Container Instances](setup.md#containerized-mcp-on-oci-container-instances)
 
 **Configuration for Claude:**
 ```json
@@ -543,7 +543,7 @@ For a containerized standalone MCP deployment on OCI:
 
 Full procedure:
 
-- [MCP Deployment on OCI Container Instance](setup_mcp_container_instance.md)
+- [Containerized MCP on OCI Container Instances](setup.md#containerized-mcp-on-oci-container-instances)
 
 ## Available MCP Tools
 

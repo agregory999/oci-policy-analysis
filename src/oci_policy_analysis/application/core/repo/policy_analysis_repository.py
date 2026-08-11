@@ -87,6 +87,24 @@ CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
 VALID_VERBS = {'inspect', 'read', 'use', 'manage'}
 
 
+def _resolve_compliance_output_csv(dir_path: str, filename: str, *, required: bool = True) -> str | None:
+    """Return a legacy or directory-prefixed CIS Compliance output CSV path."""
+
+    output_dir = Path(dir_path)
+    candidates = (
+        output_dir / filename,
+        output_dir / f'{output_dir.name}_{filename}',
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    if required:
+        expected = ', '.join(str(candidate) for candidate in candidates)
+        raise FileNotFoundError(f'Compliance output file not found. Expected one of: {expected}')
+    return None
+
+
 class PolicyAnalysisRepository:
     """
     This is the main data repository for Policy, Identity, and Compartment data
@@ -3358,8 +3376,8 @@ class PolicyAnalysisRepository:
         # When present, we use that compartment_id to seed self.tenancy_ocid so that
         # downstream usage/limits logic (including usage tracking) has a correct
         # tenancy OCID even if the compartments CSV is incomplete.
-        domains_csv_path = os.path.join(dir_path, 'raw_data_identity_domains.csv')
-        if os.path.exists(domains_csv_path):
+        domains_csv_path = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_domains.csv', required=False)
+        if domains_csv_path:
             try:
                 with open(domains_csv_path, encoding='utf-8') as f:
                     reader = csv.DictReader(f)
@@ -3382,7 +3400,8 @@ class PolicyAnalysisRepository:
         # We need to only use the CSV files and stop using the JSON file altogether
         try:
             # Step 1: Set the tenancy OCID and Name from the data
-            with open(os.path.join(dir_path, 'raw_data_identity_compartments.csv'), encoding='utf-8') as f:
+            compartments_csv_path = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_compartments.csv')
+            with open(compartments_csv_path, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if row.get('id', '').startswith('ocid1.tenancy.'):
@@ -3402,7 +3421,7 @@ class PolicyAnalysisRepository:
                 return False
 
             # --- Step 2: Load Dynamic Groups ---
-            dgs_file = os.path.join(dir_path, 'raw_data_identity_dynamic_groups.csv')
+            dgs_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_dynamic_groups.csv')
             with open(dgs_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
@@ -3433,7 +3452,7 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups from CSV')
 
             # --- Step 3: Load Groups ---
-            groups_file = os.path.join(dir_path, 'raw_data_identity_groups_and_membership.csv')
+            groups_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_groups_and_membership.csv')
             user_membership: dict[str, list[str]] = {}
             user_domains: dict[str, str] = {}
             seen_groups = set()
@@ -3467,7 +3486,7 @@ class PolicyAnalysisRepository:
             # --- Step 4: Load Users, unless disabled ---
             self.users = []
             if load_all_users:
-                users_file = os.path.join(dir_path, 'raw_data_identity_users.csv')
+                users_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_users.csv')
                 with open(users_file, encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for user_item in reader:
@@ -3507,7 +3526,7 @@ class PolicyAnalysisRepository:
                 logger.info('Skipping load of users due to load_all_users=False')
 
             # -- Step 5: Load Compartments ---
-            compartments_file = os.path.join(dir_path, 'raw_data_identity_compartments.csv')
+            compartments_file = compartments_csv_path
             with open(compartments_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 # Iterate compartments and add to list
@@ -3552,7 +3571,7 @@ class PolicyAnalysisRepository:
                 logger.info(f"Compartment: {comp.get('name','n/a')} Path: {comp.get('hierarchy_path','n/a')}")
 
             # --- Step 6: Load Policies ---
-            compartments_file = os.path.join(dir_path, 'raw_data_identity_policies.csv')
+            compartments_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_policies.csv')
             with open(compartments_file, encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for policy_item in reader:

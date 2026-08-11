@@ -47,14 +47,17 @@ import threading  # noqa: E402
 from collections import Counter  # noqa: E402
 from datetime import UTC, datetime  # noqa: E402
 from typing import Any, Literal  # noqa: E402
+from urllib.parse import urlsplit  # noqa: E402
 
 from fastmcp import FastMCP  # noqa: E402
 from fastmcp.exceptions import ToolError  # noqa: E402
 from fastmcp.server.auth import RemoteAuthProvider  # noqa: E402
 from fastmcp.server.auth.providers.jwt import JWTVerifier  # noqa: E402
 from fastmcp.server.dependencies import get_access_token  # noqa: E402
+from mcp.server.auth.middleware.bearer_auth import RequireAuthMiddleware  # noqa: E402
 from mcp.server.auth.routes import create_protected_resource_routes  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402
+from starlette.routing import Route  # noqa: E402
 from uvicorn import Server  # noqa: E402
 
 from oci_policy_analysis.application.context import AppContext  # noqa: E402
@@ -216,28 +219,163 @@ def _oauth_authorization_scopes(validation_scopes: list[str]) -> list[str]:
     return configured or validation_scopes
 
 
-class _RemoteAuthProviderWithAdvertisedScopes(RemoteAuthProvider):
-    """Remote provider that can advertise request scopes distinct from JWT scopes."""
+def _oauth_authorization_server_metadata(
+    authorization_scopes: list[str],
+) -> tuple[str, dict[str, Any]] | None:
+    """Build an optional local OAuth metadata compatibility document.
+
+    OCI Identity Domains can publish discovery on a tenant-specific hostname
+    while declaring a different canonical issuer. Some MCP clients require the
+    advertised authorization-server URL and metadata ``issuer`` to match. This
+    shim fixes only that discovery identity; authorize and token requests still
+    go directly to OCI Identity Domains.
+    """
+
+    metadata_issuer = os.environ.get('MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER', '').strip().rstrip('/')
+    if not metadata_issuer:
+        return None
+
+    authorization_endpoint = os.environ.get('MCP_OAUTH_AUTHORIZATION_ENDPOINT', '').strip()
+    token_endpoint = os.environ.get('MCP_OAUTH_TOKEN_ENDPOINT', '').strip()
+    missing = [
+        name
+        for name, value in (
+            ('MCP_OAUTH_AUTHORIZATION_ENDPOINT', authorization_endpoint),
+            ('MCP_OAUTH_TOKEN_ENDPOINT', token_endpoint),
+        )
+        if not value
+    ]
+    parsed = urlsplit(metadata_issuer)
+    if parsed.scheme != 'https' or not parsed.netloc:
+        missing.append('MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER (must be an HTTPS URL)')
+    if missing:
+        raise ValueError('OAuth authorization-server metadata shim is incomplete: ' + ', '.join(missing))
+
+    return (
+        metadata_issuer,
+        {
+            'issuer': metadata_issuer,
+            'authorization_endpoint': authorization_endpoint,
+            'token_endpoint': token_endpoint,
+            'response_types_supported': ['code'],
+            'grant_types_supported': ['authorization_code'],
+            'token_endpoint_auth_methods_supported': ['none'],
+            'code_challenge_methods_supported': ['S256'],
+            'scopes_supported': authorization_scopes,
+        },
+    )
+
+
+def _oauth_authorization_server_metadata_paths(metadata_issuer: str) -> tuple[str, ...]:
+    """Return RFC 8414 and endpoint-relative discovery aliases for an issuer."""
+
+    parsed = urlsplit(metadata_issuer)
+    issuer_path = parsed.path.rstrip('/')
+    standard_path = f'/.well-known/oauth-authorization-server{issuer_path}'
+    endpoint_relative_path = f'{issuer_path}/.well-known/oauth-authorization-server'
+    return tuple(dict.fromkeys((standard_path, endpoint_relative_path)))
+
+
+class _RequireAuthMiddlewareWithAdvertisedScopes(RequireAuthMiddleware):
+    """Add the OAuth request scope to MCP's unauthenticated bearer challenge."""
 
     def __init__(self, *args: Any, advertised_scopes: list[str], **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.advertised_scopes = advertised_scopes
 
+    async def _send_auth_error(self, send: Any, status_code: int, error: str, description: str) -> None:
+        www_auth_parts = [f'error="{error}"', f'error_description="{description}"']
+        if self.resource_metadata_url:
+            www_auth_parts.append(f'resource_metadata="{self.resource_metadata_url}"')
+        if self.advertised_scopes:
+            www_auth_parts.append(f'scope="{" ".join(self.advertised_scopes)}"')
+
+        body = {'error': error, 'error_description': description}
+        body_bytes = json.dumps(body).encode()
+        await send(
+            {
+                'type': 'http.response.start',
+                'status': status_code,
+                'headers': [
+                    (b'content-type', b'application/json'),
+                    (b'content-length', str(len(body_bytes)).encode()),
+                    (b'www-authenticate', f'Bearer {", ".join(www_auth_parts)}'.encode()),
+                ],
+            }
+        )
+        await send({'type': 'http.response.body', 'body': body_bytes})
+
+
+class _RemoteAuthProviderWithAdvertisedScopes(RemoteAuthProvider):
+    """Remote provider that can advertise request scopes distinct from JWT scopes."""
+
+    def __init__(
+        self,
+        *args: Any,
+        advertised_scopes: list[str],
+        authorization_server_metadata: tuple[str, dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.advertised_scopes = advertised_scopes
+        self.authorization_server_metadata = authorization_server_metadata
+
     def get_routes(self, mcp_path: str | None = None, mcp_endpoint: Any | None = None):
         # Keep the verifier's short scopes for request authentication, but
         # publish OCI's fully-qualified scopes in protected-resource metadata.
-        routes = super(RemoteAuthProvider, self).get_routes(mcp_path, mcp_endpoint)
-        resource_url = self._get_resource_url(mcp_path)
-        if resource_url:
-            routes.extend(
-                create_protected_resource_routes(
-                    resource_url=resource_url,
-                    authorization_servers=self.authorization_servers,
-                    scopes_supported=self.advertised_scopes,
-                    resource_name=self.resource_name,
-                    resource_documentation=self.resource_documentation,
+        routes = []
+        if mcp_path and mcp_endpoint:
+            resource_metadata_url = self._get_resource_url('/.well-known/oauth-protected-resource')
+            routes.append(
+                Route(
+                    mcp_path,
+                    endpoint=_RequireAuthMiddlewareWithAdvertisedScopes(
+                        mcp_endpoint,
+                        self.required_scopes,
+                        resource_metadata_url,
+                        advertised_scopes=self.advertised_scopes,
+                    ),
                 )
             )
+        resource_url = self._get_resource_url(mcp_path)
+        if resource_url:
+            metadata_routes = create_protected_resource_routes(
+                resource_url=resource_url,
+                authorization_servers=self.authorization_servers,
+                scopes_supported=self.advertised_scopes,
+                resource_name=self.resource_name,
+                resource_documentation=self.resource_documentation,
+            )
+            routes.extend(metadata_routes)
+
+            # RFC 9728 discovery can be resolved relative to the protected
+            # endpoint. FastMCP's bearer challenge names this path (for example
+            # ``/mcp/.well-known/oauth-protected-resource``), while the MCP
+            # helper only adds the root well-known route. Serve both aliases.
+            if mcp_path:
+                normalized_mcp_path = mcp_path.rstrip('/')
+                metadata_paths = (
+                    f'{normalized_mcp_path}/.well-known/oauth-protected-resource',
+                    f'/.well-known/oauth-protected-resource{normalized_mcp_path}',
+                )
+                for metadata_path in metadata_paths:
+                    for route in metadata_routes:
+                        routes.append(Route(metadata_path, endpoint=route.endpoint, methods=['GET', 'OPTIONS']))
+
+        if self.authorization_server_metadata:
+            metadata_issuer, metadata = self.authorization_server_metadata
+
+            async def authorization_server_metadata_endpoint(_request: Any) -> JSONResponse:
+                return JSONResponse(metadata, headers={'Cache-Control': 'public, max-age=3600'})
+
+            for metadata_path in _oauth_authorization_server_metadata_paths(metadata_issuer):
+                routes.append(
+                    Route(
+                        metadata_path,
+                        endpoint=authorization_server_metadata_endpoint,
+                        methods=['GET', 'OPTIONS'],
+                    )
+                )
         return routes
 
 
@@ -297,6 +435,10 @@ Required environment variables:
 
 Optional environment variables:
   export MCP_OAUTH_UPDATE_SCOPE="update"
+  # Optional OCI Identity Domain metadata compatibility shim.
+  export MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_ISSUER="https://<mcp-public-host>/oauth/oci-idcs"
+  export MCP_OAUTH_AUTHORIZATION_ENDPOINT="https://idcs-<id>.identity.oraclecloud.com/oauth2/v1/authorize"
+  export MCP_OAUTH_TOKEN_ENDPOINT="https://idcs-<id>.identity.oraclecloud.com/oauth2/v1/token"
   export MCP_OAUTH_ALGORITHM="RS256"
 
 Copy the required block, replace placeholder values from the OCI Identity Domain application, then rerun the MCP server."""
@@ -318,7 +460,7 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
         missing.append('MCP_OAUTH_REQUIRED_SCOPES')
 
     if missing:
-        message = f"Missing required OAuth environment variables: {', '.join(missing)}\n\n{_oauth_env_help()}"
+        message = f'Missing required OAuth environment variables: {", ".join(missing)}\n\n{_oauth_env_help()}'
         logger.error(message)
         raise ValueError(message)
 
@@ -328,6 +470,10 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
     resource_server_url = os.environ['MCP_OAUTH_RESOURCE_SERVER_URL'].strip()
     authorization_server_url = os.environ['MCP_OAUTH_AUTHORIZATION_SERVER_URL'].strip()
     algorithm = os.environ.get('MCP_OAUTH_ALGORITHM', 'RS256').strip() or 'RS256'
+    authorization_server_metadata = _oauth_authorization_server_metadata(authorization_scopes)
+    advertised_authorization_server_url = (
+        authorization_server_metadata[0] if authorization_server_metadata else authorization_server_url
+    )
 
     logger.info('MCP OAuth is enabled.')
     logger.info('MCP OAuth issuer: %s', issuer)
@@ -339,6 +485,12 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
     if _oauth_update_scope():
         logger.info('MCP OAuth update scope: %s', _oauth_update_scope())
     logger.info('MCP OAuth protected resource URL: %s', resource_server_url)
+    if authorization_server_metadata:
+        logger.info(
+            'MCP OAuth authorization-server metadata shim: %s -> %s',
+            advertised_authorization_server_url,
+            authorization_server_url,
+        )
 
     verifier = JWTVerifier(
         jwks_uri=jwks_uri,
@@ -350,10 +502,11 @@ def _build_oauth_auth_provider_from_env() -> RemoteAuthProvider | None:
     )
     return _RemoteAuthProviderWithAdvertisedScopes(
         token_verifier=verifier,
-        authorization_servers=[authorization_server_url],
+        authorization_servers=[advertised_authorization_server_url],
         base_url=resource_server_url,
         resource_name='OCI Policy Analysis MCP',
         advertised_scopes=authorization_scopes,
+        authorization_server_metadata=authorization_server_metadata,
     )
 
 

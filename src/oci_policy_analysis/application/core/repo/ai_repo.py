@@ -14,11 +14,13 @@
 # coding: utf-8
 ##########################################################################
 
+import json
 import queue
+from importlib.resources import files
 
 from oci import config
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner, SecurityTokenSigner
-from oci.exceptions import ConfigFileNotFound, ServiceError
+from oci.exceptions import ServiceError
 from oci.generative_ai import GenerativeAiClient
 from oci.generative_ai_inference import GenerativeAiInferenceClient
 from oci.generative_ai_inference.models import (
@@ -29,12 +31,38 @@ from oci.generative_ai_inference.models import (
     OnDemandServingMode,
     TextContent,
 )
+from oci.identity import IdentityClient
 from oci.signer import load_private_key_from_file
 
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 # Global logger for this module
 logger = get_logger(component='core.repo.ai_repo')
+
+
+def load_ai_model_config() -> dict[str, object]:
+    """Load the user-maintained AI model test and inference configuration."""
+    try:
+        resource = files('oci_policy_analysis.application.core.resources').joinpath('ai_tested_models.json')
+        data = json.loads(resource.read_text(encoding='utf-8'))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, AttributeError) as exc:
+        logger.warning('Unable to load AI tested-model list: %s', exc)
+        return {}
+
+
+def load_tested_model_ids() -> set[str]:
+    """Load the small, user-maintained set of known-working model identifiers."""
+    data = load_ai_model_config()
+    return {str(value).strip() for value in data.get('tested_model_ids', []) if str(value).strip()}
+
+
+def load_inference_model_overrides() -> dict[str, str]:
+    """Load management-OCID to inference-model-name overrides."""
+    overrides = load_ai_model_config().get('inference_model_overrides', {})
+    if not isinstance(overrides, dict):
+        return {}
+    return {str(key).strip(): str(value).strip() for key, value in overrides.items() if key and value}
 
 
 class AI:
@@ -67,6 +95,7 @@ class AI:
             if use_instance_principal:
                 logger.debug('Using Instance Principal Authentication for AI')
                 self.signer = InstancePrincipalsSecurityTokenSigner()
+                self.config = {}
                 self.genai_client = GenerativeAiClient(config={}, signer=self.signer)
                 self.genai_inference_client = GenerativeAiInferenceClient(config={}, signer=self.signer)
                 self.tenancy_ocid = self.signer.tenancy_id
@@ -85,6 +114,7 @@ class AI:
                     config={'region': self.config['region']}, signer=self.signer
                 )
                 self.tenancy_ocid = self.config['tenancy']
+                self.region = self.config['region']
                 logger.info('Success session auth')
             else:
                 logger.debug(f'Using Profile Authentication for AI: {profile}')
@@ -99,7 +129,7 @@ class AI:
             self.base_endpoint = f'https://inference.generativeai.{self.region}.oci.oraclecloud.com'
             self.initialized = True
             return True
-        except (ConfigFileNotFound, Exception) as exc:
+        except Exception as exc:
             logger.fatal(f'Authentication failed: {exc}')
             return False
 
@@ -116,6 +146,33 @@ class AI:
         self.model_ocid = model_ocid
         self.endpoint = endpoint
         self.compartment_ocid = compartment_ocid
+        # The endpoint entry must affect the client used by chat(); retaining
+        # it only as a setting makes tests misleading because requests continue
+        # to use the endpoint selected during client initialization.
+        if getattr(self, 'genai_inference_client', None) is not None and endpoint:
+            self.genai_inference_client.base_client.endpoint = endpoint.rstrip('/')
+
+    def list_subscribed_regions(self) -> list[str]:
+        """Return regions subscribed by the authenticated tenancy."""
+        signer = getattr(self, 'signer', None)
+        if signer is not None:
+            identity_client = IdentityClient(config={}, signer=signer)
+        elif getattr(self, 'config', None):
+            identity_client = IdentityClient(getattr(self, 'config', {}))
+        else:
+            raise RuntimeError('AI authentication is not initialized')
+        response = identity_client.list_region_subscriptions(self.tenancy_ocid)
+        return sorted(region.region_name for region in (response.data or []) if getattr(region, 'region_name', None))
+
+    def set_region(self, region: str) -> None:
+        """Point management and inference clients at a subscribed region."""
+        region = region.strip()
+        if not region:
+            raise ValueError('Region cannot be empty')
+        self.region = region
+        self.base_endpoint = f'https://inference.generativeai.{region}.oci.oraclecloud.com'
+        self.genai_client.base_client.endpoint = f'https://generativeai.{region}.oci.oraclecloud.com'
+        self.genai_inference_client.base_client.endpoint = self.base_endpoint
 
     def _create_chat_request(self, prompt) -> ChatDetails:
         """Create a Chat Request for the given prompt.
@@ -172,6 +229,7 @@ class AI:
                     'Creation Date': model.time_created.isoformat() if model.time_created else 'N/A',
                 }
                 for model in response.data.items
+                if 'CHAT' in (model.capabilities or [])
             ]
             logger.info('Retrieved %d models from list_models', len(models))
             return models
@@ -237,13 +295,15 @@ class AI:
                 result = content if isinstance(content, str) else str(content)
             else:
                 logger.error('AI chat response was None or incomplete (missing required attributes)')
-                result = 'Error: GenAI service response incomplete or None'
+                result = 'Error: GenAI response incomplete; enable detailed logging for diagnostics'
         except ServiceError as e:
-            logger.error(f'Ai Service error: {e}')
-            result = f'Error: GenAI service error ({e.status})'
+            logger.error(
+                'AI service error: model=%s endpoint=%s status=%s: %s', self.model_ocid, self.endpoint, e.status, e
+            )
+            result = f'Error: GenAI service returned HTTP {e.status}; enable detailed logging for diagnostics'
         except Exception as e:
-            logger.error(f'Unexpected error: {e}')
-            result = f'Error: {str(e)}'
+            logger.error('Unexpected AI error: model=%s endpoint=%s', self.model_ocid, self.endpoint, exc_info=True)
+            result = f'Error: GenAI request failed ({type(e).__name__}); enable detailed logging for diagnostics'
         if queue is not None:
             queue.put(result)
         else:

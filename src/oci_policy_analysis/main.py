@@ -1215,6 +1215,14 @@ class App(tk.Tk):
                     run_post_load_intelligence=False,
                 )
                 success = bool(result.success)
+                if not success:
+                    popup_final_message = result.message
+                    logger.error(popup_final_message)
+                    error_cb = callback.get('error') if callback else None
+                    if error_cb is not None and callable(error_cb):
+                        self.after(0, lambda m=popup_final_message: error_cb(False, m, True))
+                    return
+
                 # Update usage tracking tenancy suffix for compliance-output loads
                 try:
                     tracker = get_usage_tracker()
