@@ -1,5 +1,3 @@
-   :parser: myst_parser.sphinx_
-
 Full documentation
 ==================
 
