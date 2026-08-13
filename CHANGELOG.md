@@ -1,3 +1,15 @@
+## [6.4.0-restore-consolidation-workbench-v6-3-1.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.4.0-restore-consolidation-workbench-v6-3-1.1) (2026-08-13)
+
+
+### Features
+
+* consolidation in desktop, reports, supersession ([0f468b7](https://github.com/agregory999/oci-policy-analysis/commit/0f468b71a50379263a730ee52affd73f76800ded))
+
+
+### Bug Fixes
+
+* Docs and Compliance ([abaec41](https://github.com/agregory999/oci-policy-analysis/commit/abaec4123e900b5c50b18d283725a522f7409b59))
+
 ## [6.3.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.2.2...v6.3.0) (2026-07-07)
 
 
