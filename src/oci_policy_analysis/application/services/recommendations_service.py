@@ -56,7 +56,7 @@ class RecommendationsService:
             'summary_counts': self._summary_counts(list(overlay.get('recommendations', []) or [])),
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
-            'overlap': self._overlap_rows(),
+            'supersession': self._supersession_rows(),
             'consolidation': list(overlay.get('consolidations', []) or []),
             'cleanup': self._cleanup_rows(),
             'limits': self._limits_rows(),
@@ -68,16 +68,55 @@ class RecommendationsService:
         }
 
         self.logger.info(
-            'Recommendations dashboard payload built: summary=%s risk_policy=%s risk_statement=%s overlap=%s consolidation=%s cleanup=%s limits=%s',
+            'Recommendations dashboard payload built: summary=%s risk_policy=%s risk_statement=%s supersession=%s consolidation=%s cleanup=%s limits=%s',
             len(payload['summary']),
             len(payload['risk_policy']),
             len(payload['risk_statement']),
-            len(payload['overlap']),
+            len(payload['supersession']),
             len(payload['consolidation']),
             len(payload['cleanup']),
             len(payload['limits']),
         )
         return payload
+
+    def _supersession_rows(self) -> list[dict[str, Any]]:
+        """Build display rows while retaining complete supersession evidence.
+
+        Returns:
+            list[dict[str, Any]]: Candidate statements with their complete
+            unconditional and conditional coverage evidence.
+        """
+        repo = self.context.policy_repo
+        overlay = getattr(self.context.intelligence, 'overlay', {}) or {}
+        statements = {
+            str(statement.get('internal_id') or ''): statement
+            for statement in (getattr(repo, 'regular_statements', []) or [])
+        }
+        rows: list[dict[str, Any]] = []
+        for finding in overlay.get('supersessions', []) or []:
+            statement = statements.get(str(finding.get('statement_internal_id') or ''))
+            if not statement:
+                continue
+            evidence = finding.get('evidence', []) or []
+            rows.append(
+                {
+                    'Policy Name': statement.get('policy_name') or '',
+                    'Policy Compartment': statement.get('compartment_path') or '',
+                    'Effective Path': statement.get('effective_path') or '',
+                    'Statement Text': (statement.get('statement_text') or '')[:500],
+                    'Classification': finding.get('classification') or '',
+                    'Superseded By': ', '.join(
+                        f"{item.get('policy_name') or 'Unknown'} ({item.get('relationship') or 'Applicable scope'})"
+                        for item in evidence
+                    ),
+                    'Candidate Permissions': list(finding.get('candidate_permissions') or []),
+                    'Notes': finding.get('notes') or '',
+                    'Evidence': evidence,
+                    'Internal ID': finding.get('statement_internal_id') or '',
+                }
+            )
+        rows.sort(key=lambda row: (str(row['Effective Path']), str(row['Policy Name']), str(row['Statement Text'])))
+        return rows
 
     def _summary_counts(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         """Return severity/category counts for recommendation summary filters."""
@@ -224,35 +263,6 @@ class RecommendationsService:
                 }
             )
         rows.sort(key=lambda r: int(r.get('Max Statement Risk (Global %)', 0)), reverse=True)
-        return rows
-
-    def _overlap_rows(self) -> list[dict[str, Any]]:
-        """Build overlap rows with summary details.
-
-        Returns:
-            list[dict[str, Any]]: Rows for overlap table display.
-        """
-        repo = self.context.policy_repo
-        engine = self.context.intelligence
-        rows: list[dict[str, Any]] = []
-        for st in getattr(repo, 'regular_statements', []) or []:
-            overlaps = engine.get_policy_overlaps_by_internal_id(st.get('internal_id'))
-            if not overlaps:
-                continue
-            overlap_names = ', '.join(sorted({str(o.get('superseded_by') or 'Unknown') for o in overlaps}))
-            rows.append(
-                {
-                    'Policy Name': st.get('policy_name') or '',
-                    'Policy Compartment': st.get('compartment_path') or '',
-                    'Effective Path': st.get('effective_path') or '',
-                    'Action': st.get('action') or '',
-                    'Statement Text': (st.get('statement_text') or '')[:240],
-                    'Internal ID': st.get('internal_id') or '',
-                    'Policy Overlap': overlap_names,
-                    'Overlap Count': len(overlaps),
-                }
-            )
-        rows.sort(key=lambda r: int(r.get('Overlap Count', 0)), reverse=True)
         return rows
 
     def _cleanup_rows(self) -> list[dict[str, Any]]:

@@ -35,7 +35,7 @@ class PolicyBrowserTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'Browse all compartments, policies, and policy statements. '
+                'Browse the policy inventory across all compartments, policies, and policy statements. '
                 'Tree expands to reveal policies in each compartment and all their statement text. '
                 'Right-click a policy or statement for navigation or actions.'
             ),

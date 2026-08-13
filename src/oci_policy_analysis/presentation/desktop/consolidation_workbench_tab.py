@@ -18,19 +18,11 @@
 import time
 import tkinter as tk
 import tkinter.messagebox as tkmessagebox
-from datetime import UTC, datetime
 from tkinter import ttk
-from typing import Any, cast
 
-from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
-from oci_policy_analysis.application.core.models.models_consolidation import (
-    ConsolidationPlan,
-    ProtectedStatementReference,
-    ProtectedStatementSet,
-)
-from oci_policy_analysis.application.core.support.caching import CacheManager
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
+from oci_policy_analysis.application.services.consolidation_workbench_service import ConsolidationWorkbenchService
 from oci_policy_analysis.presentation.desktop.base_tab import BaseUITab
 from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
 
@@ -84,16 +76,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
             ),
         )
         self.app = app
-        # Engine is instantiated by App; fallback to create one if missing (defensive)
-        engine = getattr(self.app, 'consolidation_engine', None)
-        if engine and isinstance(engine, ConsolidationEngine):
-            self.engine: ConsolidationEngine = engine
-        else:
-            self.engine = ConsolidationEngine(
-                cache_mgr=CacheManager(),
-                reference_data_repo=cast(Any, getattr(self.app, 'reference_data_repo', None)),
-                policy_repo=cast(Any, getattr(self.app, 'policy_compartment_analysis', None)),
-            )
+        # Keep all consolidation behavior behind the application service used by
+        # the web workbench.
+        self.service = getattr(self.app, 'consolidation_workbench_service', None)
+        if self.service is None:
+            self.service = ConsolidationWorkbenchService(self.app.app_context)
         self.protected_statement_ids = set()
         self.candidate_statement_ids = set()
         self.protect_table_selected_ids = set()  # Persist selection as Internal IDs
@@ -371,7 +358,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         strat_row = ttk.Frame(outer)
         strat_row.pack(fill='x', padx=12, pady=(3, 2))
         ttk.Label(strat_row, text='Strategy:').pack(side='left', padx=(2, 2))
-        strategy_names = self.engine.get_strategy_display_names() if self.engine else []
+        strategy_names = self.service.get_status().get('strategy_names', [])
         default_strategy = strategy_names[0] if strategy_names else ''
         self.candidate_strategy_var = tk.StringVar(value=default_strategy)
         strat_combo = ttk.Combobox(
@@ -549,61 +536,38 @@ class ConsolidationWorkbenchTab(BaseUITab):
             ),
         )
 
+        self.btn_reset_consolidation = ttk.Button(
+            dropdown_frame,
+            text='Reset Consolidations for Tenancy',
+            command=self._reset_consolidation_for_tenancy,
+        )
+        self.btn_reset_consolidation.pack(side='left', padx=(12, 2))
+        self.add_context_help(
+            self.btn_reset_consolidation,
+            'Remove this tenancy’s protected statement set and all saved consolidation plans. This does not change OCI policies.',
+        )
+
         # --- Status in its own section (blue text, full width so reload button stays left) ---
         status_frame = ttk.Frame(parent)
         status_frame.pack(fill='x', padx=10, pady=(2, 6))
         self.plan_status_label = ttk.Label(status_frame, text='', foreground='blue', wraplength=1000, justify='left')
         self.plan_status_label.pack(anchor='w', fill='x')
 
-        # --- Plan notes (editable, left) and Skipped statements (read-only, right) ---
-        notes_skipped_frame = ttk.Frame(parent)
-        notes_skipped_frame.pack(fill='x', padx=10, pady=(2, 4))
+        # The proposal workspace deliberately uses two stable rows instead of
+        # letting the plan table consume all vertical space. This keeps the
+        # generated CLI/Console output visible at normal window sizes.
+        workspace = ttk.Frame(parent)
+        workspace.pack(fill='both', expand=True, padx=10, pady=(2, 10))
+        workspace.grid_columnconfigure(0, weight=3, uniform='proposal-top')
+        workspace.grid_columnconfigure(1, weight=1, uniform='proposal-top')
+        workspace.grid_rowconfigure(0, weight=3, uniform='proposal-rows')
+        workspace.grid_rowconfigure(1, weight=2, uniform='proposal-rows')
 
-        h_container = ttk.Frame(notes_skipped_frame)
-        h_container.pack(fill='both', expand=True)
-
-        # Left: Plan Notes
-        notes_lf = ttk.LabelFrame(h_container, text='Plan notes')
-        notes_lf.pack(side='left', fill='both', expand=True, padx=(0, 6), pady=(0, 4))
-        self.plan_notes_text = tk.Text(notes_lf, height=6, wrap='word', state='normal', width=45)
-        self.plan_notes_text.pack(fill='both', expand=True, padx=4, pady=4)
-        notes_btn_row = ttk.Frame(notes_lf)
-        notes_btn_row.pack(fill='x', padx=4, pady=(0, 4))
-        ttk.Button(notes_btn_row, text='Save notes to plan', command=self._on_save_plan_notes).pack(
-            side='left', padx=(0, 8)
-        )
-        self.add_context_help(
-            notes_lf,
-            'Optional notes for this plan (strategy or your own). Save to persist to plan history.',
-        )
-
-        # Right: Skipped Statements
-        self.skipped_statements_lf = ttk.LabelFrame(h_container, text='Skipped statements (0)')
-        self.skipped_statements_lf.pack(side='left', fill='both', expand=True, padx=(8, 0), pady=(0, 4))
-        self.skipped_statements_tree = ttk.Treeview(
-            self.skipped_statements_lf,
-            columns=('reason', 'statement_snippet'),
-            show='headings',
-            height=8,
-        )
-        self.skipped_statements_tree.heading('reason', text='Reason')
-        self.skipped_statements_tree.heading('statement_snippet', text='Statement (snippet)')
-        self.skipped_statements_tree.column('reason', width=260)
-        self.skipped_statements_tree.column('statement_snippet', width=360)
-        skipped_scroll = ttk.Scrollbar(
-            self.skipped_statements_lf, orient='vertical', command=self.skipped_statements_tree.yview
-        )
-        self.skipped_statements_tree.configure(yscrollcommand=skipped_scroll.set)
-        self.skipped_statements_tree.pack(side='left', fill='both', expand=True, padx=4, pady=4)
-        skipped_scroll.pack(side='right', fill='y', pady=4)
-        self.add_context_help(
-            self.skipped_statements_lf,
-            'Statements that this strategy did not include (e.g. do not match strategy rules).',
-        )
-
-        # Plan table: numbered steps, no column sort, row click highlights script; Policy Compartment before Policy Name
+        # Top row: plan elements (75%) and notes (25%).
+        plan_elements_lf = ttk.LabelFrame(workspace, text='Plan Elements')
+        plan_elements_lf.grid(row=0, column=0, sticky='nsew', padx=(0, 6), pady=(0, 6))
         self.proposal_table = DataTable(
-            parent,
+            plan_elements_lf,
             columns=['#', 'Action', 'Policy Compartment', 'Policy Name', 'Effective Path', 'Details', 'Status'],
             display_columns=['#', 'Action', 'Policy Compartment', 'Policy Name', 'Details', 'Status'],
             data=[],
@@ -618,14 +582,51 @@ class ConsolidationWorkbenchTab(BaseUITab):
             },
             selection_callback=self._on_proposal_row_selected,
         )
-        self.proposal_table.pack(fill='both', expand=True, padx=8, pady=(0, 10))
+        self.proposal_table.pack(fill='both', expand=True, padx=4, pady=4)
         self.add_context_help(
-            self.proposal_table, 'Proposed consolidation actions, merges, or deletions (history-aware).'
+            self.proposal_table, 'Review the ordered consolidation actions before copying the generated output below.'
         )
 
-        # Batch/script text + format and section dropdowns
-        script_frame = ttk.LabelFrame(parent, text='Proposed Script / Batch Output')
-        script_frame.pack(fill='both', expand=True, padx=12, pady=(2, 12))
+        notes_lf = ttk.LabelFrame(workspace, text='Plan Notes')
+        notes_lf.grid(row=0, column=1, sticky='nsew', padx=(6, 0), pady=(0, 6))
+        self.plan_notes_text = tk.Text(notes_lf, height=6, wrap='word', state='normal', width=45)
+        self.plan_notes_text.pack(fill='both', expand=True, padx=4, pady=4)
+        notes_btn_row = ttk.Frame(notes_lf)
+        notes_btn_row.pack(fill='x', padx=4, pady=(0, 4))
+        ttk.Button(notes_btn_row, text='Save notes to plan', command=self._on_save_plan_notes).pack(
+            side='left', padx=(0, 8)
+        )
+        self.add_context_help(
+            notes_lf,
+            'Optional notes for this plan (strategy or your own). Save to persist to plan history.',
+        )
+
+        # Bottom row: executable output (50%) and excluded statements (50%).
+        script_frame = ttk.LabelFrame(workspace, text='Proposed Script / Batch Output')
+        script_frame.grid(row=1, column=0, sticky='nsew', padx=(0, 6), pady=(6, 0))
+        self.skipped_statements_lf = ttk.LabelFrame(workspace, text='Skipped Statements (0)')
+        self.skipped_statements_lf.grid(row=1, column=1, sticky='nsew', padx=(6, 0), pady=(6, 0))
+        self.skipped_statements_tree = ttk.Treeview(
+            self.skipped_statements_lf,
+            columns=('reason', 'statement_snippet'),
+            show='headings',
+            height=8,
+        )
+        self.skipped_statements_tree.heading('reason', text='Reason')
+        self.skipped_statements_tree.heading('statement_snippet', text='Statement (snippet)')
+        self.skipped_statements_tree.column('reason', width=150)
+        self.skipped_statements_tree.column('statement_snippet', width=260)
+        skipped_scroll = ttk.Scrollbar(
+            self.skipped_statements_lf, orient='vertical', command=self.skipped_statements_tree.yview
+        )
+        self.skipped_statements_tree.configure(yscrollcommand=skipped_scroll.set)
+        self.skipped_statements_tree.pack(side='left', fill='both', expand=True, padx=4, pady=4)
+        skipped_scroll.pack(side='right', fill='y', pady=4)
+        self.add_context_help(
+            self.skipped_statements_lf,
+            'Statements that this strategy did not include (e.g. do not match strategy rules).',
+        )
+
         format_row = ttk.Frame(script_frame)
         format_row.pack(fill='x', padx=(6, 6), pady=(4, 2))
         ttk.Label(format_row, text='Format:').pack(side='left', padx=(0, 4))
@@ -702,6 +703,22 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.view_plan_btn,
             'Load the selected plan in the Consolidation Proposal tab (dropdown and details).',
         )
+
+        def plan_history_context_menu(row_index: int) -> tk.Menu | None:
+            """Provide the same per-plan delete action available in the web UI."""
+            if row_index < 0 or row_index >= len(self.plan_history_table.data):
+                return None
+            row = self.plan_history_table.data[row_index]
+            effort_id = row.get('consolidation_effort_id') or row.get('Effort ID', '')
+            if not effort_id:
+                return None
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(
+                label='Delete plan from history',
+                command=lambda plan_id=effort_id: self._delete_history_plan(plan_id),
+            )
+            return menu
+
         self.plan_history_table = DataTable(
             parent,
             columns=['Effort ID', 'Created', 'Strategy', 'Status', 'Steps', 'Validity', 'consolidation_effort_id'],
@@ -717,6 +734,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 'Validity': 100,
             },
             selection_callback=self._on_plan_history_row_selected,
+            row_context_menu_callback=plan_history_context_menu,
         )
         self.plan_history_table.pack(fill='both', expand=True, padx=8, pady=(0, 4))
         self.add_context_help(
@@ -737,6 +755,69 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self._plan_history_selected_rows = []
         self._refresh_plan_history_table()
 
+    def _delete_history_plan(self, effort_id: str) -> None:
+        """Confirm and delete one persisted plan-history record."""
+        if not effort_id:
+            return
+        try:
+            confirmed = tkmessagebox.askyesno(
+                'Delete plan from history',
+                f'Delete consolidation plan {effort_id} from history?\n\nThis does not change OCI policies.',
+            )
+        except Exception:
+            confirmed = False
+        if not confirmed:
+            return
+
+        if not self.service.delete_history_run(effort_id):
+            try:
+                tkmessagebox.showerror('Delete failed', 'The plan could not be found or deleted from history.')
+            except Exception:
+                pass
+            return
+
+        self._plan_history_selected_rows = []
+        self._refresh_plan_history_dropdown()
+        self._refresh_plan_history_table()
+        try:
+            tkmessagebox.showinfo('Plan deleted', f'Deleted consolidation plan {effort_id} from history.')
+        except Exception:
+            pass
+
+    def _reset_consolidation_for_tenancy(self) -> None:
+        """Confirm and reset all persisted consolidation state for this tenancy."""
+        try:
+            confirmed = tkmessagebox.askyesno(
+                'Reset consolidations for tenancy',
+                'Reset all consolidation data for this tenancy?\n\n'
+                'This removes the protected statement set and all saved plan history. '
+                'It does not change OCI policies.',
+            )
+        except Exception:
+            confirmed = False
+        if not confirmed:
+            return
+        try:
+            result = self.service.reset_for_tenancy()
+        except ValueError as exc:
+            tkmessagebox.showerror('Reset failed', str(exc))
+            return
+
+        self.protected_statement_ids.clear()
+        self.candidate_statement_ids.clear()
+        self.protect_table_selected_ids.clear()
+        self._plan_history_selected_rows = []
+        self.load_policies_and_statements()
+        self._refresh_filter_protect_table()
+        self._update_selected_statements_table()
+        self._update_protected_display()
+        self._load_candidate_statements()
+        self._refresh_plan_history_dropdown()
+        self._refresh_plan_history_table()
+        self.plan_status_label.configure(
+            text=f"Reset complete. Cleared {result.get('cleared_history_records', 0)} plan-history record(s)."
+        )
+
     def _refresh_plan_history_table(self):
         """Populate the Plan History table from canonical state and check validity of non-completed plans.
 
@@ -752,39 +833,18 @@ class ConsolidationWorkbenchTab(BaseUITab):
         if not tenancy_ocid:
             self.plan_history_table.update_data([])
             return
-        cache_mgr = CacheManager()
-        history = cache_mgr.get_history(tenancy_ocid)
-        sorted_hist = sorted(history, key=lambda r: r.get('created_at', ''), reverse=True)
+        history = self.service.get_history()
         rows = []
-        for run in sorted_hist:
-            plan = run.get('plan') or {}
-            steps_list = plan.get('plan_steps') or []
-            total_steps = len(steps_list)
-            step_status = run.get('step_status') or {}
-            progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else {}
-            executed = sum(1 for p in progress.values() if p.get('executed')) if progress else 0
-            steps_str = f'{executed}/{total_steps}' if total_steps else '—'
-            created = (run.get('created_at') or '')[:19].replace('T', ' ')
-            status = run.get('status') or 'in_progress'
-            # Validity: for non-completed plans with steps, check if policies are tagged by another plan
-            validity = '—'
-            if status != 'completed' and plan and steps_list and hasattr(self, 'engine') and self.engine:
-                try:
-                    conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
-                    validity = f'Conflicted ({len(conflicts)})' if conflicts else 'OK'
-                except Exception:
-                    validity = '—'
-            elif status == 'completed':
-                validity = '—'
+        for run in history:
             rows.append(
                 {
-                    'Effort ID': run.get('consolidation_effort_id', '—'),
-                    'Created': created,
+                    'Effort ID': run.get('effort_id', '—'),
+                    'Created': (run.get('created_at') or '')[:19].replace('T', ' '),
                     'Strategy': run.get('strategy', '—'),
-                    'Status': status,
-                    'Steps': steps_str,
-                    'Validity': validity,
-                    'consolidation_effort_id': run.get('consolidation_effort_id', ''),
+                    'Status': run.get('status', 'in_progress'),
+                    'Steps': f"{run.get('executed_steps', 0)}/{run.get('steps', 0)}" if run.get('steps') else '—',
+                    'Validity': run.get('validity', '—'),
+                    'consolidation_effort_id': run.get('effort_id', ''),
                 }
             )
         self.plan_history_table.update_data(rows)
@@ -815,13 +875,12 @@ class ConsolidationWorkbenchTab(BaseUITab):
             detail.insert('end', 'No tenancy loaded.')
             detail.config(state='disabled')
             return
-        cache_mgr = CacheManager()
-        history = cache_mgr.get_history(tenancy_ocid)
-        run = next((r for r in history if r.get('consolidation_effort_id') == effort_id), None)
-        if not run:
+        detail_data = self.service.get_history_run_detail(effort_id)
+        if not detail_data:
             detail.insert('end', f'Plan {effort_id} not found in history.')
             detail.config(state='disabled')
             return
+        run = detail_data['run']
         lines = []
         lines.append('Plan summary')
         lines.append('-' * 40)
@@ -839,19 +898,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
         # Conflicts
         lines.append('Conflicts (policies tagged by another plan)')
         lines.append('-' * 40)
-        if plan and steps and hasattr(self, 'engine') and self.engine:
-            try:
-                conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
-                if conflicts:
-                    for c in conflicts:
-                        lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
-                        lines.append(f"    Current tag: {c.get('current_tag_value', '')}")
-                        lines.append(f"    Conflicting plan: {c.get('conflicting_plan_id', '')}")
-                else:
-                    lines.append('  None.')
-            except Exception as e:
-                lines.append(f'  (Error: {e})')
-                self.logger.debug('Error in conflict analysis: %s', e)
+        if plan and steps:
+            conflicts = detail_data['conflict_analysis']['conflicts']
+            if conflicts:
+                for c in conflicts:
+                    lines.append(f"  Policy OCID: {c.get('policy_ocid', '')}")
+                    lines.append(f"    Current tag: {c.get('current_tag_value', '')}")
+                    lines.append(f"    Conflicting plan: {c.get('conflicting_plan_id', '')}")
+            else:
+                lines.append('  None.')
         else:
             lines.append('  (No plan or engine to check.)')
         lines.append('')
@@ -878,9 +933,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         tenancy_ocid = self._get_tenancy_ocid()
         if not tenancy_ocid:
             return
-        cache_mgr = CacheManager()
-        history = cache_mgr.get_history(tenancy_ocid)
-        run = next((r for r in history if r.get('consolidation_effort_id') == effort_id), None)
+        run = self.service.get_history_run(effort_id)
         if not run:
             return
         created = (run.get('created_at') or '')[:19].replace('T', ' ')
@@ -920,9 +973,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
-        cache_mgr = CacheManager()
-        tenancy_ocid = self._get_tenancy_ocid()
-        history = cache_mgr.get_history(tenancy_ocid)
+        history = []
+        for item in self.service.get_history():
+            run = self.service.get_history_run(item.get('effort_id', ''))
+            if run:
+                history.append(run)
         # Show most recent first (by created_at)
         sorted_hist = sorted(history, key=lambda r: r.get('created_at', ''), reverse=True)
         items = []
@@ -1012,7 +1067,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             return
         effort_id = run.get('consolidation_effort_id')
         updated_plan = {**plan, 'notes': new_notes}
-        if CacheManager().update_run_record(tenancy_ocid, effort_id, {'plan': updated_plan}):
+        if self.service.save_plan_notes(effort_id, new_notes):
             self.plan_history_id_lookup[label] = {**run, 'plan': updated_plan}
             self.logger.info('Saved plan notes for %s', effort_id)
             try:
@@ -1039,25 +1094,19 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self._last_plan_for_script = plan
         self.script_text.config(state='normal')
         self.script_text.delete(1.0, 'end')
-        if not plan or not hasattr(self, 'engine'):
+        if not plan:
             self.script_text.insert('end', '(no plan selected)')
             self.script_text.config(state='disabled')
             return
         fmt = (self.script_format_var.get() or 'OCI CLI').strip()
         show = (self.script_section_var.get() or 'Execution').strip()
         try:
-            if fmt == 'UI-based Steps':
-                section = 'execution' if show == 'Execution' else ('rollback' if show == 'Rollback' else 'all')
-                self.script_text.insert('end', self.engine.render_plan_ui_instructions(plan, section=section))
-            else:
-                cmd_txt = self.engine.render_plan_commands(plan)
-                rollback_txt = self.engine.render_plan_rollback_commands(plan)
-                if show == 'Execution':
-                    self.script_text.insert('end', cmd_txt)
-                elif show == 'Rollback':
-                    self.script_text.insert('end', rollback_txt)
-                else:
-                    self.script_text.insert('end', cmd_txt + '\n\n' + rollback_txt)
+            effort_id = str(plan.get('plan_id') or '')
+            fmt_key = 'ui' if fmt == 'UI-based Steps' else 'cli'
+            section_key = 'execution' if show == 'Execution' else ('rollback' if show == 'Rollback' else 'both')
+            self.script_text.insert(
+                'end', self.service.render_plan(plan, fmt=fmt_key, section=section_key, effort_id=effort_id)
+            )
         except Exception as e:
             self.logger.warning('Failed to render script for plan: %s', e)
             self.script_text.insert('end', f'(failed to render: {e})')
@@ -1074,112 +1123,6 @@ class ConsolidationWorkbenchTab(BaseUITab):
         """
         if getattr(self, '_last_plan_for_script', None):
             self._set_script_content_from_plan(self._last_plan_for_script)
-
-    def _build_proposal_rows(self, plan=None, progress=None, results_fallback=None):  # noqa: C901
-        """Build proposal table rows from plan steps or legacy results.
-
-        Each row has #, Action, Policy Compartment, Policy Name, Effective Path, Details, Status,
-        and step_id (for script highlight on selection). If plan is set, Status comes from
-        progress dict; if results_fallback is set (no plan), Status is "—".
-
-        Args:
-            plan: Optional ConsolidationPlan; if present, rows built from plan_steps.
-            progress: Optional dict step_id -> {executed}; used to set Status (Executed/Pending).
-            results_fallback: Optional list of legacy result rows when plan is missing.
-
-        Returns:
-            list[dict]: List of row dicts for the proposal DataTable.
-        """
-        if plan and plan.get('plan_steps'):
-            repo = getattr(self.app, 'policy_compartment_analysis', None)
-            policies_by_ocid = {p.get('policy_ocid'): p for p in getattr(repo, 'policies', []) or []} if repo else {}
-            compartments = getattr(repo, 'compartments', []) or [] if repo else []
-            comp_by_id = {c.get('id'): c for c in compartments if c.get('id')}
-
-            def _policy_compartment_path(policy):
-                path = (policy.get('compartment_path') or '').strip()
-                if path:
-                    return path
-                coid = policy.get('compartment_ocid')
-                if coid and coid in comp_by_id:
-                    return (comp_by_id[coid].get('hierarchy_path') or '').strip()
-                return ''
-
-            rows = []
-            for i, step in enumerate(plan['plan_steps'], 1):
-                action_key = step.get('action') or ''
-                if action_key == 'add':
-                    # Use correct compartment path if available, otherwise fallback to compartment OCID, otherwise ROOT
-                    comp_obj = (
-                        comp_by_id.get(step.get('compartment_ocid', ''), {}) if step.get('compartment_ocid', '') else {}
-                    )
-                    policy_compartment = (
-                        comp_obj.get('hierarchy_path')
-                        or comp_obj.get('name')
-                        or step.get('compartment_ocid', '')
-                        or 'ROOT'
-                    )
-                    pol_name = (step.get('create_policy_name') or 'Consolidated-Root') + ' (suggested)'
-                    effective_path = policy_compartment
-                    n_stmts = len(step.get('after_statements', []))
-                    details = f'New Policy with {n_stmts} statements and updated location'
-                else:
-                    pol = policies_by_ocid.get(step.get('policy_ocid', ''), {}) or {}
-                    # For delete steps, retain compartment/name from plan when policy is gone (already deleted)
-                    if action_key == 'delete' and not pol:
-                        policy_compartment = (
-                            (
-                                (comp_by_id.get(step.get('compartment_ocid'), {}) or {}).get('hierarchy_path') or ''
-                            ).strip()
-                            or step.get('compartment_ocid')
-                            or ''
-                        )
-                        pol_name = (step.get('create_policy_name') or '(unknown policy)') + ' (deleted)'
-                        effective_path = policy_compartment
-                    else:
-                        pol_name = pol.get('policy_name', '(unknown policy)')
-                        policy_compartment = _policy_compartment_path(pol)
-                        effective_path = policy_compartment
-                    details = ''
-                    if action_key == 'modify':
-                        details = f"Statements: {len(step.get('before_statements', []))} -> {len(step.get('after_statements', []))}"
-                    elif action_key == 'delete':
-                        details = f"Delete policy (rollback recreates with {len(step.get('before_statements', []))} statements)"
-                action = (action_key or '').upper()
-                status = 'Pending'
-                if progress and isinstance(progress, dict):
-                    pi = progress.get(step.get('step_id'), {})
-                    status = 'Executed' if pi.get('executed') else 'Pending'
-                rows.append(
-                    {
-                        '#': i,
-                        'Action': action,
-                        'Policy Compartment': policy_compartment,
-                        'Policy Name': pol_name,
-                        'Effective Path': effective_path,
-                        'Details': details,
-                        'Status': status,
-                        'step_id': step.get('step_id', ''),
-                    }
-                )
-            return rows
-        if results_fallback:
-            rows = []
-            for i, r in enumerate(results_fallback, 1):
-                rows.append(
-                    {
-                        '#': r.get('index', r.get('#', i)),
-                        'Action': r.get('action', r.get('Action', '')),
-                        'Policy Compartment': r.get('policy_compartment', r.get('Policy Compartment', '')),
-                        'Policy Name': r.get('policy_name', r.get('Policy Name', '')),
-                        'Effective Path': r.get('Effective Path', ''),
-                        'Details': r.get('details', r.get('Details', '')),
-                        'Status': r.get('status', r.get('Status', '—')),
-                        'step_id': r.get('step_id', ''),
-                    }
-                )
-            return rows
-        return []
 
     def _on_proposal_row_selected(self, selected_rows):
         """Highlight the script line that corresponds to the selected proposal step.
@@ -1258,15 +1201,15 @@ class ConsolidationWorkbenchTab(BaseUITab):
             step_status = run.get('step_status') or {}
             stored_progress = step_status.get('progress') if isinstance(step_status.get('progress'), dict) else None
             progress = stored_progress
-            if progress is None and hasattr(self, 'engine') and self.engine:
+            if progress is None:
                 try:
-                    progress = self.engine.check_plan_progress(plan)
+                    progress = self.service.evaluate_progress(plan)
                 except Exception as e:
                     self.logger.debug('Could not check plan progress: %s', e)
-            data = self._build_proposal_rows(plan=plan, progress=progress)
+            data = self.service.get_proposal_rows(plan=plan, progress=progress)
             self._set_plan_notes_and_skipped_from_plan(plan)
         else:
-            data = self._build_proposal_rows(results_fallback=run.get('results', []))
+            data = self.service.get_proposal_rows(plan=None, results_fallback=run.get('results', []))
             self._set_plan_notes_and_skipped_from_plan(None)
         self.proposal_table.update_data(data)
         # Render script from plan (CLI or UI per format dropdown)
@@ -1354,55 +1297,30 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
-        self.logger.info('Loading all policies and statements for the protection tab.')
-        repo = getattr(self.app, 'policy_compartment_analysis', None)
-        tenancy_ocid = getattr(self.app, 'tenancy_ocid', None)
-        # Robustness: If not present, try to get from repo (after cache load this is set)
-        if not tenancy_ocid:
-            repo = getattr(self.app, 'policy_compartment_analysis', None)
-            if repo and hasattr(repo, 'tenancy_ocid'):
-                tenancy_ocid = getattr(repo, 'tenancy_ocid', None)
-        cache_mgr = CacheManager()
-        data = []
-        # Load available statements for display/search
-        if repo and hasattr(repo, 'regular_statements'):
-            for st in repo.regular_statements:
-                entry = {
-                    'Policy Name': st.get('policy_name', ''),
-                    'Statement Text': st.get('statement_text', ''),
-                    'Location': st.get('location', ''),
-                    'Compartment': st.get('effective_path', ''),
-                    'Principal': st.get('subject_type', ''),
-                    'Internal ID': st.get('internal_id', ''),
-                    'Policy OCID': st.get('policy_ocid', ''),
-                }
-                self.logger.debug('Loaded statement: %s', entry)
-                data.append(entry)
-        self.protection_full_data = data
-        self.logger.info('Protection browser data loaded with %d statements.', len(data))
-
-        # Load protected_set (if any) and restore protection UI state from canonical cache
-        try:
-            protected_set = cache_mgr.get_protected_set(tenancy_ocid)
-            if protected_set and 'protected' in protected_set:
-                ids = {ref.get('internal_id') for ref in protected_set['protected'] if ref.get('internal_id')}
-                self.protected_statement_ids = set(ids)
-                self.protect_table_selected_ids = set(ids)
-                # Info log with tenancy, debug with IDs
-                self.logger.info(f'Restored protected set from state for tenancy ${tenancy_ocid}')
-                self.logger.debug('Restored protected internal_ids: %s', ids)
-                self.logger.debug(
-                    'Policy statements available at load: %s',
-                    [entry.get('Internal ID', '') for entry in self.protection_full_data],
-                )
-            else:
-                self.protected_statement_ids = set()
-                self.protect_table_selected_ids = set()
-                self.logger.info('No existing protected set found for tenancy %s; started fresh.', tenancy_ocid)
-        except Exception as e:
-            self.logger.warning('Failed to load protected set for tenancy %s: %s', tenancy_ocid, e)
-            self.protected_statement_ids = set()
-            self.protect_table_selected_ids = set()
+        self.logger.info('Loading protection rows through ConsolidationWorkbenchService.')
+        self.protection_full_data = [
+            {
+                'Policy Name': row.get('policy_name', ''),
+                'Statement Text': row.get('statement_text', ''),
+                'Location': row.get('location', ''),
+                'Compartment': row.get('effective_path', ''),
+                'Principal': row.get('principal', ''),
+                'Internal ID': row.get('internal_id', ''),
+                'Policy OCID': row.get('policy_ocid', ''),
+            }
+            for row in self.service.get_protection_rows()
+        ]
+        protected_set = self.service.get_protected_set()
+        ids = {
+            ref.get('internal_id')
+            for ref in (protected_set.get('protected') or [])
+            if isinstance(ref, dict) and ref.get('internal_id')
+        }
+        self.protected_statement_ids = set(ids)
+        self.protect_table_selected_ids = set(ids)
+        self.logger.info(
+            'Protection browser loaded with %d statements and %d protected.', len(self.protection_full_data), len(ids)
+        )
         self._refresh_filter_protect_table()
         self._update_selected_statements_table()
 
@@ -1478,40 +1396,10 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.protect_table_selected_ids = set(selected_ids)  # Persist current checked Internal IDs
         self.logger.debug('Protected statement IDs set to: %s', self.protected_statement_ids)
 
-        # --- Store protected_set in canonical per-tenancy consolidation state file ---
-        protected_list = []
-        seen_ids = set()
-        for entry in self.protection_full_data:
-            iid = entry.get('Internal ID')
-            if iid in self.protect_table_selected_ids and iid not in seen_ids:
-                ref: ProtectedStatementReference = {
-                    'internal_id': iid,
-                    'policy_ocid': entry.get('Policy OCID', ''),
-                    'policy_name': entry.get('Policy Name', ''),
-                    'statement_text': entry.get('Statement Text', ''),
-                }
-                protected_list.append(ref)
-                seen_ids.add(iid)
-            elif iid in self.protect_table_selected_ids:
-                self.logger.debug('Duplicate internal_id in protection set, skipping: %s', iid)
-        # At this point, tenancy_ocid may have been resolved below
-        cache_mgr = CacheManager()
-        tenancy_ocid = getattr(self.app, 'tenancy_ocid', None)
-        # Defensive: Try to resolve tenancy_ocid from loaded repo if missing
-        if not tenancy_ocid:
-            repo = getattr(self.app, 'policy_compartment_analysis', None)
-            if repo and hasattr(repo, 'tenancy_ocid'):
-                tenancy_ocid = getattr(repo, 'tenancy_ocid', None)
-
-        if not tenancy_ocid:
-            self.logger.warning('No valid tenancy_ocid available; cannot persist protected set. Action skipped.')
-        else:
-            protected_set: ProtectedStatementSet = {
-                'tenancy_ocid': tenancy_ocid,
-                'protected': protected_list,
-            }
-            cache_mgr.set_protected_set(tenancy_ocid, cast(dict[str, Any], protected_set))
-            self.logger.info('Saved ProtectedStatementSet to canonical state file for tenancy %s.', tenancy_ocid)
+        try:
+            self.service.set_protected_set(sorted(selected_ids))
+        except ValueError as exc:
+            self.logger.warning('Protected set was not persisted: %s', exc)
 
         self._update_protected_display()
         self.logger.debug('Protected display updated after protecting statements.')
@@ -1532,86 +1420,27 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             None
         """
-        self.logger.info('Loading candidate statement data (excluding protected and invalid).')
-        repo = getattr(self.app, 'policy_compartment_analysis', None)
-        if not repo or not hasattr(repo, 'regular_statements'):
-            self.invalid_statement_ids = set()
-            self.system_statement_ids = set()
-            self.candidate_table.update_data([])
-            if hasattr(self, 'selected_candidates_table'):
-                self.selected_candidates_table.update_data([])
-            self._update_candidate_counts()
-            return
-        # Statements with invalid_reasons are omitted from consolidation entirely
-        self.invalid_statement_ids = {
-            st.get('internal_id')
-            for st in repo.regular_statements
-            if st.get('internal_id') and st.get('invalid_reasons')
-        }
-        # Statements in locked/system policy (e.g. Tenant Admin Policy) are omitted
-        self.system_statement_ids = {
-            st.get('internal_id')
-            for st in repo.regular_statements
-            if st.get('internal_id') and (st.get('policy_name') or '').strip() == LOCKED_POLICY_NAME
-        }
-        # Log the invalid and system statement IDs for debugging
-        self.logger.info(
-            'Identified %d invalid statements and %d system statements to exclude from candidates.',
-            len(self.invalid_statement_ids),
-            len(self.system_statement_ids),
-        )
-        self.logger.debug('Invalid statement internal_ids: %s', self.invalid_statement_ids)
-        self.logger.debug('System statement internal_ids: %s', self.system_statement_ids)
-        cfilter = self.candidate_search_var.get().strip().lower()
-        self.logger.info("Candidate search filter applied: '%s'", cfilter)
-
-        # STEP 1: build filtered data
-        t0 = time.perf_counter()
-        data = []
-        for st in repo.regular_statements:
-            internal_id = st.get('internal_id', '')
-            if internal_id in self.protected_statement_ids:
-                continue
-            if internal_id in self.invalid_statement_ids:
-                continue
-            if internal_id in self.system_statement_ids:
-                continue
-            pname = st.get('policy_name', '').lower()
-            stxt = st.get('statement_text', '').lower()
-            if not cfilter or (cfilter in pname or cfilter in stxt):
-                entry = {
-                    'Policy Name': st.get('policy_name', ''),
-                    'Statement Text': st.get('statement_text', ''),
-                    'Statement Compartment Path': st.get('compartment_path', ''),
-                    'Statement Location': st.get('location', ''),
-                    'Statement Effective Path': st.get('effective_path', ''),
-                    'Principal': st.get('subject_type', ''),
-                    'Resource': st.get('resource', ''),
-                    'Internal ID': internal_id,
-                }
-                data.append(entry)
-        t1 = time.perf_counter()
-        self.logger.info('Candidate statements loaded: %d after filtering. [Build loop took %.4fs]', len(data), t1 - t0)
-
-        # STEP 2: checked assignment for UI
-        t2 = time.perf_counter()
-        for row in data:
-            row['checked'] = row.get('Internal ID', '') in self.candidate_table_selected_ids
-        t3 = time.perf_counter()
-        self.logger.info('Checked flag assignment for %d rows took %.4fs', len(data), t3 - t2)
-
-        # STEP 3: UI update
-        t4 = time.perf_counter()
+        result = self.service.get_candidate_rows(search=self.candidate_search_var.get())
+        counts = result.get('counts', {})
+        self.invalid_statement_ids = set()
+        self.system_statement_ids = set()
+        data = [
+            {
+                'Policy Name': row.get('policy_name', ''),
+                'Statement Text': row.get('statement_text', ''),
+                'Statement Compartment Path': row.get('statement_compartment_path', ''),
+                'Statement Location': row.get('statement_location', ''),
+                'Statement Effective Path': row.get('statement_effective_path', ''),
+                'Principal': row.get('principal', ''),
+                'Resource': row.get('resource', ''),
+                'Internal ID': row.get('internal_id', ''),
+                'checked': row.get('internal_id', '') in self.candidate_table_selected_ids,
+            }
+            for row in result.get('rows', [])
+        ]
+        self._service_candidate_counts = counts
         self.candidate_table.update_data(data)
-        t5 = time.perf_counter()
-        self.logger.info('candidate_table.update_data() took %.4fs for %d rows', t5 - t4, len(data))
-        self.logger.info(
-            'Candidate table loaded: %d candidates (excluding %d protected, %d invalid, %d system).',
-            len(data),
-            len(self.protected_statement_ids),
-            len(self.invalid_statement_ids),
-            len(self.system_statement_ids),
-        )
+        self.logger.info('Candidate table loaded through service: %d rows.', len(data))
         self._update_candidate_counts()
         self._update_selected_candidates_table()
 
@@ -1707,8 +1536,13 @@ class ConsolidationWorkbenchTab(BaseUITab):
             tuple[int, int, int]: (protected_count, invalid_count, system_count).
         """
         n_prot = len(self.protected_statement_ids) if hasattr(self, 'protected_statement_ids') else 0
-        n_inv = len(self.invalid_statement_ids) if hasattr(self, 'invalid_statement_ids') else 0
-        n_sys = len(self.system_statement_ids) if hasattr(self, 'system_statement_ids') else 0
+        counts = getattr(self, '_service_candidate_counts', {})
+        n_inv = int(
+            counts.get('invalid', len(self.invalid_statement_ids) if hasattr(self, 'invalid_statement_ids') else 0)
+        )
+        n_sys = int(
+            counts.get('system', len(self.system_statement_ids) if hasattr(self, 'system_statement_ids') else 0)
+        )
         if hasattr(self, 'candidate_protected_count'):
             self.candidate_protected_count.config(text=f'Protected: {n_prot}')
         if hasattr(self, 'candidate_invalid_count'):
@@ -1793,7 +1627,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             strategy_name or '<none>',
             len(self.protected_statement_ids),
         )
-        if strategy_name not in (self.engine.get_strategy_display_names() or []):
+        if strategy_name not in (self.service.get_status().get('strategy_names', []) or []):
             self.logger.warning("Strategy '%s' is not registered; aborting proposal generation.", strategy_name)
             try:
                 tkmessagebox.showwarning(
@@ -1804,24 +1638,20 @@ class ConsolidationWorkbenchTab(BaseUITab):
             except Exception:
                 pass
             return
-        # Move to Root Compartment: OCI allows max 50 statements per policy
-        if strategy_name == 'Move to Root Compartment' and len(self.candidate_statement_ids) > 50:
+        try:
+            result = self.service.create_proposal(
+                candidate_internal_ids=sorted(self.candidate_statement_ids),
+                strategy_display_name=strategy_name,
+            )
+            plan = result['plan']
+        except ValueError as e:
+            self.logger.warning('Consolidation plan was rejected: %s', e)
+            self.plan_status_label.config(text=str(e))
             try:
-                tkmessagebox.showerror(
-                    'Too Many Statements',
-                    'Move to Root Compartment allows at most 50 policy statements. '
-                    f'You have selected {len(self.candidate_statement_ids)}. Please reduce the selection.',
-                )
+                tkmessagebox.showerror('Plan cannot be created', str(e))
             except Exception:
                 pass
             return
-        try:
-            plan = self.engine.generate_plan(
-                candidate_internal_ids=set(self.candidate_statement_ids),
-                protected_internal_ids=set(self.protected_statement_ids),
-                strategy_display_name=strategy_name,
-                params={'marker_tag_key': 'opa_consolidation'},
-            )
         except Exception as e:
             self.logger.warning('Failed to generate consolidation plan: %s', e)
             self.proposal_table.update_data([])
@@ -1832,7 +1662,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             self.script_text.config(state='disabled')
             return
 
-        rows = self._build_proposal_rows(plan=plan, progress=None)
+        rows = result['rows']
         self.proposal_table.update_data(rows)
         self._set_plan_notes_and_skipped_from_plan(plan)
 
@@ -1846,52 +1676,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         )
         self.logger.info('Consolidation plan generated: %s steps, plan_id=%s', num_steps, plan.get('plan_id'))
 
-        # Persist plan/run to canonical plan history; only refresh dropdown if save succeeded (otherwise we would wipe the UI)
-        tenancy_ocid = self._get_tenancy_ocid()
-        if not tenancy_ocid:
-            self.logger.warning(
-                'No tenancy_ocid available; plan not saved to history. Plan is still shown in table and script.'
-            )
-            try:
-                tkmessagebox.showwarning(
-                    'Plan not saved to history',
-                    'Tenancy OCID is missing, so this plan could not be added to the dropdown. '
-                    'The plan and script are shown below. Reload from tenancy or load a cache that sets tenancy to save plans.',
-                )
-            except Exception:
-                pass
-            return
-        try:
-            dt_now = datetime.now(UTC)
-            run_record = {
-                'consolidation_effort_id': plan.get('plan_id', '<unknown>'),
-                'created_at': dt_now.isoformat(),
-                'status': 'in_progress',  # updated to "completed" when all steps executed
-                'candidate_statements': list(self.candidate_statement_ids),
-                'strategy': plan.get('plan_tags', {}).get('strategy_id', ''),
-                'step_status': {
-                    'proposal': {
-                        'status': 'completed',
-                        'generated_at': dt_now.isoformat(),
-                    }
-                },
-                'results': rows,
-                'plan': plan,  # full plan for re-display and progress check
-            }
-            cache_mgr = CacheManager()
-            cache_mgr.add_run_record(tenancy_ocid, run_record)
-            self._refresh_plan_history_dropdown()
-            self.logger.info('Consolidation run saved to history for tenancy_ocid=%s', tenancy_ocid)
-        except Exception as e:
-            self.logger.warning('Failed to persist consolidation proposal/run: %s', e)
-            try:
-                tkmessagebox.showwarning(
-                    'Plan not saved to history',
-                    f'Plan was generated ({num_steps} steps) but could not be saved to the history list: {e}. '
-                    'The plan and script below are still valid; use Reload and Check Progress only after loading from tenancy.',
-                )
-            except Exception:
-                pass
+        self._refresh_plan_history_dropdown()
 
     def _on_reload_and_check_progress(self):  # noqa: C901
         """Reload policy/compartment data from tenancy, then re-evaluate selected plan execution progress.
@@ -1997,7 +1782,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
 
         # At this point the repo and tags have been refreshed; ask engine to evaluate progress.
         try:
-            progress = self.engine.check_plan_progress(plan)
+            progress = self.service.evaluate_progress(plan)
         except Exception as e:
             self.logger.warning('Failed to evaluate plan progress: %s', e)
             tkmessagebox.showerror('Check Progress Failed', f'Could not evaluate plan progress: {e}')
@@ -2018,20 +1803,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
             tenancy_ocid = self._get_tenancy_ocid()
             if tenancy_ocid:
                 try:
-                    cache_mgr = CacheManager()
-                    updated_rows = self._build_proposal_rows(plan=plan, progress=progress)
-                    updates = {
-                        'step_status': {**run.get('step_status', {}), 'progress': progress},
-                        'results': updated_rows,
-                    }
-                    if total > 0 and executed >= total:
-                        updates['status'] = 'completed'
-                        updates['completed_at'] = datetime.now(UTC).isoformat()
-                    cache_mgr.update_run_record(
-                        tenancy_ocid,
-                        effort_id,
-                        updates,
-                    )
+                    self.service.save_progress(effort_id, progress)
                     self._refresh_plan_history_dropdown()
                     if hasattr(self, 'plan_history_table') and self.plan_history_table:
                         self._refresh_plan_history_table()
@@ -2048,7 +1820,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.plan_status_label.config(text=(base_txt + suffix) if base_txt else suffix)
 
         # Refresh proposal table so Status column shows Executed/Pending per step
-        data = self._build_proposal_rows(plan=plan, progress=progress)
+        data = self.service.get_proposal_rows(plan=plan, progress=progress)
         self.proposal_table.update_data(data)
 
         for step_id, info in progress.items():

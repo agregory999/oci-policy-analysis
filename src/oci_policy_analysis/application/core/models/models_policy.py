@@ -336,4 +336,5 @@ class PolicyIntelligence(TypedDict, total=False):
     recommendations: list[dict]
     risk_scores: list[dict]
     consolidations: list[dict]
+    supersessions: list[dict]
     cleanup_items: NotRequired[dict]

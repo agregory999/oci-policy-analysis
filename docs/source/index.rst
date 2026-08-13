@@ -18,6 +18,7 @@ Full documentation
 
    simulation
    recommendations
+   reports
    tag_based
    limited_mode
    oke_workload_identity

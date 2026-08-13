@@ -1,0 +1,35 @@
+{
+  "resources": {
+    "generative-ai-chat": {"verbs": {"use": ["GENERATIVE_AI_CHAT"]}},
+    "generative-ai-text-generation": {"verbs": {"use": ["GENERATIVE_AI_TEXT_GENERATE"]}},
+    "generative-ai-text-summarization": {"verbs": {"use": ["GENERATIVE_AI_TEXT_SUMMARIZE"]}},
+    "generative-ai-text-embedding": {"verbs": {"use": ["GENERATIVE_AI_TEXT_EMBED"]}},
+    "generative-ai-text-rerank": {"verbs": {"use": ["GENERATIVE_AI_TEXT_RERANK"]}},
+    "generative-ai-model": {"verbs": {"inspect": ["GENERATIVE_AI_MODEL_INSPECT"], "read": ["GENERATIVE_AI_MODEL_READ"], "use": ["GENERATIVE_AI_MODEL_UPDATE"], "manage": ["GENERATIVE_AI_MODEL_MOVE", "GENERATIVE_AI_MODEL_CREATE", "GENERATIVE_AI_MODEL_DELETE"]}},
+    "generative-ai-imported-model": {"verbs": {"inspect": ["GENERATIVE_AI_IMPORTED_MODEL_INSPECT"], "read": ["GENERATIVE_AI_IMPORTED_MODEL_READ"], "use": ["GENERATIVE_AI_IMPORTED_MODEL_UPDATE"], "manage": ["GENERATIVE_AI_IMPORTED_MODEL_MOVE", "GENERATIVE_AI_IMPORTED_MODEL_CREATE", "GENERATIVE_AI_IMPORTED_MODEL_DELETE"]}},
+    "generative-ai-dedicated-ai-cluster": {"verbs": {"inspect": ["GENERATIVE_AI_DEDICATED_AI_CLUSTER_INSPECT"], "read": ["GENERATIVE_AI_DEDICATED_AI_CLUSTER_READ"], "use": ["GENERATIVE_AI_DEDICATED_AI_CLUSTER_UPDATE"], "manage": ["GENERATIVE_AI_DEDICATED_AI_CLUSTER_MOVE", "GENERATIVE_AI_DEDICATED_AI_CLUSTER_CREATE", "GENERATIVE_AI_DEDICATED_AI_CLUSTER_DELETE"]}},
+    "generative-ai-endpoint": {"verbs": {"inspect": ["GENERATIVE_AI_ENDPOINT_INSPECT"], "read": ["GENERATIVE_AI_ENDPOINT_READ"], "use": ["GENERATIVE_AI_ENDPOINT_UPDATE"], "manage": ["GENERATIVE_AI_ENDPOINT_MOVE", "GENERATIVE_AI_ENDPOINT_CREATE", "GENERATIVE_AI_ENDPOINT_DELETE"]}},
+    "generative-ai-private-endpoint": {"verbs": {"inspect": ["GENERATIVE_AI_PRIVATE_ENDPOINT_INSPECT"], "read": ["GENERATIVE_AI_PRIVATE_ENDPOINT_READ"], "use": ["GENERATIVE_AI_PRIVATE_ENDPOINT_UPDATE"], "manage": ["GENERATIVE_AI_PRIVATE_ENDPOINT_MOVE", "GENERATIVE_AI_PRIVATE_ENDPOINT_CREATE", "GENERATIVE_AI_PRIVATE_ENDPOINT_DELETE"]}},
+    "generative-ai-apikey": {"verbs": {"inspect": ["GENERATIVE_AI_APIKEY_INSPECT"], "read": ["GENERATIVE_AI_APIKEY_READ"], "use": ["GENERATIVE_AI_APIKEY_UPDATE"], "manage": ["GENERATIVE_AI_APIKEY_MOVE", "GENERATIVE_AI_APIKEY_CREATE", "GENERATIVE_AI_APIKEY_DELETE"]}},
+    "generative-ai-project": {"verbs": {"inspect": ["GENERATIVE_AI_PROJECT_INSPECT"], "read": ["GENERATIVE_AI_PROJECT_READ"], "use": ["GENERATIVE_AI_PROJECT_UPDATE"], "manage": ["GENERATIVE_AI_PROJECT_MOVE", "GENERATIVE_AI_PROJECT_CREATE", "GENERATIVE_AI_PROJECT_DELETE"]}},
+    "generative-ai-vector-store": {"verbs": {"inspect": ["GENERATIVE_AI_VECTORSTORE_INSPECT"], "read": ["GENERATIVE_AI_VECTORSTORE_READ"], "use": ["GENERATIVE_AI_VECTORSTORE_UPDATE"], "manage": ["GENERATIVE_AI_VECTORSTORE_CREATE", "GENERATIVE_AI_VECTORSTORE_DELETE"]}},
+    "generative-ai-vectorstore-connector": {"verbs": {"inspect": ["GENERATIVE_AI_VECTORSTORE_CONNECTOR_INSPECT"], "read": ["GENERATIVE_AI_VECTORSTORE_CONNECTOR_READ"], "use": ["GENERATIVE_AI_VECTORSTORE_CONNECTOR_UPDATE"], "manage": ["GENERATIVE_AI_VECTORSTORE_CONNECTOR_CREATE", "GENERATIVE_AI_VECTORSTORE_CONNECTOR_DELETE"]}},
+    "generative-ai-vectorstore-file": {"verbs": {"inspect": ["GENERATIVE_AI_VECTORSTORE_FILE_INSPECT", "GENERATIVE_AI_VECTORSTORE_FILE_BATCH_INSPECT"], "read": ["GENERATIVE_AI_VECTORSTORE_FILE_READ", "GENERATIVE_AI_VECTORSTORE_FILE_CONTENT_READ", "GENERATIVE_AI_VECTORSTORE_FILE_BATCH_READ"], "use": ["GENERATIVE_AI_VECTORSTORE_FILE_UPDATE"], "manage": ["GENERATIVE_AI_VECTORSTORE_FILE_CREATE", "GENERATIVE_AI_VECTORSTORE_FILE_DELETE", "GENERATIVE_AI_VECTORSTORE_FILE_BATCH_CREATE", "GENERATIVE_AI_VECTORSTORE_FILE_BATCH_CANCEL"]}},
+    "generative-ai-file": {"verbs": {"inspect": ["GENERATIVE_AI_FILE_INSPECT"], "read": ["GENERATIVE_AI_FILE_READ", "GENERATIVE_AI_FILE_CONTENT_READ"], "manage": ["GENERATIVE_AI_MULTIPART_FILE_CREATE", "GENERATIVE_AI_MULTIPART_FILE_ADD", "GENERATIVE_AI_MULTIPART_FILE_COMPLETE", "GENERATIVE_AI_MULTIPART_FILE_CANCEL", "GENERATIVE_AI_FILE_CREATE", "GENERATIVE_AI_FILE_DELETE"]}},
+    "generative-ai-hosted-application": {"verbs": {"inspect": ["GENERATIVE_AI_HOSTED_APPLICATION_INSPECT"], "read": ["GENERATIVE_AI_HOSTED_APPLICATION_READ"], "use": ["GENERATIVE_AI_HOSTED_APPLICATION_UPDATE"], "manage": ["GENERATIVE_AI_HOSTED_APPLICATION_MOVE", "GENERATIVE_AI_HOSTED_APPLICATION_CREATE", "GENERATIVE_AI_HOSTED_APPLICATION_DELETE"]}},
+    "generative-ai-hosted-application-iam": {"verbs": {}},
+    "generative-ai-hosted-deployment": {"verbs": {"inspect": ["GENERATIVE_AI_HOSTED_DEPLOYMENT_INSPECT"], "read": ["GENERATIVE_AI_HOSTED_DEPLOYMENT_READ"], "use": ["GENERATIVE_AI_HOSTED_DEPLOYMENT_UPDATE"], "manage": ["GENERATIVE_AI_HOSTED_DEPLOYMENT_CREATE", "GENERATIVE_AI_HOSTED_DEPLOYMENT_ARTIFACT_ADD", "GENERATIVE_AI_HOSTED_DEPLOYMENT_ARTIFACT_DELETE", "GENERATIVE_AI_HOSTED_DEPLOYMENT_DELETE"]}},
+    "generative-ai-container": {"verbs": {"inspect": ["GENERATIVE_AI_CONTAINER_INSPECT"], "read": ["GENERATIVE_AI_CONTAINER_READ"], "manage": ["GENERATIVE_AI_CONTAINER_CREATE"]}},
+    "generative-ai-application-storage": {"verbs": {"inspect": ["GENERATIVE_AI_APPLICATION_STORAGE_INSPECT"], "read": ["GENERATIVE_AI_APPLICATION_STORAGE_READ"], "use": ["GENERATIVE_AI_APPLICATION_STORAGE_UPDATE"], "manage": ["GENERATIVE_AI_APPLICATION_STORAGE_MOVE", "GENERATIVE_AI_APPLICATION_STORAGE_CREATE", "GENERATIVE_AI_APPLICATION_STORAGE_DELETE"]}},
+    "generative-ai-semantic-store": {"verbs": {"inspect": ["GENERATIVE_AI_SEMANTIC_STORE_INSPECT", "GENERATE_AI_ENRICH_INSPECT"], "read": ["GENERATIVE_AI_SEMANTIC_STORE_READ", "GENERATE_AI_ENRICH_READ"], "use": ["GENERATIVE_AI_SEMANTIC_STORE_UPDATE"], "manage": ["GENERATIVE_AI_SEMANTIC_STORE_MOVE", "GENERATIVE_AI_SEMANTIC_STORE_CREATE", "GENERATIVE_AI_SEMANTIC_STORE_DELETE", "GENERATE_AI_ENRICH_CREATE"]}},
+    "generative-ai-nl2sql": {"verbs": {"manage": ["GENERATIVE_AI_SQL_FROM_NL_GENERATE"]}},
+    "generative-ai-work-request": {"verbs": {"inspect": ["GENERATIVE_AI_WORK_REQUEST_INSPECT"], "read": ["GENERATIVE_AI_WORK_REQUEST_READ", "GENERATIVE_AI_WORK_REQUEST_ERRORS", "GENERATIVE_AI_WORK_REQUEST_LOGS_READ"]}}
+  },
+  "families": {
+    "generative-ai-family": {
+      "resources": ["generative-ai-chat", "generative-ai-text-embedding", "generative-ai-text-rerank", "generative-ai-model", "generative-ai-imported-model", "generative-ai-dedicated-ai-cluster", "generative-ai-endpoint", "generative-ai-private-endpoint", "generative-ai-apikey", "generative-ai-project", "generative-ai-vector-store", "generative-ai-vectorstore-connector", "generative-ai-vectorstore-file", "generative-ai-file", "generative-ai-hosted-application", "generative-ai-hosted-application-iam", "generative-ai-hosted-deployment", "generative-ai-container", "generative-ai-work-request"],
+      "source_url": "https://docs.oracle.com/en-us/iaas/Content/generative-ai/iam-policies.htm"
+    }
+  },
+  "operations": {}
+}

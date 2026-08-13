@@ -63,7 +63,7 @@ CONTEXT_HELP = {
         'Use this panel to enable policy text analysis and AI-driven explanations.'
     ),
     'RECOMMENDATION_CONSOLIDATION': (
-        'Control which intelligence strategies run (risk, overlap, cleanup checks, consolidation suggestions, recommendations). '
+        'Control which intelligence strategies run (risk, complete supersession, cleanup checks, consolidation suggestions, recommendations). '
         'Uncheck to skip. Preferences are saved globally and used by the Recommendations tab.'
     ),
     'RISK_REDUCTION_SETTINGS': (
@@ -615,7 +615,7 @@ class SettingsTab(BaseUITab):
         label_frm_rec_cons.bind('<Enter>', _show_rec_cons_help)
         label_frm_rec_cons.bind('<Leave>', lambda e=None: self.set_page_help_text(self.default_help_text))
 
-        # Intelligence strategies: get list from engine (risk, overlap, cleanup, consolidation, recommendations)
+        # Intelligence strategies: get list from engine (risk, supersession, cleanup, consolidation, recommendations)
         strategy_list = []
         if hasattr(self.app, 'policy_intelligence') and self.app.policy_intelligence:
             strategy_list = getattr(self.app.policy_intelligence, 'get_strategies_for_settings', lambda: [])()
@@ -1172,7 +1172,6 @@ class SettingsTab(BaseUITab):
             self.app.permissions_report_tab,
             self.app.tag_based_access_tab,
             self.app.simulation_tab,
-            self.app.policy_recommendations_tab,
             self.app.mcp_tab,
         ]
 
@@ -1191,7 +1190,6 @@ class SettingsTab(BaseUITab):
             notebook.add(self.app.permissions_report_tab, text='Permissions Report\n(Advanced)')
             notebook.add(self.app.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
             notebook.add(self.app.simulation_tab, text='API Simulation\n(Advanced)')
-            notebook.add(self.app.policy_recommendations_tab, text='Policy Recommendations\n(Advanced)')
             # Only add consolidation tab if experimental features are enabled
             if getattr(self.app, 'consolidation_tab', None) is not None:
                 notebook.add(self.app.consolidation_tab, text='Consolidation Workbench\n(Preview)')

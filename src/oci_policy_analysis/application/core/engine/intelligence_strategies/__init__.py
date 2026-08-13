@@ -21,18 +21,18 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup
 from oci_policy_analysis.application.core.engine.intelligence_strategies.consolidation_suggestion import (
     ConsolidationSuggestionStrategy,
 )
-from oci_policy_analysis.application.core.engine.intelligence_strategies.overlap import OverlapStrategy
 from oci_policy_analysis.application.core.engine.intelligence_strategies.recommendations import (
     OverallRecommendationStrategy,
 )
 from oci_policy_analysis.application.core.engine.intelligence_strategies.risk import RiskScoreStrategy
+from oci_policy_analysis.application.core.engine.intelligence_strategies.supersession import SupersessionStrategy
 
 
 def get_default_intelligence_strategies():
     """Return the default ordered set of policy intelligence strategies."""
     return [
         RiskScoreStrategy(),
-        OverlapStrategy(),
+        SupersessionStrategy(),
         ConsolidationSuggestionStrategy(),
         InvalidStatementsCheck(),
         UnusedGroupsCheck(),
@@ -45,5 +45,6 @@ def get_default_intelligence_strategies():
 
 __all__ = [
     'IntelligenceStrategy',
+    'SupersessionStrategy',
     'get_default_intelligence_strategies',
 ]

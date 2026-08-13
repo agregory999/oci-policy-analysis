@@ -1,6 +1,6 @@
 {
     "resources": {
-        "lifecycle-environments": {
+        "osmh-lifecycle-environments": {
             "verbs": {
                 "inspect": [
                     "OSMH_LIFECYCLE_ENVIRONMENT_INSPECT"
@@ -18,7 +18,7 @@
                 ]
             }
         },
-        "lifecycle-stages": {
+        "osmh-lifecycle-stages": {
             "verbs": {
                 "inspect": [
                     "OSMH_LIFECYCLE_STAGE_INSPECT"
@@ -34,7 +34,7 @@
                 ]
             }
         },
-        "managed-instances": {
+        "osmh-managed-instances": {
             "verbs": {
                 "inspect": [
                     "OSMH_MANAGED_INSTANCE_INSPECT"
@@ -64,7 +64,7 @@
                 ]
             }
         },
-        "managed-instance-groups": {
+        "osmh-managed-instance-group": {
             "verbs": {
                 "inspect": [
                     "OSMH_MANAGED_INSTANCE_GROUP_INSPECT"
@@ -95,7 +95,7 @@
                 ]
             }
         },
-        "profiles": {
+        "osmh-profiles": {
             "verbs": {
                 "inspect": [
                     "OSMH_PROFILE_INSPECT"
@@ -118,7 +118,7 @@
                 ]
             }
         },
-        "management-stations": {
+        "osmh-management-station": {
             "verbs": {
                 "inspect": [
                     "OSMH_MANAGEMENT_STATION_INSPECT"
@@ -136,7 +136,7 @@
                 ]
             }
         },
-        "scheduled-jobs": {
+        "osmh-scheduled-jobs": {
             "verbs": {
                 "inspect": [
                     "OSMH_SCHEDULED_JOB_INSPECT"
@@ -154,7 +154,7 @@
                 ]
             }
         },
-        "work-requests": {
+        "osmh-work-requests": {
             "verbs": {
                 "inspect": [
                     "OSMH_WORK_REQUEST_INSPECT"
@@ -167,7 +167,7 @@
                 ]
             }
         },
-        "software-sources": {
+        "osmh-software-sources": {
             "verbs": {
                 "inspect": [
                     "OSMH_SOFTWARE_SOURCE_INSPECT"
@@ -185,7 +185,7 @@
                 ]
             }
         },
-        "entitlements": {
+        "osmh-entitlements": {
             "verbs": {
                 "inspect": [
                     "OSMH_ENTITLEMENTS_INSPECT"
@@ -195,7 +195,7 @@
                 ]
             }
         },
-        "events": {
+        "osmh-events": {
             "verbs": {
                 "inspect": [
                     "OSMH_EVENT_INSPECT"
@@ -218,17 +218,17 @@
     "families": {
         "osmh-family": {
             "resources": [
-                "lifecycle-environments",
-                "lifecycle-stages",
-                "managed-instances",
-                "managed-instance-groups",
-                "profiles",
-                "management-stations",
-                "scheduled-jobs",
-                "work-requests",
-                "software-sources",
-                "entitlements",
-                "events"
+                "osmh-lifecycle-environments",
+                "osmh-lifecycle-stages",
+                "osmh-managed-instances",
+                "osmh-managed-instance-group",
+                "osmh-profiles",
+                "osmh-management-station",
+                "osmh-scheduled-jobs",
+                "osmh-work-requests",
+                "osmh-software-sources",
+                "osmh-entitlements",
+                "osmh-events"
             ],
             "source_url": "https://docs.oracle.com/en-us/iaas/osmh/doc/policies-reference.htm"
         }

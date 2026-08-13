@@ -92,6 +92,33 @@ POLICY_OVERLAP_COLUMN_WIDTHS = {
     'Internal ID': 100,
 }
 
+POLICY_SUPERSESSION_COLUMNS = [
+    'Policy Name',
+    'Policy Compartment',
+    'Effective Path',
+    'Statement Text',
+    'Classification',
+    'Superseded By',
+    'Internal ID',
+]
+POLICY_SUPERSESSION_DISPLAY_COLUMNS = [
+    'Policy Name',
+    'Policy Compartment',
+    'Effective Path',
+    'Statement Text',
+    'Classification',
+    'Superseded By',
+]
+POLICY_SUPERSESSION_COLUMN_WIDTHS = {
+    'Policy Name': 220,
+    'Policy Compartment': 220,
+    'Effective Path': 200,
+    'Statement Text': 480,
+    'Classification': 150,
+    'Superseded By': 240,
+    'Internal ID': 100,
+}
+
 # Policy Consolidation Table Layout
 POLICY_CONSOLIDATION_COLUMNS = [
     'Statement',
@@ -222,12 +249,16 @@ class PolicyRecommendationsTab(BaseUITab):
         self._build_statement_risk_tab(statement_risk_frame)
         self.notebook.add(statement_risk_frame, text='Risk Overview - Statement')
 
-        # === Overlap Analysis Tab ===
-        overlap_frame = ttk.Frame(self.notebook)
-        overlap_frame.pack(fill='both', expand=True)
-        self.add_context_help(overlap_frame, 'Analyze statement overlap, potential policy overrides, and conflicts.')
-        self._build_overlap_tab(overlap_frame)
-        self.notebook.add(overlap_frame, text='Overlap Analysis')
+        # === Complete Supersession Tab ===
+        supersession_frame = ttk.Frame(self.notebook)
+        supersession_frame.pack(fill='both', expand=True)
+        self.add_context_help(
+            supersession_frame,
+            'Statements here are fully covered by unconditional allow statements at ancestor compartments. '
+            'Protected policies remain evidence and are never modified by this analysis.',
+        )
+        self._build_supersession_tab(supersession_frame)
+        self.notebook.add(supersession_frame, text='Superseded')
 
         # === Policy Consolidation Tab ===
         consolidation_frame = ttk.Frame(self.notebook)
@@ -535,6 +566,22 @@ class PolicyRecommendationsTab(BaseUITab):
                 return format_compartment_policy_name(comp_path, name, separator='/', empty='[Unknown Policy Path]')
         return '[Unknown Policy Path]'
 
+    def _show_recommendation_details(self, title: str, sections: list[tuple[str, list[str]]]) -> None:
+        """Open a consistent read-only details window for a recommendation row."""
+        popup = tk.Toplevel(self.winfo_toplevel())
+        popup.title(title)
+        popup.transient(self.winfo_toplevel())
+        popup.resizable(True, True)
+        popup.geometry('980x680')
+        outer = ttk.Frame(popup)
+        outer.pack(fill='both', expand=True, padx=12, pady=12)
+        for section_title, lines in sections:
+            frame = ttk.LabelFrame(outer, text=section_title)
+            frame.pack(fill='x', pady=(0, 8))
+            for line in lines:
+                ttk.Label(frame, text=line, wraplength=900, justify='left').pack(anchor='w', padx=8, pady=(6, 1))
+        ttk.Button(outer, text='Close', command=popup.destroy).pack(anchor='e', pady=(0, 4))
+
     def _build_statement_risk_tab(self, parent):
         # Filter Controls - now inside risk tab only
         filter_frame = ttk.Frame(parent)
@@ -587,28 +634,28 @@ class PolicyRecommendationsTab(BaseUITab):
         threshold_combo.bind('<<ComboboxSelected>>', lambda e: self.update_risk_tab_output())
         self.add_context_help(threshold_combo, 'Show only statements above a relative risk threshold.')
 
-        # Table
-        def on_row_select(selected_rows: list[dict]) -> None:
-            if selected_rows:
-                row = selected_rows[0]
-                self.risk_detail_tree.delete(*self.risk_detail_tree.get_children())
-                notes = row.get('Risk Notes') or ''
-                rel_risk = row.get('Relative Risk')
-                score = row.get('Score')
-                self.risk_detail_tree.insert('', 'end', text=f'Raw Score: {score}, Relative Risk: {rel_risk}')
-                if notes:
-                    self.risk_detail_tree.insert('', 'end', text=f'Details: {notes}')
-                recommendations = row.get('Recommendations')
-                if recommendations:
-                    if isinstance(recommendations, list):
-                        for rec in recommendations:
-                            self.risk_detail_tree.insert('', 'end', text=f'Recommendation: {rec}')
-                    else:
-                        self.risk_detail_tree.insert('', 'end', text=f'Recommendations: {recommendations}')
-
         def risk_table_context_menu_callback(row_index):
             row = self.risk_table.data[row_index]
             menu = tk.Menu(self.risk_table, tearoff=0)
+            menu.add_command(
+                label='Risk Details',
+                command=lambda: self._show_recommendation_details(
+                    'Risk Details',
+                    [
+                        (
+                            'Candidate Statement',
+                            [
+                                f"Policy: {row.get('Policy Path') or '(none)'}",
+                                f"Statement: {row.get('Statement Text') or '(none)'}",
+                            ],
+                        ),
+                        (
+                            'Risk Assessment',
+                            [f"Raw Score: {row.get('Score')}", f"Relative Risk: {row.get('Relative Risk')}"],
+                        ),
+                    ],
+                ),
+            )
             menu.add_command(
                 label='Analyze Statement',
                 command=lambda: self._analyze_selected_statement_in_main_analysis(row.get('Statement Text', '') or ''),
@@ -627,7 +674,6 @@ class PolicyRecommendationsTab(BaseUITab):
                 'Relative Risk': 80,
                 'Statement Text': 700,
             },
-            selection_callback=on_row_select,
             row_context_menu_callback=risk_table_context_menu_callback,
             multi_select=True,
             initial_sort_column='Relative Risk',
@@ -636,27 +682,9 @@ class PolicyRecommendationsTab(BaseUITab):
         self.risk_table.pack(fill='both', expand=True, padx=10, pady=(10, 0))
         self.add_context_help(self.risk_table, 'Full list of policy statements, with risk and mitigation guidance.')
 
-        # Lower tree/frame for risk detail
-        risk_detail_frame = ttk.LabelFrame(parent, text='Risk Statement Details & Recommendations')
-        risk_detail_frame.pack(fill='x', padx=10, pady=(0, 10))
-        risk_detail_frame.grid_rowconfigure(0, weight=1)
-        risk_detail_frame.grid_columnconfigure(0, weight=1)
-        self.add_context_help(
-            risk_detail_frame, 'More granular details and action items for the selected risky statement.'
+        ttk.Label(parent, text='Right-click a row to view details or analyze the statement.').pack(
+            anchor='w', padx=10, pady=(2, 10)
         )
-
-        self.risk_detail_tree = ttk.Treeview(
-            risk_detail_frame,
-            show='tree',
-            height=8,
-        )
-        self.risk_detail_tree.heading('#0', text='Detail')
-        self.risk_detail_tree.column('#0', width=1200, stretch=True)
-        scrollbar = ttk.Scrollbar(risk_detail_frame, orient='vertical', command=self.risk_detail_tree.yview)
-        self.risk_detail_tree.configure(yscrollcommand=scrollbar.set)
-        self.risk_detail_tree.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-        self.add_context_help(self.risk_detail_tree, 'Expanded statement details, scoring notes, recommendations.')
 
     def _show_policy_statements_in_main_analysis(self, policy_path: str):
         """
@@ -754,73 +782,32 @@ class PolicyRecommendationsTab(BaseUITab):
         threshold_combo.bind('<<ComboboxSelected>>', lambda e: self.update_policy_risk_tab_output())
         self.add_context_help(threshold_combo, 'Show only policies above a relative risk threshold.')
 
-        # UI: policy risk table & detail
+        # Policy risk table
         table_frame = ttk.Frame(parent)
         table_frame.pack(fill='both', expand=True)
-
-        def on_row_select_policy(selected_rows):  # noqa: C901
-            self.policy_risk_detail_tree.delete(*self.policy_risk_detail_tree.get_children())
-            if selected_rows:
-                row = selected_rows[0]
-                policy_path = row.get('Policy Path')
-                # Find policy_ocid for selected Policy Path
-                policy_obj = None
-                for p in self.policy_repo.policies:
-                    path = self._get_policy_path(policy_obj=p)
-                    if path == policy_path:
-                        policy_obj = p
-                        break
-                if not policy_obj:
-                    return
-                pocid = policy_obj.get('policy_ocid')
-                statements = [
-                    st
-                    for st in self.policy_repo.regular_statements
-                    if st.get('policy_ocid') == pocid and st.get('action', '').lower() == 'allow'
-                ]
-                risk_scores = self.app.policy_intelligence.overlay.get('risk_scores', [])
-                risk_by_id = {entry.get('statement_internal_id'): entry for entry in risk_scores}
-                for st in statements:
-                    internal_id = st.get('internal_id')
-                    risk_entry = risk_by_id.get(internal_id) or {}
-                    score = risk_entry.get('score', 0)
-                    notes = risk_entry.get('notes', '')
-                    recs = risk_entry.get('recommendations')
-                    rel_risk = None
-                    # Rel risk for this statement, as on statement tab
-                    try:
-                        all_scores = [risk_by_id.get(bb.get('internal_id'), {}).get('score', 0) for bb in statements]
-                        import math
-
-                        mx = max(all_scores) if all_scores else 1
-                        if score == 0:
-                            rel_risk = 1
-                        elif mx > 1:
-                            rel_risk = int((math.log(score) / math.log(mx)) * 100)
-                            if rel_risk < 1:
-                                rel_risk = 1
-                        else:
-                            rel_risk = 1
-                    except Exception:
-                        rel_risk = 1
-                    text_main = f'Score: {score}  (Relative: {rel_risk})'
-                    self.policy_risk_detail_tree.insert('', 'end', text=text_main)
-                    txt = st.get('statement_text', '---')
-                    self.policy_risk_detail_tree.insert('', 'end', text=f'Statement: {txt[:100]}')
-                    if notes:
-                        self.policy_risk_detail_tree.insert('', 'end', text=f'Risk Notes: {notes}')
-                    if recs:
-                        if isinstance(recs, list):
-                            for rec in recs:
-                                self.policy_risk_detail_tree.insert('', 'end', text=f'Rec: {rec}')
-                        else:
-                            self.policy_risk_detail_tree.insert('', 'end', text=f'Rec: {recs}')
-                    self.policy_risk_detail_tree.insert('', 'end', text='')  # spacer
 
         def policy_risk_context_menu_callback(row_index):
             row = self.policy_risk_table.data[row_index]
             policy_path = row.get('Policy Path', '')
             menu = tk.Menu(self.policy_risk_table, tearoff=0)
+            menu.add_command(
+                label='Policy Risk Details',
+                command=lambda: self._show_recommendation_details(
+                    'Policy Risk Details',
+                    [
+                        ('Policy', [f"Policy Path: {policy_path or '(none)'}"]),
+                        (
+                            'Risk Assessment',
+                            [
+                                f"Total Statements: {row.get('Total Statements', '')}",
+                                f"Maximum Score: {row.get('Max Score', '')}",
+                                f"Average Score: {row.get('Avg Score', '')}",
+                                f"Risk Summary: {row.get('Risk Summary/Notes', '')}",
+                            ],
+                        ),
+                    ],
+                ),
+            )
             menu.add_command(
                 label='Show All Statements', command=lambda: self._show_policy_statements_in_main_analysis(policy_path)
             )
@@ -849,7 +836,6 @@ class PolicyRecommendationsTab(BaseUITab):
                 'Example Statement',
             ],
             data=[],
-            selection_callback=on_row_select_policy,
             row_context_menu_callback=policy_risk_context_menu_callback,
             column_widths={
                 'Policy Path': 400,
@@ -868,21 +854,8 @@ class PolicyRecommendationsTab(BaseUITab):
         self.policy_risk_table.pack(fill='both', expand=True, padx=10, pady=(8, 8))
         self.add_context_help(self.policy_risk_table, 'Aggregated risk summary for each policy.')
 
-        detail_frame = ttk.LabelFrame(parent, text='Policy Risk Details (Select row for breakdown)')
-        detail_frame.pack(fill='x', padx=10, pady=(0, 10))
-        self.policy_risk_detail_tree = ttk.Treeview(
-            detail_frame,
-            show='tree',
-            height=8,
-        )
-        self.policy_risk_detail_tree.heading('#0', text='Detail')
-        self.policy_risk_detail_tree.column('#0', width=1200, stretch=True)
-        scrollbar = ttk.Scrollbar(detail_frame, orient='vertical', command=self.policy_risk_detail_tree.yview)
-        self.policy_risk_detail_tree.configure(yscrollcommand=scrollbar.set)
-        self.policy_risk_detail_tree.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-        self.add_context_help(
-            self.policy_risk_detail_tree, 'Expanded policy details and risk explanations, as available.'
+        ttk.Label(parent, text='Right-click a row to view policy details or show its statements.').pack(
+            anchor='w', padx=10, pady=(0, 10)
         )
 
     # ==== Overlap Tab Logic ====
@@ -926,58 +899,42 @@ class PolicyRecommendationsTab(BaseUITab):
 
         ttk.Button(filter_frame, text='Export to CSV', command=self._export_overlap_to_csv).pack(side='right', padx=4)
 
-        # Table
-        def on_overlap_select(selected_rows: list[dict]) -> None:
-            if selected_rows:
-                row = selected_rows[0]
-                self.overlap_detail_tree.delete(*self.overlap_detail_tree.get_children())
-                internal_id = row.get('Internal ID', [])
-                overlaps = self.app.policy_intelligence.get_policy_overlaps_by_internal_id(internal_id)
-                for overlap in overlaps:
-                    superseded_by = overlap.get('superseded_by', 'N/A')
-                    confidence = overlap.get('confidence', 'N/A')
-                    reason = overlap.get('reason', 'N/A')
-                    statement_text = overlap.get('statement_text', 'N/A')
-                    permission_overlap = overlap.get('permission_overlap', [])
-                    parent = self.overlap_detail_tree.insert(
-                        '',
-                        'end',
-                        open=True,
-                        text=f"Statement overlaps with Policy '{superseded_by}'",
+        def overlap_context_menu(row_index: int) -> tk.Menu | None:
+            """Create the row action menu for overlap results."""
+            if row_index < 0 or row_index >= len(self.overlap_table.data):
+                return None
+            row = self.overlap_table.data[row_index]
+            overlaps = self.app.policy_intelligence.get_policy_overlaps_by_internal_id(row.get('Internal ID', ''))
+            sections = [
+                (
+                    'Candidate Statement',
+                    [
+                        f"Policy: {row.get('Policy Name') or '(none)'}",
+                        f"Statement: {row.get('Statement Text') or '(none)'}",
+                        f"Effective Path: {row.get('Effective Path') or '(none)'}",
+                    ],
+                )
+            ]
+            for number, overlap in enumerate(overlaps, start=1):
+                sections.append(
+                    (
+                        f'Overlap Evidence {number}',
+                        [
+                            f"Policy: {overlap.get('superseded_by') or '(none)'}",
+                            f"Statement: {overlap.get('statement_text') or '(none)'}",
+                            f"Overlapping Permissions: {', '.join(overlap.get('permission_overlap') or []) or '(none)'}",
+                            f"Confidence: {overlap.get('confidence') or '(none)'}",
+                            f"Reason: {overlap.get('reason') or '(none)'}",
+                            f"Notes: {overlap.get('additional_notes') or '(none)'}",
+                        ],
                     )
-                    self.overlap_detail_tree.insert(
-                        parent,
-                        'end',
-                        text=f'Policy Name: {superseded_by}',
-                    )
-                    self.overlap_detail_tree.insert(
-                        parent,
-                        'end',
-                        text=f'Statement Text: {statement_text}',
-                    )
-                    perms_upper = [p.upper() for p in permission_overlap] if permission_overlap else []
-                    self.overlap_detail_tree.insert(
-                        parent,
-                        'end',
-                        text=f'Overlapping Permissions: {perms_upper}',
-                    )
-                    self.overlap_detail_tree.insert(
-                        parent,
-                        'end',
-                        text=f'Confidence: {confidence}',
-                    )
-                    self.overlap_detail_tree.insert(
-                        parent,
-                        'end',
-                        text=f'Reason: {reason}',
-                    )
-                    if overlap.get('additional_notes'):
-                        notes = overlap.get('additional_notes')
-                        self.overlap_detail_tree.insert(
-                            parent,
-                            'end',
-                            text=f'Additional Notes: {notes}',
-                        )
+                )
+            menu = tk.Menu(self.overlap_table, tearoff=0)
+            menu.add_command(
+                label='Overlap Details',
+                command=lambda: self._show_recommendation_details('Overlap Details', sections),
+            )
+            return menu
 
         self.overlap_table = DataTable(
             parent,
@@ -985,32 +942,192 @@ class PolicyRecommendationsTab(BaseUITab):
             display_columns=POLICY_OVERLAP_DISPLAY_COLUMNS,
             data=[],
             column_widths=POLICY_OVERLAP_COLUMN_WIDTHS,
-            selection_callback=on_overlap_select,
+            row_context_menu_callback=overlap_context_menu,
             multi_select=True,
             highlights=[('Action', 'deny', '#FF0000')],
         )
         self.overlap_table.pack(fill='both', expand=True, padx=10, pady=(10, 0))
         self.add_context_help(self.overlap_table, 'See where custom policies may override or duplicate one another.')
 
-        # Lower tree/frame for overlap detail
-        overlap_detail_frame = ttk.LabelFrame(parent, text='Overlap Details')
-        overlap_detail_frame.pack(fill='x', padx=10, pady=(0, 10))
-        overlap_detail_frame.grid_rowconfigure(0, weight=1)
-        overlap_detail_frame.grid_columnconfigure(0, weight=1)
-        self.add_context_help(overlap_detail_frame, 'For a selected statement, see detailed overlap/override notes.')
+        ttk.Label(parent, text='Right-click a row to view overlap evidence.').pack(anchor='w', padx=10, pady=(2, 10))
 
-        self.overlap_detail_tree = ttk.Treeview(
-            overlap_detail_frame,
-            show='tree',
-            height=10,
+    def _build_supersession_tab(self, parent):
+        """Build the read-only complete-supersession recommendations subtab."""
+        intro = ttk.Label(
+            parent,
+            text=(
+                'Complete supersession identifies an allow statement whose full permission set is already granted by '
+                'one or more unconditional statements for the same principal at the same or an ancestor scope. '
+                'Conditional evidence is shown for review but is never used as automatic proof.'
+            ),
+            justify='left',
+            wraplength=1300,
         )
-        self.overlap_detail_tree.heading('#0', text='Overlap Details')
-        self.overlap_detail_tree.column('#0', width=1200, stretch=True)
-        scrollbar = ttk.Scrollbar(overlap_detail_frame, orient='vertical', command=self.overlap_detail_tree.yview)
-        self.overlap_detail_tree.configure(yscrollcommand=scrollbar.set)
-        self.overlap_detail_tree.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-        self.add_context_help(self.overlap_detail_tree, 'Details of all overlapping/conflicting policy relationships.')
+        intro.pack(fill='x', padx=10, pady=(10, 4))
+        self.add_context_help(
+            intro, 'Review this evidence before making any policy change; this view never changes policies.'
+        )
+
+        def show_supersession_details(row: dict) -> None:
+            """Open the selected statement's full coverage evidence in a modal."""
+            finding = self.app.policy_intelligence.get_policy_supersession_by_internal_id(
+                str(row.get('Internal ID') or '')
+            )
+            if not finding:
+                return
+            popup = tk.Toplevel(self.winfo_toplevel())
+            popup.title('Supersession Details')
+            popup.transient(self.winfo_toplevel())
+            popup.resizable(True, True)
+            popup.geometry('980x680')
+            outer = ttk.Frame(popup)
+            outer.pack(fill='both', expand=True, padx=12, pady=12)
+            ttk.Label(
+                outer,
+                text=f"{finding.get('classification', 'Supersession')}: {row.get('Policy Name', 'Unknown Policy')}",
+                font=('TkDefaultFont', 11, 'bold'),
+            ).pack(anchor='w', pady=(0, 6))
+            candidate_frame = ttk.LabelFrame(outer, text='Candidate Statement')
+            candidate_frame.pack(fill='x', pady=(0, 8))
+            ttk.Label(
+                candidate_frame,
+                text=f"Policy: {row.get('Policy Name') or '(none)'}",
+            ).pack(anchor='w', padx=8, pady=(6, 1))
+            ttk.Label(
+                candidate_frame,
+                text=f"Statement: {row.get('Statement Text') or '(none)'}",
+                wraplength=900,
+                justify='left',
+            ).pack(anchor='w', padx=8, pady=1)
+            ttk.Label(
+                candidate_frame,
+                text=f"Effective Path: {row.get('Effective Path') or '(none)'}",
+            ).pack(anchor='w', padx=8, pady=(1, 6))
+
+            notes_frame = ttk.LabelFrame(outer, text='Coverage Notes')
+            notes_frame.pack(fill='x', pady=(0, 8))
+            ttk.Label(notes_frame, text=finding.get('notes') or '(none)', wraplength=900, justify='left').pack(
+                anchor='w', padx=8, pady=6
+            )
+
+            evidence_frame = ttk.LabelFrame(outer, text='Applicable Evidence')
+            evidence_frame.pack(fill='x', pady=(0, 8))
+            for number, evidence in enumerate(finding.get('evidence', []), start=1):
+                evidence_title = ttk.Label(
+                    evidence_frame,
+                    text=(
+                        f"{number}. {evidence.get('policy_name') or 'Unknown Policy'}  —  "
+                        f"{evidence.get('effective_path') or 'Unknown Effective Path'} "
+                        f"({evidence.get('relationship') or 'Applicable scope'})"
+                    ),
+                    font=('TkDefaultFont', 10, 'bold'),
+                )
+                evidence_title.pack(anchor='w', padx=8, pady=((6 if number == 1 else 10), 2))
+                ttk.Label(
+                    evidence_frame,
+                    text=f"Policy: {evidence.get('policy_name') or '(none)'}",
+                ).pack(anchor='w', padx=20, pady=1)
+                ttk.Label(
+                    evidence_frame,
+                    text=f"Statement: {evidence.get('statement_text') or '(none)'}",
+                    wraplength=900,
+                    justify='left',
+                ).pack(anchor='w', padx=20, pady=1)
+                ttk.Label(
+                    evidence_frame,
+                    text=f"Effective Path: {evidence.get('effective_path') or '(none)'}",
+                ).pack(anchor='w', padx=20, pady=(1, 2))
+                if evidence.get('conditional'):
+                    ttk.Label(
+                        evidence_frame,
+                        text='Conditional evidence: review required; not used to prove complete coverage.',
+                    ).pack(anchor='w', padx=20, pady=(1, 2))
+
+            comparison_frame = ttk.LabelFrame(outer, text='Permission Coverage')
+            comparison_frame.pack(fill='both', expand=True)
+            columns = ('candidate_permission', 'covered_by')
+            permission_table = ttk.Treeview(comparison_frame, columns=columns, show='headings', height=8)
+            permission_table.heading('candidate_permission', text='Candidate Permission')
+            permission_table.heading('covered_by', text='Covered By Applicable Evidence')
+            permission_table.column('candidate_permission', width=340, anchor='w', stretch=True)
+            permission_table.column('covered_by', width=550, anchor='w', stretch=True)
+            by_permission: dict[str, list[str]] = {}
+            for evidence in finding.get('evidence', []):
+                source = (
+                    f"{evidence.get('policy_name') or 'Unknown Policy'} "
+                    f"({evidence.get('effective_path') or 'Unknown Effective Path'}; "
+                    f"{evidence.get('relationship') or 'Applicable scope'})"
+                )
+                for permission in evidence.get('covered_permissions', []):
+                    by_permission.setdefault(str(permission), []).append(source)
+            for permission in finding.get('candidate_permissions', []):
+                permission_table.insert(
+                    '',
+                    'end',
+                    values=(permission, '; '.join(by_permission.get(str(permission), [])) or '(not resolved)'),
+                )
+            permission_scrollbar = ttk.Scrollbar(comparison_frame, orient='vertical', command=permission_table.yview)
+            permission_table.configure(yscrollcommand=permission_scrollbar.set)
+            permission_table.pack(side='left', fill='both', expand=True, padx=(6, 0), pady=6)
+            permission_scrollbar.pack(side='right', fill='y', padx=(0, 6), pady=6)
+            ttk.Button(outer, text='Close', command=popup.destroy).pack(anchor='e', pady=(8, 0))
+
+        def supersession_context_menu(row_index: int) -> tk.Menu | None:
+            """Create the row action menu for complete-supersession results."""
+            if row_index < 0 or row_index >= len(self.supersession_table.data):
+                return None
+            row = self.supersession_table.data[row_index]
+            menu = tk.Menu(self.supersession_table, tearoff=0)
+            menu.add_command(label='Supersession Details', command=lambda: show_supersession_details(row))
+            return menu
+
+        self.supersession_table = DataTable(
+            parent,
+            columns=POLICY_SUPERSESSION_COLUMNS,
+            display_columns=POLICY_SUPERSESSION_DISPLAY_COLUMNS,
+            data=[],
+            column_widths=POLICY_SUPERSESSION_COLUMN_WIDTHS,
+            row_context_menu_callback=supersession_context_menu,
+            multi_select=True,
+        )
+        self.supersession_table.pack(fill='both', expand=True, padx=10, pady=(4, 4))
+        self.add_context_help(
+            self.supersession_table,
+            'Right-click a statement for complete supersession details.',
+        )
+        ttk.Label(parent, text='Right-click a row to view complete supersession evidence.').pack(
+            anchor='w', padx=10, pady=(2, 10)
+        )
+
+    def update_supersession_tab_output(self) -> None:
+        """Refresh complete-supersession rows from policy-intelligence output."""
+        findings = self.app.policy_intelligence.overlay.get('supersessions', []) or []
+        statements = {
+            str(statement.get('internal_id') or ''): statement
+            for statement in (self.policy_repo.regular_statements or [])
+        }
+        rows = []
+        for finding in findings:
+            statement = statements.get(str(finding.get('statement_internal_id') or ''))
+            if not statement:
+                continue
+            display = for_display_policy(statement)
+            evidence = finding.get('evidence', []) or []
+            rows.append(
+                {
+                    'Policy Name': display.get('Policy Name', ''),
+                    'Policy Compartment': display.get('Policy Compartment', ''),
+                    'Effective Path': display.get('Effective Path', ''),
+                    'Statement Text': display.get('Statement Text', ''),
+                    'Classification': finding.get('classification', ''),
+                    'Superseded By': ', '.join(
+                        f"{item.get('policy_name', '')} ({item.get('effective_path', '')})" for item in evidence
+                    ),
+                    'Internal ID': finding.get('statement_internal_id', ''),
+                }
+            )
+        rows.sort(key=lambda row: (str(row['Effective Path']), str(row['Policy Name'])))
+        self.supersession_table.update_data(rows)
 
     def _export_overlap_to_csv(self):
         if not self.policy_repo.regular_statements:
@@ -1157,7 +1274,7 @@ class PolicyRecommendationsTab(BaseUITab):
         # Now update all display tables
         self.update_risk_tab_output()
         self.update_policy_risk_tab_output()
-        self.update_overlap_tab_output()
+        self.update_supersession_tab_output()
         self.update_consolidation_tab_output()
         self.update_cleanup_tab_output()
 

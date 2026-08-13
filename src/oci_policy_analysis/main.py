@@ -49,13 +49,12 @@ from oci_policy_analysis.application.core.support.usage_tracking import (  # noq
     get_usage_tracker,
     init_usage_tracker,
 )
+from oci_policy_analysis.application.services.consolidation_workbench_service import ConsolidationWorkbenchService
 from oci_policy_analysis.application.services.load_service import LoadService
 from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.presentation.desktop.condition_tester_tab import ConditionTesterTab
 from oci_policy_analysis.presentation.desktop.console_tab import ConsoleTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.consolidation_workbench_tab import ConsolidationWorkbenchTab
-
-# REMOVED: ConsolidationWorkbenchTab import (consolidation feature disabled)
 from oci_policy_analysis.presentation.desktop.cross_tenancy_tab import CrossTenancyTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.debugger_tab import DebuggerTab
 from oci_policy_analysis.presentation.desktop.dynamic_group_tab import DynamicGroupsTab  # noqa: E402
@@ -70,6 +69,7 @@ from oci_policy_analysis.presentation.desktop.permissions_report_tab import Perm
 from oci_policy_analysis.presentation.desktop.policies_tab import PoliciesTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.policy_browser_tab import PolicyBrowserTab
 from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import PolicyRecommendationsTab
+from oci_policy_analysis.presentation.desktop.reports_tab import ReportsTab
 from oci_policy_analysis.presentation.desktop.settings_tab import SettingsTab  # noqa: E402
 from oci_policy_analysis.presentation.desktop.simulation_tab import SimulationTab
 from oci_policy_analysis.presentation.desktop.tag_based_access_tab import TagBasedAccessTab
@@ -203,7 +203,9 @@ class App(tk.Tk):
         self.ai = self.app_context.ai
         self.simulation_engine = self.app_context.simulation
         self.policy_intelligence = self.app_context.intelligence
-        # REMOVED: Consolidation engine instantiation (consolidation feature disabled)
+        # The desktop and web workbenches use this same application-service
+        # boundary for consolidation state, planning, and progress tracking.
+        self.consolidation_workbench_service = ConsolidationWorkbenchService(self.app_context)
 
         # Caching Manager (policy caching only, no AI result caching)
         self.caching = self.app_context.cache
@@ -228,6 +230,7 @@ class App(tk.Tk):
         self.resource_principals_tab = WorkloadPrincipalsTab(self.notebook, self)
         self.historical_tab = HistoricalTab(self.notebook, caching=self.caching)
         self.policy_recommendations_tab = PolicyRecommendationsTab(self.notebook, self)
+        self.reports_tab = ReportsTab(self.notebook, self)
         self.console_tab = ConsoleTab(self.notebook, self)
         self.maintenance_tab = MaintenanceTab(self.notebook, self)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
@@ -239,17 +242,14 @@ class App(tk.Tk):
             if McpTab is not None
             else ttk.Frame(self.notebook)
         )
-        # ConsolidationWorkbenchTab instantiation is gated behind experimental_features flag
-        self.consolidation_tab = None
-        if self.experimental_features:
-            self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
+        self.consolidation_tab = ConsolidationWorkbenchTab(self.notebook, self)
 
         # Able to refresh maintenance tab with new data
         self.maintenance_tab.refresh_data()
 
         # Add tabs to notebook
         self.notebook.add(self.settings_tab, text='Settings\n(Start Here)')
-        self.notebook.add(self.policy_browser_tab, text='Compartment/Policy\nBrowser')
+        self.notebook.add(self.policy_browser_tab, text='Policy\nInventory')
         self.notebook.add(self.policies_tab, text='Policy\nAnalysis')
         self.notebook.add(self.users_tab, text='Groups\nUsers')
         self.notebook.add(self.dynamic_groups_tab, text='Dynamic\nGroups')
@@ -258,15 +258,16 @@ class App(tk.Tk):
         self.notebook.add(self.historical_tab, text='Historical\nComparison')
         if McpTab is not None:
             self.notebook.add(self.mcp_tab, text='Embedded MCP\n(Advanced)')
-        self.notebook.add(self.permissions_report_tab, text='Permissions Report\n(Advanced)')
+        self.notebook.add(self.permissions_report_tab, text='Permissions\nAnalysis')
         self.notebook.add(self.condition_tester_tab, text='Condition\nTester')
         self.notebook.add(self.tag_based_access_tab, text='Tag-based Access\n(Advanced)')
-        self.notebook.add(self.policy_recommendations_tab, text='Recommendations\n(Advanced)')
+        self.notebook.add(self.policy_recommendations_tab, text='Policy\nRecommendations')
+        self.notebook.add(self.reports_tab, text='Reports\n(On-Demand)')
+        self.notebook.add(self.consolidation_tab, text='Consolidation\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
-        # REMOVED: Adding Consolidation Workbench tab to notebook (consolidation feature disabled)
         # --- AI Pane/Tab Support: Bind to tab change for auto-hide logic ---
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
@@ -344,8 +345,7 @@ class App(tk.Tk):
         self.notebook.forget(self.permissions_report_tab)
         self.notebook.forget(self.tag_based_access_tab)
         self.notebook.forget(self.simulation_tab)
-        self.notebook.forget(self.policy_recommendations_tab)
-        # self.notebook.forget(self.consolidation_tab)  # Do not 'forget' if never added; handled by advanced toggle
+        self.notebook.forget(self.consolidation_tab)
 
         # Ensure the correct font is applied from saved settings at startup
         self.after(0, self.apply_theme)
@@ -519,6 +519,7 @@ class App(tk.Tk):
             self.condition_tester_tab,
             self.tag_based_access_tab,
             self.policy_recommendations_tab,
+            self.reports_tab,
             self.simulation_tab,
             self.debugger_tab,
             self.console_tab,
@@ -619,7 +620,7 @@ class App(tk.Tk):
         start_post_process_time = time.perf_counter()
         logger.info('Calculating effective compartments for all policy statements')
         self.policy_intelligence.calculate_all_effective_compartments()
-        logger.info('Running intelligence strategies (risk, overlap, cleanup, recommendations)')
+        logger.info('Running intelligence strategies (risk, supersession, cleanup, recommendations)')
         self.policy_intelligence.run_all(enabled_strategy_ids=None, params={})
         logger.info('Building permissions report for advanced report tab')
         self.policy_intelligence.build_permissions_report()
@@ -717,8 +718,8 @@ class App(tk.Tk):
         step('simulation_tab.populate_data', self.simulation_tab.populate_data)
         step('tag_based_access_tab.populate_data', self.tag_based_access_tab.populate_data)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
-        # Only do this if experimental features are enabled and the consolidation tab is present (it won't be if experimental_features is False)
-        if self.experimental_features and self.consolidation_tab:
+        step('reports_tab.populate_data', self.reports_tab.populate_data)
+        if self.consolidation_tab:
             step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
         logger.info(
             'UI post-load timing (seconds): '
