@@ -1,3 +1,10 @@
+## [6.4.0-restore-consolidation-workbench-v6-3-1.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.1...v6.4.0-restore-consolidation-workbench-v6-3-1.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* Windows build with pillow ([ea05195](https://github.com/agregory999/oci-policy-analysis/commit/ea05195f38315babecb66b2ede41f71542f22287))
+
 ## [6.4.0-restore-consolidation-workbench-v6-3-1.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.4.0-restore-consolidation-workbench-v6-3-1.1) (2026-08-13)
 
 
