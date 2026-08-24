@@ -27,7 +27,7 @@
         <p>Overlap is intentionally on demand because it can be expensive. Inventory and effective permissions reuse loaded analysis data.</p>
         <div class="inline-field">
           <label for="reportType" class="no-margin-label">Report:</label>
-          <select id="reportType"><option value="full-overlaps">Full Policy Overlaps</option><option value="policy-inventory">Policy Inventory</option><option value="permissions">Effective Permissions</option></select>
+          <select id="reportType"><option value="policy-inventory">Policy Inventory</option><option value="permissions">Effective Permissions</option><option value="supersession">Policy Supersession</option><option value="full-overlaps">Full Policy Overlaps</option></select>
           <button id="runOverlapReport" type="button">Run Report</button>
           <label for="reportFormat" class="no-margin-label">Display / download format:</label>
           <select id="reportFormat"><option value="json">JSON</option><option value="markdown">Markdown</option><option value="html">Rendered HTML</option></select>
@@ -48,6 +48,16 @@
       const formatNode = document.getElementById('reportFormat');
       const reportTypeNode = document.getElementById('reportType');
       let reportPayload = null;
+
+      function completionMessage(payload) {
+        if (payload.report_id === 'policy-inventory') {
+          const counts = payload.counts || {};
+          return 'Report complete: ' + (counts.compartments || 0) + ' compartments, ' +
+            (counts.policies || 0) + ' policies, ' + (counts.statements || 0) + ' statements.';
+        }
+        return 'Report complete: ' + (payload.item_count || payload.finding_count || 0) + ' ' +
+          (payload.item_label || 'items').toLowerCase() + '.';
+      }
 
       function selectedContent() {
         if (formatNode.value === 'markdown') return reportPayload?.markdown || '';
@@ -89,7 +99,7 @@
           if (!response.ok) throw new Error('Request failed (' + response.status + ')');
           reportPayload = await response.json();
           refreshPreview();
-          statusNode.textContent = 'Report complete: ' + (reportPayload.item_count || reportPayload.finding_count || 0) + ' ' + (reportPayload.item_label || 'items').toLowerCase() + '.';
+          statusNode.textContent = completionMessage(reportPayload);
           downloadButton.disabled = false;
         } catch (error) {
           statusNode.textContent = 'Report failed: ' + error;

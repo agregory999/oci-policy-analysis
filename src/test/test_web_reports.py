@@ -16,6 +16,9 @@ def test_reports_page_has_on_demand_json_download() -> None:
     assert 'markdown' in page
     assert 'policy-inventory' in page
     assert 'permissions' in page
+    assert 'supersession' in page
+    assert 'completionMessage' in page
+    assert page.index('value="full-overlaps"') > page.index('value="supersession"')
 
 
 def test_full_overlap_route_delegates_to_reports_service(monkeypatch) -> None:

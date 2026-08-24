@@ -82,13 +82,14 @@ def _permissions(repo: Any, statement: dict[str, Any]) -> frozenset[str]:
 
 
 class SupersessionAnalyzer:
-    """Find statements fully covered by applicable grants.
+    """Find statements fully covered by one applicable grant.
 
     Conditional ancestor grants never provide automatic coverage. An
-    unconditional statement at the same scope or an ancestor scope can cover
-    a conditional candidate; that result explicitly notes that the candidate
-    restriction is ineffective. Conditional evidence is retained for review,
-    but is never used to prove complete coverage.
+    unconditional statement at the same scope or an ancestor scope must cover
+    the candidate's entire permission set by itself. Partial overlaps are not
+    supersession evidence; they belong in the overlap analysis instead.
+    Conditional evidence is retained for review, but is never used to prove
+    complete coverage.
     """
 
     def analyze(self, repo: Any) -> list[dict[str, Any]]:
@@ -143,51 +144,27 @@ class SupersessionAnalyzer:
                     )
                     target.append((statement, overlap, relationship))
 
-            covered = (
-                set().union(*(permissions for _, permissions, _ in unconditional_evidence))
-                if unconditional_evidence
-                else set()
-            )
-            if not candidate_permissions.issubset(covered):
+            complete_evidence = [
+                (statement, permissions, relationship)
+                for statement, permissions, relationship in unconditional_evidence
+                if candidate_permissions.issubset(permissions)
+            ]
+            if not complete_evidence:
                 continue
-            remaining = set(candidate_permissions)
-            selected: list[tuple[dict[str, Any], frozenset[str], str]] = []
-            for statement, permissions, relationship in sorted(
-                unconditional_evidence,
+            selected = sorted(
+                complete_evidence,
                 key=lambda item: (
                     0 if item[2] == 'Same scope' else 1,
                     -len(_path_segments(item[0].get('effective_path'))),
                     str(item[0].get('policy_name') or ''),
                 ),
-            ):
-                contribution = permissions & remaining
-                if contribution:
-                    selected.append((statement, frozenset(contribution), relationship))
-                    remaining.difference_update(contribution)
-                if not remaining:
-                    break
-            if remaining:
-                continue
-
-            selected_ids = {str(statement.get('internal_id') or '') for statement, _, _ in selected}
-            all_unconditional_evidence = selected + [
-                (statement, permissions, relationship)
-                for statement, permissions, relationship in sorted(
-                    unconditional_evidence,
-                    key=lambda item: (
-                        0 if item[2] == 'Same scope' else 1,
-                        -len(_path_segments(item[0].get('effective_path'))),
-                        str(item[0].get('policy_name') or ''),
-                    ),
-                )
-                if str(statement.get('internal_id') or '') not in selected_ids
-            ]
+            )
             conditional_candidate = bool(str(candidate.get('conditions') or '').strip())
             relevant_conditionals = sorted(
                 conditional_evidence,
                 key=lambda item: (item[2] != 'Same scope', str(item[0].get('policy_name') or '')),
             )
-            base_classification = 'Single Statement' if len(selected) == 1 else 'Combined Statements'
+            base_classification = 'Single Statement' if len(selected) == 1 else 'Multiple Complete Statements'
             classification = f'{base_classification} (Review)' if relevant_conditionals else base_classification
             if relevant_conditionals:
                 notes = (
@@ -214,11 +191,11 @@ class SupersessionAnalyzer:
                             'policy_name': str(statement.get('policy_name') or ''),
                             'effective_path': str(statement.get('effective_path') or ''),
                             'statement_text': str(statement.get('statement_text') or ''),
-                            'covered_permissions': sorted(contribution),
+                            'covered_permissions': sorted(candidate_permissions),
                             'relationship': relationship,
                             'conditional': False,
                         }
-                        for statement, contribution, relationship in all_unconditional_evidence
+                        for statement, _permissions, relationship in selected
                     ]
                     + [
                         {

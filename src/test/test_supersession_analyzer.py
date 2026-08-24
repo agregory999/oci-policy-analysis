@@ -69,7 +69,7 @@ def test_conditional_ancestor_is_not_automatic_coverage_evidence() -> None:
     assert SupersessionAnalyzer().analyze(repo) == []
 
 
-def test_combines_ancestor_permission_evidence() -> None:
+def test_does_not_combine_partial_permission_evidence_into_supersession() -> None:
     repo = SimpleNamespace(
         regular_statements=[
             _statement('read', 'ROOT/A', ['BUCKET_READ']),
@@ -80,9 +80,7 @@ def test_combines_ancestor_permission_evidence() -> None:
 
     findings = SupersessionAnalyzer().analyze(repo)
 
-    assert len(findings) == 1
-    assert findings[0]['classification'] == 'Combined Statements'
-    assert {item['internal_id'] for item in findings[0]['evidence']} == {'read', 'inspect'}
+    assert findings == []
 
 
 def test_same_scope_unconditional_statement_supersedes_candidate() -> None:
@@ -100,7 +98,7 @@ def test_same_scope_unconditional_statement_supersedes_candidate() -> None:
     assert finding['evidence'][0]['relationship'] == 'Same scope'
 
 
-def test_retains_duplicate_unconditional_evidence_after_single_statement_proves_coverage() -> None:
+def test_retains_each_independently_complete_unconditional_evidence_statement() -> None:
     repo = SimpleNamespace(
         regular_statements=[
             _statement('ancestor-one', 'ROOT/A', ['BUCKET_READ']),
@@ -112,8 +110,29 @@ def test_retains_duplicate_unconditional_evidence_after_single_statement_proves_
     findings = SupersessionAnalyzer().analyze(repo)
 
     finding = next(item for item in findings if item['statement_internal_id'] == 'candidate')
-    assert finding['classification'] == 'Single Statement'
+    assert finding['classification'] == 'Multiple Complete Statements'
     assert {item['internal_id'] for item in finding['evidence']} == {'ancestor-one', 'ancestor-two'}
+
+
+def test_partial_same_scope_overlap_is_not_shown_as_supersession_evidence() -> None:
+    """A use grant is superseded by manage, but cannot supersede manage itself."""
+    repo = SimpleNamespace(
+        regular_statements=[
+            _statement('tenancy-manage', 'ROOT', ['REPO_READ', 'REPO_USE', 'REPO_MANAGE']),
+            _statement('compartment-manage', 'ROOT/Engineering', ['REPO_READ', 'REPO_USE', 'REPO_MANAGE']),
+            _statement('compartment-use', 'ROOT/Engineering', ['REPO_READ', 'REPO_USE']),
+        ]
+    )
+
+    findings = SupersessionAnalyzer().analyze(repo)
+    by_candidate = {finding['statement_internal_id']: finding for finding in findings}
+
+    assert set(by_candidate) == {'compartment-manage', 'compartment-use'}
+    assert {item['internal_id'] for item in by_candidate['compartment-manage']['evidence']} == {'tenancy-manage'}
+    assert {item['internal_id'] for item in by_candidate['compartment-use']['evidence']} == {
+        'compartment-manage',
+        'tenancy-manage',
+    }
 
 
 def test_conditional_coverage_marks_an_otherwise_complete_result_for_review() -> None:

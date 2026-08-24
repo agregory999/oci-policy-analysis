@@ -1365,8 +1365,8 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Medium',
                     'Category': 'Policy Hygiene',
                     'Notes': (
-                        f'{len(removable_supersessions)} policy statement(s) are fully covered by one or more '
-                        'unconditional statements at the same or an ancestor scope. Review the Superseded view '
+                        f'{len(removable_supersessions)} policy statement(s) are fully covered by an applicable '
+                        'unconditional statement at the same or an ancestor scope. Review the Superseded view '
                         'before removing any statement.'
                     ),
                     'Action': 'Review supersession evidence and remove only statements confirmed unnecessary.',

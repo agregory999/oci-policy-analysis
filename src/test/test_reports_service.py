@@ -59,6 +59,30 @@ def test_report_markdown_is_rendered_from_native_json() -> None:
     assert '<h1>Full Policy Overlap Report</h1>' in rendered['markdown_html']
 
 
+def test_full_overlap_markdown_titles_use_compartment_path_and_name() -> None:
+    """Overlap headings identify the compartment before the policy statement."""
+    service = ReportsService.__new__(ReportsService)
+    markdown = service.to_markdown(
+        {
+            'report_id': 'full-overlaps',
+            'title': 'Full Policy Overlap Report',
+            'findings': [
+                {
+                    'candidate': {
+                        'policy_name': 'Child Policy',
+                        'effective_path': 'ROOT/Platform/Apps',
+                        'statement_text': 'allow group App to read buckets in compartment Apps',
+                    },
+                    'overlaps': [],
+                }
+            ],
+        }
+    )
+
+    assert '## 1. Compartment: ROOT/Platform/Apps (Apps)' in markdown
+    assert '**Policy:** Child Policy' in markdown
+
+
 def test_policy_inventory_report_uses_loaded_statements() -> None:
     """Policy inventory is grouped as compartments, policies, tags, and statements."""
     service = ReportsService(
@@ -152,3 +176,112 @@ def test_permissions_report_uses_effective_grant_rows_as_its_item_count() -> Non
     assert report['item_count'] == 2
     assert report['counts']['effective_grant_rows'] == 2
     assert 'Unknown Policy' not in service.to_markdown(report)
+
+
+def test_permissions_report_consolidates_equivalent_effective_grants() -> None:
+    """Equivalent grants appear once while their statement sources remain available."""
+    service = ReportsService(
+        SimpleNamespace(
+            policy_repo=SimpleNamespace(data_as_of='2026-08-13'),
+            intelligence=SimpleNamespace(
+                permissions_report={
+                    'report': {},
+                    'summary': {},
+                    'grant_rows': [
+                        {
+                            'effective_path': 'ROOT/Apps',
+                            'grant_path': 'ROOT',
+                            'principal_key': 'group:default/devs',
+                            'original_subject_key': 'group:default/devs',
+                            'principal_kind': 'group',
+                            'action': 'allow',
+                            'resource': 'buckets',
+                            'permission': 'BUCKET_READ',
+                            'conditional': False,
+                            'inherited': True,
+                            'inherited_from': 'ROOT',
+                            'policy_name': 'Root Policy',
+                            'statement_id': 'root-statement',
+                            'statement_text': 'allow group Devs to read buckets in tenancy',
+                        },
+                        {
+                            'effective_path': 'ROOT/Apps',
+                            'grant_path': 'ROOT/Apps',
+                            'principal_key': 'group:default/devs',
+                            'original_subject_key': 'group:default/devs',
+                            'principal_kind': 'group',
+                            'action': 'allow',
+                            'resource': 'buckets',
+                            'permission': 'BUCKET_READ',
+                            'conditional': False,
+                            'inherited': False,
+                            'inherited_from': '',
+                            'policy_name': 'Apps Policy',
+                            'statement_id': 'apps-statement',
+                            'statement_text': 'allow group Devs to read buckets in compartment Apps',
+                        },
+                    ],
+                }
+            ),
+        )
+    )
+
+    report = service.get_permissions_report()
+    row = report['findings'][0]['grant_rows'][0]
+
+    assert report['item_count'] == 1
+    assert report['counts'] == {'effective_grant_rows': 1, 'source_grant_rows': 2}
+    assert row['grant_paths'] == ['ROOT', 'ROOT/Apps']
+    assert row['source_statement_count'] == 2
+    assert {source['statement_id'] for source in row['source_statements']} == {'root-statement', 'apps-statement'}
+
+
+def test_supersession_report_groups_evidence_by_compartment_path() -> None:
+    """Supersession reports preserve the candidate, coverage source, and reason."""
+    candidate = {
+        'internal_id': 'candidate',
+        'policy_name': 'AIDP_not_assessed_tenancy_policy',
+        'effective_path': 'ROOT/Platform/Apps',
+        'statement_text': 'allow group Devs to read buckets in compartment Apps',
+    }
+    service = ReportsService(
+        SimpleNamespace(
+            policy_repo=SimpleNamespace(data_as_of='2026-08-13', regular_statements=[candidate]),
+            intelligence=SimpleNamespace(
+                overlay={
+                    'supersessions': [
+                        {
+                            'statement_internal_id': 'candidate',
+                            'classification': 'Single Statement',
+                            'candidate_permissions': ['BUCKET_READ'],
+                            'notes': 'All candidate permissions are granted by unconditional applicable policy statements.',
+                            'evidence': [
+                                {
+                                    'policy_name': 'Root Policy',
+                                    'statement_text': 'allow group Devs to read buckets in tenancy',
+                                    'effective_path': 'ROOT',
+                                    'relationship': 'Ancestor',
+                                    'covered_permissions': ['BUCKET_READ'],
+                                    'conditional': False,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ),
+        )
+    )
+
+    report = service.get_supersession_report()
+    markdown = service.to_markdown(report)
+
+    assert report['report_id'] == 'supersession'
+    assert report['counts'] == {'compartments_with_supersession': 1, 'superseded_statements': 1}
+    assert '## Compartment: ROOT/Platform/Apps (Apps)' in markdown
+    assert '**Superseded statement:** `allow group Devs to read buckets in compartment Apps`' in markdown
+    assert '### 1. AIDP\\_not\\_assessed\\_tenancy\\_policy' in markdown
+    assert '#### Superseding statement 1: Root Policy' in markdown
+    assert '**Why:** All candidate permissions are granted by unconditional applicable policy statements.' in markdown
+    rendered_html = service.with_rendered_formats(report)['markdown_html']
+    assert 'AIDP_not_assessed_tenancy_policy' in rendered_html
+    assert '<em>not</em>' not in rendered_html

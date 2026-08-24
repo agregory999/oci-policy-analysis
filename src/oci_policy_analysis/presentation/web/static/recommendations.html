@@ -561,8 +561,16 @@
         const statement = statementTextForRow(row);
         const policyName = policyNameForRow(row);
         const effectivePath = firstValue(row, ['Effective Path']);
+        const policyCompartment = firstValue(row, ['Policy Compartment', 'compartment_path']);
         if (statement) addMenuAction(actions, 'Open statement in Policy Analysis', policyFilterUrl({ statement_text: statement }));
-        if (policyName) addMenuAction(actions, 'Open policy in Policy Analysis', policyFilterUrl({ policy_name: policyName }));
+        if (tableId === 'supersessionTable' && policyName) {
+          addMenuAction(actions, 'Show Full Policy', policyFilterUrl({
+            policy_name: policyName,
+            compartment_path: policyCompartment,
+          }));
+        } else if (policyName) {
+          addMenuAction(actions, 'Open policy in Policy Analysis', policyFilterUrl({ policy_name: policyName }));
+        }
         if (effectivePath) addMenuAction(actions, 'Open effective path in Policy Analysis', policyFilterUrl({ effective_path: effectivePath }));
 
         if (tableId === 'supersessionTable') {

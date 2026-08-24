@@ -32,11 +32,12 @@ class ReportsTab(BaseUITab):
         controls = ttk.LabelFrame(self, text='Available Reports')
         controls.pack(fill='x', padx=10, pady=10)
         ttk.Label(controls, text='Report:').grid(row=0, column=0, padx=(8, 4), pady=8, sticky='w')
-        self.report_var = tk.StringVar(value='Full Policy Overlaps')
+        self.report_var = tk.StringVar(value='Policy Inventory')
         self.report_choices = {
-            'Full Policy Overlaps': 'full-overlaps',
             'Policy Inventory': 'policy-inventory',
             'Effective Permissions': 'permissions',
+            'Policy Supersession': 'supersession',
+            'Full Policy Overlaps': 'full-overlaps',
         }
         ttk.Combobox(
             controls, textvariable=self.report_var, values=list(self.report_choices), state='readonly', width=28
@@ -88,11 +89,25 @@ class ReportsTab(BaseUITab):
             tkinter.messagebox.showerror('Report', str(exc))
             return
         self.export_button.configure(state=tk.NORMAL)
-        self.status_var.set(
-            f"Report complete: {self._report.get('item_count', self._report.get('finding_count', 0))} "
-            f"{self._report.get('item_label', 'items').casefold()}."
-        )
+        self.status_var.set(self._completion_message())
         self._refresh_preview()
+
+    def _completion_message(self) -> str:
+        """Return a concise completion label appropriate to the generated report."""
+        if not self._report:
+            return 'Report complete.'
+        if self._report.get('report_id') == 'policy-inventory':
+            counts = self._report.get('counts') or {}
+            return (
+                'Report complete: '
+                f'{counts.get("compartments", 0)} compartments, '
+                f'{counts.get("policies", 0)} policies, '
+                f'{counts.get("statements", 0)} statements.'
+            )
+        return (
+            f'Report complete: {self._report.get("item_count", self._report.get("finding_count", 0))} '
+            f'{self._report.get("item_label", "items").casefold()}.'
+        )
 
     def _refresh_preview(self) -> None:
         """Display the generated report using the selected serialization."""

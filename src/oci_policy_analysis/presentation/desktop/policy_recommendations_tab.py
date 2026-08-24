@@ -29,6 +29,29 @@ from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, D
 
 # Note: CheckboxTable now supports a `column_widths` dict argument (pixel widths only).
 
+
+def _compartment_filter_label(path: object) -> str:
+    """Format a compartment path with its hierarchy level for filter display."""
+    normalized = _normalize_compartment_path(path)
+    level = len([segment for segment in normalized.split('/') if segment])
+    return f'{normalized or "Unknown"} (Level {level or 1})'
+
+
+def _normalize_compartment_path(path: object) -> str:
+    """Normalize a display path and use the canonical uppercase ROOT segment."""
+    segments = [segment for segment in str(path or '').strip('/').split('/') if segment]
+    if segments and segments[0].casefold() == 'root':
+        segments[0] = 'ROOT'
+    return '/'.join(segments)
+
+
+def _path_is_same_or_descendant(path: object, ancestor: object) -> bool:
+    """Return whether ``path`` is ``ancestor`` or belongs below it in the hierarchy."""
+    path_segments = tuple(segment.casefold() for segment in str(path or '').strip('/').split('/') if segment)
+    ancestor_segments = tuple(segment.casefold() for segment in str(ancestor or '').strip('/').split('/') if segment)
+    return bool(ancestor_segments) and path_segments[: len(ancestor_segments)] == ancestor_segments
+
+
 # Risk View Table Layout
 POLICY_RECOMMENDATIONS_ALL_COLUMNS = [
     'Score',
@@ -324,8 +347,8 @@ class PolicyRecommendationsTab(BaseUITab):
                 pol_limit, stmt_limit = limits if limits else (None, None)
                 txt = 'Tenancy Limits: '
                 txt_parts = []
-                txt_parts.append(f"{pol_limit if pol_limit is not None else 'n/a'} policies / tenancy")
-                txt_parts.append(f"{stmt_limit if stmt_limit is not None else 'n/a'} statements / policy")
+                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
+                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
                 txt += ', '.join(txt_parts)
             # Always append the hard OCI statements/compartment limit label
             txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
@@ -494,8 +517,8 @@ class PolicyRecommendationsTab(BaseUITab):
                 pol_limit, stmt_limit = limits if limits else (None, None)
                 txt = 'Tenancy Limits: '
                 txt_parts = []
-                txt_parts.append(f"{pol_limit if pol_limit is not None else 'n/a'} policies / tenancy")
-                txt_parts.append(f"{stmt_limit if stmt_limit is not None else 'n/a'} statements / policy")
+                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
+                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
                 txt += ', '.join(txt_parts)
             # Always append the hard OCI statements/compartment limit label
             txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
@@ -645,13 +668,13 @@ class PolicyRecommendationsTab(BaseUITab):
                         (
                             'Candidate Statement',
                             [
-                                f"Policy: {row.get('Policy Path') or '(none)'}",
-                                f"Statement: {row.get('Statement Text') or '(none)'}",
+                                f'Policy: {row.get("Policy Path") or "(none)"}',
+                                f'Statement: {row.get("Statement Text") or "(none)"}',
                             ],
                         ),
                         (
                             'Risk Assessment',
-                            [f"Raw Score: {row.get('Score')}", f"Relative Risk: {row.get('Relative Risk')}"],
+                            [f'Raw Score: {row.get("Score")}', f'Relative Risk: {row.get("Relative Risk")}'],
                         ),
                     ],
                 ),
@@ -714,6 +737,23 @@ class PolicyRecommendationsTab(BaseUITab):
             self.app.policies_tab.update_policy_output()
         except Exception as ex:
             tkinter.messagebox.showinfo('Show All Statements', f'Could not focus Policy Analysis tab: {ex}')
+
+    def _show_full_policy_in_main_analysis(self, policy_name: str, compartment_path: str) -> None:
+        """Open one policy in Policy Analysis with every unrelated filter cleared."""
+        try:
+            self.app.notebook.select(tab_id=2)  # Policy Analysis tab
+            policies_tab = self.app.policies_tab
+            policies_tab.clear_policy_filters()
+            policies_tab.hierarchy_filter_var.set(compartment_path)
+            policies_tab.policy_filter_var.set(policy_name)
+            policies_tab.update_policy_output()
+            logger.info(
+                'Opened full policy in Policy Analysis: policy_name=%s compartment_path=%s',
+                policy_name,
+                compartment_path,
+            )
+        except Exception as ex:
+            tkinter.messagebox.showinfo('Show Full Policy', f'Could not focus Policy Analysis tab: {ex}')
 
     def _analyze_selected_statement_in_main_analysis(self, statement_text: str):
         """
@@ -795,14 +835,14 @@ class PolicyRecommendationsTab(BaseUITab):
                 command=lambda: self._show_recommendation_details(
                     'Policy Risk Details',
                     [
-                        ('Policy', [f"Policy Path: {policy_path or '(none)'}"]),
+                        ('Policy', [f'Policy Path: {policy_path or "(none)"}']),
                         (
                             'Risk Assessment',
                             [
-                                f"Total Statements: {row.get('Total Statements', '')}",
-                                f"Maximum Score: {row.get('Max Score', '')}",
-                                f"Average Score: {row.get('Avg Score', '')}",
-                                f"Risk Summary: {row.get('Risk Summary/Notes', '')}",
+                                f'Total Statements: {row.get("Total Statements", "")}',
+                                f'Maximum Score: {row.get("Max Score", "")}',
+                                f'Average Score: {row.get("Avg Score", "")}',
+                                f'Risk Summary: {row.get("Risk Summary/Notes", "")}',
                             ],
                         ),
                     ],
@@ -909,9 +949,9 @@ class PolicyRecommendationsTab(BaseUITab):
                 (
                     'Candidate Statement',
                     [
-                        f"Policy: {row.get('Policy Name') or '(none)'}",
-                        f"Statement: {row.get('Statement Text') or '(none)'}",
-                        f"Effective Path: {row.get('Effective Path') or '(none)'}",
+                        f'Policy: {row.get("Policy Name") or "(none)"}',
+                        f'Statement: {row.get("Statement Text") or "(none)"}',
+                        f'Effective Path: {row.get("Effective Path") or "(none)"}',
                     ],
                 )
             ]
@@ -920,12 +960,12 @@ class PolicyRecommendationsTab(BaseUITab):
                     (
                         f'Overlap Evidence {number}',
                         [
-                            f"Policy: {overlap.get('superseded_by') or '(none)'}",
-                            f"Statement: {overlap.get('statement_text') or '(none)'}",
-                            f"Overlapping Permissions: {', '.join(overlap.get('permission_overlap') or []) or '(none)'}",
-                            f"Confidence: {overlap.get('confidence') or '(none)'}",
-                            f"Reason: {overlap.get('reason') or '(none)'}",
-                            f"Notes: {overlap.get('additional_notes') or '(none)'}",
+                            f'Policy: {overlap.get("superseded_by") or "(none)"}',
+                            f'Statement: {overlap.get("statement_text") or "(none)"}',
+                            f'Overlapping Permissions: {", ".join(overlap.get("permission_overlap") or []) or "(none)"}',
+                            f'Confidence: {overlap.get("confidence") or "(none)"}',
+                            f'Reason: {overlap.get("reason") or "(none)"}',
+                            f'Notes: {overlap.get("additional_notes") or "(none)"}',
                         ],
                     )
                 )
@@ -953,17 +993,39 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def _build_supersession_tab(self, parent):
         """Build the read-only complete-supersession recommendations subtab."""
+        controls = ttk.Frame(parent)
+        controls.pack(fill='x', padx=10, pady=(10, 4))
+        controls.columnconfigure(1, weight=1)
+        filter_frame = ttk.Frame(controls)
+        filter_frame.grid(row=0, column=0, sticky='w')
+        ttk.Label(filter_frame, text='Compartment:').pack(side='left')
+        self.supersession_compartment_filter = 'ALL'
+        self._supersession_filter_paths = {'All compartments': 'ALL'}
+        self.supersession_compartment_combo = ttk.Combobox(
+            filter_frame,
+            values=['All compartments'],
+            state='readonly',
+            width=44,
+        )
+        self.supersession_compartment_combo.set('All compartments')
+        self.supersession_compartment_combo.pack(side='left', padx=(4, 8))
+        self.supersession_compartment_combo.bind('<<ComboboxSelected>>', self._on_supersession_compartment_selected)
+        self.add_context_help(
+            self.supersession_compartment_combo,
+            'Show supersession findings in this compartment and its descendant compartments. '
+            'The number in parentheses is the compartment hierarchy level.',
+        )
         intro = ttk.Label(
-            parent,
+            controls,
             text=(
                 'Complete supersession identifies an allow statement whose full permission set is already granted by '
-                'one or more unconditional statements for the same principal at the same or an ancestor scope. '
+                'a single unconditional statement for the same principal at the same or an ancestor scope. '
                 'Conditional evidence is shown for review but is never used as automatic proof.'
             ),
             justify='left',
-            wraplength=1300,
+            wraplength=780,
         )
-        intro.pack(fill='x', padx=10, pady=(10, 4))
+        intro.grid(row=0, column=1, sticky='ew', padx=(12, 0))
         self.add_context_help(
             intro, 'Review this evidence before making any policy change; this view never changes policies.'
         )
@@ -984,24 +1046,24 @@ class PolicyRecommendationsTab(BaseUITab):
             outer.pack(fill='both', expand=True, padx=12, pady=12)
             ttk.Label(
                 outer,
-                text=f"{finding.get('classification', 'Supersession')}: {row.get('Policy Name', 'Unknown Policy')}",
+                text=f'{finding.get("classification", "Supersession")}: {row.get("Policy Name", "Unknown Policy")}',
                 font=('TkDefaultFont', 11, 'bold'),
             ).pack(anchor='w', pady=(0, 6))
             candidate_frame = ttk.LabelFrame(outer, text='Candidate Statement')
             candidate_frame.pack(fill='x', pady=(0, 8))
             ttk.Label(
                 candidate_frame,
-                text=f"Policy: {row.get('Policy Name') or '(none)'}",
+                text=f'Policy: {row.get("Policy Name") or "(none)"}',
             ).pack(anchor='w', padx=8, pady=(6, 1))
             ttk.Label(
                 candidate_frame,
-                text=f"Statement: {row.get('Statement Text') or '(none)'}",
+                text=f'Statement: {row.get("Statement Text") or "(none)"}',
                 wraplength=900,
                 justify='left',
             ).pack(anchor='w', padx=8, pady=1)
             ttk.Label(
                 candidate_frame,
-                text=f"Effective Path: {row.get('Effective Path') or '(none)'}",
+                text=f'Effective Path: {row.get("Effective Path") or "(none)"}',
             ).pack(anchor='w', padx=8, pady=(1, 6))
 
             notes_frame = ttk.LabelFrame(outer, text='Coverage Notes')
@@ -1016,26 +1078,26 @@ class PolicyRecommendationsTab(BaseUITab):
                 evidence_title = ttk.Label(
                     evidence_frame,
                     text=(
-                        f"{number}. {evidence.get('policy_name') or 'Unknown Policy'}  —  "
-                        f"{evidence.get('effective_path') or 'Unknown Effective Path'} "
-                        f"({evidence.get('relationship') or 'Applicable scope'})"
+                        f'{number}. {evidence.get("policy_name") or "Unknown Policy"}  —  '
+                        f'{evidence.get("effective_path") or "Unknown Effective Path"} '
+                        f'({evidence.get("relationship") or "Applicable scope"})'
                     ),
                     font=('TkDefaultFont', 10, 'bold'),
                 )
                 evidence_title.pack(anchor='w', padx=8, pady=((6 if number == 1 else 10), 2))
                 ttk.Label(
                     evidence_frame,
-                    text=f"Policy: {evidence.get('policy_name') or '(none)'}",
+                    text=f'Policy: {evidence.get("policy_name") or "(none)"}',
                 ).pack(anchor='w', padx=20, pady=1)
                 ttk.Label(
                     evidence_frame,
-                    text=f"Statement: {evidence.get('statement_text') or '(none)'}",
+                    text=f'Statement: {evidence.get("statement_text") or "(none)"}',
                     wraplength=900,
                     justify='left',
                 ).pack(anchor='w', padx=20, pady=1)
                 ttk.Label(
                     evidence_frame,
-                    text=f"Effective Path: {evidence.get('effective_path') or '(none)'}",
+                    text=f'Effective Path: {evidence.get("effective_path") or "(none)"}',
                 ).pack(anchor='w', padx=20, pady=(1, 2))
                 if evidence.get('conditional'):
                     ttk.Label(
@@ -1054,9 +1116,9 @@ class PolicyRecommendationsTab(BaseUITab):
             by_permission: dict[str, list[str]] = {}
             for evidence in finding.get('evidence', []):
                 source = (
-                    f"{evidence.get('policy_name') or 'Unknown Policy'} "
-                    f"({evidence.get('effective_path') or 'Unknown Effective Path'}; "
-                    f"{evidence.get('relationship') or 'Applicable scope'})"
+                    f'{evidence.get("policy_name") or "Unknown Policy"} '
+                    f'({evidence.get("effective_path") or "Unknown Effective Path"}; '
+                    f'{evidence.get("relationship") or "Applicable scope"})'
                 )
                 for permission in evidence.get('covered_permissions', []):
                     by_permission.setdefault(str(permission), []).append(source)
@@ -1079,6 +1141,13 @@ class PolicyRecommendationsTab(BaseUITab):
             row = self.supersession_table.data[row_index]
             menu = tk.Menu(self.supersession_table, tearoff=0)
             menu.add_command(label='Supersession Details', command=lambda: show_supersession_details(row))
+            policy_name = str(row.get('Policy Name') or '')
+            compartment_path = str(row.get('Policy Compartment') or '')
+            if policy_name:
+                menu.add_command(
+                    label='Show Full Policy',
+                    command=lambda: self._show_full_policy_in_main_analysis(policy_name, compartment_path),
+                )
             return menu
 
         self.supersession_table = DataTable(
@@ -1106,12 +1175,30 @@ class PolicyRecommendationsTab(BaseUITab):
             str(statement.get('internal_id') or ''): statement
             for statement in (self.policy_repo.regular_statements or [])
         }
+        known_paths: dict[str, str] = {}
+        for compartment in getattr(self.policy_repo, 'compartments', []) or []:
+            if not isinstance(compartment, dict):
+                continue
+            path = _normalize_compartment_path(compartment.get('hierarchy_path') or compartment.get('path'))
+            if path:
+                known_paths.setdefault(path.casefold(), path)
+        for statement in statements.values():
+            path = _normalize_compartment_path(statement.get('effective_path') or statement.get('compartment_path'))
+            if path:
+                known_paths.setdefault(path.casefold(), path)
+        self._update_supersession_compartment_filter(set(known_paths.values()))
+
         rows = []
         for finding in findings:
             statement = statements.get(str(finding.get('statement_internal_id') or ''))
             if not statement:
                 continue
             display = for_display_policy(statement)
+            effective_path = str(display.get('Effective Path') or '')
+            if self.supersession_compartment_filter != 'ALL' and not _path_is_same_or_descendant(
+                effective_path, self.supersession_compartment_filter
+            ):
+                continue
             evidence = finding.get('evidence', []) or []
             rows.append(
                 {
@@ -1121,13 +1208,41 @@ class PolicyRecommendationsTab(BaseUITab):
                     'Statement Text': display.get('Statement Text', ''),
                     'Classification': finding.get('classification', ''),
                     'Superseded By': ', '.join(
-                        f"{item.get('policy_name', '')} ({item.get('effective_path', '')})" for item in evidence
+                        f'{item.get("policy_name", "")} ({item.get("effective_path", "")})' for item in evidence
                     ),
                     'Internal ID': finding.get('statement_internal_id', ''),
                 }
             )
         rows.sort(key=lambda row: (str(row['Effective Path']), str(row['Policy Name'])))
         self.supersession_table.update_data(rows)
+
+    def _update_supersession_compartment_filter(self, paths: set[str]) -> None:
+        """Refresh filter choices from loaded compartments while preserving selection."""
+        if not hasattr(self, 'supersession_compartment_combo'):
+            return
+        ordered_paths = sorted(
+            paths,
+            key=lambda path: (len([segment for segment in path.split('/') if segment]), path.casefold()),
+        )
+        filter_paths = {'All compartments': 'ALL'}
+        for path in ordered_paths:
+            filter_paths[_compartment_filter_label(path)] = path
+        self._supersession_filter_paths = filter_paths
+        self.supersession_compartment_combo['values'] = list(filter_paths)
+        if self.supersession_compartment_filter not in set(filter_paths.values()):
+            self.supersession_compartment_filter = 'ALL'
+            self.supersession_compartment_combo.set('All compartments')
+            return
+        selected_label = next(
+            label for label, path in filter_paths.items() if path == self.supersession_compartment_filter
+        )
+        self.supersession_compartment_combo.set(selected_label)
+
+    def _on_supersession_compartment_selected(self, _event=None) -> None:
+        """Filter supersession findings to the selected compartment subtree."""
+        selected = self.supersession_compartment_combo.get()
+        self.supersession_compartment_filter = self._supersession_filter_paths.get(selected, 'ALL')
+        self.update_supersession_tab_output()
 
     def _export_overlap_to_csv(self):
         if not self.policy_repo.regular_statements:
@@ -1283,7 +1398,7 @@ class PolicyRecommendationsTab(BaseUITab):
         logger.info(f'Updating recommendation summary with {len(recs)} entries.')
         if recs and hasattr(logger, 'info'):
             logger.info(
-                f"First recommendation keys: {list(recs[0].keys()) if isinstance(recs[0], dict) else 'Not a dict'}"
+                f'First recommendation keys: {list(recs[0].keys()) if isinstance(recs[0], dict) else "Not a dict"}'
             )
         # Ensure all required columns are present for every row (prevent blank table w/ field mismatch)
         required_cols = ['Recommendation', 'Priority', 'Category', 'Notes', 'Action']
@@ -1296,7 +1411,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 detail_parts = [str(action_detail or '')]
                 if isinstance(action_steps, list) and action_steps:
                     detail_parts.append(' Steps: ' + ' | '.join(str(step) for step in action_steps))
-                norm['Action'] = f"{norm.get('Action', '')} -- {' '.join(part for part in detail_parts if part)}"
+                norm['Action'] = f'{norm.get("Action", "")} -- {" ".join(part for part in detail_parts if part)}'
             normalized_recs.append(norm)
         self.recommendation_table.update_data(normalized_recs)
 
@@ -2035,7 +2150,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
                 a['created_ts'] = datetime.now(UTC).isoformat()  # noqa: ISC001
             if 'History' not in a or not a['History']:
-                a['History'] = f"Added {a.get('created_ts', '')[:19]}"
+                a['History'] = f'Added {a.get("created_ts", "")[:19]}'
             a['wb_id'] = f'wb-{self._workbench_counter}'
             self._workbench_actions.append(a)
         self._refresh_workbench_table()
@@ -2067,7 +2182,7 @@ class PolicyRecommendationsTab(BaseUITab):
             issue_type = row.get('Type', '')
             desc = (row.get('Name') or '')[:120]
             if payload.get('policy_name'):
-                desc = f"{payload.get('policy_name', '')}: {desc}"
+                desc = f'{payload.get("policy_name", "")}: {desc}'
             cli = ''
             rollback = ''
             ui = ''
@@ -2124,7 +2239,7 @@ class PolicyRecommendationsTab(BaseUITab):
             issue_type = row.get('Type', '')
             desc = (row.get('Name') or '')[:120]
             if payload.get('policy_name'):
-                desc = f"{payload.get('policy_name', '')}: {desc}"
+                desc = f'{payload.get("policy_name", "")}: {desc}'
             cli = ''
             rollback = ''
             ui = ''
@@ -2210,7 +2325,7 @@ class PolicyRecommendationsTab(BaseUITab):
         for group in cleanup.get('unused_groups', []):
             group_ocid = group.get('group_ocid') or ''
             action_key = f'group|{group_ocid}' if group_ocid else f'group|{len(issues)}'
-            group_name = f"{group.get('domain_name', 'Default')}/{group.get('group_name', '[unknown]')}"
+            group_name = f'{group.get("domain_name", "Default")}/{group.get("group_name", "[unknown]")}'
             issues.append(
                 {
                     'Type': 'Group w/ No Users',
@@ -2231,7 +2346,7 @@ class PolicyRecommendationsTab(BaseUITab):
         for dg in cleanup.get('unused_dynamic_groups', []):
             dg_ocid = dg.get('dynamic_group_ocid') or ''
             action_key = f'dg|{dg_ocid}' if dg_ocid else f'dg|{len(issues)}'
-            dg_name = f"{dg.get('domain_name', 'Default')}/{dg.get('dynamic_group_name', '[unknown]')}"
+            dg_name = f'{dg.get("domain_name", "Default")}/{dg.get("dynamic_group_name", "[unknown]")}'
             issues.append(
                 {
                     'Type': 'Unused Dynamic Group',

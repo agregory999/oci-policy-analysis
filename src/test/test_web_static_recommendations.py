@@ -42,6 +42,8 @@ def test_recommendations_page_renders_supersession_with_structured_fly_in() -> N
     assert 'formatSupersessionDetail' in page_html
     assert "tableId === 'supersessionTable'" in page_html
     assert 'payload.supersession || []' in page_html
+    assert "'Show Full Policy'" in page_html
+    assert 'compartment_path: policyCompartment' in page_html
 
 
 def test_target_pages_accept_navigation_filters() -> None:
