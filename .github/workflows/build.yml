@@ -184,34 +184,20 @@ jobs:
           cache-dependency-path: pyproject.toml
           architecture: 'x64' 
         
-      - name: Build wheels from source (pip)
+      - name: Install desktop build dependencies
         if: steps.skip_build.outputs.skip != 'true'
         shell: bash
         run: |
           echo "🐍 Setting up build environment..."
           python -m pip install "pip==25.3"
 
-          # ensure build toolchain (pip uses wheels, but this is allowed)
+          # Use published wheels. Pillow has a CPython 3.12 Windows wheel; forcing
+          # source builds requires system zlib headers that GitHub's Windows image
+          # does not provide.
           pip install build wheel pip-tools setuptools pyinstaller==6.14.2 ruff
 
-          echo "🔒 Locking dependencies with pip-compile..."
-          pip-compile --generate-hashes --output-file frozen.txt pyproject.toml
-
-          echo "🧹 Removing editable + hash entries..."
-          grep -v '^-e .' frozen.txt > deps.txt
-          grep -v -- "--hash=" deps.txt > deps2.txt
-          mv deps2.txt frozen.txt
-          rm deps.txt
-
-          echo "🔨 Building wheels from source..."
-          mkdir -p wheels
-          pip wheel --no-binary=:all: --only-binary cryptography --only-binary pywin32 --only-binary cython -r frozen.txt -w wheels/
-
-          echo "📥 Installing local source-built wheels..."
-          pip install --no-index --find-links=./wheels -r frozen.txt
-
           echo "📦 Installing your project (+mcp extra for PyInstaller metadata copy)..."
-          pip install -e ".[mcp]"
+          pip install --only-binary=:all: -e ".[mcp]"
                 
 
 
