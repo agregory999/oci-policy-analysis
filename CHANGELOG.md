@@ -1,3 +1,10 @@
+## [6.4.0-restore-consolidation-workbench-v6-3-1.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.2...v6.4.0-restore-consolidation-workbench-v6-3-1.3) (2026-08-24)
+
+
+### Features
+
+* Policy Supersession and Recommendations ([e07cf88](https://github.com/agregory999/oci-policy-analysis/commit/e07cf8851ee731c0f87373fee8b32b9da74d665e))
+
 ## [6.4.0-restore-consolidation-workbench-v6-3-1.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.1...v6.4.0-restore-consolidation-workbench-v6-3-1.2) (2026-08-24)
 
 
