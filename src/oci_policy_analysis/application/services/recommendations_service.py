@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.core.support.logger import get_logger
 
 
@@ -307,8 +308,7 @@ class RecommendationsService:
                 {
                     'Type': 'Overly Broad Statement',
                     'Name': (st.get('statement_text') or '[unknown statement]')[:200],
-                    'Reason': "Grants 'manage all-resources' to principal outside root/admin.",
-                    'Action': 'Restrict scope and replace with least privilege permissions.',
+                    **overly_broad_statement_guidance(st),
                 }
             )
         for st in cleanup.get('anyuser_no_where', []) or []:

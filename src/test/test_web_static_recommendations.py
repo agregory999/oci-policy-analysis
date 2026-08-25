@@ -16,6 +16,9 @@ def test_recommendations_page_has_summary_filters_action_details_and_taller_tabl
     assert '<th>Action Detail</th>' in page_html
     assert "['Recommendation', 'Priority', 'Category', 'Notes', 'Action', 'ActionDetail']" in page_html
     assert 'max-height: 520px' in page_html
+    assert 'function canonicalPriority(value)' in page_html
+    assert 'function summaryPriorityCounts(summary)' in page_html
+    assert "warn: 'Medium'" in page_html
 
 
 def test_recommendations_page_has_context_menu_destinations() -> None:

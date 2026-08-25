@@ -20,6 +20,11 @@ import tkinter.messagebox
 from datetime import UTC
 from tkinter import ttk
 
+from oci_policy_analysis.application.core.engine.recommendation_actions import (
+    RECOMMENDATION_PRIORITY_HIGH,
+    RECOMMENDATION_PRIORITY_MEDIUM,
+    overly_broad_statement_guidance,
+)
 from oci_policy_analysis.application.core.support.helpers import for_display_policy
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.core.support.usage_tracking import get_usage_tracker
@@ -555,7 +560,7 @@ class PolicyRecommendationsTab(BaseUITab):
             first_status = 'over limit' if has_over else 'nearing the limit'
             rec = {
                 'Recommendation': title,
-                'Priority': 'HIGH' if has_over else 'WARN',
+                'Priority': RECOMMENDATION_PRIORITY_HIGH if has_over else RECOMMENDATION_PRIORITY_MEDIUM,
                 'Category': 'Limits',
                 'Notes': (
                     f'At least one compartment is {first_status} for the OCI 500 policy statement-per-compartment limit. '
@@ -2372,8 +2377,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 {
                     'Type': 'Overly Broad Statement',
                     'Name': name,
-                    'Reason': "Grants 'manage all-resources' to principal outside root/admin.",
-                    'Action': 'Restrict scope and replace with least privilege permissions.',
+                    **overly_broad_statement_guidance(st),
                     'action_key': action_key,
                 }
             )

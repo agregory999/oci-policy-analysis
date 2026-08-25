@@ -7,7 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_statements_too_open import (
+    StatementsTooOpenCheck,
+    is_overly_broad_statement,
+)
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
+from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 
 
 class _RiskRefRepo:
@@ -440,6 +445,64 @@ def test_build_permissions_report_preserves_deny_rows_and_summary():
     assert payload['report']['root'][subject_key]['deny'] == ['BUCKET_READ']
     assert payload['grant_rows'][0]['action'] == 'deny'
     assert payload['summary']['deny_grant_count'] == 1
+
+
+@pytest.mark.parametrize(
+    ('conditions', 'expected_action_fragment'),
+    [
+        ('', 'effective path and target resources'),
+        ("where all {instance.id = 'b'}", 'test the conditions'),
+    ],
+)
+def test_broad_deny_all_resources_is_included_in_cleanup_recommendations(
+    conditions: str, expected_action_fragment: str
+) -> None:
+    statement = {
+        'statement_text': "deny group 'Federated'/'security-admins' to inspect all-resources in tenancy",
+        'action': 'deny',
+        'verb': 'inspect',
+        'resource': 'all-resources',
+        'conditions': conditions,
+    }
+    repo = SimpleNamespace(regular_statements=[statement])
+    overlay: dict = {}
+
+    StatementsTooOpenCheck().run(repo, overlay)
+
+    assert overlay['cleanup_items']['statements_too_open'] == [statement]
+    guidance = overly_broad_statement_guidance(statement)
+    assert guidance['Reason'].startswith("Revokes 'inspect all-resources'")
+    assert expected_action_fragment in guidance['Action']
+
+    engine, _ = _build_engine_with_statement(statement, {})
+    engine.build_cleanup_items(enabled_check_ids=['statements_too_open'])
+    assert engine.overlay['cleanup_items']['statements_too_open'] == [statement]
+
+
+@pytest.mark.parametrize(
+    'statement',
+    [
+        {'action': 'allow', 'verb': 'use', 'resource': 'all-resources'},
+        {'action': 'allow', 'verb': 'manage', 'resource': 'all-resources'},
+        {'action': 'deny', 'verb': 'inspect', 'resource': 'all-resources'},
+        {'action': 'deny', 'verb': 'read', 'resource': 'all-resources'},
+        {'action': 'deny', 'verb': 'manage', 'resource': 'all-resources'},
+    ],
+)
+def test_overly_broad_statement_verbs_are_detected(statement: dict) -> None:
+    assert is_overly_broad_statement(statement)
+
+
+@pytest.mark.parametrize(
+    'statement',
+    [
+        {'action': 'allow', 'verb': 'read', 'resource': 'all-resources'},
+        {'action': 'deny', 'verb': 'use', 'resource': 'all-resources'},
+        {'action': 'allow', 'verb': 'use', 'resource': 'buckets'},
+    ],
+)
+def test_narrower_all_resources_verbs_are_not_detected(statement: dict) -> None:
+    assert not is_overly_broad_statement(statement)
 
 
 def test_build_permissions_report_expands_effective_rows_to_descendant_compartments():

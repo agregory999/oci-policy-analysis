@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 
 
@@ -18,6 +19,21 @@ def test_summary_counts_group_by_severity_and_category() -> None:
 
     assert counts['severity'] == {'High': 2, 'Medium': 1}
     assert counts['category'] == {'Workload Identity': 1, 'Resource Principal': 2}
+
+
+def test_overly_broad_deny_guidance_reviews_conditions() -> None:
+    guidance = overly_broad_statement_guidance({'action': 'deny', 'conditions': "where request.user.id = 'alice'"})
+
+    assert guidance['Reason'].startswith("Revokes 'manage all-resources'")
+    assert 'effective path and target resources' in guidance['Action']
+    assert 'test the conditions' in guidance['Action']
+
+
+def test_overly_broad_allow_guidance_omits_condition_testing_without_conditions() -> None:
+    guidance = overly_broad_statement_guidance({'action': 'allow', 'conditions': ''})
+
+    assert guidance['Reason'].startswith("Grants 'manage all-resources'")
+    assert 'test the conditions' not in guidance['Action']
 
 
 def test_supersession_rows_preserve_candidate_and_evidence_details() -> None:

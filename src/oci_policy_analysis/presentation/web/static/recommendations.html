@@ -412,7 +412,10 @@
       }
 
       function renderSummaryTable(payload) {
-        const summary = payload.summary || [];
+        const summary = (payload.summary || []).map((row) => ({
+          ...row,
+          Priority: canonicalPriority(row.Priority),
+        }));
         const rows = summary.filter((row) => {
           const severityOk = !filterState.summarySeverity || String(row.Priority || '') === filterState.summarySeverity;
           const categoryOk = !filterState.summaryCategory || String(row.Category || '') === filterState.summaryCategory;
@@ -420,6 +423,28 @@
         });
         renderTable('summaryTable', rows, ['Recommendation', 'Priority', 'Category', 'Notes', 'Action', 'ActionDetail']);
         updateFilterCount('summaryFilterCount', rows.length, summary.length);
+      }
+
+      function canonicalPriority(value) {
+        const normalized = String(value || '').trim().toLowerCase();
+        const priorityByValue = {
+          critical: 'Critical',
+          high: 'High',
+          medium: 'Medium',
+          low: 'Low',
+          info: 'Info',
+          warn: 'Medium',
+          warning: 'Medium',
+        };
+        return priorityByValue[normalized] || String(value || '');
+      }
+
+      function summaryPriorityCounts(summary) {
+        return summary.reduce((counts, row) => {
+          const priority = String(row.Priority || 'Unspecified');
+          counts[priority] = (counts[priority] || 0) + 1;
+          return counts;
+        }, {});
       }
 
       function bindTableFilters() {
@@ -627,7 +652,10 @@
       }
 
       function renderSummary(payload) {
-        const summary = payload.summary || [];
+        const summary = (payload.summary || []).map((row) => ({
+          ...row,
+          Priority: canonicalPriority(row.Priority),
+        }));
         const highCritical = summary.filter((r) => {
           const p = String(r.Priority || '').toUpperCase();
           return p === 'HIGH' || p === 'CRITICAL';
@@ -641,7 +669,7 @@
         document.getElementById('sumSupersession').textContent = String((payload.supersession || []).length);
         document.getElementById('sumCleanup').textContent = String((payload.cleanup || []).length);
         document.getElementById('sumLimitAlerts').textContent = String(limitAlerts);
-        fillSelectFromCounts('summarySeverityFilter', (payload.summary_counts || {}).severity || {}, 'All severities');
+        fillSelectFromCounts('summarySeverityFilter', summaryPriorityCounts(summary), 'All severities');
         fillSelectFromCounts('summaryCategoryFilter', (payload.summary_counts || {}).category || {}, 'All categories');
       }
 
