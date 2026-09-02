@@ -32,6 +32,7 @@
 ### Features
 
 * consolidation in desktop, reports, supersession ([0f468b7](https://github.com/agregory999/oci-policy-analysis/commit/0f468b71a50379263a730ee52affd73f76800ded))
+## [6.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.3.1) (2026-08-11)
 
 
 ### Bug Fixes
