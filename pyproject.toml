@@ -5,12 +5,14 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-version = "6.3.1"
+version = "6.4.0.dev"
 
 dependencies = [
     "oci==2.168.0",
     "deepdiff==8.5.0",
-    "antlr4-python3-runtime==4.13.2"
+    "antlr4-python3-runtime==4.13.2",
+    "markdown2>=2.5.5",
+    "tkhtmlview>=0.3.2",
 ]
 
 classifiers = [

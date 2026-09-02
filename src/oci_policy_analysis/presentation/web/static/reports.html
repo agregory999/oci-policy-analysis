@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCI Policy Analysis - Reports</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="top-row has-fixed-help">
+      <header class="app-masthead" data-help-title="Reports" data-help-body="Run detailed reports explicitly. They do not run during normal policy analysis.">
+        <div class="masthead-brand">
+          <span class="masthead-badge">OCI</span>
+          <div><h1>Reports</h1><p>On-demand analysis • JSON, Markdown, and rendered HTML</p></div>
+        </div>
+        <div class="policy-toolbar"><a href="/" class="card-link secondary">← Back to home</a></div>
+      </header>
+      <div class="context-help-card context-help-fixed">
+        <p class="context-help-kicker">Context Help</p>
+        <h3 class="context-help-title">How To Use This Page</h3>
+        <p class="context-help-body">Run a report when you need its detailed output, choose a preview format, then download the artifact.</p>
+      </div>
+    </div>
+    <main class="layout-single">
+      <article class="card compact-card">
+        <p class="card-title">Available Reports</p>
+        <p>Overlap is intentionally on demand because it can be expensive. Inventory and effective permissions reuse loaded analysis data.</p>
+        <div class="inline-field">
+          <label for="reportType" class="no-margin-label">Report:</label>
+          <select id="reportType"><option value="policy-inventory">Policy Inventory</option><option value="permissions">Effective Permissions</option><option value="supersession">Policy Supersession</option><option value="full-overlaps">Full Policy Overlaps</option></select>
+          <button id="runOverlapReport" type="button">Run Report</button>
+          <label for="reportFormat" class="no-margin-label">Display / download format:</label>
+          <select id="reportFormat"><option value="json">JSON</option><option value="markdown">Markdown</option><option value="html">Rendered HTML</option></select>
+          <button id="downloadOverlapReport" type="button" class="ghost" disabled>Download</button>
+        </div>
+        <div id="reportStatus" class="status">Load policy data, then run the report.</div>
+      </article>
+      <article class="card compact-card">
+        <p class="card-title">Preview</p>
+        <div id="reportPreview" class="workflow-mini-log" style="max-height: 620px; overflow: auto; white-space: pre-wrap;">No report generated yet.</div>
+      </article>
+    </main>
+    <script>
+      const runButton = document.getElementById('runOverlapReport');
+      const downloadButton = document.getElementById('downloadOverlapReport');
+      const statusNode = document.getElementById('reportStatus');
+      const previewNode = document.getElementById('reportPreview');
+      const formatNode = document.getElementById('reportFormat');
+      const reportTypeNode = document.getElementById('reportType');
+      let reportPayload = null;
+
+      function completionMessage(payload) {
+        if (payload.report_id === 'policy-inventory') {
+          const counts = payload.counts || {};
+          return 'Report complete: ' + (counts.compartments || 0) + ' compartments, ' +
+            (counts.policies || 0) + ' policies, ' + (counts.statements || 0) + ' statements.';
+        }
+        return 'Report complete: ' + (payload.item_count || payload.finding_count || 0) + ' ' +
+          (payload.item_label || 'items').toLowerCase() + '.';
+      }
+
+      function selectedContent() {
+        if (formatNode.value === 'markdown') return reportPayload?.markdown || '';
+        if (formatNode.value === 'html') return reportPayload?.markdown_html || '';
+        return JSON.stringify(reportPayload, null, 2);
+      }
+
+      function refreshPreview() {
+        if (!reportPayload) return;
+        if (formatNode.value === 'html') {
+          previewNode.innerHTML = selectedContent();
+          previewNode.style.whiteSpace = 'normal';
+        } else {
+          previewNode.textContent = selectedContent();
+          previewNode.style.whiteSpace = 'pre-wrap';
+        }
+      }
+
+      function downloadJson() {
+        if (!reportPayload) return;
+        const markdown = formatNode.value === 'markdown';
+        const html = formatNode.value === 'html';
+        const blob = new Blob([selectedContent()], { type: html ? 'text/html' : markdown ? 'text/markdown' : 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = (reportPayload.report_id || 'report') + (html ? '.html' : markdown ? '.md' : '.json');
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function runOverlapReport() {
+        runButton.disabled = true;
+        downloadButton.disabled = true;
+        statusNode.textContent = 'Generating report…';
+        previewNode.textContent = 'Working…';
+        try {
+          const response = await fetch('/reports/' + reportTypeNode.value, { cache: 'no-store' });
+          if (!response.ok) throw new Error('Request failed (' + response.status + ')');
+          reportPayload = await response.json();
+          refreshPreview();
+          statusNode.textContent = completionMessage(reportPayload);
+          downloadButton.disabled = false;
+        } catch (error) {
+          statusNode.textContent = 'Report failed: ' + error;
+          previewNode.textContent = 'No report generated.';
+        } finally {
+          runButton.disabled = false;
+        }
+      }
+
+      runButton.addEventListener('click', runOverlapReport);
+      downloadButton.addEventListener('click', downloadJson);
+      formatNode.addEventListener('change', refreshPreview);
+    </script>
+    <script src="/app-version.js"></script>
+    <script src="/auth-gate.js"></script>
+  </body>
+</html>

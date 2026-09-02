@@ -17,6 +17,9 @@ import time
 from typing import TYPE_CHECKING
 
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
+from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_statements_too_open import (
+    is_overly_broad_statement,
+)
 from oci_policy_analysis.application.core.engine.recommendation_actions import catalog_guidance
 from oci_policy_analysis.application.core.models.models import PolicyIntelligence, PolicyOverlap
 from oci_policy_analysis.application.core.parser import collect_tag_conditions, parse_condition_structure
@@ -141,7 +144,7 @@ CLEANUP_CHECK_IDS = (
 # Default run order for intelligence strategies (strategy_id). Ensures e.g. cleanup before recommendations.
 DEFAULT_STRATEGY_RUN_ORDER = [
     'risk_scores',
-    'overlap',
+    'supersession',
     'consolidation_suggestion',
     'invalid_statements',
     'unused_groups',
@@ -180,7 +183,7 @@ class PolicyIntelligenceEngine:
         self.policy_repo = policy_repo
         # Explicitly type and instantiate the overlay using the model
         self.overlay: PolicyIntelligence = PolicyIntelligence(
-            overlaps=[], recommendations=[], risk_scores=[], consolidations=[]
+            overlaps=[], recommendations=[], risk_scores=[], consolidations=[], supersessions=[]
         )
         self.permissions_report = {}
         self._strategies: dict[str, IntelligenceStrategy] = {}
@@ -270,7 +273,6 @@ class PolicyIntelligenceEngine:
                 where_clause_reduction_pct=where_pct,
                 service_principal_reduction_pct=svc_pct,
             )
-            self.analyze_policy_overlap()
             self.build_policy_consolidation()
             enabled_checks = params.get('enabled_cleanup_check_ids')
             self.build_cleanup_items(enabled_check_ids=enabled_checks)
@@ -743,6 +745,25 @@ class PolicyIntelligenceEngine:
             if entry.get('statement_internal_id') == internal_id:
                 return entry.get('overlaps', [])
         return []
+
+    def get_policy_supersession_by_internal_id(self, internal_id: str) -> dict | None:
+        """Return complete-supersession evidence for one statement.
+
+        Args:
+            internal_id: Internal ID of the lower-scope candidate statement.
+
+        Returns:
+            The directed supersession finding, or ``None`` when the statement
+            is not completely covered by eligible ancestor evidence.
+        """
+        return next(
+            (
+                finding
+                for finding in self.overlay.get('supersessions', []) or []
+                if str(finding.get('statement_internal_id') or '') == str(internal_id or '')
+            ),
+            None,
+        )
 
     def find_invalid_statements(self):  # noqa: C901
         """
@@ -1254,17 +1275,10 @@ class PolicyIntelligenceEngine:
         else:
             unused_dgs = []
 
-        # (4) Overly broad manage all-resources
+        # (4) Broad all-resources statements. Denies can disable a principal
+        # throughout their effective path even when the verb is only inspect.
         statements_too_open = (
-            [
-                st
-                for st in repo.regular_statements
-                if (
-                    st.get('verb', '').lower() == 'manage'
-                    and st.get('resource', '').lower() == 'all-resources'
-                    and st.get('policy_name', '') != 'Tenant Admin Policy'
-                )
-            ]
+            [st for st in repo.regular_statements if is_overly_broad_statement(st)]
             if _run('statements_too_open')
             else []
         )
@@ -1309,6 +1323,7 @@ class PolicyIntelligenceEngine:
         consolidation_strategy_names = params.get('consolidation_strategy_names') or []
         cleanup = self.overlay.get('cleanup_items', {})
         consolidations = self.overlay.get('consolidations') or []
+        supersessions = self.overlay.get('supersessions') or []
         recommendations = []
 
         # Consolidation: direct user to consolidation documentation/resources and suggest strategies
@@ -1332,6 +1347,28 @@ class PolicyIntelligenceEngine:
                             'and your local cloud security/identity experts to design and implement a safe consolidation approach.'
                             f'{strategy_hint}'
                         ),
+                    ),
+                }
+            )
+
+        removable_supersessions = [
+            finding for finding in supersessions if '(Review)' not in str(finding.get('classification') or '')
+        ]
+        if removable_supersessions:
+            recommendations.append(
+                {
+                    'Recommendation': 'Review fully superseded policy statements',
+                    'Priority': 'Medium',
+                    'Category': 'Policy Hygiene',
+                    'Notes': (
+                        f'{len(removable_supersessions)} policy statement(s) are fully covered by an applicable '
+                        'unconditional statement at the same or an ancestor scope. Review the Superseded view '
+                        'before removing any statement.'
+                    ),
+                    'Action': 'Review supersession evidence and remove only statements confirmed unnecessary.',
+                    'ActionDetail': (
+                        'Use the Superseded view to compare candidate permissions and every applicable evidence '
+                        'statement. Findings with conditional evidence are intentionally excluded from this summary.'
                     ),
                 }
             )
@@ -1369,10 +1406,10 @@ class PolicyIntelligenceEngine:
         if cleanup.get('statements_too_open'):
             recommendations.append(
                 {
-                    'Recommendation': 'Tighten policies that are too open (manage all-resources)',
+                    'Recommendation': 'Review broad all-resources policy statements',
                     'Priority': 'High',
                     'Category': 'Access Scope',
-                    'Notes': f"{len(cleanup['statements_too_open'])} policy statement(s) granting 'manage all-resources' broadly detected. See cleanup/fix tab for details.",
+                    'Notes': f"{len(cleanup['statements_too_open'])} broad all-resources policy statement(s) detected. See cleanup/fix tab for details.",
                     **catalog_guidance('statements_too_open'),
                 }
             )

@@ -18,9 +18,11 @@ Full documentation
 
    simulation
    recommendations
+   reports
    tag_based
    limited_mode
    oke_workload_identity
+   optional_ai_assist
 
 .. toctree::
    :maxdepth: 1

@@ -128,17 +128,9 @@ The downloadable macOS and Windows applications are available from the [Releases
 
 For a source checkout, optional helpers create or reuse the environment and run desktop mode: `./local-build.sh --mode desktop` and `./local-run.sh --mode desktop` on macOS/Linux, or `./local-build.ps1 --mode desktop` and `./local-run.ps1 --mode desktop` in PowerShell.
 
-### Optional AI chat (desktop only)
+### Optional AI Assist
 
-AI is not required for OCI Policy Analysis. The desktop application works without it; AI chat is an optional way to get additional context while reviewing policies and identities.
-
-Use **Apply and Test GenAI Settings** in the desktop **Settings** tab to test the selected model. Model availability and supported capabilities vary by OCI region, model deployment, endpoint, compartment authorization, and authentication mode. The goal is a working chat response for the region and model you select.
-
-The **Tested** column reports the result for the current application session. It is not a guarantee that the same model works in every region or configuration.
-
-| Model / OCID | Region | Endpoint type | Auth mode | Date tested | Working chat | Notes |
-|---|---|---|---|---|---|---|
-| _Add model_ | | | | | | |
+OCI GenAI assistance is an optional desktop preview. It is disabled by default and is not needed for policy analysis. See [Optional AI Assist](optional_ai_assist.md) when you want to enable and configure it.
 
 ## Web application
 

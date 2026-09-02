@@ -16,6 +16,9 @@ def test_recommendations_page_has_summary_filters_action_details_and_taller_tabl
     assert '<th>Action Detail</th>' in page_html
     assert "['Recommendation', 'Priority', 'Category', 'Notes', 'Action', 'ActionDetail']" in page_html
     assert 'max-height: 520px' in page_html
+    assert 'function canonicalPriority(value)' in page_html
+    assert 'function summaryPriorityCounts(summary)' in page_html
+    assert "warn: 'Medium'" in page_html
 
 
 def test_recommendations_page_has_context_menu_destinations() -> None:
@@ -29,8 +32,21 @@ def test_recommendations_page_has_context_menu_destinations() -> None:
     assert '/dynamic-group-analysis.html?' in page_html
     assert '/workload-principals-analysis.html?' in page_html
     assert '/users-groups-analysis.html?' in page_html
-    assert 'Show overlap context in Policy Analysis' in page_html
+    assert 'cardOverlap' not in page_html
+    assert 'overlapTable' not in page_html
     assert 'window.location.href = action.url' in page_html
+
+
+def test_recommendations_page_renders_supersession_with_structured_fly_in() -> None:
+    page_html = _page_html()
+
+    assert 'cardSupersession' in page_html
+    assert 'supersessionTable' in page_html
+    assert 'formatSupersessionDetail' in page_html
+    assert "tableId === 'supersessionTable'" in page_html
+    assert 'payload.supersession || []' in page_html
+    assert "'Show Full Policy'" in page_html
+    assert 'compartment_path: policyCompartment' in page_html
 
 
 def test_target_pages_accept_navigation_filters() -> None:

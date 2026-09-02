@@ -54,10 +54,24 @@ oci-policy-analysis-cli --help         # CLI
 oci-policy-analysis-mcp --help         # MCP
 ```
 
-For the desktop app, confirm Tkinter works before starting if needed - one time test:
+**NOTE:** For the desktop app, confirm Tkinter works before starting if needed - one time test:
 
 ```bash
 python -m tkinter
+```
+If this fails, collect your python version and then install TK for that version.  For example, on Mac:
+```
+((.venv) ) agregory@agregory-mac oci-policy-analysis % python -V
+Python 3.12.13
+((.venv) ) agregory@agregory-mac oci-policy-analysis % python -m tkinter
+(fails)
+((.venv) ) agregory@agregory-mac oci-policy-analysis % brew install python-tk@3.12
+...
+==> Installing python-tk@3.12
+==> Pouring python-tk@3.12--3.12.14.arm64_tahoe.bottle.tar.gz
+...
+((.venv) ) agregory@agregory-mac oci-policy-analysis % python -m tkinter
+(works)
 ```
 
 ## Choose your data source

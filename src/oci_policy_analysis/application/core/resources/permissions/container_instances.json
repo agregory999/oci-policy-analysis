@@ -1,0 +1,121 @@
+{
+    "resources": {
+        "compute-container-instances": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTE_CONTAINER_INSTANCE_INSPECT"
+                ],
+                "read": [
+                    "COMPUTE_CONTAINER_INSTANCE_READ"
+                ],
+                "use": [
+                    "COMPUTE_CONTAINER_INSTANCE_UPDATE",
+                    "COMPUTE_CONTAINER_INSTANCE_START",
+                    "COMPUTE_CONTAINER_INSTANCE_STOP",
+                    "COMPUTE_CONTAINER_INSTANCE_RESTART"
+                ],
+                "manage": [
+                    "COMPUTE_CONTAINER_INSTANCE_CREATE",
+                    "COMPUTE_CONTAINER_INSTANCE_DELETE",
+                    "COMPUTE_CONTAINER_INSTANCE_MOVE"
+                ]
+            }
+        },
+        "compute-containers": {
+            "verbs": {
+                "inspect": [
+                    "COMPUTE_CONTAINER_INSPECT"
+                ],
+                "read": [
+                    "COMPUTE_CONTAINER_READ"
+                ],
+                "use": [
+                    "COMPUTE_CONTAINER_UPDATE",
+                    "COMPUTE_CONTAINER_LOG_RETRIEVE"
+                ],
+                "manage": [
+                    "COMPUTE_CONTAINER_CREATE",
+                    "COMPUTE_CONTAINER_DELETE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "compute-container-family": {
+            "resources": [
+                "compute-container-instances",
+                "compute-containers"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/container-instances/permissions/policy-reference.htm"
+        }
+    },
+    "operations": {
+        "ListContainerInstances": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetContainerInstance": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_READ",
+                "COMPUTE_CONTAINER_INSPECT"
+            ],
+            "notes": "Requires read compute-container-instances and inspect compute-containers."
+        },
+        "UpdateContainerInstance": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "StartContainerInstance": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_START"
+            ],
+            "notes": ""
+        },
+        "StopContainerInstance": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_STOP"
+            ],
+            "notes": ""
+        },
+        "RestartContainerInstance": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_RESTART"
+            ],
+            "notes": ""
+        },
+        "ChangeContainerInstanceCompartment": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSTANCE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListContainers": {
+            "permissions": [
+                "COMPUTE_CONTAINER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetContainer": {
+            "permissions": [
+                "COMPUTE_CONTAINER_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateContainer": {
+            "permissions": [
+                "COMPUTE_CONTAINER_UPDATE"
+            ],
+            "notes": ""
+        },
+        "RetrieveLogs": {
+            "permissions": [
+                "COMPUTE_CONTAINER_LOG_RETRIEVE"
+            ],
+            "notes": ""
+        }
+    }
+}

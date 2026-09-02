@@ -263,7 +263,7 @@ class ConsolidationWorkbenchService:
             strategy_display_name=strategy_display_name,
             params={'marker_tag_key': 'opa_consolidation'},
         )
-        rows = self._build_proposal_rows(plan=cast(ConsolidationPlan, plan), progress=None)
+        rows = self.get_proposal_rows(plan=cast(ConsolidationPlan, plan), progress=None)
         tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
         if tenancy_ocid:
             now = datetime.now(UTC).isoformat()
@@ -305,10 +305,12 @@ class ConsolidationWorkbenchService:
             progress = (run.get('step_status') or {}).get('progress') or {}
             steps = plan.get('plan_steps') or []
             executed = sum(1 for p in progress.values() if p.get('executed')) if isinstance(progress, dict) else 0
-            validity = '—'
-            if run.get('status') != 'completed' and steps:
-                conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
-                validity = f'Conflicted ({len(conflicts)})' if conflicts else 'OK'
+            conflicts = self.get_conflict_analysis(cast(ConsolidationPlan, plan), run.get('status', 'in_progress'))
+            validity = (
+                f"Conflicted ({conflicts['conflict_count']})"
+                if conflicts['status'] == 'Conflicted'
+                else conflicts['status']
+            )
             out.append(
                 {
                     'effort_id': run.get('consolidation_effort_id', ''),
@@ -342,21 +344,29 @@ class ConsolidationWorkbenchService:
         run = self.get_history_run(effort_id)
         if not run:
             return None
-        plan = run.get('plan') or {}
-        conflicts: list[dict[str, Any]] = []
-        if run.get('status') != 'completed' and plan and plan.get('plan_steps'):
-            conflicts = self.engine.get_plan_tag_conflicts(cast(ConsolidationPlan, plan))
+        plan = cast(ConsolidationPlan, run.get('plan') or {})
+        progress = (run.get('step_status') or {}).get('progress') or {}
         return {
             'run': run,
-            'conflict_analysis': {
-                'rule': (
-                    'A plan is conflicted when one or more policies in this plan currently have '
-                    'an opa_consolidation marker tag value that points to a different plan_id.'
-                ),
-                'status': ('Conflicted' if conflicts else 'OK') if plan and plan.get('plan_steps') else '—',
-                'conflicts': conflicts,
-                'conflict_count': len(conflicts),
-            },
+            'proposal_rows': self.get_proposal_rows(plan, progress, run.get('results') or []),
+            'conflict_analysis': self.get_conflict_analysis(plan, run.get('status', 'in_progress')),
+        }
+
+    def get_conflict_analysis(self, plan: ConsolidationPlan | None, status: str = 'in_progress') -> dict[str, Any]:
+        """Return the canonical conflict status for a plan without UI-specific handling."""
+        if not plan or not plan.get('plan_steps'):
+            return {
+                'rule': 'A plan is conflicted when a policy marker belongs to another plan.',
+                'status': '—',
+                'conflicts': [],
+                'conflict_count': 0,
+            }
+        conflicts = [] if status == 'completed' else self.engine.get_plan_tag_conflicts(plan)
+        return {
+            'rule': 'A plan is conflicted when one or more policies in this plan currently have an opa_consolidation marker tag value that points to a different plan_id.',
+            'status': '—' if status == 'completed' else ('Conflicted' if conflicts else 'OK'),
+            'conflicts': conflicts,
+            'conflict_count': len(conflicts),
         }
 
     def delete_history_run(self, effort_id: str) -> bool:
@@ -400,8 +410,11 @@ class ConsolidationWorkbenchService:
         run = self.get_history_run(effort_id)
         if not run or not run.get('plan'):
             return '(no plan selected)'
-        plan = run['plan']
-        summary = self._render_plan_summary_block(cast(ConsolidationPlan, plan), effort_id)
+        return self.render_plan(cast(ConsolidationPlan, run['plan']), fmt=fmt, section=section, effort_id=effort_id)
+
+    def render_plan(self, plan: ConsolidationPlan, fmt: str, section: str, effort_id: str = '') -> str:
+        """Render a plan for either client, including a summary when it is persisted."""
+        summary = self._render_plan_summary_block(plan, effort_id) if effort_id else ''
         if fmt == 'ui':
             sec = 'execution' if section == 'execution' else ('rollback' if section == 'rollback' else 'all')
             body = self.engine.render_plan_ui_instructions(plan, section=sec)
@@ -413,6 +426,10 @@ class ConsolidationWorkbenchService:
         if section == 'rollback':
             return f'{summary}\n\n{rollback_txt}'.strip()
         return f'{summary}\n\n{cmd_txt}\n\n{rollback_txt}'.strip()
+
+    def evaluate_progress(self, plan: ConsolidationPlan) -> dict[str, Any]:
+        """Evaluate a plan against the currently loaded repository state."""
+        return self.engine.check_plan_progress(plan)
 
     def check_progress(self, effort_id: str) -> dict[str, Any]:
         """Check plan progress using current repository state and marker tags.
@@ -458,23 +475,10 @@ class ConsolidationWorkbenchService:
                 'completed': bool(total > 0 and executed >= total),
             }
 
-        progress = self.engine.check_plan_progress(run['plan'])
+        progress = self.evaluate_progress(cast(ConsolidationPlan, run['plan']))
         total = len(progress)
         executed = sum(1 for p in progress.values() if p.get('executed'))
-        tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
-        if tenancy_ocid:
-            updates: dict[str, Any] = {
-                'step_status': {**(run.get('step_status') or {}), 'progress': progress},
-                # Keep proposal-table source rows in sync so the web Proposal view
-                # reflects latest executed/pending status immediately after reload.
-                'results': self._build_proposal_rows(
-                    plan=cast(ConsolidationPlan, run.get('plan') or {}), progress=progress
-                ),
-            }
-            if total > 0 and executed >= total:
-                updates['status'] = 'completed'
-                updates['completed_at'] = datetime.now(UTC).isoformat()
-            self.cache.update_run_record(tenancy_ocid, effort_id, updates)
+        self.save_progress(effort_id, progress)
         self.logger.info(
             'Checked consolidation progress: effort_id=%s executed=%s total=%s', effort_id, executed, total
         )
@@ -487,10 +491,35 @@ class ConsolidationWorkbenchService:
             'completed': bool(total > 0 and executed >= total),
         }
 
+    def save_progress(self, effort_id: str, progress: dict[str, Any]) -> dict[str, Any]:
+        """Persist plan progress and return refreshed proposal rows.
+
+        This is used when a presentation layer has already performed a live
+        reload and only needs the common persistence/rendering behavior.
+        """
+        run = self.get_history_run(effort_id)
+        if not run or not run.get('plan'):
+            raise ValueError('Plan not found.')
+        plan = cast(ConsolidationPlan, run['plan'])
+        total = len(plan.get('plan_steps') or [])
+        executed = sum(1 for item in progress.values() if isinstance(item, dict) and item.get('executed'))
+        tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
+        rows = self.get_proposal_rows(plan=plan, progress=progress)
+        if tenancy_ocid:
+            updates: dict[str, Any] = {
+                'step_status': {**(run.get('step_status') or {}), 'progress': progress},
+                'results': rows,
+            }
+            if total > 0 and executed >= total:
+                updates['status'] = 'completed'
+                updates['completed_at'] = datetime.now(UTC).isoformat()
+            self.cache.update_run_record(tenancy_ocid, effort_id, updates)
+        return {'rows': rows, 'executed': executed, 'total': total, 'completed': bool(total and executed >= total)}
+
     def _render_plan_summary_block(self, plan: ConsolidationPlan, effort_id: str) -> str:
         """Build a compact summary block for script/instructions output."""
         steps = plan.get('plan_steps') or []
-        rows = self._build_proposal_rows(plan=plan, progress=None)
+        rows = self.get_proposal_rows(plan=plan, progress=None)
         lines = [
             '# Consolidation Plan Summary',
             f'# Effort ID: {effort_id}',
@@ -527,8 +556,11 @@ class ConsolidationWorkbenchService:
         )
         return {'tenancy_ocid': tenancy_ocid, 'cleared_history_records': history_count}
 
-    def _build_proposal_rows(
-        self, plan: ConsolidationPlan | None, progress: dict[str, Any] | None
+    def get_proposal_rows(
+        self,
+        plan: ConsolidationPlan | None,
+        progress: dict[str, Any] | None = None,
+        results_fallback: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """Build UI-oriented proposal rows from plan steps.
 
@@ -541,7 +573,29 @@ class ConsolidationWorkbenchService:
         """
         # Private helper: convert plan model to flattened row payloads used by table UI.
         if not plan or not plan.get('plan_steps'):
-            return []
+            rows: list[dict[str, Any]] = []
+            for index, row in enumerate(results_fallback or [], 1):
+                normalized = {
+                    **row,
+                    'index': row.get('index', row.get('#', index)),
+                    'action': row.get('action', row.get('Action', '')),
+                    'policy_compartment': row.get('policy_compartment', row.get('Policy Compartment', '')),
+                    'policy_name': row.get('policy_name', row.get('Policy Name', '')),
+                    'details': row.get('details', row.get('Details', '')),
+                    'status': row.get('status', row.get('Status', '—')),
+                }
+                normalized.update(
+                    {
+                        '#': normalized['index'],
+                        'Action': normalized['action'],
+                        'Policy Compartment': normalized['policy_compartment'],
+                        'Policy Name': normalized['policy_name'],
+                        'Details': normalized['details'],
+                        'Status': normalized['status'],
+                    }
+                )
+                rows.append(normalized)
+            return rows
         policies_by_ocid = {
             p.get('policy_ocid'): p for p in (getattr(self.repo, 'policies', []) or []) if p.get('policy_ocid')
         }

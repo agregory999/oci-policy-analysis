@@ -34,7 +34,7 @@ class PermissionsReportTab(BaseUITab):
         super().__init__(
             parent,
             default_help_text=(
-                'This tab displays permissions by compartment and subject. '
+                'This Permissions Analysis tab displays permissions by compartment and subject. '
                 'Select any compartment or subject from the tree on the left to view their allow/deny permissions on the right. '
                 'Use controls above to expand/collapse the tree or export the report data. '
                 'Tables on the right show explicit and inherited permissions.'

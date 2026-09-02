@@ -5,7 +5,36 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-RECOMMENDATION_SEVERITIES = ('Critical', 'High', 'Medium', 'Low', 'Info')
+RECOMMENDATION_PRIORITY_CRITICAL = 'Critical'
+RECOMMENDATION_PRIORITY_HIGH = 'High'
+RECOMMENDATION_PRIORITY_MEDIUM = 'Medium'
+RECOMMENDATION_PRIORITY_LOW = 'Low'
+RECOMMENDATION_PRIORITY_INFO = 'Info'
+RECOMMENDATION_SEVERITIES = (
+    RECOMMENDATION_PRIORITY_CRITICAL,
+    RECOMMENDATION_PRIORITY_HIGH,
+    RECOMMENDATION_PRIORITY_MEDIUM,
+    RECOMMENDATION_PRIORITY_LOW,
+    RECOMMENDATION_PRIORITY_INFO,
+)
+
+
+def overly_broad_statement_guidance(statement: dict[str, Any]) -> dict[str, str]:
+    """Return cleanup guidance appropriate to an overly broad statement."""
+    is_deny = str(statement.get('action') or '').strip().casefold() == 'deny'
+    has_conditions = bool(str(statement.get('conditions') or '').strip())
+    verb = str(statement.get('verb') or 'manage').strip().casefold()
+
+    reason_verb = 'Revokes' if is_deny else 'Grants'
+    action = 'Review the effective path and target resources; ensure the statement scope is appropriate.'
+    if has_conditions:
+        action += ' Review and test the conditions to confirm they are accurate and effective.'
+
+    return {
+        'Reason': f"{reason_verb} '{verb} all-resources' {'from' if is_deny else 'to'} a principal outside root/admin.",
+        'Action': action,
+    }
+
 
 RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
     'consolidate_policies': {
@@ -44,12 +73,12 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
         'Destination': '#cardCleanup',
     },
     'statements_too_open': {
-        'Action': "Plan: Restrict broad 'manage all-resources' statements",
-        'ActionDetail': 'Replace broad grants with least privilege verbs, resources, compartments, and conditions.',
+        'Action': "Plan: Review broad 'all-resources' statements",
+        'ActionDetail': 'Review effective paths, target resources, and any conditions before narrowing the statement scope.',
         'ActionSteps': [
-            'Identify the required permissions.',
-            'Reduce verb/resource scope.',
-            'Move policy closer to the target compartment.',
+            'Review the effective path and target resources.',
+            'Reduce verb/resource or compartment scope where appropriate.',
+            'Test any conditions to confirm they are accurate and effective.',
         ],
         'Destination': '#cardCleanup',
     },

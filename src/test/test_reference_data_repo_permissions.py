@@ -83,6 +83,31 @@ def test_resource_allow_vs_deny_monotonicity():
     assert len(deny_read_buckets) >= len(allow_read_buckets)
 
 
+def test_compute_container_family_aggregates_its_documented_resources():
+    """Container Instances family permissions equal its two member resources."""
+    repo = _load_repo()
+
+    family_use = set(repo.get_permissions('compute-container-family', 'use', 'allow'))
+    expected = set(repo.get_permissions('compute-container-instances', 'use', 'allow'))
+    expected.update(repo.get_permissions('compute-containers', 'use', 'allow'))
+
+    assert family_use == expected
+    assert 'COMPUTE_CONTAINER_INSTANCE_UPDATE' in family_use
+    assert 'COMPUTE_CONTAINER_LOG_RETRIEVE' in family_use
+
+
+def test_osmh_family_uses_current_documented_resource_names():
+    """OS Management Hub family resolves its current OCI policy resource names."""
+    repo = _load_repo()
+
+    family_permissions = set(repo.get_permissions('osmh-family', 'manage', 'allow'))
+    permissions = repo.get_permissions('osmh-managed-instance-group', 'manage', 'allow')
+
+    assert 'OSMH_MANAGED_INSTANCE_DELETE' in family_permissions
+    assert 'OSMH_MANAGEMENT_STATION_CREATE' in family_permissions
+    assert 'OSMH_MANAGED_INSTANCE_GROUP_CREATE' in permissions
+
+
 def test_change_instance_compartment_exposes_related_capacity_reservation_check():
     repo = _load_repo()
     service = ReferenceDataService(repo)

@@ -1,3 +1,37 @@
+## [6.4.0-restore-consolidation-workbench-v6-3-1.5](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.4...v6.4.0-restore-consolidation-workbench-v6-3-1.5) (2026-09-02)
+
+
+### Features
+
+* gate desktop GenAI assist behind preview flag ([9541970](https://github.com/agregory999/oci-policy-analysis/commit/9541970b357bafde2339efcdc56c1b3c3b6725c8))
+
+## [6.4.0-restore-consolidation-workbench-v6-3-1.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.3...v6.4.0-restore-consolidation-workbench-v6-3-1.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* recommendations more precise ([176a840](https://github.com/agregory999/oci-policy-analysis/commit/176a8402954674ad3ade4dd1fd932fdc331184ae))
+
+## [6.4.0-restore-consolidation-workbench-v6-3-1.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.2...v6.4.0-restore-consolidation-workbench-v6-3-1.3) (2026-08-24)
+
+
+### Features
+
+* Policy Supersession and Recommendations ([e07cf88](https://github.com/agregory999/oci-policy-analysis/commit/e07cf8851ee731c0f87373fee8b32b9da74d665e))
+
+## [6.4.0-restore-consolidation-workbench-v6-3-1.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.1...v6.4.0-restore-consolidation-workbench-v6-3-1.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* Windows build with pillow ([ea05195](https://github.com/agregory999/oci-policy-analysis/commit/ea05195f38315babecb66b2ede41f71542f22287))
+
+## [6.4.0-restore-consolidation-workbench-v6-3-1.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.4.0-restore-consolidation-workbench-v6-3-1.1) (2026-08-13)
+
+
+### Features
+
+* consolidation in desktop, reports, supersession ([0f468b7](https://github.com/agregory999/oci-policy-analysis/commit/0f468b71a50379263a730ee52affd73f76800ded))
 ## [6.3.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.0...v6.3.1) (2026-08-11)
 
 

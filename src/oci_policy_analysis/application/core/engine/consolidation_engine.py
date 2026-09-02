@@ -43,6 +43,11 @@ logger = get_logger(component='core.engine.consolidation_engine')
 
 SourceType = Literal['live', 'cache', 'compliance', 'unknown']
 
+# OCI IAM policies support at most 50 statements.  Keep this at the engine
+# boundary so all consolidation strategies and UI clients enforce the same
+# limit before a proposal can be saved or rendered for execution.
+MAX_POLICY_STATEMENTS = 50
+
 # Aliases for render code (helpers live in consolidation_helpers; engine keeps shell/JSON helpers only).
 _policy_tag_maps = policy_tag_maps
 _flatten_defined_tags = flatten_defined_tags
@@ -284,6 +289,7 @@ class ConsolidationEngine:
             plan_id=plan_id,
             params=params,
         )
+        self._validate_policy_statement_limit(plan)
         logger.info(
             'generate_plan: strategy returned plan_id=%s, steps=%d, label=%s',
             plan.get('plan_id'),
@@ -291,6 +297,36 @@ class ConsolidationEngine:
             plan.get('plan_label', ''),
         )
         return plan
+
+    @staticmethod
+    def _validate_policy_statement_limit(plan: ConsolidationPlan) -> None:
+        """Reject plans that would create or modify an oversized OCI policy.
+
+        A consolidation plan is only executable when every ``add`` or
+        ``modify`` step leaves its target policy with no more than the OCI
+        limit of 50 statements.  Delete steps intentionally do not participate
+        because they leave no policy behind.
+
+        Raises:
+            ValueError: If one or more plan steps exceed the policy limit.
+        """
+        violations: list[str] = []
+        for step in plan.get('plan_steps') or []:
+            if step.get('action') not in {'add', 'modify'}:
+                continue
+            statement_count = len(step.get('after_statements') or [])
+            if statement_count <= MAX_POLICY_STATEMENTS:
+                continue
+            policy_name = str(step.get('create_policy_name') or step.get('policy_ocid') or 'target policy')
+            violations.append(f'{policy_name} ({statement_count} statements)')
+
+        if violations:
+            details = '; '.join(violations)
+            raise ValueError(
+                'Plan cannot be created: OCI allows at most '
+                f'{MAX_POLICY_STATEMENTS} statements per policy. The proposed ADD/MODIFY step would exceed '
+                f'that limit for: {details}. Reduce the selected statements or choose a different strategy.'
+            )
 
     def _new_plan_id(self, tenancy_ocid: str, candidate_ids: set[str], strategy: str) -> str:
         """Generate a stable-ish plan id from tenancy suffix, timestamp, and strategy hash."""

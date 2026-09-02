@@ -788,7 +788,7 @@ class PoliciesTab(BaseUITab):
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if hasattr(self.app, 'toggle_bottom'):
+        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
             self.app.toggle_bottom()
             logger.info('Policies Tab: AI Assist button clicked, toggled bottom pane.')
 
@@ -1110,15 +1110,16 @@ class PoliciesTab(BaseUITab):
             'real tenancy policies during simulation.',
         )
 
-        # AI Assist button inside Output Filters, anchored east/right
-        self.ai_assist_btn = ttk.Button(
-            label_frm_output, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
-        )
-        self.ai_assist_btn.grid(row=0, column=13, sticky='e', padx=(20, 8), pady=4)
-        self.add_context_help(
-            self.ai_assist_btn,
-            'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab.',
-        )
+        # OCI GenAI controls are an opt-in desktop preview.
+        if self.is_genai_feature_enabled():
+            self.ai_assist_btn = ttk.Button(
+                label_frm_output, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
+            )
+            self.ai_assist_btn.grid(row=0, column=13, sticky='e', padx=(20, 8), pady=4)
+            self.add_context_help(
+                self.ai_assist_btn,
+                'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab.',
+            )
 
         def selection_callback(selected_rows: list[dict]) -> None:
             for row in selected_rows:

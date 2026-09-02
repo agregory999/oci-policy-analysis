@@ -51,6 +51,7 @@ from oci_policy_analysis.application.services.prospective_builder_service import
 from oci_policy_analysis.application.services.prospective_statements_service import ProspectiveStatementsService
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reference_data_service import ReferenceDataService
+from oci_policy_analysis.application.services.reports_service import ReportsService
 from oci_policy_analysis.application.services.search_builders import build_policy_search_from_dict
 from oci_policy_analysis.application.services.tag_based_policy_service import TagBasedPolicyService
 from oci_policy_analysis.presentation.web.auth import current_key_fingerprint, verify_access_key
@@ -1676,6 +1677,25 @@ def get_recommendations_dashboard() -> dict[str, object]:
     ctx = get_context()
     service = RecommendationsService(ctx)
     return service.get_dashboard_payload()
+
+
+@router.get('/reports/full-overlaps')
+def get_full_overlap_report() -> dict[str, object]:
+    """Generate and return the full on-demand policy-overlap report."""
+    logger.info('GET /reports/full-overlaps')
+    service = ReportsService(get_context())
+    return service.with_rendered_formats(service.get_overlap_report())
+
+
+@router.get('/reports/{report_id}')
+def get_report(report_id: str) -> dict[str, object]:
+    """Generate and return a supported on-demand report."""
+    logger.info('GET /reports/%s', report_id)
+    service = ReportsService(get_context())
+    try:
+        return service.with_rendered_formats(service.get_report(report_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get('/reference/resources')

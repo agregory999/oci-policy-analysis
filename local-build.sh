@@ -40,15 +40,14 @@ grep -v -- "--hash=" deps.txt > frozen2.txt
 mv frozen2.txt frozen.txt
 rm deps.txt
 
-echo "🔨 Building wheels from source..."
-mkdir -p wheels
-pip wheel --no-binary=:all: -r frozen.txt -w wheels/
-
-echo "📥 Installing dependencies from local wheels..."
-pip install --no-index --find-links=./wheels -r frozen.txt
+echo "📥 Installing published dependency wheels..."
+# Pillow and similar native packages publish CPython 3.12 wheels. Do not force
+# source builds: that triggers an isolated build environment and requires local
+# system libraries such as zlib.
+pip install --only-binary=:all: -r frozen.txt
 
 echo "📦 Building your own package..."
-python -m build
+python -m build --no-isolation
 
 case "$MODE" in
     desktop)
@@ -77,5 +76,4 @@ echo "🚀 Installing your package (editable mode) for mode: $MODE"
 pip install -e ".${EXTRAS}"
 
 echo "🎉 Local build complete!"
-echo "   Wheels → wheels/"
 echo "   App    → dist/"

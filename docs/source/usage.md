@@ -103,21 +103,18 @@ The **Settings Tab** is where you establish the foundation for all analysis in t
 **Purpose**  
 - Configure tenancy, identity, and environment options.  
 - Import/export cached tenancy data (policies, users, groups, dynamic groups, etc.) for reuse across sessions or machines.  
-- Enable and configure Generative AI (GenAI) capabilities used by other tabs (e.g., explanations, recommendations).  
 - Adjust global display and performance preferences that impact how other tabs behave.
  - Control **anonymous usage tracking** (whether the app sends non-personal feature usage metrics to a write-only Object Storage endpoint).
 
 **General Flow**  
 1. Select or enter tenancy-specific details and any required authentication/region parameters.  
 2. Load or import policy data for that tenancy (from OCI or from a previously exported cache file).  
-3. Optionally configure GenAI settings (e.g., enable/disable, model configuration) if you plan to use AI-powered analysis.  
-4. Tune UI preferences such as table density, caching options, and logging levels.  
-5. Save your configuration so it is reused on subsequent launches.
+3. Tune UI preferences such as table density, caching options, and logging levels.
+4. Save your configuration so it is reused on subsequent launches.
 
 **Key Widgets and Actions**  
 - **Tenancy / Profile selectors:** Choose which tenancy or profile you are currently analyzing.  
 - **Import/Export Data buttons:** Load existing cached data or save the currently loaded tenancy data to a file for reuse or sharing.  
-- **GenAI Configuration panel:** Turn AI features on/off and configure provider-specific options. Tabs like Policy, Recommendations, and Groups/Users rely on this when generating explanations or suggestions.  
 - **Advanced Settings / Caching options:** Control snapshot retention, cache refresh behavior, and logging verbosity.  
  - **(Planned) Usage Tracking toggle:** A simple on/off control for anonymous usage tracking. Today this flag is stored as `"usage_tracking_enabled"` in the local settings file (`~/.oci-policy-analysis/settings.json`) and defaults to **On** on first run. You can see whether tracking is currently enabled in the status bar text ("Tool Usage Tracking: On/Off").
 
@@ -169,8 +166,7 @@ The **Policy Tab** is the primary workspace for **searching, filtering, and deep
 3. Use optional filter toggles (Action = Allow/Deny, Invalid Only, Tag-based, Show Prospective) to focus on specific policy classes.  
 4. Use the main policy table to sort and refine (e.g., by path, access level, risk flags).  
 5. Select a statement to see a structured breakdown (subject, verb, resource, where-clause).  
-6. Optionally invoke AI explanations or recommendations for complex statements (if GenAI is enabled in Settings).  
-7. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
+6. Pivot to Groups/Users, Dynamic Groups, or Resource Principals tabs when you want to see **who** is affected by a given statement.
 
 **Key Widgets and Right-Click Actions**  
 - **Filter Bar / Search Panel:** Filter by Subject, Verb, Resource, Permission, Location/Hierarchy, statement text, policy name, and raw conditions. Multiple values in a field can be entered with `|` for OR matching.  
@@ -236,8 +232,7 @@ The **Groups / Users Tab** centers the UI around **human principals** and their 
 1. Search for a user or group by name or identifier.  
 2. Select the principal to load their group memberships and relevant policies.  
 3. Review associated policy statements and derived permissions.  
-4. Optionally generate AI-based summaries or explanations of the principal’s effective access.  
-5. Pivot to the Policy, Policy Browser, or Permissions Report tabs to see the same information from a policy- or compartment-centric perspective.
+4. Pivot to the Policy, Policy Browser, or Permissions Report tabs to see the same information from a policy- or compartment-centric perspective.
 
 **Key Widgets and Right-Click Actions**  
 - **Principal Search / Selector:** Autocomplete or filter lists for users and groups.  
@@ -246,7 +241,6 @@ The **Groups / Users Tab** centers the UI around **human principals** and their 
 - **Right-click on a Principal or Policy Entry:**
   - "Open in Policy Tab" – inspect the underlying statement set.  
   - "Open in Permissions Report" – view all effective permissions for this principal.  
-  - "Explain Effective Access" – trigger a summarized view using GenAI (if enabled).  
 
 Use this tab when the starting point of your question is **“What can this user or group do?”**
 
