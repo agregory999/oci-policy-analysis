@@ -1,3 +1,19 @@
+## [6.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.1...v6.4.0) (2026-09-02)
+
+
+### Features
+
+* consolidation in desktop, reports, supersession ([0f468b7](https://github.com/agregory999/oci-policy-analysis/commit/0f468b71a50379263a730ee52affd73f76800ded))
+* gate desktop GenAI assist behind preview flag ([9541970](https://github.com/agregory999/oci-policy-analysis/commit/9541970b357bafde2339efcdc56c1b3c3b6725c8))
+* Merge pull request [#56](https://github.com/agregory999/oci-policy-analysis/issues/56) from agregory999/feature/restore-consolidation-workbench-v6.3.1 ([99504ee](https://github.com/agregory999/oci-policy-analysis/commit/99504ee30ab3d7d331d34acf2b8939748d777337))
+* Policy Supersession and Recommendations ([e07cf88](https://github.com/agregory999/oci-policy-analysis/commit/e07cf8851ee731c0f87373fee8b32b9da74d665e))
+
+
+### Bug Fixes
+
+* recommendations more precise ([176a840](https://github.com/agregory999/oci-policy-analysis/commit/176a8402954674ad3ade4dd1fd932fdc331184ae))
+* Windows build with pillow ([ea05195](https://github.com/agregory999/oci-policy-analysis/commit/ea05195f38315babecb66b2ede41f71542f22287))
+
 ## [6.4.0-restore-consolidation-workbench-v6-3-1.5](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.4...v6.4.0-restore-consolidation-workbench-v6-3-1.5) (2026-09-02)
 
 
