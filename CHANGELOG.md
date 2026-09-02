@@ -1,3 +1,10 @@
+## [6.4.0-restore-consolidation-workbench-v6-3-1.5](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.4...v6.4.0-restore-consolidation-workbench-v6-3-1.5) (2026-09-02)
+
+
+### Features
+
+* gate desktop GenAI assist behind preview flag ([9541970](https://github.com/agregory999/oci-policy-analysis/commit/9541970b357bafde2339efcdc56c1b3c3b6725c8))
+
 ## [6.4.0-restore-consolidation-workbench-v6-3-1.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0-restore-consolidation-workbench-v6-3-1.3...v6.4.0-restore-consolidation-workbench-v6-3-1.4) (2026-08-25)
 
 
