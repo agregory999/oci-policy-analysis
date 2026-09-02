@@ -22,6 +22,14 @@ class BaseUITab(ttk.Frame):
 
     DOCROOT = 'https://agregory999.github.io/oci-policy-analysis'
 
+    def is_genai_feature_enabled(self) -> bool:
+        """Return whether the desktop-only OCI GenAI preview UI is enabled.
+
+        Keep the AI repository available to the application, but require the
+        explicit application feature flag before a tab exposes GenAI controls.
+        """
+        return bool(getattr(getattr(self, 'app', None), 'genai_feature_enabled', False))
+
     def create_doc_link_label(self, parent, text: str, url: str, **grid_kwargs) -> ttk.Label:
         """Create a styled label that opens a documentation URL when clicked."""
 

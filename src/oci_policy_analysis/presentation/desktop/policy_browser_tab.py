@@ -124,14 +124,15 @@ class PolicyBrowserTab(BaseUITab):
             'Reset the search and show all compartments, policies, and statements.',
         )
 
-        # --- AI Assist Button ---
-        self.ai_assist_btn = ttk.Button(self.button_row, text='AI Assist', command=self._on_ai_assist_clicked)
-        self.add_context_help(
-            self.ai_assist_btn,
-            'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
-        )
-        self.ai_assist_btn.pack(side='left', padx=(14, 2), pady=2)
-        self.ai_assist_btn.config(state=tk.DISABLED)
+        # OCI GenAI controls are an opt-in desktop preview.
+        if self.is_genai_feature_enabled():
+            self.ai_assist_btn = ttk.Button(self.button_row, text='AI Assist', command=self._on_ai_assist_clicked)
+            self.add_context_help(
+                self.ai_assist_btn,
+                'Show or hide the AI Assistant pane below to analyze policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
+            )
+            self.ai_assist_btn.pack(side='left', padx=(14, 2), pady=2)
+            self.ai_assist_btn.config(state=tk.DISABLED)
 
         # --- Reload Compartment / Policy Data Button ---
         self.btn_reload_policies = ttk.Button(
@@ -348,11 +349,11 @@ class PolicyBrowserTab(BaseUITab):
 
     def _ai_btn_is_packed(self):
         # Helper: return True if the AI Assist button is packed in the button row
-        return self.ai_assist_btn.winfo_ismapped()
+        return bool(getattr(self, 'ai_assist_btn', None) and self.ai_assist_btn.winfo_ismapped())
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if hasattr(self.app, 'toggle_bottom'):
+        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
             self.app.toggle_bottom()
             logger.info('Policy Browser Tab: AI Assist button clicked, toggled bottom pane.')
 

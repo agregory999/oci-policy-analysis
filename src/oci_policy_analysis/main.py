@@ -123,11 +123,14 @@ class App(tk.Tk):
 
     # docstring google style napoleon comments for the class with public methods and relevant private methods marked with (Internal)
 
-    def __init__(self, force_debug: bool = False, experimental_features: bool = False):  # noqa: C901
+    def __init__(self, force_debug: bool = False, experimental_features: bool = False, enable_genai: bool = False):  # noqa: C901
         super().__init__()
 
         # Hidden/undocumented experimental features toggle (e.g., Consolidation tab)
         self.experimental_features = experimental_features
+        # OCI GenAI remains available in the application context, but its
+        # desktop UI is an opt-in preview until this flag is removed.
+        self.genai_feature_enabled = enable_genai
 
         # Shared config & logger - load settings and quietly return if nothing is loaded
         self.settings = config.load_settings()
@@ -293,13 +296,14 @@ class App(tk.Tk):
 
         # Hidden variable for additional instructions (not exposed in UI)
         self.ai_additional_instructions: str = ''
-        ttk.Button(
-            cmdrow,
-            text='Query GenAI',
-            command=lambda: self.ask_genai_async(
-                prompt=self.policy_query_var.get(), additional_instruction=self.ai_additional_instructions
-            ),
-        ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
+        if self.genai_feature_enabled:
+            ttk.Button(
+                cmdrow,
+                text='Query GenAI',
+                command=lambda: self.ask_genai_async(
+                    prompt=self.policy_query_var.get(), additional_instruction=self.ai_additional_instructions
+                ),
+            ).grid(row=0, column=2, padx=5, pady=5, sticky='w')
 
         self.copy_txt_btn = ttk.Button(cmdrow, text='Copy Text', command=self.copy_output_text, state='disabled')
         self.copy_txt_btn.grid(row=0, column=4, padx=(10, 0), pady=5, sticky='w')
@@ -579,6 +583,9 @@ class App(tk.Tk):
         """
         Toggle the visibility of the bottom output frame. Only available after AI is set up.
         """
+        if not self.genai_feature_enabled:
+            logger.debug('Ignoring AI pane toggle because the OCI GenAI feature is disabled.')
+            return
         if self.bottom_frame.winfo_ismapped():
             try:
                 self.settings['sashpos'] = self.pw.sashpos(0)
@@ -1381,6 +1388,12 @@ class App(tk.Tk):
             additional_instruction (str, optional): Any additional instructions to include in the query.
             callback (dict, optional): A dictionary of callback functions for different stages of the query.
         """
+        if not self.genai_feature_enabled:
+            message = 'OCI GenAI is disabled. Launch with --enable-genai to use this preview feature.'
+            logger.warning(message)
+            if callable(callback):
+                self.after(0, lambda: callback(success=False, message=message))
+            return
         logger.info(f'Submitting GenAI prompt: {prompt} with additional instructions: {additional_instruction}')
         self.set_bottom_output(content=f'Querying GenAI for:\n\n{prompt}', test_call=test_call)
 
@@ -1567,7 +1580,7 @@ class App(tk.Tk):
             pass
 
         # If the new tab is NOT in supported, and AI (bottom_frame) is shown, hide it.
-        if selected_widget is not None and str(selected_widget) not in supported_tabs:
+        if self.genai_feature_enabled and selected_widget is not None and str(selected_widget) not in supported_tabs:
             if self.bottom_frame.winfo_ismapped():
                 logger.info('AI pane will be hidden due to tab switch to unsupported tab.')
                 self.toggle_bottom()
@@ -1584,6 +1597,11 @@ def main() -> None:
         '--experimental-features',
         action='store_true',
         help=argparse.SUPPRESS,  # Hidden/undocumented flag to enable preview features
+    )
+    parser.add_argument(
+        '--enable-genai',
+        action='store_true',
+        help=argparse.SUPPRESS,  # Hidden preview flag for the desktop OCI GenAI UI.
     )
     # parser.add_argument('--console-log', action='store_true', help='Log to console instead of file', default=False)
 
@@ -1608,7 +1626,11 @@ def main() -> None:
         logger.debug('Verbose logging enabled via --verbose (all loggers set to DEBUG)')
     # ----------------------------------------------------------------------
 
-    app = App(force_debug=args.verbose, experimental_features=args.experimental_features)
+    app = App(
+        force_debug=args.verbose,
+        experimental_features=args.experimental_features,
+        enable_genai=args.enable_genai,
+    )
     app.mainloop()
 
     # On clean exit, attempt to flush anonymous usage tracking so a single

@@ -73,7 +73,8 @@ Cache management includes import, export, snapshotting, refreshing, and selectio
 ## Settings
 
 A robust and extensible settings system governs configuration for all areas of the application. Settings management covers:
-- Tenancy/OCI configuration (profile, session token, compartment selection, recursion, GenAI model selection, MCP server config)
+- Tenancy/OCI configuration (profile, session token, compartment selection, recursion, MCP server config)
+- Desktop-only preview controls, including [Optional AI Assist](optional_ai_assist.md)
 - UI preferences (font size, tab visibility, context help, advanced tab enablement)
 - Cache import/export, refresh, and selection
 - Application-wide toggles for maintenance/debug features

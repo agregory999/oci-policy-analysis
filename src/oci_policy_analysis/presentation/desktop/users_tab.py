@@ -410,15 +410,16 @@ class UsersTab(BaseUITab):
         # Filter checkboxes section
         self._build_ui_statement_filters(self.lf_display_options)
 
-        # AI Assist button inside Display Options frame, packed to the right
-        self.ai_assist_btn = ttk.Button(
-            self.lf_display_options, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
-        )
-        self.ai_assist_btn.pack(side='right', anchor='e', padx=(16, 8), pady=8)
-        self.add_context_help(
-            self.ai_assist_btn,
-            'Show or hide the AI Assistant pane below to analyze user/group policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
-        )
+        # OCI GenAI controls are an opt-in desktop preview.
+        if self.is_genai_feature_enabled():
+            self.ai_assist_btn = ttk.Button(
+                self.lf_display_options, text='AI Assist', command=self._on_ai_assist_clicked, state=tk.DISABLED
+            )
+            self.ai_assist_btn.pack(side='right', anchor='e', padx=(16, 8), pady=8)
+            self.add_context_help(
+                self.ai_assist_btn,
+                'Show or hide the AI Assistant pane below to analyze user/group policies.\nNOTE: AI must be enabled in Settings Tab and only policy statements are supported.',
+            )
 
         # --- SECTION 3: Filtered Policy Statements ---
         self.lf_filtered_statements = ttk.LabelFrame(self, text='Filtered Policy Statements')
@@ -490,7 +491,7 @@ class UsersTab(BaseUITab):
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button. Toggles the AI (bottom) pane."""
-        if hasattr(self.app, 'toggle_bottom'):
+        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
             self.app.toggle_bottom()
             logger.info('Users Tab: AI Assist button clicked, toggled bottom pane.')
 

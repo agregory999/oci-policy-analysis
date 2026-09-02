@@ -229,18 +229,19 @@ class DynamicGroupsTab(BaseUITab):
             'When unchecked, only the most important summary fields are shown for a more compact view.',
         )
 
-        # --- AI Assist Button (parallels policies_tab.py) ---
-        self.ai_assist_btn = ttk.Button(
-            label_frm_output,
-            text='AI Assist',
-            command=self._on_ai_assist_clicked,
-            state=tk.DISABLED,
-        )
-        self.ai_assist_btn.grid(row=0, column=7, sticky='e', padx=(20, 8), pady=4)
-        self.add_context_help(
-            self.ai_assist_btn,
-            'Show or hide the AI Assistant pane below to analyze dynamic groups and related policies.\nNOTE: AI must be enabled in Settings Tab.',
-        )
+        # OCI GenAI controls are an opt-in desktop preview.
+        if self.is_genai_feature_enabled():
+            self.ai_assist_btn = ttk.Button(
+                label_frm_output,
+                text='AI Assist',
+                command=self._on_ai_assist_clicked,
+                state=tk.DISABLED,
+            )
+            self.ai_assist_btn.grid(row=0, column=7, sticky='e', padx=(20, 8), pady=4)
+            self.add_context_help(
+                self.ai_assist_btn,
+                'Show or hide the AI Assistant pane below to analyze dynamic groups and related policies.\nNOTE: AI must be enabled in Settings Tab.',
+            )
 
         ttk.Separator(label_frm_output, orient=tk.VERTICAL).grid(row=0, column=5, sticky='ns', pady=2)
         self.label_policy_count = ttk.Label(label_frm_output, text='Policy Statements\n(Shown Below): 0')
@@ -368,7 +369,7 @@ class DynamicGroupsTab(BaseUITab):
 
     def _on_ai_assist_clicked(self):
         """Callback for AI Assist button - toggles the AI assistant (bottom) pane."""
-        if hasattr(self.app, 'toggle_bottom'):
+        if self.is_genai_feature_enabled() and hasattr(self.app, 'toggle_bottom'):
             self.app.toggle_bottom()
             logger.info('Dynamic Group Tab: AI Assist button clicked, toggled bottom pane.')
 

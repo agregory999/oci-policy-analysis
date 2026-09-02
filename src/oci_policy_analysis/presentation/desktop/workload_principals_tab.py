@@ -265,26 +265,28 @@ class WorkloadPrincipalsTab(BaseUITab):
         self.clear_filter_btn.grid(row=0, column=4, padx=(2, 8), pady=2, sticky='w')
         self.add_context_help(self.clear_filter_btn, 'Clear text filter and show all results.')
 
-        # Add "AI Assist" button inside Filters Label Frame (to the right of "Clear")
-        def ai_assist_callback():
-            self.app.policy_query_var.set('Analyze OCI Workload Principals and Dynamic Group policies.')
-            self.app.ai_additional_instructions = (
-                'Elaborate on how workload principals and Dynamic Groups are matched to resources and policies in OCI. '
-                'Explain important factors, provide analysis of the policy context, and describe implications for access and security.'
-            )
-            self.app.policy_query_label_text.set('Workload Principals Analysis:')
+        # OCI GenAI controls are an opt-in desktop preview.
+        if self.is_genai_feature_enabled():
 
-        self.ai_assist_btn = ttk.Button(
-            filters_labelframe,
-            text='AI Assist',
-            command=lambda: (ai_assist_callback(), self.app.toggle_bottom()),
-            width=10,
-            state=tk.DISABLED,  # Initially disabled until AI enablement is successful
-        )
-        self.ai_assist_btn.grid(row=0, column=5, padx=(8, 8), pady=2, sticky='w')
-        self.add_context_help(
-            self.ai_assist_btn, 'Use Generative AI to analyze workload principals context and matching policies.'
-        )
+            def ai_assist_callback():
+                self.app.policy_query_var.set('Analyze OCI Workload Principals and Dynamic Group policies.')
+                self.app.ai_additional_instructions = (
+                    'Elaborate on how workload principals and Dynamic Groups are matched to resources and policies in OCI. '
+                    'Explain important factors, provide analysis of the policy context, and describe implications for access and security.'
+                )
+                self.app.policy_query_label_text.set('Workload Principals Analysis:')
+
+            self.ai_assist_btn = ttk.Button(
+                filters_labelframe,
+                text='AI Assist',
+                command=lambda: (ai_assist_callback(), self.app.toggle_bottom()),
+                width=10,
+                state=tk.DISABLED,  # Initially disabled until AI enablement is successful
+            )
+            self.ai_assist_btn.grid(row=0, column=5, padx=(8, 8), pady=2, sticky='w')
+            self.add_context_help(
+                self.ai_assist_btn, 'Use Generative AI to analyze workload principals context and matching policies.'
+            )
 
         # refresh on text filter change
         self.text_filter_var.trace_add('write', self.update_principals_sheets)

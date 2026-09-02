@@ -88,7 +88,7 @@ class SettingsTab(BaseUITab):
         """Initialize Settings Tab UI. Everything that the tab needs to exist in the notebook-based app."""
         super().__init__(
             parent,
-            default_help_text='Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, GenAI options, and general UI preferences.',
+            default_help_text='Manage core settings for the OCI Policy Analysis tool, including tenancy authentication, caching, MCP server configuration, and general UI preferences.',
             page_help_link='/usage.html#settings-tab-start-here',
         )
         self.app = app
@@ -694,6 +694,10 @@ class SettingsTab(BaseUITab):
             )
             cb.pack(side='left', padx=(0, 16), pady=4)
 
+        if not self.is_genai_feature_enabled():
+            logger.debug('OCI GenAI settings are hidden because the preview feature is disabled.')
+            return
+
         # Label Frame for AI Connection
         self.label_frm_ai_config = ttk.Labelframe(self, text='OCI GenAI')
         self.label_frm_ai_config.pack(fill='x', padx=5, pady=5)
@@ -987,6 +991,8 @@ class SettingsTab(BaseUITab):
     # -------------------------
     def _refresh_model_table(self) -> None:
         """Apply the model-list filters without making another OCI request."""
+        if not self.is_genai_feature_enabled():
+            return
         rows = []
         for model in self._all_ai_models:
             model_id = model.get('Model OCID', '')
@@ -998,6 +1004,8 @@ class SettingsTab(BaseUITab):
 
     def _on_ai_region_changed(self, _event=None) -> None:
         """Switch GenAI clients to the selected subscribed region."""
+        if not self.is_genai_feature_enabled():
+            return
         region = self.region_var.get().strip()
         if not region or not self.ai_repo.initialized:
             return
@@ -1013,6 +1021,8 @@ class SettingsTab(BaseUITab):
 
     def _load_subscribed_regions(self) -> None:
         """Load tenancy regions on explicit user request."""
+        if not self.is_genai_feature_enabled():
+            return
         try:
             if not self.ai_repo.initialized:
                 self.ai_repo.initialize_client(use_instance_principal=self.ip_var.get(), profile=self.profile_var.get())
@@ -1031,6 +1041,9 @@ class SettingsTab(BaseUITab):
         """
         Apply changes to Model ID and Endpoint in AI client.
         """
+        if not self.is_genai_feature_enabled():
+            logger.warning('Ignoring GenAI configuration because the preview feature is disabled.')
+            return
         start_time = time.perf_counter()
         model_id = self.model_id_var.get().strip()
         endpoint = self.endpoint_var.get().strip()
@@ -1064,6 +1077,8 @@ class SettingsTab(BaseUITab):
             message (str): Message to display.
             clear (bool): Whether to clear the message after a delay.
         """
+        if not self.is_genai_feature_enabled():
+            return
         model_id = self.model_id_var.get().strip()
         if model_id:
             self.ai_test_results[model_id] = 'Yes' if success else 'No'
