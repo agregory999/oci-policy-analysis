@@ -14,7 +14,7 @@ This guide explains how to use the interactive desktop and web applications afte
 
 - **Live OCI load** reads the current tenancy through your configured OCI authentication. It is the best choice when current policy and identity data is required.
 - **Combined cache** reopens data previously saved by the application. It is useful for repeatable analysis, historical comparison, and working without current OCI access.
-- **CIS Compliance output** imports the supplied compliance CSV output directory. It is the best choice when the analysis environment must not connect directly to a tenancy.
+- **CIS Compliance output** imports the supplied compliance CSV output directory. It is the best choice when the analysis environment must not connect directly to a tenancy. A policy-and-compartments-only export is supported for placement and limit work; see [Limited Compliance Loading](limited_modes.md#limited-compliance-loading) for the available and unavailable workflows.
 
 The application analyzes the selected data; it does not change IAM policies or other OCI resources.
 

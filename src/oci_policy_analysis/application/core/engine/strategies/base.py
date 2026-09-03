@@ -34,6 +34,9 @@ class Strategy(Protocol):
     display_name: str
     """Human-readable name shown in the UI (e.g. strategy dropdown)."""
 
+    required_capabilities: frozenset[str]
+    """Capabilities required when planning against a partial CIS Compliance dataset."""
+
     def build_plan(
         self,
         *,

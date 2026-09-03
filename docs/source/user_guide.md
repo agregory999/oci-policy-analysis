@@ -44,7 +44,8 @@ guide](usage.md) describes the available desktop tabs and web pages.
   policy metadata.
 - [OKE workload identity](oke_workload_identity.md) covers namespace and
   service-account queries.
-- [Limited mode](limited_mode.md) documents restricted web access profiles.
+- [Limited Compliance Loading](limited_modes.md#limited-compliance-loading) explains policy-and-compartments-only CIS imports.
+- [Limited Web User](limited_modes.md#limited-web-user) documents restricted web access profiles.
 
 ### Troubleshooting and deployment
 

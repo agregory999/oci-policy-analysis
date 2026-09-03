@@ -28,6 +28,7 @@ from oci_policy_analysis.application.core.common.consolidation_helpers import (
 )
 from oci_policy_analysis.application.core.engine.strategies import (
     MoveCloserToTargetCompartment,
+    MoveDownNextLevel,
     MoveIntoTargetCompartment,
     MoveToRootCompartment,
     PackPoliciesByStatementDensity,
@@ -120,6 +121,7 @@ class ConsolidationEngine:
             else [
                 PackPoliciesByStatementDensity(),
                 MoveToRootCompartment(),
+                MoveDownNextLevel(),
                 MoveCloserToTargetCompartment(),
                 MoveIntoTargetCompartment(),
             ]
@@ -159,8 +161,20 @@ class ConsolidationEngine:
         Returns:
             List of display_name strings in registration order (insertion order).
         """
-        # Preserve order; dict is insertion-ordered in Python 3.7+
-        return list(self._strategies.keys())
+        # Preserve order; dict is insertion-ordered in Python 3.7+. A
+        # strategy can declare its input capabilities so an identity-dependent
+        # strategy is omitted from a partial CIS dataset rather than generating
+        # an incomplete plan.
+        capabilities = getattr(self.policy_repo, 'compliance_capabilities', {}) or {}
+        is_compliance = bool(getattr(self.policy_repo, 'loaded_from_compliance_output', False))
+        return [
+            display_name
+            for display_name, strategy in self._strategies.items()
+            if not is_compliance
+            or all(
+                capabilities.get(capability) for capability in getattr(strategy, 'required_capabilities', frozenset())
+            )
+        ]
 
     def bind_policy_repo(self, repo: PolicyAnalysisRepository) -> None:
         """Attach the policy repository used for plan generation and rendering.
@@ -279,6 +293,19 @@ class ConsolidationEngine:
                 list(self._strategies.keys()),
             )
             raise ValueError(f'Unknown strategy: {strategy_display_name}')
+
+        if getattr(self.policy_repo, 'loaded_from_compliance_output', False):
+            capabilities = getattr(self.policy_repo, 'compliance_capabilities', {}) or {}
+            missing_capabilities = sorted(
+                capability
+                for capability in getattr(strat, 'required_capabilities', frozenset())
+                if not capabilities.get(capability)
+            )
+            if missing_capabilities:
+                raise ValueError(
+                    'Consolidation strategy is unavailable for this CIS Compliance dataset: '
+                    f'missing {", ".join(missing_capabilities)}.'
+                )
 
         plan = strat.build_plan(
             repo=self.policy_repo,

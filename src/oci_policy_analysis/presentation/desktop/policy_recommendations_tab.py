@@ -156,6 +156,17 @@ POLICY_CONSOLIDATION_COLUMNS = [
     'Service/Resource',
     'Consolidation Reason',
     'Action',
+    'Internal ID',
+]
+POLICY_CONSOLIDATION_DISPLAY_COLUMNS = [
+    '☑',
+    'Statement',
+    'Policy Name(s)',
+    'Compartment',
+    'Principal',
+    'Service/Resource',
+    'Consolidation Reason',
+    'Action',
 ]
 POLICY_CONSOLIDATION_COLUMN_WIDTHS = {
     'Statement': 350,
@@ -165,6 +176,7 @@ POLICY_CONSOLIDATION_COLUMN_WIDTHS = {
     'Service/Resource': 160,
     'Consolidation Reason': 280,
     'Action': 180,
+    'Internal ID': 100,
 }
 
 logger = get_logger(component='policy_recommendations_tab')
@@ -1668,14 +1680,19 @@ class PolicyRecommendationsTab(BaseUITab):
         """
         Build the Policy Consolidation notebook sub-tab.
         """
-        # Workbench area with instructions and button to open consolidation workbench (not implemented yet - manual process for now)
+        # Workbench area routes selected findings to the advanced consolidation
+        # workflow without duplicating its strategy selection and validation.
         workbench_frame = ttk.Frame(parent)
         workbench_frame.pack(fill='x', padx=10, pady=(8, 4))
         workbench_frame.columnconfigure(0, weight=1)
         workbench_frame.columnconfigure(1, weight=0)
         ttk.Label(
             workbench_frame,
-            text='Consolidation suggestions show opportunities to streamline policy statements. To act on these suggestions, manage policies manually using the Policy Analysis and Browser tabs. Automated batch consolidation is not available in this version.',
+            text=(
+                'Consolidation suggestions and Policy Placement findings identify statements to review. '
+                'When Advanced Tabs are enabled, select Policy Placement rows and use Create Consolidation Plan '
+                'to choose a workbench strategy for those statements.'
+            ),
             # wraplength=700,
             justify='left',
         ).grid(row=0, column=0, sticky='w', padx=(0, 8))
@@ -1684,21 +1701,23 @@ class PolicyRecommendationsTab(BaseUITab):
             'The table below lists detected consolidation opportunities; review and act on these in the main Policy Analysis and Browser tabs as desired.',
         )
 
-        def on_take_action(selected):
-            tkinter.messagebox.showinfo('Not Implemented', 'Policy consolidation actions are not implemented yet.')
-
         self.consolidation_table = CheckboxTable(
             parent,
             columns=POLICY_CONSOLIDATION_COLUMNS,
+            display_columns=POLICY_CONSOLIDATION_DISPLAY_COLUMNS,
             data=[],
             column_widths=POLICY_CONSOLIDATION_COLUMN_WIDTHS,
-            # action_buttons=[('Take Actions', on_take_action)],
+            action_buttons=[('Create Consolidation Plan', self._on_create_consolidation_plan)],
             enable_select_all=True,
             checked_by_default=False,
         )
         self.consolidation_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
+        self.consolidation_plan_button = self.consolidation_table.action_btns[0]
+        self.update_consolidation_plan_availability()
         self.add_context_help(
-            self.consolidation_table, 'Review consolidation candidates and organize statements as indicated.'
+            self.consolidation_table,
+            'Policy Placement rows identify statements whose effective scope is two or more levels below their policy. '
+            'Select them to hand off exact statement IDs to the advanced Consolidation Workbench.',
         )
 
     # REMOVED: _on_open_consolidation_workbench() (workbench not available)
@@ -1709,6 +1728,50 @@ class PolicyRecommendationsTab(BaseUITab):
         logger.info(f'Updating consolidation tab with {len(consolidations)} records.')
         if hasattr(self, 'consolidation_table'):
             self.consolidation_table.update_data(consolidations)
+
+    def update_consolidation_plan_availability(self):
+        """Enable the workbench handoff only while Advanced Tabs are visible."""
+        if not hasattr(self, 'consolidation_plan_button'):
+            return
+        enabled = bool(
+            getattr(self.app, 'advanced_tabs_visible', False) and getattr(self.app, 'consolidation_tab', None)
+        )
+        self.consolidation_plan_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+
+    def _on_create_consolidation_plan(self, selected_rows):
+        """Transfer selected Policy Placement statement IDs to the advanced workbench."""
+        if not getattr(self.app, 'advanced_tabs_visible', False) or not getattr(self.app, 'consolidation_tab', None):
+            tkinter.messagebox.showinfo(
+                'Advanced Tabs required',
+                'Enable Settings > Show Advanced Tabs to create a consolidation plan from selected findings.',
+            )
+            return
+        statement_ids = {
+            str(row.get('Internal ID') or '') for row in selected_rows if str(row.get('Internal ID') or '')
+        }
+        if not statement_ids:
+            tkinter.messagebox.showinfo(
+                'Select Policy Placement findings',
+                'Select one or more Policy Placement rows. Other consolidation suggestions do not map to one statement.',
+            )
+            return
+        if not tkinter.messagebox.askyesno(
+            'Create Consolidation Plan',
+            (
+                f'Open Candidate Selection with {len(statement_ids)} selected Policy Placement statement(s)?\n\n'
+                'Choose a strategy in the Consolidation Workbench. The resulting proposal applies only to these '
+                'selected statements and replaces the current workbench candidate selection.'
+            ),
+        ):
+            return
+        accepted_ids = self.app.consolidation_tab.select_candidate_statements(statement_ids)
+        if not accepted_ids:
+            tkinter.messagebox.showwarning(
+                'No available candidates',
+                'The selected statements are protected, invalid, or belong to a system policy and cannot be consolidated.',
+            )
+            return
+        self.app.notebook.select(self.app.consolidation_tab)
 
     def _get_policy_consolidation_rows(self):
         """
@@ -1732,6 +1795,27 @@ class PolicyRecommendationsTab(BaseUITab):
                 if v is None:
                     norm[k] = ''
             normalized.append(norm)
+        for recommendation in overlay.get('recommendations', []) or []:
+            if recommendation.get('Category') != 'Policy Placement':
+                continue
+            for finding in recommendation.get('Evidence', []) or []:
+                if not isinstance(finding, dict):
+                    continue
+                normalized.append(
+                    {
+                        'Statement': finding.get('Statement') or '',
+                        'Policy Name(s)': finding.get('Policy') or '',
+                        'Compartment': finding.get('Effective Path') or '',
+                        'Principal': '',
+                        'Service/Resource': '',
+                        'Consolidation Reason': (
+                            f"Effective scope is {finding.get('Levels Below Policy') or 0} hierarchy levels below "
+                            f"the policy compartment ({finding.get('Policy Compartment Path') or 'Unknown'})."
+                        ),
+                        'Action': 'Plan: Move the statement closer to its effective scope.',
+                        'Internal ID': finding.get('Statement Internal ID') or '',
+                    }
+                )
         return normalized
 
     # --- Cleanup / Fix Tab ---

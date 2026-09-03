@@ -171,6 +171,53 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Partial CIS imports expose only policy-safe analysis. This banner and the
+   matching disabled navigation keep unavailable identity-dependent workflows
+   visible but clearly non-interactive. */
+.compliance-capability-banner {
+  grid-column: 1 / -1;
+  margin: 0 0 0.75rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #d8a61d;
+  border-radius: 12px;
+  background: #fff3cd;
+  color: #684900;
+  box-shadow: 0 5px 14px rgba(104, 73, 0, 0.08);
+}
+
+.compliance-capability-banner p {
+  margin: 0.2rem 0;
+}
+
+.compliance-capability-title {
+  font-weight: 800;
+}
+
+.icon-button.capability-disabled {
+  border-color: #d5d7dc;
+  background: #f0f1f3;
+  color: #777b84;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
+.icon-button.capability-disabled:hover {
+  border-color: #d5d7dc;
+  background: #f0f1f3;
+  box-shadow: none;
+  transform: none;
+}
+
+.icon-button.capability-disabled .icon-button-mark {
+  background: #dfe1e5;
+  color: #777b84;
+}
+
+.capability-restricted > :not(.compliance-capability-banner) {
+  opacity: 0.58;
+}
+
 .status {
   margin-top: 0.75rem;
   font-size: 0.95rem;

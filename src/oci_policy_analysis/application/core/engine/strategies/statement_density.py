@@ -42,6 +42,7 @@ class PackPoliciesByStatementDensity:
 
     strategy_id: str = 'statement_density_pack'
     display_name: str = 'Statement Density (Pack Policies)'
+    required_capabilities: frozenset[str] = frozenset({'policy_statements', 'policy_objects', 'compartment_hierarchy'})
 
     def build_plan(  # noqa: C901
         self,

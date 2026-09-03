@@ -24,6 +24,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,11 @@ def _resolve_compliance_output_csv(dir_path: str, filename: str, *, required: bo
         expected = ', '.join(str(candidate) for candidate in candidates)
         raise FileNotFoundError(f'Compliance output file not found. Expected one of: {expected}')
     return None
+
+
+def _open_optional_compliance_csv(path: str | None):
+    """Open a compliance CSV, or provide an empty CSV stream when it is optional."""
+    return open(path, encoding='utf-8') if path else StringIO('')
 
 
 class PolicyAnalysisRepository:
@@ -850,6 +856,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 2
         self.load_all_users = True
+        self.compliance_capabilities: dict[str, bool] = {}
+        self.compliance_artifact_counts: dict[str, int] = {}
         # Settings controlling logging/behavior (injected by App)
         self.settings = None
         # Keep the refence data repo as a member
@@ -920,6 +928,8 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 1
         self.load_all_users = True
+        self.compliance_capabilities = {}
+        self.compliance_artifact_counts = {}
         # Do not replace permission_reference_repo: it is injected by the app (main) and
         # must remain the loaded ReferenceDataRepo so risk scoring and permission lookups work.
         # If there are additional ephemeral analysis/cache attributes, reset them here
@@ -1311,6 +1321,17 @@ class PolicyAnalysisRepository:
         subjects = stmt.get('subject')
         principals: list[Principal] = []
 
+        def _policy_subject_domain(value: object | None) -> str:
+            """Return the policy-derived domain, normalizing the default name.
+
+            The subject parser supplies a named domain from the segment before
+            ``/``. A bare group or dynamic-group name is represented as
+            ``default`` there; expose it consistently as ``Default`` without
+            claiming that an Identity Domains inventory was loaded.
+            """
+            domain = str(value or 'Default').strip()
+            return 'Default' if not domain or domain.casefold() == 'default' else domain
+
         if not subject_type:
             stmt['principals'] = principals
             return principals
@@ -1374,7 +1395,7 @@ class PolicyAnalysisRepository:
             domain = None
             name = None
             if isinstance(subj, tuple | list) and len(subj) >= 2:
-                domain = str(subj[0] or 'Default')
+                domain = _policy_subject_domain(subj[0])
                 name = str(subj[1] or '').strip()
             elif isinstance(subj, str):
                 name = subj.strip()
@@ -3349,7 +3370,12 @@ class PolicyAnalysisRepository:
 
     def load_from_compliance_output_dir(self, dir_path: str, load_all_users: bool = True) -> bool:  # noqa: C901
         """
-        Load all compartments, domains, groups, users, dynamic groups, and policies from compliance tool output files.
+        Load a CIS Compliance export from CSV files.
+
+        Compartments and policies are required. Identity-oriented artifacts
+        (domains, dynamic groups, groups/membership, and users) are optional,
+        so a policy-and-compartments-only export remains useful for hierarchy,
+        policy movement, consolidation, and policy-derived principal searches.
 
         Always resets the reload time (`policy_data_reloaded`) so that reload is not shown for compliance/CSV data.
 
@@ -3421,8 +3447,8 @@ class PolicyAnalysisRepository:
                 return False
 
             # --- Step 2: Load Dynamic Groups ---
-            dgs_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_dynamic_groups.csv')
-            with open(dgs_file, encoding='utf-8') as f:
+            dgs_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_dynamic_groups.csv', required=False)
+            with _open_optional_compliance_csv(dgs_file) as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     created_by = row.get('idcs_created_by', '{}')
@@ -3452,11 +3478,13 @@ class PolicyAnalysisRepository:
             logger.info(f'Loaded {len(self.dynamic_groups)} dynamic groups from CSV')
 
             # --- Step 3: Load Groups ---
-            groups_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_groups_and_membership.csv')
+            groups_file = _resolve_compliance_output_csv(
+                dir_path, 'raw_data_identity_groups_and_membership.csv', required=False
+            )
             user_membership: dict[str, list[str]] = {}
             user_domains: dict[str, str] = {}
             seen_groups = set()
-            with open(groups_file, encoding='utf-8') as f:
+            with _open_optional_compliance_csv(groups_file) as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     group: Group = {
@@ -3485,9 +3513,10 @@ class PolicyAnalysisRepository:
 
             # --- Step 4: Load Users, unless disabled ---
             self.users = []
+            users_file: str | None = None
             if load_all_users:
-                users_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_users.csv')
-                with open(users_file, encoding='utf-8') as f:
+                users_file = _resolve_compliance_output_csv(dir_path, 'raw_data_identity_users.csv', required=False)
+                with _open_optional_compliance_csv(users_file) as f:
                     reader = csv.DictReader(f)
                     for user_item in reader:
                         logger.debug(f'Processing user item: {user_item}')
@@ -3596,9 +3625,16 @@ class PolicyAnalysisRepository:
                         ),
                         'ROOT',
                     )
+                    # ``id`` is the policy OCID in the CIS export.  Keep it
+                    # as the canonical identifier for both the policy object
+                    # and every parsed statement.  ``identifier`` is an
+                    # export identifier and can differ, which otherwise
+                    # prevents reports and policy-level risk from associating
+                    # statements with their policy.
+                    policy_ocid = policy_item.get('id') or policy_item.get('identifier') or ''
                     policy_obj = BasePolicy(
                         policy_name=policy_item.get('name') or '',
-                        policy_ocid=policy_item.get('id') or '',
+                        policy_ocid=policy_ocid,
                         compartment_ocid=policy_item.get('compartment_id') or '',
                         compartment_path=comp_path,
                         description=policy_item.get('description') or '',
@@ -3610,7 +3646,6 @@ class PolicyAnalysisRepository:
                     self.policies.append(policy_obj)
 
                     # Get the basic details here and then iterate statements - those are to be added to the list
-                    policy_ocid = policy_item.get('identifier') or ''
                     comp_id = policy_item.get('compartment_id') or ''
                     policy_name = policy_item.get('name') or ''
                     creation_time = policy_item.get('time_created') or ''
@@ -3671,12 +3706,44 @@ class PolicyAnalysisRepository:
             # For compliance/JSON loads, explicitly clear the reload date unless recovered from cache elsewhere
             self.policy_data_reloaded = None
             self.loaded_from_compliance_output = True
+            self.compliance_capabilities = {
+                'policy_statements': bool(self.regular_statements),
+                'policy_objects': True,
+                'compartments': True,
+                'compartment_hierarchy': True,
+                'group_subject_names': bool(self.regular_statements),
+                'dynamic_group_subject_names': bool(self.regular_statements),
+                'groups_inventory': bool(groups_file),
+                'dynamic_groups_inventory': bool(dgs_file),
+                'users_inventory': bool(load_all_users and users_file),
+                'group_memberships': bool(groups_file and load_all_users and users_file),
+                'domains_inventory': bool(domains_csv_path),
+                'defined_tag_catalog': bool(self.defined_tag_namespace_keys),
+                'principal_resolution': bool(groups_file and load_all_users and users_file),
+            }
+            self.compliance_artifact_counts = {
+                # The loader synthesizes ROOT for hierarchy calculations; do
+                # not count it as an imported compartment in the UI.
+                'compartments': len(
+                    {compartment.get('id') for compartment in self.compartments if compartment.get('id')}
+                ),
+                'policies': len(self.policies),
+                'statements': len(self.regular_statements),
+                'groups': len(self.groups),
+                'dynamic_groups': len(self.dynamic_groups),
+                'users': len(self.users),
+            }
 
             # After all policy statements loaded, enrich compartment counts
             self._enrich_compartments_with_statement_counts()
 
             # logger.warning(f"on_policy_statements_updated callback failed: {e}")
 
+            logger.warning(
+                'CIS Compliance load completed: artifacts=%s capabilities=%s',
+                json.dumps(self.compliance_artifact_counts, sort_keys=True),
+                json.dumps(self.compliance_capabilities, sort_keys=True),
+            )
             logger.info('Compliance output data loaded successfully.')
             return True
         except Exception as e:

@@ -1997,11 +1997,27 @@ def get_status(request: Request) -> dict[str, object]:
     _require_not_limited(request)
     ctx = get_context()
     repo = ctx.policy_repo
+    raw_capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+    capabilities = (
+        {str(name): bool(enabled) for name, enabled in raw_capabilities.items()}
+        if isinstance(raw_capabilities, dict)
+        else {}
+    )
+    raw_artifact_counts = getattr(repo, 'compliance_artifact_counts', {}) or {}
+    artifact_counts = (
+        {str(name): int(count or 0) for name, count in raw_artifact_counts.items()}
+        if isinstance(raw_artifact_counts, dict)
+        else {}
+    )
+    is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False) and capabilities)
     summary = {
         'tenancy_ocid': getattr(repo, 'tenancy_ocid', None),
         'tenancy_name': getattr(repo, 'tenancy_name', None),
         'data_as_of': getattr(repo, 'data_as_of', None),
         'loaded_from_compliance_output': getattr(repo, 'loaded_from_compliance_output', False),
+        'is_partial_compliance': is_compliance and not bool(capabilities.get('principal_resolution')),
+        'compliance_capabilities': capabilities,
+        'compliance_artifact_counts': artifact_counts,
         'policies_loaded_from_tenancy': getattr(repo, 'policies_loaded_from_tenancy', False),
         'policy_data_reloaded': getattr(repo, 'policy_data_reloaded', None),
         'load_all_users': getattr(repo, 'load_all_users', None),

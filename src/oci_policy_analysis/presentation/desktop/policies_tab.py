@@ -258,7 +258,10 @@ class PoliciesTab(BaseUITab):
             command=lambda: self._append_filter_tokens(self.subject_filter_var, ['any-user', 'any-group']),
         )
         btn_any_user.grid(row=1, column=3, padx=2, pady=1, sticky='e')
-        self.add_context_help(btn_any_user, 'Append any-user|any-group to Subject filter.')
+        self.add_context_help(
+            btn_any_user,
+            'Adds any-user and any-group to the Subject filter, so matching statements for either broad subject are shown.',
+        )
 
         # Verb
         ttk.Label(self.frm_policy_filter, text='Verb').grid(row=1, column=4, padx=5, pady=1, sticky='w')
@@ -274,7 +277,8 @@ class PoliciesTab(BaseUITab):
         btn_add_lower_verbs.grid(row=1, column=7, padx=2, pady=1, sticky='w')
         self.add_context_help(
             btn_add_lower_verbs,
-            'Expand Verb to include lower verbs: use→inspect|read|use, read→inspect|read, manage→inspect|read|use|manage.',
+            'Expands the Verb filter with lower OCI verbs: use adds inspect|read|use; read adds inspect|read; '
+            'manage adds inspect|read|use|manage.',
         )
 
         # Permission (moved up under Verb)
@@ -291,8 +295,7 @@ class PoliciesTab(BaseUITab):
         btn_lookup_permissions.grid(row=2, column=7, padx=2, pady=1, sticky='w')
         self.add_context_help(
             btn_lookup_permissions,
-            'Open a lookup popup to build Permission filter values from API operation '
-            'or resource/family + verb mappings.',
+            'Opens a lookup to add API operations or OCI resource/family-and-verb mappings to the Permission filter.',
         )
 
         # Resource
@@ -309,7 +312,7 @@ class PoliciesTab(BaseUITab):
         btn_add_hierarchy.grid(row=2, column=3, padx=2, pady=1, sticky='e')
         self.add_context_help(
             btn_add_hierarchy,
-            'Loads containing family (if any) and all-resources',
+            'Adds the resource’s containing OCI family, when known, and all-resources to the Resource filter.',
         )
 
         # Location
@@ -325,7 +328,10 @@ class PoliciesTab(BaseUITab):
             ),
         )
         btn_in_tenancy.grid(row=3, column=7, padx=2, pady=1, sticky='w')
-        self.add_context_help(btn_in_tenancy, "Set Location filter to 'tenancy'.")
+        self.add_context_help(
+            btn_in_tenancy,
+            "Replaces the Location filter with 'tenancy' (and the tenancy OCID) to show tenancy-scoped statements only.",
+        )
 
         # Hierarchy
         ttk.Label(self.frm_policy_filter, text='Hierarchy').grid(row=3, column=0, padx=2, pady=1, sticky='w')
@@ -338,7 +344,10 @@ class PoliciesTab(BaseUITab):
             command=lambda: self._insert_filter_tokens(self.hierarchy_filter_var, ['ROOTONLY']),
         )
         btn_root_only.grid(row=3, column=3, padx=2, pady=1, sticky='e')
-        self.add_context_help(btn_root_only, 'Insert ROOTONLY into Hierarchy filter.')
+        self.add_context_help(
+            btn_root_only,
+            'Filters down to only policies located in the ROOT compartment of the tenancy.',
+        )
 
         # Condition
         ttk.Label(self.frm_policy_filter, text='Condition').grid(row=4, column=4, padx=5, pady=1, sticky='w')
@@ -354,7 +363,10 @@ class PoliciesTab(BaseUITab):
             command=lambda: self._insert_filter_tokens(self.condition_filter_var, ['.tag.']),
         )
         btn_tag_based.grid(row=4, column=7, padx=2, pady=1, sticky='w')
-        self.add_context_help(btn_tag_based, 'Insert .tag. into Condition filter.')
+        self.add_context_help(
+            btn_tag_based,
+            'Adds .tag. to the Condition filter to show statements that use tag-based access conditions.',
+        )
 
         # Text
         ttk.Label(self.frm_policy_filter, text='Text').grid(row=4, column=0, padx=2, pady=1, sticky='w')
@@ -417,7 +429,9 @@ class PoliciesTab(BaseUITab):
             self.frm_policy_filter, text='Clear Filters', state=tk.DISABLED, command=self.clear_policy_filters
         )
         self.btn_clear.grid(row=6, column=5, columnspan=3, padx=5, pady=1, sticky='ew')
-        self.add_context_help(self.btn_clear, 'Clear all policy filter fields.')
+        self.add_context_help(
+            self.btn_clear, 'Clears every Policy Analysis filter and restores the full policy statement list.'
+        )
 
     def _insert_filter_tokens(self, variable: tk.StringVar, tokens: list[str]) -> None:
         """Insert one or more `|`-separated tokens into a filter field.

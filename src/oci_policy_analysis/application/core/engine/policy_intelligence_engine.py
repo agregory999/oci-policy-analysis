@@ -292,6 +292,18 @@ class PolicyIntelligenceEngine:
                 logger.info('Policy intelligence strategy skipped (disabled): %s', strategy_id)
                 continue
             strategy = self._strategies[strategy_id]
+            required_capabilities = set(getattr(strategy, 'required_capabilities', frozenset()))
+            available_capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+            missing_capabilities = sorted(
+                capability for capability in required_capabilities if not available_capabilities.get(capability)
+            )
+            if getattr(repo, 'loaded_from_compliance_output', False) and missing_capabilities:
+                logger.warning(
+                    'Policy intelligence strategy skipped (missing capabilities): %s missing=%s',
+                    strategy.strategy_id,
+                    missing_capabilities,
+                )
+                continue
             logger.info(
                 'Policy intelligence strategy running: %s (%s)',
                 strategy.strategy_id,
@@ -768,7 +780,7 @@ class PolicyIntelligenceEngine:
     def find_invalid_statements(self):  # noqa: C901
         """
         Mark regular policy statements as invalid if they fail various validity checks, such as:
-        - Nonexistent Dynamic Groups or Groups
+        - Nonexistent Dynamic Groups or Groups when their inventories were loaded
         - Tag-based where-clause references to missing defined tag namespace/key
         - Invalid compartment OCIDs
         - Invalid verbs/resources
@@ -776,6 +788,10 @@ class PolicyIntelligenceEngine:
         This method modifies the statements in-place, adding an `invalid_reasons` list if applicable.
         """
         repo = self.policy_repo
+        capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+        is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False))
+        validate_groups = not is_compliance or bool(capabilities.get('groups_inventory'))
+        validate_dynamic_groups = not is_compliance or bool(capabilities.get('dynamic_groups_inventory'))
 
         # Build a case-insensitive lookup for defined tag namespaces/keys discovered
         # by the repository. Shape:
@@ -811,7 +827,7 @@ class PolicyIntelligenceEngine:
             # If parsing errors have already populated invalid_reasons, preserve them
             invalid_reasons = list(st.get('invalid_reasons', []))
             # Dynamic Group check
-            if st.get('subject_type') == 'dynamic-group':
+            if st.get('subject_type') == 'dynamic-group' and validate_dynamic_groups:
                 for subject in st.get('subject', []):
                     dg_domain = subject[0] or 'default'
                     dg_name = subject[1]
@@ -827,7 +843,7 @@ class PolicyIntelligenceEngine:
                         _append_unique(invalid_reasons, f'Dynamic Group {dg_name} not found in tenancy')
                         logger.debug(f'Dynamic Group {dg_name} not found for statement: {st.get("statement_text")}')
             # Group check
-            elif st.get('subject_type') == 'group':
+            elif st.get('subject_type') == 'group' and validate_groups:
                 for subject in st.get('subject', []):
                     group_domain = subject[0] or 'default'
                     group_name = subject[1]
@@ -1245,6 +1261,8 @@ class PolicyIntelligenceEngine:
         The lists are attached to self.overlay["cleanup_items"].
         """
         repo = self.policy_repo
+        capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+        is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False))
         run_all = enabled_check_ids is None
         enabled = set(enabled_check_ids) if enabled_check_ids else set(CLEANUP_CHECK_IDS)
 
@@ -1258,7 +1276,11 @@ class PolicyIntelligenceEngine:
 
         # (2) Unused Groups (only when users were loaded; otherwise we intentionally did not load users).
         # Exclude the special "All Domain Users" group (one per domain); it cannot be deleted and may have zero members.
-        if _run('unused_groups') and getattr(repo, 'load_all_users', True):
+        if (
+            _run('unused_groups')
+            and getattr(repo, 'load_all_users', True)
+            and (not is_compliance or capabilities.get('group_memberships'))
+        ):
             unused_groups = [
                 group
                 for group in repo.groups
@@ -1269,7 +1291,7 @@ class PolicyIntelligenceEngine:
             unused_groups = []
 
         # (3) Unused Dynamic Groups
-        if _run('unused_dynamic_groups'):
+        if _run('unused_dynamic_groups') and (not is_compliance or capabilities.get('dynamic_groups_inventory')):
             self.run_dg_in_use_analysis()  # ensure DG in_use fields are updated
             unused_dgs = repo.filter_dynamic_groups({'in_use': [False]})
         else:
@@ -1472,6 +1494,26 @@ class PolicyIntelligenceEngine:
                 }
             )
 
+        deep_effective_path_findings = self._deep_effective_path_findings()
+        if deep_effective_path_findings:
+            recommendations.append(
+                {
+                    'Recommendation': 'Investigate statements placed two or more levels above their effective scope',
+                    'Priority': 'Medium',
+                    'Category': 'Policy Placement',
+                    'Notes': (
+                        f'{len(deep_effective_path_findings)} policy statement(s) are effective two or more hierarchy '
+                        'levels below their policy compartment. Moving a statement closer to its effective scope can '
+                        'reduce ancestor-compartment policy-statement limit exposure.'
+                    ),
+                    'EvidenceCount': len(deep_effective_path_findings),
+                    # Each occurrence is actionable from the desktop
+                    # consolidation view, so retain the full evidence set.
+                    'Evidence': deep_effective_path_findings,
+                    **catalog_guidance('deep_effective_paths'),
+                }
+            )
+
         # Low-priority informational: statements referencing the special "All Domain Users" group
         repo = self.policy_repo
         all_domain_users_refs = 0
@@ -1664,6 +1706,55 @@ class PolicyIntelligenceEngine:
                     'Policy': st.get('policy_name') or '',
                     'Statement': st.get('statement_text') or '',
                     'Reason': reason,
+                }
+            )
+        return findings
+
+    def _deep_effective_path_findings(self) -> list[dict]:
+        """Find statements effective at least two levels below their policy.
+
+        A finding is emitted only when the effective path is a descendant of
+        the policy compartment.  This deliberately excludes sibling and
+        ancestor paths, along with a policy that is only one hierarchy level
+        above its effective scope.
+        """
+
+        def _path_segments(path: object) -> list[str]:
+            normalized = str(path or '').replace('\\', '/').strip('/')
+            if not normalized or normalized.startswith('('):
+                return []
+            return [segment.casefold() for segment in normalized.split('/') if segment.strip()]
+
+        compartment_paths: dict[str, str] = {}
+        for compartment in getattr(self.policy_repo, 'compartments', []) or []:
+            compartment_id = str(compartment.get('id') or '')
+            hierarchy_path = str(compartment.get('hierarchy_path') or '').strip()
+            if compartment_id and hierarchy_path:
+                compartment_paths[compartment_id] = hierarchy_path
+
+        findings: list[dict] = []
+        for statement in getattr(self.policy_repo, 'regular_statements', []) or []:
+            policy_path = compartment_paths.get(str(statement.get('compartment_ocid') or '')) or str(
+                statement.get('compartment_path') or ''
+            )
+            effective_path = str(statement.get('effective_path') or '')
+            policy_segments = _path_segments(policy_path)
+            effective_segments = _path_segments(effective_path)
+            if not policy_segments or not effective_segments:
+                continue
+            if effective_segments[: len(policy_segments)] != policy_segments:
+                continue
+            levels_below = len(effective_segments) - len(policy_segments)
+            if levels_below < 2:
+                continue
+            findings.append(
+                {
+                    'Statement Internal ID': statement.get('internal_id') or statement.get('id') or '',
+                    'Policy': statement.get('policy_name') or '',
+                    'Policy Compartment Path': policy_path,
+                    'Effective Path': effective_path,
+                    'Levels Below Policy': levels_below,
+                    'Statement': statement.get('statement_text') or '',
                 }
             )
         return findings

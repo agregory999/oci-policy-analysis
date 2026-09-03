@@ -381,6 +381,22 @@ class App(tk.Tk):
         )
         self.status_bar.pack(side='left', fill='x', expand=True)
 
+        self.compliance_capability_banner_var = tk.StringVar(value='')
+        # Use a classic Tk label so the warning colors remain visible across
+        # ttk themes; ttk.Label backgrounds are ignored by several platforms.
+        self.compliance_capability_banner = tk.Label(
+            self,
+            textvariable=self.compliance_capability_banner_var,
+            anchor='w',
+            padx=8,
+            pady=4,
+            fg='#7A4E00',
+            bg='#FFF3CD',
+            relief=tk.SOLID,
+            borderwidth=1,
+            wraplength=1350,
+        )
+
         # Right side: GitHub links (Issues/Comments and Latest Releases)
         links_font: tkfont.Font | None = None
         try:
@@ -421,6 +437,53 @@ class App(tk.Tk):
                 tracker.track('app_start')
         except Exception:
             pass
+
+    def _update_compliance_capability_ui(self) -> None:
+        """Show partial-CIS availability and gate tabs that require missing identity data."""
+        repo = self.policy_compartment_analysis
+        capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+        is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False) and capabilities)
+        is_partial = is_compliance and not bool(capabilities.get('principal_resolution'))
+        tab_availability = (
+            (self.users_tab, not is_compliance or bool(capabilities.get('principal_resolution'))),
+            (self.dynamic_groups_tab, not is_compliance or bool(capabilities.get('dynamic_groups_inventory'))),
+            (self.permissions_report_tab, not is_compliance or bool(capabilities.get('principal_resolution'))),
+            (self.simulation_tab, not is_compliance or bool(capabilities.get('principal_resolution'))),
+            (self.tag_based_access_tab, not is_compliance or bool(capabilities.get('defined_tag_catalog'))),
+            (self.historical_tab, not is_partial),
+        )
+        for tab, available in tab_availability:
+            # Some advanced tabs are intentionally forgotten until the user
+            # enables them in Settings. A forgotten tab cannot be configured
+            # through ttk.Notebook, but Settings reapplies this gate when it
+            # adds the tab back.
+            if str(tab) in self.notebook.tabs():
+                self.notebook.tab(tab, state='normal' if available else 'disabled')
+
+        recommendations_tab = getattr(self, 'policy_recommendations_tab', None)
+        if hasattr(recommendations_tab, 'update_consolidation_plan_availability'):
+            recommendations_tab.update_consolidation_plan_availability()
+
+        if not is_partial:
+            self.compliance_capability_banner_var.set('')
+            self.compliance_capability_banner.pack_forget()
+            return
+
+        artifact_counts = getattr(repo, 'compliance_artifact_counts', {}) or {}
+        compartments = artifact_counts.get('compartments', len(getattr(repo, 'compartments', []) or []))
+        policies = artifact_counts.get('policies', len(getattr(repo, 'policies', []) or []))
+        statements = artifact_counts.get('statements', len(getattr(repo, 'regular_statements', []) or []))
+        self.compliance_capability_banner_var.set(
+            'Partial CIS Compliance dataset: '
+            f'loaded {compartments} compartments, {policies} policies, and {statements} statements. '
+            'Policy hierarchy, statement moves, consolidation, recommendations, Workload Principals, and policy-derived '
+            'principal filtering work. '
+            'Groups/Users, Dynamic Groups, Permissions Analysis, API Simulation, and Tag-based Access require identity data '
+            'that was not supplied and are disabled. Historical comparison is disabled because this dataset has no '
+            'compatible identity snapshot.'
+        )
+        if not self.compliance_capability_banner.winfo_ismapped():
+            self.compliance_capability_banner.pack(side='bottom', fill='x')
 
     def _configure_window_icon(self) -> None:
         """Set the Tk window icon from packaged assets when available."""
@@ -629,7 +692,10 @@ class App(tk.Tk):
         self.policy_intelligence.calculate_all_effective_compartments()
         logger.info('Running intelligence strategies (risk, supersession, cleanup, recommendations)')
         self.policy_intelligence.run_all(enabled_strategy_ids=None, params={})
-        logger.info('Building permissions report for advanced report tab')
+        # This report uses parsed policy subjects, statements, and hierarchy.
+        # Partial CIS imports supply those inputs, including inferred principal
+        # domains and names, even when group membership data is absent.
+        logger.info('Building permissions report from loaded policy statements')
         self.policy_intelligence.build_permissions_report()
 
         self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
@@ -728,6 +794,7 @@ class App(tk.Tk):
         step('reports_tab.populate_data', self.reports_tab.populate_data)
         if self.consolidation_tab:
             step('consolidation_tab.populate_data', self.consolidation_tab.populate_data)
+        self._update_compliance_capability_ui()
         logger.info(
             'UI post-load timing (seconds): '
             + ' | '.join([f'{label}: {elapsed:.2f}' for label, elapsed in timings])

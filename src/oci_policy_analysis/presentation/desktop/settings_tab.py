@@ -1211,3 +1211,8 @@ class SettingsTab(BaseUITab):
             self.advanced_btn_var.set('Hide Advanced Tabs')
             self.app.advanced_tabs_visible = True
             logger.info('Advanced tabs shown')
+
+        # Reapply dataset-specific availability after tabs are added back to
+        # the notebook (or hidden again).
+        if hasattr(self.app, '_update_compliance_capability_ui'):
+            self.app._update_compliance_capability_ui()

@@ -51,6 +51,7 @@ class MoveToRootCompartment:
 
     strategy_id: str = 'move_to_root'
     display_name: str = 'Move to Root Compartment'
+    required_capabilities: frozenset[str] = frozenset({'policy_statements', 'policy_objects', 'compartment_hierarchy'})
 
     def build_plan(  # noqa: C901
         self,

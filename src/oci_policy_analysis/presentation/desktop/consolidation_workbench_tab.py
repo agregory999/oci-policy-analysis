@@ -73,6 +73,8 @@ class ConsolidationWorkbenchTab(BaseUITab):
             default_help_text=(
                 'The Consolidation Workbench provides advanced controls for protecting, selecting, '
                 'and consolidating statements and policies in a repeatable/batch-driven workflow.'
+                'NO CHANGES are made by this tool. Generating and executing a plan involves outside '
+                'steps (OCI CLI or Console) performed by administartors afer careful review.'
             ),
         )
         self.app = app
@@ -100,6 +102,37 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.timed_step('reload_and_validate_protection_set', self.reload_and_validate_protection_set)
         self.timed_step('refresh_plan_history_for_tenancy', self.refresh_plan_history_for_tenancy)
         self.logger.info('Finished ConsolidationWorkbenchTab.populate_data')
+
+    def select_candidate_statements(self, internal_ids: set[str]) -> set[str]:
+        """Replace the candidate selection and show those statements in Candidate Selection.
+
+        Callers supply repository statement IDs, not display text, so a finding
+        remains unambiguous even when policy text is repeated across policies.
+        Protected, invalid, and system-policy statements remain unavailable.
+        """
+        requested_ids = {str(internal_id) for internal_id in internal_ids if str(internal_id)}
+        available_rows = self.service.get_candidate_rows()
+        available_ids = {str(row.get('internal_id') or '') for row in available_rows.get('rows', [])}
+        accepted_ids = requested_ids.intersection(available_ids)
+        self.candidate_table_selected_ids = accepted_ids
+        self.candidate_search_var.set('')
+        self.notebook.select(1)
+        # The parent Consolidation Workbench can still be hidden while a
+        # recommendation handoff calls this method.  Refresh after Tk maps the
+        # parent tab so the candidate Treeviews do not retain a blank first
+        # paint until the user manually changes tabs.
+        self.after_idle(self._refresh_candidate_selection_after_handoff)
+        self.logger.info(
+            'Candidate selection replaced from recommendation handoff: requested=%d accepted=%d',
+            len(requested_ids),
+            len(accepted_ids),
+        )
+        return accepted_ids
+
+    def _refresh_candidate_selection_after_handoff(self) -> None:
+        """Refresh candidate tables after the outer workbench tab is mapped."""
+        self._load_candidate_statements()
+        self._update_selected_candidates_table()
 
     # ====== Main UI Construction ======
     # ====== Public Methods ======

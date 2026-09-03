@@ -44,6 +44,7 @@ class MoveIntoTargetCompartment:
 
     strategy_id: str = 'move_into_target'
     display_name: str = 'Move Into Target Compartment'
+    required_capabilities: frozenset[str] = frozenset({'policy_statements', 'policy_objects', 'compartment_hierarchy'})
 
     def build_plan(  # noqa: C901
         self,

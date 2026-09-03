@@ -20,7 +20,7 @@ Full documentation
    recommendations
    reports
    tag_based
-   limited_mode
+   limited_modes
    oke_workload_identity
    optional_ai_assist
 
