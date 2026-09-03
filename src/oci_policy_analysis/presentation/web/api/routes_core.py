@@ -1679,6 +1679,29 @@ def get_recommendations_dashboard() -> dict[str, object]:
     return service.get_dashboard_payload()
 
 
+@router.post('/analysis/tenancy-policy-limits')
+def set_tenancy_policy_limits(payload: dict[str, object]) -> dict[str, object]:
+    """Save operator-supplied limits only with the active cache/CIS snapshot."""
+    logger.info('POST /analysis/tenancy-policy-limits')
+    ctx = get_context()
+    repo = ctx.policy_repo
+    offline_snapshot = bool(
+        getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
+    )
+    if not offline_snapshot:
+        raise HTTPException(status_code=409, detail='Live tenancy limits are read from OCI and cannot be overridden.')
+    try:
+        limits = repo.set_user_supplied_tenancy_policy_limits(
+            payload.get('policies_count'), payload.get('policy_statements_per_compartment_chain_count')
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    cache_name = str(getattr(repo, 'current_cache_name', '') or '')
+    if cache_name:
+        ctx.cache.update_tenancy_policy_limits(cache_name, limits)
+    return {'tenancy_policy_limits': RecommendationsService(ctx)._tenancy_policy_limits_payload()}
+
+
 @router.get('/reports/full-overlaps')
 def get_full_overlap_report() -> dict[str, object]:
     """Generate and return the full on-demand policy-overlap report."""

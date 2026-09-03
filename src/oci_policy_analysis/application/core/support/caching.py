@@ -451,6 +451,9 @@ class CacheManager:
             'users_by_key': self._build_by_key(users),
             'data_as_of': policy_analysis.data_as_of,
             'load_all_users': getattr(policy_analysis, 'load_all_users', True),
+            # Optional, tenancy/snapshot-specific metadata.  Older cache files
+            # do not have this key and load normally.
+            'tenancy_policy_limits': getattr(policy_analysis, 'tenancy_policy_limits', {}),
         }
         logger.info(
             'Saving cache with BREAKING format: "policies"=BasePolicy objects, "policy_statements"=statement list. Old cache files are no longer supported.'
@@ -621,6 +624,8 @@ class CacheManager:
                     policy_analysis.users = cache_data.get('users', [])
                     policy_analysis.version = cache_data.get('version', 1)
                     policy_analysis.load_all_users = cache_data.get('load_all_users', True)
+                    policy_analysis.tenancy_policy_limits = cache_data.get('tenancy_policy_limits', {}) or {}
+                    policy_analysis.current_cache_name = named_cache
                     # Set the data as of time, always a str
                     policy_analysis.data_as_of = cache_data.get('data_as_of') or ''
                     # --- Load the last policy reload timestamp if present
@@ -688,6 +693,8 @@ class CacheManager:
             policy_analysis.users = loaded_json.get('users', [])
             policy_analysis.version = loaded_json.get('version', 1)
             policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
+            policy_analysis.tenancy_policy_limits = loaded_json.get('tenancy_policy_limits', {}) or {}
+            policy_analysis.current_cache_name = ''
             # Set the data as of time, always a str
             policy_analysis.data_as_of = loaded_json.get('data_as_of') or ''
             # --- Load last policy reload timestamp if present
@@ -789,6 +796,22 @@ class CacheManager:
                 return {}
         logger.warning(f'Unable to load data from cache: {combined_cache_file}')
         return {}
+
+    def update_tenancy_policy_limits(self, named_cache: str, limits: dict[str, Any]) -> bool:
+        """Persist operator-supplied limits with one cache, never globally."""
+        if not named_cache:
+            return False
+        cache_file = self.cache_dir / f'combined_cache_{named_cache}.json'
+        try:
+            with open(cache_file, encoding='utf-8') as filehandle:
+                cache_data = json.load(filehandle)
+            cache_data['tenancy_policy_limits'] = limits
+            with open(cache_file, 'w', encoding='utf-8') as filehandle:
+                json.dump(cache_data, filehandle, ensure_ascii=False, indent=2, default=str)
+            return True
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning('Could not save tenancy policy limits with cache %s: %s', named_cache, exc)
+            return False
 
     def remove_cache_entry(self, named_cache: str) -> bool:
         """

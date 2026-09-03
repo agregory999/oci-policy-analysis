@@ -343,7 +343,7 @@ class PolicyRecommendationsTab(BaseUITab):
     def populate_data(self):
         """
         Called after policy analysis/intelligence is refreshed. Reload all analytics/tables, using timing.
-        Also launches OCI tenancy limits fetch (policies-count, statements-count).
+        Also launches OCI tenancy limits fetch for policy objects and hierarchy statements.
         """
         import threading
 
@@ -358,17 +358,10 @@ class PolicyRecommendationsTab(BaseUITab):
                 hasattr(self.app.policy_compartment_analysis, 'limits_client')
                 and self.app.policy_compartment_analysis.limits_client
             ):
-                txt = 'Tenancy Limits: n/a'
+                txt = self._tenancy_limits_summary()
             else:
-                limits = self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
-                pol_limit, stmt_limit = limits if limits else (None, None)
-                txt = 'Tenancy Limits: '
-                txt_parts = []
-                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
-                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
-                txt += ', '.join(txt_parts)
-            # Always append the hard OCI statements/compartment limit label
-            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+                self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
+                txt = self._tenancy_limits_summary()
             if hasattr(self, 'tenancy_limit_label_var'):
                 # Set from worker thread: use "after" to update GUI label safely
                 self.after(0, self.tenancy_limit_label_var.set, txt)
@@ -400,11 +393,9 @@ class PolicyRecommendationsTab(BaseUITab):
         limits_combo.bind('<<ComboboxSelected>>', lambda e: self.update_limits_tab_output())
         self.add_context_help(limits_combo, 'Filter compartments by statement count status.')
 
-        # Tenancy Limit Label - now inline, smaller font and lighter weight
+        # Tenancy limit summary and offline/cache entry controls.
         label_initial = (
-            'Tenancy Limits: n/a (Not available from cache/compliance load)'
-            if not can_check_limits
-            else 'Tenancy policy statement limit: [not fetched]'
+            self._tenancy_limits_summary() if not can_check_limits else 'Tenancy policy statement limit: [not fetched]'
         )
         self.tenancy_limit_label_var = tk.StringVar(value=label_initial)
         self.tenancy_limit_label = ttk.Label(
@@ -415,8 +406,7 @@ class PolicyRecommendationsTab(BaseUITab):
         )
         self.tenancy_limit_label.pack(side='left', padx=(0, 4), pady=2)
         self.add_context_help(
-            self.tenancy_limit_label,
-            'Tenancy limits shown as "n/a" if unavailable because data was loaded from cache or compliance output. The statements / compartment limits is always 500, as this is a hard limit from OCI. See the link to Docs on the Limits tab.',
+            self.tenancy_limit_label, 'Shows policy-object and hierarchy-statement limits for this tenancy snapshot.'
         )
 
         doc_url = (
@@ -435,7 +425,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         doc_link.bind('<Button-1>', open_doc_link)
         self.add_context_help(
-            doc_link, 'Open Oracle documentation on OCI policy compartment hierarchy statement limits.'
+            doc_link, 'Open Oracle documentation for policies-count and policy statement hierarchy limits.'
         )
 
         # Data Table for compartment statement limits
@@ -469,7 +459,8 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def update_limits_tab_output(self):
         # Thresholds
-        LIMIT = 500
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        LIMIT = limits.get('policy_statements_per_compartment_chain_count')
         NEAR = 0.85
         compartments = getattr(self.app.policy_compartment_analysis, 'compartments', None)
         results = []
@@ -487,7 +478,10 @@ class PolicyRecommendationsTab(BaseUITab):
             if path is None or direct is None or cumulative is None:
                 logger.warning(f'[LimitsTab] Compartment {i} missing key fields: {comp}')
                 continue
-            if cumulative > LIMIT:
+            if not LIMIT:
+                status = 'Limit Not Supplied'
+                rec = 'Enter policy-statements-per-compartment-chain-count to assess this hierarchy.'
+            elif cumulative > LIMIT:
                 status = 'Over Limit'
                 rec = (
                     'Reduce or consolidate policy statements in this compartment/hierarchy to avoid enforcement errors.'
@@ -521,6 +515,24 @@ class PolicyRecommendationsTab(BaseUITab):
         filtered.sort(key=lambda x: x['Cumulative Statements'], reverse=True)
         self.limits_table.update_data(filtered)
 
+    def _tenancy_limits_summary(self) -> str:
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        policies_limit = limits.get('policies_count')
+        chain_limit = limits.get('policy_statements_per_compartment_chain_count')
+        if not policies_limit or not chain_limit:
+            return 'Limits not supplied for this dataset: enter them in Policy Browser > Show Policy Data.'
+        max_chain = max(
+            (
+                int(c.get('statement_count_cumulative', 0) or 0)
+                for c in getattr(self.policy_repo, 'compartments', []) or []
+            ),
+            default=0,
+        )
+        return (
+            f'Policy objects: {len(getattr(self.policy_repo, "policies", []) or [])} / {policies_limit} | '
+            f'Chain statements: {max_chain} / {chain_limit} | Source: {limits.get("source", "unknown")}'
+        )
+
     # Button callback to fetch tenancy policy/statement limits and update label
     def fetch_tenancy_policy_statement_limits(self):
         import threading
@@ -528,17 +540,10 @@ class PolicyRecommendationsTab(BaseUITab):
         def update_label():
             repo = self.app.policy_compartment_analysis
             if not (hasattr(repo, 'limits_client') and repo.limits_client):
-                txt = 'Tenancy Limits: n/a'
+                txt = self._tenancy_limits_summary()
             else:
-                limits = repo.fetch_tenancy_policy_statement_limits()
-                pol_limit, stmt_limit = limits if limits else (None, None)
-                txt = 'Tenancy Limits: '
-                txt_parts = []
-                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
-                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
-                txt += ', '.join(txt_parts)
-            # Always append the hard OCI statements/compartment limit label
-            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+                repo.fetch_tenancy_policy_statement_limits()
+                txt = self._tenancy_limits_summary()
             if hasattr(self, 'tenancy_limit_label_var'):
                 self.after(0, self.tenancy_limit_label_var.set, txt)
 

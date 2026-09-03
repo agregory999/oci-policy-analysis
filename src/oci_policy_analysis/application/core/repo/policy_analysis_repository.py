@@ -869,6 +869,9 @@ class PolicyAnalysisRepository:
         self.normalizer = PolicyStatementNormalizer()
         # Cached tenancy-wide policy statement limit (fetch once per run)
         self.tenancy_policy_statement_limit = None
+        # Snapshot-specific limit metadata. Missing from older caches is valid.
+        self.tenancy_policy_limits: dict[str, Any] = {}
+        self.current_cache_name = ''
 
     def enrich_display_structures(self) -> None:
         """Attach parsed display structures to loaded statements and dynamic groups."""
@@ -1915,6 +1918,8 @@ class PolicyAnalysisRepository:
         self.policy_data_reloaded = None
         # Ensure compliance flag is reset on live tenancy load
         self.loaded_from_compliance_output = False
+        self.current_cache_name = ''
+        self.tenancy_policy_limits = {}
         ok1 = self.load_compartments_only()
         if not ok1:
             return False
@@ -1941,13 +1946,13 @@ class PolicyAnalysisRepository:
         """
         Fetch two key limits from OCI Limits service ("Identity"):
         - policies-count (max policies in tenancy)
-        - statements-count (max statements per policy)
+        - policy-statements-per-compartment-chain-count (max statements in a compartment hierarchy)
         Uses _api_call_with_logging to time/log the call.
-        Returns a tuple: (policies_count_limit, statements_per_policy_limit) or (None, None) if unavailable or error.
+        Returns a tuple: (policies_count_limit, chain_limit) or (None, None) if unavailable or error.
         """
         logger = get_logger(component='limits_fetch')
         policies_count = None
-        statements_count = None
+        chain_count = None
 
         try:
             if not self.tenancy_ocid:
@@ -1974,22 +1979,55 @@ class PolicyAnalysisRepository:
                 if getattr(limit, 'name', None) == 'policies-count':
                     policies_count = getattr(limit, 'value', None)
                     logger.info(f'Limit: {limit}')
-                elif getattr(limit, 'name', None) == 'statements-count':
-                    statements_count = getattr(limit, 'value', None)
+                elif getattr(limit, 'name', None) == 'policy-statements-per-compartment-chain-count':
+                    chain_count = getattr(limit, 'value', None)
                     logger.info(f'Limit: {limit}')
 
-            self.tenancy_policy_statement_limit = (policies_count, statements_count)
-            if policies_count is None or statements_count is None:
+            self.tenancy_policy_statement_limit = (policies_count, chain_count)
+            self.tenancy_policy_limits = self._build_tenancy_policy_limits(
+                policies_count, chain_count, source='live OCI'
+            )
+            if policies_count is None or chain_count is None:
                 logger.warning(
-                    'Failed to find some limit values: policies-count=%s, statements-count=%s',
+                    'Failed to find some limit values: policies-count=%s, policy-statements-per-compartment-chain-count=%s',
                     str(policies_count),
-                    str(statements_count),
+                    str(chain_count),
                 )
-            return (policies_count, statements_count)
+            return (policies_count, chain_count)
         except Exception as e:
             logger.error(f'[API] list_limit_values failed: {e}')
             self.tenancy_policy_statement_limit = (None, None)
+            self.tenancy_policy_limits = {}
             return (None, None)
+
+    def _build_tenancy_policy_limits(self, policies_count, chain_count, *, source: str) -> dict[str, Any]:
+        """Normalize tenancy-specific limit metadata for display and caching."""
+
+        def _positive(value):
+            try:
+                value = int(value)
+                return value if value > 0 else None
+            except (TypeError, ValueError):
+                return None
+
+        return {
+            'policies_count': _positive(policies_count),
+            'policy_statements_per_compartment_chain_count': _positive(chain_count),
+            'source': source,
+            'captured_at': datetime.now(UTC).isoformat(),
+        }
+
+    def set_user_supplied_tenancy_policy_limits(self, policies_count, chain_count) -> dict[str, Any]:
+        """Set validated limits for only the active tenancy snapshot/cache."""
+        limits = self._build_tenancy_policy_limits(policies_count, chain_count, source='user-supplied')
+        if not limits['policies_count'] or not limits['policy_statements_per_compartment_chain_count']:
+            raise ValueError('Both policy limits must be positive whole numbers.')
+        self.tenancy_policy_limits = limits
+        self.tenancy_policy_statement_limit = (
+            limits['policies_count'],
+            limits['policy_statements_per_compartment_chain_count'],
+        )
+        return limits
 
     # --- Internal fetchers for Identity Domain entities ---
     def _fetch_dynamic_groups_for_domain(self, domain, domain_client):
@@ -3392,6 +3430,9 @@ class PolicyAnalysisRepository:
 
         # Explicit: always clear reload time before compliance/CSV load.
         self.policy_data_reloaded = None
+        # A CIS import is a new offline snapshot, not an extension of a cache.
+        self.current_cache_name = ''
+        self.tenancy_policy_limits = {}
         csv.field_size_limit(sys.maxsize)
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')

@@ -211,6 +211,14 @@
         <!-- Limits section -->
         <article id="cardLimits" class="card compact-card" data-help-title="Limits" data-help-body="Compartment policy statement limits across hierarchy paths.">
           <div class="card-title-row"><p class="card-title">Limits</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <p id="tenancyPolicyLimitsSummary" class="helper-text">Tenancy policy limits have not been loaded.</p>
+          <div id="tenancyPolicyLimitsEditor" class="inline-field" hidden>
+            <label for="policiesCountLimit" class="no-margin-label">policies-count</label>
+            <input id="policiesCountLimit" type="number" min="1" step="1" inputmode="numeric" />
+            <label for="chainCountLimit" class="no-margin-label">policy-statements-per-compartment-chain-count</label>
+            <input id="chainCountLimit" type="number" min="1" step="1" inputmode="numeric" />
+            <button id="saveTenancyPolicyLimits" type="button" class="ghost">Apply limits</button>
+          </div>
           <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 220px"><table class="analysis-table" id="limitsTable"><thead><tr><th>Compartment Hierarchy Path</th><th>Direct</th><th>Cumulative</th><th>Status</th><th>Recommendation</th></tr></thead><tbody></tbody></table></div></div>
         </article>
       </section>
@@ -803,9 +811,46 @@
         renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason']);
         renderTable('cleanupTable', payload.cleanup || [], ['Type', 'Name', 'Reason', 'Action']);
         renderTable('limitsTable', payload.limits || [], ['Compartment Hierarchy Path', 'Direct Statements', 'Cumulative Statements', 'Status', 'Recommendation']);
+        renderTenancyPolicyLimits(payload.tenancy_policy_limits || {});
 
         renderSummary(payload);
         renderMeta(payload);
+      }
+
+      function renderTenancyPolicyLimits(limits) {
+        const summary = document.getElementById('tenancyPolicyLimitsSummary');
+        const editor = document.getElementById('tenancyPolicyLimitsEditor');
+        const policiesInput = document.getElementById('policiesCountLimit');
+        const chainInput = document.getElementById('chainCountLimit');
+        const policiesLimit = limits.policies_count;
+        const chainLimit = limits.policy_statements_per_compartment_chain_count;
+        if (policiesLimit && chainLimit) {
+          summary.textContent = `Policy objects: ${limits.policy_count || 0} / ${policiesLimit} · Chain statements: ${limits.max_chain_count || 0} / ${chainLimit} · Source: ${limits.source || 'unknown'}`;
+        } else if (limits.offline_editable) {
+          summary.textContent = 'Limits not supplied for this cached/CIS dataset. Enter both values to assess policy and hierarchy counts.';
+        } else {
+          summary.textContent = 'Live OCI limits are unavailable. Verify limits access and reload tenancy data.';
+        }
+        policiesInput.value = policiesLimit || '';
+        chainInput.value = chainLimit || '';
+        editor.hidden = !limits.offline_editable;
+      }
+
+      async function saveTenancyPolicyLimits() {
+        const response = await fetch('/analysis/tenancy-policy-limits', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            policies_count: document.getElementById('policiesCountLimit').value,
+            policy_statements_per_compartment_chain_count: document.getElementById('chainCountLimit').value,
+          }),
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          window.alert(error.detail || 'Unable to save tenancy policy limits.');
+          return;
+        }
+        await loadDashboard();
       }
 
       async function initPage() {
@@ -814,6 +859,7 @@
         bindBackToTopButtons();
         bindRecommendationContextMenu();
         closeRowDetailInspector?.addEventListener('click', clearRowDetailInspector);
+        document.getElementById('saveTenancyPolicyLimits')?.addEventListener('click', saveTenancyPolicyLimits);
         setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
         syncJumpLinks();
         await loadDashboard();
