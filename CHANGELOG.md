@@ -1,3 +1,10 @@
+## [6.5.0-partial-cis-compliance-load.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0-partial-cis-compliance-load.1) (2026-09-03)
+
+
+### Features
+
+* Limited CIS Load and Consolidation plan updates ([1c2b7e9](https://github.com/agregory999/oci-policy-analysis/commit/1c2b7e988eb29ac96335b3f253bc349e54b41484))
+
 ## [6.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.1...v6.4.0) (2026-09-02)
 
 
