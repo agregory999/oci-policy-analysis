@@ -1,3 +1,10 @@
+## [6.5.0-partial-cis-compliance-load.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.0-partial-cis-compliance-load.1...v6.5.0-partial-cis-compliance-load.2) (2026-09-03)
+
+
+### Features
+
+* add tenancy-specific policy limit checks and offline overrides ([75667f0](https://github.com/agregory999/oci-policy-analysis/commit/75667f0846473776db1121947b1fbe6a7d792835))
+
 ## [6.5.0-partial-cis-compliance-load.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0-partial-cis-compliance-load.1) (2026-09-03)
 
 
