@@ -16,13 +16,12 @@ from dataclasses import dataclass
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     find_compartment_by_hierarchy_path,
     flatten_defined_tags,
-    internal_id_to_statement,
     lca_path,
-    now_iso,
     policy_statement_texts,
     policy_tag_maps,
     trace_and_rewrite_candidate_statement_location,
 )
+from oci_policy_analysis.application.core.engine.strategies.base import BaseConsolidationStrategy
 from oci_policy_analysis.application.core.models.models import BasePolicy
 from oci_policy_analysis.application.core.models.models_consolidation import (
     ConsolidationPlan,
@@ -37,7 +36,7 @@ logger = get_logger(component='core.engine.strategies.consolidation')
 
 # lca_path is now imported from consolidation_helpers
 @dataclass(frozen=True)
-class MoveCloserToTargetCompartment:
+class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
     """
     Consolidation strategy: move selected statements from ROOT downward toward
     the closest permissible compartment for each policy group, preserving the
@@ -81,30 +80,21 @@ class MoveCloserToTargetCompartment:
         For each source policy, group all selected statements, find their deepest shared (LCA) effective path,
         and propose a new/modified policy at that compartment and with the original name. Location rewrites are applied.
         """
-        params = params or {}
-        tag_key = str(params.get('marker_tag_key') or 'opa_consolidation')
-
-        st_idx = internal_id_to_statement(repo)
-        effective_candidates = [
-            iid for iid in candidate_internal_ids if iid in st_idx and iid not in protected_internal_ids
-        ]
+        context = self.planning_context(
+            repo=repo, tenancy_ocid=tenancy_ocid, dataset_version=dataset_version, plan_id=plan_id, params=params
+        )
+        tag_key = context.tag_key
+        st_idx = context.statements_by_id
+        effective_candidates = self.effective_candidates(context, candidate_internal_ids, protected_internal_ids)
         if not effective_candidates:
             logger.info('build_plan: no effective candidates (all protected or not found in repository)')
-            return ConsolidationPlan(
-                plan_id=plan_id,
-                tenancy_ocid=tenancy_ocid,
-                plan_label=f'{self.display_name} (empty)',
-                created_at=now_iso(),
-                plan_steps=[],
-                plan_tags={'strategy_id': self.strategy_id},
-                notes='No effective candidates (all protected or not found in repository).',
+            return self.empty_plan(
+                context, reason='No effective candidates (all protected or not found in repository).'
             )
 
-        policies_by_ocid: dict[str, BasePolicy] = {
-            p.get('policy_ocid'): p for p in (getattr(repo, 'policies', []) or []) if p.get('policy_ocid')
-        }
-        compartments = getattr(repo, 'compartments', []) or []
-        root_ocid = getattr(repo, 'tenancy_ocid', None) or ''
+        policies_by_ocid = context.policies_by_ocid
+        compartments = context.compartments
+        root_ocid = context.root_ocid
         ROOT_PATH = 'ROOT'
 
         # find_compartment_by_hierarchy_path is now imported from consolidation_helpers
@@ -251,11 +241,7 @@ class MoveCloserToTargetCompartment:
                 continue
 
             # Find if policy already exists in target compartment with this name
-            existing_policy = None
-            for p in policies_by_ocid.values():
-                if p.get('policy_name') == orig_policy_name and p.get('compartment_ocid') == target_comp_ocid:
-                    existing_policy = p
-                    break
+            existing_policy = context.policies_by_location_and_name.get((target_comp_ocid or '', orig_policy_name))
             policy_ocid = existing_policy.get('policy_ocid') or '' if existing_policy else ''
 
             before_statements = policy_statement_texts(repo, policy_ocid) if policy_ocid else []
@@ -409,17 +395,10 @@ class MoveCloserToTargetCompartment:
             plan_id,
             len(plan_steps),
         )
-        return ConsolidationPlan(
-            plan_id=plan_id,
-            tenancy_ocid=tenancy_ocid,
-            plan_label=f'{self.display_name} ({len(effective_candidates)} statements)',
-            created_at=now_iso(),
+        return self.finalize_plan(
+            context,
             plan_steps=plan_steps,
             skipped_statements=skipped_statements,
-            plan_tags={
-                'strategy_id': self.strategy_id,
-                'marker_tag_key': tag_key,
-                'dataset_version': dataset_version or '',
-            },
+            candidate_count=len(effective_candidates),
             notes='See step location_change_notes for details on how each statement was moved.',
         )

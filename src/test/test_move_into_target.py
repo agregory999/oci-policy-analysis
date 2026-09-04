@@ -1,5 +1,17 @@
 import pytest
+from oci_policy_analysis.application.core.engine.strategies.base import (
+    BaseConsolidationStrategy,
+    PlacementResult,
+    StatementPlacement,
+    TargetPolicySpec,
+)
 from oci_policy_analysis.application.core.engine.strategies.move_into_target import MoveIntoTargetCompartment
+
+
+class PlacementTestStrategy(BaseConsolidationStrategy):
+    strategy_id = 'placement-test'
+    display_name = 'Placement test'
+    required_capabilities = frozenset()
 
 
 @pytest.fixture
@@ -76,3 +88,55 @@ def test_move_into_target_plan(minimal_repo):
         else [s['internal_id'] for s in plan.get('skipped_statements', [])]
     )
     assert 'S3' in skipped_ids
+
+
+def test_move_into_target_plan_captures_structured_rollback(minimal_repo):
+    plan = MoveIntoTargetCompartment().build_plan(
+        repo=minimal_repo,
+        tenancy_ocid='root_ocid',
+        dataset_version=None,
+        candidate_internal_ids={'S1'},
+        protected_internal_ids=set(),
+        plan_id='PLAN-ROLLBACK',
+    )
+
+    rollbacks = [step['rollback'] for step in plan['plan_steps']]
+    assert rollbacks
+    assert any(rollback['action'] == 'delete_created_policy' for rollback in rollbacks)
+    assert any(
+        rollback['action'] in {'restore_policy', 'recreate_deleted_policy'} and rollback.get('statements')
+        for rollback in rollbacks
+    )
+
+
+def test_base_strategy_materializes_placements_and_source_cleanup(minimal_repo):
+    strategy = PlacementTestStrategy()
+    context = strategy.planning_context(
+        repo=minimal_repo,
+        tenancy_ocid='root_ocid',
+        dataset_version=None,
+        plan_id='PLACEMENT-PLAN',
+        params=None,
+    )
+    result = PlacementResult(
+        placements=[
+            StatementPlacement(
+                internal_id='S1',
+                source_policy_ocid='policyA',
+                target=TargetPolicySpec(
+                    compartment_ocid='comp1_ocid',
+                    hierarchy_path='ROOT/Comp1',
+                    policy_name='AppPolicy',
+                    description='Created by placement test.',
+                ),
+            )
+        ],
+        skipped_statements=[],
+    )
+
+    steps, skipped = strategy.materialize_placements(context, result)
+    plan = strategy.finalize_plan(context, plan_steps=steps, skipped_statements=skipped, candidate_count=1)
+
+    assert [step['action'] for step in plan['plan_steps']] == ['add', 'modify']
+    assert plan['plan_steps'][0]['create_policy_name'] == 'AppPolicy'
+    assert plan['plan_steps'][1]['rollback']['action'] == 'restore_policy'

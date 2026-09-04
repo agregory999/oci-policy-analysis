@@ -16,6 +16,10 @@
 import time
 from typing import TYPE_CHECKING
 
+from oci_policy_analysis.application.core.common.grouping_helpers import (
+    find_similar_principal_statement_groups,
+    render_grouped_statement,
+)
 from oci_policy_analysis.application.core.common.policy_helpers import calculate_principal_key
 from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_statements_too_open import (
     is_overly_broad_statement,
@@ -1348,8 +1352,31 @@ class PolicyIntelligenceEngine:
         supersessions = self.overlay.get('supersessions') or []
         recommendations = []
 
-        # Consolidation: direct user to consolidation documentation/resources and suggest strategies
-        if consolidations:
+        # Policy grouping has a precise, executable strategy rather than a generic consolidation action.
+        grouping_findings = [
+            finding for finding in consolidations if finding.get('Consolidation Type') == 'Group similar statements'
+        ]
+        other_consolidations = [finding for finding in consolidations if finding not in grouping_findings]
+        if grouping_findings:
+            recommendations.append(
+                {
+                    'Recommendation': 'Group similar policy statements',
+                    'Priority': 'Medium',
+                    'Category': 'Policy Grouping',
+                    'Notes': (
+                        f'{len(grouping_findings)} compatible group/dynamic-group statement set(s) detected. '
+                        'Each set can be replaced by one domain-qualified, de-duplicated principal list in a new policy.'
+                    ),
+                    'Action': 'Plan: Use Group Similar Statements to create a new grouping policy.',
+                    'ActionDetail': (
+                        'Review the proposed statements, then use the Group Similar Statements strategy. It leaves '
+                        'the policy location unchanged, creates a new policy, and modifies or deletes the source policies.'
+                    ),
+                }
+            )
+
+        # Consolidation: direct user to consolidation documentation/resources and suggest strategies.
+        if other_consolidations:
             strategy_hint = ''
             if consolidation_strategy_names:
                 strategy_hint = f' Consider strategies: {", ".join(consolidation_strategy_names)}.'
@@ -1359,7 +1386,7 @@ class PolicyIntelligenceEngine:
                     'Priority': 'Medium',
                     'Category': 'Consolidation',
                     'Notes': (
-                        f'{len(consolidations)} consolidation opportunity(ies) detected. '
+                        f'{len(other_consolidations)} consolidation opportunity(ies) detected. '
                         'Refer to OCI documentation, Oracle Cloud security blogs, and your local security/identity experts to develop a consolidation plan.'
                     ),
                     **catalog_guidance(
@@ -1751,6 +1778,7 @@ class PolicyIntelligenceEngine:
                 {
                     'Statement Internal ID': statement.get('internal_id') or statement.get('id') or '',
                     'Policy': statement.get('policy_name') or '',
+                    'Policy OCID': statement.get('policy_ocid') or '',
                     'Policy Compartment Path': policy_path,
                     'Effective Path': effective_path,
                     'Levels Below Policy': levels_below,
@@ -1807,9 +1835,12 @@ class PolicyIntelligenceEngine:
                         'Compartment': compartment,
                         'Principal': principal,
                         'Service/Resource': resource or permissions,
+                        'Consolidation Type': 'Single-statement policy',
                         'Consolidation Reason': f'Policy {pol} has only one statement; consider consolidation if other similar policies exist.',
                         'Action': f"Plan: Review and possibly merge '{pol}' into another policy with similar principal or scope.",
                         'ActionDetail': f"Review statement '{statement_text}' in policy '{pol}' for merge candidates.",
+                        'Statement Internal IDs': [str(st.get('internal_id') or '')],
+                        'Policy OCIDs': [str(st.get('policy_ocid') or '')],
                     }
                 )
 
@@ -1836,11 +1867,53 @@ class PolicyIntelligenceEngine:
                         'Compartment': combo[1],
                         'Principal': combo[0],
                         'Service/Resource': combo[2],
+                        'Consolidation Type': 'Duplicate scope across policies',
                         'Consolidation Reason': 'Multiple policies found with same principal, resource/service, and compartment; recommend merge for clarity.',
                         'Action': f'Plan: Consolidate policies {", ".join(sorted(policy_names))} into one.',
                         'ActionDetail': f'Statements: {statement_texts}.\nEvaluate details and propose a single policy.',
+                        'Statement Internal IDs': [str(statement.get('internal_id') or '') for statement in sts],
+                        'Policy OCIDs': sorted({str(statement.get('policy_ocid') or '') for statement in sts}),
                     }
                 )
+
+        # 3. Same statement semantics, but differing named group/dynamic-group principals.
+        # The shared helper requires the same policy compartment so the strategy can
+        # create a new policy there without changing the statement location text.
+        for group in find_similar_principal_statement_groups(repo.regular_statements):
+            first = group.statements[0]
+            try:
+                proposed_statement = render_grouped_statement(first, group.principals)
+            except ValueError:
+                continue
+            policy_names = sorted({str(statement.get('policy_name') or '') for statement in group.statements})
+            principals = ', '.join(f'{domain}/{name}' for domain, name in group.principals)
+            consolidation_findings.append(
+                {
+                    'Statement': '; '.join(
+                        str(statement.get('statement_text') or '') for statement in group.statements
+                    ),
+                    'Policy Name(s)': ', '.join(name for name in policy_names if name),
+                    'Compartment': first.get('effective_path', ''),
+                    'Principal': f'{group.subject_type}: {principals}',
+                    'Service/Resource': first.get('resource') or first.get('permission') or [],
+                    'Consolidation Type': 'Group similar statements',
+                    'Consolidation Reason': (
+                        'Statements have the same allow/deny action, effective path, location, verb/resource or '
+                        'permission set, conditions, and comments; only named principals differ.'
+                    ),
+                    'Action': 'Plan: Create a new policy containing one grouped statement.',
+                    'ActionDetail': (
+                        'Use the Group Similar Statements strategy. It creates a new policy in the same policy '
+                        f'compartment, canonicalizes principals as domain/name, and de-duplicates them. Proposed '
+                        f'statement: {proposed_statement}'
+                    ),
+                    'Strategy ID': 'group_similar_statements',
+                    'Statement Internal IDs': [
+                        str(statement.get('internal_id') or '') for statement in group.statements
+                    ],
+                    'Policy OCIDs': sorted({str(statement.get('policy_ocid') or '') for statement in group.statements}),
+                }
+            )
 
         self.overlay['consolidations'] = consolidation_findings
 

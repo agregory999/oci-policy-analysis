@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.core.support.logger import get_logger
 
@@ -59,7 +60,7 @@ class RecommendationsService:
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
             'supersession': self._supersession_rows(),
-            'consolidation': list(overlay.get('consolidations', []) or []),
+            'consolidation': build_consolidation_opportunities(overlay, repo),
             'cleanup': self._cleanup_rows(),
             'limits': self._limits_rows(),
             'tenancy_policy_limits': tenancy_policy_limits,

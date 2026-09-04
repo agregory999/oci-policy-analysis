@@ -112,6 +112,7 @@ def test_minimum_cis_export_loads_and_derives_policy_principals(tmp_path: Path) 
         policy_repo=repo,
     )
     assert engine.get_strategy_display_names() == [
+        'Group Similar Statements',
         'Statement Density (Pack Policies)',
         'Move to Root Compartment',
         'Move Down Next Level',
@@ -367,6 +368,7 @@ def test_policy_placement_findings_are_selectable_consolidation_rows() -> None:
                                 {
                                     'Statement Internal ID': 'statement-1',
                                     'Policy': 'Root Policy',
+                                    'Policy OCID': 'root-policy-ocid',
                                     'Policy Compartment Path': 'ROOT',
                                     'Effective Path': 'ROOT/Apps/Dev',
                                     'Levels Below Policy': 2,
@@ -383,8 +385,52 @@ def test_policy_placement_findings_are_selectable_consolidation_rows() -> None:
     rows = PolicyRecommendationsTab._get_policy_consolidation_rows(tab)
 
     assert len(rows) == 1
-    assert rows[0]['Internal ID'] == 'statement-1'
-    assert rows[0]['Consolidation Reason'].startswith('Effective scope is 2 hierarchy levels below')
+    assert rows[0]['Statement Internal IDs'] == ['statement-1']
+    assert rows[0]['Handoff Mode'] == 'supported'
+    assert rows[0]['Summary'].startswith('Move 1 statement(s) from ROOT')
+
+
+def test_policy_placement_rows_coalesce_only_same_policy_and_effective_path() -> None:
+    evidence = [
+        {
+            'Statement Internal ID': 'statement-1',
+            'Policy': 'Root Policy',
+            'Policy OCID': 'root-policy-ocid',
+            'Policy Compartment Path': 'ROOT',
+            'Effective Path': 'ROOT/Apps/Dev',
+            'Statement': 'allow group Developers to manage buckets in compartment Dev',
+        },
+        {
+            'Statement Internal ID': 'statement-2',
+            'Policy': 'Root Policy',
+            'Policy OCID': 'root-policy-ocid',
+            'Policy Compartment Path': 'ROOT',
+            'Effective Path': 'ROOT/Apps/Dev',
+            'Statement': 'allow group Developers to manage objects in compartment Dev',
+        },
+        {
+            'Statement Internal ID': 'statement-3',
+            'Policy': 'Root Policy',
+            'Policy OCID': 'root-policy-ocid',
+            'Policy Compartment Path': 'ROOT',
+            'Effective Path': 'ROOT/Apps/Test',
+            'Statement': 'allow group Developers to manage buckets in compartment Test',
+        },
+    ]
+    tab = SimpleNamespace(
+        app=SimpleNamespace(
+            policy_intelligence=SimpleNamespace(
+                overlay={
+                    'consolidations': [],
+                    'recommendations': [{'Category': 'Policy Placement', 'Evidence': evidence}],
+                }
+            )
+        )
+    )
+
+    rows = PolicyRecommendationsTab._get_policy_consolidation_rows(tab)
+
+    assert sorted(row['Statements'] for row in rows) == [1, 2]
 
 
 def test_workbench_handoff_replaces_candidate_selection_with_available_statement_ids() -> None:
@@ -417,6 +463,28 @@ def test_workbench_handoff_replaces_candidate_selection_with_available_statement
 
     idle_callbacks.pop()()
     assert loads == [True]
+
+
+def test_workbench_handoff_refresh_waits_for_outer_tab_mapping() -> None:
+    refresh_callbacks: list[object] = []
+    loads: list[bool] = []
+    mapped = iter([False, True])
+    tab = SimpleNamespace(
+        winfo_ismapped=lambda: next(mapped),
+        _handoff_refresh_attempts=0,
+        after=lambda _delay, callback: refresh_callbacks.append(callback),
+        _load_candidate_statements=lambda: loads.append(True),
+        _update_selected_candidates_table=lambda: loads.append(True),
+    )
+    tab._refresh_candidate_selection_after_handoff = (  # type: ignore[attr-defined]
+        lambda: ConsolidationWorkbenchTab._refresh_candidate_selection_after_handoff(tab)
+    )
+
+    ConsolidationWorkbenchTab._refresh_candidate_selection_after_handoff(tab)
+
+    assert loads == []
+    refresh_callbacks.pop()()
+    assert loads == [True, True]
 
 
 def test_workload_tab_uses_policy_derived_dynamic_group_names_without_inventory() -> None:

@@ -103,7 +103,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
         self.timed_step('refresh_plan_history_for_tenancy', self.refresh_plan_history_for_tenancy)
         self.logger.info('Finished ConsolidationWorkbenchTab.populate_data')
 
-    def select_candidate_statements(self, internal_ids: set[str]) -> set[str]:
+    def select_candidate_statements(self, internal_ids: set[str], strategy_display_name: str | None = None) -> set[str]:
         """Replace the candidate selection and show those statements in Candidate Selection.
 
         Callers supply repository statement IDs, not display text, so a finding
@@ -115,12 +115,17 @@ class ConsolidationWorkbenchTab(BaseUITab):
         available_ids = {str(row.get('internal_id') or '') for row in available_rows.get('rows', [])}
         accepted_ids = requested_ids.intersection(available_ids)
         self.candidate_table_selected_ids = accepted_ids
+        if strategy_display_name and hasattr(self, 'candidate_strategy_var'):
+            available = self.service.get_status().get('strategy_names', []) or []
+            if strategy_display_name in available:
+                self.candidate_strategy_var.set(strategy_display_name)
         self.candidate_search_var.set('')
         self.notebook.select(1)
         # The parent Consolidation Workbench can still be hidden while a
         # recommendation handoff calls this method.  Refresh after Tk maps the
         # parent tab so the candidate Treeviews do not retain a blank first
         # paint until the user manually changes tabs.
+        self._handoff_refresh_attempts = 0
         self.after_idle(self._refresh_candidate_selection_after_handoff)
         self.logger.info(
             'Candidate selection replaced from recommendation handoff: requested=%d accepted=%d',
@@ -130,7 +135,17 @@ class ConsolidationWorkbenchTab(BaseUITab):
         return accepted_ids
 
     def _refresh_candidate_selection_after_handoff(self) -> None:
-        """Refresh candidate tables after the outer workbench tab is mapped."""
+        """Refresh candidate tables after the outer workbench tab is mapped.
+
+        A recommendation handoff can select this inner notebook while its outer
+        notebook page is still hidden. Tk does not paint the new Treeview data
+        in that state, so retry briefly until this tab is mapped.
+        """
+        is_mapped = getattr(self, 'winfo_ismapped', lambda: True)()
+        if not is_mapped and getattr(self, '_handoff_refresh_attempts', 0) < 10:
+            self._handoff_refresh_attempts = getattr(self, '_handoff_refresh_attempts', 0) + 1
+            self.after(50, self._refresh_candidate_selection_after_handoff)
+            return
         self._load_candidate_statements()
         self._update_selected_candidates_table()
 

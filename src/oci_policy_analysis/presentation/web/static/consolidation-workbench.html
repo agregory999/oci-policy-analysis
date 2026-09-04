@@ -281,6 +281,23 @@
         renderCandidateSelected();
         updateSummary();
       }
+      function applyRecommendationHandoff(){
+        const key = 'oci-policy-analysis:consolidation-handoff';
+        let handoff = null;
+        try { handoff = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_err) { handoff = null; }
+        if(!handoff || !Array.isArray(handoff.statementIds)) return;
+        const available = new Set(state.candidateRows.map((row) => String(row.internal_id || '')).filter(Boolean));
+        state.candidateIds = new Set(handoff.statementIds.map(String).filter((id) => available.has(id)));
+        if(handoff.recommendedStrategy && [...$('strategySelect').options].some((option) => option.value === handoff.recommendedStrategy)) {
+          $('strategySelect').value = handoff.recommendedStrategy;
+        }
+        sessionStorage.removeItem(key);
+        renderCandidates();
+        renderCandidateSelected();
+        updateSummary();
+        activateStep(2);
+        log(`Recommendation handoff selected ${state.candidateIds.size}/${handoff.statementIds.length} candidate statement(s).`);
+      }
       function renderCandidates(){
         const tb=document.querySelector('#candidateTable tbody');
         tb.innerHTML='';
@@ -381,7 +398,7 @@
       $('proposalDrawer').classList.remove('open');
       $('historyDrawer').classList.remove('open');
       hideHistoryContextMenu();
-      Promise.resolve().then(loadStatus).then(loadStrategies).then(loadProtection).then(loadCandidates).then(loadHistory).then(loadRun).then(()=>log('Initial data loaded.')).catch((e)=>log(`Startup error: ${e.message}`));
+      Promise.resolve().then(loadStatus).then(loadStrategies).then(loadProtection).then(loadCandidates).then(applyRecommendationHandoff).then(loadHistory).then(loadRun).then(()=>log('Initial data loaded.')).catch((e)=>log(`Startup error: ${e.message}`));
     </script>
       <script src="/app-version.js"></script>
       <script src="/auth-gate.js"></script>

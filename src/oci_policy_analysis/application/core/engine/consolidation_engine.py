@@ -27,6 +27,7 @@ from oci_policy_analysis.application.core.common.consolidation_helpers import (
     policy_tag_maps,
 )
 from oci_policy_analysis.application.core.engine.strategies import (
+    GroupSimilarStatements,
     MoveCloserToTargetCompartment,
     MoveDownNextLevel,
     MoveIntoTargetCompartment,
@@ -119,6 +120,7 @@ class ConsolidationEngine:
             strategies
             if strategies is not None
             else [
+                GroupSimilarStatements(),
                 PackPoliciesByStatementDensity(),
                 MoveToRootCompartment(),
                 MoveDownNextLevel(),
@@ -625,6 +627,7 @@ class ConsolidationEngine:
         # Reverse order is typically safer
         for step in reversed(plan.get('plan_steps', [])):
             action = step.get('action', '')
+            rollback = step.get('rollback') or {}
             pol_ocid = step.get('policy_ocid', '')
             pol = policies_by_ocid.get(pol_ocid, {}) if pol_ocid else {}
             pol_name = pol.get('policy_name', '(unknown)') if pol else (step.get('create_policy_name') or 'new-policy')
@@ -644,40 +647,51 @@ class ConsolidationEngine:
                 lines.append('')
             elif action == 'modify':
                 ff, dd = _policy_tag_maps(pol)
-                stmt_val = _statements_cli_value(step.get('before_statements', []))
+                rollback_ff = rollback.get('freeform_tags', ff)
+                rollback_dd = rollback.get('defined_tags', dd)
+                stmt_val = _statements_cli_value(rollback.get('statements', step.get('before_statements', [])))
                 lines.append('oci iam policy update \\')
                 lines.append(f"  --policy-id {step.get('policy_ocid')} \\")
                 lines.append(f'  --statements "{stmt_val}" \\')
                 lines.append(f'  --version-date {version_date} \\')
-                if ff:
-                    lines.append(f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(ff))}' \\")
-                if dd:
-                    lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(dd))}' \\")
+                if rollback_ff:
+                    lines.append(f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(rollback_ff))}' \\")
+                if rollback_dd:
+                    lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(rollback_dd))}' \\")
                 lines.append('  --force')
             elif action == 'delete':
                 # rollback is recreate; use step-stored compartment/name/description when policy is gone
-                pol_comp = pol_comp or step.get('compartment_ocid', '')
-                pol_name = pol_name or step.get('create_policy_name', '')
-                desc_for_create = step.get('create_policy_description') or (pol.get('description') if pol else '') or ''
+                pol_comp = rollback.get('compartment_ocid') or pol_comp or step.get('compartment_ocid', '')
+                pol_name = rollback.get('policy_name') or pol_name or step.get('create_policy_name', '')
+                desc_for_create = (
+                    rollback.get('policy_description')
+                    or step.get('create_policy_description')
+                    or (pol.get('description') if pol else '')
+                    or ''
+                )
                 if pol_comp and pol_name:
                     ff, dd = _policy_tag_maps(pol) if pol else ({}, {})
-                    stmt_val = _statements_cli_value(step.get('before_statements', []))
+                    rollback_ff = rollback.get('freeform_tags', ff)
+                    rollback_dd = rollback.get('defined_tags', dd)
+                    stmt_val = _statements_cli_value(rollback.get('statements', step.get('before_statements', [])))
                     name_esc = _shell_escape_single_quoted(pol_name)
                     desc_esc = _shell_escape_single_quoted(desc_for_create)
                     lines.append('oci iam policy create \\')
                     lines.append(f'  --compartment-id {pol_comp} \\')
                     lines.append(f"  --name '{name_esc}' \\")
                     lines.append(f"  --description '{desc_esc}' \\")
-                    if ff and dd:
+                    if rollback_ff and rollback_dd:
                         lines.append(f'  --statements "{stmt_val}" \\')
-                        lines.append(f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(ff))}' \\")
-                        lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(dd))}'")
-                    elif ff:
+                        lines.append(
+                            f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(rollback_ff))}' \\"
+                        )
+                        lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(rollback_dd))}'")
+                    elif rollback_ff:
                         lines.append(f'  --statements "{stmt_val}" \\')
-                        lines.append(f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(ff))}'")
-                    elif dd:
+                        lines.append(f"  --freeform-tags '{_shell_escape_single_quoted(_json_compact(rollback_ff))}'")
+                    elif rollback_dd:
                         lines.append(f'  --statements "{stmt_val}" \\')
-                        lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(dd))}'")
+                        lines.append(f"  --defined-tags '{_shell_escape_single_quoted(_json_compact(rollback_dd))}'")
                     else:
                         lines.append(f'  --statements "{stmt_val}"')
                     # oci iam policy create does not accept --force

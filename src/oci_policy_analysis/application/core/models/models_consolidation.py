@@ -84,6 +84,28 @@ class SkippedStatement(TypedDict):
     statement_text: NotRequired[Annotated[str, 'Snippet or full text for display']]
 
 
+class RollbackStep(TypedDict):
+    """Structured inverse operation captured when a consolidation step is planned.
+
+    This is intentionally declarative. Renderers can present the inverse now,
+    while a future controlled executor can use the same snapshot without
+    reconstructing state from a changed tenancy.
+    """
+
+    action: Annotated[
+        Literal['delete_created_policy', 'restore_policy', 'recreate_deleted_policy'],
+        'Inverse operation for the planned step',
+    ]
+    policy_ocid: Annotated[str, 'Original policy OCID, if it still identifies the rollback target']
+    requires_created_policy_id: NotRequired[Annotated[bool, 'ADD rollback needs the OCI ID created during execution']]
+    compartment_ocid: NotRequired[Annotated[str, 'Compartment for recreating a deleted policy']]
+    policy_name: NotRequired[Annotated[str, 'Name for recreating a deleted policy']]
+    policy_description: NotRequired[Annotated[str, 'Description for recreating a deleted policy']]
+    statements: NotRequired[Annotated[list[str], 'Policy statements to restore']]
+    freeform_tags: NotRequired[Annotated[dict[str, str], 'Freeform tags to restore']]
+    defined_tags: NotRequired[Annotated[dict[str, dict[str, str]], 'Defined tags to restore']]
+
+
 class PlanStep(TypedDict):
     """
     Single step in a consolidation plan: add, modify, or delete a policy, or change tags/statements.
@@ -103,6 +125,7 @@ class PlanStep(TypedDict):
     execution_status: NotRequired[Annotated[Literal['PENDING', 'COMPLETE', 'ROLLED_BACK', 'DRIFTED'], 'Current status']]
     execution_notes: NotRequired[Annotated[str, 'API/OCI result notes, error etc.']]
     rollback_command: NotRequired[Annotated[str, 'Command or instruction to roll back this step']]
+    rollback: NotRequired[Annotated[RollbackStep, 'Structured inverse operation and immutable rollback snapshot']]
     location_change_notes: NotRequired[
         Annotated[
             list[str], 'Notes when statement location was rewritten due to policy move (e.g. compartment X to A:B).'

@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     compartment_ancestors_including_self,
     flatten_defined_tags,
-    internal_id_to_statement,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
@@ -23,7 +22,7 @@ from oci_policy_analysis.application.core.common.consolidation_helpers import (
     resolve_policy_compartment_path,
     trace_and_rewrite_candidate_statement_location,
 )
-from oci_policy_analysis.application.core.models.models import BasePolicy
+from oci_policy_analysis.application.core.engine.strategies.base import BaseConsolidationStrategy
 from oci_policy_analysis.application.core.models.models_consolidation import ConsolidationPlan, PlanStep
 from oci_policy_analysis.application.core.repo import PolicyAnalysisRepository
 from oci_policy_analysis.application.core.support.logger import get_logger
@@ -32,7 +31,7 @@ logger = get_logger(component='core.engine.strategies.consolidation')
 
 
 @dataclass(frozen=True)
-class PackPoliciesByStatementDensity:
+class PackPoliciesByStatementDensity(BaseConsolidationStrategy):
     """
     First implemented strategy: pack candidate statements into a single target policy
     (chosen as the policy with most selected candidates in the required compartment or above),
@@ -56,23 +55,16 @@ class PackPoliciesByStatementDensity:
         params: dict[str, object] | None = None,
     ) -> ConsolidationPlan:
         """Build a pack-by-statement-density consolidation plan."""
-        params = params or {}
-        tag_key = str(params.get('marker_tag_key') or 'opa_consolidation')
-
-        st_idx = internal_id_to_statement(repo)
-        effective_candidates = [
-            iid for iid in candidate_internal_ids if iid in st_idx and iid not in protected_internal_ids
-        ]
+        context = self.planning_context(
+            repo=repo, tenancy_ocid=tenancy_ocid, dataset_version=dataset_version, plan_id=plan_id, params=params
+        )
+        tag_key = context.tag_key
+        st_idx = context.statements_by_id
+        effective_candidates = self.effective_candidates(context, candidate_internal_ids, protected_internal_ids)
         if not effective_candidates:
             logger.info('build_plan: no effective candidates (after excluding protected); returning empty plan')
-            return ConsolidationPlan(
-                plan_id=plan_id,
-                tenancy_ocid=tenancy_ocid,
-                plan_label=f'{self.display_name} (empty)',
-                created_at=now_iso(),
-                plan_steps=[],
-                plan_tags={'strategy_id': self.strategy_id},
-                notes='No effective candidates (all protected or not found in repository).',
+            return self.empty_plan(
+                context, reason='No effective candidates (all protected or not found in repository).'
             )
 
         required_compartment_ocid = required_policy_compartment_for_candidates(repo, effective_candidates, st_idx)
@@ -81,12 +73,10 @@ class PackPoliciesByStatementDensity:
             required_compartment_ocid,
             len(effective_candidates),
         )
-        compartments = getattr(repo, 'compartments', []) or []
+        compartments = context.compartments
         valid_compartment_ocids = compartment_ancestors_including_self(required_compartment_ocid, compartments)
 
-        policies_by_ocid: dict[str, BasePolicy] = {
-            p.get('policy_ocid'): p for p in (getattr(repo, 'policies', []) or []) if p.get('policy_ocid')
-        }
+        policies_by_ocid = context.policies_by_ocid
         valid_policy_ocids = {
             ocid
             for ocid, pol in policies_by_ocid.items()
@@ -262,15 +252,4 @@ class PackPoliciesByStatementDensity:
             len(steps),
             len(steps) - 1,
         )
-        return ConsolidationPlan(
-            plan_id=plan_id,
-            tenancy_ocid=tenancy_ocid,
-            plan_label=f'{self.display_name} ({len(effective_candidates)} candidates)',
-            created_at=now_iso(),
-            plan_steps=steps,
-            plan_tags={
-                'strategy_id': self.strategy_id,
-                'marker_tag_key': tag_key,
-                'dataset_version': dataset_version or '',
-            },
-        )
+        return self.finalize_plan(context, plan_steps=steps, candidate_count=len(effective_candidates))

@@ -17,6 +17,7 @@ Full documentation
    :caption: Advanced Topics
 
    simulation
+   consolidation
    recommendations
    reports
    tag_based

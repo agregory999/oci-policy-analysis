@@ -538,9 +538,9 @@ The **Recommendations Tab** centralizes **security and hygiene guidance** derive
 
 For more context on how recommendations are generated and categorized, see the dedicated [Recommendations](./recommendations.md) documentation.
 
-**Web flow update:** Web recommendations and workbench pages include the same core lifecycle—review findings, stage actions, and track remediation context—with dedicated consolidation workbench support.
+**Web flow:** Open a consolidation opportunity from Recommendations to inspect its evidence. Actionable opportunities can be sent to the Consolidation Workbench with their full statement set; the workbench replaces its current candidate selection but keeps saved plans and rollback data.
 
-### Consolidation Workbench (Web)
+### Consolidation Workbench
 <!-- Anchor link; do not change or remove this line! -->
 
 The **Consolidation Workbench** web flow is designed for policy simplification planning.
@@ -551,12 +551,15 @@ The **Consolidation Workbench** web flow is designed for policy simplification p
 - Keep operator context while iterating policy hygiene improvements.
 
 **General Flow**
-1. Open the Consolidation Workbench page from web home.
-2. Review candidate groups and rationale.
-3. Capture proposed actions/next steps.
-4. Re-run recommendations/intelligence after policy updates.
+1. Open Recommendations and inspect a consolidation opportunity.
+2. Send an actionable opportunity to the Consolidation Workbench, or open the workbench directly.
+3. Review the selected candidates, choose a strategy, and generate a proposal.
+4. Apply reviewed CLI steps outside the application, then reload policy data and check plan progress.
 
 Use this flow when your question is: **“Which policies should we combine or simplify next?”**
+
+For advanced strategy behavior, plan lifecycle, rollback information, and extension guidance, see
+[Consolidation planning](./consolidation.md).
 
 ### Reference Data Page (Web)
 <!-- Anchor link; do not change or remove this line! -->
