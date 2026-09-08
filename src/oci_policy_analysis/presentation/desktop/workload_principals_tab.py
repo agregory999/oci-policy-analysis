@@ -144,7 +144,7 @@ class WorkloadPrincipalsTab(BaseUITab):
                 'Analyze workload principals, including dynamic groups, any-user resource principals, '
                 'and parsed matching-rule/where-clause structures.'
             ),
-            page_help_link='/usage.html#resource-principals-tab',
+            page_help_link='/usage.html#workload-principals-tab',
         )
         self.app = app
         self.policy_repo: PolicyAnalysisRepository = app.policy_compartment_analysis

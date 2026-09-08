@@ -6,9 +6,10 @@ This guide explains how to use the interactive desktop and web applications afte
 
 1. **Choose a data source.** Load current data from OCI, open a saved combined cache, or import OCI CIS Compliance output. The [data-source setup](./setup.md#choose-a-data-source) section explains what each option provides and where the data comes from.
 2. **Load the dataset.** In the desktop application, start on **Settings**. In the web application, use the data operations on the home page. Every analysis page uses the currently loaded dataset.
-3. **Investigate the question.** Start with Policy Browser or Policy Analysis, then move to the identity, permissions, historical, or specialist views that fit the question.
-4. **Validate the result.** Use Condition Tester, API Simulation, Permissions Report, or the policy-statement detail view to understand why access is granted, denied, or flagged.
-5. **Export, compare, or share.** Save a cache for later comparison, export a report, or expose the loaded dataset through MCP when appropriate.
+3. **Investigate the question.** Start with Policy Browser or Policy Analysis, then move to the identity, permissions, historical, or specialist views that fit the question. Review the Limits view when policy counts are close to a tenancy limit.
+4. **Validate everything.** Use Condition Tester, API Simulation, Recommendations, or the policy-statement detail view to understand why access is granted, denied, or flagged, and where a tenancy limit is being approached.
+5. **Consolidate or clean up.** Use Recommendations and the Consolidation Workbench to identify policy cleanup or consolidation opportunities. This is a guided process; the tool does not change OCI policies itself.
+6. **Export, compare, or share.** Save a cache for later comparison, export a report, or expose the loaded dataset through MCP when appropriate.
 
 ### Pick the right data source
 
@@ -128,6 +129,7 @@ The **Policy Browser Tab** provides a hierarchical, tree-style view of your enti
 **Purpose**  
 - Visualize the compartment hierarchy and attached policies at each level.  
 - Quickly locate policies and statements that apply to a given compartment or path.  
+- View tenancy limits and consumption for policy count and policy compartment chain count
 - Act as a launching point for deeper analysis in more specialized tabs.
 
 **General Flow**  
@@ -138,6 +140,7 @@ The **Policy Browser Tab** provides a hierarchical, tree-style view of your enti
 
 **Key Widgets and Right-Click Actions**  
 - **Compartment/Policy Tree:** Expandable nodes representing compartments and policies. Selecting a node shows details (statements, metadata) in the side panel.  
+- **Limit Data:** Shows or hides the limit data and highlights places where the tenancy is or is close to a limit.  Use this information for cleanup or requesting a limit increase from the tenancy.
 - **Statement Detail Pane:** Shows parsed statement text, subject, verbs, resource families, and where-clauses.  
 - **Right-click on a Compartment:**
   - "Open in Policy Tab" – filters the Policy Tab to that compartment scope.  
@@ -271,7 +274,7 @@ The **Dynamic Groups Tab** focuses on **non-human identities** represented as dy
 
 Use this tab when you’re investigating **resource-based identities and their access footprint**.
 
-### Resource Principals Tab
+### Workload Principals Tab
 <!-- Anchor link; do not change or remove this line! -->
 
 The **Resource Principals Tab** surfaces policies and permissions related to **resource principals and workload identities**.
@@ -437,6 +440,34 @@ The **Condition Tester Tab** is a focused utility for **parsing and evaluating I
 
 This tab complements the **API Simulation Tab** by focusing on **conditions only**. For full policy + permission evaluation against API operations, see the Simulation tab (and the dedicated [Simulation](./simulation.md) documentation).
 
+### Tag-based Access Tab
+<!-- Anchor link; do not change or remove this line! -->
+
+Use **Tag-based Access** to find statements with `.tag.` conditions, narrow them by namespace, key, value, or access type, and inspect the parsed condition elements. Open the Prospective Editor or Condition Tester when a matching statement needs to be tested or revised.
+
+For tag-condition concepts and detailed search behavior, see [Tag-based Policy Search](./tag_based.md).
+
+### Recommendations Tab
+<!-- Anchor link; do not change or remove this line! -->
+
+Use **Policy Recommendations** to review risk, overlap, supersession, cleanup, consolidation, and limit findings for the loaded dataset. Filter the relevant subtab, inspect a finding's evidence, and use its actions to open the underlying policy or stage a review item. The tab identifies work to consider; it does not modify OCI policies.
+
+For the full finding model, limits workflow, and remediation guidance, see [Recommendations](./recommendations.md).
+
+### Reports Tab
+<!-- Anchor link; do not change or remove this line! -->
+
+Use **Reports** to select a report, generate a point-in-time artifact, preview it, and export it for sharing or audit records. Choose Policy Inventory for policy data, Effective Permissions for calculated access, or Full Policy Overlaps when you explicitly need that analysis.
+
+For report types and their contents, see [Reports](./reports.md).
+
+### Consolidation Workbench Tab
+<!-- Anchor link; do not change or remove this line! -->
+
+Use **Consolidation** to protect statements, select candidates, choose a strategy, and generate a reviewable proposal with rollback instructions. Review and apply any resulting OCI CLI or Console actions yourself, then reload the dataset to check progress.
+
+For strategies, plan lifecycle, placement rules, and rollback details, see [Consolidation planning](./consolidation.md).
+
 ### API Simulation Tab
 <!-- Anchor link; do not change or remove this line! -->
 
@@ -466,145 +497,90 @@ The **API Simulation Tab** provides a full **what-if simulation environment** fo
 
 For a deeper, engine-focused explanation of how simulation works (including prospective statements and MCP integration), see the dedicated [Simulation](./simulation.md) page. Maintainers can also consult the [simulation engine context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_simulation_engine.md).
 
+### Console & Maintenance Tabs
+<!-- Anchor link; do not change or remove this line! -->
+
+Use **Console Logging** to inspect application events while troubleshooting. Use **Maintenance** for cache and diagnostic operations, then refresh any affected analysis tabs.
+
 ## Web UI
 
 The web interface mirrors the same analysis model, but the entry points are card- and page-based instead of tab-based.
 
+### Home / Data Operations Page
+
+Use the home page to choose one data source—live tenancy, CIS compliance output, cache, or export—and follow progress while the shared dataset loads. Its navigation cards open the analysis and utility pages below.
+
+### Settings / Caches Page
+
+Use Settings to review web options and manage saved caches before or after loading a dataset. For source selection and cache behavior, see the [Setup Guide](./setup.md).
+
 ### Policy Analysis Page
 
-Use the Policy Analysis page for broad statement browsing and advanced filtering.
+Use Policy Analysis to filter and inspect policy statements by text, subject, resource, verb, permission, path, or parsed conditions. Use the advanced panels for structured-principal, tag, and workload-identity searches.
 
-- Basic filters cover statement text, subject, resource, verb, permission, and path.
-- Advanced filter panels expose tag conditions, parsed atoms, and structured principals.
-- OKE workload identity filters are available in the advanced workload-principal mode and map into the same `policy_search`/principal model described in [OKE Workload Identity Querying](./oke_workload_identity.md).
+### Cross-Tenancy Analysis Page
+
+Use this page to filter and inspect `define`, `endorse`, and `admit` statements, then open the supporting policy details when a trust relationship needs review.
+
+### Historical Analysis Page
+
+Use this page to select saved snapshots, compare them, and inspect added, removed, or changed policy and identity data.
+
+### User/Group Analysis Page
+
+Use this page to select a user or group, review memberships and related statements, and pivot to the relevant policy evidence.
+
+### Dynamic Group Analysis Page
+
+Use this page to find dynamic groups, inspect their matching rules, and review policies that grant them access.
 
 ### Workload Principals Analysis Page
 
-Use this page for resource principals and workload identities.
+Use this page for resource principals and workload identities. It supports the same namespace, service-account, and cluster filters as the desktop tab; see [OKE Workload Identity Querying](./oke_workload_identity.md) for that workflow.
 
-- It supports the same OKE namespace, service-account, and cluster filters as the desktop resource-principal tab.
-- It is the right place for advanced `request.principal.*` analysis when you do not want to work through raw policy text.
+### Policy Simulation Page
 
-### Tag-based Access Tab
-<!-- Anchor link; do not change or remove this line! -->
+Use Simulation to select an effective path, principal, statements, context values, and an API operation, then review the decision trace and history. For simulation concepts and interpretation, see [Simulation](./simulation.md).
 
-The **Tag-based Access Tab** is an advanced, mostly read-only workspace for understanding IAM statements that use `.tag.` conditions. For a more detailed breakdown of tag condition semantics, see [Tag-based Policy Search](./tag_based.md).
+### Recommendations / Limits Page
 
-**Purpose**
-- Discover and review policy statements that rely on tag-based access logic.
-- Break complex `where` clauses into structured tag-condition components.
-- Help you pivot quickly into testing and what-if authoring workflows.
+Use Recommendations to review risk, overlap, supersession, cleanup, consolidation, and tenancy-limit findings. Filter a finding, inspect its evidence, and use its action to open the source policy or send an actionable consolidation opportunity to the workbench. See [Recommendations](./recommendations.md) for the complete model and guidance.
 
-**General Flow**
-1. Load the tab to see statements containing tag-based conditions.
-2. Apply filters by **Tag Namespace**, **Tag Key**, and **Access Type** (for example `target.resource` or `request.principal.group`).
-3. Select a statement to inspect individual extracted tag conditions (operator, values, subexpression).
-4. Use right-click actions to send full conditions or individual subexpressions to **Condition Tester**.
-5. Optionally open **Prospective Editor…** (and/or use builder actions) for what-if statement workflows.
+### Consolidation Workbench Page
 
-**Key Widgets and Actions**
-- **Tag-based Policies Overview:** Upper table for statements plus parsed condition structure (for example `ANY { c1, ALL { c2, c3 } }`).
-- **Tag Condition Detail Table:** Lower table showing condition ID, access type, namespace/key, operator, and value.
-- **Filter Controls:** Namespace/key text filters, access-type selector, parsed-column toggle, and **Show Prospective**.
-- **Prospective Editor… button:** Opens the shared prospective editor window.
-- **Refresh from Loaded Policies:** Rebuilds the in-memory tag-based view from currently loaded data.
+Use the workbench to select or receive candidates, choose a strategy, generate a proposal, and review rollback instructions. Apply any OCI changes outside the application, then reload to check progress. See [Consolidation planning](./consolidation.md) for strategy and lifecycle details.
 
-Use this tab when you’re asking: **“How are tags being used to gate access in our policies?”**
+### Permissions Analysis Page
 
-### Recommendations Tab
-<!-- Anchor link; do not change or remove this line! -->
+Use this page to browse effective permissions by compartment and principal, inspect the source statement, and export the resulting data.
 
-The **Recommendations Tab** centralizes **security and hygiene guidance** derived from your loaded policies and identities.
+### Reports Page
 
-**Purpose**  
-- Surface risky patterns (e.g., overly broad `any-user` access, unused groups, cross-tenancy risks).  
-- Suggest policy clean-up and consolidation opportunities.  
-- Provide a prioritized queue of issues to review and fix.
+Use Reports to generate, preview, and download a Policy Inventory, Effective Permissions, or explicitly requested Full Policy Overlaps artifact. See [Reports](./reports.md) for report contents.
 
-**General Flow**  
-1. Load or refresh recommendations based on the current policy dataset.  
-2. Review grouped categories (risk, overlap, clean-up, consolidation, etc.).  
-3. Drill into individual findings to see why they were raised and which statements or principals are involved.  
-4. Use quick links to open affected statements in the Policy or Policy Browser tabs.  
-5. Optionally re-run or validate fixes using API Simulation, Condition Tester, or Permissions Report tabs.
+### Tag Namespaces Page
 
-**Key Widgets and Right-Click Actions**  
-- **Recommendation List / Categories:** Grouping by type (e.g., high-risk, informational, clean-up).  
-- **Finding Detail Panel:** Shows the evidence and reasoning behind each recommendation, including referenced statements and principals.  
-- **Right-click on a Recommendation:**
-  - "Open in Policy Tab" – inspect and edit the implicated statements.  
-  - "Open in Policy Browser" – see the recommendation in hierarchical context.  
-  - "Open in Permissions Report" – confirm the effective access behind a risk.  
+Use this page to inspect tenancy tag namespaces and values that can be used when reviewing tag-based access. For parsed tag-policy searches and condition semantics, see [Tag-based Policy Search](./tag_based.md).
 
-For more context on how recommendations are generated and categorized, see the dedicated [Recommendations](./recommendations.md) documentation.
+### Compartment Hierarchy Page
 
-**Web flow:** Open a consolidation opportunity from Recommendations to inspect its evidence. Actionable opportunities can be sent to the Consolidation Workbench with their full statement set; the workbench replaces its current candidate selection but keeps saved plans and rollback data.
+Use this page to browse the loaded compartment tree and its policy-statement counts, then select a compartment to focus subsequent analysis.
 
-### Consolidation Workbench
-<!-- Anchor link; do not change or remove this line! -->
+### Condition Tester Page
 
-The **Consolidation Workbench** web flow is designed for policy simplification planning.
+Use this page to paste a `where` clause, enter sample variables, and evaluate the condition before using it in a policy or simulation.
 
-**Purpose**
-- Review consolidation candidates generated by analytics.
-- Stage merge/rewrite follow-up actions in one place.
-- Keep operator context while iterating policy hygiene improvements.
+### Reference Data Page
 
-**General Flow**
-1. Open Recommendations and inspect a consolidation opportunity.
-2. Send an actionable opportunity to the Consolidation Workbench, or open the workbench directly.
-3. Review the selected candidates, choose a strategy, and generate a proposal.
-4. Apply reviewed CLI steps outside the application, then reload policy data and check plan progress.
+Use Reference Data for permission lookup, API-operation checks, overlap tests, and source references without leaving the browser.
 
-Use this flow when your question is: **“Which policies should we combine or simplify next?”**
+### Logging Page
 
-For advanced strategy behavior, plan lifecycle, rollback information, and extension guidance, see
-[Consolidation planning](./consolidation.md).
+Use Logging to inspect application events and adjust the displayed level while troubleshooting a load or analysis workflow.
 
-### Reference Data Page (Web)
-<!-- Anchor link; do not change or remove this line! -->
+### Limited Scope Management Page
 
-The **Reference Data** web page provides compact lookup utilities for permissions, overlap checks, and source mapping.
-
-**Purpose**
-- Resolve permissions by resource/family + verb/action.
-- Check overlap between two statement-style selectors.
-- Find source references for resource/family terms.
-- Test API operation permission requirements quickly.
-
-**Key Web Widgets**
-- **Reference Mapping** (permission lookup)
-- **API Operations Tester** (operation + selected permissions -> True/False style check)
-- **Overlap Utility**
-- **Reference Source**
-
-Use this page when you want a fast, reference-data-driven validation workflow without leaving the browser.
-
-### Console & Maintenance Tabs
-<!-- Anchor link; do not change or remove this line! -->
-
-The **Console** and **Maintenance** tabs support **operational monitoring and housekeeping**.
-
-**Console Tab – Purpose & Flow**  
-- View real-time application logs and debug information.  
-- Diagnose issues with data loading, MCP integration, or tab behavior.
-
-**Console – Key Widgets**  
-- **Log Output Window:** Streams log messages as you interact with the app.  
-- **Filter / Search Controls:** Filter by log level or search for specific text.  
-- **Log Level Controls (if available):** Adjust verbosity for troubleshooting.
-
-Use the Console tab when you need to **see what the app is doing under the hood**.
-
-**Maintenance Tab – Purpose & Flow**  
-- Run admin and clean-up tasks that keep local data and caches healthy.
-
-**Maintenance – Key Widgets and Actions**  
-- **Cache Management Buttons:** Clear or rotate policy caches; refresh reference data.  
-- **Repair / Diagnostic Tools:** Run routines that check for inconsistent data or stale snapshots.  
-- **Status Messages:** Indicate when maintenance tasks complete and whether any issues were found.
-
-Because maintenance actions can affect data used by other tabs, re-open or refresh impacted tabs (Policy, Simulation, Recommendations, etc.) after performing operations here.
+Use this page when working with a limited dataset to see available capabilities and manage the supported scope. See [Limited Compliance Loading](./limited_modes.md#limited-compliance-loading) for its constraints.
 
 ## MCP
 

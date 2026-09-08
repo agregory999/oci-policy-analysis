@@ -842,7 +842,7 @@
         const policiesLimit = limits.policies_count;
         const chainLimit = limits.policy_statements_per_compartment_chain_count;
         if (policiesLimit && chainLimit) {
-          summary.textContent = `Policy objects: ${limits.policy_count || 0} / ${policiesLimit} · Chain statements: ${limits.max_chain_count || 0} / ${chainLimit} · Source: ${limits.source || 'unknown'}`;
+          summary.textContent = `Limits: policies-count: ${policiesLimit} (currently ${limits.policy_count || 0} in tenancy), policy-statements-per-compartment-chain-count: ${chainLimit} (maximum compartment: ${limits.max_chain_count || 0}) | Source: ${limits.source || 'unknown'}`;
         } else if (limits.offline_editable) {
           summary.textContent = 'Limits not supplied for this cached/CIS dataset. Enter both values to assess policy and hierarchy counts.';
         } else {

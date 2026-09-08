@@ -522,7 +522,7 @@ class PolicyRecommendationsTab(BaseUITab):
         policies_limit = limits.get('policies_count')
         chain_limit = limits.get('policy_statements_per_compartment_chain_count')
         if not policies_limit or not chain_limit:
-            return 'Limits not supplied for this dataset: enter them in Policy Browser > Show Policy Data.'
+            return 'Limits not supplied for this dataset: enter them in Policy Browser > Show Limit Data.'
         max_chain = max(
             (
                 int(c.get('statement_count_cumulative', 0) or 0)
@@ -531,8 +531,10 @@ class PolicyRecommendationsTab(BaseUITab):
             default=0,
         )
         return (
-            f'Policy objects: {len(getattr(self.policy_repo, "policies", []) or [])} / {policies_limit} | '
-            f'Chain statements: {max_chain} / {chain_limit} | Source: {limits.get("source", "unknown")}'
+            f'Limits: policies-count: {policies_limit} '
+            f'(currently {len(getattr(self.policy_repo, "policies", []) or [])} in tenancy), '
+            f'policy-statements-per-compartment-chain-count: {chain_limit} '
+            f'(maximum compartment: {max_chain}) | Source: {limits.get("source", "unknown")}'
         )
 
     # Button callback to fetch tenancy policy/statement limits and update label

@@ -1036,11 +1036,6 @@ class PoliciesTab(BaseUITab):
         ttk.Separator(label_frm_output, orient=tk.VERTICAL).grid(row=0, column=1, padx=5, pady=3)
         self.label_policy_count = ttk.Label(label_frm_output, text='Statements (Filtered): 0')
         self.label_policy_count.grid(row=0, column=2, padx=5, pady=3, sticky='w')
-        self.tenancy_limits_var = tk.StringVar(value='Tenancy limits: not supplied')
-        ttk.Label(label_frm_output, textvariable=self.tenancy_limits_var).grid(
-            row=1, column=0, columnspan=11, padx=5, pady=(0, 3), sticky='w'
-        )
-
         ttk.Separator(label_frm_output, orient=tk.VERTICAL).grid(row=0, column=3, padx=5, pady=3)
         # Display Output Selection
         ttk.Label(label_frm_output, text='Statement Type\nto display:').grid(row=0, column=4, padx=5, pady=3)
@@ -1605,20 +1600,6 @@ class PoliciesTab(BaseUITab):
             if getattr(self, 'show_prospective_var', None) and self.show_prospective_var.get():
                 base.insert(2, f'Prospective Statements (Shown): {prospective_count}')
             self.label_policy_count.config(text='\n'.join(base))
-            limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
-            policy_limit = limits.get('policies_count')
-            chain_limit = limits.get('policy_statements_per_compartment_chain_count')
-            if policy_limit and chain_limit:
-                max_chain = max(
-                    (int(c.get('statement_count_cumulative', 0) or 0) for c in self.policy_repo.compartments or []),
-                    default=0,
-                )
-                self.tenancy_limits_var.set(
-                    f'Limits: policies {len(self.policy_repo.policies)} / {policy_limit}; '
-                    f'chain statements {max_chain} / {chain_limit} ({limits.get("source", "unknown")})'
-                )
-            else:
-                self.tenancy_limits_var.set('Tenancy limits: not supplied (see Recommendations > Limits)')
 
         def _update_policy_table(rows_to_show):
             self.policy_table.update_data(rows_to_show)

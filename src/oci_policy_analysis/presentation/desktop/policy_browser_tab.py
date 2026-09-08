@@ -97,18 +97,18 @@ class PolicyBrowserTab(BaseUITab):
         clear_btn = ttk.Button(self.button_row, text='Clear', command=self.on_clear_search)
         clear_btn.pack(side='left', padx=(0, 3), pady=2)
 
-        # Policy data belongs beside search because it changes the tree detail,
+        # Limit data belongs beside search because it changes the tree detail,
         # not the navigation controls to its left.
-        self.show_policy_data_var = tk.BooleanVar(value=False)
-        show_policy_data_chk = ttk.Checkbutton(
+        self.show_limit_data_var = tk.BooleanVar(value=False)
+        show_limit_data_chk = ttk.Checkbutton(
             self.button_row,
-            text='Show Policy Data',
-            variable=self.show_policy_data_var,
+            text='Show Limit Data',
+            variable=self.show_limit_data_var,
             command=self._toggle_policy_data,
         )
-        show_policy_data_chk.pack(side='left', padx=(8, 8), pady=2)
+        show_limit_data_chk.pack(side='left', padx=(8, 8), pady=2)
         self.add_context_help(
-            show_policy_data_chk,
+            show_limit_data_chk,
             'Show policy statement counts in the tree and tenancy-specific policy limits. For cached or CIS data, enter limits here when OCI cannot fetch them.',
         )
 
@@ -497,7 +497,7 @@ class PolicyBrowserTab(BaseUITab):
                 # Compartment node is always default background
                 comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
                 # Insert counts row only if limits option is set, with color/message logic
-                if getattr(self, 'show_policy_data_var', None) is not None and self.show_policy_data_var.get():
+                if getattr(self, 'show_limit_data_var', None) is not None and self.show_limit_data_var.get():
                     cum_count = c.get('statement_count_cumulative', 0)
                     direct_count = c.get('statement_count_direct', 0)
                     chain_limit = self._chain_limit()
@@ -559,8 +559,10 @@ class PolicyBrowserTab(BaseUITab):
             default=0,
         )
         return (
-            f'Policy objects: {len(self.policy_repo.policies)} / {policies_limit} | '
-            f'Chain statements: {max_chain} / {chain_limit} | Source: {limits.get("source", "unknown")}'
+            f'Limits: policies-count: {policies_limit} '
+            f'(currently {len(self.policy_repo.policies)} in tenancy), '
+            f'policy-statements-per-compartment-chain-count: {chain_limit} '
+            f'(maximum compartment: {max_chain}) | Source: {limits.get("source", "unknown")}'
         )
 
     def _is_offline_snapshot(self) -> bool:
@@ -571,7 +573,7 @@ class PolicyBrowserTab(BaseUITab):
         )
 
     def _toggle_policy_data(self) -> None:
-        if self.show_policy_data_var.get():
+        if self.show_limit_data_var.get():
             offline_snapshot = self._is_offline_snapshot()
             if not offline_snapshot:
                 # Never let an earlier cache/CIS override appear as a live
@@ -909,7 +911,7 @@ class PolicyBrowserTab(BaseUITab):
                 logger.debug(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
 
                 # Show or hide counts row based on user option, and only color this row if visible
-                if getattr(self, 'show_policy_data_var', None) is not None and self.show_policy_data_var.get():
+                if getattr(self, 'show_limit_data_var', None) is not None and self.show_limit_data_var.get():
                     chain_limit = self._chain_limit()
                     if not chain_limit:
                         count_tag = 'bg_yellow'
