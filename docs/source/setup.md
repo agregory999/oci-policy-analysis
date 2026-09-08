@@ -98,11 +98,11 @@ allow dynamic-group <your_dynamic_group> to use generative-ai-family in tenancy
 You must have or create a dynamic group, based on the OCI Instance OCID or Compartment OCID of the instance.  This dynamic group then receives the permission above.
 
 Example Dynamic Group Definition:
-```json
+```text
 ALL {instance.id = 'ocid1.instance.yy.zz'}
 ```
 or
-```json
+```text
 ALL {instance.compartment.id = 'ocid1.compartment.yy.zz'}
 ```
 

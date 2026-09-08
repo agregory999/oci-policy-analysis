@@ -1,171 +1,154 @@
-# Consolidation planning
+# Policy consolidation
 
-The Consolidation Workbench helps you plan policy simplification without directly
-changing OCI. A plan records the policy changes that would be needed, the statements
-that cannot safely move, and the information needed to reverse each step.
+Policy consolidation is the process of reducing or reorganizing IAM policy
+statements without changing the access they grant. It is useful when policies have
+grown through repeated changes, several statements express the same intent, or a
+policy needs to live closer to the resources it governs.
 
-This is an advanced feature. Review generated statements, target compartments, and
-rollback output before applying any CLI command in a tenancy.
+The Consolidation Workbench does not change OCI for you. It prepares a plan,
+including execution and rollback instructions, for an operator to review and apply.
+Treat every proposal as a change plan, not as an automatic cleanup.
 
-## Plan lifecycle
+## Enable the workbench
 
-```{mermaid}
-flowchart LR
-    A[Select consolidation candidates] --> B[Choose strategy]
-    B --> C[Validate candidate data and protections]
-    C --> D[Strategy selects target policy placement]
-    D --> E[Rewrite statement location when necessary]
-    E --> F[Build target ADD or MODIFY steps]
-    F --> G[Build source MODIFY or DELETE steps]
-    G --> H[Attach rollback snapshots]
-    H --> I[Validate OCI policy statement limit]
-    I --> J[Review execution and rollback output]
-```
+In the desktop application, open **Settings** and select **Show Advanced Tabs**.
+This exposes **Consolidation Workbench (Preview)**. The workbench is available
+after a dataset has been loaded.
 
-Plans are declarative. Generating one does not execute it. The workbench and CLI
-render steps for an operator to review and apply.
+The web application has a **Consolidation Workbench** page. It follows the same
+four-stage flow: protection, candidates, proposal, and history.
 
-## Built-in strategies
+## Start with a recommendation or start directly
 
-| Strategy | Target selection rule | Best fit |
+There are two sensible entry points:
+
+- In **Policy Recommendations**, open the **Policy Consolidation** subtab. Filter
+  by consolidation type or search for a policy, then inspect the opportunity
+  before acting. Actionable opportunities can be sent to the workbench with their
+  statements already selected. Advisory rows, such as a single-statement policy,
+  are prompts for review rather than a prescribed change.
+- Open the workbench directly when you already know the policies or statements you
+  want to reconsider. This is useful for a focused cleanup after a change window
+  or before a policy limit is reached.
+
+Sending an opportunity to the workbench replaces the current candidate selection.
+It does not remove saved plans or protected statements.
+
+## The consolidation flow
+
+### 1. Protect statements that must not move
+
+Start in **Policy/Statement Protection**. Search by policy name or statement text,
+check the policies or statements that must remain untouched, and select **Save
+Protected**. Use **Save and Select Consolidation Statements** when you are ready
+to continue to candidate selection.
+
+Protected statements are excluded from every proposal. The protected set is saved
+with the tenancy's cached consolidation data, so it remains available when that
+dataset is reopened. It is a planning safeguard only; it does not add a tag or
+otherwise alter the OCI policy.
+
+### 2. Choose candidates
+
+In **Candidate Selection & Strategy**, use **Search/Filter** to narrow the list,
+then check the statements you want the plan to consider. The table keeps the
+selection while you change the search text, and the selected-candidates area shows
+the full set that will be used.
+
+The workbench deliberately omits protected statements, invalid statements, and
+statements in locked system policies. The counts beside the filter make those
+exclusions visible. A statement missing from the candidate list is not silently
+included in a proposal.
+
+### 3. Pick a strategy that matches the problem
+
+Choose a value from the **Strategy** list before selecting **Create Consolidation
+Proposal**. A strategy answers two practical questions: which statements belong
+together, and where should the resulting policy live. There is no universally
+correct choice.
+
+| Strategy | Use it when | What it plans |
 |---|---|---|
-| Group Similar Statements | Creates a new policy in the common source-policy compartment with one canonical, de-duplicated list of named groups or dynamic groups. | Statements that are identical in action, scope, permissions, location, conditions, and comments, and differ only in named principals. |
-| Statement Density (Pack Policies) | Reuses the eligible policy containing the most selected statements. | Reducing policy count while retaining a legal shared scope. |
-| Move to Root | Creates one root policy. | Statements that need centralized management and remain safe at tenancy scope. |
-| Move Down Next Level | Moves a source policy to the immediate shared child scope. | A cautious, single-level policy descent. |
-| Move Closer to Target | Uses the lowest common effective scope, then chooses the deepest safe policy compartment above it. | Moving a policy closer to related resources while retaining shared coverage. |
-| Move Into Target | Places each statement in its direct effective-path compartment. | Maximum locality, potentially creating or changing more policies. |
+| **Group Similar Statements** | Statements have the same access, scope, and conditions but name different groups or dynamic groups. | A new grouped statement with the named principals combined in a comma-separated subject. |
+| **Statement Density (Pack Policies)** | You want fewer policies with more statements in each. | Reuse of an eligible policy that already contains many of the selected statements, and deletion of single-statement policies. |
+| **Move to Root** | Ease of use for smaller tenancies | Moves selected statements to root compartment and adjusts location so that compartment scope is unchanged. |
+| **Move Down Next Level** | You want to move statements away from root to relieve limit pressure. | Moves selected statements down to next compartment in the location. |
+| **Move Closer to Target** | Statements should be managed nearer to the compartment they affect but still cover a shared area. | Chooses the lowest compartment that is common to selected statements, and adjusts the location of each statement. |
+| **Move Into Target** | Each statement belongs with its direct effective compartment. | Moves all candidate statements into new policies in the effective compartment. |
 
-All strategies exclude protected statements and report candidates they cannot safely
-place. OCI policies are limited to 50 statements; a plan that would exceed that limit
-is rejected before it can be rendered for execution.
+The plan can skip a selected statement when it does not meet a strategy's safety
+rules. Review the skipped-statement reason rather than trying to force it through.
 
-## Placement and materialization
+### 4. Generate and review the proposal
 
-Strategies are intentionally split into two concerns:
+Select **Create Consolidation Proposal**. The workbench creates an ordered plan
+and opens **Consolidation Proposal**.
 
-```{mermaid}
-classDiagram
-    class BaseConsolidationStrategy {
-      +planning_context()
-      +effective_candidates()
-      +empty_plan()
-      +finalize_plan()
-      +rollback_for_step()
-    }
-    class PlanningContext {
-      statements_by_id
-      policies_by_ocid
-      policies_by_location_and_name
-      compartments
-      root_ocid
-    }
-    class TargetPolicySpec {
-      compartment_ocid
-      hierarchy_path
-      policy_name
-    }
-    class StatementPlacement {
-      internal_id
-      source_policy_ocid
-      target
-    }
-    BaseConsolidationStrategy --> PlanningContext
-    StatementPlacement --> TargetPolicySpec
-```
+Review these parts before making any OCI change:
 
-A strategy owns the placement decision: where an eligible statement should live and
-which policy should receive it. Shared planner helpers own repository indexes,
-candidate filtering, common plan metadata, and the immutable before/after snapshots
-needed by execution and rollback.
+- **Plan Elements** shows the proposed add, modify, and delete steps and their
+  target policies.
+- **Skipped Statements** explains statements that were selected but could not be
+  included safely.
+- **Plan Notes** lets you save the decision context with the plan.
+- **Proposed Script / Batch Output** can show OCI CLI commands or OCI Console
+  steps. Use **Show** to switch between execution instructions, rollback
+  instructions, or both.
 
-## Rollback
+The planner checks the target policy's statement capacity before it renders a
+proposal. It also keeps the original state needed for the rollback instructions.
+Still review the resulting statements, target compartment, source-policy cleanup,
+and rollback steps yourself. Apply the approved commands or Console steps outside
+the application.
 
-Every non-empty generated plan step has structured rollback metadata derived from its
-pre-plan state:
+## Plans, history, and progress checks
 
-- An **ADD** step records that the policy created during execution must be deleted.
-- A **MODIFY** step records the original statements and tags to restore.
-- A **DELETE** step records the policy name, description, compartment, statements,
-  and tags needed to recreate it.
+Every generated plan is stored in the consolidation history for the loaded
+tenancy. Use **Select Consolidation Plan** or the **Plan History** tab to reopen a
+proposal. **View in Proposal** restores the selected plan and its output.
 
-This metadata supplements the existing rendered rollback instructions. It does not
-automatically execute OCI changes. Keeping it in the plan model makes a future
-controlled rollback executor possible without re-reading a tenancy that may have
-changed since the plan was created.
+For a cache or CIS compliance dataset, the application has no live tenancy to
+query. You can still create, review, save, and reopen plans, but progress checking
+uses the stored state and does not claim to verify OCI changes.
 
-## Adding a strategy
+Use **Reset Consolidations for Tenancy** only when you want to discard the saved
+protected set and plan history for that tenancy. It removes local consolidation
+state; it never removes or edits OCI policies.
 
-1. Create a small strategy class in `application/core/engine/strategies/`.
-2. Inherit from `BaseConsolidationStrategy` and declare `strategy_id`,
-   `display_name`, and `required_capabilities`.
-3. Build a `PlanningContext` once at the start of `build_plan`.
-4. Define the placement rule in terms of `TargetPolicySpec` and
-   `StatementPlacement`. Keep policy selection logic in the strategy.
-5. Reuse common helpers for candidate filtering, empty plans, target lookup, and
-   final plan metadata. Do not recreate OCI rollback snapshots by hand.
-6. Register the strategy in `ConsolidationEngine` and add it to the package export.
-7. Add behavior tests plus shared contract tests for protected candidates, target
-   creation or reuse, source cleanup, location rewriting, OCI limits, and rollback.
+### How Progress Check works
 
-Keep new strategies explicit. A strategy class should read like a policy-placement
-rule, not a generic configuration entry whose behavior is difficult to audit.
+After applying a plan, **Reload and Check Progress** reloads policy data from OCI
+and compares the live tenancy with the saved plan. It records completed steps and
+flags conflicting consolidation markers where applicable. This button is enabled
+only for a live tenancy load.
 
-### Group Similar Statements
+The progress check on a generated plan looks at all current policies it knows about.  When 
+a plan is generated, tags are inserted into the recommended plan steps for each add/update.
+After reloading data from the live tenancy, newly changed or added policies will carry the tag
+if the statement recommended to run was run as-is. The planner will see these as having the tag
+and mark that step as executed in the plan.   Failure to run the exact statement shown may 
+create unexpected results.
 
-Use this strategy when several statements grant the same access at the same scope
-but name different groups. It accepts named `group` and `dynamic-group` subjects
-only. It does not try to merge ID-based subjects or other principal types.
+## Before you apply a plan
 
-The statements must match on allow/deny action, effective path, policy
-compartment, location, verb/resource or permission set, where clause, and
-comments. The named principals are collected from every matching statement,
-de-duplicated, and rendered as `domain/group`. A group written without a domain
-is rendered as `Default/group` in the new statement.
+1. Confirm the candidate list and every skipped-statement reason.
+2. Read the proposed statement text and its target compartment.
+3. Confirm source policies retain statements that are not part of the plan.
+4. Review the execution and rollback output together.
+5. Apply the steps through the OCI CLI or Console under your normal change
+   controls.
+6. If working against a live tenancy, return to the workbench and select
+   **Reload and Check Progress**.
 
-The strategy creates a new policy in the source policy compartment. It does not
-choose one of the existing policies as the survivor. That keeps the location text
-unchanged and leaves a clear audit trail: create the grouped policy, then modify
-or remove each source policy. Rollback removes the new policy and restores the
-source policies from the plan snapshot.
+## Tips
 
-## Operator review checklist
+Here are a few tips to successful use of the Consolidation Workbench:
+1. Test the consolidation workbench with a small number of known statements.  Ideally you can 
+identify a scenario via looking at a couple policy statements on the other tabs. Plan a 
+consolidation using several strategies (one at a time), and look at the changes it suggests.
+2. Create new test compartments and policies in your tenancy with no real resources.  This way, you can 
+run either API simulations or test policy consolidations in a place where no resources exist. 
+3. Clean up first - identify unnecessary statements and remove them and start a consolidation effort from a clean slate.
+4. Use the Historical Comparison and multiple caches (by date loaded), and perform a consolidation, test the results,
+compare history, and run for a while before doing additional consolidation.
 
-Before applying a plan:
-
-1. Confirm the selected candidates and any skipped-statement reasons.
-2. Read each rewritten statement and its target compartment.
-3. Confirm source policies keep all non-selected statements.
-4. Confirm no target policy exceeds the OCI 50-statement limit.
-5. Save and review the rollback section before applying execution commands.
-6. Reload policy data after execution and use the plan status to check for drift.
-
-## Recommendation opportunities
-
-The Policy Consolidation view lists opportunities, not individual statements.
-The table stays short enough to scan: type, number of policies, number of
-statements, scope, a one-line reason, and the next action.
-
-Open the evidence before planning a change. In the desktop application,
-right-click a row and select **Show Consolidation Opportunity**. In the web
-application, click the row to open the detail panel on the right. Both views
-show the policies and statements that make up the opportunity, the shared
-attributes, and the proposed grouped statement when there is one.
-
-An opportunity may be actionable or advisory:
-
-| Opportunity | How rows are formed | Workbench handoff |
-|---|---|---|
-| Policy Grouping | All statements that can become one multi-principal `group` or `dynamic-group` statement. They may come from more than one policy. | Sends the complete statement set and selects **Group Similar Statements**. |
-| Policy Placement | Statements from one source policy with the same effective target path. Statements from different policies or paths remain separate opportunities. | Sends the statement set; choose the placement strategy in the workbench. |
-| Duplicate Scope / Single-statement Policy | A comparison or cleanup hint rather than a prescribed edit. | Review only. No workbench handoff is offered. |
-
-Only actionable rows have a checkbox in the desktop view. On the web, the
-right-click menu offers **Send to Consolidation Workbench** only for actionable
-rows. The handoff replaces the current candidate selection in the workbench; it
-does not delete saved plans or their rollback information.
-
-When the web handoff opens the Consolidation Workbench, the page validates the
-statement IDs against the current candidate list. Protected, invalid, and system
-policy statements remain excluded. Review the selected candidates and generate a
-new proposal in the workbench as usual.
