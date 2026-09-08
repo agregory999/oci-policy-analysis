@@ -113,6 +113,19 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
         ],
         'Destination': '#cardRiskStatement',
     },
+    'deep_effective_paths': {
+        'Action': 'Plan: Review policy placement and move statements closer to their effective scope',
+        'ActionDetail': (
+            'Review these statements in the Policy Analysis and Consolidation workbenches. '
+            'Move a statement only after confirming that its resulting effective access remains unchanged.'
+        ),
+        'ActionSteps': [
+            'Review the policy compartment and effective path for each example.',
+            'Confirm the statement does not intentionally apply to intervening compartments.',
+            'Use a move or consolidation plan to place the statement closer to its effective scope.',
+        ],
+        'Destination': '#cardConsolidation',
+    },
     'limits': {
         'Action': 'Review the Limits tab and reduce/consolidate compartment statements as needed.',
         'ActionDetail': 'Review, consolidate, or delete policy statements in affected compartments.',

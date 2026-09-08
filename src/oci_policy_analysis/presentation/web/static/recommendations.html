@@ -88,7 +88,7 @@
   <body>
     <!-- Top row: page identity + persistent context help -->
     <div class="top-row has-fixed-help">
-      <header class="app-masthead" data-help-title="Recommendations" data-help-body="Read-only recommendations view. This page mirrors TK recommendation sections except workbench/actions.">
+      <header class="app-masthead" data-help-title="Recommendations" data-help-body="Review evidence in the right-side panel, then send supported consolidation opportunities to the workbench.">
         <div class="masthead-brand">
           <span class="masthead-badge">OCI</span>
           <div>
@@ -104,7 +104,7 @@
       <div class="context-help-card context-help-fixed" id="contextHelpCard">
         <p class="context-help-kicker">Context Help</p>
         <h3 id="contextHelpTitle" class="context-help-title">How To Use This Page</h3>
-        <p id="contextHelpBody" class="context-help-body">Review recommendations and analytics in read-only mode. Use table row clicks to inspect full row details.</p>
+        <p id="contextHelpBody" class="context-help-body">Click a row to inspect its evidence. Right-click supported consolidation opportunities to send their complete statement set to the workbench.</p>
       </div>
     </div>
 
@@ -199,7 +199,7 @@
         <!-- Consolidation section -->
         <article id="cardConsolidation" class="card compact-card" data-help-title="Policy Consolidation" data-help-body="Consolidation opportunities from intelligence overlay.">
           <div class="card-title-row"><p class="card-title">Policy Consolidation</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
-          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="consolidationTable"><thead><tr><th>Policy Name(s)</th><th>Compartment</th><th>Principal</th><th>Service/Resource</th><th>Consolidation Reason</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 240px"><table class="analysis-table" id="consolidationTable"><thead><tr><th>Type</th><th>Policies</th><th>Statements</th><th>Scope</th><th>Summary</th><th>Recommended Action</th></tr></thead><tbody></tbody></table></div></div>
         </article>
 
         <!-- Cleanup section -->
@@ -211,6 +211,14 @@
         <!-- Limits section -->
         <article id="cardLimits" class="card compact-card" data-help-title="Limits" data-help-body="Compartment policy statement limits across hierarchy paths.">
           <div class="card-title-row"><p class="card-title">Limits</p><button type="button" class="ghost back-to-top-btn" data-back-to-top>Back to top ↑</button></div>
+          <p id="tenancyPolicyLimitsSummary" class="helper-text">Tenancy policy limits have not been loaded.</p>
+          <div id="tenancyPolicyLimitsEditor" class="inline-field" hidden>
+            <label for="policiesCountLimit" class="no-margin-label">policies-count</label>
+            <input id="policiesCountLimit" type="number" min="1" step="1" inputmode="numeric" />
+            <label for="chainCountLimit" class="no-margin-label">policy-statements-per-compartment-chain-count</label>
+            <input id="chainCountLimit" type="number" min="1" step="1" inputmode="numeric" />
+            <button id="saveTenancyPolicyLimits" type="button" class="ghost">Apply limits</button>
+          </div>
           <div class="table-shell"><div class="table-scroll custom-scrollbar" style="max-height: 220px"><table class="analysis-table" id="limitsTable"><thead><tr><th>Compartment Hierarchy Path</th><th>Direct</th><th>Cumulative</th><th>Status</th><th>Recommendation</th></tr></thead><tbody></tbody></table></div></div>
         </article>
       </section>
@@ -250,7 +258,7 @@
       let contextMenuTableId = '';
       const defaultContextHelp = {
         title: 'How To Use This Page',
-        body: 'Review recommendations and analytics in read-only mode. Use table row clicks to inspect full row details.',
+        body: 'Click a row to inspect its evidence. Right-click supported consolidation opportunities to send them to the workbench.',
       };
 
       const esc = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -577,12 +585,27 @@
         return /request\.principal|any-user|any-group|resource principal|workload/i.test(text);
       }
 
-      function addMenuAction(actions, label, url, enabled = true) {
-        actions.push({ label, url, enabled });
+      function addMenuAction(actions, label, url, enabled = true, onClick = null) {
+        actions.push({ label, url, enabled, onClick });
+      }
+
+      function sendConsolidationOpportunityToWorkbench(row) {
+        if (row?.['Handoff Mode'] !== 'supported') return;
+        const statementIds = Array.isArray(row?.['Statement Internal IDs']) ? row['Statement Internal IDs'] : [];
+        if (!statementIds.length) return;
+        sessionStorage.setItem('oci-policy-analysis:consolidation-handoff', JSON.stringify({
+          statementIds,
+          recommendedStrategy: row['Recommended Strategy'] || '',
+          opportunityId: row['Opportunity ID'] || '',
+        }));
+        window.location.href = '/consolidation-workbench.html';
       }
 
       function contextActionsForRow(tableId, row) {
         const actions = [];
+        if (tableId === 'consolidationTable' && row?.['Handoff Mode'] === 'supported') {
+          addMenuAction(actions, 'Send to Consolidation Workbench', '', true, () => sendConsolidationOpportunityToWorkbench(row));
+        }
         const statement = statementTextForRow(row);
         const policyName = policyNameForRow(row);
         const effectivePath = firstValue(row, ['Effective Path']);
@@ -628,7 +651,9 @@
             const action = actions[Number(btn.dataset.actionIdx)];
             if (!action || action.enabled === false) return;
             recommendationContextMenu.classList.remove('open');
-            if (String(action.url || '').startsWith('#')) {
+            if (typeof action.onClick === 'function') {
+              action.onClick();
+            } else if (String(action.url || '').startsWith('#')) {
               document.querySelector(action.url)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
               window.location.href = action.url;
@@ -800,12 +825,49 @@
         renderSummaryTable(payload);
         renderRiskTables(payload);
         renderTable('supersessionTable', payload.supersession || [], ['Policy Name', 'Effective Path', 'Classification', 'Superseded By']);
-        renderTable('consolidationTable', payload.consolidation || [], ['Policy Name(s)', 'Compartment', 'Principal', 'Service/Resource', 'Consolidation Reason']);
+        renderTable('consolidationTable', payload.consolidation || [], ['Type', 'Policies', 'Statements', 'Scope', 'Summary', 'Recommended Action']);
         renderTable('cleanupTable', payload.cleanup || [], ['Type', 'Name', 'Reason', 'Action']);
         renderTable('limitsTable', payload.limits || [], ['Compartment Hierarchy Path', 'Direct Statements', 'Cumulative Statements', 'Status', 'Recommendation']);
+        renderTenancyPolicyLimits(payload.tenancy_policy_limits || {});
 
         renderSummary(payload);
         renderMeta(payload);
+      }
+
+      function renderTenancyPolicyLimits(limits) {
+        const summary = document.getElementById('tenancyPolicyLimitsSummary');
+        const editor = document.getElementById('tenancyPolicyLimitsEditor');
+        const policiesInput = document.getElementById('policiesCountLimit');
+        const chainInput = document.getElementById('chainCountLimit');
+        const policiesLimit = limits.policies_count;
+        const chainLimit = limits.policy_statements_per_compartment_chain_count;
+        if (policiesLimit && chainLimit) {
+          summary.textContent = `Limits: policies-count: ${policiesLimit} (currently ${limits.policy_count || 0} in tenancy), policy-statements-per-compartment-chain-count: ${chainLimit} (maximum compartment: ${limits.max_chain_count || 0}) | Source: ${limits.source || 'unknown'}`;
+        } else if (limits.offline_editable) {
+          summary.textContent = 'Limits not supplied for this cached/CIS dataset. Enter both values to assess policy and hierarchy counts.';
+        } else {
+          summary.textContent = 'Live OCI limits are unavailable. Verify limits access and reload tenancy data.';
+        }
+        policiesInput.value = policiesLimit || '';
+        chainInput.value = chainLimit || '';
+        editor.hidden = !limits.offline_editable;
+      }
+
+      async function saveTenancyPolicyLimits() {
+        const response = await fetch('/analysis/tenancy-policy-limits', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            policies_count: document.getElementById('policiesCountLimit').value,
+            policy_statements_per_compartment_chain_count: document.getElementById('chainCountLimit').value,
+          }),
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          window.alert(error.detail || 'Unable to save tenancy policy limits.');
+          return;
+        }
+        await loadDashboard();
       }
 
       async function initPage() {
@@ -814,6 +876,7 @@
         bindBackToTopButtons();
         bindRecommendationContextMenu();
         closeRowDetailInspector?.addEventListener('click', clearRowDetailInspector);
+        document.getElementById('saveTenancyPolicyLimits')?.addEventListener('click', saveTenancyPolicyLimits);
         setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
         syncJumpLinks();
         await loadDashboard();

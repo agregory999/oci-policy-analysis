@@ -25,6 +25,7 @@ class UnusedGroupsCheck:
     strategy_id: str = 'unused_groups'
     display_name: str = 'Unused groups'
     category: str = 'cleanup'
+    required_capabilities: frozenset[str] = frozenset({'group_memberships'})
 
     def run(
         self,

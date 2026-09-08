@@ -108,6 +108,62 @@ def _build_engine_with_compartment_repo() -> tuple[PolicyIntelligenceEngine, dic
     return PolicyIntelligenceEngine(repo, strategies=[]), ids
 
 
+def test_recommendation_counts_statements_two_or_more_levels_below_policy() -> None:
+    engine, ids = _build_engine_with_compartment_repo()
+    engine.policy_repo.regular_statements = [
+        {
+            'internal_id': 'root-apps-statement',
+            'policy_name': 'Root Policy',
+            'compartment_ocid': ids['tenancy'],
+            'effective_path': 'root/finance/apps',
+            'statement_text': 'allow group Developers to read buckets in compartment Apps',
+            'subject_type': 'group',
+            'subject': [('Default', 'Developers')],
+            'verb': 'read',
+            'resource': 'buckets',
+            'conditions': '',
+        },
+        {
+            'internal_id': 'root-dev-statement',
+            'policy_name': 'Root Policy',
+            'compartment_ocid': ids['tenancy'],
+            'effective_path': 'root/dev',
+            'statement_text': 'allow group Developers to read buckets in compartment Dev',
+            'subject_type': 'group',
+            'subject': [('Default', 'Developers')],
+            'verb': 'read',
+            'resource': 'buckets',
+            'conditions': '',
+        },
+        {
+            'internal_id': 'finance-subapps-statement',
+            'policy_name': 'Finance Policy',
+            'compartment_ocid': ids['finance'],
+            'effective_path': 'root/finance/apps/subapps',
+            'statement_text': 'allow group Developers to read buckets in compartment SubApps',
+            'subject_type': 'group',
+            'subject': [('Default', 'Developers')],
+            'verb': 'read',
+            'resource': 'buckets',
+            'conditions': '',
+        },
+    ]
+
+    engine.build_overall_recommendations()
+
+    recommendation = next(
+        item
+        for item in engine.overlay['recommendations']
+        if item['Recommendation'] == 'Investigate statements placed two or more levels above their effective scope'
+    )
+    assert recommendation['EvidenceCount'] == 2
+    assert [item['Levels Below Policy'] for item in recommendation['Evidence']] == [2, 2]
+    assert [item['Statement Internal ID'] for item in recommendation['Evidence']] == [
+        'root-apps-statement',
+        'finance-subapps-statement',
+    ]
+
+
 def test_find_invalid_statements_flags_missing_tag_namespace():
     statement = _base_statement()
     engine, repo = _build_engine_with_statement(

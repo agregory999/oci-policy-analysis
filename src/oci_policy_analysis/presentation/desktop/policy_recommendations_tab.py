@@ -20,6 +20,7 @@ import tkinter.messagebox
 from datetime import UTC
 from tkinter import ttk
 
+from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
     RECOMMENDATION_PRIORITY_HIGH,
     RECOMMENDATION_PRIORITY_MEDIUM,
@@ -149,22 +150,35 @@ POLICY_SUPERSESSION_COLUMN_WIDTHS = {
 
 # Policy Consolidation Table Layout
 POLICY_CONSOLIDATION_COLUMNS = [
-    'Statement',
-    'Policy Name(s)',
-    'Compartment',
-    'Principal',
-    'Service/Resource',
-    'Consolidation Reason',
-    'Action',
+    'Opportunity ID',
+    'Type',
+    'Policies',
+    'Statements',
+    'Scope',
+    'Summary',
+    'Recommended Action',
+    'Statement Internal IDs',
+    'Recommended Strategy',
+    'Handoff Mode',
+    'Evidence',
+    'checkable',
+]
+POLICY_CONSOLIDATION_DISPLAY_COLUMNS = [
+    '☑',
+    'Type',
+    'Policies',
+    'Statements',
+    'Scope',
+    'Summary',
+    'Recommended Action',
 ]
 POLICY_CONSOLIDATION_COLUMN_WIDTHS = {
-    'Statement': 350,
-    'Policy Name(s)': 180,
-    'Compartment': 180,
-    'Principal': 180,
-    'Service/Resource': 160,
-    'Consolidation Reason': 280,
-    'Action': 180,
+    'Type': 190,
+    'Policies': 75,
+    'Statements': 90,
+    'Scope': 180,
+    'Summary': 420,
+    'Recommended Action': 230,
 }
 
 logger = get_logger(component='policy_recommendations_tab')
@@ -331,7 +345,7 @@ class PolicyRecommendationsTab(BaseUITab):
     def populate_data(self):
         """
         Called after policy analysis/intelligence is refreshed. Reload all analytics/tables, using timing.
-        Also launches OCI tenancy limits fetch (policies-count, statements-count).
+        Also launches OCI tenancy limits fetch for policy objects and hierarchy statements.
         """
         import threading
 
@@ -346,17 +360,10 @@ class PolicyRecommendationsTab(BaseUITab):
                 hasattr(self.app.policy_compartment_analysis, 'limits_client')
                 and self.app.policy_compartment_analysis.limits_client
             ):
-                txt = 'Tenancy Limits: n/a'
+                txt = self._tenancy_limits_summary()
             else:
-                limits = self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
-                pol_limit, stmt_limit = limits if limits else (None, None)
-                txt = 'Tenancy Limits: '
-                txt_parts = []
-                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
-                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
-                txt += ', '.join(txt_parts)
-            # Always append the hard OCI statements/compartment limit label
-            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+                self.app.policy_compartment_analysis.fetch_tenancy_policy_statement_limits()
+                txt = self._tenancy_limits_summary()
             if hasattr(self, 'tenancy_limit_label_var'):
                 # Set from worker thread: use "after" to update GUI label safely
                 self.after(0, self.tenancy_limit_label_var.set, txt)
@@ -388,11 +395,9 @@ class PolicyRecommendationsTab(BaseUITab):
         limits_combo.bind('<<ComboboxSelected>>', lambda e: self.update_limits_tab_output())
         self.add_context_help(limits_combo, 'Filter compartments by statement count status.')
 
-        # Tenancy Limit Label - now inline, smaller font and lighter weight
+        # Tenancy limit summary and offline/cache entry controls.
         label_initial = (
-            'Tenancy Limits: n/a (Not available from cache/compliance load)'
-            if not can_check_limits
-            else 'Tenancy policy statement limit: [not fetched]'
+            self._tenancy_limits_summary() if not can_check_limits else 'Tenancy policy statement limit: [not fetched]'
         )
         self.tenancy_limit_label_var = tk.StringVar(value=label_initial)
         self.tenancy_limit_label = ttk.Label(
@@ -403,8 +408,7 @@ class PolicyRecommendationsTab(BaseUITab):
         )
         self.tenancy_limit_label.pack(side='left', padx=(0, 4), pady=2)
         self.add_context_help(
-            self.tenancy_limit_label,
-            'Tenancy limits shown as "n/a" if unavailable because data was loaded from cache or compliance output. The statements / compartment limits is always 500, as this is a hard limit from OCI. See the link to Docs on the Limits tab.',
+            self.tenancy_limit_label, 'Shows policy-object and hierarchy-statement limits for this tenancy snapshot.'
         )
 
         doc_url = (
@@ -423,7 +427,7 @@ class PolicyRecommendationsTab(BaseUITab):
 
         doc_link.bind('<Button-1>', open_doc_link)
         self.add_context_help(
-            doc_link, 'Open Oracle documentation on OCI policy compartment hierarchy statement limits.'
+            doc_link, 'Open Oracle documentation for policies-count and policy statement hierarchy limits.'
         )
 
         # Data Table for compartment statement limits
@@ -457,7 +461,8 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def update_limits_tab_output(self):
         # Thresholds
-        LIMIT = 500
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        LIMIT = limits.get('policy_statements_per_compartment_chain_count')
         NEAR = 0.85
         compartments = getattr(self.app.policy_compartment_analysis, 'compartments', None)
         results = []
@@ -475,7 +480,10 @@ class PolicyRecommendationsTab(BaseUITab):
             if path is None or direct is None or cumulative is None:
                 logger.warning(f'[LimitsTab] Compartment {i} missing key fields: {comp}')
                 continue
-            if cumulative > LIMIT:
+            if not LIMIT:
+                status = 'Limit Not Supplied'
+                rec = 'Enter policy-statements-per-compartment-chain-count to assess this hierarchy.'
+            elif cumulative > LIMIT:
                 status = 'Over Limit'
                 rec = (
                     'Reduce or consolidate policy statements in this compartment/hierarchy to avoid enforcement errors.'
@@ -509,6 +517,26 @@ class PolicyRecommendationsTab(BaseUITab):
         filtered.sort(key=lambda x: x['Cumulative Statements'], reverse=True)
         self.limits_table.update_data(filtered)
 
+    def _tenancy_limits_summary(self) -> str:
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        policies_limit = limits.get('policies_count')
+        chain_limit = limits.get('policy_statements_per_compartment_chain_count')
+        if not policies_limit or not chain_limit:
+            return 'Limits not supplied for this dataset: enter them in Policy Browser > Show Limit Data.'
+        max_chain = max(
+            (
+                int(c.get('statement_count_cumulative', 0) or 0)
+                for c in getattr(self.policy_repo, 'compartments', []) or []
+            ),
+            default=0,
+        )
+        return (
+            f'Limits: policies-count: {policies_limit} '
+            f'(currently {len(getattr(self.policy_repo, "policies", []) or [])} in tenancy), '
+            f'policy-statements-per-compartment-chain-count: {chain_limit} '
+            f'(maximum compartment: {max_chain}) | Source: {limits.get("source", "unknown")}'
+        )
+
     # Button callback to fetch tenancy policy/statement limits and update label
     def fetch_tenancy_policy_statement_limits(self):
         import threading
@@ -516,17 +544,10 @@ class PolicyRecommendationsTab(BaseUITab):
         def update_label():
             repo = self.app.policy_compartment_analysis
             if not (hasattr(repo, 'limits_client') and repo.limits_client):
-                txt = 'Tenancy Limits: n/a'
+                txt = self._tenancy_limits_summary()
             else:
-                limits = repo.fetch_tenancy_policy_statement_limits()
-                pol_limit, stmt_limit = limits if limits else (None, None)
-                txt = 'Tenancy Limits: '
-                txt_parts = []
-                txt_parts.append(f'{pol_limit if pol_limit is not None else "n/a"} policies / tenancy')
-                txt_parts.append(f'{stmt_limit if stmt_limit is not None else "n/a"} statements / policy')
-                txt += ', '.join(txt_parts)
-            # Always append the hard OCI statements/compartment limit label
-            txt = f'{txt} | Statements / Compartment: {self.STATEMENTS_PER_COMPARTMENT_LIMIT}'
+                repo.fetch_tenancy_policy_statement_limits()
+                txt = self._tenancy_limits_summary()
             if hasattr(self, 'tenancy_limit_label_var'):
                 self.after(0, self.tenancy_limit_label_var.set, txt)
 
@@ -1668,71 +1689,247 @@ class PolicyRecommendationsTab(BaseUITab):
         """
         Build the Policy Consolidation notebook sub-tab.
         """
-        # Workbench area with instructions and button to open consolidation workbench (not implemented yet - manual process for now)
+        # Workbench area routes selected findings to the advanced consolidation
+        # workflow without duplicating its strategy selection and validation.
         workbench_frame = ttk.Frame(parent)
         workbench_frame.pack(fill='x', padx=10, pady=(8, 4))
         workbench_frame.columnconfigure(0, weight=1)
         workbench_frame.columnconfigure(1, weight=0)
         ttk.Label(
             workbench_frame,
-            text='Consolidation suggestions show opportunities to streamline policy statements. To act on these suggestions, manage policies manually using the Policy Analysis and Browser tabs. Automated batch consolidation is not available in this version.',
+            text=(
+                'Consolidation suggestions and Policy Placement findings identify statements to review. '
+                'Use Show Consolidation Opportunity to review evidence. Check only opportunities marked ready '
+                'for the Consolidation Workbench.'
+            ),
             # wraplength=700,
             justify='left',
         ).grid(row=0, column=0, sticky='w', padx=(0, 8))
         self.add_context_help(
             workbench_frame,
-            'The table below lists detected consolidation opportunities; review and act on these in the main Policy Analysis and Browser tabs as desired.',
+            'The table is a compact opportunity queue. Right-click any row to inspect all policies, statements, and evidence.',
         )
 
-        def on_take_action(selected):
-            tkinter.messagebox.showinfo('Not Implemented', 'Policy consolidation actions are not implemented yet.')
+        filter_frame = ttk.Frame(parent)
+        filter_frame.pack(fill='x', padx=10, pady=(2, 4))
+        ttk.Label(filter_frame, text='Consolidation type:').pack(side='left', padx=(0, 4))
+        self.consolidation_type_var = tk.StringVar(value='All')
+        self.consolidation_type_combo = ttk.Combobox(
+            filter_frame, textvariable=self.consolidation_type_var, state='readonly', values=['All'], width=34
+        )
+        self.consolidation_type_combo.pack(side='left', padx=(0, 12))
+        self.consolidation_type_combo.bind('<<ComboboxSelected>>', lambda _event: self._apply_consolidation_filters())
+        ttk.Label(filter_frame, text='Search:').pack(side='left', padx=(0, 4))
+        self.consolidation_search_var = tk.StringVar()
+        search_entry = ttk.Entry(filter_frame, textvariable=self.consolidation_search_var, width=34)
+        search_entry.pack(side='left', fill='x', expand=True)
+        self.consolidation_search_var.trace_add('write', lambda *_args: self._apply_consolidation_filters())
+        ttk.Button(filter_frame, text='Clear', command=self._clear_consolidation_filters).pack(side='left', padx=(6, 0))
+
+        self.consolidation_guidance_var = tk.StringVar(
+            value='Choose a consolidation type to see the strategy best suited to that finding.'
+        )
+        ttk.Label(parent, textvariable=self.consolidation_guidance_var, justify='left', wraplength=1000).pack(
+            fill='x', padx=10, pady=(0, 2)
+        )
 
         self.consolidation_table = CheckboxTable(
             parent,
             columns=POLICY_CONSOLIDATION_COLUMNS,
+            display_columns=POLICY_CONSOLIDATION_DISPLAY_COLUMNS,
             data=[],
             column_widths=POLICY_CONSOLIDATION_COLUMN_WIDTHS,
-            # action_buttons=[('Take Actions', on_take_action)],
+            action_buttons=[('Create Consolidation Plan', self._on_create_consolidation_plan)],
             enable_select_all=True,
             checked_by_default=False,
+            row_context_menu_callback=self._consolidation_row_context_menu,
         )
         self.consolidation_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
+        self.consolidation_plan_button = self.consolidation_table.action_btns[0]
+        self.update_consolidation_plan_availability()
         self.add_context_help(
-            self.consolidation_table, 'Review consolidation candidates and organize statements as indicated.'
+            self.consolidation_table,
+            'Only actionable opportunities show a checkbox. Use the context menu to review the complete evidence before handoff.',
         )
 
     # REMOVED: _on_open_consolidation_workbench() (workbench not available)
 
     def update_consolidation_tab_output(self):
         """Refresh the consolidation tab's data after analytics reload."""
-        consolidations = self._get_policy_consolidation_rows()
-        logger.info(f'Updating consolidation tab with {len(consolidations)} records.')
+        self._all_consolidation_rows = self._get_policy_consolidation_rows()
+        types = sorted({str(row.get('Type') or '') for row in self._all_consolidation_rows if row.get('Type')})
+        if hasattr(self, 'consolidation_type_combo'):
+            self.consolidation_type_combo['values'] = ['All', *types]
+            if self.consolidation_type_var.get() not in {'All', *types}:
+                self.consolidation_type_var.set('All')
+        self._apply_consolidation_filters()
+
+    def _clear_consolidation_filters(self) -> None:
+        self.consolidation_type_var.set('All')
+        self.consolidation_search_var.set('')
+
+    def _apply_consolidation_filters(self) -> None:
+        rows = list(getattr(self, '_all_consolidation_rows', []) or [])
+        selected_type = self.consolidation_type_var.get() if hasattr(self, 'consolidation_type_var') else 'All'
+        query = (
+            self.consolidation_search_var.get().strip().casefold() if hasattr(self, 'consolidation_search_var') else ''
+        )
+        if selected_type != 'All':
+            rows = [row for row in rows if row.get('Type') == selected_type]
+        if query:
+            rows = [row for row in rows if query in ' '.join(str(value) for value in row.values()).casefold()]
+        logger.info('Updating consolidation tab with %d filtered records.', len(rows))
         if hasattr(self, 'consolidation_table'):
-            self.consolidation_table.update_data(consolidations)
+            self.consolidation_table.update_data(rows)
+        if hasattr(self, 'consolidation_guidance_var'):
+            guidance = {
+                'Single-statement policy': 'Strategy: review nearby policies with the same principal and scope; merge only when the combined policy remains clear and within statement limits.',
+                'Duplicate scope across policies': 'Strategy: compare the grouped policies, retain the least-privileged effective statements, then consolidate duplicates into one clearly named policy.',
+                'Policy placement': 'Strategy: use the Policy Placement workbench to move statements nearer their effective scope after checking inherited access.',
+                'Group similar statements': 'Strategy: review the grouped evidence, then send the complete statement set to Group Similar Statements.',
+            }
+            self.consolidation_guidance_var.set(
+                guidance.get(
+                    selected_type, 'Choose a consolidation type to see the strategy best suited to that finding.'
+                )
+            )
+
+    def update_consolidation_plan_availability(self):
+        """Enable the workbench handoff only while Advanced Tabs are visible."""
+        if not hasattr(self, 'consolidation_plan_button'):
+            return
+        enabled = bool(
+            getattr(self.app, 'advanced_tabs_visible', False) and getattr(self.app, 'consolidation_tab', None)
+        )
+        self.consolidation_plan_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+
+    def _on_create_consolidation_plan(self, selected_rows):
+        """Transfer complete actionable opportunities to the advanced workbench."""
+        if not getattr(self.app, 'advanced_tabs_visible', False) or not getattr(self.app, 'consolidation_tab', None):
+            tkinter.messagebox.showinfo(
+                'Advanced Tabs required',
+                'Enable Settings > Show Advanced Tabs to create a consolidation plan from selected findings.',
+            )
+            return
+        actionable = [row for row in selected_rows if row.get('Handoff Mode') == 'supported']
+        if len(actionable) != len(selected_rows):
+            tkinter.messagebox.showinfo(
+                'Review-only opportunity selected',
+                'Only supported opportunities can be sent to the Consolidation Workbench. Use Show Consolidation Opportunity for advisory rows.',
+            )
+            return
+        strategy_names = {str(row.get('Recommended Strategy') or '') for row in actionable}
+        if len(strategy_names) > 1:
+            tkinter.messagebox.showinfo(
+                'Select one opportunity type',
+                'Send one supported opportunity type at a time so the Consolidation Workbench can use its recommended strategy.',
+            )
+            return
+        statement_ids = {
+            str(statement_id)
+            for row in actionable
+            for statement_id in (row.get('Statement Internal IDs') or [])
+            if str(statement_id)
+        }
+        if not statement_ids:
+            tkinter.messagebox.showinfo(
+                'Select an actionable opportunity',
+                'Select one or more checked opportunities with statement evidence.',
+            )
+            return
+        if not tkinter.messagebox.askyesno(
+            'Create Consolidation Plan',
+            (
+                f'Open Candidate Selection with {len(statement_ids)} selected statement(s)?\n\n'
+                + (
+                    f'The recommended strategy, {next(iter(strategy_names))}, will be preselected. '
+                    if next(iter(strategy_names))
+                    else 'Choose the appropriate placement strategy in the Consolidation Workbench. '
+                )
+                + 'The resulting proposal applies only to these statements and replaces the current workbench candidate selection.'
+            ),
+        ):
+            return
+        accepted_ids = self.app.consolidation_tab.select_candidate_statements(
+            statement_ids, strategy_display_name=next(iter(strategy_names)) or None
+        )
+        if not accepted_ids:
+            tkinter.messagebox.showwarning(
+                'No available candidates',
+                'The selected statements are protected, invalid, or belong to a system policy and cannot be consolidated.',
+            )
+            return
+        self.app.notebook.select(self.app.consolidation_tab)
+
+    def _consolidation_row_context_menu(self, row_index):
+        """Expose the detailed evidence without overcrowding the opportunity table."""
+        row = self.consolidation_table.data[row_index]
+        menu = tk.Menu(self.consolidation_table, tearoff=0)
+        menu.add_command(
+            label='Show Consolidation Opportunity', command=lambda: self._show_consolidation_opportunity(row)
+        )
+        return menu
+
+    def _show_consolidation_opportunity(self, opportunity: dict) -> None:
+        """Display a read-only policy-and-statement evidence dialog for one opportunity."""
+        dialog = tk.Toplevel(self.winfo_toplevel())
+        dialog.title(f"Consolidation Opportunity: {opportunity.get('Type', 'Unknown')}")
+        dialog.transient(self.winfo_toplevel())
+        dialog.geometry('960x620')
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(1, weight=1)
+        ttk.Label(
+            dialog,
+            text=(
+                f"{opportunity.get('Type', '')}  |  {opportunity.get('Policies', 0)} policies  |  "
+                f"{opportunity.get('Statements', 0)} statements\n{opportunity.get('Summary', '')}"
+            ),
+            justify='left',
+            wraplength=900,
+        ).grid(row=0, column=0, sticky='ew', padx=12, pady=(12, 6))
+        text = tk.Text(dialog, wrap='word', height=25)
+        text.grid(row=1, column=0, sticky='nsew', padx=12, pady=6)
+        evidence = opportunity.get('Evidence') or {}
+        lines = [
+            f"Recommended action: {opportunity.get('Recommended Action', '')}",
+            f"Handoff: {opportunity.get('Handoff Mode', '')}",
+            '',
+            'Why this is an opportunity:',
+            str(evidence.get('reason') or ''),
+            '',
+            'Commonality:',
+            str(evidence.get('commonality') or ''),
+            '',
+            'Policies and statements:',
+        ]
+        for item in evidence.get('members') or []:
+            lines.extend(
+                [
+                    f"• {item.get('policy_name') or 'Unknown policy'} ({item.get('policy_ocid') or 'no OCID'})",
+                    f"  [{item.get('internal_id') or 'no internal ID'}] {item.get('statement_text') or ''}",
+                ]
+            )
+        proposed = evidence.get('proposed_statement')
+        if proposed:
+            lines.extend(['', 'Proposed grouped statement:', str(proposed)])
+        text.insert('1.0', '\n'.join(lines))
+        text.configure(state='disabled')
+        actions = ttk.Frame(dialog)
+        actions.grid(row=2, column=0, sticky='ew', padx=12, pady=(4, 12))
+        if opportunity.get('Handoff Mode') == 'supported':
+            ttk.Button(
+                actions,
+                text='Send to Consolidation Workbench',
+                command=lambda: (dialog.destroy(), self._on_create_consolidation_plan([opportunity])),
+            ).pack(side='left')
+        ttk.Button(actions, text='Close', command=dialog.destroy).pack(side='right')
 
     def _get_policy_consolidation_rows(self):
-        """
-        Normalize/present policy consolidation records for CheckboxTable row format.
-
-        Always uses overlay['consolidations'].
-        Ensures all columns exist, defaulting to '' if missing.
-        """
-        # do this more like _get_cleanup_issues
+        """Return shared opportunity rows for the desktop consolidation table."""
         intelligence = getattr(self.app, 'policy_intelligence', None)
         overlay = getattr(intelligence, 'overlay', {}) if intelligence else {}
-        consolidations = overlay.get('consolidations', {})
-        # consolidations = getattr(self.app.policy_intelligence.overlay, "consolidations", []) if hasattr(self.app.policy_intelligence, "overlay") else []
-
-        normalized = []
-        required_cols = POLICY_CONSOLIDATION_COLUMNS
-        for row in consolidations:
-            norm = {col: row.get(col, '') for col in required_cols}
-            # Human-friendly blank for missing values
-            for k, v in norm.items():
-                if v is None:
-                    norm[k] = ''
-            normalized.append(norm)
-        return normalized
+        repo = getattr(self.app, 'policy_compartment_analysis', None)
+        return build_consolidation_opportunities(overlay, repo)
 
     # --- Cleanup / Fix Tab ---
     def _load_ignored_cleanup_keys_from_state(self):

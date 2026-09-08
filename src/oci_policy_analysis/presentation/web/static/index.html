@@ -311,6 +311,7 @@
       function updateDatasetDetail(summary = {}) {
         const datasetDetail = document.getElementById('sharedDatasetDetail');
         if (!datasetDetail) return;
+        void window.ociPolicyAnalysisRefreshComplianceCapabilities?.(summary);
         const source = summary.loaded_from_compliance_output
           ? 'Compliance Output'
           : summary.policies_loaded_from_tenancy
@@ -443,7 +444,10 @@
           updateProgressWidget(progressFromStages('cache', payload.stages || []));
           updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
-          if (payload.success) await loadCaches();
+          if (payload.success) {
+            await loadCaches();
+            await refreshTenancyDataStatus();
+          }
         } catch (err) {
           loadStatus.textContent = `Failed to load cache: ${err}`;
           loadStatus.className = 'status error';
@@ -544,7 +548,10 @@
           updateProgressWidget(progressFromStages('tenancy', payload.stages || []));
           updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
-          if (payload.success) await loadCaches();
+          if (payload.success) {
+            await loadCaches();
+            await refreshTenancyDataStatus();
+          }
         } catch (err) {
           tenancyStatus.textContent = `Load failed: ${err}`;
           tenancyStatus.className = 'status error';
@@ -581,7 +588,10 @@
           updateProgressWidget(progressFromStages('compliance', payload.stages || []));
           updateStageHistory(payload.stages || []);
           updateDatasetDetail(payload.summary || {});
-          if (payload.success) await loadCaches();
+          if (payload.success) {
+            await loadCaches();
+            await refreshTenancyDataStatus();
+          }
         } catch (err) {
           complianceStatus.textContent = `Compliance load failed: ${err}`;
           complianceStatus.className = 'status error';

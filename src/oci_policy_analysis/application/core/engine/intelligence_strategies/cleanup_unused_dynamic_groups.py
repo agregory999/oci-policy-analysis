@@ -24,6 +24,7 @@ class UnusedDynamicGroupsCheck:
     strategy_id: str = 'unused_dynamic_groups'
     display_name: str = 'Unused dynamic groups'
     category: str = 'cleanup'
+    required_capabilities: frozenset[str] = frozenset({'dynamic_groups_inventory'})
 
     def run(
         self,

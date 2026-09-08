@@ -1,3 +1,26 @@
+## [6.5.0-new-consolidation-strategy.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.0-new-consolidation-strategy.1...v6.5.0-new-consolidation-strategy.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* refine policy limits displays and usage guidance ([e39ebf9](https://github.com/agregory999/oci-policy-analysis/commit/e39ebf9df9ff143305b9fa856d265212cec63fed))
+
+## [6.5.0-new-consolidation-strategy.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0-new-consolidation-strategy.1) (2026-09-04)
+
+
+### Features
+
+* add policy grouping consolidation workflow ([2c58275](https://github.com/agregory999/oci-policy-analysis/commit/2c58275431dcaab476d01eede578a91453145a32))
+* add tenancy-specific policy limit checks and offline overrides ([75667f0](https://github.com/agregory999/oci-policy-analysis/commit/75667f0846473776db1121947b1fbe6a7d792835))
+* Limited CIS Load and Consolidation plan updates ([1c2b7e9](https://github.com/agregory999/oci-policy-analysis/commit/1c2b7e988eb29ac96335b3f253bc349e54b41484))
+
+## [6.5.0-partial-cis-compliance-load.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0-partial-cis-compliance-load.1) (2026-09-03)
+
+
+### Features
+
+* Limited CIS Load and Consolidation plan updates ([1c2b7e9](https://github.com/agregory999/oci-policy-analysis/commit/1c2b7e988eb29ac96335b3f253bc349e54b41484))
+
 ## [6.4.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.3.1...v6.4.0) (2026-09-02)
 
 

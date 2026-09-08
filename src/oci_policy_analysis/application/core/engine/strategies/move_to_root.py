@@ -17,13 +17,12 @@ from dataclasses import dataclass
 
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     flatten_defined_tags,
-    internal_id_to_statement,
     now_iso,
     policy_statement_texts,
     policy_tag_maps,
     trace_and_rewrite_candidate_statement_location,
 )
-from oci_policy_analysis.application.core.models.models import BasePolicy
+from oci_policy_analysis.application.core.engine.strategies.base import BaseConsolidationStrategy
 from oci_policy_analysis.application.core.models.models_consolidation import (
     ConsolidationPlan,
     PlanStep,
@@ -42,7 +41,7 @@ ROOT_PATH = 'ROOT'
 
 
 @dataclass(frozen=True)
-class MoveToRootCompartment:
+class MoveToRootCompartment(BaseConsolidationStrategy):
     """
     Consolidation strategy: move all selected statements into a newly created
     policy at the root compartment. Uses effective-path location rewrite.
@@ -51,6 +50,7 @@ class MoveToRootCompartment:
 
     strategy_id: str = 'move_to_root'
     display_name: str = 'Move to Root Compartment'
+    required_capabilities: frozenset[str] = frozenset({'policy_statements', 'policy_objects', 'compartment_hierarchy'})
 
     def build_plan(  # noqa: C901
         self,
@@ -64,23 +64,16 @@ class MoveToRootCompartment:
         params: dict[str, object] | None = None,
     ) -> ConsolidationPlan:
         """Build a plan: one CREATE at root, then UPDATE/DELETE per source policy."""
-        params = params or {}
-        tag_key = str(params.get('marker_tag_key') or 'opa_consolidation')
-
-        st_idx = internal_id_to_statement(repo)
-        effective_candidates = [
-            iid for iid in candidate_internal_ids if iid in st_idx and iid not in protected_internal_ids
-        ]
+        context = self.planning_context(
+            repo=repo, tenancy_ocid=tenancy_ocid, dataset_version=dataset_version, plan_id=plan_id, params=params
+        )
+        tag_key = context.tag_key
+        st_idx = context.statements_by_id
+        effective_candidates = self.effective_candidates(context, candidate_internal_ids, protected_internal_ids)
         if not effective_candidates:
             logger.info('build_plan: no effective candidates; returning empty plan')
-            return ConsolidationPlan(
-                plan_id=plan_id,
-                tenancy_ocid=tenancy_ocid,
-                plan_label=f'{self.display_name} (empty)',
-                created_at=now_iso(),
-                plan_steps=[],
-                plan_tags={'strategy_id': self.strategy_id},
-                notes='No effective candidates (all protected or not found in repository).',
+            return self.empty_plan(
+                context, reason='No effective candidates (all protected or not found in repository).'
             )
 
         if len(effective_candidates) > MAX_STATEMENTS_MOVE_TO_ROOT:
@@ -109,7 +102,7 @@ class MoveToRootCompartment:
                 skipped_statements=skipped,
             )
 
-        root_ocid = getattr(repo, 'tenancy_ocid', None) or ''
+        root_ocid = context.root_ocid
         if not root_ocid:
             logger.warning('build_plan: no tenancy_ocid on repo; cannot resolve root compartment')
             reason = 'Tenancy root not available'
@@ -132,10 +125,7 @@ class MoveToRootCompartment:
                 skipped_statements=skipped,
             )
 
-        policies_by_ocid: dict[str, BasePolicy] = {
-            p.get('policy_ocid'): p for p in (getattr(repo, 'policies', []) or []) if p.get('policy_ocid')
-        }
-        _compartments = getattr(repo, 'compartments', []) or []
+        policies_by_ocid = context.policies_by_ocid
 
         # Rewrite each selected statement for root compartment; collect notes
         rewritten_texts: list[str] = []
@@ -260,15 +250,4 @@ class MoveToRootCompartment:
             len(steps),
             len(steps) - 1,
         )
-        return ConsolidationPlan(
-            plan_id=plan_id,
-            tenancy_ocid=tenancy_ocid,
-            plan_label=f'{self.display_name} ({len(effective_candidates)} statements)',
-            created_at=now_iso(),
-            plan_steps=steps,
-            plan_tags={
-                'strategy_id': self.strategy_id,
-                'marker_tag_key': tag_key,
-                'dataset_version': dataset_version or '',
-            },
-        )
+        return self.finalize_plan(context, plan_steps=steps, candidate_count=len(effective_candidates))

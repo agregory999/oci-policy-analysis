@@ -86,20 +86,6 @@ class PolicyBrowserTab(BaseUITab):
         sep = ttk.Separator(self.button_row, orient='vertical')
         sep.pack(side='left', fill='y', padx=(8, 8), pady=3)
 
-        # --- Show Policy Statement Limits Checkbox ---
-        self.show_limits_var = tk.BooleanVar(value=False)
-        show_limits_chk = ttk.Checkbutton(
-            self.button_row,
-            text='Show Policy Statement Limits',
-            variable=self.show_limits_var,
-            command=self.refresh_tree,
-        )
-        show_limits_chk.pack(side='left', padx=(0, 8), pady=2)
-        self.add_context_help(
-            show_limits_chk,
-            'Toggle display of policy statement count summary and coloring per compartment. If unchecked, hides statement count info.',
-        )
-
         # Label for text search, then live search box, then clear button
         search_label = ttk.Label(self.button_row, text='Search:')
         search_label.pack(side='left', padx=(0, 2), pady=2)
@@ -110,6 +96,21 @@ class PolicyBrowserTab(BaseUITab):
 
         clear_btn = ttk.Button(self.button_row, text='Clear', command=self.on_clear_search)
         clear_btn.pack(side='left', padx=(0, 3), pady=2)
+
+        # Limit data belongs beside search because it changes the tree detail,
+        # not the navigation controls to its left.
+        self.show_limit_data_var = tk.BooleanVar(value=False)
+        show_limit_data_chk = ttk.Checkbutton(
+            self.button_row,
+            text='Show Limit Data',
+            variable=self.show_limit_data_var,
+            command=self._toggle_policy_data,
+        )
+        show_limit_data_chk.pack(side='left', padx=(8, 8), pady=2)
+        self.add_context_help(
+            show_limit_data_chk,
+            'Show policy statement counts in the tree and tenancy-specific policy limits. For cached or CIS data, enter limits here when OCI cannot fetch them.',
+        )
 
         self.add_context_help(
             search_entry,
@@ -122,6 +123,20 @@ class PolicyBrowserTab(BaseUITab):
         self.add_context_help(
             clear_btn,
             'Reset the search and show all compartments, policies, and statements.',
+        )
+
+        self.policy_data_frame = ttk.Frame(display_frame)
+        self.policy_data_summary_var = tk.StringVar()
+        ttk.Label(self.policy_data_frame, textvariable=self.policy_data_summary_var).pack(side='left', padx=(0, 8))
+        self.user_policy_limit_var = tk.StringVar()
+        self.user_chain_limit_var = tk.StringVar()
+        self.policy_limit_input_frame = ttk.Frame(self.policy_data_frame)
+        ttk.Label(self.policy_limit_input_frame, text='policies-count:').pack(side='left', padx=(0, 2))
+        ttk.Entry(self.policy_limit_input_frame, textvariable=self.user_policy_limit_var, width=7).pack(side='left')
+        ttk.Label(self.policy_limit_input_frame, text='chain count:').pack(side='left', padx=(5, 2))
+        ttk.Entry(self.policy_limit_input_frame, textvariable=self.user_chain_limit_var, width=7).pack(side='left')
+        ttk.Button(self.policy_limit_input_frame, text='Apply limits', command=self._apply_user_supplied_limits).pack(
+            side='left', padx=(4, 0)
         )
 
         # OCI GenAI controls are an opt-in desktop preview.
@@ -482,15 +497,19 @@ class PolicyBrowserTab(BaseUITab):
                 # Compartment node is always default background
                 comp_node = self.tree.insert(parent_id, 'end', text=f'Compartment: {c["comp_name"]}', open=True)
                 # Insert counts row only if limits option is set, with color/message logic
-                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
+                if getattr(self, 'show_limit_data_var', None) is not None and self.show_limit_data_var.get():
                     cum_count = c.get('statement_count_cumulative', 0)
                     direct_count = c.get('statement_count_direct', 0)
-                    if cum_count > 500:
+                    chain_limit = self._chain_limit()
+                    if not chain_limit:
+                        count_tag = 'bg_yellow'
+                        status_msg = ' (Limit not supplied)'
+                    elif cum_count > chain_limit:
                         count_tag = 'bg_red'
                         status_msg = ' (Over limit! Reduce statements.)'
-                    elif cum_count >= 450:
+                    elif cum_count >= int(chain_limit * 0.85):
                         count_tag = 'bg_yellow'
-                        status_msg = ' (Warning: 90%+ of maximum allowed)'
+                        status_msg = ' (Warning: 85%+ of maximum allowed)'
                     else:
                         count_tag = 'bg_green'
                         status_msg = ''
@@ -516,6 +535,86 @@ class PolicyBrowserTab(BaseUITab):
                 tree_from_nodes(c.get('descendants', []), comp_node)
 
         tree_from_nodes(roots, '')
+
+    def _chain_limit(self) -> int | None:
+        """Return the active snapshot's hierarchy limit, if it is known."""
+        value = (getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}).get(
+            'policy_statements_per_compartment_chain_count'
+        )
+        try:
+            return int(value) if int(value) > 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    def _policy_data_summary(self) -> str:
+        limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+        policies_limit = limits.get('policies_count')
+        chain_limit = self._chain_limit()
+        if not policies_limit or not chain_limit:
+            if self._is_offline_snapshot():
+                return 'Limits not supplied: enter policies-count and chain count below.'
+            return 'Live OCI limits unavailable. Verify limits access, then reload the tenancy data.'
+        max_chain = max(
+            (int(c.get('statement_count_cumulative', 0) or 0) for c in self.policy_repo.compartments or []),
+            default=0,
+        )
+        return (
+            f'Limits: policies-count: {policies_limit} '
+            f'(currently {len(self.policy_repo.policies)} in tenancy), '
+            f'policy-statements-per-compartment-chain-count: {chain_limit} '
+            f'(maximum compartment: {max_chain}) | Source: {limits.get("source", "unknown")}'
+        )
+
+    def _is_offline_snapshot(self) -> bool:
+        """Manual limits are valid only for a named cache or CIS import."""
+        return bool(
+            getattr(self.policy_repo, 'current_cache_name', '')
+            or getattr(self.policy_repo, 'loaded_from_compliance_output', False)
+        )
+
+    def _toggle_policy_data(self) -> None:
+        if self.show_limit_data_var.get():
+            offline_snapshot = self._is_offline_snapshot()
+            if not offline_snapshot:
+                # Never let an earlier cache/CIS override appear as a live
+                # tenancy value, even if a live limits request later fails.
+                self.policy_repo.tenancy_policy_limits = {}
+            if not offline_snapshot and getattr(self.policy_repo, 'limits_client', None):
+                self.policy_repo.fetch_tenancy_policy_statement_limits()
+            limits = getattr(self.policy_repo, 'tenancy_policy_limits', {}) or {}
+            self.user_policy_limit_var.set(str(limits.get('policies_count') or ''))
+            self.user_chain_limit_var.set(str(limits.get('policy_statements_per_compartment_chain_count') or ''))
+            self.policy_data_summary_var.set(self._policy_data_summary())
+            self.policy_data_frame.pack(fill='x', padx=5, pady=(0, 3))
+            if not offline_snapshot:
+                self.policy_limit_input_frame.pack_forget()
+            else:
+                self.policy_limit_input_frame.pack(side='left')
+        else:
+            self.policy_data_frame.pack_forget()
+        self.refresh_tree()
+
+    def _apply_user_supplied_limits(self) -> None:
+        try:
+            self.policy_repo.set_user_supplied_tenancy_policy_limits(
+                self.user_policy_limit_var.get(), self.user_chain_limit_var.get()
+            )
+        except ValueError as exc:
+            tkmessagebox.showerror('Invalid limits', str(exc))
+            return
+        cache_name = getattr(self.policy_repo, 'current_cache_name', '')
+        if cache_name:
+            self.app.cache_service.cache.update_tenancy_policy_limits(
+                cache_name, self.policy_repo.tenancy_policy_limits
+            )
+        self.policy_data_summary_var.set(self._policy_data_summary())
+        recommendations_tab = getattr(self.app, 'policy_recommendations_tab', None)
+        if recommendations_tab is not None:
+            if hasattr(recommendations_tab, 'tenancy_limit_label_var'):
+                recommendations_tab.tenancy_limit_label_var.set(recommendations_tab._tenancy_limits_summary())
+            if hasattr(recommendations_tab, 'update_limits_tab_output'):
+                recommendations_tab.update_limits_tab_output()
+        self.refresh_tree()
 
     def on_clear_search(self):
         """Clear search box and show full unfiltered tree."""
@@ -812,13 +911,17 @@ class PolicyBrowserTab(BaseUITab):
                 logger.debug(f'Inserted compartment: {comp_display} (id={comp_id_val}) parent_id={parent_ocid}')
 
                 # Show or hide counts row based on user option, and only color this row if visible
-                if getattr(self, 'show_limits_var', None) is not None and self.show_limits_var.get():
-                    if cumulative_count > 500:
+                if getattr(self, 'show_limit_data_var', None) is not None and self.show_limit_data_var.get():
+                    chain_limit = self._chain_limit()
+                    if not chain_limit:
+                        count_tag = 'bg_yellow'
+                        status_msg = ' (Limit not supplied)'
+                    elif cumulative_count > chain_limit:
                         count_tag = 'bg_red'
                         status_msg = ' (Over limit! Reduce statements.)'
-                    elif cumulative_count >= 450:
+                    elif cumulative_count >= int(chain_limit * 0.85):
                         count_tag = 'bg_yellow'
-                        status_msg = ' (Warning: 90%+ of maximum allowed)'
+                        status_msg = ' (Warning: 85%+ of maximum allowed)'
                     else:
                         count_tag = 'bg_green'
                         status_msg = ''

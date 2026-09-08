@@ -46,6 +46,9 @@ class IntelligenceStrategy(Protocol):
     category: str
     """One of: risk, overlap, cleanup, consolidation_suggestion, recommendation."""
 
+    required_capabilities: frozenset[str]
+    """Capabilities required when evaluating a partial CIS Compliance dataset."""
+
     def run(
         self,
         repo: PolicyAnalysisRepository,

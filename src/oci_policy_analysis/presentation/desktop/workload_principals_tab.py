@@ -144,7 +144,7 @@ class WorkloadPrincipalsTab(BaseUITab):
                 'Analyze workload principals, including dynamic groups, any-user resource principals, '
                 'and parsed matching-rule/where-clause structures.'
             ),
-            page_help_link='/usage.html#resource-principals-tab',
+            page_help_link='/usage.html#workload-principals-tab',
         )
         self.app = app
         self.policy_repo: PolicyAnalysisRepository = app.policy_compartment_analysis
@@ -380,7 +380,8 @@ class WorkloadPrincipalsTab(BaseUITab):
         self.dg_labelframe.grid_rowconfigure(0, weight=1)
         self.add_context_help(
             self.dg_labelframe,
-            'Shows list of Dynamic Groups in tenancy. Select to view matching policy statements below.',
+            'Shows Dynamic Group inventory when supplied, or policy-derived names for a partial CIS import. '
+            'Select a name to view matching policy statements below.',
         )
 
         # Dynamic Groups DataTable
@@ -546,10 +547,16 @@ class WorkloadPrincipalsTab(BaseUITab):
 
             # Populate dynamic group table (apply text filter if set, to Matching Rule)
             filtered_dynamic_groups = self.policy_repo.filter_dynamic_groups(filters={})
+            if not filtered_dynamic_groups:
+                filtered_dynamic_groups = self._policy_derived_dynamic_groups()
             filtered_dynamic_groups = [for_display_dynamic_group(dg) for dg in filtered_dynamic_groups]
             if search_text:
                 filtered_dynamic_groups = [
-                    row for row in filtered_dynamic_groups if search_text in (row.get('Matching Rule') or '').lower()
+                    row
+                    for row in filtered_dynamic_groups
+                    if search_text in (row.get('Matching Rule') or '').lower()
+                    or search_text in (row.get('Domain') or '').lower()
+                    or search_text in (row.get('DG Name') or '').lower()
                 ]
             self.rp_dg_table.update_data(filtered_dynamic_groups)
             self.rp_policy_table.update_data([])
@@ -562,6 +569,47 @@ class WorkloadPrincipalsTab(BaseUITab):
 
         suffix = f' ({context})' if context else ''
         self.policy_count_var.set(f'Statements found: {count}{suffix}')
+
+    def _policy_derived_dynamic_groups(self) -> list[DynamicGroup]:
+        """Return named dynamic-group selectors parsed from policy statements.
+
+        A partial CIS export may not include the Dynamic Groups inventory. The
+        policy still gives us a reliable domain/name selector, so make it
+        available for statement filtering while clearly not fabricating a
+        matching rule or an inventory record.
+        """
+        repo = self.policy_repo
+        capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+        if capabilities.get('dynamic_groups_inventory'):
+            return []
+
+        derived: dict[tuple[str, str], DynamicGroup] = {}
+        for statement in getattr(repo, 'regular_statements', []) or []:
+            for principal in statement.get('principals', []) or []:
+                if not isinstance(principal, dict) or principal.get('principal_type') != 'dynamic-group':
+                    continue
+                domain = str(principal.get('domain_name') or 'Default')
+                name = str(principal.get('name') or '').strip()
+                if not name:
+                    continue
+                derived.setdefault(
+                    (domain.casefold(), name.casefold()),
+                    DynamicGroup(
+                        domain_name=domain,
+                        dynamic_group_name=name,
+                        dynamic_group_id='',
+                        dynamic_group_ocid='',
+                        matching_rule='',
+                        matching_rule_structure={},
+                        matching_rule_parsed_structure='',
+                        description='Policy-derived name; dynamic group inventory was not supplied.',
+                        in_use=True,
+                        creation_time='',
+                        created_by_name='',
+                        created_by_ocid='',
+                    ),
+                )
+        return list(derived.values())
 
     def apply_settings(self, context_help: bool, font_size: str):
         """

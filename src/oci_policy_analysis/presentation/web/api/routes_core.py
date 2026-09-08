@@ -1679,6 +1679,29 @@ def get_recommendations_dashboard() -> dict[str, object]:
     return service.get_dashboard_payload()
 
 
+@router.post('/analysis/tenancy-policy-limits')
+def set_tenancy_policy_limits(payload: dict[str, object]) -> dict[str, object]:
+    """Save operator-supplied limits only with the active cache/CIS snapshot."""
+    logger.info('POST /analysis/tenancy-policy-limits')
+    ctx = get_context()
+    repo = ctx.policy_repo
+    offline_snapshot = bool(
+        getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
+    )
+    if not offline_snapshot:
+        raise HTTPException(status_code=409, detail='Live tenancy limits are read from OCI and cannot be overridden.')
+    try:
+        limits = repo.set_user_supplied_tenancy_policy_limits(
+            payload.get('policies_count'), payload.get('policy_statements_per_compartment_chain_count')
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    cache_name = str(getattr(repo, 'current_cache_name', '') or '')
+    if cache_name:
+        ctx.cache.update_tenancy_policy_limits(cache_name, limits)
+    return {'tenancy_policy_limits': RecommendationsService(ctx)._tenancy_policy_limits_payload()}
+
+
 @router.get('/reports/full-overlaps')
 def get_full_overlap_report() -> dict[str, object]:
     """Generate and return the full on-demand policy-overlap report."""
@@ -1997,11 +2020,27 @@ def get_status(request: Request) -> dict[str, object]:
     _require_not_limited(request)
     ctx = get_context()
     repo = ctx.policy_repo
+    raw_capabilities = getattr(repo, 'compliance_capabilities', {}) or {}
+    capabilities = (
+        {str(name): bool(enabled) for name, enabled in raw_capabilities.items()}
+        if isinstance(raw_capabilities, dict)
+        else {}
+    )
+    raw_artifact_counts = getattr(repo, 'compliance_artifact_counts', {}) or {}
+    artifact_counts = (
+        {str(name): int(count or 0) for name, count in raw_artifact_counts.items()}
+        if isinstance(raw_artifact_counts, dict)
+        else {}
+    )
+    is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False) and capabilities)
     summary = {
         'tenancy_ocid': getattr(repo, 'tenancy_ocid', None),
         'tenancy_name': getattr(repo, 'tenancy_name', None),
         'data_as_of': getattr(repo, 'data_as_of', None),
         'loaded_from_compliance_output': getattr(repo, 'loaded_from_compliance_output', False),
+        'is_partial_compliance': is_compliance and not bool(capabilities.get('principal_resolution')),
+        'compliance_capabilities': capabilities,
+        'compliance_artifact_counts': artifact_counts,
         'policies_loaded_from_tenancy': getattr(repo, 'policies_loaded_from_tenancy', False),
         'policy_data_reloaded': getattr(repo, 'policy_data_reloaded', None),
         'load_all_users': getattr(repo, 'load_all_users', None),

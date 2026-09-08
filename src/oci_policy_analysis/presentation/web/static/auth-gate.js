@@ -1,5 +1,149 @@
 (function () {
   const OVERLAY_ID = 'authGateOverlay';
+  const CAPABILITY_BANNER_ID = 'complianceCapabilityBanner';
+  const PAGE_REQUIREMENTS = Object.freeze({
+    '/users-groups-analysis.html': {
+      capability: 'principal_resolution',
+      label: 'User/Group Analysis',
+    },
+    '/dynamic-group-analysis.html': {
+      capability: 'dynamic_groups_inventory',
+      label: 'Dynamic Group Analysis',
+    },
+    '/simulation.html': {
+      capability: 'principal_resolution',
+      label: 'Policy Simulation',
+    },
+    '/permissions-report.html': {
+      capability: 'principal_resolution',
+      label: 'Permissions Analysis',
+    },
+    '/tag-namespaces.html': {
+      capability: 'defined_tag_catalog',
+      label: 'Tag Namespaces',
+    },
+    '/historical-analysis.html': {
+      capability: 'historical_comparison',
+      label: 'Historical Analysis',
+    },
+  });
+
+  function isPartialCompliance(summary) {
+    const capabilities = summary?.compliance_capabilities || {};
+    return Boolean(
+      summary?.is_partial_compliance ||
+      (summary?.loaded_from_compliance_output && Object.keys(capabilities).length && !capabilities.principal_resolution)
+    );
+  }
+
+  function isCapabilityAvailable(capabilities, capability) {
+    return capability === 'historical_comparison'
+      ? false
+      : Boolean(capabilities?.[capability]);
+  }
+
+  function unavailableFeatureLabels(capabilities) {
+    const labels = [];
+    if (!capabilities?.principal_resolution) {
+      labels.push('User/Group Analysis, Permissions Analysis, and Policy Simulation');
+    }
+    if (!capabilities?.dynamic_groups_inventory) labels.push('Dynamic Group Analysis');
+    if (!capabilities?.defined_tag_catalog) labels.push('Tag Namespaces');
+    labels.push('Historical Analysis');
+    return labels;
+  }
+
+  function setNavigationAvailability(capabilities, partial) {
+    Object.entries(PAGE_REQUIREMENTS).forEach(([path, requirement]) => {
+      const available = !partial || isCapabilityAvailable(capabilities, requirement.capability);
+      document.querySelectorAll(`a[href="${path}"]`).forEach((link) => {
+        if (!link.dataset.complianceAvailabilityBound) {
+          link.addEventListener('click', (event) => {
+            if (link.dataset.complianceUnavailable === 'true') event.preventDefault();
+          });
+          link.dataset.complianceAvailabilityBound = 'true';
+        }
+        link.classList.toggle('capability-disabled', !available);
+        link.setAttribute('aria-disabled', String(!available));
+        link.dataset.complianceUnavailable = String(!available);
+        link.title = available
+          ? ''
+          : `${requirement.label} requires data that was not supplied by this partial CIS Compliance import.`;
+      });
+    });
+  }
+
+  function setCurrentPageControls(capabilities, partial) {
+    const requirement = PAGE_REQUIREMENTS[window.location.pathname];
+    const unavailable = Boolean(requirement && partial && !isCapabilityAvailable(capabilities, requirement.capability));
+    document.querySelectorAll('main button, main input, main select, main textarea').forEach((control) => {
+      if (unavailable) {
+        if (control.dataset.complianceOriginalDisabled === undefined) {
+          control.dataset.complianceOriginalDisabled = String(Boolean(control.disabled));
+        }
+        control.disabled = true;
+      } else if (control.dataset.complianceOriginalDisabled !== undefined) {
+        control.disabled = control.dataset.complianceOriginalDisabled === 'true';
+        delete control.dataset.complianceOriginalDisabled;
+      }
+    });
+    document.querySelector('main')?.classList.toggle('capability-restricted', unavailable);
+  }
+
+  function renderComplianceCapabilityBanner(summary) {
+    const existing = document.getElementById(CAPABILITY_BANNER_ID);
+    const partial = isPartialCompliance(summary);
+    const capabilities = summary?.compliance_capabilities || {};
+    setNavigationAvailability(capabilities, partial);
+    setCurrentPageControls(capabilities, partial);
+    if (!partial) {
+      existing?.remove();
+      return;
+    }
+
+    const counts = summary?.compliance_artifact_counts || summary?.entity_counts || {};
+    const loaded = [
+      `${Number(counts.compartments || 0)} compartments`,
+      `${Number(counts.policies || 0)} policies`,
+      `${Number(counts.statements || 0)} statements`,
+    ].join(', ');
+    const unavailable = unavailableFeatureLabels(capabilities).join('; ');
+    const banner = existing || document.createElement('section');
+    banner.id = CAPABILITY_BANNER_ID;
+    banner.className = 'compliance-capability-banner';
+    banner.replaceChildren();
+    const title = document.createElement('p');
+    title.className = 'compliance-capability-title';
+    title.textContent = 'Partial CIS Compliance dataset';
+    const detail = document.createElement('p');
+    detail.textContent = `Loaded ${loaded}. Policy Analysis, Recommendations / Limits, Reports, Consolidation, Workload Principals, and Condition Tester remain available.`;
+    const restriction = document.createElement('p');
+    restriction.className = 'helper-text';
+    restriction.textContent = `Unavailable for this import: ${unavailable}. Load the matching identity artifacts to enable them.`;
+    banner.append(title, detail, restriction);
+    if (!existing) {
+      const main = document.querySelector('main');
+      if (main) main.prepend(banner);
+      else document.body.prepend(banner);
+    }
+  }
+
+  async function refreshComplianceCapabilityUi(summary) {
+    if (summary && Object.prototype.hasOwnProperty.call(summary, 'compliance_capabilities')) {
+      renderComplianceCapabilityBanner(summary);
+      return;
+    }
+    try {
+      const response = await fetch('/status', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      renderComplianceCapabilityBanner(payload.summary || {});
+    } catch (_err) {
+      // Status is intentionally unavailable to limited web-user sessions.
+    }
+  }
+
+  window.ociPolicyAnalysisRefreshComplianceCapabilities = refreshComplianceCapabilityUi;
 
   function removeOverlay() {
     const existing = document.getElementById(OVERLAY_ID);
@@ -124,6 +268,7 @@
       }
       ensureRoleBadge(status);
       ensureLimitedBanner(status);
+      void refreshComplianceCapabilityUi();
       removeOverlay();
       return;
     }
@@ -153,6 +298,7 @@
           }
           ensureRoleBadge(postStatus);
           ensureLimitedBanner(postStatus);
+          void refreshComplianceCapabilityUi();
           removeOverlay();
           return;
         }

@@ -16,13 +16,12 @@ from dataclasses import dataclass
 from oci_policy_analysis.application.core.common.consolidation_helpers import (
     find_compartment_by_hierarchy_path,
     flatten_defined_tags,
-    internal_id_to_statement,
     lca_path,
-    now_iso,
     policy_statement_texts,
     policy_tag_maps,
     trace_and_rewrite_candidate_statement_location,
 )
+from oci_policy_analysis.application.core.engine.strategies.base import BaseConsolidationStrategy
 from oci_policy_analysis.application.core.models.models import BasePolicy
 from oci_policy_analysis.application.core.models.models_consolidation import (
     ConsolidationPlan,
@@ -37,7 +36,7 @@ logger = get_logger(component='core.engine.strategies.consolidation')
 
 # lca_path is now imported from consolidation_helpers
 @dataclass(frozen=True)
-class MoveCloserToTargetCompartment:
+class MoveCloserToTargetCompartment(BaseConsolidationStrategy):
     """
     Consolidation strategy: move selected statements from ROOT downward toward
     the closest permissible compartment for each policy group, preserving the
@@ -47,6 +46,24 @@ class MoveCloserToTargetCompartment:
 
     strategy_id: str = 'move_closer_to_target'
     display_name: str = 'Move Closer to Target Compartment'
+    required_capabilities: frozenset[str] = frozenset({'policy_statements', 'policy_objects', 'compartment_hierarchy'})
+
+    def _target_policy_path(
+        self,
+        *,
+        lca: list[str],
+        source_policy: BasePolicy,
+        compartments: list[dict],
+    ) -> str:
+        """Return the policy compartment immediately above the shared effective scope.
+
+        Keeping the LCA leaf in the rewritten statement location preserves an
+        explicit scope while moving the policy as far down as safely possible.
+        A direct child of ROOT has no non-root parent, so this strategy leaves
+        it unchanged rather than proposing another root-level policy.
+        """
+        del source_policy, compartments
+        return '/'.join(lca[:-1]) if len(lca) >= 3 else ''
 
     def build_plan(  # noqa: C901
         self,
@@ -63,30 +80,21 @@ class MoveCloserToTargetCompartment:
         For each source policy, group all selected statements, find their deepest shared (LCA) effective path,
         and propose a new/modified policy at that compartment and with the original name. Location rewrites are applied.
         """
-        params = params or {}
-        tag_key = str(params.get('marker_tag_key') or 'opa_consolidation')
-
-        st_idx = internal_id_to_statement(repo)
-        effective_candidates = [
-            iid for iid in candidate_internal_ids if iid in st_idx and iid not in protected_internal_ids
-        ]
+        context = self.planning_context(
+            repo=repo, tenancy_ocid=tenancy_ocid, dataset_version=dataset_version, plan_id=plan_id, params=params
+        )
+        tag_key = context.tag_key
+        st_idx = context.statements_by_id
+        effective_candidates = self.effective_candidates(context, candidate_internal_ids, protected_internal_ids)
         if not effective_candidates:
             logger.info('build_plan: no effective candidates (all protected or not found in repository)')
-            return ConsolidationPlan(
-                plan_id=plan_id,
-                tenancy_ocid=tenancy_ocid,
-                plan_label=f'{self.display_name} (empty)',
-                created_at=now_iso(),
-                plan_steps=[],
-                plan_tags={'strategy_id': self.strategy_id},
-                notes='No effective candidates (all protected or not found in repository).',
+            return self.empty_plan(
+                context, reason='No effective candidates (all protected or not found in repository).'
             )
 
-        policies_by_ocid: dict[str, BasePolicy] = {
-            p.get('policy_ocid'): p for p in (getattr(repo, 'policies', []) or []) if p.get('policy_ocid')
-        }
-        compartments = getattr(repo, 'compartments', []) or []
-        root_ocid = getattr(repo, 'tenancy_ocid', None) or ''
+        policies_by_ocid = context.policies_by_ocid
+        compartments = context.compartments
+        root_ocid = context.root_ocid
         ROOT_PATH = 'ROOT'
 
         # find_compartment_by_hierarchy_path is now imported from consolidation_helpers
@@ -117,6 +125,7 @@ class MoveCloserToTargetCompartment:
             # Enhanced Debug: List all statements considered for LCA with their info
             logger.info(f'  Selected statement IDs for LCA: {iids}')
             paths: list[list[str]] = []
+            eligible_iids: list[str] = []
             for iid in iids:
                 statement = st_idx[iid]
                 eff_path_raw = statement.get('effective_path') or ''
@@ -137,6 +146,7 @@ class MoveCloserToTargetCompartment:
                     logger.info(f'      SKIPPED: statement {iid} effective_path is root (ROOT) and cannot be moved.')
                 elif eff_path_split and eff_path_split[0].lower() == ROOT_PATH.lower():
                     paths.append(eff_path_split)
+                    eligible_iids.append(iid)
                 else:
                     logger.info(
                         f"      Skipped statement {iid}: effective_path missing or doesn't start with 'root' (got '{eff_path_raw}')"
@@ -150,30 +160,30 @@ class MoveCloserToTargetCompartment:
             lca = lca_path(paths)
             logger.info(f'  LCA (lowest shared compartment path) for {orig_policy_name}: {lca}')
 
-            # Revised logic: second segment after root is the compartment to target
-            if len(lca) < 2:
-                logger.info(f'  LCA is root or shallower (lca={lca}), no move for {orig_policy_name}')
-                for iid in iids:
+            lca_comp_path = self._target_policy_path(
+                lca=lca,
+                source_policy=src_policy,
+                compartments=compartments,
+            )
+            if not lca_comp_path:
+                logger.info(f'  No safe non-root target for LCA {lca}; no move for {orig_policy_name}')
+                for iid in eligible_iids:
                     skipped_statements.append(
                         SkippedStatement(
                             internal_id=iid,
                             statement_text=st_idx[iid].get('statement_text', ''),
-                            reason='LCA is root or shallower',
+                            reason='No safe non-root policy compartment above the shared effective scope.',
                         )
                     )
-                    logger.info(
-                        f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text','')[:80]}) - LCA is root or shallower"
-                    )
+                    logger.info(f"  SKIPPED: {iid} ({st_idx[iid].get('statement_text','')[:80]}) - no safe target")
                 continue
 
-            # Build the desired compartment path by hierarchy_path, e.g. 'ROOT/cloud-engineering-shared'
-            lca_comp_path = '/'.join(lca[:2]) if len(lca) > 1 else 'ROOT'
             target_comp = find_compartment_by_hierarchy_path(lca_comp_path, compartments)
             if not target_comp:
                 logger.info(
                     f"  LCA compartment for path '{lca_comp_path}' not found for {orig_policy_name} (hierarchy_path case-insensitive match attempted)"
                 )
-                for iid in iids:
+                for iid in eligible_iids:
                     skipped_statements.append(
                         SkippedStatement(
                             internal_id=iid,
@@ -194,7 +204,7 @@ class MoveCloserToTargetCompartment:
                 logger.info(
                     f"  SKIPPED: Policy '{orig_policy_name}' already in compartment '{target_comp_name}'; no move needed."
                 )
-                for iid in iids:
+                for iid in eligible_iids:
                     skipped_statements.append(
                         SkippedStatement(
                             internal_id=iid,
@@ -205,7 +215,7 @@ class MoveCloserToTargetCompartment:
                 continue
             if not target_comp_ocid or target_comp_ocid == root_ocid:
                 logger.info(f'  Target compartment is root or missing; no move from {orig_policy_name}')
-                for iid in iids:
+                for iid in eligible_iids:
                     skipped_statements.append(
                         SkippedStatement(
                             internal_id=iid,
@@ -220,7 +230,7 @@ class MoveCloserToTargetCompartment:
 
             # Only move statements not destined to be skipped
             move_iids = []
-            for iid in iids:
+            for iid in eligible_iids:
                 st = st_idx[iid]
                 orig_comp_ocid = st.get('compartment_ocid', '')
                 if orig_comp_ocid and target_comp_ocid and orig_comp_ocid == target_comp_ocid:
@@ -231,11 +241,7 @@ class MoveCloserToTargetCompartment:
                 continue
 
             # Find if policy already exists in target compartment with this name
-            existing_policy = None
-            for p in policies_by_ocid.values():
-                if p.get('policy_name') == orig_policy_name and p.get('compartment_ocid') == target_comp_ocid:
-                    existing_policy = p
-                    break
+            existing_policy = context.policies_by_location_and_name.get((target_comp_ocid or '', orig_policy_name))
             policy_ocid = existing_policy.get('policy_ocid') or '' if existing_policy else ''
 
             before_statements = policy_statement_texts(repo, policy_ocid) if policy_ocid else []
@@ -389,17 +395,10 @@ class MoveCloserToTargetCompartment:
             plan_id,
             len(plan_steps),
         )
-        return ConsolidationPlan(
-            plan_id=plan_id,
-            tenancy_ocid=tenancy_ocid,
-            plan_label=f'{self.display_name} ({len(effective_candidates)} statements)',
-            created_at=now_iso(),
+        return self.finalize_plan(
+            context,
             plan_steps=plan_steps,
             skipped_statements=skipped_statements,
-            plan_tags={
-                'strategy_id': self.strategy_id,
-                'marker_tag_key': tag_key,
-                'dataset_version': dataset_version or '',
-            },
+            candidate_count=len(effective_candidates),
             notes='See step location_change_notes for details on how each statement was moved.',
         )

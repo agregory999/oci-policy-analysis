@@ -17,10 +17,11 @@ Full documentation
    :caption: Advanced Topics
 
    simulation
+   consolidation
    recommendations
    reports
    tag_based
-   limited_mode
+   limited_modes
    oke_workload_identity
    optional_ai_assist
 

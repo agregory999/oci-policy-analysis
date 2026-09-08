@@ -74,13 +74,11 @@ class DataTable(ttk.Frame):
         self.data = data
         self.sortable = sortable
         self.row_colors = row_colors
-        self.sort_directions: dict[str, bool] = {col: False for col in columns}
+        self.sort_directions: dict[str, bool] = dict.fromkeys(columns, False)
         self.last_sorted_column: str | None = None
         self.last_sort_descending: bool = False
         self.hidden_columns = set(columns) - set(display_columns)
-        self.column_widths: dict[str, int] = (
-            column_widths if column_widths is not None else {col: 100 for col in columns}
-        )
+        self.column_widths: dict[str, int] = column_widths if column_widths is not None else dict.fromkeys(columns, 100)
         self.highlight_rules = highlights or []
         self.min_width = 50
         self.max_width = 300
@@ -528,7 +526,7 @@ class CheckboxTable(ttk.Frame):
         self.enable_select_all = enable_select_all
         self.max_height = max_height
         self.checked_by_default = checked_by_default
-        self.column_widths = {'☑': 34, **(column_widths or {col: 160 for col in columns})}
+        self.column_widths = {'☑': 34, **(column_widths or dict.fromkeys(columns, 160))}
         self._geometry_manager = geometry_manager
         self.check_changed_callback = check_changed_callback
         self.select_all_callback = select_all_callback  # NEW
@@ -550,7 +548,8 @@ class CheckboxTable(ttk.Frame):
         for idx, row in enumerate(data or []):
             # Use 'Internal ID' if present as row key, otherwise fallback to index
             row_id = row.get('Internal ID', idx)
-            checked_state = row.get('checked', self.checked_by_default)
+            checkable = bool(row.get('checkable', True))
+            checked_state = row.get('checked', self.checked_by_default) if checkable else False
             if row_id in self._var_cache:
                 var = self._var_cache[row_id]
                 var.set(checked_state)  # update state in case data changed
@@ -570,7 +569,7 @@ class CheckboxTable(ttk.Frame):
         rendered = []
         for row in self.data:
             r = dict(row)
-            r['☑'] = '☑' if row['☑'].get() else '☐'
+            r['☑'] = ('☑' if row['☑'].get() else '☐') if row.get('checkable', True) else '—'
             rendered.append(r)
         return rendered
 
@@ -592,6 +591,8 @@ class CheckboxTable(ttk.Frame):
         row_idx = self.data_table.data_map.get(item_id, None)
         if row_idx is None:
             return
+        if not self.data[row_idx].get('checkable', True):
+            return
         var = self.check_vars[row_idx]
         var.set(not var.get())
         self._rebuild_table()
@@ -600,7 +601,8 @@ class CheckboxTable(ttk.Frame):
             self.check_changed_callback(self.get_checked_rows())
 
     def _toggle_select_all(self):
-        currently_all = all(var.get() for var in self.check_vars)
+        checkable_rows = [row for row in self.data if row.get('checkable', True)]
+        currently_all = bool(checkable_rows) and all(row['☑'].get() for row in checkable_rows)
         if self.select_all_callback:
             # Provide visible row Internal IDs and intended state to parent
             visible_ids = []
@@ -610,8 +612,8 @@ class CheckboxTable(ttk.Frame):
             self.select_all_callback(visible_ids, not currently_all)
             # parent will trigger table update reflecting new selection
         else:
-            for var in self.check_vars:
-                var.set(not currently_all)
+            for row in checkable_rows:
+                row['☑'].set(not currently_all)
             self._rebuild_table()
             self._update_select_all_label()
             if self.check_changed_callback:
@@ -619,7 +621,8 @@ class CheckboxTable(ttk.Frame):
 
     def _update_select_all_label(self):
         if hasattr(self, 'select_all_btn'):
-            if all(var.get() for var in self.check_vars) and self.check_vars:
+            checkable_rows = [row for row in self.data if row.get('checkable', True)]
+            if checkable_rows and all(row['☑'].get() for row in checkable_rows):
                 self.select_all_btn.config(text='Select None')
             else:
                 self.select_all_btn.config(text='Select All')
@@ -630,7 +633,7 @@ class CheckboxTable(ttk.Frame):
         if not hasattr(self, '_rows_label'):
             return
         total = len(self.data)
-        selected = sum(1 for v in self.check_vars if v.get())
+        selected = sum(1 for row in self.data if row.get('checkable', True) and row['☑'].get())
         self._rows_label.config(text=f'Rows Shown / Selected ({total} / {selected})')
 
     def get_checked_rows(self):

@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import overly_broad_statement_guidance
 from oci_policy_analysis.application.core.support.logger import get_logger
 
@@ -52,15 +53,17 @@ class RecommendationsService:
             getattr(repo, 'data_as_of', None),
         )
 
+        tenancy_policy_limits = self._tenancy_policy_limits_payload()
         payload = {
             'summary': list(overlay.get('recommendations', []) or []),
             'summary_counts': self._summary_counts(list(overlay.get('recommendations', []) or [])),
             'risk_policy': self._policy_risk_rows(),
             'risk_statement': self._statement_risk_rows(),
             'supersession': self._supersession_rows(),
-            'consolidation': list(overlay.get('consolidations', []) or []),
+            'consolidation': build_consolidation_opportunities(overlay, repo),
             'cleanup': self._cleanup_rows(),
             'limits': self._limits_rows(),
+            'tenancy_policy_limits': tenancy_policy_limits,
             'meta': {
                 'tenancy_ocid': getattr(repo, 'tenancy_ocid', None),
                 'tenancy_name': getattr(repo, 'tenancy_name', None),
@@ -79,6 +82,27 @@ class RecommendationsService:
             len(payload['limits']),
         )
         return payload
+
+    def _tenancy_policy_limits_payload(self) -> dict[str, Any]:
+        """Return snapshot-specific limits and whether this source may edit them."""
+        repo = self.context.policy_repo
+        limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
+        offline_editable = bool(
+            getattr(repo, 'current_cache_name', '') or getattr(repo, 'loaded_from_compliance_output', False)
+        )
+        if not offline_editable and getattr(repo, 'limits_client', None) and not limits:
+            repo.fetch_tenancy_policy_statement_limits()
+            limits = dict(getattr(repo, 'tenancy_policy_limits', {}) or {})
+        max_chain = max(
+            (int(c.get('statement_count_cumulative', 0) or 0) for c in getattr(repo, 'compartments', []) or []),
+            default=0,
+        )
+        return {
+            **limits,
+            'policy_count': len(getattr(repo, 'policies', []) or []),
+            'max_chain_count': max_chain,
+            'offline_editable': offline_editable,
+        }
 
     def _supersession_rows(self) -> list[dict[str, Any]]:
         """Build display rows while retaining complete supersession evidence.
@@ -330,14 +354,23 @@ class RecommendationsService:
         """
         repo = self.context.policy_repo
         rows: list[dict[str, Any]] = []
-        near_limit = int(self.STATEMENT_LIMIT * self.NEARING_THRESHOLD)
+        limits = getattr(repo, 'tenancy_policy_limits', {}) or {}
+        try:
+            chain_limit = int(limits.get('policy_statements_per_compartment_chain_count') or 0)
+            chain_limit = chain_limit if chain_limit > 0 else None
+        except (TypeError, ValueError):
+            chain_limit = None
+        near_limit = int(chain_limit * self.NEARING_THRESHOLD) if chain_limit else None
         for comp in getattr(repo, 'compartments', []) or []:
             cumulative = int(comp.get('statement_count_cumulative', 0) or 0)
             direct = int(comp.get('statement_count_direct', 0) or 0)
-            if cumulative > self.STATEMENT_LIMIT:
+            if not chain_limit:
+                status = 'Limit Not Supplied'
+                rec = 'Enter policy-statements-per-compartment-chain-count in Policy Browser to assess this hierarchy.'
+            elif cumulative > chain_limit:
                 status = 'Over Limit'
                 rec = 'Reduce or consolidate policy statements in this hierarchy to avoid enforcement errors.'
-            elif cumulative >= near_limit:
+            elif near_limit is not None and cumulative >= near_limit:
                 status = 'Nearing Limit'
                 rec = 'Proactively clean up or consolidate policies to stay under the statement limit.'
             else:
