@@ -1,3 +1,10 @@
+## [6.5.0-new-consolidation-strategy.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.0-new-consolidation-strategy.1...v6.5.0-new-consolidation-strategy.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* refine policy limits displays and usage guidance ([e39ebf9](https://github.com/agregory999/oci-policy-analysis/commit/e39ebf9df9ff143305b9fa856d265212cec63fed))
+
 ## [6.5.0-new-consolidation-strategy.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0-new-consolidation-strategy.1) (2026-09-04)
 
 
