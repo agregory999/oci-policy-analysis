@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.engine import PolicyIntelligenceEngine, PolicySimulationEngine
 from oci_policy_analysis.application.core.support.logger import get_logger
 from oci_policy_analysis.application.post_load import run_minimal_post_load_enrichment, run_post_load_pipeline
 
@@ -69,6 +70,15 @@ class LoadService:
         if callable(reset_fn):
             reset_fn()
             self.logger.info('Reset policy repository state before load operation.')
+        repo._cleanup_live_refresh_complete = False
+        repo._cleanup_reload_api_errors = []
+        self.context.intelligence = PolicyIntelligenceEngine(repo)
+        self.context.simulation = PolicySimulationEngine(repo, getattr(self.context, 'reference_data', None))
+        self.context._prospective_service = None
+        self.context.data_generation = getattr(self.context, 'data_generation', 0) + 1
+        on_reset = getattr(self.context, 'on_data_reset', None)
+        if callable(on_reset):
+            on_reset()
 
     def load_from_cache(
         self,
@@ -287,6 +297,7 @@ class LoadService:
             detail='Fetching identity domains, groups, and users',
             on_stage=on_stage,
         )
+        repo.compartment_domain_search_depth = compartment_domain_search_depth
         if not repo.load_complete_identity_domains(
             load_all_users=load_all_users,
             compartment_domain_search_depth=compartment_domain_search_depth,
@@ -323,6 +334,14 @@ class LoadService:
             summary.get('policies', 0),
             summary.get('statements', 0),
         )
+        repo._cleanup_live_refresh_complete = not bool(repo._cleanup_reload_api_errors)
+        if run_post_load_intelligence and post_load_profile == 'full' and repo._cleanup_live_refresh_complete:
+            from oci_policy_analysis.application.services.cleanup_progress_service import CleanupProgressService
+
+            try:
+                CleanupProgressService(self.context).reconcile()
+            except Exception as exc:
+                self.logger.warning('Could not verify saved cleanup progress after live load: %s', exc)
         return LoadResult(success=True, message='Loaded tenancy data', summary=summary)
 
     def _run_post_load_with_stage(

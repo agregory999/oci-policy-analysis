@@ -594,6 +594,7 @@
         const statementIds = Array.isArray(row?.['Statement Internal IDs']) ? row['Statement Internal IDs'] : [];
         if (!statementIds.length) return;
         sessionStorage.setItem('oci-policy-analysis:consolidation-handoff', JSON.stringify({
+          tenancyOcid: state.payload?.meta?.tenancy_ocid || '',
           statementIds,
           recommendedStrategy: row['Recommended Strategy'] || '',
           opportunityId: row['Opportunity ID'] || '',

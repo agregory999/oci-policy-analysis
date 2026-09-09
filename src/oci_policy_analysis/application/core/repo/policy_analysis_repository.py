@@ -149,6 +149,8 @@ class PolicyAnalysisRepository:
             )
             return result
         except ServiceError as se:
+            if getattr(self, '_cleanup_reload_api_errors', None) is not None:
+                self._cleanup_reload_api_errors.append(label)
             elapsed = time.perf_counter() - t0
             # Print detailed ServiceError info
             logger.error(
@@ -156,6 +158,8 @@ class PolicyAnalysisRepository:
             )
             raise
         except Exception as e:
+            if getattr(self, '_cleanup_reload_api_errors', None) is not None:
+                self._cleanup_reload_api_errors.append(label)
             elapsed = time.perf_counter() - t0
             # Print more details on generic exception
             logger.error(
@@ -931,6 +935,9 @@ class PolicyAnalysisRepository:
         self.policies_loaded_from_tenancy = False
         self.version = 1
         self.load_all_users = True
+        self.snapshot_kind = None
+        self.inventory_complete = True
+        self.compartment_domain_search_depth = None
         self.compliance_capabilities = {}
         self.compliance_artifact_counts = {}
         # Do not replace permission_reference_repo: it is injected by the app (main) and

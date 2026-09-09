@@ -14,17 +14,25 @@
 ##########################################################################
 
 import csv
+import json
 import tkinter as tk
 import tkinter.filedialog as tkfiledialog
 import tkinter.messagebox
 from datetime import UTC
 from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
+    ATTEMPT_FIX_HELP,
     RECOMMENDATION_PRIORITY_HIGH,
     RECOMMENDATION_PRIORITY_MEDIUM,
+    cleanup_detail_sections,
+    cleanup_finding_identity,
+    current_supersession_identities,
     overly_broad_statement_guidance,
+    reconcile_cleanup_actions,
+    supersession_finding_identity,
 )
 from oci_policy_analysis.application.core.support.helpers import for_display_policy
 from oci_policy_analysis.application.core.support.logger import get_logger
@@ -240,12 +248,6 @@ class PolicyRecommendationsTab(BaseUITab):
         button_frame.pack(fill='x', padx=10, pady=(5, 5))
         self.add_context_help(button_frame, 'Reload or review all policy analytics in unified tabs below.')
         ttk.Label(button_frame, text='Policy Intelligence: Unified Analytics (prototype)').pack(side='left')
-        self.reload_all_btn = ttk.Button(button_frame, text='Reload All', command=self._on_reload_all)
-        self.reload_all_btn.pack(side='left', padx=8)
-        self.add_context_help(
-            self.reload_all_btn,
-            'Reload policies from OCI and re-run policy intelligence. Enabled only when data was loaded from tenancy (not cache/compliance).',
-        )
 
         # ==== Begin Notebook Prototype ====
         self.notebook = ttk.Notebook(self)
@@ -327,7 +329,7 @@ class PolicyRecommendationsTab(BaseUITab):
         self._build_limits_tab(self.limits_frame)
         self.notebook.add(self.limits_frame, text='Limits')
 
-        # === Recommendation Workbench Tab ===
+        # === Cleanup In Progress Tab ===
         self._workbench_actions = []
         self._workbench_counter = 0
         self._cleanup_payload_by_key = {}
@@ -337,10 +339,10 @@ class PolicyRecommendationsTab(BaseUITab):
         self.workbench_frame.pack(fill='both', expand=True)
         self.add_context_help(
             self.workbench_frame,
-            'One-off actions from Take Action buttons (Cleanup/Fix, etc.). Review CLI/UI instructions and rollback; reload policies to see resolved items disappear.',
+            'Track cleanup actions, review instructions, and reload live IAM and policy data to verify resolution.',
         )
         self._build_recommendation_workbench_tab(self.workbench_frame)
-        self.notebook.add(self.workbench_frame, text='Recommendation Workbench')
+        self.notebook.add(self.workbench_frame, text='Cleanup In Progress')
 
     def populate_data(self):
         """
@@ -1018,7 +1020,7 @@ class PolicyRecommendationsTab(BaseUITab):
         ttk.Label(parent, text='Right-click a row to view overlap evidence.').pack(anchor='w', padx=10, pady=(2, 10))
 
     def _build_supersession_tab(self, parent):
-        """Build the read-only complete-supersession recommendations subtab."""
+        """Build the complete-supersession recommendations and tracking controls."""
         controls = ttk.Frame(parent)
         controls.pack(fill='x', padx=10, pady=(10, 4))
         controls.columnconfigure(1, weight=1)
@@ -1176,16 +1178,28 @@ class PolicyRecommendationsTab(BaseUITab):
                 )
             return menu
 
-        self.supersession_table = DataTable(
+        ignored_button = ttk.Button(
+            parent, text='Show Previously Ignored', command=lambda: self._on_show_previously_ignored(supersession=True)
+        )
+        ignored_button.pack(anchor='w', padx=10, pady=(8, 2))
+        self.add_context_help(ignored_button, 'Review ignored supersession findings and choose which to show again.')
+        self.supersession_table = CheckboxTable(
             parent,
             columns=POLICY_SUPERSESSION_COLUMNS,
-            display_columns=POLICY_SUPERSESSION_DISPLAY_COLUMNS,
+            display_columns=['☑'] + POLICY_SUPERSESSION_DISPLAY_COLUMNS,
             data=[],
             column_widths=POLICY_SUPERSESSION_COLUMN_WIDTHS,
             row_context_menu_callback=supersession_context_menu,
-            multi_select=True,
+            checked_by_default=False,
+            action_buttons=[
+                ('Attempt/Fix', self._on_supersession_attempt_fix),
+                ('Ignore Selected', self._on_supersession_ignore),
+            ],
         )
+        # Request three fewer rows so the action bar fits on smaller displays.
+        self.supersession_table.data_table.tree.configure(height=7)
         self.supersession_table.pack(fill='both', expand=True, padx=10, pady=(4, 4))
+        self._add_finding_action_help(self.supersession_table)
         self.add_context_help(
             self.supersession_table,
             'Right-click a statement for complete supersession details.',
@@ -1196,6 +1210,9 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def update_supersession_tab_output(self) -> None:
         """Refresh complete-supersession rows from policy-intelligence output."""
+        self.supersession_table.update_data(self._get_supersession_rows())
+
+    def _get_supersession_rows(self, include_ignored=False):
         findings = self.app.policy_intelligence.overlay.get('supersessions', []) or []
         statements = {
             str(statement.get('internal_id') or ''): statement
@@ -1221,8 +1238,10 @@ class PolicyRecommendationsTab(BaseUITab):
                 continue
             display = for_display_policy(statement)
             effective_path = str(display.get('Effective Path') or '')
-            if self.supersession_compartment_filter != 'ALL' and not _path_is_same_or_descendant(
-                effective_path, self.supersession_compartment_filter
+            if (
+                not include_ignored
+                and self.supersession_compartment_filter != 'ALL'
+                and not _path_is_same_or_descendant(effective_path, self.supersession_compartment_filter)
             ):
                 continue
             evidence = finding.get('evidence', []) or []
@@ -1233,6 +1252,8 @@ class PolicyRecommendationsTab(BaseUITab):
                     'Effective Path': display.get('Effective Path', ''),
                     'Statement Text': display.get('Statement Text', ''),
                     'Classification': finding.get('classification', ''),
+                    'action_key': json.dumps(supersession_finding_identity(statement)),
+                    'finding_identity': supersession_finding_identity(statement),
                     'Superseded By': ', '.join(
                         f'{item.get("policy_name", "")} ({item.get("effective_path", "")})' for item in evidence
                     ),
@@ -1240,7 +1261,57 @@ class PolicyRecommendationsTab(BaseUITab):
                 }
             )
         rows.sort(key=lambda row: (str(row['Effective Path']), str(row['Policy Name'])))
-        self.supersession_table.update_data(rows)
+        if not include_ignored:
+            ignored = getattr(self, 'ignored_cleanup_keys', set())
+            rows = [row for row in rows if row['action_key'] not in ignored]
+        return rows
+
+    def _add_finding_action_help(self, table):
+        for button in table.action_btns:
+            help_text = (
+                ATTEMPT_FIX_HELP
+                if button.cget('text') == 'Attempt/Fix'
+                else (
+                    'Hide selected findings for this tenancy. Use Show Previously Ignored to restore them. '
+                    'Ignoring a finding does not resolve it or change OCI.'
+                )
+            )
+            self.add_context_help(button, help_text)
+
+    def _on_supersession_ignore(self, selected):
+        if not selected:
+            tkinter.messagebox.showinfo('No selection', 'Select one or more supersession findings first.')
+            return
+        self.ignored_cleanup_keys.update(row['action_key'] for row in selected)
+        self._save_ignored_cleanup_keys_to_state()
+        self.update_supersession_tab_output()
+
+    def _on_supersession_attempt_fix(self, selected):
+        if not selected:
+            tkinter.messagebox.showinfo('No selection', 'Select one or more supersession findings first.')
+            return
+        actions = []
+        for row in selected:
+            actions.append(
+                {
+                    'Source': 'Supersession',
+                    'Type': 'Superseded Statement',
+                    'tenancy_ocid': self.app.policy_compartment_analysis.tenancy_ocid,
+                    'finding_identity': row['finding_identity'],
+                    'Description': f'{row.get("Policy Name", "")}: {row.get("Statement Text", "")}',
+                    'ui_instructions': (
+                        f'Review Supersession Details for this statement: {row.get("Statement Text", "")}\n'
+                        f'Classification: {row.get("Classification", "")}\n'
+                        f'Superseded by: {row.get("Superseded By", "")}\n'
+                        'Confirm the superseding permissions, conditions, and scope still meet requirements. '
+                        'Resolve any review qualifications in the evidence before making changes. '
+                        'If redundant, remove only the superseded statement from its policy in OCI. '
+                        'Keep a copy for rollback. Then use Reload All to verify the finding is resolved.'
+                    ),
+                    'rollback_command': f'Restore the original statement: {row.get("Statement Text", "")}',
+                }
+            )
+        self._add_workbench_actions(actions)
 
     def _update_supersession_compartment_filter(self, paths: set[str]) -> None:
         """Refresh filter choices from loaded compartments while preserving selection."""
@@ -1342,33 +1413,45 @@ class PolicyRecommendationsTab(BaseUITab):
     def _update_reload_all_button_state(self):
         """Enable Reload All only when data was loaded from tenancy (not cache/compliance)."""
         repo = getattr(self.app, 'policy_compartment_analysis', None)
-        can_reload = bool(repo and getattr(repo, 'policies_loaded_from_tenancy', False))
+        can_reload = bool(
+            repo
+            and getattr(repo, 'policies_loaded_from_tenancy', False)
+            and not getattr(repo, 'loaded_from_compliance_output', False)
+            and getattr(self.app, '_live_tenancy_load_options', None)
+            and not getattr(self, '_cleanup_reload_pending', False)
+            and not getattr(self.app, '_tenancy_load_in_progress', False)
+            and not getattr(self.app, '_policy_reload_in_progress', False)
+        )
         if hasattr(self, 'reload_all_btn'):
             self.reload_all_btn['state'] = tk.NORMAL if can_reload else tk.DISABLED
 
     def _on_reload_all(self):
-        """Reload policies from OCI (only enabled when loaded from tenancy), then re-run policy intelligence."""
-        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache_async'):
-            self.app.reload_policies_and_compartments_and_update_cache_async(
-                callback={
-                    'complete': lambda success, message, is_error: logger.info(
-                        'Reload All async completion: success=%s message=%s',
-                        success,
-                        message,
-                    )
-                },
-                show_popup=True,
-            )
+        """Refresh live IAM/policies, then reconcile tracked findings after successful intelligence."""
+        self._update_reload_all_button_state()
+        if str(self.reload_all_btn['state']) == str(tk.DISABLED):
             return
+        self._cleanup_reload_pending = True
+        self._update_reload_all_button_state()
 
-        if hasattr(self.app, 'reload_policies_and_compartments_and_update_cache'):
-            ok = self.app.reload_policies_and_compartments_and_update_cache()
-            if ok:
-                logger.info('Reload All: policies and compartments reloaded; intelligence and UI updated.')
-                return
-        self.reload_all_analytics()
+        def complete(success, message, is_error):
+            self._cleanup_reload_pending = False
+            if success:
+                self._reconcile_cleanup_progress()
+                self.app.policy_compartment_analysis._cleanup_live_refresh_complete = False
+            else:
+                tkinter.messagebox.showerror('Reload All Failed', message)
+            self._update_reload_all_button_state()
+            # The shared progress dialog releases its busy flag after closing.
+            self.after(2000, self._update_reload_all_button_state)
+
+        self.app.reload_policies_and_compartments_and_update_cache_async(
+            callback={'complete': complete, 'error': complete},
+            show_popup=True,
+            reload_iam=True,
+        )
 
     def reload_all_analytics(self):
+        self._activate_cleanup_tenancy()
         self._update_reload_all_button_state()
         logger.info('Reloading all policy intelligence analytics for unified recommendations tab.')
 
@@ -1440,6 +1523,12 @@ class PolicyRecommendationsTab(BaseUITab):
                 norm['Action'] = f'{norm.get("Action", "")} -- {" ".join(part for part in detail_parts if part)}'
             normalized_recs.append(norm)
         self.recommendation_table.update_data(normalized_recs)
+        repo = self.app.policy_compartment_analysis
+        if getattr(repo, '_cleanup_live_refresh_complete', False) and not getattr(
+            self, '_cleanup_reload_pending', False
+        ):
+            self._reconcile_cleanup_progress()
+            repo._cleanup_live_refresh_complete = False
 
     def on_enabled_cleanup_checks_changed(self):
         """Called when Settings > Recommendation/Consolidation cleanup check toggles change. Re-runs analytics with new checks."""
@@ -1934,14 +2023,13 @@ class PolicyRecommendationsTab(BaseUITab):
     # --- Cleanup / Fix Tab ---
     def _load_ignored_cleanup_keys_from_state(self):
         """Load ignored_cleanup_keys from per-tenancy consolidation state. No-op if no tenancy_ocid."""
+        self.ignored_cleanup_keys = set()
         repo = getattr(self.app, 'policy_compartment_analysis', None)
         tenancy_ocid = getattr(repo, 'tenancy_ocid', None) if repo else None
         if not tenancy_ocid or str(tenancy_ocid).lower() in ('unknown', '', 'none'):
             return
         try:
-            from oci_policy_analysis.application.core.support.caching import CacheManager
-
-            state = CacheManager().get_or_create_consolidation_state(tenancy_ocid)
+            state = self.app.caching.get_or_create_consolidation_state(tenancy_ocid)
             self.ignored_cleanup_keys = set(state.get('ignored_cleanup_keys', []))
         except Exception as e:
             logger.debug('Could not load ignored cleanup keys from state: %s', e)
@@ -1953,35 +2041,42 @@ class PolicyRecommendationsTab(BaseUITab):
         if not tenancy_ocid or str(tenancy_ocid).lower() in ('unknown', '', 'none'):
             return
         try:
-            from oci_policy_analysis.application.core.support.caching import CacheManager
-
-            state = CacheManager().get_or_create_consolidation_state(tenancy_ocid)
+            state = self.app.caching.get_or_create_consolidation_state(tenancy_ocid)
             state['ignored_cleanup_keys'] = list(self.ignored_cleanup_keys)
-            CacheManager().save_consolidation_state(tenancy_ocid, state)
+            self.app.caching.save_consolidation_state(tenancy_ocid, state)
         except Exception as e:
             logger.warning('Could not save ignored_cleanup_keys to state: %s', e)
 
-    def _on_show_previously_ignored(self):
+    def _on_show_previously_ignored(self, supersession=False):
         """Open a dialog listing currently ignored cleanup items; user can re-show selected or all."""
-        all_issues = self._get_cleanup_issues(include_ignored=True)
+        label = 'supersession' if supersession else 'cleanup'
+        refresh = self.update_supersession_tab_output if supersession else self.update_cleanup_tab_output
+        all_issues = (
+            [
+                dict(row, Type='Superseded Statement', Name=row['Statement Text'], Reason=row['Classification'])
+                for row in self._get_supersession_rows(include_ignored=True)
+            ]
+            if supersession
+            else self._get_cleanup_issues(include_ignored=True)
+        )
         ignored = getattr(self, 'ignored_cleanup_keys', set())
         ignored_list = [i for i in all_issues if i.get('action_key') in ignored]
         if not ignored_list:
             tkinter.messagebox.showinfo(
                 'No ignored items',
-                'There are no previously ignored cleanup items. Use "Ignore Selected" on the Cleanup tab to hide items.',
+                f'There are no current ignored {label} findings. Use "Ignore Selected" to hide items.',
             )
             return
 
         dialog = tk.Toplevel(self.winfo_toplevel())
-        dialog.title('Previously ignored cleanup items')
+        dialog.title(f'Previously ignored {label} items')
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
         dialog.geometry('720x380')
 
         ttk.Label(
             dialog,
-            text='Select items to re-show in the Cleanup table (they will no longer be ignored).',
+            text=f'Select {label} items to show again (they will no longer be ignored).',
             wraplength=680,
         ).pack(fill='x', padx=12, pady=(12, 6))
 
@@ -2025,14 +2120,14 @@ class PolicyRecommendationsTab(BaseUITab):
                 if k:
                     self.ignored_cleanup_keys.discard(k)
             self._save_ignored_cleanup_keys_to_state()
-            self.update_cleanup_tab_output()
+            refresh()
             dialog.destroy()
 
         def re_show_all():
             for k in key_by_iid.values():
                 self.ignored_cleanup_keys.discard(k)
             self._save_ignored_cleanup_keys_to_state()
-            self.update_cleanup_tab_output()
+            refresh()
             dialog.destroy()
 
         btn_frame = ttk.Frame(dialog)
@@ -2063,16 +2158,6 @@ class PolicyRecommendationsTab(BaseUITab):
             self.btn_show_previously_ignored,
             'Open a list of cleanup items you previously ignored. Choose which to re-show in the table (removes from ignored).',
         )
-
-        def on_take_delete_action(selected):
-            if not selected:
-                tkinter.messagebox.showinfo('No selection', 'Select one or more cleanup items, then try again.')
-                return
-            actions = self._build_cleanup_delete_workbench_actions(selected)
-            if actions:
-                self._add_workbench_actions(actions)
-            else:
-                tkinter.messagebox.showinfo('No actions', 'Could not build actions for the selected items.')
 
         def on_take_fix_action(selected):
             if not selected:
@@ -2110,6 +2195,8 @@ class PolicyRecommendationsTab(BaseUITab):
             else:
                 label = 'Detail'
             menu = tk.Menu(self.cleanup_table, tearoff=0)
+            menu.add_command(label='Show Cleanup Details', command=lambda: self._show_cleanup_details(row))
+            menu.add_separator()
             menu.add_command(label=label, command=lambda: self._on_focus_cleanup_row(row))
             return menu
 
@@ -2120,8 +2207,7 @@ class PolicyRecommendationsTab(BaseUITab):
             column_widths=cleanup_column_widths,
             display_columns=cleanup_display_columns,
             action_buttons=[
-                ('Delete', on_take_delete_action),
-                ('Attempt Fix', on_take_fix_action),
+                ('Attempt/Fix', on_take_fix_action),
                 ('Ignore Selected', on_ignore_selected),
             ],
             enable_select_all=True,
@@ -2130,7 +2216,30 @@ class PolicyRecommendationsTab(BaseUITab):
         )
         # Make the table (and thus all internal widgets) expand to full width
         self.cleanup_table.pack(fill='both', expand=True, padx=10, pady=(10, 10))
-        self.add_context_help(self.cleanup_table, 'Select and resolve security hygiene issues for policies.')
+        self.add_context_help(self.cleanup_table, 'Select and track security hygiene issues for policies.')
+        self._add_finding_action_help(self.cleanup_table)
+
+    def _show_cleanup_details(self, row: dict) -> None:
+        """Show selectable, scrollable guidance without changing the policy or identity."""
+        payload = getattr(self, '_cleanup_payload_by_key', {}).get(row.get('action_key'), {})
+        sections = cleanup_detail_sections(row, payload)
+        popup = tk.Toplevel(self.winfo_toplevel())
+        popup.title(f'Cleanup Details — {row.get("Type", "Cleanup")}')
+        popup.transient(self.winfo_toplevel())
+        popup.geometry('920x660')
+        popup.minsize(600, 400)
+        outer = ttk.Frame(popup, padding=12)
+        outer.pack(fill='both', expand=True)
+        text = ScrolledText(outer, wrap='word', font=('TkDefaultFont', 11), padx=12, pady=12)
+        text.pack(fill='both', expand=True)
+        text.tag_configure('heading', font=('TkDefaultFont', 12, 'bold'), spacing1=12, spacing3=8)
+        text.tag_configure('body', spacing3=10)
+        for heading, lines in sections:
+            text.insert('end', heading + '\n', 'heading')
+            for line in lines:
+                text.insert('end', line + '\n', 'body')
+        text.configure(state='disabled')
+        ttk.Button(outer, text='Close', command=popup.destroy).pack(anchor='e', pady=(10, 0))
 
     def _on_focus_cleanup_row(self, row):  # noqa: C901
         """
@@ -2187,19 +2296,18 @@ class PolicyRecommendationsTab(BaseUITab):
         # Unused dynamic group
         if t == 'Unused Dynamic Group':
             try:
-                # Switch to main Dynamic Groups tab at top level, not recommendations notebook
-                self.app.notebook.select(tab_id=4)  # Dynamic Groups tab
-                # set the filter in the Dynamic Groups tab to the group name (which may require parsing if name includes path)
-                group_name = name.split('/', 1)[-1] if '/' in name else name
-                if hasattr(self.app, 'dynamic_groups_tab') and hasattr(self.app.dynamic_groups_tab, 'dg_filter_var'):
-                    self.app.dynamic_groups_tab.dg_filter_var.set(group_name)
-                    if hasattr(self.app.dynamic_groups_tab, 'update_output'):
-                        self.app.dynamic_groups_tab.update_output()
-                else:
-                    tkinter.messagebox.showinfo(
-                        'Dynamic Group Detail',
-                        f"Switched to Dynamic Groups tab but could not set filter for '{group_name}'. Please search manually.",
-                    )
+                dg_tab = self.app.dynamic_groups_tab
+                self.app.notebook.select(tab_id=dg_tab)
+                domain, group_name = name.split('/', 1) if '/' in name else ('Default', name)
+                # Clear previous filters so the selected group remains visible,
+                # including when an old cleanup row is no longer unused.
+                dg_tab.chk_show_instance_principals.set(False)
+                dg_tab.chk_show_not_in_use.set(False)
+                dg_tab.dg_rule_var.set('')
+                dg_tab.dg_ocid_var.set('')
+                dg_tab.domain_filter_var.set(domain)
+                dg_tab.dg_name_var.set(group_name)
+                dg_tab._update_dg_output()
             except Exception as ex:
                 tkinter.messagebox.showinfo('Dynamic Group Detail', f'Could not focus Dynamic Groups: {ex}')
             return
@@ -2207,15 +2315,12 @@ class PolicyRecommendationsTab(BaseUITab):
         # Fallback: notify user
         tkinter.messagebox.showinfo('Detail', fallback_msg)
 
-        # Anchor Delete button to always be visible at the bottom (also part of CheckboxTable, but double-sure)
-        # This is handled by CheckboxTable, but if you have a custom action bar, you would add it here.
-
-    # --- Recommendation Workbench Tab ---
+    # --- Cleanup In Progress Tab ---
     def _build_recommendation_workbench_tab(self, parent):
-        """Build the Recommendation Workbench subtab: actions table, script area, history/audit placeholder."""
+        """Build Cleanup In Progress: tracked actions, instructions, and reload history."""
         lbl = ttk.Label(
             parent,
-            text='Actions from "Take Action" buttons (e.g. Cleanup/Fix) appear here. Select a row to see OCI CLI or UI instructions; rollback is the opposite action. Use Reload All to refresh policies and re-run intelligence—fixed issues will disappear from source tabs.',
+            text='Items added from Cleanup/Fix and Superseded appear here. Make the change in OCI, then use Reload All to refresh IAM and policies and rerun intelligence. Findings that no longer appear are marked Resolved and retained here for review.',
             wraplength=900,
             justify='left',
         )
@@ -2227,8 +2332,15 @@ class PolicyRecommendationsTab(BaseUITab):
         clear_btn.pack(side='left', padx=(0, 8))
         self.add_context_help(
             clear_btn,
-            'Remove all Open items from the workbench. Resolved items are not tracked; if an issue no longer appears in Cleanup/Fix after reload, it is effectively done.',
+            'Clear tracked cleanup items and their history, including resolved items. This does not change OCI resources.',
         )
+        self.reload_all_btn = ttk.Button(btn_row, text='Reload All', command=self._on_reload_all)
+        self.reload_all_btn.pack(side='left', padx=(0, 8))
+        self.add_context_help(
+            self.reload_all_btn,
+            'Refresh IAM, compartments, and policies using the last successful live load settings, then rerun intelligence. Available only for live tenancy data.',
+        )
+        self._update_reload_all_button_state()
 
         workbench_columns = ['#', 'Source', 'Type', 'Description', 'Status', 'History']
         workbench_display_columns = ['#', 'Source', 'Type', 'Description', 'Status', 'History']
@@ -2280,20 +2392,21 @@ class PolicyRecommendationsTab(BaseUITab):
         self.workbench_audit_text.pack(fill='both', expand=True, padx=4, pady=4)
         self.add_context_help(
             audit_frame,
-            'Placeholder for per-action history (e.g. Added, Reload: still open / Resolved) and future OCI Audit data.',
+            'Records when the item was added and whether each successful live reload found it open or resolved.',
         )
 
     def _on_workbench_clear(self):
-        """Remove all Open items from the workbench and refresh the table and script/audit areas."""
+        """Clear all tracked items and refresh the table and instructions."""
         self._workbench_actions = []
         self._workbench_counter = 0
+        self._save_cleanup_progress()
         self._refresh_workbench_table()
         self._refresh_workbench_script(selected_rows=[])
         if hasattr(self, 'workbench_audit_text'):
             self.workbench_audit_text.config(state='normal')
             self.workbench_audit_text.delete('1.0', tk.END)
             self.workbench_audit_text.config(state='disabled')
-        logger.debug('Recommendation Workbench cleared.')
+        logger.debug('Cleanup In Progress cleared.')
 
     def _on_workbench_row_selected(self, selected_rows):
         """Update script and audit areas when a workbench row is selected."""
@@ -2342,7 +2455,14 @@ class PolicyRecommendationsTab(BaseUITab):
 
     def _add_workbench_actions(self, actions):
         """Append one or more workbench action dicts and refresh the workbench table; switch to workbench tab."""
+        self._activate_cleanup_tenancy()
         for a in actions:
+            if a.get('finding_identity') and any(
+                tuple(existing.get('finding_identity') or ()) == tuple(a['finding_identity'])
+                and existing.get('Status') == 'Open'
+                for existing in self._workbench_actions
+            ):
+                continue
             self._workbench_counter += 1
             a['#'] = self._workbench_counter
             a.setdefault('Status', 'Open')
@@ -2355,6 +2475,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 a['History'] = f'Added {a.get("created_ts", "")[:19]}'
             a['wb_id'] = f'wb-{self._workbench_counter}'
             self._workbench_actions.append(a)
+        self._save_cleanup_progress()
         self._refresh_workbench_table()
         self.notebook.select(self.workbench_frame)
 
@@ -2368,6 +2489,64 @@ class PolicyRecommendationsTab(BaseUITab):
             rows.append(row)
         if hasattr(self, 'workbench_table'):
             self.workbench_table.update_data(rows)
+
+    def _reconcile_cleanup_progress(self):
+        """Compare tracked items with fresh findings, including ignored items."""
+        current_rows = self._get_cleanup_issues(include_ignored=True)
+        current = {
+            cleanup_finding_identity(row, self._cleanup_payload_by_key.get(row.get('action_key'), {}))
+            for row in current_rows
+        }
+        repo = self.app.policy_compartment_analysis
+        current.update(
+            current_supersession_identities(
+                getattr(getattr(self.app, 'policy_intelligence', None), 'overlay', {}),
+                getattr(repo, 'regular_statements', []) or [],
+            )
+        )
+        self._workbench_actions = reconcile_cleanup_actions(
+            self._workbench_actions,
+            repo.tenancy_ocid,
+            current,
+            enabled=self.app.settings.get('enabled_intelligence_checks'),
+            users_loaded=getattr(repo, 'load_all_users', True),
+        )
+        self._save_cleanup_progress()
+        self._refresh_workbench_table()
+        self._refresh_workbench_script(selected_rows=[])
+        self._on_workbench_row_selected([])
+
+    def _activate_cleanup_tenancy(self):
+        """Drop old tenancy UI state and restore only the active tenancy's saved progress."""
+        tenancy = getattr(self.app.policy_compartment_analysis, 'tenancy_ocid', None)
+        if tenancy == getattr(self, '_cleanup_tenancy_ocid', None):
+            return
+        self._cleanup_tenancy_ocid = tenancy
+        self._workbench_actions = []
+        self._workbench_counter = 0
+        self._cleanup_payload_by_key = {}
+        self.ignored_cleanup_keys = set()
+        if tenancy:
+            try:
+                self._workbench_actions = self.app.caching.load_cleanup_progress(tenancy)
+                self._workbench_counter = max((int(a.get('#', 0)) for a in self._workbench_actions), default=0)
+            except Exception as exc:
+                logger.warning('Could not restore cleanup progress: %s', exc)
+                tkinter.messagebox.showwarning('Cleanup Progress', f'Could not restore saved cleanup progress: {exc}')
+        self._refresh_workbench_table()
+        self._on_workbench_row_selected([])
+
+    def _save_cleanup_progress(self):
+        tenancy = getattr(self, '_cleanup_tenancy_ocid', None)
+        if not tenancy:
+            return
+        try:
+            self.app.caching.save_cleanup_progress(tenancy, self._workbench_actions)
+        except Exception as exc:
+            logger.warning('Could not save cleanup progress: %s', exc)
+            tkinter.messagebox.showwarning(
+                'Cleanup Progress', f'Progress is available in this session but could not be saved: {exc}'
+            )
 
     def _build_cleanup_fix_workbench_actions(self, selected_rows):
         """Build workbench action dicts from selected cleanup table rows (with action_key and _cleanup_payload_by_key)."""
@@ -2417,6 +2596,8 @@ class PolicyRecommendationsTab(BaseUITab):
             actions.append(
                 {
                     'Source': 'Cleanup/Fix',
+                    'finding_identity': cleanup_finding_identity(row, payload),
+                    'tenancy_ocid': self.app.policy_compartment_analysis.tenancy_ocid,
                     'Type': issue_type,
                     'Description': desc,
                     'cli_command': cli,
@@ -2474,6 +2655,8 @@ class PolicyRecommendationsTab(BaseUITab):
             actions.append(
                 {
                     'Source': 'Cleanup/Fix',
+                    'finding_identity': cleanup_finding_identity(row, payload),
+                    'tenancy_ocid': self.app.policy_compartment_analysis.tenancy_ocid,
                     'Type': issue_type,
                     'Description': desc,
                     'cli_command': cli,

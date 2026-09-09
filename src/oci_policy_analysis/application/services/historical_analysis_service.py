@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from oci_policy_analysis.application.core.support.logger import get_logger
@@ -42,6 +42,7 @@ class HistoricalCompareResult:
     policy_sections: list[HistoricalSectionResult]
     identity_sections: list[HistoricalSectionResult]
     identity_comparable: bool = True
+    skipped_sections: dict[str, str] = field(default_factory=dict)
 
 
 class HistoricalAnalysisService:
@@ -54,6 +55,7 @@ class HistoricalAnalysisService:
         ('Cross-Tenancy Statements', 'cross_tenancy_statements'),
     ]
     IDENTITY_SECTIONS: list[tuple[str, str]] = [
+        ('Compartments', 'compartments'),
         ('Identity Domains', 'identity_domains'),
         ('Groups', 'groups'),
         ('Dynamic Groups', 'dynamic_groups'),
@@ -66,18 +68,20 @@ class HistoricalAnalysisService:
 
     @staticmethod
     def _title_for(section_label: str, row: dict[str, Any]) -> str:
+        if section_label == 'Compartments':
+            return str(row.get('name') or row.get('compartment_name') or row.get('id') or '(compartment)')
         if section_label == 'Policies':
             return str(row.get('policy_name') or row.get('policy_ocid') or row.get('stable_key') or '(policy)')
         if section_label == 'Regular Statements':
             return str(
                 row.get('statement_text')
-                or f"{row.get('compartment_path', '')}/{row.get('policy_name', '')}".strip('/')
+                or f'{row.get("compartment_path", "")}/{row.get("policy_name", "")}'.strip('/')
                 or row.get('stable_key')
                 or '(statement)'
             )
         if section_label == 'Defined Aliases':
             return str(
-                f"{row.get('policy_name', '')}/{row.get('defined_type', '')}/{row.get('defined_name', '')}".strip('/')
+                f'{row.get("policy_name", "")}/{row.get("defined_type", "")}/{row.get("defined_name", "")}'.strip('/')
                 or row.get('stable_key')
                 or '(alias)'
             )
@@ -91,21 +95,21 @@ class HistoricalAnalysisService:
             )
         if section_label == 'Groups':
             return str(
-                f"{row.get('domain_name', '')}/{row.get('group_name', '')}".strip('/')
+                f'{row.get("domain_name", "")}/{row.get("group_name", "")}'.strip('/')
                 or row.get('group_ocid')
                 or row.get('stable_key')
                 or '(group)'
             )
         if section_label == 'Dynamic Groups':
             return str(
-                f"{row.get('domain_name', '')}/{row.get('dynamic_group_name', '')}".strip('/')
+                f'{row.get("domain_name", "")}/{row.get("dynamic_group_name", "")}'.strip('/')
                 or row.get('dynamic_group_ocid')
                 or row.get('stable_key')
                 or '(dynamic-group)'
             )
         if section_label == 'Users':
             return str(
-                f"{row.get('domain_name', '')}/{row.get('user_name', '')}".strip('/')
+                f'{row.get("domain_name", "")}/{row.get("user_name", "")}'.strip('/')
                 or row.get('user_ocid')
                 or row.get('stable_key')
                 or '(user)'
@@ -115,6 +119,14 @@ class HistoricalAnalysisService:
     @staticmethod
     def _fallback_stable_key(section_key: str, row: dict[str, Any], idx: int) -> str:
         """Best-effort stable key for legacy caches that lack stable_key fields."""
+        if section_key == 'compartments':
+            return str(
+                row.get('id')
+                or row.get('compartment_ocid')
+                or row.get('ocid')
+                or row.get('name')
+                or f'compartments#{idx}'
+            )
         if section_key == 'policies':
             return str(row.get('policy_ocid') or row.get('policy_name') or f'policies#{idx}')
         if section_key == 'policy_statements':
@@ -124,17 +136,17 @@ class HistoricalAnalysisService:
             else:
                 subject_value = str(subject or '')
             identity = (
-                f"{row.get('policy_ocid') or row.get('policy_name') or ''}|"
-                f"{row.get('compartment_ocid') or row.get('compartment_path') or ''}|"
-                f"{row.get('subject_type') or ''}|{subject_value}|"
-                f"{row.get('location_type') or ''}|{row.get('location') or ''}|"
-                f"{row.get('conditions') or ''}|{row.get('comments') or ''}"
+                f'{row.get("policy_ocid") or row.get("policy_name") or ""}|'
+                f'{row.get("compartment_ocid") or row.get("compartment_path") or ""}|'
+                f'{row.get("subject_type") or ""}|{subject_value}|'
+                f'{row.get("location_type") or ""}|{row.get("location") or ""}|'
+                f'{row.get("conditions") or ""}|{row.get("comments") or ""}'
             )
             return str(identity or f'policy_statements#{idx}')
         if section_key == 'defined_aliases':
             return str(
-                f"{row.get('policy_ocid') or row.get('policy_name') or ''}|"
-                f"{row.get('defined_type') or ''}|{row.get('defined_name') or ''}|{row.get('ocid_alias') or ''}"
+                f'{row.get("policy_ocid") or row.get("policy_name") or ""}|'
+                f'{row.get("defined_type") or ""}|{row.get("defined_name") or ""}|{row.get("ocid_alias") or ""}'
             )
         if section_key == 'cross_tenancy_statements':
             return str(
@@ -149,21 +161,21 @@ class HistoricalAnalysisService:
             return str(
                 row.get('group_ocid')
                 or row.get('group_id')
-                or f"{row.get('domain_name') or ''}/{row.get('group_name') or ''}"
+                or f'{row.get("domain_name") or ""}/{row.get("group_name") or ""}'
                 or f'groups#{idx}'
             )
         if section_key == 'dynamic_groups':
             return str(
                 row.get('dynamic_group_ocid')
                 or row.get('dynamic_group_id')
-                or f"{row.get('domain_name') or ''}/{row.get('dynamic_group_name') or ''}"
+                or f'{row.get("domain_name") or ""}/{row.get("dynamic_group_name") or ""}'
                 or f'dynamic_groups#{idx}'
             )
         if section_key == 'users':
             return str(
                 row.get('user_ocid')
                 or row.get('user_id')
-                or f"{row.get('domain_name') or ''}/{row.get('user_name') or ''}"
+                or f'{row.get("domain_name") or ""}/{row.get("user_name") or ""}'
                 or f'users#{idx}'
             )
         return f'{section_key}#{idx}'
@@ -299,36 +311,99 @@ class HistoricalAnalysisService:
         _walk(old_val, new_val, '')
         return changed
 
+    @staticmethod
+    def snapshot_kind(snapshot: dict[str, Any]) -> str:
+        return snapshot.get('snapshot_kind') or ('policy_reload' if snapshot.get('policy_data_reloaded') else 'full')
+
+    @classmethod
+    def describe_snapshot(cls, snapshot: dict[str, Any]) -> str:
+        kind = cls.snapshot_kind(snapshot)
+        label = {
+            'policy_reload': 'Policy / compartment reload (IAM inherited)',
+            'full_reload': 'Reload All (IAM + policies)',
+            'full': 'Full snapshot',
+        }.get(kind, kind)
+        lines = [f'Type: {label}']
+        for key, title in [
+            ('data_as_of', 'Data as of'),
+            ('captured_at', 'Captured'),
+            ('policy_data_reloaded', 'Policies reloaded'),
+            ('identity_data_as_of', 'IAM as of'),
+            ('reload_source_cache_name', 'Reload source'),
+            ('base_cache_name', 'Base cache'),
+        ]:
+            if snapshot.get(key):
+                lines.append(f'{title}: {snapshot[key]}')
+        if snapshot.get('load_all_users') is False:
+            lines.append('Users: not loaded')
+        return '\n'.join(lines)
+
+    @classmethod
+    def _unavailable_reason(cls, snapshot: dict[str, Any], key: str) -> str:
+        iam = key in {'identity_domains', 'groups', 'dynamic_groups', 'users'}
+        if iam and cls.snapshot_kind(snapshot) == 'policy_reload':
+            return 'IAM was inherited from the base cache, not refreshed by this policy reload.'
+        if key == 'users' and snapshot.get('load_all_users') is False:
+            return 'User inventory was not loaded.'
+        if snapshot.get('inventory_complete') is False:
+            return 'The load reported API errors; inventory may be incomplete.'
+        capability = {
+            'identity_domains': 'domains_inventory',
+            'groups': 'groups_inventory',
+            'dynamic_groups': 'dynamic_groups_inventory',
+            'users': 'users_inventory',
+        }.get(key)
+        if capability and (snapshot.get('compliance_capabilities') or {}).get(capability) is False:
+            return 'Inventory was not supplied by the compliance export.'
+        aliases = [key, f'{key}_by_key']
+        if key == 'identity_domains':
+            aliases += ['domains', 'domains_by_key']
+        if not any(isinstance(snapshot.get(alias), list | dict) for alias in aliases):
+            return 'Inventory is missing from this cache.'
+        return ''
+
     def compare_caches(self, *, left_cache: str, right_cache: str) -> HistoricalCompareResult:
-        left = self.cache_manager.load_cache_into_local_json(cached_tenancy=left_cache) or {}
-        right = self.cache_manager.load_cache_into_local_json(cached_tenancy=right_cache) or {}
-        if not isinstance(left, dict) or not isinstance(right, dict):
+        left = self.cache_manager.load_cache_into_local_json(cached_tenancy=left_cache)
+        right = self.cache_manager.load_cache_into_local_json(cached_tenancy=right_cache)
+        if not isinstance(left, dict) or not left or not isinstance(right, dict) or not right:
             raise ValueError('Unable to load cache json for historical comparison.')
+        if left.get('tenancy_ocid') and right.get('tenancy_ocid') and left['tenancy_ocid'] != right['tenancy_ocid']:
+            raise ValueError('Select two snapshots from the same tenancy.')
 
-        policy_sections = [
-            self._compare_section(left, right, label=label, key=key) for label, key in self.POLICY_SECTIONS
-        ]
-        policy_only = any(
-            snapshot.get('snapshot_kind') == 'policy_reload' or bool(snapshot.get('policy_data_reloaded'))
-            for snapshot in (left, right)
-        )
-        identity_sections = (
-            []
-            if policy_only
-            else [self._compare_section(left, right, label=label, key=key) for label, key in self.IDENTITY_SECTIONS]
-        )
-
-        self.logger.info(
-            'Historical compare complete: left=%s right=%s policy_sections=%s identity_sections=%s',
-            left_cache,
-            right_cache,
-            len(policy_sections),
-            len(identity_sections),
-        )
+        skipped = {}
+        policy_sections, identity_sections = [], []
+        for definitions, destination in [
+            (self.POLICY_SECTIONS, policy_sections),
+            (self.IDENTITY_SECTIONS, identity_sections),
+        ]:
+            for label, key in definitions:
+                reasons = [
+                    f'{side}: {reason}'
+                    for side, snapshot in [('Left', left), ('Right', right)]
+                    if (reason := self._unavailable_reason(snapshot, key))
+                ]
+                scope_key = (
+                    'recursive'
+                    if key == 'compartments' or definitions is self.POLICY_SECTIONS
+                    else 'compartment_domain_search_depth'
+                )
+                if (
+                    left.get(scope_key) is not None
+                    and right.get(scope_key) is not None
+                    and left[scope_key] != right[scope_key]
+                ):
+                    reasons.append(f'Load scope differs ({scope_key}).')
+                if reasons:
+                    skipped[label] = ' '.join(reasons)
+                else:
+                    destination.append(self._compare_section(left, right, label=label, key=key))
         return HistoricalCompareResult(
             left_cache=left_cache,
             right_cache=right_cache,
             policy_sections=policy_sections,
             identity_sections=identity_sections,
-            identity_comparable=not policy_only,
+            identity_comparable=not any(
+                label in skipped for label, key in self.IDENTITY_SECTIONS if key != 'compartments'
+            ),
+            skipped_sections=skipped,
         )

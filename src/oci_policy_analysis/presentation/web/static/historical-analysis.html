@@ -186,6 +186,12 @@
           const payload = await res.json();
           (payload.policy_sections || []).forEach((section) => renderSection(policySectionsEl, section));
           (payload.identity_sections || []).forEach((section) => renderSection(identitySectionsEl, section));
+          Object.entries(payload.skipped_sections || {}).forEach(([section, reason]) => {
+            const note = document.createElement('p');
+            note.textContent = `${section}: comparison unavailable. ${reason}`;
+            const policyNames = ['Policies', 'Regular Statements', 'Defined Aliases', 'Cross-Tenancy Statements'];
+            (policyNames.includes(section) ? policySectionsEl : identitySectionsEl).appendChild(note);
+          });
           statusEl.textContent = 'Comparison complete.';
           statusEl.className = 'status success';
         } catch (err) {

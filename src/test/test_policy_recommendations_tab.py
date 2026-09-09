@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from oci_policy_analysis.application.core.engine.recommendation_actions import cleanup_detail_sections
 from oci_policy_analysis.presentation.desktop.policy_recommendations_tab import (
     PolicyRecommendationsTab,
     _compartment_filter_label,
@@ -69,3 +70,68 @@ def test_show_full_policy_clears_other_filters_and_scopes_to_policy_compartment(
     assert policies_tab.hierarchy_filter_var.value == 'ROOT/cloud-engineering'
     assert policies_tab.policy_filter_var.value == 'Shared Policy'
     assert policies_tab.update_calls == 1
+
+
+def test_cleanup_dynamic_group_detail_sets_real_filters_and_clears_stale_filters(monkeypatch):
+    messages = []
+    monkeypatch.setattr('tkinter.messagebox.showinfo', lambda *args: messages.append(args))
+
+    class Value:
+        def __init__(self, value='old filter'):
+            self.value = value
+
+        def set(self, value):
+            self.value = value
+
+    selected = []
+    refreshed = []
+    dg_tab = SimpleNamespace(
+        domain_filter_var=Value(),
+        dg_name_var=Value(),
+        dg_rule_var=Value(),
+        dg_ocid_var=Value(),
+        chk_show_instance_principals=Value(True),
+        chk_show_not_in_use=Value(True),
+        _update_dg_output=lambda: refreshed.append(True),
+    )
+    tab = SimpleNamespace(
+        app=SimpleNamespace(
+            notebook=SimpleNamespace(select=lambda tab_id: selected.append(tab_id)),
+            dynamic_groups_tab=dg_tab,
+        )
+    )
+
+    PolicyRecommendationsTab._on_focus_cleanup_row(
+        tab, {'Type': 'Unused Dynamic Group', 'Name': 'Default/all-exacs-DG'}
+    )
+
+    assert selected == [dg_tab]
+    assert dg_tab.domain_filter_var.value == 'Default'
+    assert dg_tab.dg_name_var.value == 'all-exacs-DG'
+    assert dg_tab.dg_rule_var.value == ''
+    assert dg_tab.dg_ocid_var.value == ''
+    assert dg_tab.chk_show_instance_principals.value is False
+    assert dg_tab.chk_show_not_in_use.value is False
+    assert refreshed == [True]
+    assert messages == []
+
+
+def test_cleanup_details_preserve_full_statement_and_offer_guidance_for_each_type():
+    statement = 'allow any-user to read objects in tenancy // ' + 'explanation ' * 30
+    checks = {
+        'Invalid Statement': 'identity domain',
+        'Group w/ No Users': 'Zero members does not mean zero policy references',
+        'Unused Dynamic Group': 'planned use',
+        'Overly Broad Statement': 'tighter permissions',
+        'Any-user Without Where': "where all {request.principal.type = 'autonomousdatabase'}",
+    }
+    for cleanup_type, expected_guidance in checks.items():
+        sections = dict(
+            cleanup_detail_sections(
+                {'Type': cleanup_type, 'Name': statement[:200], 'Reason': 'Specific finding'},
+                {'statement_text': statement, 'policy_name': 'Example Policy'},
+            )
+        )
+        assert sections['Item'] == ['Policy: Example Policy', statement]
+        assert sections['Why this was flagged'] == ['Specific finding']
+        assert expected_guidance in '\n'.join(sections['Potential actions'])

@@ -826,13 +826,13 @@ class PolicySimulationEngine:
         Convert a principal_key string into a PolicySearch-compatible dict filter.
 
         The function parses principal_key of the form '{type}:{domain}/{name}' or '{type}:None/{name}' and
-        maps it to a PolicySearch filter using the correct exact_* field or subject, per model spec.
+        maps it to exact principal keys, expanding users to their loaded group memberships.
 
         Returns:
             Dict suitable for **POLICY** repository filtering. Does not include effective_path.
         """
         # Examples:
-        #   user:Default/anita → {'principal_key': ['user:Default/anita']}
+        #   user:Default/anita → user key plus group name/OCID keys from loaded memberships
         #   group:Default/Admins → {'principal_key': ['group:Default/Admins']}
         #   dynamic-group:Default/MyDyn → {'principal_key': ['dynamic-group:Default/MyDyn']}
         #   any-user:None/any-user → {'principal_key': ['any-user:None/any-user']}
@@ -857,6 +857,12 @@ class PolicySimulationEngine:
         # Use principal_key as first-class filter to avoid fuzzy subject collisions
         # (e.g. service "database" should not match group names containing "database").
         return_filter = {'principal_key': [f'{ptype}:{domain if domain is not None else "None"}/{name}']}
+        if ptype == 'user' and self.policy_repo:
+            # A user's grants are attached to their groups. Resolve memberships
+            # before the exact filter, preserving domain and group OCID identity.
+            return_filter['principal_key'] = sorted(
+                self.policy_repo._equivalent_principal_keys_for_key(return_filter['principal_key'][0])
+            )
         logger.info(f'Generated policy search filter: {return_filter}')
         return return_filter
 
@@ -891,6 +897,9 @@ class PolicySimulationEngine:
             """
 
             keys: set[str] = set()
+            for pkey in stmt.get('principal_keys', []) or []:
+                if isinstance(pkey, str) and pkey.strip():
+                    keys.add(pkey.strip())
             key = stmt.get('principal_key')
             if isinstance(key, str) and key.strip():
                 keys.add(key.strip())
@@ -951,7 +960,7 @@ class PolicySimulationEngine:
                 sorted(any_subjects),
             )
 
-            def _prospective_matches_principal(pst: dict) -> bool:  # noqa: C901
+            def _prospective_matches_principal(pst: dict, principal_key: str) -> bool:  # noqa: C901
                 stored_keys = _statement_principal_keys(pst)
                 if stored_keys:
                     return principal_key in stored_keys
@@ -1067,7 +1076,10 @@ class PolicySimulationEngine:
                 ):
                     continue
                 # Now enforce principal/subject match
-                if _prospective_matches_principal(pst):
+                if any(
+                    _prospective_matches_principal(pst, key)
+                    for key in subj_filter.get('principal_key', [principal_key])
+                ):
                     logger.info(
                         'get_applicable_statements: including prospective statement internal_id=%r policy_name=%r for principal_key=%s at path=%s',
                         pst.get('internal_id'),

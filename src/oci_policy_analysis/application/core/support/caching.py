@@ -137,13 +137,69 @@ class CacheManager:
     # Canonical per-tenancy consolidation session file with protected_set & history
     # ----
 
+    def _tenancy_state_path(self, category: str, tenancy_ocid: str) -> Path:
+        """Use the same readable filename convention for all per-tenancy work."""
+        tenancy_key = str(tenancy_ocid or '')
+        if (
+            not tenancy_key
+            or tenancy_key.lower() in ('unknown', 'none')
+            or any(character in tenancy_key for character in ('/', '\\', '\0'))
+            or tenancy_key in ('.', '..')
+        ):
+            raise ValueError(f'A valid tenancy OCID is required for {category} persistence.')
+        outdir = self.cache_dir / category
+        outdir.mkdir(parents=True, exist_ok=True)
+        return outdir / f'{category}_{tenancy_key}.json'
+
     def _consolidation_state_path(self, tenancy_ocid):
         """Return path to per-tenancy consolidation state file."""
-        if not tenancy_ocid or str(tenancy_ocid).lower() in ['unknown', '', 'none']:
-            raise ValueError('tenancy_ocid required for consolidation session persistence.')
-        outdir = self.cache_dir / 'consolidation'
-        outdir.mkdir(parents=True, exist_ok=True)
-        return outdir / f'consolidation_{tenancy_ocid}.json'
+        return self._tenancy_state_path('consolidation', tenancy_ocid)
+
+    def _cleanup_progress_path(self, tenancy_ocid: str) -> Path:
+        """Keep mutable cleanup progress separate from immutable inventory snapshots."""
+        return self._tenancy_state_path('cleanup', tenancy_ocid)
+
+    def _legacy_cleanup_progress_path(self, tenancy_ocid: str) -> Path:
+        key = hashlib.sha256(str(tenancy_ocid).encode()).hexdigest()
+        return self.cache_dir / 'cleanup' / f'{key}.json'
+
+    def load_cleanup_progress(self, tenancy_ocid: str) -> list[dict]:
+        path = self._cleanup_progress_path(tenancy_ocid)
+        if not path.exists():
+            path = self._legacy_cleanup_progress_path(tenancy_ocid)
+        if not path.exists():
+            return []
+        data = json.loads(path.read_text(encoding='utf-8'))
+        if data.get('tenancy_ocid') != tenancy_ocid or not isinstance(data.get('actions'), list):
+            raise ValueError('Cleanup progress does not match the requested tenancy.')
+        return [
+            dict(action)
+            for action in data['actions']
+            if isinstance(action, dict) and action.get('tenancy_ocid') == tenancy_ocid
+        ]
+
+    def save_cleanup_progress(self, tenancy_ocid: str, actions: list[dict]) -> None:
+        """Atomically persist only this tenancy's tracked actions and verification history."""
+        import os
+        import tempfile
+
+        path = self._cleanup_progress_path(tenancy_ocid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            'version': 1,
+            'tenancy_ocid': tenancy_ocid,
+            'actions': [a for a in actions if a.get('tenancy_ocid') == tenancy_ocid],
+        }
+        fd, temporary = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                json.dump(data, handle, indent=2)
+            os.replace(temporary, path)
+            # Only retire the legacy file once the canonical save succeeds.
+            self._legacy_cleanup_progress_path(tenancy_ocid).unlink(missing_ok=True)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
     def get_or_create_consolidation_state(self, tenancy_ocid) -> dict:
         """
@@ -298,11 +354,7 @@ class CacheManager:
     # ----
 
     def _prospects_path(self, tenancy_ocid: str) -> Path:
-        if not tenancy_ocid or str(tenancy_ocid).lower() in {'unknown', '', 'none'}:
-            raise ValueError('tenancy_ocid required for prospects persistence.')
-        outdir = self.cache_dir / 'prospects'
-        outdir.mkdir(parents=True, exist_ok=True)
-        return outdir / f'prospects_{tenancy_ocid}.json'
+        return self._tenancy_state_path('prospects', tenancy_ocid)
 
     def load_prospects(self, tenancy_ocid: str) -> list[dict[str, Any]]:
         """Load standalone prospective statements for a tenancy from cache/prospects."""
@@ -451,6 +503,13 @@ class CacheManager:
             'users_by_key': self._build_by_key(users),
             'data_as_of': policy_analysis.data_as_of,
             'load_all_users': getattr(policy_analysis, 'load_all_users', True),
+            'snapshot_kind': getattr(policy_analysis, 'snapshot_kind', None)
+            or ('policy_reload' if getattr(policy_analysis, 'policy_data_reloaded', None) else 'full'),
+            'recursive': getattr(policy_analysis, 'recursive', None),
+            'compartment_domain_search_depth': getattr(policy_analysis, 'compartment_domain_search_depth', None),
+            'compliance_capabilities': getattr(policy_analysis, 'compliance_capabilities', {}),
+            'inventory_complete': getattr(policy_analysis, 'inventory_complete', True)
+            and not bool(getattr(policy_analysis, '_cleanup_reload_api_errors', [])),
             # Optional, tenancy/snapshot-specific metadata.  Older cache files
             # do not have this key and load normally.
             'tenancy_policy_limits': getattr(policy_analysis, 'tenancy_policy_limits', {}),
@@ -624,6 +683,15 @@ class CacheManager:
                     policy_analysis.users = cache_data.get('users', [])
                     policy_analysis.version = cache_data.get('version', 1)
                     policy_analysis.load_all_users = cache_data.get('load_all_users', True)
+                    for metadata_key in (
+                        'snapshot_kind',
+                        'recursive',
+                        'compartment_domain_search_depth',
+                        'compliance_capabilities',
+                        'inventory_complete',
+                    ):
+                        if metadata_key in cache_data:
+                            setattr(policy_analysis, metadata_key, cache_data[metadata_key])
                     policy_analysis.tenancy_policy_limits = cache_data.get('tenancy_policy_limits', {}) or {}
                     policy_analysis.current_cache_name = named_cache
                     # Set the data as of time, always a str
@@ -693,6 +761,15 @@ class CacheManager:
             policy_analysis.users = loaded_json.get('users', [])
             policy_analysis.version = loaded_json.get('version', 1)
             policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
+            for metadata_key in (
+                'snapshot_kind',
+                'recursive',
+                'compartment_domain_search_depth',
+                'compliance_capabilities',
+                'inventory_complete',
+            ):
+                if metadata_key in loaded_json:
+                    setattr(policy_analysis, metadata_key, loaded_json[metadata_key])
             policy_analysis.tenancy_policy_limits = loaded_json.get('tenancy_policy_limits', {}) or {}
             policy_analysis.current_cache_name = ''
             # Set the data as of time, always a str

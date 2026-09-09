@@ -32,5 +32,5 @@ class UnusedDynamicGroupsCheck:
         overlay: dict,
         params: dict | None = None,
     ) -> None:
-        unused = repo.filter_dynamic_groups({'in_use': [False]})
+        unused = repo.filter_dynamic_groups({'in_use': False})
         overlay.setdefault('cleanup_items', {})[self.strategy_id] = unused
