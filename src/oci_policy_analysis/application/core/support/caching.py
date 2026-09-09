@@ -747,7 +747,8 @@ class CacheManager:
         Returns:
             a list of the available named caches
         """
-        return_entries = []
+        return_entries: list[str] = []
+        seen_entries: set[str] = set()
         try:
             with open(self.cache_dir / 'cache_entries.json', encoding='utf-8') as date_file:
                 entries = date_file.readlines()
@@ -759,7 +760,12 @@ class CacheManager:
                 cache = json.loads(entry)
                 if tenancy_name and cache['tenancy_name'] != tenancy_name:
                     continue
-                return_entries.append(cache['tenancy_name'] + '_' + cache['cache_date'])
+                cache_name = cache['tenancy_name'] + '_' + cache['cache_date']
+                # Older desktop loads could append the same index entry twice
+                # within one second. Keep the cache usable but show it once.
+                if cache_name not in seen_entries:
+                    return_entries.append(cache_name)
+                    seen_entries.add(cache_name)
         except json.JSONDecodeError:
             logger.warning('No cache entries found or cache_entries.json is empty.')
         except FileNotFoundError:
@@ -947,31 +953,59 @@ class CacheManager:
                     f.write(line)
         return updated
 
-    def update_policy_section(self, policy_analysis: PolicyAnalysisRepository, policy_data_reloaded: str | None):
+    def update_policy_section(
+        self,
+        policy_analysis: PolicyAnalysisRepository,
+        policy_data_reloaded: str | None,
+        *,
+        base_cache_name: str | None = None,
+    ) -> str | None:
         """
-        Update ONLY the policies, policy_statements, tag catalog, compartments, defined_aliases, and cross_tenancy_statements in
-        the most recent cache file for a given tenancy, and set 'policy_data_reloaded' with the supplied timestamp.
-        This preserves IAM/user/group data and other session metadata. No effect if no cache is present.
+        Create a policy-only reload snapshot from a full cache without changing that
+        original snapshot.  The new name is ``<base>_reload-01`` (then ``-02``,
+        and so on).  It contains fresh policy/compartment data and retained IAM
+        data, and is marked so historical comparison can avoid presenting IAM
+        diffs as fresh data.
 
         Args:
             policy_analysis: PolicyAnalysisRepository with fresh policy/compartment data in memory
-            policy_data_reloaded: ISO timestamp string for reloaded policy data
+            policy_data_reloaded: ISO timestamp string for reloaded policy data.
+            base_cache_name: Cache that supplied the IAM portion, when the caller
+                knows it. Older callers may omit this value.
         """
         cache_files = list(self.cache_dir.glob(f'combined_cache_{policy_analysis.tenancy_name}_*.json'))
         if not cache_files:
             logger.warning(
                 f"[CacheManager.update_policy_section] No existing cache file for tenancy '{policy_analysis.tenancy_name}', skipping."
             )
-            return
-        # Use newest cache file (sorted by filename so creation time works due to naming convention)
-        cache_files.sort(reverse=True)
-        cache_file = cache_files[0]
+            return None
+
+        def cache_name_for(path: Path) -> str:
+            return path.name.removeprefix('combined_cache_').removesuffix('.json')
+
+        available = {cache_name_for(path): path for path in cache_files}
+        source_name = str(base_cache_name or '')
+        source_file = available.get(source_name)
+        if source_file is None:
+            # A live tenancy load has no current_cache_name. Prefer the most
+            # recent full snapshot, so a reload never becomes the baseline by
+            # accident. Legacy caches without the marker are full snapshots.
+            full_caches = [path for path in cache_files if '_reload-' not in cache_name_for(path)]
+            source_file = max(full_caches or cache_files, key=lambda path: path.name)
+            source_name = cache_name_for(source_file)
+
+        root_name = re.sub(r'_reload-\d+$', '', source_name)
+        reload_number = 1
+        while f'{root_name}_reload-{reload_number:02d}' in available:
+            reload_number += 1
+        reload_name = f'{root_name}_reload-{reload_number:02d}'
+        cache_file = self.cache_dir / f'combined_cache_{reload_name}.json'
         try:
-            with open(cache_file, encoding='utf-8') as f:
+            with open(source_file, encoding='utf-8') as f:
                 cache_data = json.load(f)
         except Exception as e:
-            logger.error(f"[CacheManager.update_policy_section] Failed to load cache file '{cache_file}': {e}")
-            return
+            logger.error(f"[CacheManager.update_policy_section] Failed to load cache file '{source_file}': {e}")
+            return None
 
         # Update the compartment/policy section fields (other identity data are left untouched)
         cache_data['policies'] = policy_analysis.policies
@@ -980,12 +1014,44 @@ class CacheManager:
         cache_data['compartments'] = policy_analysis.compartments
         cache_data['defined_aliases'] = policy_analysis.defined_aliases
         cache_data['cross_tenancy_statements'] = policy_analysis.cross_tenancy_statements
+        cache_data['policies_by_key'] = self._build_by_key(
+            self._annotate_stable_keys('policies', policy_analysis.policies)
+        )
+        cache_data['policy_statements_by_key'] = self._build_by_key(
+            self._annotate_stable_keys('policy_statements', policy_analysis.regular_statements)
+        )
+        cache_data['defined_aliases_by_key'] = self._build_by_key(
+            self._annotate_stable_keys('defined_aliases', policy_analysis.defined_aliases)
+        )
+        cache_data['cross_tenancy_statements_by_key'] = self._build_by_key(
+            self._annotate_stable_keys('cross_tenancy_statements', policy_analysis.cross_tenancy_statements)
+        )
         cache_data['policy_data_reloaded'] = policy_data_reloaded
+        cache_data['snapshot_kind'] = 'policy_reload'
+        cache_data['base_cache_name'] = root_name
+        cache_data['reload_source_cache_name'] = source_name
+        cache_data['identity_data_as_of'] = cache_data.get('data_as_of') or ''
+        cache_data['captured_at'] = datetime.now(UTC).isoformat()
+        cache_data['snapshot_id'] = hashlib.sha256(
+            f'{getattr(policy_analysis, "tenancy_ocid", "")}|{reload_name}|{policy_data_reloaded}'.encode()
+        ).hexdigest()
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(cache_data, f, ensure_ascii=False, indent=2, default=str)
+            entry = {
+                'tenancy_name': policy_analysis.tenancy_name,
+                'cache_date': reload_name.removeprefix(f'{policy_analysis.tenancy_name}_'),
+                'preserved': False,
+                'snapshot_kind': 'policy_reload',
+                'base_cache_name': root_name,
+            }
+            with open(self.cache_dir / 'cache_entries.json', 'a', encoding='utf-8') as entry_file:
+                json.dump(entry, entry_file, ensure_ascii=False)
+                entry_file.write('\n')
             logger.info(
-                f'[CacheManager.update_policy_section] Updated policy/compartment section of {cache_file} with new policy_data_reloaded: {policy_data_reloaded}'
+                f'[CacheManager.update_policy_section] Created policy reload cache {cache_file} from {source_file}; policy_data_reloaded={policy_data_reloaded}'
             )
+            return str(cache_file)
         except Exception as e:
             logger.error(f"[CacheManager.update_policy_section] Could not save cache file '{cache_file}': {e}")
+            return None

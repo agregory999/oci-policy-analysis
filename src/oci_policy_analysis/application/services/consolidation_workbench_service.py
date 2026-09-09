@@ -148,7 +148,7 @@ class ConsolidationWorkbenchService:
         """
         tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
         if not tenancy_ocid:
-            self.logger.warning('get_protected_set called without an active tenancy')
+            self.logger.info('get_protected_set called without an active tenancy')
             return {}
         return self.cache.get_protected_set(tenancy_ocid)
 

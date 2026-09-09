@@ -119,17 +119,28 @@ class CacheService:
         self.logger.info('Importing cache data from JSON payload')
         return bool(self.cache.load_cache_from_json(loaded_json=loaded_json, policy_analysis=policy_repo))
 
-    def update_policy_section(self, policy_repo: Any, *, policy_data_reloaded: str | None = None) -> None:
-        """Update policy section in cache content.
+    def update_policy_section(
+        self,
+        policy_repo: Any,
+        *,
+        policy_data_reloaded: str | None = None,
+        base_cache_name: str | None = None,
+    ) -> str | None:
+        """Create a policy-reload cache from an existing cache snapshot.
 
         Args:
             policy_repo: Policy repository source.
             policy_data_reloaded: Optional policy data indicator.
+            base_cache_name: Cache that supplied the retained IAM data.
 
         Returns:
-            None
+            New cache path, or ``None`` when no cache could be created.
         """
-        self.cache.update_policy_section(policy_repo, policy_data_reloaded=policy_data_reloaded)
+        return self.cache.update_policy_section(
+            policy_repo,
+            policy_data_reloaded=policy_data_reloaded,
+            base_cache_name=base_cache_name,
+        )
 
     def get_consolidation_state(self, tenancy_ocid: str) -> dict:
         """Get or create consolidation state for a tenancy.

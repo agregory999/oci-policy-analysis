@@ -145,6 +145,26 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
 
     def visitSingle_condition(self, ctx):  # noqa: C901
         variable = ctx.variable_name().getText()
+        bang_token = getattr(ctx, 'BANG', lambda: None)()
+        if bang_token is not None:
+            # OCI uses ``!variable`` as a presence check. A supplied empty
+            # string is still a value; UI boundaries normalize blank fields to
+            # None so this evaluator can distinguish explicit null from text.
+            sim_value = self.variables.get(variable)
+            is_not_supplied = variable not in self.variables or sim_value is None
+            self.comparison_log.append(
+                {
+                    'variable': variable,
+                    'operator': '!',
+                    'sim_value': 'MISSING' if is_not_supplied else sim_value,
+                    'expected': 'not supplied',
+                    'result': is_not_supplied,
+                    'type': 'Unary presence check',
+                }
+            )
+            logger.info('Unary presence check: variable=%s result=%s', variable, is_not_supplied)
+            return is_not_supplied
+
         # Support both standard operators and the NOT_IN token from the grammar.
         op_token = ctx.OPERATOR()
         not_in_token = getattr(ctx, 'NOT_IN', lambda: None)()
@@ -243,7 +263,7 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
 
         logger.info(f"Comparing: sim_value={sim_value}; expected={log_entry['expected']} (operator '{operator}').")
         if sim_value is None:
-            logger.warning(f'Missing value for variable {variable}.')
+            logger.debug('No simulated value for variable %s; comparison evaluates false.', variable)
             self.comparison_log.append(log_entry)
             return False
 

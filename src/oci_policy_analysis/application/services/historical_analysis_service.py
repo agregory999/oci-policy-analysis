@@ -41,6 +41,7 @@ class HistoricalCompareResult:
     right_cache: str
     policy_sections: list[HistoricalSectionResult]
     identity_sections: list[HistoricalSectionResult]
+    identity_comparable: bool = True
 
 
 class HistoricalAnalysisService:
@@ -307,9 +308,15 @@ class HistoricalAnalysisService:
         policy_sections = [
             self._compare_section(left, right, label=label, key=key) for label, key in self.POLICY_SECTIONS
         ]
-        identity_sections = [
-            self._compare_section(left, right, label=label, key=key) for label, key in self.IDENTITY_SECTIONS
-        ]
+        policy_only = any(
+            snapshot.get('snapshot_kind') == 'policy_reload' or bool(snapshot.get('policy_data_reloaded'))
+            for snapshot in (left, right)
+        )
+        identity_sections = (
+            []
+            if policy_only
+            else [self._compare_section(left, right, label=label, key=key) for label, key in self.IDENTITY_SECTIONS]
+        )
 
         self.logger.info(
             'Historical compare complete: left=%s right=%s policy_sections=%s identity_sections=%s',
@@ -323,4 +330,5 @@ class HistoricalAnalysisService:
             right_cache=right_cache,
             policy_sections=policy_sections,
             identity_sections=identity_sections,
+            identity_comparable=not policy_only,
         )

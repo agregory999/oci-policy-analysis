@@ -817,6 +817,7 @@ class App(tk.Tk):
             logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
             return False
 
+        base_cache_name = getattr(repo, 'current_cache_name', '')
         reload_ok = repo.reload_compartment_policy_data()
         if not reload_ok:
             logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
@@ -824,7 +825,9 @@ class App(tk.Tk):
 
         # Now update the cache for just these sections
         try:
-            self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+            self.cache_service.update_policy_section(
+                repo, policy_data_reloaded=repo.policy_data_reloaded, base_cache_name=base_cache_name
+            )
         except Exception as e:
             logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
@@ -1028,13 +1031,16 @@ class App(tk.Tk):
                 if not hasattr(repo, 'reload_compartment_policy_data'):
                     raise RuntimeError('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
 
+                base_cache_name = getattr(repo, 'current_cache_name', '')
                 reload_ok = repo.reload_compartment_policy_data()
                 if not reload_ok:
                     raise RuntimeError('reload_compartment_policy_data failed, policies/compartments not reloaded')
 
                 publish_progress('Updating cached policy section...')
                 try:
-                    self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+                    self.cache_service.update_policy_section(
+                        repo, policy_data_reloaded=repo.policy_data_reloaded, base_cache_name=base_cache_name
+                    )
                 except Exception as cache_error:
                     logger.error('Policy/compartment cache update failed after reload: %s', cache_error)
 
@@ -1156,6 +1162,7 @@ class App(tk.Tk):
                         load_all_users=load_all_users,
                         compartment_domain_search_depth=compartment_domain_search_depth,
                         run_post_load_intelligence=False,
+                        save_cache_after_load=False,
                         on_stage=lambda stage, detail, state: self._publish_operation_progress(
                             f'{stage}: {detail}' if detail else stage,
                             callback=callback,

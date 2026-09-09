@@ -222,6 +222,25 @@ def _normalize_where_context_times(where_context: dict[str, Any]) -> dict[str, A
     return norm
 
 
+def _normalize_where_context_nulls(where_context: dict[str, Any]) -> dict[str, Any]:
+    """Represent blank UI inputs as explicit nulls, not empty string values.
+
+    OCI's unary presence condition (``!request.variable``) distinguishes an
+    absent variable from a supplied empty string. Desktop and web input fields
+    naturally submit empty strings, so normalize them at the shared evaluator
+    boundary used by the tester and simulation.
+    """
+    normalized: dict[str, Any] = {}
+    for key, value in where_context.items():
+        if value == '':
+            normalized[key] = None
+        elif isinstance(value, dict):
+            normalized[key] = _normalize_where_context_nulls(value)
+        else:
+            normalized[key] = value
+    return normalized
+
+
 def evaluate_condition_clause(
     cond: object,
     where_context: dict[str, Any],
@@ -244,7 +263,7 @@ def evaluate_condition_clause(
         Tuple where the first value is pass/fail and the second value is either
         a reason string or a structured result dict.
     """
-    where_context = _normalize_where_context_times(where_context or {})
+    where_context = _normalize_where_context_nulls(_normalize_where_context_times(where_context or {}))
     if isinstance(cond, dict):
         condition_str = None
         for k in ('where_clause', 'condition_string', 'clause', 'string'):

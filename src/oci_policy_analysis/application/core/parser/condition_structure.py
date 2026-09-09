@@ -71,14 +71,18 @@ class _ConditionStructureVisitor(OciIamPolicyConditionVisitor):
         if variable_ctx is not None:
             left = variable_ctx.getText()
 
+        bang_token = getattr(ctx, 'BANG', lambda: None)()
         not_in_token = getattr(ctx, 'NOT_IN', lambda: None)()
-        if not_in_token is not None:
+        if bang_token is not None:
+            operator = '!'
+            right, value_type = 'not supplied', 'unary'
+        elif not_in_token is not None:
             operator = 'not in'
+            right, value_type = self._extract_right(ctx)
         else:
             op_token = ctx.OPERATOR()
             operator = op_token.getText().lower() if op_token is not None else ''
-
-        right, value_type = self._extract_right(ctx)
+            right, value_type = self._extract_right(ctx)
         subexpression = ctx.getText()
         evidence_kind = _classify_evidence(left, right)
         self.atoms.append(

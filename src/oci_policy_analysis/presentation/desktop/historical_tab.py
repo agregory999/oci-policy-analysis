@@ -115,9 +115,8 @@ class HistoricalTab(BaseUITab):
         self.policy_tree.heading('#0', text='Policies / Statements', anchor='w')
         self.policy_tree.pack(fill='both', expand=True, padx=6, pady=(0, 6))
 
-        ttk.Label(self, text='Identity & Compartments', font=('TkDefaultFont', 10, 'bold')).pack(
-            fill='x', padx=6, pady=(4, 0)
-        )
+        self.identity_heading = ttk.Label(self, text='Identity & Compartments', font=('TkDefaultFont', 10, 'bold'))
+        self.identity_heading.pack(fill='x', padx=6, pady=(4, 0))
         self.identity_tree = ttk.Treeview(self, height=8)
         self.identity_tree.heading('#0', text='Users / Groups / Dynamic Groups / Compartments', anchor='w')
         self.identity_tree.pack(fill='both', expand=True, padx=6, pady=(0, 6))
@@ -234,8 +233,18 @@ class HistoricalTab(BaseUITab):
 
                 elapsed = time.time() - start
 
-                self.after(0, lambda: self._display_grouped(result.policy_sections, result.identity_sections))
-                self.after(0, lambda: self._set_status(f'Done in {elapsed:.2f}s.', 'green'))
+                self.after(
+                    0,
+                    lambda: self._display_grouped(
+                        result.policy_sections, result.identity_sections, result.identity_comparable
+                    ),
+                )
+                status = (
+                    f'Done in {elapsed:.2f}s. IAM comparison is unavailable because one snapshot is policy-reload only.'
+                    if not result.identity_comparable
+                    else f'Done in {elapsed:.2f}s.'
+                )
+                self.after(0, lambda: self._set_status(status, 'green'))
 
             except Exception as exc:
                 logger.error(f'DeepDiff worker error: {exc}')
@@ -255,7 +264,7 @@ class HistoricalTab(BaseUITab):
     #     return filtered
 
     # ------------------------------------------------------------------
-    def _display_grouped(self, policy_sections, identity_sections):
+    def _display_grouped(self, policy_sections, identity_sections, identity_comparable=True):
         """
         Populate the policy and identity trees with grouped differences.
 
@@ -275,11 +284,20 @@ class HistoricalTab(BaseUITab):
         for tree in (self.policy_tree, self.identity_tree):
             tree.delete(*tree.get_children())
 
+        self.identity_heading.configure(foreground='' if identity_comparable else 'gray')
+        self.identity_tree.configure(state='normal')
+
         for section_result in policy_sections:
             self._populate_group_section(self.policy_tree, section_result)
 
-        for section_result in identity_sections:
-            self._populate_group_section(self.identity_tree, section_result)
+        if identity_comparable:
+            for section_result in identity_sections:
+                self._populate_group_section(self.identity_tree, section_result)
+        else:
+            self.identity_tree.insert(
+                '', 'end', text='Unavailable: at least one selected cache is a policy-only reload snapshot.'
+            )
+            self.identity_tree.configure(state='disabled')
 
         # No differences detected — show explicit message in both trees
         if not self.policy_tree.get_children() and not self.identity_tree.get_children():
