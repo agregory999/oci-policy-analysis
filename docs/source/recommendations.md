@@ -1,4 +1,4 @@
-# Recommendations Tab: Guided Policy Analytics & Remediation
+# Recommendations
 
 The **Recommendations** tab is the central UI for reviewing, understanding, and acting on security, cleanup, and optimization findings within your OCI tenancy. This tab synthesizes actionable insights from a pluggable, analytics-driven engine and presents them in an interactive, user-friendly dashboard.
 
@@ -47,20 +47,22 @@ The Recommendations tab is organized into several subtabs and panels, each focus
 
 ---
 
-### 3. **Overlap Analysis**
-- **Purpose**: Identify policies/statements that overlap, conflict, or supersede each other (potential misconfiguration).
+### 3. **Superseded**
+- **Purpose**: Identifies allow statements whose complete permission set is already granted by a single unconditional statement for the same principal at the same or an ancestor scope.
 - **Features**:
-  - Filter by compartment or resource using dropdowns.
-  - See details on why and where overlap occurs by selecting a row.
-  - Use right-click actions to drill deeper.
+  - Filter findings by compartment, including its descendant compartments.
+  - Right-click a row and choose **Supersession Details** to see the candidate statement, coverage notes, applicable evidence statements and their scope relationship, and a permission-by-permission coverage comparison.
+  - Conditional evidence is displayed for review, but is not used as proof of complete supersession.
 
 ---
 
 ### 4. **Policy Consolidation**
 - **Purpose**: Flags policies or statements that could be combined/reorganized for clarity and management simplicity.
 - **Features**: 
-  - Checkbox selection to review candidates.
-  - (Actions require manual follow-up in current version.)
+  - Groups similar statements by shared access, scope, and conditions when they differ only in their group or dynamic-group principals; the group can be reviewed as a consolidation opportunity.
+  - Right-click any row and choose **Show Consolidation Opportunity** to inspect its rationale, commonality, participating policies and statements, and any proposed grouped statement.
+  - When **Show Advanced Tabs** is enabled, select a supported group of statements with the checkboxes and choose **Create Consolidation Plan** to send that currently selected group to the **Consolidation Workbench**.
+  - Advisory opportunities remain review-only; use their right-click details to evaluate them before making a manual change.
 
 **Web parity update:** A dedicated **Consolidation Workbench** flow is available in web mode and can be used to review consolidation candidates and stage follow-up actions.
 
@@ -80,7 +82,7 @@ The Recommendations tab is organized into several subtabs and panels, each focus
 ---
 
 ### 6. **Limits**
-- **Purpose**: Displays compartment hierarchy and policy statement counts, with alerts for nearing/exceeding Oracle’s hard per-compartment statement limit (500).
+- **Purpose**: Displays compartment hierarchy and policy statement counts, with alerts for nearing/exceeding Oracle’s per-compartment statement limit (500).
 - **Features**:
   - Filter compartments by status (all, nearing/over limit, only over limit).
   - See live statement counts and cleanliness recommendations.
@@ -107,24 +109,6 @@ The Recommendations tab is organized into several subtabs and panels, each focus
 - **Take Action on actionable issues** directly from Cleanup/Fix—a fast route to trackable and auditable remediation steps.
 - **Interpret why an issue is flagged** by expanding details in each table—most analytics include clear rationale and recommended next steps.
 - **Reload regularly:** If you make changes in OCI Console or via CLI, clicking "Reload All" refreshes analytics and cleans up completed workbench items.
-- **Curious about technical details?** See below.
-
----
-
-## Further Reading: AI Context & Detailed Architecture
-
-Curious about the deep technical contract behind this tab?  
-All analytic findings, dashboard subtabs, workbench logic, and extensibility are governed by a formal, pluggable overlay model and a set of modular strategy "plug-ins." If you're an advanced user, developer, or just want a full description of how analytics are constructed (with diagrams, wiring, and extensibility guides), see:
-
-**Policy Intelligence Engine & Recommendations UI — AI Context**
-
-[maintainer context](https://github.com/agregory999/oci-policy-analysis/blob/main/context/project/CONTEXT_policy_intelligence_and_recommendations.md)
-
-This "AI Context" is the source of truth for the analytic and UI contract. It covers:
-- Overlay data model and all canonical output structures
-- Pluggable strategies and how to extend/reason about them
-- Control/data flow diagrams for engine, plug-ins, overlay, and UI
-- Extensibility/workbench details and all implementation references
 
 ---
 

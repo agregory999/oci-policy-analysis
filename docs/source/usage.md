@@ -117,6 +117,7 @@ The **Settings Tab** is where you establish the foundation for all analysis in t
 - **Tenancy / Profile selectors:** Choose which tenancy or profile you are currently analyzing.  
 - **Import/Export Data buttons:** Load existing cached data or save the currently loaded tenancy data to a file for reuse or sharing.  
 - **Advanced Settings / Caching options:** Control snapshot retention, cache refresh behavior, and logging verbosity.  
+  A policy-only reload creates a new cache named like `tenancy_timestamp_reload-01` rather than changing the original full snapshot. It refreshes policies and compartments while retaining the original IAM data; Historical Comparison marks IAM results unavailable whenever either selected cache is a reload snapshot.
  - **(Planned) Usage Tracking toggle:** A simple on/off control for anonymous usage tracking. Today this flag is stored as `"usage_tracking_enabled"` in the local settings file (`~/.oci-policy-analysis/settings.json`) and defaults to **On** on first run. You can see whether tracking is currently enabled in the status bar text ("Tool Usage Tracking: On/Off").
 
 Changes made here are **application-wide**: once you import a different policy dataset or adjust global options, all other tabs (Policy Browser, Policy, Simulation, Recommendations, etc.) will immediately reflect the new environment.
