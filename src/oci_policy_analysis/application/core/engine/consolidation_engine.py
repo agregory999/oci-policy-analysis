@@ -406,13 +406,13 @@ class ConsolidationEngine:
             if action == 'add':
                 comp_ocid = step.get('compartment_ocid', '')
                 name = step.get('create_policy_name') or 'Consolidated-Root'
-                desc = step.get('create_policy_description') or 'Policy created by consolidation (root compartment).'
+                desc = step.get('create_policy_description') or 'Policy created by consolidation.'
                 ff_add: dict = {str(marker_key): str(marker_val)} if marker_val else {}
                 stmt_val = _statements_cli_value(step.get('after_statements', []))
                 name_esc = _shell_escape_single_quoted(name)
                 desc_esc = _shell_escape_single_quoted(desc)
                 lines.append(
-                    '# Create new policy in root compartment. You may change --name and --description as desired.'
+                    '# Create new policy in the target compartment. You may change --name and --description as desired.'
                 )
                 lines.append('oci iam policy create \\')
                 lines.append(f'  --compartment-id {comp_ocid} \\')
@@ -520,10 +520,10 @@ class ConsolidationEngine:
                 lines.append('  • In OCI Console: Identity & Security > Identity > Policies.')
                 if action == 'add':
                     lines.append(
-                        f"  • Create a new policy in the root compartment. Name: {step.get('create_policy_name') or 'Consolidated-Root'}"
+                        f"  • Create a new policy in this compartment. Name: {step.get('create_policy_name') or 'Consolidated-Root'}"
                     )
                     lines.append(
-                        f"  • Description: {step.get('create_policy_description') or 'Policy created by consolidation (root compartment).'}"
+                        f"  • Description: {step.get('create_policy_description') or 'Policy created by consolidation.'}"
                     )
                     lines.append('  • Set Statements to the following list:')
                     for st in step.get('after_statements', [])[:20]:
@@ -578,7 +578,7 @@ class ConsolidationEngine:
                     lines.append(f'  • Navigate to compartment: {nav_path}')
                 if action == 'add':
                     lines.append(
-                        f"  • Delete the policy created in this step (root compartment; name: {step.get('create_policy_name') or 'Consolidated-Root'}). "
+                        f"  • Delete the policy created in this compartment (name: {step.get('create_policy_name') or 'Consolidated-Root'}). "
                         f"Find it by freeform tag {r_marker_key} if needed, then delete the policy."
                     )
                 elif action == 'modify':
@@ -638,7 +638,7 @@ class ConsolidationEngine:
                 comp_ocid = step.get('compartment_ocid', '')
                 marker_key = (step.get('plan_tags') or {}).get('marker_tag_key', 'opa_consolidation')
                 marker_val = (step.get('plan_tags') or {}).get('marker_tag_value', '')
-                lines.append('# Rollback add: delete the policy created in this step (root compartment).')
+                lines.append('# Rollback add: delete the policy created in the target compartment.')
                 lines.append('# List policies in compartment and find the one with the plan marker tag, then delete:')
                 lines.append(f'# oci iam policy list --compartment-id {comp_ocid} --all')
                 lines.append('# Then: oci iam policy delete --policy-id <policy-id-from-list> --force')

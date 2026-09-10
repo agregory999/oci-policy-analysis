@@ -1,0 +1,11 @@
+/*
+ * Documentation layout overrides
+ *
+ * Keep the Read the Docs sidebar and mobile breakpoints intact, while allowing
+ * the central reading pane to use modern desktop displays more effectively.
+ */
+@media screen and (min-width: 1100px) {
+  .wy-nav-content {
+    max-width: 1280px;
+  }
+}

@@ -125,6 +125,39 @@ def test_consolidation_uses_repository_tenancy_and_clears_transient_ids():
     assert len(values) == 3
 
 
+def test_consolidation_clear_invalidates_filter_cache_after_search_callbacks():
+    """A blank search reset must not suppress the following data refresh."""
+
+    tab = SimpleNamespace(
+        app=SimpleNamespace(policy_compartment_analysis=SimpleNamespace(tenancy_ocid='new')),
+        protected_statement_ids=set(),
+        candidate_statement_ids=set(),
+        protect_table_selected_ids=set(),
+        candidate_table_selected_ids=set(),
+        invalid_statement_ids=set(),
+        system_statement_ids=set(),
+        _last_protect_filter=('stale',),
+        script_text=SimpleNamespace(configure=lambda **kwargs: None, delete=lambda *_args: None),
+        plan_notes_text=SimpleNamespace(configure=lambda **kwargs: None, delete=lambda *_args: None),
+        plan_history_detail_text=SimpleNamespace(configure=lambda **kwargs: None, delete=lambda *_args: None),
+        plan_history_dropdown={},
+        plan_status_label=SimpleNamespace(configure=lambda **kwargs: None),
+        _set_plan_notes_and_skipped_from_plan=lambda plan: None,
+    )
+
+    class SearchVar:
+        def set(self, _value):
+            # This mirrors the Tk trace callback that filters the empty table.
+            tab._last_protect_filter = ('', '', frozenset())
+
+    tab.policy_search_var = SearchVar()
+    tab.statement_search_var = SearchVar()
+
+    ConsolidationWorkbenchTab.clear_tenancy_selection(tab)
+
+    assert tab._last_protect_filter is None
+
+
 @pytest.mark.parametrize('fresh', [False, True])
 def test_shared_live_load_verifies_persisted_progress_but_cached_load_does_not(tmp_path, fresh):
     from oci_policy_analysis.application.services.cleanup_progress_service import CleanupProgressService
