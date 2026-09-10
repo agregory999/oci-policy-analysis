@@ -72,6 +72,7 @@ def test_cleanup_resolution_tracks_identity_and_does_not_treat_disabled_checks_a
     row = {'Type': 'Unused Dynamic Group', 'Name': 'Default/Example', 'action_key': 'new-key'}
     payload = {'dynamic_group_ocid': 'dg-1'}
     action = {
+        'verification_scope': {'recursive': False, 'compartment_domain_search_depth': 1},
         'Type': row['Type'],
         'finding_identity': cleanup_finding_identity(row, payload),
         'tenancy_ocid': 'tenancy-1',
@@ -80,7 +81,9 @@ def test_cleanup_resolution_tracks_identity_and_does_not_treat_disabled_checks_a
     }
     other_tenancy = {**action, 'tenancy_ocid': 'other'}
     app = SimpleNamespace(
-        policy_compartment_analysis=SimpleNamespace(tenancy_ocid='tenancy-1'),
+        policy_compartment_analysis=SimpleNamespace(
+            tenancy_ocid='tenancy-1', recursive=False, compartment_domain_search_depth=1
+        ),
         settings={'enabled_intelligence_checks': enabled},
     )
 

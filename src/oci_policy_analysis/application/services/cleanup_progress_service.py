@@ -3,6 +3,7 @@
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
     CLEANUP_ACTION_IDS,
     cleanup_finding_identity,
+    cleanup_verification_scope,
     current_supersession_identities,
     reconcile_cleanup_actions,
 )
@@ -46,5 +47,6 @@ class CleanupProgressService:
             current,
             enabled=self.context.settings.get('enabled_intelligence_checks'),
             users_loaded=getattr(repo, 'load_all_users', True),
+            verification_scope=cleanup_verification_scope(repo),
         )
         self.context.cache.save_cleanup_progress(tenancy, updated)

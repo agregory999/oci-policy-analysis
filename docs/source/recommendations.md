@@ -55,7 +55,7 @@ The Recommendations tab is organized into several subtabs and panels, each focus
   - Conditional evidence is displayed for review, but is not used as proof of complete supersession.
   - In desktop mode, check findings and choose **Attempt/Fix** to add them to **Cleanup In Progress** with manual review instructions. Review the superseding permissions and any qualifications before removing a redundant statement in OCI; the button makes no OCI changes.
   - **Ignore Selected** hides findings for the active tenancy. **Show Previously Ignored** lets you restore them. Ignores survive reloads and restarts.
-  - After your changes, **Reload All** verifies tracked supersession findings along with cleanup findings. Disabled checks are not treated as resolved.
+  - After your changes, **Reload All** verifies tracked supersession findings along with cleanup findings. Disabled checks are not treated as resolved. Missing findings are verified only against matching inventory scope (recursive loading and identity-domain search depth). Older tracked items acquire scope when a live reload observes them again.
 
 ---
 

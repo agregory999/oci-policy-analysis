@@ -259,8 +259,13 @@ def current_supersession_identities(overlay: dict, statements: list[dict]) -> se
     }
 
 
+def cleanup_verification_scope(repo) -> dict:
+    """Identify inventory scope so omitted findings are not mistaken for resolved ones."""
+    return {key: getattr(repo, key, None) for key in ('recursive', 'compartment_domain_search_depth')}
+
+
 def reconcile_cleanup_actions(
-    actions: list[dict], tenancy: str, current: set[tuple], *, enabled=None, users_loaded=True
+    actions: list[dict], tenancy: str, current: set[tuple], *, enabled=None, users_loaded=True, verification_scope=None
 ) -> list[dict]:
     """Record verification against a complete live analysis; callers must establish freshness."""
     from datetime import UTC, datetime
@@ -280,8 +285,20 @@ def reconcile_cleanup_actions(
             outcome = 'Not checked (recommendation check disabled or identity unavailable)'
         elif check_id == 'unused_groups' and not users_loaded:
             outcome = 'Not checked (user membership data was not loaded)'
+        elif (
+            tuple(identity) not in current
+            and verification_scope is not None
+            and (
+                not action.get('verification_scope')
+                or any(value is None for value in verification_scope.values())
+                or action['verification_scope'] != verification_scope
+            )
+        ):
+            outcome = 'Not checked (inventory scope differs or the original scope is unknown)'
         else:
             action['Status'] = 'Open' if tuple(identity) in current else 'Resolved'
+            if tuple(identity) in current and verification_scope is not None:
+                action['verification_scope'] = dict(verification_scope)
             outcome = action['Status']
         action['History'] = f'{action.get("History", "")}\nReload {stamp}: {outcome}'.strip()
     return result

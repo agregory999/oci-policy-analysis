@@ -18,6 +18,7 @@ def _action(tenancy, dg='dg-1'):
         'tenancy_ocid': tenancy,
         'Type': 'Unused Dynamic Group',
         'finding_identity': ['Unused Dynamic Group', dg, ''],
+        'verification_scope': {'recursive': False, 'compartment_domain_search_depth': 1},
         'Status': 'Open',
         'History': 'Added',
     }
@@ -47,7 +48,7 @@ def test_cleanup_state_rejects_wrong_tenancy_envelope(tmp_path):
 def test_switch_away_and_back_restores_progress_and_reconciles_json_identity(tmp_path):
     cache = CacheManager(cache_dir=tmp_path)
     cache.save_cleanup_progress('tenancy-a', [_action('tenancy-a')])
-    repo = SimpleNamespace(tenancy_ocid='tenancy-a')
+    repo = SimpleNamespace(tenancy_ocid='tenancy-a', recursive=False, compartment_domain_search_depth=1)
     tab = SimpleNamespace(
         app=SimpleNamespace(policy_compartment_analysis=repo, caching=cache, settings={}),
         _refresh_workbench_table=lambda: None,
@@ -133,7 +134,12 @@ def test_shared_live_load_verifies_persisted_progress_but_cached_load_does_not(t
     context = SimpleNamespace(
         cache=cache,
         settings={},
-        policy_repo=SimpleNamespace(tenancy_ocid='tenancy-a', _cleanup_live_refresh_complete=fresh),
+        policy_repo=SimpleNamespace(
+            tenancy_ocid='tenancy-a',
+            recursive=False,
+            compartment_domain_search_depth=1,
+            _cleanup_live_refresh_complete=fresh,
+        ),
         intelligence=SimpleNamespace(overlay={'cleanup_items': {'unused_dynamic_groups': []}}),
     )
     CleanupProgressService(context).reconcile()
@@ -147,6 +153,7 @@ def test_settings_live_load_reconciles_saved_progress_after_intelligence(tmp_pat
 
     def initialize(**kwargs):
         repo.tenancy_ocid = 'tenancy-a'
+        repo.recursive = kwargs['recursive']
         return True
 
     monkeypatch.setattr(repo, 'initialize_client', initialize)
@@ -163,3 +170,37 @@ def test_settings_live_load_reconciles_saved_progress_after_intelligence(tmp_pat
     result = service.load_from_tenancy(use_instance_principal=False, profile='example', save_cache_after_load=False)
     assert result.success
     assert cache.load_cleanup_progress('tenancy-a')[0]['Status'] == 'Resolved'
+
+
+@pytest.mark.parametrize('saved_scope', [None, {'recursive': True, 'compartment_domain_search_depth': 3}])
+def test_narrower_or_unknown_scope_does_not_resolve_missing_findings(saved_scope):
+    from oci_policy_analysis.application.core.engine.recommendation_actions import reconcile_cleanup_actions
+
+    action = _action('T')
+    action['verification_scope'] = saved_scope
+    current_scope = {'recursive': False, 'compartment_domain_search_depth': 1}
+    updated = reconcile_cleanup_actions([action], 'T', set(), verification_scope=current_scope)
+    assert updated[0]['Status'] == 'Open'
+    assert 'Not checked (inventory scope' in updated[0]['History']
+    # A finding that is actually observed remains open regardless of previous scope.
+    updated = reconcile_cleanup_actions(
+        [action], 'T', {tuple(action['finding_identity'])}, verification_scope=current_scope
+    )
+    assert updated[0]['Status'] == 'Open'
+    assert updated[0]['verification_scope'] == current_scope
+
+
+def test_live_load_records_skipped_user_inventory(tmp_path, monkeypatch):
+    repo = PolicyAnalysisRepository()
+    for name in ('initialize_client', 'load_compartments_only', 'load_complete_identity_domains', 'load_policies_only'):
+        monkeypatch.setattr(repo, name, lambda **kwargs: True)
+    context = SimpleNamespace(policy_repo=repo, cache=CacheManager(tmp_path), settings={})
+    result = LoadService(context).load_from_tenancy(
+        use_instance_principal=False,
+        profile='example',
+        load_all_users=False,
+        run_post_load_intelligence=False,
+        save_cache_after_load=False,
+    )
+    assert result.success
+    assert repo.load_all_users is False

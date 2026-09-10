@@ -190,6 +190,7 @@ class LoadService:
         self._emit_stage(stage='Loading Compliance', detail=f'Loading from {dir_path}', on_stage=on_stage)
         repo = self.context.policy_repo
         self._reset_repo_state_before_load()
+        repo.load_all_users = load_all_users
         success = repo.load_from_compliance_output_dir(dir_path, load_all_users=load_all_users)
         if success and run_post_load_intelligence:
             self._run_post_load_with_stage(post_load_profile=post_load_profile, on_stage=on_stage)
@@ -297,6 +298,7 @@ class LoadService:
             detail='Fetching identity domains, groups, and users',
             on_stage=on_stage,
         )
+        repo.load_all_users = load_all_users
         repo.compartment_domain_search_depth = compartment_domain_search_depth
         if not repo.load_complete_identity_domains(
             load_all_users=load_all_users,

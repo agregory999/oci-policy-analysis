@@ -99,11 +99,14 @@ def test_supersession_reconciliation_respects_current_findings_and_enabled_check
 def test_live_service_includes_supersession_in_verification(tmp_path):
     tab = _tab(tmp_path)
     tab.policy_repo._cleanup_live_refresh_complete = True
+    tab.policy_repo.recursive = False
+    tab.policy_repo.compartment_domain_search_depth = 1
     tab.app.caching.save_cleanup_progress(
         'tenancy-a',
         [
             {
                 'tenancy_ocid': 'tenancy-a',
+                'verification_scope': {'recursive': False, 'compartment_domain_search_depth': 1},
                 'Type': 'Superseded Statement',
                 'finding_identity': supersession_finding_identity(_statement()),
                 'Status': 'Open',

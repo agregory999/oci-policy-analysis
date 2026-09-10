@@ -29,6 +29,7 @@ from oci_policy_analysis.application.core.engine.recommendation_actions import (
     RECOMMENDATION_PRIORITY_MEDIUM,
     cleanup_detail_sections,
     cleanup_finding_identity,
+    cleanup_verification_scope,
     current_supersession_identities,
     overly_broad_statement_guidance,
     reconcile_cleanup_actions,
@@ -2483,6 +2484,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 continue
             self._workbench_counter += 1
             a['#'] = self._workbench_counter
+            a.setdefault('verification_scope', cleanup_verification_scope(self.app.policy_compartment_analysis))
             a.setdefault('Status', 'Open')
             a.setdefault('History', '')
             if 'created_ts' not in a:
@@ -2528,6 +2530,7 @@ class PolicyRecommendationsTab(BaseUITab):
             current,
             enabled=self.app.settings.get('enabled_intelligence_checks'),
             users_loaded=getattr(repo, 'load_all_users', True),
+            verification_scope=cleanup_verification_scope(repo),
         )
         self._save_cleanup_progress()
         self._refresh_workbench_table()
