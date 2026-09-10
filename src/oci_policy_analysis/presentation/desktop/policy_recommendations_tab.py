@@ -1837,6 +1837,11 @@ class PolicyRecommendationsTab(BaseUITab):
         self.consolidation_plan_button = self.consolidation_table.action_btns[0]
         self.update_consolidation_plan_availability()
         self.add_context_help(
+            self.consolidation_plan_button,
+            'Send selected opportunities to the Consolidation Workbench to prepare a plan. '
+            'Advanced Tabs are enabled automatically if hidden. No OCI changes are made.',
+        )
+        self.add_context_help(
             self.consolidation_table,
             'Only actionable opportunities show a checkbox. Use the context menu to review the complete evidence before handoff.',
         )
@@ -1884,20 +1889,18 @@ class PolicyRecommendationsTab(BaseUITab):
             )
 
     def update_consolidation_plan_availability(self):
-        """Enable the workbench handoff only while Advanced Tabs are visible."""
+        """Allow handoff whenever the consolidation workbench is available."""
         if not hasattr(self, 'consolidation_plan_button'):
             return
-        enabled = bool(
-            getattr(self.app, 'advanced_tabs_visible', False) and getattr(self.app, 'consolidation_tab', None)
-        )
+        enabled = getattr(self.app, 'consolidation_tab', None) is not None
         self.consolidation_plan_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
 
     def _on_create_consolidation_plan(self, selected_rows):
         """Transfer complete actionable opportunities to the advanced workbench."""
-        if not getattr(self.app, 'advanced_tabs_visible', False) or not getattr(self.app, 'consolidation_tab', None):
+        if getattr(self.app, 'consolidation_tab', None) is None:
             tkinter.messagebox.showinfo(
-                'Advanced Tabs required',
-                'Enable Settings > Show Advanced Tabs to create a consolidation plan from selected findings.',
+                'Consolidation Workbench unavailable',
+                'The Consolidation Workbench is not available in this session.',
             )
             return
         actionable = [row for row in selected_rows if row.get('Handoff Mode') == 'supported']
@@ -1936,6 +1939,11 @@ class PolicyRecommendationsTab(BaseUITab):
                     else 'Choose the appropriate placement strategy in the Consolidation Workbench. '
                 )
                 + 'The resulting proposal applies only to these statements and replaces the current workbench candidate selection.'
+                + (
+                    '\n\nAdvanced Tabs will be enabled to display the Consolidation Workbench.'
+                    if not getattr(self.app, 'advanced_tabs_visible', False)
+                    else ''
+                )
             ),
         ):
             return
@@ -1948,6 +1956,8 @@ class PolicyRecommendationsTab(BaseUITab):
                 'The selected statements are protected, invalid, or belong to a system policy and cannot be consolidated.',
             )
             return
+        if not getattr(self.app, 'advanced_tabs_visible', False):
+            self.app.settings_tab._toggle_advanced_tabs()
         self.app.notebook.select(self.app.consolidation_tab)
 
     def _consolidation_row_context_menu(self, row_index):
@@ -2001,6 +2011,14 @@ class PolicyRecommendationsTab(BaseUITab):
         proposed = evidence.get('proposed_statement')
         if proposed:
             lines.extend(['', 'Proposed grouped statement:', str(proposed)])
+        if opportunity.get('Handoff Mode') == 'supported':
+            lines.extend(
+                [
+                    '',
+                    'Creating a consolidation plan enables Advanced Tabs if hidden and opens the '
+                    'Consolidation Workbench. No OCI changes are made.',
+                ]
+            )
         text.insert('1.0', '\n'.join(lines))
         text.configure(state='disabled')
         actions = ttk.Frame(dialog)

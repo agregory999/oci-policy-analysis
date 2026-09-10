@@ -226,3 +226,41 @@ def test_protection_and_candidates_share_canonical_service_filters() -> None:
     candidates = svc.get_candidate_rows()
     assert [row['internal_id'] for row in candidates['rows']] == ['candidate']
     assert candidates['counts'] == {'protected': 1, 'invalid': 1, 'system': 1}
+
+
+def test_proposal_compartments_display_paths_without_changing_execution_ocids() -> None:
+    from copy import deepcopy
+
+    svc, _ = _build_service({})
+    target = 'ocid1.compartment.oc1..target'
+    svc.repo.compartments = [{'id': target, 'hierarchy_path': 'ROOT/A/B'}]
+    svc.repo.policies = [{'policy_ocid': 'p1', 'compartment_ocid': target, 'policy_name': 'Existing'}]
+    plan = {
+        'plan_steps': [
+            {'action': 'add', 'compartment_ocid': target, 'create_policy_name': 'New'},
+            {'action': 'add', 'compartment_ocid': svc.repo.tenancy_ocid},
+            {'action': 'modify', 'policy_ocid': 'p1', 'compartment_ocid': target},
+            {'action': 'delete', 'policy_ocid': 'p1', 'compartment_ocid': target},
+        ]
+    }
+    original = deepcopy(plan)
+    rows = svc.get_proposal_rows(cast(Any, plan))
+    assert [row['Policy Compartment'] for row in rows] == ['ROOT/A/B', 'ROOT', 'ROOT/A/B', 'ROOT/A/B']
+    assert all(row['policy_compartment'] == row['Policy Compartment'] for row in rows)
+    assert rows[0]['compartment_ocid'] == target
+    assert plan == original
+
+
+def test_saved_proposal_compartments_resolve_ids_and_preserve_existing_paths() -> None:
+    svc, _ = _build_service({})
+    target = 'ocid1.compartment.oc1..target'
+    svc.repo.compartments = [{'id': target, 'hierarchy_path': 'ROOT/A/B'}]
+    rows = svc.get_proposal_rows(
+        None,
+        results_fallback=[
+            {'Policy Compartment': target},
+            {'policy_compartment': 'ROOT/C'},
+            {'policy_compartment': 'ocid1.compartment.oc1..unknown'},
+        ],
+    )
+    assert [row['Policy Compartment'] for row in rows] == ['ROOT/A/B', 'ROOT/C', 'ocid1.compartment.oc1..unknown']

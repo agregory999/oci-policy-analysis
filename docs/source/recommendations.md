@@ -64,7 +64,7 @@ The Recommendations tab is organized into several subtabs and panels, each focus
 - **Features**: 
   - Groups similar statements by shared access, scope, and conditions when they differ only in their group or dynamic-group principals; the group can be reviewed as a consolidation opportunity.
   - Right-click any row and choose **Show Consolidation Opportunity** to inspect its rationale, commonality, participating policies and statements, and any proposed grouped statement.
-  - When **Show Advanced Tabs** is enabled, select a supported group of statements with the checkboxes and choose **Create Consolidation Plan** to send that currently selected group to the **Consolidation Workbench**.
+  - Select a supported group of statements with the checkboxes and choose **Create Consolidation Plan** to send that group to the **Consolidation Workbench**. The confirmation explains that **Advanced Tabs** will be enabled automatically if hidden; the Settings toggle updates accordingly. Creating a plan makes no OCI changes.
   - Advisory opportunities remain review-only; use their right-click details to evaluate them before making a manual change.
 
 **Web parity update:** A dedicated **Consolidation Workbench** flow is available in web mode and can be used to review consolidation candidates and stage follow-up actions.
