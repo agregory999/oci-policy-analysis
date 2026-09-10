@@ -73,3 +73,13 @@ def test_rewritten_location_for_target_is_case_insensitive_for_prefix_match() ->
     target = ['ROOT']
     new_loc = rewritten_location_for_target(effective, target)
     assert new_loc == 'lz1-top:application-cmp'
+
+
+def test_rewrite_compartment_id_consumes_the_complete_location_reference() -> None:
+    ocid = 'ocid1.compartment.oc1..target'
+    original = f"Allow dynamic-group hermes-compute-dg to use generative-ai-response in compartment id {ocid} where request.principal.type = 'instance' // retain comment"
+    rewritten, _ = rewrite_statement_location_clause(original, 'scratch', target_policy_path='ROOT/scratch')
+    assert (
+        rewritten
+        == "Allow dynamic-group hermes-compute-dg to use generative-ai-response in compartment scratch where request.principal.type = 'instance' // retain comment"
+    )

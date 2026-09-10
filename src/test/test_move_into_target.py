@@ -140,3 +140,61 @@ def test_base_strategy_materializes_placements_and_source_cleanup(minimal_repo):
     assert [step['action'] for step in plan['plan_steps']] == ['add', 'modify']
     assert plan['plan_steps'][0]['create_policy_name'] == 'AppPolicy'
     assert plan['plan_steps'][1]['rollback']['action'] == 'restore_policy'
+
+
+@pytest.mark.parametrize('strategy_name', ['target', 'next-level'])
+def test_move_ocid_scoped_statements_only_moves_the_two_selected(strategy_name):
+    from types import SimpleNamespace
+
+    from oci_policy_analysis.application.core.engine.strategies.move_down_next_level import MoveDownNextLevel
+
+    target = 'ocid1.compartment.oc1..target'
+    statements = [
+        {
+            'internal_id': str(index),
+            'policy_ocid': 'source',
+            'policy_name': 'hermes-genai-inference',
+            'compartment_ocid': 'tenancy',
+            'compartment_path': 'ROOT',
+            'effective_path': 'ROOT/scratch',
+            'location': target,
+            'location_type': 'compartment',
+            'statement_text': f'Allow dynamic-group hermes-compute-dg to use generative-ai-{resource} in compartment id {target}',
+        }
+        for index, resource in enumerate(['response', 'project', 'chat'])
+    ]
+    repo = SimpleNamespace(
+        tenancy_ocid='tenancy',
+        regular_statements=statements,
+        compartments=[
+            {'id': 'tenancy', 'hierarchy_path': 'ROOT', 'name': 'ROOT'},
+            {'id': target, 'hierarchy_path': 'ROOT/scratch', 'name': 'scratch'},
+        ],
+        policies=[
+            {
+                'policy_ocid': 'source',
+                'policy_name': 'hermes-genai-inference',
+                'compartment_ocid': 'tenancy',
+                'compartment_path': 'ROOT',
+                'statements': [statement['statement_text'] for statement in statements],
+            }
+        ],
+    )
+    strategy = MoveIntoTargetCompartment() if strategy_name == 'target' else MoveDownNextLevel()
+    plan = strategy.build_plan(
+        repo=repo,
+        tenancy_ocid='tenancy',
+        dataset_version=None,
+        candidate_internal_ids={'0', '1'},
+        protected_internal_ids=set(),
+        plan_id='test',
+    )
+    adds = [step for step in plan['plan_steps'] if step['action'] == 'add']
+    assert len(adds) == 1
+    assert adds[0]['compartment_ocid'] == target
+    assert sorted(adds[0]['after_statements']) == sorted(
+        [statement['statement_text'].replace(f'id {target}', 'scratch') for statement in statements[:2]]
+    )
+    source_updates = [step for step in plan['plan_steps'] if step['policy_ocid'] == 'source']
+    assert len(source_updates) == 1
+    assert source_updates[0]['after_statements'] == [statements[2]['statement_text']]
