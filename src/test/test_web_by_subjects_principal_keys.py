@@ -85,7 +85,7 @@ def test_by_subjects_any_user_subject_reaches_repo_filter(monkeypatch) -> None:
     assert result.get('matched') == 0
 
 
-def test_by_subjects_resource_compartment_ocid_maps_to_conditions_filter(monkeypatch) -> None:
+def test_by_subjects_resource_compartment_ocid_maps_to_principal_filter(monkeypatch) -> None:
     repo = _Repo()
     monkeypatch.setattr(routes_core, 'get_context', lambda: _Ctx(repo))
     compartment_ocid = 'ocid1.compartment.oc1..exampleuniqueid'
@@ -98,6 +98,9 @@ def test_by_subjects_resource_compartment_ocid_maps_to_conditions_filter(monkeyp
     )
 
     assert repo.last_filters == {
-        'subject': ['any-group'],
-        'conditions': [compartment_ocid],
+        'subject_type': ['any-group'],
+        'principal': {
+            'principal_type': 'resource-principal',
+            'resource_compartment_ocid': compartment_ocid,
+        },
     }
