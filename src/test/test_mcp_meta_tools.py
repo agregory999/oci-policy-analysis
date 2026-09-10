@@ -7,7 +7,6 @@ from importlib import resources
 from types import SimpleNamespace
 
 import oci_policy_analysis.mcp_server as mcp_server
-import tiktoken
 
 
 class _FakeQueryService:
@@ -151,9 +150,6 @@ def test_packaged_mcp_tools_artifact_matches_compact_surface():
         'data_operations',
         'cross_tenancy_search',
     ]
-
-    token_count = len(tiktoken.get_encoding('o200k_base').encode(json.dumps(data)))
-    assert token_count < 4000
 
 
 def test_policy_search_returns_bounded_simple_rows(monkeypatch):

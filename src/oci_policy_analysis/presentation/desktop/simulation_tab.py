@@ -1471,7 +1471,7 @@ class SimulationTab(BaseUITab):
                         font=('TkDefaultFont', 9, 'italic'),
                     ).grid(row=idx, column=2, padx=(3, 2), sticky='w')
                 self.simulation_inputs[var] = strvar
-            self.where_fields_label.configure(text=f'Where-Clause Inputs: {sorted_vars}')
+            self.where_fields_label.configure(text=f'Where-Clause Inputs: {sorted_vars} (blank = null/not supplied)')
         else:
             self.where_fields_label.configure(text='Where-Clause Inputs: [None]')
         # Once where fields are loaded, call button-enabling callback (respect API op selection logic)
@@ -1542,7 +1542,7 @@ class SimulationTab(BaseUITab):
 
             self.simulation_inputs[var] = strvar
 
-        self.where_fields_label.configure(text=f'Where-Clause Inputs: {sorted_vars}')
+        self.where_fields_label.configure(text=f'Where-Clause Inputs: {sorted_vars} (blank = null/not supplied)')
         self._maybe_enable_sim_buttons()
         logger.info('Auto where fields rebuilt; variables=%s', sorted_vars)
 
@@ -1735,7 +1735,10 @@ class SimulationTab(BaseUITab):
             # represented explicitly as "Default".
             principal_key = f'{ptype}:Default/{pname_display}'
         # Normalize where-clause timestring entries
-        where_context = {k: self._normalize_timestring(v.get()) for k, v in self.simulation_inputs.items()}
+        where_context = {
+            key: (self._normalize_timestring(value.get()) if value.get() != '' else None)
+            for key, value in self.simulation_inputs.items()
+        }
 
         # --- Improved: Include operation and principal for trace history name ---
         sim_trace_name = f'{api_operation} | {ptype}:{pname_display}' if api_operation and pname_display else None

@@ -97,11 +97,46 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Public entry point called after UI construction and tenancy/policy data load.
         Calls all necessary data loaders for this tab, each timed and logged using self.timed_step.
         """
+        tenancy = self._get_tenancy_ocid()
+        if tenancy != getattr(self, '_displayed_tenancy_ocid', None):
+            self.clear_tenancy_selection()
+        self._displayed_tenancy_ocid = tenancy
         self.logger.info('Populating ConsolidationWorkbenchTab data...')
         self.timed_step('load_policies_and_statements', self.load_policies_and_statements)
         self.timed_step('reload_and_validate_protection_set', self.reload_and_validate_protection_set)
         self.timed_step('refresh_plan_history_for_tenancy', self.refresh_plan_history_for_tenancy)
         self.logger.info('Finished ConsolidationWorkbenchTab.populate_data')
+
+    def clear_tenancy_selection(self):
+        """Discard transient selections/proposals while preserving each tenancy's saved plans."""
+        for name in (
+            'protected_statement_ids',
+            'candidate_statement_ids',
+            'protect_table_selected_ids',
+            'candidate_table_selected_ids',
+            'invalid_statement_ids',
+            'system_statement_ids',
+        ):
+            setattr(self, name, set())
+        self._displayed_tenancy_ocid = None
+        self._last_plan_for_script = None
+        self._last_protect_filter = None
+        self._plan_history_selected_rows = []
+        self.plan_history_id_lookup = {}
+        self.protection_full_data = []
+        for name in ('policy_search_var', 'statement_search_var', 'candidate_search_var', 'plan_history_var'):
+            variable = getattr(self, name, None)
+            if variable is not None:
+                variable.set('')
+        for name in ('script_text', 'plan_notes_text', 'plan_history_detail_text'):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.configure(state='normal')
+                widget.delete('1.0', 'end')
+                widget.configure(state='disabled' if name != 'plan_notes_text' else 'normal')
+        self.plan_history_dropdown['values'] = []
+        self.plan_status_label.configure(text='')
+        self._set_plan_notes_and_skipped_from_plan(None)
 
     def select_candidate_statements(self, internal_ids: set[str], strategy_display_name: str | None = None) -> set[str]:
         """Replace the candidate selection and show those statements in Candidate Selection.
@@ -1005,12 +1040,8 @@ class ConsolidationWorkbenchTab(BaseUITab):
         Returns:
             str | None: Tenancy OCID if available, else None.
         """
-        tenancy_ocid = getattr(self.app, 'tenancy_ocid', None)
-        if not tenancy_ocid:
-            repo = getattr(self.app, 'policy_compartment_analysis', None)
-            if repo and hasattr(repo, 'tenancy_ocid'):
-                tenancy_ocid = getattr(repo, 'tenancy_ocid', None)
-        return tenancy_ocid
+        repo = getattr(self.app, 'policy_compartment_analysis', None)
+        return getattr(repo, 'tenancy_ocid', None)
 
     def _refresh_plan_history_dropdown(self):
         """Load plan history from state and populate the history dropdown.

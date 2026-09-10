@@ -212,6 +212,7 @@ class App(tk.Tk):
 
         # Caching Manager (policy caching only, no AI result caching)
         self.caching = self.app_context.cache
+        self.app_context.on_data_reset = self._on_data_reset
 
         # Guard: prevent overlapping tenancy loads
         self._tenancy_load_in_progress = False
@@ -681,6 +682,38 @@ class App(tk.Tk):
             f'Log level set to {self.log_level_var.get()}. To use DEBUG, you must start from shell using --verbose'
         )
 
+    def _on_data_reset(self):
+        """Detach previous analysis immediately and clear desktop views on the UI thread."""
+        self.policy_intelligence = self.app_context.intelligence
+        self.simulation_engine = self.app_context.simulation
+        self.prospective_service = None
+
+        def clear_views():
+            from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
+
+            for tab_name in ('policy_recommendations_tab', 'consolidation_tab', 'simulation_tab'):
+                tab = getattr(self, tab_name, None)
+                if tab is None:
+                    continue
+                for widget in vars(tab).values():
+                    if isinstance(widget, DataTable | CheckboxTable):
+                        widget.update_data([])
+            recommendations = getattr(self, 'policy_recommendations_tab', None)
+            if recommendations:
+                recommendations._cleanup_tenancy_ocid = None
+                recommendations._workbench_actions = []
+                recommendations._cleanup_payload_by_key = {}
+                recommendations.ignored_cleanup_keys = set()
+                recommendations._on_workbench_row_selected([])
+            consolidation = getattr(self, 'consolidation_tab', None)
+            if consolidation:
+                consolidation.clear_tenancy_selection()
+
+        if threading.current_thread() is threading.main_thread():
+            clear_views()
+        else:
+            self.after(0, clear_views)
+
     def _post_load_create_intelligence(self):
         """Internal: Run all post-load policy intelligence analyses and rebuild simulation index."""
         # (re)create the PolicyIntelligenceEngine
@@ -699,6 +732,8 @@ class App(tk.Tk):
         self.policy_intelligence.build_permissions_report()
 
         self.simulation_engine = PolicySimulationEngine(self.policy_compartment_analysis, self.reference_data_repo)
+        self.app_context.intelligence = self.policy_intelligence
+        self.app_context.simulation = self.simulation_engine
         # (Re)create the tenancy-scoped ProspectiveStatementsService so
         # that prospective (what-if) policy statements are managed as
         # part of the tenancy data model instead of being owned by a
@@ -817,6 +852,7 @@ class App(tk.Tk):
             logger.error('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
             return False
 
+        base_cache_name = getattr(repo, 'current_cache_name', '')
         reload_ok = repo.reload_compartment_policy_data()
         if not reload_ok:
             logger.error('reload_compartment_policy_data failed, policies/compartments not reloaded')
@@ -824,7 +860,9 @@ class App(tk.Tk):
 
         # Now update the cache for just these sections
         try:
-            self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
+            self.cache_service.update_policy_section(
+                repo, policy_data_reloaded=repo.policy_data_reloaded, base_cache_name=base_cache_name
+            )
         except Exception as e:
             logger.error(f'Policy/compartment cache update failed after reload: {e}')
 
@@ -943,16 +981,24 @@ class App(tk.Tk):
         self.after(close_delay_ms, self._close_policy_reload_progress_dialog)
 
     def reload_policies_and_compartments_and_update_cache_async(  # noqa: C901
-        self, callback: dict | None = None, show_popup: bool = True
+        self, callback: dict | None = None, show_popup: bool = True, reload_iam: bool = False
     ):
         """
-        Non-blocking policy/compartment reload with progress dialog and callbacks.
+        Non-blocking reload with progress dialog; optionally refresh the full live inventory.
 
         Callback keys (all optional):
             - progress(message: str)
             - complete(success: bool, message: str, is_error: bool)
             - error(success: bool, message: str, is_error: bool)
         """
+        if reload_iam and not (
+            getattr(self.policy_compartment_analysis, 'policies_loaded_from_tenancy', False)
+            and not getattr(self.policy_compartment_analysis, 'loaded_from_compliance_output', False)
+            and getattr(self, '_live_tenancy_load_options', None)
+        ):
+            messagebox.showinfo('Reload All', 'Load this tenancy live before reloading IAM and policy data.')
+            return
+
         if self._tenancy_load_in_progress:
             messagebox.showinfo(
                 'Load in progress', 'A tenancy load is already in progress. Please wait for it to complete.'
@@ -979,6 +1025,7 @@ class App(tk.Tk):
 
         def finalize(success: bool, msg: str, error: Exception | None = None):
             def _ui_finalize():
+                nonlocal success, msg
                 try:
                     if success:
                         publish_progress('Refreshing tabs and updating status...')
@@ -988,8 +1035,14 @@ class App(tk.Tk):
                         logger.info('Async policy reload complete; cache and UI updated')
                     else:
                         logger.error('Async policy reload failed: %s', msg)
+                        if reload_iam:
+                            self._post_load_update_ui()
                         if error:
                             logger.debug('Async policy reload exception details', exc_info=True)
+                except Exception as ui_error:
+                    success = False
+                    msg = f'Reload completed but refreshing analysis tabs failed: {ui_error}'
+                    logger.exception(msg)
                 finally:
                     # Briefly show final "Done" status before closing the dialog.
                     close_delay_ms = 1800 if success else 1200
@@ -997,6 +1050,9 @@ class App(tk.Tk):
                     def _close_dialog_and_mark_done():
                         self._close_policy_reload_progress_dialog()
                         self._policy_reload_in_progress = False
+                        tab = getattr(self, 'policy_recommendations_tab', None)
+                        if tab:
+                            tab._update_reload_all_button_state()
 
                     self.after(close_delay_ms, _close_dialog_and_mark_done)
 
@@ -1018,28 +1074,62 @@ class App(tk.Tk):
 
         if show_popup:
             self._set_policy_reload_progress_message('Preparing reload...')
-            self._show_policy_reload_progress_dialog()
+            if reload_iam:
+                self._show_policy_reload_progress_dialog(
+                    title='Reloading IAM and Policy Data',
+                    intro_text='Refreshing live tenancy data and verifying cleanup findings...',
+                )
+            else:
+                self._show_policy_reload_progress_dialog()
 
         def worker():
+            repo = self.policy_compartment_analysis
+            previous_state = dict(repo.__dict__) if reload_iam else None
+            previous_engines = {
+                key: self.__dict__.get(key)
+                for key in ('policy_intelligence', 'simulation_engine', 'prospective_service')
+            }
             try:
                 start = time.perf_counter()
-                publish_progress('Reloading compartments and policies from tenancy...')
-                repo = self.policy_compartment_analysis
-                if not hasattr(repo, 'reload_compartment_policy_data'):
-                    raise RuntimeError('reload_compartment_policy_data method not present on PolicyAnalysisRepository.')
-
-                reload_ok = repo.reload_compartment_policy_data()
-                if not reload_ok:
-                    raise RuntimeError('reload_compartment_policy_data failed, policies/compartments not reloaded')
-
-                publish_progress('Updating cached policy section...')
-                try:
-                    self.cache_service.update_policy_section(repo, policy_data_reloaded=repo.policy_data_reloaded)
-                except Exception as cache_error:
-                    logger.error('Policy/compartment cache update failed after reload: %s', cache_error)
+                if reload_iam:
+                    publish_progress('Reloading IAM, compartments, and policies from tenancy...')
+                    # Some inventory fetchers log API failures and continue with
+                    # partial data. Such a refresh cannot prove a finding resolved.
+                    repo._cleanup_reload_api_errors = []
+                    result = self.load_service.load_from_tenancy(
+                        **self._live_tenancy_load_options,
+                        run_post_load_intelligence=False,
+                        save_cache_after_load=False,
+                        on_stage=lambda stage, detail, state: publish_progress(f'{stage}: {detail}'),
+                    )
+                    if not result.success:
+                        raise RuntimeError(result.message)
+                    if repo._cleanup_reload_api_errors:
+                        failed_calls = ', '.join(sorted(set(repo._cleanup_reload_api_errors)))
+                        raise RuntimeError(f'Incomplete inventory refresh: {failed_calls}')
+                    del repo._cleanup_reload_api_errors
+                    if repo.tenancy_ocid != previous_state.get('tenancy_ocid'):
+                        raise RuntimeError('Reload authenticated to a different tenancy; original data retained.')
+                else:
+                    publish_progress('Reloading compartments and policies from tenancy...')
+                    base_cache_name = getattr(repo, 'current_cache_name', '')
+                    if not repo.reload_compartment_policy_data():
+                        raise RuntimeError('Policies/compartments could not be reloaded')
 
                 publish_progress('Running policy intelligence analyses...')
                 self._post_load_create_intelligence()
+
+                publish_progress('Updating cache...')
+                try:
+                    if reload_iam:
+                        repo.snapshot_kind = 'full_reload'
+                        self.cache_service.save_cache(repo)
+                    else:
+                        self.cache_service.update_policy_section(
+                            repo, policy_data_reloaded=repo.policy_data_reloaded, base_cache_name=base_cache_name
+                        )
+                except Exception as cache_error:
+                    logger.error('Cache update failed after reload: %s', cache_error)
 
                 elapsed = time.perf_counter() - start
                 summary = self._build_data_load_summary()
@@ -1048,6 +1138,15 @@ class App(tk.Tk):
                     done_msg = f'{done_msg} {summary}'
                 finalize(True, done_msg)
             except Exception as e:
+                if previous_state is not None:
+                    repo.__dict__.clear()
+                    repo.__dict__.update(previous_state)
+                    for key, value in previous_engines.items():
+                        setattr(self, key, value)
+                    repo._cleanup_live_refresh_complete = False
+                    if hasattr(self, 'app_context'):
+                        self.app_context.intelligence = self.policy_intelligence
+                        self.app_context.simulation = self.simulation_engine
                 finalize(False, f'Policy data reload from tenancy failed: {e}', error=e)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1156,6 +1255,7 @@ class App(tk.Tk):
                         load_all_users=load_all_users,
                         compartment_domain_search_depth=compartment_domain_search_depth,
                         run_post_load_intelligence=False,
+                        save_cache_after_load=False,
                         on_stage=lambda stage, detail, state: self._publish_operation_progress(
                             f'{stage}: {detail}' if detail else stage,
                             callback=callback,
@@ -1165,6 +1265,17 @@ class App(tk.Tk):
                     success = bool(tenancy_result.success)
                     if not success:
                         raise RuntimeError(tenancy_result.message)
+
+                    # Keep the successful live load scope/auth selection in memory
+                    # so Cleanup In Progress can repeat a full inventory refresh.
+                    self._live_tenancy_load_options = {
+                        'use_instance_principal': instance_principal,
+                        'profile': named_profile or '',
+                        'session_token': named_session,
+                        'recursive': recursive,
+                        'load_all_users': load_all_users,
+                        'compartment_domain_search_depth': compartment_domain_search_depth,
+                    }
 
                     # Update usage tracking tenancy suffix for live-tenancy loads
                     try:
@@ -1219,7 +1330,7 @@ class App(tk.Tk):
                 self._publish_operation_progress('Populating Tab Data', callback=callback, show_popup=show_popup)
 
                 # Force tabs to update with new data (users, policies, compartments, cross-tenancy, etc)
-                self._post_load_update_ui()
+                self.after(0, self._post_load_update_ui)
 
                 self._publish_operation_progress('Updating status bar', callback=callback, show_popup=show_popup)
 
@@ -1244,7 +1355,12 @@ class App(tk.Tk):
                 self.after(0, self.update_status_bar)
             finally:
                 self._finalize_operation_popup(show_popup, popup_success, popup_final_message)
-                self.after(0, lambda: setattr(self, '_tenancy_load_in_progress', False))
+
+                def mark_load_finished():
+                    self._tenancy_load_in_progress = False
+                    self.policy_recommendations_tab._update_reload_all_button_state()
+
+                self.after(0, mark_load_finished)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1320,7 +1436,7 @@ class App(tk.Tk):
                 self._post_load_create_intelligence()
 
                 self._publish_operation_progress('Populating Tab Data', callback=callback, show_popup=show_popup)
-                self._post_load_update_ui()
+                self.after(0, self._post_load_update_ui)
 
                 self._publish_operation_progress('Updating status bar', callback=callback, show_popup=show_popup)
                 self.after(0, self.update_status_bar)
@@ -1377,6 +1493,7 @@ class App(tk.Tk):
                 with open(filepath, encoding='utf-8') as jsonfile:
                     loaded_json = json.load(jsonfile)
                     logger.debug(f'JSON Data: {loaded_json}')
+                self.load_service._reset_repo_state_before_load()
                 success = self.cache_service.import_from_json(
                     loaded_json=loaded_json, policy_repo=self.policy_compartment_analysis
                 )

@@ -41,7 +41,7 @@
         <div id="statusLine" class="status"></div>
       </section>
 
-      <section class="card compact-card" data-help-title="Simulated Input Variables" data-help-body="These fields are generated from variables found in the clause. Populate values before evaluating.">
+      <section class="card compact-card" data-help-title="Simulated Input Variables" data-help-body="These fields are generated from variables found in the clause. Leave a field blank to simulate null/not supplied.">
         <p class="card-title">Simulated Input Variables</p>
         <div id="varsContainer" class="condition-vars-grid"></div>
         <div class="panel-actions">
@@ -122,7 +122,7 @@
 
           const hint = document.createElement('div');
           hint.className = 'hint';
-          hint.textContent = examples[variable] || '';
+          hint.textContent = examples[variable] || 'Blank = null / not supplied';
 
           row.appendChild(label);
           row.appendChild(input);
@@ -169,7 +169,7 @@
         const inputs = varsContainer.querySelectorAll('input[id^="var__"]');
         inputs.forEach((input) => {
           const variable = input.id.replace('var__', '');
-          payload[variable] = input.value || '';
+          payload[variable] = input.value === '' ? null : input.value;
         });
         return payload;
       }
@@ -195,7 +195,7 @@
             const result = Boolean(entry.result);
             const status = result ? 'PASS' : 'FAIL';
             if (sim === 'MISSING') {
-              lines.push(`  [FAIL] Variable '${variable || '?'}' is MISSING.`);
+              lines.push(`  [${status}] Variable '${variable || '?'}' is MISSING.`);
             } else if (![sim, op, expected, variable].some((v) => v && v !== '?')) {
               lines.push(`  [${status}] Comparison performed; details unavailable`);
             } else {

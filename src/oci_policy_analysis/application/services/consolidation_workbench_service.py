@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from oci_policy_analysis.application.context import AppContext
+from oci_policy_analysis.application.core.common.consolidation_helpers import resolve_policy_compartment_path
 from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.application.core.models.models_consolidation import (
     ConsolidationPlan,
@@ -148,7 +149,7 @@ class ConsolidationWorkbenchService:
         """
         tenancy_ocid = str(getattr(self.repo, 'tenancy_ocid', '') or '')
         if not tenancy_ocid:
-            self.logger.warning('get_protected_set called without an active tenancy')
+            self.logger.info('get_protected_set called without an active tenancy')
             return {}
         return self.cache.get_protected_set(tenancy_ocid)
 
@@ -307,7 +308,7 @@ class ConsolidationWorkbenchService:
             executed = sum(1 for p in progress.values() if p.get('executed')) if isinstance(progress, dict) else 0
             conflicts = self.get_conflict_analysis(cast(ConsolidationPlan, plan), run.get('status', 'in_progress'))
             validity = (
-                f"Conflicted ({conflicts['conflict_count']})"
+                f'Conflicted ({conflicts["conflict_count"]})'
                 if conflicts['status'] == 'Conflicted'
                 else conflicts['status']
             )
@@ -523,15 +524,15 @@ class ConsolidationWorkbenchService:
         lines = [
             '# Consolidation Plan Summary',
             f'# Effort ID: {effort_id}',
-            f"# Plan ID: {plan.get('plan_id', effort_id)}",
-            f"# Strategy: {(plan.get('plan_tags') or {}).get('strategy_id', '')}",
+            f'# Plan ID: {plan.get("plan_id", effort_id)}',
+            f'# Strategy: {(plan.get("plan_tags") or {}).get("strategy_id", "")}',
             f'# Steps: {len(steps)}',
             '#',
             '# Step Outline:',
         ]
         for r in rows:
             lines.append(
-                f"#   {r.get('index', '?')}. {r.get('action', '')} | {r.get('policy_name', '')} | {r.get('details', '')}"
+                f'#   {r.get("index", "?")}. {r.get("action", "")} | {r.get("policy_name", "")} | {r.get("details", "")}'
             )
         return '\n'.join(lines)
 
@@ -556,6 +557,19 @@ class ConsolidationWorkbenchService:
         )
         return {'tenancy_ocid': tenancy_ocid, 'cleared_history_records': history_count}
 
+    def _proposal_compartment_display(self, value: str) -> str:
+        """Resolve compartment IDs for display, preserving paths and unknown IDs."""
+        if not value:
+            return ''
+        path = resolve_policy_compartment_path(
+            cast(Any, {'compartment_ocid': value}), getattr(self.repo, 'compartments', []) or []
+        )
+        if path:
+            return path
+        if value == getattr(self.repo, 'tenancy_ocid', None):
+            return 'ROOT'
+        return value
+
     def get_proposal_rows(
         self,
         plan: ConsolidationPlan | None,
@@ -579,7 +593,11 @@ class ConsolidationWorkbenchService:
                     **row,
                     'index': row.get('index', row.get('#', index)),
                     'action': row.get('action', row.get('Action', '')),
-                    'policy_compartment': row.get('policy_compartment', row.get('Policy Compartment', '')),
+                    'policy_compartment': self._proposal_compartment_display(
+                        row.get('policy_compartment')
+                        or row.get('Policy Compartment')
+                        or row.get('compartment_ocid', '')
+                    ),
                     'policy_name': row.get('policy_name', row.get('Policy Name', '')),
                     'details': row.get('details', row.get('Details', '')),
                     'status': row.get('status', row.get('Status', '—')),
@@ -605,16 +623,18 @@ class ConsolidationWorkbenchService:
             pol = policies_by_ocid.get(step.get('policy_ocid', ''), {}) or {}
             if action_key == 'add':
                 pol_name = (step.get('create_policy_name') or 'Consolidated-Root') + ' (suggested)'
-                policy_compartment = step.get('compartment_ocid', '') or 'ROOT'
-                details = f"New Policy with {len(step.get('after_statements', []))} statements"
+                policy_compartment = self._proposal_compartment_display(step.get('compartment_ocid', '')) or 'ROOT'
+                details = f'New Policy with {len(step.get("after_statements", []))} statements'
             else:
                 pol_name = pol.get('policy_name') or step.get('create_policy_name') or '(unknown policy)'
-                policy_compartment = pol.get('compartment_path', '') or step.get('compartment_ocid', '')
+                policy_compartment = self._proposal_compartment_display(
+                    pol.get('compartment_path') or pol.get('compartment_ocid') or step.get('compartment_ocid', '')
+                )
                 if action_key == 'modify':
-                    details = f"Statements: {len(step.get('before_statements', []))} -> {len(step.get('after_statements', []))}"
+                    details = f'Statements: {len(step.get("before_statements", []))} -> {len(step.get("after_statements", []))}'
                 elif action_key == 'delete':
                     details = (
-                        f"Delete policy (rollback recreates with {len(step.get('before_statements', []))} statements)"
+                        f'Delete policy (rollback recreates with {len(step.get("before_statements", []))} statements)'
                     )
                 else:
                     details = ''

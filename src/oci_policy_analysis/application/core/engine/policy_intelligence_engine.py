@@ -1297,7 +1297,7 @@ class PolicyIntelligenceEngine:
         # (3) Unused Dynamic Groups
         if _run('unused_dynamic_groups') and (not is_compliance or capabilities.get('dynamic_groups_inventory')):
             self.run_dg_in_use_analysis()  # ensure DG in_use fields are updated
-            unused_dgs = repo.filter_dynamic_groups({'in_use': [False]})
+            unused_dgs = repo.filter_dynamic_groups({'in_use': False})
         else:
             unused_dgs = []
 

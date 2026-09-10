@@ -145,6 +145,38 @@
 
   window.ociPolicyAnalysisRefreshComplianceCapabilities = refreshComplianceCapabilityUi;
 
+  // Another Settings page can replace the shared dataset while this page is
+  // open. Reload derived views so old rows, selections, and scripts are discarded.
+  let datasetIdentity;
+  let datasetCheckRunning = false;
+  async function checkDatasetIdentity() {
+    if (datasetCheckRunning || document.hidden) return;
+    datasetCheckRunning = true;
+    try {
+      const response = await fetch('/status', { cache: 'no-store' });
+      if (!response.ok) return;
+      const { summary = {} } = await response.json();
+      const identity = JSON.stringify([summary.tenancy_ocid || '', summary.data_generation || 0]);
+      if (datasetIdentity !== undefined && datasetIdentity !== identity) {
+        sessionStorage.removeItem('oci-policy-analysis:consolidation-handoff');
+        if (!location.pathname.endsWith('/settings.html')) {
+          location.reload();
+          return;
+        }
+      }
+      datasetIdentity = identity;
+    } catch (_err) {
+      // Auth/network errors are handled by the normal page flow.
+    } finally {
+      datasetCheckRunning = false;
+    }
+  }
+  window.addEventListener('focus', checkDatasetIdentity);
+  window.addEventListener('pageshow', checkDatasetIdentity);
+  document.addEventListener('visibilitychange', checkDatasetIdentity);
+  setInterval(checkDatasetIdentity, 2000);
+  void checkDatasetIdentity();
+
   function removeOverlay() {
     const existing = document.getElementById(OVERLAY_ID);
     if (existing) existing.remove();

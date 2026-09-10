@@ -100,7 +100,10 @@ class ConditionTesterTab(BaseUITab):
         self.vars_frame = ttk.LabelFrame(self, text='Simulated Input Variables')
         self.vars_frame.pack(fill=tk.X, padx=10, pady=5)
         self.input_widgets = {}
-        self.add_context_help(self.vars_frame, 'Input example values for the variables referenced in your clause.')
+        self.add_context_help(
+            self.vars_frame,
+            'Input example values for the variables referenced in your clause. Leave a field blank to simulate null/not supplied.',
+        )
 
         # Row 4: Results/Log
         results_group = ttk.LabelFrame(self, text='Evaluation Result / Log')
@@ -136,6 +139,21 @@ class ConditionTesterTab(BaseUITab):
             'request.utc-timestamp': 'e.g. 2026-01-05T12:34:56Z',
             'request.utc-timestamp.time-of-day': 'e.g. 13:27:00Z',
         }
+        input_help = ttk.Label(
+            self.vars_frame,
+            text=(
+                'How inputs are evaluated\n'
+                '• Blank means null / not supplied.\n'
+                '• !variable passes only when the variable is not supplied.\n'
+                '• all { … } needs every item to pass; any { … } needs one match.'
+            ),
+            foreground='#555',
+            justify=tk.LEFT,
+            wraplength=360,
+        )
+        input_help.grid(row=0, column=3, rowspan=max(1, len(var_names)), padx=(18, 8), pady=4, sticky='nw')
+        self.vars_frame.grid_columnconfigure(3, weight=1)
+
         for i, var in enumerate(sorted(var_names)):
             var_label = ttk.Label(self.vars_frame, text=var + ':')
             var_label.grid(row=i, column=0, sticky=tk.W, padx=4, pady=2)
@@ -300,8 +318,12 @@ class ConditionTesterTab(BaseUITab):
                     status = 'PASS'
                 else:
                     status = 'FAIL'
-                if sim_val == 'MISSING':
-                    self.results_text.insert(tk.END, f"  [FAIL] Variable '{var or '?'}' is MISSING.\n")
+                if sim_val == 'MISSING' and operator == '!' and result is True:
+                    self.results_text.insert(
+                        tk.END, f"  [PASS] Variable '{var or '?'}' is not supplied (as required).\n"
+                    )
+                elif sim_val == 'MISSING':
+                    self.results_text.insert(tk.END, f"  [{status}] Variable '{var or '?'}' is MISSING.\n")
                 elif all(x == '?' or x == '' for x in [sim_val, operator, expected, var]):
                     # All details are unknown or missing - just give result
                     self.results_text.insert(tk.END, f"  [{status}] {'Comparison performed; details unavailable'}\n")

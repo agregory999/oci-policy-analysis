@@ -50,16 +50,22 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
     'invalid_statements': {
         'Action': 'Plan: Review and remediate invalid policy statements',
         'ActionDetail': 'Examine policies with invalid statements and resolve identity, compartment, alias, or tag references.',
-        'ActionSteps': ['Open cleanup rows.', 'Fix the policy text or referenced identity data.', 'Reload analysis.'],
+        'ActionSteps': [
+            'Read the validation reason and compare the statement with the loaded inventory.',
+            'For missing groups or dynamic groups, check the identity domain, group name, spelling, and any OCID reference. Quotes around names are allowed.',
+            'Check compartment, alias, or tag references when named in the validation reason.',
+            'Correct the reference, or remove the statement if its access is no longer required. Reload analysis after changes.',
+        ],
         'Destination': '#cardCleanup',
     },
     'unused_groups': {
         'Action': 'Plan: Remove or repurpose unused groups',
         'ActionDetail': 'Review business need for empty groups and remove them unless ownership documentation justifies keeping them.',
         'ActionSteps': [
-            'Confirm no external process depends on the group.',
-            'Remove or assign members.',
-            'Document exceptions.',
+            'Confirm that the membership inventory is complete. Zero members does not mean zero policy references.',
+            'Check policy references, automation dependencies, ownership, and planned use.',
+            'Assign members if the group is needed. Delete the group only if it is truly unused and has no planned purpose; review its policy references too.',
+            'Document the owner and intended use if the group is retained.',
         ],
         'Destination': '#cardCleanup',
     },
@@ -67,8 +73,10 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
         'Action': 'Plan: Remove unused dynamic groups',
         'ActionDetail': 'Delete or repurpose dynamic groups that are not referenced by policy statements.',
         'ActionSteps': [
-            'Confirm the dynamic group is not used by automation.',
-            'Delete it or add an appropriate policy reference.',
+            'Confirm the policy inventory is complete and search for references by domain/name and OCID.',
+            'Check domain and group-name spelling in any expected policy references.',
+            'Confirm the matching rule, workload owner, automation dependencies, and planned use.',
+            'Correct or add a policy reference if access is intended. Delete the dynamic group only if it is truly unused and has no planned purpose; otherwise document why it is retained.',
         ],
         'Destination': '#cardCleanup',
     },
@@ -77,7 +85,9 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
         'ActionDetail': 'Review effective paths, target resources, and any conditions before narrowing the statement scope.',
         'ActionSteps': [
             'Review the effective path and target resources.',
-            'Reduce verb/resource or compartment scope where appropriate.',
+            'Ask the administrator whether tighter permissions are required for the intended operations.',
+            'Replace all-resources with specific resource types or families, and reduce the verb or compartment scope where appropriate.',
+            'For deny statements, review the intended restriction and the effect of narrowing or removing it.',
             'Test any conditions to confirm they are accurate and effective.',
         ],
         'Destination': '#cardCleanup',
@@ -86,8 +96,11 @@ RECOMMENDATION_ACTION_CATALOG: dict[str, dict[str, Any]] = {
         'Action': 'Plan: Add where clauses to any-user statements',
         'ActionDetail': 'Any-user policies should be constrained with concise principal conditions before they are trusted.',
         'ActionSteps': [
-            'Add request.principal.type or workload identity conditions.',
+            'Identify which principals should have access, then add a limiting where clause.',
+            "For an Autonomous Database resource principal, an example is: where all {request.principal.type = 'autonomousdatabase'}",
+            'A type condition alone applies to that principal type; add identity or compartment constraints when access should be limited to particular resources.',
             'Constrain compartment, cluster, namespace, or tags as appropriate.',
+            'Test both intended access and requests that should be rejected.',
         ],
         'Destination': '#cardCleanup',
     },
@@ -182,3 +195,110 @@ def catalog_guidance(action_id: str, **overrides: Any) -> dict[str, Any]:
     guidance['ActionId'] = action_id
     guidance.update({key: value for key, value in overrides.items() if value is not None})
     return guidance
+
+
+CLEANUP_ACTION_IDS = {
+    'Invalid Statement': 'invalid_statements',
+    'Group w/ No Users': 'unused_groups',
+    'Unused Dynamic Group': 'unused_dynamic_groups',
+    'Overly Broad Statement': 'statements_too_open',
+    'Any-user Without Where': 'anyuser_no_where',
+}
+
+
+def cleanup_finding_identity(row: dict, payload: dict) -> tuple[str, str, str]:
+    """Identify findings across reloads without transient statement IDs or truncated labels."""
+    identity = payload.get('dynamic_group_ocid') or payload.get('group_ocid') or payload.get('policy_ocid') or ''
+    subject = (
+        ''
+        if payload.get('dynamic_group_ocid') or payload.get('group_ocid')
+        else (payload.get('statement_text') or row.get('Name') or '')
+    )
+    return str(row.get('Type') or ''), str(identity), str(subject).strip()
+
+
+def cleanup_detail_sections(row: dict, payload: dict | None = None) -> list[tuple[str, list[str]]]:
+    """Build read-only cleanup details from the shared action catalog and original row data."""
+    payload = payload or {}
+    action_id = CLEANUP_ACTION_IDS.get(row.get('Type', ''))
+    guidance = catalog_guidance(action_id) if action_id else {}
+    item = [str(payload.get('statement_text') or row.get('Name') or 'Unknown item')]
+    if payload.get('policy_name'):
+        item.insert(0, f'Policy: {payload["policy_name"]}')
+    steps = guidance.get('ActionSteps') or [row.get('Action') or 'Review this finding with the resource owner.']
+    return [
+        ('Item', item),
+        ('Why this was flagged', [str(row.get('Reason') or 'Review the validation findings.')]),
+        ('Potential actions', [f'{index}. {step}' for index, step in enumerate(steps, start=1)]),
+    ]
+
+
+ATTEMPT_FIX_HELP = (
+    'Add selected findings to Cleanup In Progress for tracking and guidance. '
+    'You make the changes in OCI; this button does not change policies or identities. '
+    'After making changes, use Reload All from a live tenancy load to check whether the findings are resolved.'
+)
+
+
+def supersession_finding_identity(statement: dict) -> tuple[str, str, str]:
+    """Keep supersession tracking stable when analysis assigns new internal IDs."""
+    return (
+        'Superseded Statement',
+        str(statement.get('policy_ocid') or ''),
+        str(statement.get('statement_text') or '').strip(),
+    )
+
+
+def current_supersession_identities(overlay: dict, statements: list[dict]) -> set[tuple]:
+    """Collect all current supersession findings independently of display filters and ignores."""
+    by_id = {str(statement.get('internal_id') or ''): statement for statement in statements}
+    return {
+        supersession_finding_identity(by_id[str(finding.get('statement_internal_id') or '')])
+        for finding in overlay.get('supersessions', []) or []
+        if str(finding.get('statement_internal_id') or '') in by_id
+    }
+
+
+def cleanup_verification_scope(repo) -> dict:
+    """Identify inventory scope so omitted findings are not mistaken for resolved ones."""
+    return {key: getattr(repo, key, None) for key in ('recursive', 'compartment_domain_search_depth')}
+
+
+def reconcile_cleanup_actions(
+    actions: list[dict], tenancy: str, current: set[tuple], *, enabled=None, users_loaded=True, verification_scope=None
+) -> list[dict]:
+    """Record verification against a complete live analysis; callers must establish freshness."""
+    from datetime import UTC, datetime
+
+    result = deepcopy(actions)
+    stamp = datetime.now(UTC).isoformat(timespec='seconds')
+    for action in result:
+        if action.get('tenancy_ocid') != tenancy:
+            continue
+        identity = action.get('finding_identity')
+        check_id = (
+            'supersession'
+            if action.get('Type') == 'Superseded Statement'
+            else CLEANUP_ACTION_IDS.get(action.get('Type'))
+        )
+        if not identity or not check_id or (enabled and check_id not in enabled):
+            outcome = 'Not checked (recommendation check disabled or identity unavailable)'
+        elif check_id == 'unused_groups' and not users_loaded:
+            outcome = 'Not checked (user membership data was not loaded)'
+        elif (
+            tuple(identity) not in current
+            and verification_scope is not None
+            and (
+                not action.get('verification_scope')
+                or any(value is None for value in verification_scope.values())
+                or action['verification_scope'] != verification_scope
+            )
+        ):
+            outcome = 'Not checked (inventory scope differs or the original scope is unknown)'
+        else:
+            action['Status'] = 'Open' if tuple(identity) in current else 'Resolved'
+            if tuple(identity) in current and verification_scope is not None:
+                action['verification_scope'] = dict(verification_scope)
+            outcome = action['Status']
+        action['History'] = f'{action.get("History", "")}\nReload {stamp}: {outcome}'.strip()
+    return result

@@ -863,3 +863,35 @@ def test_calculate_effective_compartment_matrix(statement, expected_path, expect
 
     assert statement.get('effective_path') == expected_path
     assert statement.get('effective_compartment_ocid') == ids[expected_ocid_key]
+
+
+@pytest.mark.parametrize('use_strategy', [False, True])
+def test_unused_dynamic_group_cleanup_excludes_referenced_quoted_principal(use_strategy):
+    from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup_unused_dynamic_groups import (
+        UnusedDynamicGroupsCheck,
+    )
+    from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
+
+    repo = PolicyAnalysisRepository()
+    repo.dynamic_groups = [
+        {'domain_name': 'Default', 'dynamic_group_name': 'all-exacs-DG'},
+        {'domain_name': 'Default', 'dynamic_group_name': 'Unused'},
+    ]
+    statement = repo.normalizer.normalize(
+        statement_text="allow dynamic-group 'Default'/'all-exacs-DG' to manage keys in compartment cloud-engineering-shared",
+        statement_type='allow',
+        base_fields={},
+    )
+    assert statement['subject'] == [('Default', 'all-exacs-DG')]
+    repo.regular_statements = [statement]
+    engine = PolicyIntelligenceEngine(repo, strategies=[])
+    engine.run_dg_in_use_analysis()
+    assert repo.dynamic_groups[0]['in_use'] is True
+    assert repo.dynamic_groups[1]['in_use'] is False
+
+    if use_strategy:
+        UnusedDynamicGroupsCheck().run(repo, engine.overlay)
+    else:
+        engine.build_cleanup_items(enabled_check_ids=['unused_dynamic_groups'])
+
+    assert [dg['dynamic_group_name'] for dg in engine.overlay['cleanup_items']['unused_dynamic_groups']] == ['Unused']

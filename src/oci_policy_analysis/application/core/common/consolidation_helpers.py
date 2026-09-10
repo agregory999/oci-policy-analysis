@@ -300,7 +300,8 @@ def rewrite_statement_location_clause(
         note = f'NOTE: location changed to {new_location} when moved to policy at {target_policy_path}.'
         return '', note
 
-    match = re.search(r'\bin\s+compartment\s+([^\s]+)', raw, re.IGNORECASE)
+    # An OCID reference is two tokens: `id <OCID>`. Replace both, not just `id`.
+    match = re.search(r'\bin\s+compartment\s+((?:id\s+)?ocid1\.[^\s]+|[^\s]+)', raw, re.IGNORECASE)
     if match:
         prefix = raw[: match.start(1)]
         suffix = raw[match.end(1) :]

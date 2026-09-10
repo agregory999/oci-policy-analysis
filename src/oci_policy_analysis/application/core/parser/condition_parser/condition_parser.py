@@ -54,7 +54,7 @@ class ConditionParser:
         self.sim_vars = simulated_variables
 
     def parse(self, text: str):
-        input_stream = InputStream(text + "\n")
+        input_stream = InputStream(text + '\n')
         lexer = OciIamPolicyConditionLexer(input_stream)
         stream = CommonTokenStream(lexer)
         parser = OciIamPolicyConditionParser(stream)
@@ -81,7 +81,7 @@ class ConditionParser:
 
 
 def debug_dump_parsed_clause(condition_str: str):  # pragma: no cover - debug helper
-    input_stream = InputStream(condition_str + "\n")
+    input_stream = InputStream(condition_str + '\n')
     lexer = OciIamPolicyConditionLexer(input_stream)
     stream = CommonTokenStream(lexer)
     parser = OciIamPolicyConditionParser(stream)

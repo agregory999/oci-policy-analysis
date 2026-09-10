@@ -234,8 +234,11 @@ class _TagConditionVisitor(OciIamPolicyConditionVisitor):
 
         # Determine operator, including the dedicated NOT_IN token.
         op_token = ctx.OPERATOR()
+        bang_token = getattr(ctx, 'BANG', lambda: None)()
         not_in_token = getattr(ctx, 'NOT_IN', lambda: None)()
-        if not_in_token is not None:
+        if bang_token is not None:
+            operator = '!'
+        elif not_in_token is not None:
             operator = 'not in'
         else:
             operator = op_token.getText().lower() if op_token is not None else ''

@@ -286,6 +286,10 @@
         let handoff = null;
         try { handoff = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (_err) { handoff = null; }
         if(!handoff || !Array.isArray(handoff.statementIds)) return;
+        if(!handoff.tenancyOcid || handoff.tenancyOcid !== state.status.tenancy_ocid) {
+          sessionStorage.removeItem(key);
+          return;
+        }
         const available = new Set(state.candidateRows.map((row) => String(row.internal_id || '')).filter(Boolean));
         state.candidateIds = new Set(handoff.statementIds.map(String).filter((id) => available.has(id)));
         if(handoff.recommendedStrategy && [...$('strategySelect').options].some((option) => option.value === handoff.recommendedStrategy)) {

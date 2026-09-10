@@ -115,9 +115,8 @@ class HistoricalTab(BaseUITab):
         self.policy_tree.heading('#0', text='Policies / Statements', anchor='w')
         self.policy_tree.pack(fill='both', expand=True, padx=6, pady=(0, 6))
 
-        ttk.Label(self, text='Identity & Compartments', font=('TkDefaultFont', 10, 'bold')).pack(
-            fill='x', padx=6, pady=(4, 0)
-        )
+        self.identity_heading = ttk.Label(self, text='Identity & Compartments', font=('TkDefaultFont', 10, 'bold'))
+        self.identity_heading.pack(fill='x', padx=6, pady=(4, 0))
         self.identity_tree = ttk.Treeview(self, height=8)
         self.identity_tree.heading('#0', text='Users / Groups / Dynamic Groups / Compartments', anchor='w')
         self.identity_tree.pack(fill='both', expand=True, padx=6, pady=(0, 6))
@@ -138,6 +137,9 @@ class HistoricalTab(BaseUITab):
         """
         Show tenancy name, OCID, and data_as_of for selected cache, on the correct info label.
         """
+        self._comparison_generation = getattr(self, '_comparison_generation', 0) + 1
+        for tree in (self.policy_tree, self.identity_tree):
+            tree.delete(*tree.get_children())
         var = self.left_cache_var if side == 'left' else self.right_cache_var
         lbl = self.left_info_lbl if side == 'left' else self.right_info_lbl
         cache_name = var.get()
@@ -151,14 +153,12 @@ class HistoricalTab(BaseUITab):
                 return
             tname = meta.get('tenancy_name', '') or meta.get('name', '')
             tocid = meta.get('tenancy_ocid', '')
-            dasof = meta.get('data_as_of', '')
             new_txt = []
             if tname:
                 new_txt.append(f'Tenancy: {tname}\n')
             if tocid:
                 new_txt.append(f'OCID: {tocid}\n')
-            if dasof:
-                new_txt.append(f'As of: {dasof}')
+            new_txt.append(HistoricalAnalysisService.describe_snapshot(meta))
             lbl.config(text=''.join(new_txt))
         except Exception as exc:
             lbl.config(text=f'Failed to load: {exc}')
@@ -168,9 +168,8 @@ class HistoricalTab(BaseUITab):
             caches = self.caching.get_available_cache(tenancy_name=tenancy_name)
             self.left_combo['values'] = caches
             self.right_combo['values'] = caches
-            if caches:
-                self.left_cache_var.set(caches[0])
-                self.right_cache_var.set(caches[-1])
+            self.left_cache_var.set(caches[0] if caches else '')
+            self.right_cache_var.set(caches[-1] if caches else '')
             logger.info(f'Loaded {len(caches)} available caches for dropdowns.')
         except Exception as exc:
             logger.error(f'Failed to populate cache list: {exc}')
@@ -189,7 +188,9 @@ class HistoricalTab(BaseUITab):
             logger.warning('Both left and right caches must be selected before comparing.')
             return
 
-        self._set_status('Running DeepDiff…', 'blue')
+        self._comparison_generation = getattr(self, '_comparison_generation', 0) + 1
+        generation = self._comparison_generation
+        self._set_status('Comparing snapshots…', 'blue')
         logger.info(f"Starting DeepDiff between '{left}' and '{right}'.")
 
         try:
@@ -234,12 +235,33 @@ class HistoricalTab(BaseUITab):
 
                 elapsed = time.time() - start
 
-                self.after(0, lambda: self._display_grouped(result.policy_sections, result.identity_sections))
-                self.after(0, lambda: self._set_status(f'Done in {elapsed:.2f}s.', 'green'))
+                def display():
+                    if generation != self._comparison_generation:
+                        return
+                    self._display_grouped(
+                        result.policy_sections,
+                        result.identity_sections,
+                        result.identity_comparable,
+                        result.skipped_sections,
+                    )
+                    suffix = (
+                        f' {len(result.skipped_sections)} sections skipped; see reasons below.'
+                        if result.skipped_sections
+                        else ''
+                    )
+                    self._set_status(f'Done in {elapsed:.2f}s.{suffix}', 'green')
+
+                self.after(0, display)
 
             except Exception as exc:
-                logger.error(f'DeepDiff worker error: {exc}')
-                self.after(0, lambda: self._set_status('Diff failed.', 'red'))
+                logger.error(f'Historical comparison error: {exc}')
+                message = f'Comparison failed: {exc}'
+                self.after(
+                    0,
+                    lambda message=message: (
+                        self._set_status(message, 'red') if generation == self._comparison_generation else None
+                    ),
+                )
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -255,7 +277,7 @@ class HistoricalTab(BaseUITab):
     #     return filtered
 
     # ------------------------------------------------------------------
-    def _display_grouped(self, policy_sections, identity_sections):
+    def _display_grouped(self, policy_sections, identity_sections, identity_comparable=True, skipped_sections=None):
         """
         Populate the policy and identity trees with grouped differences.
 
@@ -275,11 +297,19 @@ class HistoricalTab(BaseUITab):
         for tree in (self.policy_tree, self.identity_tree):
             tree.delete(*tree.get_children())
 
+        self.identity_heading.configure(foreground='' if identity_comparable else 'gray')
+
         for section_result in policy_sections:
             self._populate_group_section(self.policy_tree, section_result)
 
         for section_result in identity_sections:
             self._populate_group_section(self.identity_tree, section_result)
+        for label, reason in (skipped_sections or {}).items():
+            tree = self.policy_tree if label in dict(HistoricalAnalysisService.POLICY_SECTIONS) else self.identity_tree
+            parent = tree.insert('', 'end', text=f'{label}: comparison unavailable', open=True)
+            tree.insert(parent, 'end', text=reason)
+        if not identity_comparable and not identity_sections and not skipped_sections:
+            self.identity_tree.insert('', 'end', text='IAM comparison unavailable for the selected snapshots.')
 
         # No differences detected — show explicit message in both trees
         if not self.policy_tree.get_children() and not self.identity_tree.get_children():
@@ -326,15 +356,21 @@ class HistoricalTab(BaseUITab):
             return None
         try:
             NODE_TITLE_FIELDS = {
-                'Users': lambda o: f"{o.get('domain_name','')}/{o.get('user_name','')}"
-                if o.get('domain_name')
-                else o.get('user_name', ''),
-                'Groups': lambda o: f"{o.get('domain_name','')}/{o.get('group_name','')}"
-                if o.get('domain_name')
-                else o.get('group_name', ''),
+                'Users': lambda o: (
+                    f'{o.get("domain_name", "")}/{o.get("user_name", "")}'
+                    if o.get('domain_name')
+                    else o.get('user_name', '')
+                ),
+                'Groups': lambda o: (
+                    f'{o.get("domain_name", "")}/{o.get("group_name", "")}'
+                    if o.get('domain_name')
+                    else o.get('group_name', '')
+                ),
                 'Dynamic Groups': lambda o: o.get('dynamic_group_name', ''),
                 'Policies': lambda o: o.get('policy_name', ''),
-                'Defined Aliases': lambda o: f"{o.get('policy_name','')}/{o.get('defined_type','')}/{o.get('defined_name','')}",
+                'Defined Aliases': lambda o: (
+                    f'{o.get("policy_name", "")}/{o.get("defined_type", "")}/{o.get("defined_name", "")}'
+                ),
                 'Regular Statements': lambda o: format_compartment_policy_name(
                     o.get('compartment_path', ''),
                     o.get('policy_name', ''),

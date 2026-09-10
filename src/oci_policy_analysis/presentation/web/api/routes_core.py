@@ -1018,7 +1018,10 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
 
     ctx = get_context()
     service = HistoricalAnalysisService(ctx.cache)
-    result = service.compare_caches(left_cache=left_cache, right_cache=right_cache)
+    try:
+        result = service.compare_caches(left_cache=left_cache, right_cache=right_cache)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def _section_to_dict(section) -> dict[str, object]:
         return {
@@ -1046,6 +1049,8 @@ def historical_compare(payload: dict[str, object]) -> dict[str, object]:
         'right_cache': result.right_cache,
         'policy_sections': [_section_to_dict(s) for s in result.policy_sections],
         'identity_sections': [_section_to_dict(s) for s in result.identity_sections],
+        'identity_comparable': result.identity_comparable,
+        'skipped_sections': result.skipped_sections,
     }
 
 
@@ -2035,6 +2040,7 @@ def get_status(request: Request) -> dict[str, object]:
     is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False) and capabilities)
     summary = {
         'tenancy_ocid': getattr(repo, 'tenancy_ocid', None),
+        'data_generation': getattr(ctx, 'data_generation', 0),
         'tenancy_name': getattr(repo, 'tenancy_name', None),
         'data_as_of': getattr(repo, 'data_as_of', None),
         'loaded_from_compliance_output': getattr(repo, 'loaded_from_compliance_output', False),
