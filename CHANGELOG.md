@@ -3,6 +3,13 @@
 
 ### Bug Fixes
 
+* Merge pull request [#59](https://github.com/agregory999/oci-policy-analysis/issues/59) from agregory999/fix/consolidation-changes ([3d212de](https://github.com/agregory999/oci-policy-analysis/commit/3d212de00c8cbf6156240214b515ebca815a64b3))
+
+## [6.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.1...v6.5.2) (2026-09-10)
+
+
+### Bug Fixes
+
 * repair consolidation protection loading, proposal placement guidance, and Move Down One Level planning
 * show skipped consolidation statements and readable compartment paths in the web workbench
 * link the desktop consolidation help to its documentation and widen the shared documentation reading pane
