@@ -76,6 +76,7 @@ class ConsolidationWorkbenchTab(BaseUITab):
                 'NO CHANGES are made by this tool. Generating and executing a plan involves outside '
                 'steps (OCI CLI or Console) performed by administartors afer careful review.'
             ),
+            page_help_link='https://agregory999.github.io/oci-policy-analysis/consolidation.html',
         )
         self.app = app
         # Keep all consolidation behavior behind the application service used by
@@ -128,6 +129,11 @@ class ConsolidationWorkbenchTab(BaseUITab):
             variable = getattr(self, name, None)
             if variable is not None:
                 variable.set('')
+        # Clearing the search variables invokes their trace callbacks.  Those
+        # callbacks render the empty pre-load dataset and cache that filter
+        # state; leave the cache invalid so populate_data() renders the newly
+        # loaded statements even when the filters are still blank.
+        self._last_protect_filter = None
         for name in ('script_text', 'plan_notes_text', 'plan_history_detail_text'):
             widget = getattr(self, name, None)
             if widget is not None:

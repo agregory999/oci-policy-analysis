@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
+from oci_policy_analysis.application.core.engine.consolidation_engine import ConsolidationEngine
 from oci_policy_analysis.application.services.consolidation_workbench_service import (
     ConsolidationWorkbenchService,
 )
@@ -226,6 +227,52 @@ def test_protection_and_candidates_share_canonical_service_filters() -> None:
     candidates = svc.get_candidate_rows()
     assert [row['internal_id'] for row in candidates['rows']] == ['candidate']
     assert candidates['counts'] == {'protected': 1, 'invalid': 1, 'system': 1}
+
+
+def test_plan_rendering_uses_the_add_step_target_compartment() -> None:
+    """Add-step guidance must agree with its non-root compartment ID."""
+
+    repo = SimpleNamespace(
+        tenancy_ocid='root-ocid',
+        compartments=[
+            {'id': 'root-ocid', 'hierarchy_path': 'ROOT'},
+            {'id': 'finance-ocid', 'hierarchy_path': 'ROOT/Finance'},
+        ],
+        policies=[],
+        regular_statements=[],
+    )
+    engine = ConsolidationEngine(
+        cache_mgr=cast(Any, SimpleNamespace()),
+        reference_data_repo=cast(Any, SimpleNamespace()),
+        policy_repo=cast(Any, repo),
+        strategies=[],
+    )
+    plan = {
+        'plan_id': 'finance-plan',
+        'tenancy_ocid': 'root-ocid',
+        'plan_steps': [
+            {
+                'step_id': 'add-finance-policy',
+                'action': 'add',
+                'compartment_ocid': 'finance-ocid',
+                'create_policy_name': 'Finance-Consolidated',
+                'after_statements': ['allow group Finance to read buckets'],
+            }
+        ],
+    }
+
+    commands = engine.render_plan_commands(cast(Any, plan))
+    instructions = engine.render_plan_ui_instructions(cast(Any, plan), section='all')
+    rollback = engine.render_plan_rollback_commands(cast(Any, plan))
+
+    assert '--compartment-id finance-ocid' in commands
+    assert 'target compartment' in commands
+    assert 'root compartment' not in commands
+    assert 'Navigate to compartment: ROOT / Finance' in instructions
+    assert 'Create a new policy in this compartment.' in instructions
+    assert 'root compartment' not in instructions
+    assert 'target compartment' in rollback
+    assert 'root compartment' not in rollback
 
 
 def test_proposal_compartments_display_paths_without_changing_execution_ocids() -> None:

@@ -297,8 +297,8 @@ def test_move_down_next_level_moves_only_one_level_and_skips_tenancy_scope() -> 
         'compartment_ocid': 'tenancy',
         'compartment_path': 'ROOT',
         'effective_path': 'ROOT/A/B/C/D/E',
-        'location': 'A:B:C:D:E',
-        'statement_text': 'allow group Developers to read buckets in compartment A:B:C:D:E',
+        'location': 'A:B:C:D',
+        'statement_text': 'allow group Developers to read buckets in compartment A:B:C:D',
     }
     tenancy_scoped = {
         'internal_id': 'tenancy-scoped',
@@ -308,6 +308,15 @@ def test_move_down_next_level_moves_only_one_level_and_skips_tenancy_scope() -> 
         'effective_path': 'ROOT',
         'location': 'ROOT',
         'statement_text': 'allow group Developers to inspect tenancies in tenancy',
+    }
+    already_at_effective_path = {
+        'internal_id': 'already-at-effective-path',
+        'policy_ocid': 'already-policy',
+        'compartment_ocid': 'b',
+        'compartment_path': 'ROOT/A/B',
+        'effective_path': 'ROOT/A/B',
+        'location': 'A:B',
+        'statement_text': 'allow group Developers to read buckets in compartment A:B',
     }
     repo = SimpleNamespace(
         tenancy_ocid='tenancy',
@@ -323,16 +332,24 @@ def test_move_down_next_level_moves_only_one_level_and_skips_tenancy_scope() -> 
                 'compartment_path': 'ROOT',
                 'freeform_tags': {},
                 'defined_tags': {},
-            }
+            },
+            {
+                'policy_ocid': 'already-policy',
+                'policy_name': 'Already Scoped Policy',
+                'compartment_ocid': 'b',
+                'compartment_path': 'ROOT/A/B',
+                'freeform_tags': {},
+                'defined_tags': {},
+            },
         ],
-        regular_statements=[movable, tenancy_scoped],
+        regular_statements=[movable, tenancy_scoped, already_at_effective_path],
     )
 
     plan = MoveDownNextLevel().build_plan(
         repo=repo,
         tenancy_ocid='tenancy',
         dataset_version=None,
-        candidate_internal_ids={'movable', 'tenancy-scoped'},
+        candidate_internal_ids={'movable', 'tenancy-scoped', 'already-at-effective-path'},
         protected_internal_ids=set(),
         plan_id='one-level',
     )
@@ -340,7 +357,11 @@ def test_move_down_next_level_moves_only_one_level_and_skips_tenancy_scope() -> 
     add_step = next(step for step in plan['plan_steps'] if step['action'] == 'add')
     assert add_step['compartment_ocid'] == 'a'
     assert add_step['after_statements'] == ['allow group Developers to read buckets in compartment B:C:D:E']
-    assert [item['internal_id'] for item in plan['skipped_statements']] == ['tenancy-scoped']
+    assert {item['internal_id'] for item in plan['skipped_statements']} == {
+        'tenancy-scoped',
+        'already-at-effective-path',
+    }
+    assert any('location already matches' in item['reason'] for item in plan['skipped_statements'])
 
     repo.compartments = [repo.compartments[0]]
     missing_child_plan = MoveDownNextLevel().build_plan(
@@ -352,7 +373,90 @@ def test_move_down_next_level_moves_only_one_level_and_skips_tenancy_scope() -> 
         plan_id='missing-child',
     )
     assert missing_child_plan['plan_steps'] == []
-    assert "compartment for path 'ROOT/A' not found" in missing_child_plan['skipped_statements'][0]['reason']
+    assert 'No next-level compartment exists' in missing_child_plan['skipped_statements'][0]['reason']
+
+
+def test_move_down_next_level_evaluates_sibling_targets_independently() -> None:
+    repo = SimpleNamespace(
+        tenancy_ocid='tenancy',
+        compartments=[
+            {'id': 'tenancy', 'hierarchy_path': 'ROOT'},
+            {'id': 'apps', 'hierarchy_path': 'ROOT/Apps'},
+            {'id': 'finance', 'hierarchy_path': 'ROOT/Finance'},
+        ],
+        policies=[{'policy_ocid': 'root-policy', 'policy_name': 'Root Policy', 'compartment_ocid': 'tenancy'}],
+        regular_statements=[
+            {
+                'internal_id': 'apps-statement',
+                'policy_ocid': 'root-policy',
+                'compartment_path': 'ROOT',
+                'effective_path': 'ROOT/Apps',
+                'location': 'in tenancy',
+                'statement_text': 'allow group Developers to read buckets in compartment Apps',
+            },
+            {
+                'internal_id': 'finance-statement',
+                'policy_ocid': 'root-policy',
+                'compartment_path': 'ROOT',
+                'effective_path': 'ROOT/Finance',
+                'location': 'in tenancy',
+                'statement_text': 'allow group Finance to read buckets in compartment Finance',
+            },
+        ],
+    )
+
+    plan = MoveDownNextLevel().build_plan(
+        repo=repo,
+        tenancy_ocid='tenancy',
+        dataset_version=None,
+        candidate_internal_ids={'apps-statement', 'finance-statement'},
+        protected_internal_ids=set(),
+        plan_id='independent-targets',
+    )
+
+    assert {step['compartment_ocid'] for step in plan['plan_steps'] if step['action'] == 'add'} == {'apps', 'finance'}
+    assert not plan.get('skipped_statements')
+
+
+def test_move_down_next_level_moves_root_statements_toward_a_nested_effective_path() -> None:
+    statements = [
+        {
+            'internal_id': f'root-statement-{index}',
+            'policy_ocid': 'root-policy',
+            'compartment_path': 'ROOT',
+            'effective_path': 'ROOT/A/B',
+            'location': 'A:B',
+            'statement_text': f'allow group Team{index} to read buckets in compartment A:B',
+        }
+        for index in (1, 2)
+    ]
+    repo = SimpleNamespace(
+        tenancy_ocid='tenancy',
+        compartments=[
+            {'id': 'tenancy', 'hierarchy_path': 'ROOT'},
+            {'id': 'a', 'hierarchy_path': 'ROOT/A'},
+            {'id': 'b', 'hierarchy_path': 'ROOT/A/B'},
+        ],
+        policies=[{'policy_ocid': 'root-policy', 'policy_name': 'Root Policy', 'compartment_ocid': 'tenancy'}],
+        regular_statements=statements,
+    )
+
+    plan = MoveDownNextLevel().build_plan(
+        repo=repo,
+        tenancy_ocid='tenancy',
+        dataset_version=None,
+        candidate_internal_ids={statement['internal_id'] for statement in statements},
+        protected_internal_ids=set(),
+        plan_id='root-to-a',
+    )
+
+    add_step = next(step for step in plan['plan_steps'] if step['action'] == 'add')
+    assert add_step['compartment_ocid'] == 'a'
+    assert add_step['after_statements'] == [
+        'allow group Team1 to read buckets in compartment B',
+        'allow group Team2 to read buckets in compartment B',
+    ]
+    assert not plan.get('skipped_statements')
 
 
 def test_policy_placement_findings_are_selectable_consolidation_rows() -> None:

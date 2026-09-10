@@ -37,6 +37,7 @@ myst_fence_as_directive = ['mermaid']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+html_css_files = ['custom.css']
 # Keep the sidebar at page titles and H2 sections. H3/H4 remain useful in-page
 # detail without making the global navigation unwieldy.
 html_theme_options = {'navigation_depth': 2}
