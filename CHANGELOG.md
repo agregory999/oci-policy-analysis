@@ -1,3 +1,15 @@
+## [6.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.0...v6.5.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* correct simulation, recommendation tracking, and historical comparisons ([59de248](https://github.com/agregory999/oci-policy-analysis/commit/59de248354f41e796feb1b341f4bfccf0b2792d1))
+* Merge pull request [#58](https://github.com/agregory999/oci-policy-analysis/issues/58) from agregory999/fix/simulation-cleanup-workflow ([2bc3160](https://github.com/agregory999/oci-policy-analysis/commit/2bc3160e921d3cb52b00f870365a60abe1925762))
+* rewrite complete compartment OCID references in consolidation plans ([1df3f59](https://github.com/agregory999/oci-policy-analysis/commit/1df3f599b38931b270cc3ee69155187d17b0f3cf))
+* show consolidation compartment paths and enable advanced plan handoff ([5459ae1](https://github.com/agregory999/oci-policy-analysis/commit/5459ae1bf235dd35da5dc8cdca9d553630ff7bf7))
+* Unary operator support in language and associated testing tools ([0853428](https://github.com/agregory999/oci-policy-analysis/commit/08534286bd7fcee440275c5514ad5aed274ee694))
+* verify cleanup findings only against comparable inventory scope ([0090772](https://github.com/agregory999/oci-policy-analysis/commit/009077245b2563f6b8475ff1a30c39a9ba287e8f))
+
 ## [6.5.0](https://github.com/agregory999/oci-policy-analysis/compare/v6.4.0...v6.5.0) (2026-09-08)
 
 
