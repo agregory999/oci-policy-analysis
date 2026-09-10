@@ -1,3 +1,12 @@
+## [6.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.1...v6.5.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* repair consolidation protection loading, proposal placement guidance, and Move Down One Level planning
+* show skipped consolidation statements and readable compartment paths in the web workbench
+* link the desktop consolidation help to its documentation and widen the shared documentation reading pane
+
 ## [6.5.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.0...v6.5.1) (2026-09-10)
 
 
