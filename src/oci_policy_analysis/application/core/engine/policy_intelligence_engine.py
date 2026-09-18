@@ -36,6 +36,21 @@ if TYPE_CHECKING:
 logger = get_logger(component='core.engine.policy_intelligence_engine')
 
 
+# Temporary compatibility bridge for tenancies converted from Oracle Identity
+# Cloud Service. Replace this with repository-provided group mappings once the
+# identity-domain mapping API is implemented; see the maintainer context note.
+LEGACY_IDCS_DOMAIN_NAME = 'OracleIdentityCloudService'
+
+
+def _legacy_idcs_domain_is_loaded(repo) -> bool:
+    """Return whether the legacy IDCS domain is present in the loaded tenancy."""
+    for domain in getattr(repo, 'identity_domains', []) or []:
+        display_name = domain.get('display_name') if isinstance(domain, dict) else getattr(domain, 'display_name', None)
+        if str(display_name or '').casefold() == LEGACY_IDCS_DOMAIN_NAME.casefold():
+            return True
+    return False
+
+
 def _append_unique(items: list, value) -> None:
     """Append value only if not already present (preserve order)."""
     if value not in items:
@@ -796,6 +811,7 @@ class PolicyIntelligenceEngine:
         is_compliance = bool(getattr(repo, 'loaded_from_compliance_output', False))
         validate_groups = not is_compliance or bool(capabilities.get('groups_inventory'))
         validate_dynamic_groups = not is_compliance or bool(capabilities.get('dynamic_groups_inventory'))
+        legacy_idcs_domain_loaded = _legacy_idcs_domain_is_loaded(repo)
 
         # Build a case-insensitive lookup for defined tag namespaces/keys discovered
         # by the repository. Shape:
@@ -849,7 +865,8 @@ class PolicyIntelligenceEngine:
             # Group check
             elif st.get('subject_type') == 'group' and validate_groups:
                 for subject in st.get('subject', []):
-                    group_domain = subject[0] or 'default'
+                    declared_domain = subject[0]
+                    group_domain = declared_domain or 'default'
                     group_name = subject[1]
                     logger.debug(f'Checking Group existence for {group_domain}/{group_name}')
                     group_found = any(
@@ -857,6 +874,21 @@ class PolicyIntelligenceEngine:
                         and g.get('domain_name', 'default').lower() == group_domain.lower()
                         for g in repo.groups
                     )
+                    # TODO(identity-domain-mappings): replace this legacy-only validation bridge with
+                    # explicit mapping records loaded through the future mapping API. Do not extend
+                    # principal keys, filtering, simulation, or consolidation until mappings are modeled.
+                    if not group_found and not declared_domain and legacy_idcs_domain_loaded:
+                        group_found = any(
+                            g.get('group_name', '').lower() == group_name.lower()
+                            and g.get('domain_name', '').lower() == LEGACY_IDCS_DOMAIN_NAME.lower()
+                            for g in repo.groups
+                        )
+                        if group_found:
+                            logger.debug(
+                                'Accepted unqualified group %s through legacy %s compatibility mapping',
+                                group_name,
+                                LEGACY_IDCS_DOMAIN_NAME,
+                            )
                     if not group_found:
                         st['valid'] = False
                         _append_unique(invalid_reasons, f'Group {group_name} not found in tenancy')

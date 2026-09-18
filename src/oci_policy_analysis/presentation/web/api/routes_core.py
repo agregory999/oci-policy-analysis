@@ -666,7 +666,7 @@ def _build_engine_principal_value(principal_type: str, principal_display: str) -
     ptype = (principal_type or '').strip()
     display = (principal_display or '').strip()
 
-    if ptype in ('any-user', 'any-group', 'service'):
+    if ptype in ('any-user', 'any-group', 'service', 'resource'):
         return display or ptype
 
     if '/' in display:

@@ -135,3 +135,15 @@ def test_cleanup_details_preserve_full_statement_and_offer_guidance_for_each_typ
         assert sections['Item'] == ['Policy: Example Policy', statement]
         assert sections['Why this was flagged'] == ['Specific finding']
         assert expected_guidance in '\n'.join(sections['Potential actions'])
+
+
+def test_cleanup_details_expose_and_explain_a_diagnostic_identity_name():
+    sections = dict(
+        cleanup_detail_sections(
+            {'Type': 'Group w/ No Users', 'Name': 'Default/NetworkAdmins', 'Reason': 'Zero members'},
+            {'domain_name': 'Default', 'group_name': 'NetworkAdmins\u200b'},
+        )
+    )
+
+    assert sections['Identity name diagnostics'] == ['Diagnostic Name: Default/NetworkAdmins[U+200B ZERO WIDTH SPACE]']
+    assert 'correct the source group or dynamic group name' in '\n'.join(sections['Potential actions'])

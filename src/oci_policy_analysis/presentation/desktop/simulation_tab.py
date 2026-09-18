@@ -904,7 +904,7 @@ class SimulationTab(BaseUITab):
         ptype = (principal_type or '').strip()
         display = (principal_display or '').strip()
 
-        if ptype in ('any-user', 'any-group', 'service'):
+        if ptype in ('any-user', 'any-group', 'service', 'resource'):
             return display or ptype
 
         if '/' in display:
@@ -1738,8 +1738,8 @@ class SimulationTab(BaseUITab):
         # PolicySimulationEngine._normalize_principal_key. Keep this
         # logic local to avoid importing engine classes into the UI
         # layer while still producing identical keys.
-        if ptype in ('any-user', 'any-group', 'service'):
-            # any-user:any-group/service always carry domain "None" in the key.
+        if ptype in ('any-user', 'any-group', 'service', 'resource'):
+            # Non-identity subjects always carry domain "None" in the key.
             pname = pname_display or ptype
             principal_key = f'{ptype}:None/{pname}'
         elif '/' in pname_display:

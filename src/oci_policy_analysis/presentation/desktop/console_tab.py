@@ -193,12 +193,10 @@ class ConsoleTab(BaseUITab):
                 'logger',
                 'usage_tracking',
             ],
-            'Core Repo': [
+            'Core Repo / Engine': [
                 'core.repo.policy_analysis_repository',
                 'core.repo.reference_data_repo',
                 'core.repo.ai_repo',
-            ],
-            'Core Engine': [
                 'core.engine.policy_intelligence_engine',
                 'core.engine.policy_simulation_engine',
                 'core.engine.consolidation_engine',
@@ -254,7 +252,7 @@ class ConsoleTab(BaseUITab):
         }
         # Flattened for batch logic
         self.logger_components = []
-        for group in ['Platform', 'Core Repo', 'Core Engine', 'Core Parser', 'Application Services', 'UI']:
+        for group in ['Platform', 'Core Repo / Engine', 'Core Parser', 'Application Services', 'UI']:
             self.logger_components.extend(self.logger_components_by_pkg[group])
 
         self.logger_level_vars = {}
@@ -288,8 +286,7 @@ class ConsoleTab(BaseUITab):
         col_offset = 0
         col_width_by_group = {
             'Platform': 2,
-            'Core Repo': 1,
-            'Core Engine': 1,
+            'Core Repo / Engine': 1,
             'Core Parser': 1,
             'Application Services': 2,
             'UI': 3,

@@ -54,6 +54,8 @@ class DebuggerTab(BaseUITab):
         self.source_options = [
             'Policy Repo Compartments',
             'Policy Repo Policies',
+            'Policy Repo Groups',
+            'Policy Repo Dynamic Groups',
             'Policy Repo: Defined Aliases',
             'Policy Repo Cross-Tenancy Statements',
             'Reference Data',
@@ -136,6 +138,10 @@ class DebuggerTab(BaseUITab):
 
             elif source == 'Policy Repo Policies':
                 return self.app.policy_compartment_analysis.regular_statements
+            elif source == 'Policy Repo Groups':
+                return self.app.policy_compartment_analysis.groups
+            elif source == 'Policy Repo Dynamic Groups':
+                return self.app.policy_compartment_analysis.dynamic_groups
             elif source == 'Policy Repo: Defined Aliases':
                 return self.app.policy_compartment_analysis.defined_aliases
             elif source == 'Policy Repo Cross-Tenancy Statements':

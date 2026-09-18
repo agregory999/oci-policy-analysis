@@ -110,7 +110,7 @@ class PolicySimulationEngine:
         Returns:
             str: Canonical key (e.g., "user:Default/anita", "any-user:None/any-user")
         """
-        if principal_type in ('any-user', 'any-group', 'service'):
+        if principal_type in ('any-user', 'any-group', 'service', 'resource'):
             key = f'{principal_type}:None/{principal or principal_type}'
             return key
         if isinstance(principal, list | tuple) and len(principal) == 2:

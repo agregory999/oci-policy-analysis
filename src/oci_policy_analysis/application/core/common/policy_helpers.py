@@ -18,7 +18,24 @@
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
+
+
+def render_diagnostic_text(value: object) -> str:
+    """Render non-printable Unicode characters in a value as visible labels."""
+    rendered: list[str] = []
+    for character in str(value or ''):
+        if character.isprintable():
+            rendered.append(character)
+            continue
+        rendered.append(f'[U+{ord(character):04X} {unicodedata.name(character, "UNNAMED CHARACTER")}]')
+    return ''.join(rendered)
+
+
+def strip_non_printable_characters(value: object) -> str:
+    """Return a value without characters hidden by standard text displays."""
+    return ''.join(character for character in str(value or '') if character.isprintable())
 
 
 def calculate_principal_key(subject_type: str, domain: str | None, name: str) -> str:

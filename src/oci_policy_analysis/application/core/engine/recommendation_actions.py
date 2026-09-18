@@ -5,6 +5,8 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from oci_policy_analysis.application.core.common.policy_helpers import render_diagnostic_text
+
 RECOMMENDATION_PRIORITY_CRITICAL = 'Critical'
 RECOMMENDATION_PRIORITY_HIGH = 'High'
 RECOMMENDATION_PRIORITY_MEDIUM = 'Medium'
@@ -225,12 +227,24 @@ def cleanup_detail_sections(row: dict, payload: dict | None = None) -> list[tupl
     item = [str(payload.get('statement_text') or row.get('Name') or 'Unknown item')]
     if payload.get('policy_name'):
         item.insert(0, f'Policy: {payload["policy_name"]}')
-    steps = guidance.get('ActionSteps') or [row.get('Action') or 'Review this finding with the resource owner.']
-    return [
+    steps = list(guidance.get('ActionSteps') or [row.get('Action') or 'Review this finding with the resource owner.'])
+    diagnostics = list(payload.get('identity_name_diagnostics') or [])
+    identity_name = payload.get('group_name') or payload.get('dynamic_group_name')
+    if identity_name and render_diagnostic_text(identity_name) != str(identity_name):
+        diagnostics.append(f'{payload.get("domain_name") or "Default"}/{render_diagnostic_text(identity_name)}')
+    if diagnostics:
+        steps.append(
+            'Review Diagnostic Name for special or unprintable characters, then correct the source group or dynamic '
+            'group name if they are not intentional.'
+        )
+    sections = [
         ('Item', item),
         ('Why this was flagged', [str(row.get('Reason') or 'Review the validation findings.')]),
-        ('Potential actions', [f'{index}. {step}' for index, step in enumerate(steps, start=1)]),
     ]
+    if diagnostics:
+        sections.append(('Identity name diagnostics', [f'Diagnostic Name: {item}' for item in diagnostics]))
+    sections.append(('Potential actions', [f'{index}. {step}' for index, step in enumerate(steps, start=1)]))
+    return sections
 
 
 ATTEMPT_FIX_HELP = (
