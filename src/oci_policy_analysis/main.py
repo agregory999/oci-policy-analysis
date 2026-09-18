@@ -239,6 +239,11 @@ class App(tk.Tk):
         self.maintenance_tab = MaintenanceTab(self.notebook, self)
         self.condition_tester_tab = ConditionTesterTab(self.notebook, self)
         self.simulation_tab = SimulationTab(self.notebook, self, self.settings)
+        self.compiled_corpus_tab = None
+        if self.experimental_features:
+            from oci_policy_analysis.presentation.desktop.compiled_corpus_tab import CompiledCorpusTab
+
+            self.compiled_corpus_tab = CompiledCorpusTab(self.notebook, self)
         self.tag_based_access_tab = TagBasedAccessTab(self.notebook, self)
         self.debugger_tab = DebuggerTab(self.notebook, self)
         self.mcp_tab = (
@@ -269,6 +274,8 @@ class App(tk.Tk):
         self.notebook.add(self.reports_tab, text='Reports\n(On-Demand)')
         self.notebook.add(self.consolidation_tab, text='Consolidation\n(Advanced)')
         self.notebook.add(self.simulation_tab, text='API Simulation\n(Advanced)')
+        if self.compiled_corpus_tab is not None:
+            self.notebook.add(self.compiled_corpus_tab, text='Compiled Corpus\n(Experimental)')
         self.notebook.add(self.debugger_tab, text='JSON Debugger\n(Internal)')
         self.notebook.add(self.console_tab, text='Console Logging\n(Internal)')
         self.notebook.add(self.maintenance_tab, text='Maintenance\n(Internal)')
@@ -589,6 +596,7 @@ class App(tk.Tk):
             self.policy_recommendations_tab,
             self.reports_tab,
             self.simulation_tab,
+            self.compiled_corpus_tab,
             self.debugger_tab,
             self.console_tab,
             self.maintenance_tab,
@@ -687,9 +695,15 @@ class App(tk.Tk):
         self.policy_intelligence = self.app_context.intelligence
         self.simulation_engine = self.app_context.simulation
         self.prospective_service = None
+        corpus_tab = getattr(self, 'compiled_corpus_tab', None)
+        if corpus_tab is not None:
+            corpus_tab.service.invalidate()
 
         def clear_views():
             from oci_policy_analysis.presentation.desktop.data_table import CheckboxTable, DataTable
+
+            if corpus_tab is not None:
+                corpus_tab.populate_data()
 
             for tab_name in ('policy_recommendations_tab', 'consolidation_tab', 'simulation_tab'):
                 tab = getattr(self, tab_name, None)
@@ -824,6 +838,8 @@ class App(tk.Tk):
         )
         step('permissions_report_tab.enable_widgets_after_load', self.permissions_report_tab.enable_widgets_after_load)
         step('simulation_tab.populate_data', self.simulation_tab.populate_data)
+        if getattr(self, 'compiled_corpus_tab', None) is not None:
+            step('compiled_corpus_tab.populate_data', self.compiled_corpus_tab.populate_data)
         step('tag_based_access_tab.populate_data', self.tag_based_access_tab.populate_data)
         step('policy_recommendations_tab.populate_data', self.policy_recommendations_tab.populate_data)
         step('reports_tab.populate_data', self.reports_tab.populate_data)

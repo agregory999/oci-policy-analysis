@@ -1,0 +1,467 @@
+{
+  "schema_version": 1,
+  "compiler_version": "experimental-1",
+  "snapshot_id": "82e9f1bf8f8047bade18266d178f5815ce85d37289d22bc7fe38225486f21a97",
+  "built_at": "2026-09-11T15:58:03.302063+00:00",
+  "build_duration_seconds": 0.002,
+  "reference_hash": "ff0cd98a3b2f5561e5153ea9638e5d3b9b6cbfc8391fd849acc10e37588da19a",
+  "inputs": {
+    "inventory": {
+      "compartments": [
+        {
+          "hierarchy_path": "root"
+        },
+        {
+          "hierarchy_path": "root/finance"
+        },
+        {
+          "hierarchy_path": "root/finance/reports"
+        }
+      ],
+      "compliance_capabilities": {},
+      "cross_tenancy_statements": [],
+      "data_as_of": "",
+      "defined_aliases": [],
+      "defined_tag_namespace_keys": {},
+      "dynamic_groups": [],
+      "groups": [],
+      "identity_domains": [],
+      "identity_loaded_from_tenancy": true,
+      "inventory_complete": true,
+      "policies": [],
+      "policies_loaded_from_tenancy": false,
+      "policy_data_reloaded": null,
+      "regular_statements": [
+        {
+          "action": "allow",
+          "compartment_path": "root",
+          "conditions": "request.region = 'iad'",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-read-iad",
+          "permission": [
+            "BUCKET_READ"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "allow group FinanceReaders to {BUCKET_READ} in compartment Finance where request.region = 'iad'",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        },
+        {
+          "action": "allow",
+          "compartment_path": "root",
+          "conditions": "request.region = 'phx'",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-read-phx",
+          "permission": [
+            "BUCKET_READ"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "allow group FinanceReaders to {BUCKET_READ} in compartment Finance where request.region = 'phx'",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        },
+        {
+          "action": "allow",
+          "compartment_path": "root",
+          "conditions": "",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-inspect-a",
+          "permission": [
+            "BUCKET_INSPECT"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "allow group FinanceReaders to {BUCKET_INSPECT} in compartment Finance",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        },
+        {
+          "action": "allow",
+          "compartment_path": "root",
+          "conditions": "",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-inspect-b",
+          "permission": [
+            "BUCKET_INSPECT"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "allow group FinanceReaders to {BUCKET_INSPECT} in compartment Finance",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        },
+        {
+          "action": "allow",
+          "compartment_path": "root",
+          "conditions": "request.utc-timestamp before '2027-01-01T00:00:00Z'",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-delete",
+          "permission": [
+            "BUCKET_DELETE"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "allow group FinanceReaders to {BUCKET_DELETE} in compartment Finance where request.utc-timestamp before '2027-01-01T00:00:00Z'",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        },
+        {
+          "action": "deny",
+          "compartment_path": "root",
+          "conditions": "target.bucket.name = 'protected'",
+          "effective_path": "root/finance",
+          "internal_id": "stmt-protect",
+          "permission": [
+            "BUCKET_DELETE"
+          ],
+          "policy_name": "Illustrative Finance Policy",
+          "statement_text": "deny group FinanceReaders to {BUCKET_DELETE} in compartment Finance where target.bucket.name = 'protected'",
+          "subject": [
+            [
+              "Default",
+              "FinanceReaders"
+            ]
+          ],
+          "subject_type": "group"
+        }
+      ],
+      "snapshot_kind": null,
+      "tenancy_ocid": "example-tenancy-not-live",
+      "users": []
+    },
+    "reference_data": {
+      "families": {},
+      "operations": {
+        "oci:DeleteBucket": {
+          "permissions": [
+            "BUCKET_DELETE"
+          ]
+        },
+        "oci:GetBucket": {
+          "permissions": [
+            "BUCKET_READ"
+          ]
+        },
+        "oci:ListBuckets": {
+          "permissions": [
+            "BUCKET_INSPECT"
+          ]
+        }
+      },
+      "resources": {}
+    }
+  },
+  "summary": {
+    "statements": 6,
+    "compiled_statements": 6,
+    "unresolved_statements": 0,
+    "grants": 5,
+    "predicates": 5,
+    "context_variables": 3,
+    "duplicate_grants": 1
+  },
+  "grants": [
+    {
+      "id": "18ccfbe3ac97245fc605f03c",
+      "principal": "group:Default/FinanceReaders",
+      "scope": "root/finance",
+      "scope_kind": "subtree",
+      "permission": "BUCKET_DELETE",
+      "effect": "allow",
+      "predicate_id": "114a99f5be1d998131873c1f",
+      "source_ids": [
+        "source-000004-6f551db62eb5"
+      ]
+    },
+    {
+      "id": "707573f2f3b94710435bf4c6",
+      "principal": "group:Default/FinanceReaders",
+      "scope": "root/finance",
+      "scope_kind": "subtree",
+      "permission": "BUCKET_DELETE",
+      "effect": "deny",
+      "predicate_id": "556517adae92d3ae918e0475",
+      "source_ids": [
+        "source-000005-9721525d35f8"
+      ]
+    },
+    {
+      "id": "c1953bd51342e2be3d905a8d",
+      "principal": "group:Default/FinanceReaders",
+      "scope": "root/finance",
+      "scope_kind": "subtree",
+      "permission": "BUCKET_INSPECT",
+      "effect": "allow",
+      "predicate_id": "b16ff1792ef35c578a5dc869",
+      "source_ids": [
+        "source-000002-e673e2825ed6",
+        "source-000003-ea88e018ea86"
+      ]
+    },
+    {
+      "id": "de9e47d92443c350de8a0364",
+      "principal": "group:Default/FinanceReaders",
+      "scope": "root/finance",
+      "scope_kind": "subtree",
+      "permission": "BUCKET_READ",
+      "effect": "allow",
+      "predicate_id": "f1944c9dc12f1a3003639f30",
+      "source_ids": [
+        "source-000000-42d5bd5328d5"
+      ]
+    },
+    {
+      "id": "e9054212f9f865bad3536f98",
+      "principal": "group:Default/FinanceReaders",
+      "scope": "root/finance",
+      "scope_kind": "subtree",
+      "permission": "BUCKET_READ",
+      "effect": "allow",
+      "predicate_id": "01924f1b7384b9aec382b56a",
+      "source_ids": [
+        "source-000001-99f71a007a83"
+      ]
+    }
+  ],
+  "predicates": {
+    "f1944c9dc12f1a3003639f30": {
+      "kind": "atom",
+      "variable": "request.region",
+      "expression": "request.region = 'iad'",
+      "presence": false
+    },
+    "01924f1b7384b9aec382b56a": {
+      "kind": "atom",
+      "variable": "request.region",
+      "expression": "request.region = 'phx'",
+      "presence": false
+    },
+    "b16ff1792ef35c578a5dc869": {
+      "kind": "true"
+    },
+    "114a99f5be1d998131873c1f": {
+      "kind": "atom",
+      "variable": "request.utc-timestamp",
+      "expression": "request.utc-timestamp before '2027-01-01T00:00:00Z'",
+      "presence": false
+    },
+    "556517adae92d3ae918e0475": {
+      "kind": "atom",
+      "variable": "target.bucket.name",
+      "expression": "target.bucket.name = 'protected'",
+      "presence": false
+    }
+  },
+  "sources": {
+    "source-000000-42d5bd5328d5": {
+      "statement_id": "stmt-read-iad",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 0,
+      "content_hash": "42d5bd5328d5e43f58c2a177515257c21ef777e99c0aa5f094f319cfe8344792",
+      "source": {
+        "action": "allow",
+        "compartment_path": "root",
+        "conditions": "request.region = 'iad'",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-read-iad",
+        "permission": [
+          "BUCKET_READ"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "allow group FinanceReaders to {BUCKET_READ} in compartment Finance where request.region = 'iad'",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    },
+    "source-000001-99f71a007a83": {
+      "statement_id": "stmt-read-phx",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 1,
+      "content_hash": "99f71a007a839ad522ed3d7ac306f04e70b152ce11b90b7c01423f2999ba3d12",
+      "source": {
+        "action": "allow",
+        "compartment_path": "root",
+        "conditions": "request.region = 'phx'",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-read-phx",
+        "permission": [
+          "BUCKET_READ"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "allow group FinanceReaders to {BUCKET_READ} in compartment Finance where request.region = 'phx'",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    },
+    "source-000002-e673e2825ed6": {
+      "statement_id": "stmt-inspect-a",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 2,
+      "content_hash": "e673e2825ed6344354df6293d68e36ab0f48045668ccb07804e651c73eabc937",
+      "source": {
+        "action": "allow",
+        "compartment_path": "root",
+        "conditions": "",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-inspect-a",
+        "permission": [
+          "BUCKET_INSPECT"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "allow group FinanceReaders to {BUCKET_INSPECT} in compartment Finance",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    },
+    "source-000003-ea88e018ea86": {
+      "statement_id": "stmt-inspect-b",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 3,
+      "content_hash": "ea88e018ea86b23060d4617ea1dd3809f7b8caf246914b0ee428878d186a1ff3",
+      "source": {
+        "action": "allow",
+        "compartment_path": "root",
+        "conditions": "",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-inspect-b",
+        "permission": [
+          "BUCKET_INSPECT"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "allow group FinanceReaders to {BUCKET_INSPECT} in compartment Finance",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    },
+    "source-000004-6f551db62eb5": {
+      "statement_id": "stmt-delete",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 4,
+      "content_hash": "6f551db62eb5713a30f2e500d1090a61ae52c60a11a4b4fa1e7103885db41e64",
+      "source": {
+        "action": "allow",
+        "compartment_path": "root",
+        "conditions": "request.utc-timestamp before '2027-01-01T00:00:00Z'",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-delete",
+        "permission": [
+          "BUCKET_DELETE"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "allow group FinanceReaders to {BUCKET_DELETE} in compartment Finance where request.utc-timestamp before '2027-01-01T00:00:00Z'",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    },
+    "source-000005-9721525d35f8": {
+      "statement_id": "stmt-protect",
+      "policy_name": "Illustrative Finance Policy",
+      "position": 5,
+      "content_hash": "9721525d35f8a8414cc04978409c590a7597eadc56cf30a937ae08ba4900b160",
+      "source": {
+        "action": "deny",
+        "compartment_path": "root",
+        "conditions": "target.bucket.name = 'protected'",
+        "effective_path": "root/finance",
+        "internal_id": "stmt-protect",
+        "permission": [
+          "BUCKET_DELETE"
+        ],
+        "policy_name": "Illustrative Finance Policy",
+        "statement_text": "deny group FinanceReaders to {BUCKET_DELETE} in compartment Finance where target.bucket.name = 'protected'",
+        "subject": [
+          [
+            "Default",
+            "FinanceReaders"
+          ]
+        ],
+        "subject_type": "group"
+      },
+      "status": "compiled"
+    }
+  },
+  "diagnostics": [],
+  "context_catalog": [
+    {
+      "variable": "request.region",
+      "source_ids": [
+        "source-000000-42d5bd5328d5",
+        "source-000001-99f71a007a83"
+      ],
+      "binding": "manual"
+    },
+    {
+      "variable": "request.utc-timestamp",
+      "source_ids": [
+        "source-000004-6f551db62eb5"
+      ],
+      "binding": "manual"
+    },
+    {
+      "variable": "target.bucket.name",
+      "source_ids": [
+        "source-000005-9721525d35f8"
+      ],
+      "binding": "manual"
+    }
+  ],
+  "limitations": [
+    "Experimental local permission model; not an OCI authorization guarantee.",
+    "Cross-tenancy inputs and unsupported conditions remain unresolved.",
+    "Dynamic-group membership is selected manually; resource inventory is not evaluated.",
+    "Deny enablement and administrator exemption require explicit scenario assumptions.",
+    "Related-resource API checks remain advisory."
+  ]
+}
