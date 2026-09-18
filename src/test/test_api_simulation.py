@@ -151,3 +151,21 @@ def test_simulation_reports_related_permission_checks_without_changing_primary_a
 
 if __name__ == '__main__':
     main()
+
+
+def test_qualified_operation_binds_request_operation_without_mutating_context():
+    from oci_policy_analysis.application.core.repo.reference_data_repo import ReferenceDataRepo
+
+    policy_repo = DummyPolicyRepo()
+    policy_repo.regular_statements[1]['conditions'] = "request.operation = 'ListBuckets'"
+    ref = ReferenceDataRepo()
+    ref.data['operations'] = {
+        'storage:ListBuckets': {'api_name': 'storage', 'operation_name': 'ListBuckets', 'permissions': ['READ_BUCKETS']}
+    }
+    engine = PolicySimulationEngine(policy_repo=policy_repo, ref_data_repo=ref)
+    context = {'request.operation': 'SpoofedOperation'}
+    result = engine.simulate_and_record(
+        'user:Default/anita', 'ROOT/Finance', 'storage:ListBuckets', context, ['stmt-002']
+    )
+    assert result['api_call_allowed']
+    assert context == {'request.operation': 'SpoofedOperation'}

@@ -1,0 +1,314 @@
+{
+    "resources": {
+        "network-firewall": {
+            "verbs": {
+                "inspect": [
+                    "NETWORK_FIREWALL_INSPECT"
+                ],
+                "read": [
+                    "NETWORK_FIREWALL_READ"
+                ],
+                "use": [
+                    "NETWORK_FIREWALL_UPDATE",
+                    "NETWORK_FIREWALL_MOVE"
+                ],
+                "manage": [
+                    "NETWORK_FIREWALL_CREATE",
+                    "NETWORK_FIREWALL_DELETE"
+                ]
+            }
+        },
+        "network-firewall-policy": {
+            "verbs": {
+                "inspect": [
+                    "NETWORK_FIREWALL_POLICY_INSPECT"
+                ],
+                "read": [
+                    "NETWORK_FIREWALL_POLICY_READ"
+                ],
+                "use": [
+                    "NETWORK_FIREWALL_POLICY_UPDATE",
+                    "NETWORK_FIREWALL_POLICY_MOVE"
+                ],
+                "manage": [
+                    "NETWORK_FIREWALL_POLICY_CREATE",
+                    "NETWORK_FIREWALL_POLICY_DELETE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "network-firewall-family": {
+            "resources": [
+                "network-firewall",
+                "network-firewall-policy"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/network-firewall/iam-policy-reference.htm",
+            "notes": "The reference says this family also covers work-request APIs, but supplies no work-request permission matrix or operation requirements. Those mappings are not inferred."
+        }
+    },
+    "operations": {
+        "ListNetworkFirewalls": {
+            "permissions": [
+                "NETWORK_FIREWALL_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetNetworkFirewall": {
+            "permissions": [
+                "NETWORK_FIREWALL_READ"
+            ],
+            "notes": ""
+        },
+        "CreateNetworkFirewall": {
+            "permissions": [
+                "NETWORK_FIREWALL_CREATE",
+                "VNIC_CREATE",
+                "SUBNET_ATTACH",
+                "VNIC_ATTACH",
+                "VNIC_ASSIGN",
+                "NETWORK_FIREWALL_POLICY_READ"
+            ],
+            "notes": "Networking requirements apply in the VNIC or subnet compartment, and policy read applies to the associated policy. Conditional NAT and NSG dependencies are related checks; their resource scopes need separate verification.",
+            "related_checks": [
+                {
+                    "resource": "network-security-groups",
+                    "permissions": [
+                        "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS"
+                    ],
+                    "applies_when": "The firewall has associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
+                    ],
+                    "applies_when": "The firewall has associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "private-ips",
+                    "permissions": [
+                        "PRIVATE_IP_READ",
+                        "PRIVATE_IP_CREATE",
+                        "PRIVATE_IP_ASSIGN",
+                        "PRIVATE_IP_DELETE",
+                        "PRIVATE_IP_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_ASSIGN",
+                        "VNIC_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "subnets",
+                    "permissions": [
+                        "SUBNET_DETACH"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                }
+            ]
+        },
+        "UpdateNetworkFirewall": {
+            "permissions": [
+                "NETWORK_FIREWALL_UPDATE"
+            ],
+            "notes": "Policy association, NSG association and NAT requirements are conditional related checks. REVIEW: the verb table asks for use network-firewall-policy when changing the policy, while the operation table specifies NETWORK_FIREWALL_POLICY_READ; the related check follows the operation table.",
+            "related_checks": [
+                {
+                    "resource": "network-firewall-policy",
+                    "permissions": [
+                        "NETWORK_FIREWALL_POLICY_READ"
+                    ],
+                    "applies_when": "Changing the firewall policy association.",
+                    "principal": "same-principal",
+                    "reason": "Access to the newly associated policy is required.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "network-security-groups",
+                    "permissions": [
+                        "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS"
+                    ],
+                    "applies_when": "Changing the associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
+                    ],
+                    "applies_when": "Changing the associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "private-ips",
+                    "permissions": [
+                        "PRIVATE_IP_READ",
+                        "PRIVATE_IP_CREATE",
+                        "PRIVATE_IP_ASSIGN",
+                        "PRIVATE_IP_DELETE",
+                        "PRIVATE_IP_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_ASSIGN",
+                        "VNIC_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "subnets",
+                    "permissions": [
+                        "SUBNET_ATTACH",
+                        "SUBNET_DETACH"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                }
+            ]
+        },
+        "DeleteNetworkFirewall": {
+            "permissions": [
+                "NETWORK_FIREWALL_DELETE",
+                "VNIC_DELETE",
+                "VNIC_DETACH",
+                "VNIC_ATTACHMENT_READ",
+                "SUBNET_DETACH"
+            ],
+            "notes": "VNIC permissions apply in the VNIC compartment; SUBNET_DETACH applies in the subnet compartment. NSG and NAT requirements are conditional related checks with their own resource scopes.",
+            "related_checks": [
+                {
+                    "resource": "network-security-groups",
+                    "permissions": [
+                        "NETWORK_SECURITY_GROUP_UPDATE_MEMBERS"
+                    ],
+                    "applies_when": "The firewall has associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_ASSOCIATE_NETWORK_SECURITY_GROUP"
+                    ],
+                    "applies_when": "The firewall has associated network security groups.",
+                    "principal": "same-principal",
+                    "reason": "NSG association requires access to both the group and VNIC. For creation, the verb table requires use network-security-groups; these are the association permissions explicitly named for update and delete.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "private-ips",
+                    "permissions": [
+                        "PRIVATE_IP_READ",
+                        "PRIVATE_IP_DELETE",
+                        "PRIVATE_IP_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                },
+                {
+                    "resource": "vnics",
+                    "permissions": [
+                        "VNIC_UNASSIGN"
+                    ],
+                    "applies_when": "Using NAT on the firewall; check the subnet compartment.",
+                    "principal": "same-principal",
+                    "reason": "NAT dependencies from the operation table. The source renders VNIC_UNASSIGN with trailing scope text \"Subnet\"; this is treated as scope annotation, not part of the permission name.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                }
+            ]
+        },
+        "ChangeNetworkFirewallCompartment": {
+            "permissions": [
+                "NETWORK_FIREWALL_MOVE"
+            ],
+            "notes": ""
+        },
+        "ListNetworkFirewallPolicies": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetNetworkFirewallPolicy": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "CreateNetworkFirewallPolicy": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_CREATE"
+            ],
+            "notes": ""
+        },
+        "UpdateNetworkFirewallPolicy": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_UPDATE"
+            ],
+            "notes": "NETWORK_FIREWALL_UPDATE is a related check when changing the associated firewall, following the condition in the verb table; the operation table lists it alongside NETWORK_FIREWALL_POLICY_UPDATE without qualification.",
+            "related_checks": [
+                {
+                    "resource": "network-firewall",
+                    "permissions": [
+                        "NETWORK_FIREWALL_UPDATE"
+                    ],
+                    "applies_when": "Changing the firewall associated with the policy.",
+                    "principal": "same-principal",
+                    "reason": "The verb table identifies an additional firewall update requirement.",
+                    "failure_hint": "Verify these permissions on the associated resource in its own compartment."
+                }
+            ]
+        },
+        "DeleteNetworkFirewallPolicy": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ChangeNetworkFirewallPolicyCompartment": {
+            "permissions": [
+                "NETWORK_FIREWALL_POLICY_MOVE"
+            ],
+            "notes": ""
+        }
+    }
+}

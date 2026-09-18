@@ -1809,7 +1809,7 @@ def get_reference_permissions(payload: dict[str, object]) -> dict[str, object]:
     ctx = get_context()
     service = ReferenceDataService(ctx.reference_data)
     permissions = service.get_permissions(str(entity), str(verb), str(action))
-    return {'permissions': permissions}
+    return {'permissions': permissions, 'catalog_metadata': ctx.reference_data.get_catalog_metadata(str(entity))}
 
 
 @router.post('/reference/source')

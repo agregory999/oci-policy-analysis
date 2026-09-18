@@ -1,0 +1,521 @@
+{
+    "resources": {
+        "container-scan-recipes": {
+            "verbs": {
+                "inspect": [
+                    "VSS_CONTAINERSCANRECIPE_INSPECT"
+                ],
+                "read": [
+                    "VSS_CONTAINERSCANRECIPE_READ"
+                ],
+                "use": [
+                    "VSS_CONTAINERSCANRECIPE_UPDATE"
+                ],
+                "manage": [
+                    "VSS_CONTAINERSCANRECIPE_CREATE",
+                    "VSS_CONTAINERSCANRECIPE_DELETE",
+                    "VSS_CONTAINERSCANRECIPE_MOVE"
+                ]
+            }
+        },
+        "container-scan-results": {
+            "verbs": {
+                "inspect": [
+                    "VSS_CONTAINERSCAN_INSPECT"
+                ],
+                "read": [
+                    "VSS_CONTAINERSCAN_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "VSS_CONTAINERSCAN_DELETE",
+                    "VSS_CONTAINERSCAN_MOVE"
+                ]
+            }
+        },
+        "container-scan-targets": {
+            "verbs": {
+                "inspect": [
+                    "VSS_CONTAINERSCANTARGET_INSPECT"
+                ],
+                "read": [
+                    "VSS_CONTAINERSCANTARGET_READ"
+                ],
+                "use": [
+                    "VSS_CONTAINERSCANTARGET_UPDATE"
+                ],
+                "manage": [
+                    "VSS_CONTAINERSCANTARGET_CREATE",
+                    "VSS_CONTAINERSCANTARGET_DELETE",
+                    "VSS_CONTAINERSCANTARGET_MOVE"
+                ]
+            }
+        },
+        "host-agent-scan-results": {
+            "verbs": {
+                "inspect": [
+                    "VSS_HOSTAGENTSCAN_INSPECT"
+                ],
+                "read": [
+                    "VSS_HOSTAGENTSCAN_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "VSS_HOSTAGENTSCAN_DELETE",
+                    "VSS_HOSTAGENTSCAN_EXPORT",
+                    "VSS_HOSTAGENTSCAN_MOVE"
+                ]
+            }
+        },
+        "host-cis-benchmark-scan-results": {
+            "verbs": {
+                "inspect": [
+                    "VSS_HOSTCISBENCHMARKSCAN_INSPECT"
+                ],
+                "read": [
+                    "VSS_HOSTCISBENCHMARKSCAN_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "VSS_HOSTCISBENCHMARKSCAN_DELETE",
+                    "VSS_HOSTCISBENCHMARKSCAN_MOVE"
+                ]
+            }
+        },
+        "host-port-scan-results": {
+            "verbs": {
+                "inspect": [
+                    "VSS_HOSTPORTSCAN_INSPECT"
+                ],
+                "read": [
+                    "VSS_HOSTPORTSCAN_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "VSS_HOSTPORTSCAN_DELETE",
+                    "VSS_HOSTPORTSCAN_MOVE"
+                ]
+            }
+        },
+        "host-scan-recipes": {
+            "verbs": {
+                "inspect": [
+                    "VSS_HOSTSCANRECIPE_INSPECT"
+                ],
+                "read": [
+                    "VSS_HOSTSCANRECIPE_READ"
+                ],
+                "use": [
+                    "VSS_HOSTSCANRECIPE_UPDATE"
+                ],
+                "manage": [
+                    "VSS_HOSTSCANRECIPE_CREATE",
+                    "VSS_HOSTSCANRECIPE_DELETE",
+                    "VSS_HOSTSCANRECIPE_MOVE"
+                ]
+            }
+        },
+        "host-scan-targets": {
+            "verbs": {
+                "inspect": [
+                    "VSS_HOSTSCANTARGET_INSPECT"
+                ],
+                "read": [
+                    "VSS_HOSTSCANTARGET_READ"
+                ],
+                "use": [
+                    "VSS_HOSTSCANTARGET_UPDATE"
+                ],
+                "manage": [
+                    "VSS_HOSTSCANTARGET_CREATE",
+                    "VSS_HOSTSCANTARGET_DELETE",
+                    "VSS_HOSTSCANTARGET_MOVE"
+                ]
+            }
+        },
+        "host-vulnerabilities": {
+            "verbs": {
+                "inspect": [
+                    "VSS_VULN_INSPECT",
+                    "VSS_VULN_HOST_INSPECT"
+                ],
+                "read": [
+                    "VSS_VULN_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "VSS_VULN_EXPORT"
+                ]
+            },
+            "notes": "Host vulnerability export is granted here; vss-vulnerabilities does not grant export."
+        },
+        "vss-vulnerabilities": {
+            "verbs": {
+                "inspect": [
+                    "VSS_VULN_INSPECT",
+                    "VSS_VULN_HOST_INSPECT",
+                    "VSS_VULN_CONTAINER_INSPECT"
+                ],
+                "read": [
+                    "VSS_VULN_READ"
+                ],
+                "use": [],
+                "manage": []
+            },
+            "notes": "Covers host and container vulnerabilities. Higher verbs add no permissions beyond read; export requires host-vulnerabilities."
+        },
+        "vss-work-requests": {
+            "verbs": {
+                "inspect": [
+                    "VSS_WR_INSPECT"
+                ],
+                "read": [
+                    "VSS_WR_READ",
+                    "VSS_WR_ERR_READ",
+                    "VSS_WR_LOG_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        }
+    },
+    "families": {
+        "vss-family": {
+            "resources": [
+                "container-scan-recipes",
+                "container-scan-results",
+                "container-scan-targets",
+                "host-agent-scan-results",
+                "host-cis-benchmark-scan-results",
+                "host-port-scan-results",
+                "host-scan-recipes",
+                "host-scan-targets",
+                "host-vulnerabilities",
+                "vss-vulnerabilities",
+                "vss-work-requests"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/scanning/using/iam-policies.htm",
+            "notes": "Scanning target access for service vulnerability-scanning-service is a separate operational prerequisite; caller permissions in this family do not grant that service access."
+        }
+    },
+    "operations": {
+        "ChangeContainerScanRecipeCompartment": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeContainerScanResultCompartment": {
+            "permissions": [
+                "VSS_CONTAINERSCAN_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeContainerScanTargetCompartment": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeHostAgentScanResultCompartment": {
+            "permissions": [
+                "VSS_HOSTAGENTSCAN_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeHostCisBenchmarkScanResultCompartment": {
+            "permissions": [
+                "VSS_HOSTCISBENCHMARKSCAN_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeHostPortScanResultCompartment": {
+            "permissions": [
+                "VSS_HOSTPORTSCAN_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeHostScanRecipeCompartment": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_MOVE"
+            ],
+            "notes": ""
+        },
+        "ChangeHostScanTargetCompartment": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateContainerScanRecipe": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateContainerScanTarget": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_CREATE"
+            ],
+            "notes": "Operational prerequisite for container image scanning: service vulnerability-scanning-service needs read repos and read compartments in the target scope. These are service-principal policies, not additional permissions required from this API caller."
+        },
+        "CreateHostScanRecipe": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_CREATE"
+            ],
+            "notes": ""
+        },
+        "CreateHostScanTarget": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_CREATE"
+            ],
+            "notes": "Operational prerequisite for agent-based host scanning: service vulnerability-scanning-service needs access to the target instances, compartments, VNICs and VNIC attachments. The reference examples grant manage instances and read compartments/vnics/vnic-attachments, using separate network compartments when necessary. These are service-principal policies, not additional permissions required from this API caller."
+        },
+        "DeleteContainerScanRecipe": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteContainerScanResult": {
+            "permissions": [
+                "VSS_CONTAINERSCAN_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteContainerScanTarget": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteHostAgentScanResult": {
+            "permissions": [
+                "VSS_HOSTAGENTSCAN_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteHostCisBenchmarkScanResult": {
+            "permissions": [
+                "VSS_HOSTCISBENCHMARKSCAN_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteHostPortScanResult": {
+            "permissions": [
+                "VSS_HOSTPORTSCAN_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteHostScanRecipe": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteHostScanTarget": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_DELETE"
+            ],
+            "notes": ""
+        },
+        "ExportHostAgentScanResultCsv": {
+            "permissions": [
+                "VSS_HOSTAGENTSCAN_EXPORT"
+            ],
+            "notes": ""
+        },
+        "ExportHostVulnerabilityCsv": {
+            "permissions": [
+                "VSS_VULN_EXPORT"
+            ],
+            "notes": "Requires the export permission from manage host-vulnerabilities (or the aggregate); manage vss-vulnerabilities alone does not provide it."
+        },
+        "GetContainerScanRecipe": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "GetContainerScanResult": {
+            "permissions": [
+                "VSS_CONTAINERSCAN_READ"
+            ],
+            "notes": ""
+        },
+        "GetContainerScanTarget": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostAgentScanResult": {
+            "permissions": [
+                "VSS_HOSTAGENTSCAN_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostCisBenchmarkScanResult": {
+            "permissions": [
+                "VSS_HOSTCISBENCHMARKSCAN_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostPortScanResult": {
+            "permissions": [
+                "VSS_HOSTPORTSCAN_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostScanRecipe": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostScanTarget": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_READ"
+            ],
+            "notes": ""
+        },
+        "GetHostVulnerability": {
+            "permissions": [
+                "VSS_VULN_READ"
+            ],
+            "notes": ""
+        },
+        "GetVulnerability": {
+            "permissions": [
+                "VSS_VULN_READ"
+            ],
+            "notes": ""
+        },
+        "GetWorkRequest": {
+            "permissions": [
+                "VSS_WR_READ"
+            ],
+            "notes": "Use the vss catalog group to distinguish this operation from other services with the same operation name."
+        },
+        "ListContainerScanRecipes": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListContainerScanResults": {
+            "permissions": [
+                "VSS_CONTAINERSCAN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListContainerScanTargets": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostAgentScanResults": {
+            "permissions": [
+                "VSS_HOSTAGENTSCAN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostCisBenchmarkScanResults": {
+            "permissions": [
+                "VSS_HOSTCISBENCHMARKSCAN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostPortScanResults": {
+            "permissions": [
+                "VSS_HOSTPORTSCAN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostScanRecipes": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostScanTargets": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostVulnerabilities": {
+            "permissions": [
+                "VSS_VULN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListHostVulnerabilityImpactedHosts": {
+            "permissions": [
+                "VSS_VULN_HOST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVulnerabilities": {
+            "permissions": [
+                "VSS_VULN_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVulnerabilityImpactedContainers": {
+            "permissions": [
+                "VSS_VULN_CONTAINER_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListVulnerabilityImpactedHosts": {
+            "permissions": [
+                "VSS_VULN_HOST_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListWorkRequestErrors": {
+            "permissions": [
+                "VSS_WR_ERR_READ"
+            ],
+            "notes": "Use the vss catalog group to distinguish this operation from other services with the same operation name."
+        },
+        "ListWorkRequestLogs": {
+            "permissions": [
+                "VSS_WR_LOG_READ"
+            ],
+            "notes": "Use the vss catalog group to distinguish this operation from other services with the same operation name."
+        },
+        "ListWorkRequests": {
+            "permissions": [
+                "VSS_WR_INSPECT"
+            ],
+            "notes": "Use the vss catalog group to distinguish this operation from other services with the same operation name."
+        },
+        "UpdateContainerScanRecipe": {
+            "permissions": [
+                "VSS_CONTAINERSCANRECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateContainerScanTarget": {
+            "permissions": [
+                "VSS_CONTAINERSCANTARGET_UPDATE"
+            ],
+            "notes": "Operational prerequisite for container image scanning: service vulnerability-scanning-service needs read repos and read compartments in the target scope. These are service-principal policies, not additional permissions required from this API caller."
+        },
+        "UpdateHostScanRecipe": {
+            "permissions": [
+                "VSS_HOSTSCANRECIPE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "UpdateHostScanTarget": {
+            "permissions": [
+                "VSS_HOSTSCANTARGET_UPDATE"
+            ],
+            "notes": "Operational prerequisite for agent-based host scanning: service vulnerability-scanning-service needs access to the target instances, compartments, VNICs and VNIC attachments. The reference examples grant manage instances and read compartments/vnics/vnic-attachments, using separate network compartments when necessary. These are service-principal policies, not additional permissions required from this API caller."
+        }
+    }
+}

@@ -1,0 +1,141 @@
+{
+    "resources": {
+        "bastion": {
+            "verbs": {
+                "inspect": [
+                    "BASTION_INSPECT"
+                ],
+                "read": [
+                    "BASTION_READ"
+                ],
+                "use": [
+                    "BASTION_USE"
+                ],
+                "manage": [
+                    "BASTION_CREATE",
+                    "BASTION_UPDATE",
+                    "BASTION_DELETE",
+                    "BASTION_MOVE"
+                ]
+            }
+        },
+        "bastion-session": {
+            "verbs": {
+                "inspect": [
+                    "BASTION_SESSION_INSPECT"
+                ],
+                "read": [
+                    "BASTION_SESSION_READ"
+                ],
+                "use": [
+                    "BASTION_SESSION_UPDATE"
+                ],
+                "manage": [
+                    "BASTION_SESSION_CREATE",
+                    "BASTION_SESSION_DELETE"
+                ]
+            }
+        }
+    },
+    "families": {
+        "bastion-family": {
+            "resources": [
+                "bastion",
+                "bastion-session"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Bastion/Reference/bastionpolicyreference.htm"
+        }
+    },
+    "operations": {
+        "ListBastions": {
+            "permissions": [
+                "BASTION_INSPECT"
+            ],
+            "notes": ""
+        },
+        "GetBastion": {
+            "permissions": [
+                "BASTION_READ"
+            ],
+            "notes": ""
+        },
+        "CreateBastion": {
+            "permissions": [
+                "BASTION_CREATE",
+                "VCN_CREATE"
+            ],
+            "notes": "Per-operation requirements reproduced. The verb table additionally lists manage vcns/subnets/route-tables/security-lists/dhcp-options and use network-security-groups/vnics; review networking dependencies for the target configuration."
+        },
+        "UpdateBastion": {
+            "permissions": [
+                "BASTION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteBastion": {
+            "permissions": [
+                "BASTION_DELETE",
+                "VCN_DELETE"
+            ],
+            "notes": "Per-operation requirements reproduced. The verb table additionally lists manage vcns and use private-ips/vnics/subnets/network-security-groups; review networking dependencies for the target configuration."
+        },
+        "ChangeBastionCompartment": {
+            "permissions": [
+                "BASTION_MOVE"
+            ],
+            "notes": ""
+        },
+        "CreateSession": {
+            "permissions": [
+                "BASTION_USE",
+                "INSTANCE_READ",
+                "INSTANCE_INSPECT",
+                "VCN_READ",
+                "VNIC_ATTACHMENT_READ",
+                "VNIC_READ",
+                "BASTION_SESSION_CREATE",
+                "SUBNET_READ"
+            ],
+            "notes": "This operation also exists in generative_ai_agents; select the bastion catalog group. INSTANCE_AGENT_PLUGIN_READ is conditional on Managed SSH and is represented as a related check.",
+            "related_checks": [
+                {
+                    "resource": "instance-agent-plugins",
+                    "permissions": [
+                        "INSTANCE_AGENT_PLUGIN_READ"
+                    ],
+                    "applies_when": "Creating a Managed SSH session.",
+                    "principal": "same-principal",
+                    "reason": "Managed SSH requires permission to read the target instance agent plugin.",
+                    "failure_hint": "Grant read instance-agent-plugins on the target instance scope for Managed SSH."
+                }
+            ]
+        },
+        "GetSession": {
+            "permissions": [
+                "BASTION_SESSION_READ"
+            ],
+            "notes": "This operation also exists in generative_ai_agents; select the bastion catalog group."
+        },
+        "ListSessions": {
+            "permissions": [
+                "BASTION_READ",
+                "BASTION_SESSION_INSPECT"
+            ],
+            "notes": "This operation also exists in generative_ai_agents; select the bastion catalog group."
+        },
+        "UpdateSession": {
+            "permissions": [
+                "BASTION_USE",
+                "BASTION_SESSION_UPDATE"
+            ],
+            "notes": "This operation also exists in generative_ai_agents; select the bastion catalog group."
+        },
+        "DeleteSession": {
+            "permissions": [
+                "BASTION_USE",
+                "BASTION_SESSION_DELETE"
+            ],
+            "notes": "This operation also exists in generative_ai_agents; select the bastion catalog group."
+        }
+    }
+}

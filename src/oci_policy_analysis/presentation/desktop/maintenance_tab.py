@@ -504,6 +504,15 @@ class MaintenanceTab(ttk.Frame):
 
         # Build detailed output in permissions_overlap_text (resource/verb details + risk calculation)
         lines = [f'--- Get Permissions: {label} | verb: {verb} ---', '']
+        metadata = ref_repo.get_catalog_metadata(entity)
+        if metadata.get('catalog_status'):
+            lines.append(f'Catalog status: {metadata["catalog_status"]}')
+        if metadata.get('notes'):
+            lines.append(f'Catalog note: {metadata["notes"]}')
+        if metadata.get('replacement_resources'):
+            lines.append('Documented resource types: ' + ', '.join(metadata['replacement_resources']))
+        if metadata:
+            lines.append('')
         if perms is None:
             lines.append('Invalid selection.')
             self.permissions_result_label.config(text='Invalid selection.')
