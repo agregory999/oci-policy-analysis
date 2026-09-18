@@ -1,3 +1,11 @@
+## [6.6.0-idcs-domain-mappings-policy-corpus.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.6.0-idcs-domain-mappings-policy-corpus.1) (2026-09-18)
+
+
+### Features
+
+* add experimental compiled policy corpus ([36a0718](https://github.com/agregory999/oci-policy-analysis/commit/36a0718c61717eea68496a3439effc878bb43ac7))
+* prepare CIS identity domain mapping support ([a24e7d2](https://github.com/agregory999/oci-policy-analysis/commit/a24e7d271ac336e28998eca85c1846d16272df46))
+
 ## [6.5.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.2...v6.5.3) (2026-09-18)
 
 
