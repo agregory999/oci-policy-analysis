@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "shared_context": {
+    "request.region": "iad",
+    "request.utc-timestamp": "2026-09-11T12:00:00Z",
+    "corpus.deny_enabled": "true",
+    "corpus.deny_exempt": "false"
+  },
+  "scenarios": [
+    {
+      "name": "Read IAD",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:GetBucket",
+      "compartment_path": "root/finance/reports",
+      "context": {},
+      "expected": "allowed"
+    },
+    {
+      "name": "Read PHX",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:GetBucket",
+      "compartment_path": "root/finance/reports",
+      "context": {
+        "request.region": "phx"
+      },
+      "expected": "allowed"
+    },
+    {
+      "name": "Read other region",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:GetBucket",
+      "compartment_path": "root/finance/reports",
+      "context": {
+        "request.region": "other"
+      },
+      "expected": "denied"
+    },
+    {
+      "name": "List inherited",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:ListBuckets",
+      "compartment_path": "root/finance/reports",
+      "context": {},
+      "expected": "allowed"
+    },
+    {
+      "name": "Delete ordinary bucket",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:DeleteBucket",
+      "compartment_path": "root/finance/reports",
+      "context": {
+        "target.bucket.name": "ordinary"
+      },
+      "expected": "allowed"
+    },
+    {
+      "name": "Delete protected bucket",
+      "principal_key": "group:Default/FinanceReaders",
+      "api_operation": "oci:DeleteBucket",
+      "compartment_path": "root/finance/reports",
+      "context": {
+        "target.bucket.name": "protected"
+      },
+      "expected": "denied"
+    }
+  ]
+}

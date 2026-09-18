@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "82e9f1bf8f8047bade18266d178f5815ce85d37289d22bc7fe38225486f21a97",
+  "suite": {
+    "schema_version": 1,
+    "shared_context": {
+      "request.region": "iad",
+      "request.utc-timestamp": "2026-09-11T12:00:00Z",
+      "corpus.deny_enabled": "true",
+      "corpus.deny_exempt": "false"
+    },
+    "scenarios": [
+      {
+        "name": "Read IAD",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:GetBucket",
+        "compartment_path": "root/finance/reports",
+        "context": {},
+        "expected": "allowed"
+      },
+      {
+        "name": "Read PHX",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:GetBucket",
+        "compartment_path": "root/finance/reports",
+        "context": {
+          "request.region": "phx"
+        },
+        "expected": "allowed"
+      },
+      {
+        "name": "Read other region",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:GetBucket",
+        "compartment_path": "root/finance/reports",
+        "context": {
+          "request.region": "other"
+        },
+        "expected": "denied"
+      },
+      {
+        "name": "List inherited",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:ListBuckets",
+        "compartment_path": "root/finance/reports",
+        "context": {},
+        "expected": "allowed"
+      },
+      {
+        "name": "Delete ordinary bucket",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:DeleteBucket",
+        "compartment_path": "root/finance/reports",
+        "context": {
+          "target.bucket.name": "ordinary"
+        },
+        "expected": "allowed"
+      },
+      {
+        "name": "Delete protected bucket",
+        "principal_key": "group:Default/FinanceReaders",
+        "api_operation": "oci:DeleteBucket",
+        "compartment_path": "root/finance/reports",
+        "context": {
+          "target.bucket.name": "protected"
+        },
+        "expected": "denied"
+      }
+    ]
+  },
+  "contribution_analysis": true,
+  "results": [
+    {
+      "name": "Read IAD",
+      "result": "allowed",
+      "modeled_result": "allowed",
+      "expected": "allowed",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_READ": "allowed"
+      },
+      "active_sources": [
+        "source-000000-42d5bd5328d5"
+      ],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000000-42d5bd5328d5",
+        "source-000001-99f71a007a83"
+      ],
+      "resolved_context": {
+        "request.region": "iad",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "request.operation": "GetBucket"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    },
+    {
+      "name": "Read PHX",
+      "result": "allowed",
+      "modeled_result": "allowed",
+      "expected": "allowed",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_READ": "allowed"
+      },
+      "active_sources": [
+        "source-000001-99f71a007a83"
+      ],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000000-42d5bd5328d5",
+        "source-000001-99f71a007a83"
+      ],
+      "resolved_context": {
+        "request.region": "phx",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "request.operation": "GetBucket"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    },
+    {
+      "name": "Read other region",
+      "result": "denied",
+      "modeled_result": "denied",
+      "expected": "denied",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_READ": "denied"
+      },
+      "active_sources": [],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000000-42d5bd5328d5",
+        "source-000001-99f71a007a83"
+      ],
+      "resolved_context": {
+        "request.region": "other",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "request.operation": "GetBucket"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    },
+    {
+      "name": "List inherited",
+      "result": "allowed",
+      "modeled_result": "allowed",
+      "expected": "allowed",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_INSPECT": "allowed"
+      },
+      "active_sources": [
+        "source-000002-e673e2825ed6",
+        "source-000003-ea88e018ea86"
+      ],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000002-e673e2825ed6",
+        "source-000003-ea88e018ea86"
+      ],
+      "resolved_context": {
+        "request.region": "iad",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "request.operation": "ListBuckets"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    },
+    {
+      "name": "Delete ordinary bucket",
+      "result": "allowed",
+      "modeled_result": "allowed",
+      "expected": "allowed",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_DELETE": "allowed"
+      },
+      "active_sources": [
+        "source-000004-6f551db62eb5"
+      ],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000004-6f551db62eb5",
+        "source-000005-9721525d35f8"
+      ],
+      "resolved_context": {
+        "request.region": "iad",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "target.bucket.name": "ordinary",
+        "request.operation": "DeleteBucket"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    },
+    {
+      "name": "Delete protected bucket",
+      "result": "denied",
+      "modeled_result": "denied",
+      "expected": "denied",
+      "expectation_met": true,
+      "permissions": {
+        "BUCKET_DELETE": "denied"
+      },
+      "active_sources": [
+        "source-000004-6f551db62eb5",
+        "source-000005-9721525d35f8"
+      ],
+      "unknown_sources": [],
+      "candidate_sources": [
+        "source-000004-6f551db62eb5",
+        "source-000005-9721525d35f8"
+      ],
+      "resolved_context": {
+        "request.region": "iad",
+        "request.utc-timestamp": "2026-09-11T12:00:00Z",
+        "corpus.deny_enabled": "true",
+        "corpus.deny_exempt": "false",
+        "target.bucket.name": "protected",
+        "request.operation": "DeleteBucket"
+      },
+      "missing_context": [],
+      "context_bindings": {
+        "request.permission": "Bound separately to each permission in the permissions map."
+      },
+      "warnings": [],
+      "related_checks": []
+    }
+  ],
+  "statement_contribution": {
+    "source-000000-42d5bd5328d5": {
+      "exercised": 1,
+      "unknown": 0,
+      "permission_changes": 1,
+      "decision_changes": 1,
+      "witnesses": [
+        {
+          "scenario": 0,
+          "without_source": "denied",
+          "permissions": {
+            "BUCKET_READ": "denied"
+          }
+        }
+      ]
+    },
+    "source-000001-99f71a007a83": {
+      "exercised": 1,
+      "unknown": 0,
+      "permission_changes": 1,
+      "decision_changes": 1,
+      "witnesses": [
+        {
+          "scenario": 1,
+          "without_source": "denied",
+          "permissions": {
+            "BUCKET_READ": "denied"
+          }
+        }
+      ]
+    },
+    "source-000002-e673e2825ed6": {
+      "exercised": 1,
+      "unknown": 0,
+      "permission_changes": 0,
+      "decision_changes": 0,
+      "witnesses": []
+    },
+    "source-000003-ea88e018ea86": {
+      "exercised": 1,
+      "unknown": 0,
+      "permission_changes": 0,
+      "decision_changes": 0,
+      "witnesses": []
+    },
+    "source-000004-6f551db62eb5": {
+      "exercised": 2,
+      "unknown": 0,
+      "permission_changes": 1,
+      "decision_changes": 1,
+      "witnesses": [
+        {
+          "scenario": 4,
+          "without_source": "denied",
+          "permissions": {
+            "BUCKET_DELETE": "denied"
+          }
+        }
+      ]
+    },
+    "source-000005-9721525d35f8": {
+      "exercised": 1,
+      "unknown": 0,
+      "permission_changes": 1,
+      "decision_changes": 1,
+      "witnesses": [
+        {
+          "scenario": 5,
+          "without_source": "allowed",
+          "permissions": {
+            "BUCKET_DELETE": "allowed"
+          }
+        }
+      ]
+    }
+  },
+  "note": "No effect in this suite is not proof of redundancy. Individual removals are not a bulk removal plan."
+}

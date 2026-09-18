@@ -17,6 +17,7 @@ Full documentation
    :caption: Advanced Topics
 
    simulation
+   compiled-corpus
    consolidation
    recommendations
    reports
