@@ -380,6 +380,19 @@ class PolicyRecommendationsTab(BaseUITab):
         self.timed_step('reload_all_analytics', self.reload_all_analytics)
         self.logger.info('Finished PolicyRecommendationsTab.populate_data')
 
+    def reset_for_data_load(self) -> None:
+        """Clear tenancy-scoped recommendation state before any new dataset is loaded."""
+        self._cleanup_tenancy_ocid = None
+        self._workbench_actions = []
+        self._workbench_counter = 0
+        self._cleanup_payload_by_key = {}
+        self.ignored_cleanup_keys = set()
+        for table_name in ('cleanup_table', 'workbench_table', 'supersession_table'):
+            table = getattr(self, table_name, None)
+            if table is not None:
+                table.update_data([])
+        self._on_workbench_row_selected([])
+
     def _build_limits_tab(self, parent):
         # Dropdown and all top controls on single row for compactness
         controls_frame = ttk.Frame(parent)

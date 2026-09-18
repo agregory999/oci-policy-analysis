@@ -313,8 +313,23 @@ class SettingsTab(BaseUITab):
         # Remove Save Config button (no longer needed)
 
         # --- Tenancy Config (LabelFrame) ---
-        label_frm_tenancy_config = ttk.Labelframe(self, text='Tenancy and Config')
-        label_frm_tenancy_config.pack(fill='x', padx=10, pady=10)
+        tenancy_config_row = ttk.Frame(self)
+        tenancy_config_row.pack(fill='x', padx=10, pady=10)
+        label_frm_tenancy_config = ttk.Labelframe(tenancy_config_row, text='Tenancy and Config')
+        label_frm_tenancy_config.pack(side='left', fill='x', expand=True)
+        self.loaded_data_summary_var = tk.StringVar()
+        loaded_data_summary = ttk.LabelFrame(tenancy_config_row, text='Currently Loaded Data')
+        loaded_data_summary.pack(side='left', fill='y', padx=(10, 0))
+        ttk.Label(
+            loaded_data_summary,
+            textvariable=self.loaded_data_summary_var,
+            justify='left',
+            wraplength=370,
+        ).pack(anchor='w', padx=8, pady=6)
+        self.add_context_help(
+            loaded_data_summary,
+            'Shows the active dataset name, source, and loaded inventory counts. It updates after each load or import.',
+        )
 
         # --- Page Help context for Tenancy and Config ---
         def _show_tenancy_help(_event=None):
@@ -593,6 +608,8 @@ class SettingsTab(BaseUITab):
             command=_on_load_compliance_output,
         )
         self.btn_load_compliance.grid(row=2, column=5, padx=5, pady=5, sticky='w')
+
+        self._refresh_loaded_data_summary()
 
         # --- Page Help context for Compliance Output button ---
         def _show_compliance_help(_event=None):
@@ -950,6 +967,44 @@ class SettingsTab(BaseUITab):
         logger.info('Load callback received: success=%s message=%s', success, message)
         logger.info('Updating cache list after load/import operation')
         self.refresh_cache_list()
+        self._refresh_loaded_data_summary()
+
+    def _refresh_loaded_data_summary(self) -> None:
+        """Show the active tenancy/snapshot and its primary inventory counts."""
+        if not hasattr(self, 'loaded_data_summary_var'):
+            return
+        repo = getattr(self.app, 'policy_compartment_analysis', None)
+        if repo is None:
+            self.loaded_data_summary_var.set('<No tenancy loaded>')
+            return
+        policies = list(getattr(repo, 'policies', []) or [])
+        statements = list(getattr(repo, 'regular_statements', []) or [])
+        groups = list(getattr(repo, 'groups', []) or [])
+        dynamic_groups = list(getattr(repo, 'dynamic_groups', []) or [])
+        users = list(getattr(repo, 'users', []) or [])
+        compartments = list(getattr(repo, 'compartments', []) or [])
+        if not any((policies, statements, groups, dynamic_groups, users, compartments)):
+            self.loaded_data_summary_var.set('<No tenancy loaded>')
+            return
+        tenancy_name = str(getattr(repo, 'tenancy_name', '') or getattr(repo, 'tenancy_ocid', '') or 'Unknown tenancy')
+        if getattr(repo, 'loaded_from_compliance_output', False):
+            source = 'CIS Compliance snapshot'
+        elif getattr(repo, 'policies_loaded_from_tenancy', False):
+            source = 'Live tenancy'
+        elif getattr(repo, 'current_cache_name', ''):
+            source = 'Named cache'
+        else:
+            source = 'Imported JSON / cache'
+        data_as_of = str(getattr(repo, 'data_as_of', '') or 'Unknown')
+        if data_as_of != 'Unknown':
+            data_as_of = data_as_of.replace('T', ' ').replace('+00:00', ' UTC')
+        self.loaded_data_summary_var.set(
+            f'Tenancy: {tenancy_name}    Source: {source}\n'
+            f'Domains: {len(getattr(repo, "identity_domains", []) or [])}    Compartments: {len(compartments)}\n'
+            f'Groups: {len(groups)}    Users: {len(users)}    Dynamic Groups: {len(dynamic_groups)}\n'
+            f'Policies: {len(policies)}    Statements: {len(statements)}\n'
+            f'Data as of: {data_as_of}'
+        )
 
     def refresh_cache_list(self):
         """Update the cache list OptionMenu in the Settings tab to reflect the current state, preserving selection."""

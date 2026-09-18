@@ -26,6 +26,16 @@ materialize mapped aliases in the repository group model. Once it exists,
 replace the validation-only bridge with that data. Do not infer mappings merely
 from same-named groups in arbitrary domains.
 
+## CIS Compliance snapshot assumption
+
+CIS Compliance exports do not contain IdP group-mapping records. When a CIS
+snapshot contains the `OracleIdentityCloudService` identity domain, the loader
+sets a compliance-only flag and the invalid-statement check treats that domain
+and `Default` as interchangeable for group and dynamic-group existence checks.
+The desktop completion popup explicitly labels this as an assumption. It does
+not affect simulation, policy filtering, consolidation, or principal keys, and
+must be replaced by explicit mappings for a live tenancy.
+
 ## Regression expectations
 
 - A naked group name resolves through this bridge only for the loaded legacy

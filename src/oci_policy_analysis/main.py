@@ -714,11 +714,7 @@ class App(tk.Tk):
                         widget.update_data([])
             recommendations = getattr(self, 'policy_recommendations_tab', None)
             if recommendations:
-                recommendations._cleanup_tenancy_ocid = None
-                recommendations._workbench_actions = []
-                recommendations._cleanup_payload_by_key = {}
-                recommendations.ignored_cleanup_keys = set()
-                recommendations._on_workbench_row_selected([])
+                recommendations.reset_for_data_load()
             consolidation = getattr(self, 'consolidation_tab', None)
             if consolidation:
                 consolidation.clear_tenancy_selection()
@@ -1460,6 +1456,13 @@ class App(tk.Tk):
                 elapsed = time.perf_counter() - start_time
                 summary = self._build_data_load_summary()
                 final_msg = f'Done Loading in {elapsed:.2f}s. {summary}'.strip()
+                if getattr(self.policy_compartment_analysis, 'compliance_legacy_idcs_default_equivalence', False):
+                    final_msg += (
+                        '\n\nOracleIdentityCloudService was detected in this CIS snapshot. Because CIS output does not '
+                        'include IdP group mappings, Default and OracleIdentityCloudService are being treated as '
+                        'interchangeable only for group and dynamic-group validity checks. This is an assumption, not '
+                        'proof of an OCI mapping.'
+                    )
                 popup_final_message = final_msg
                 popup_success = bool(success)
 

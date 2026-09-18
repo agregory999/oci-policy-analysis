@@ -147,3 +147,37 @@ def test_cleanup_details_expose_and_explain_a_diagnostic_identity_name():
 
     assert sections['Identity name diagnostics'] == ['Diagnostic Name: Default/NetworkAdmins[U+200B ZERO WIDTH SPACE]']
     assert 'correct the source group or dynamic group name' in '\n'.join(sections['Potential actions'])
+
+
+def test_reset_for_data_load_clears_tenancy_scoped_recommendation_state():
+    class Table:
+        def __init__(self) -> None:
+            self.rows = None
+
+        def update_data(self, rows) -> None:
+            self.rows = rows
+
+    cleanup_table = Table()
+    workbench_table = Table()
+    tab = SimpleNamespace(
+        _cleanup_tenancy_ocid='old-tenancy',
+        _workbench_actions=[{'Description': 'old recommendation'}],
+        _workbench_counter=4,
+        _cleanup_payload_by_key={'old': {}},
+        ignored_cleanup_keys={'old'},
+        cleanup_table=cleanup_table,
+        workbench_table=workbench_table,
+        supersession_table=None,
+        _on_workbench_row_selected=lambda rows: setattr(tab, 'selected_rows', rows),
+    )
+
+    PolicyRecommendationsTab.reset_for_data_load(tab)
+
+    assert tab._cleanup_tenancy_ocid is None
+    assert tab._workbench_actions == []
+    assert tab._workbench_counter == 0
+    assert tab._cleanup_payload_by_key == {}
+    assert tab.ignored_cleanup_keys == set()
+    assert cleanup_table.rows == []
+    assert workbench_table.rows == []
+    assert tab.selected_rows == []

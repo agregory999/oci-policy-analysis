@@ -832,6 +832,7 @@ class PolicyAnalysisRepository:
         self.defined_aliases: list[DefineStatement] = []  # Store define statements as list of dict
         self.dynamic_groups = []
         self.identity_domains = []
+        self.compliance_legacy_idcs_default_equivalence = False
         self.groups = []
         self.users: list[User] = []
         # Catalog of defined tags discovered from OCI Resource Search +
@@ -917,6 +918,7 @@ class PolicyAnalysisRepository:
         self.defined_aliases = []
         self.dynamic_groups = []
         self.identity_domains = []
+        self.compliance_legacy_idcs_default_equivalence = False
         self.groups = []
         self.users = []
         self.defined_tag_namespace_keys = {}
@@ -3473,6 +3475,17 @@ class PolicyAnalysisRepository:
                             break
             except Exception as e:
                 logger.error(f'Failed to read tenancy_ocid from raw_data_identity_domains.csv: {e}')
+
+        self.compliance_legacy_idcs_default_equivalence = any(
+            str(domain.get('display_name') or '').casefold() == 'oracleidentitycloudservice'
+            for domain in self.identity_domains
+            if isinstance(domain, dict)
+        )
+        if self.compliance_legacy_idcs_default_equivalence:
+            logger.warning(
+                'CIS compliance snapshot contains OracleIdentityCloudService; treating it as equivalent to Default '
+                'only for group and dynamic-group validity checks because mapping data is unavailable.'
+            )
 
         # We need to only use the CSV files and stop using the JSON file altogether
         try:

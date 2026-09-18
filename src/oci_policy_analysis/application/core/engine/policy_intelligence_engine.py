@@ -51,6 +51,17 @@ def _legacy_idcs_domain_is_loaded(repo) -> bool:
     return False
 
 
+def _compliance_domains_are_equivalent(repo, left_domain: object, right_domain: object) -> bool:
+    """Apply the explicit CIS-only Default/legacy-IDCS validation assumption."""
+    if not getattr(repo, 'compliance_legacy_idcs_default_equivalence', False):
+        return False
+    equivalent_domains = {'default', LEGACY_IDCS_DOMAIN_NAME.casefold()}
+    return (
+        str(left_domain or 'Default').casefold() in equivalent_domains
+        and str(right_domain or 'Default').casefold() in equivalent_domains
+    )
+
+
 def _append_unique(items: list, value) -> None:
     """Append value only if not already present (preserve order)."""
     if value not in items:
@@ -855,7 +866,10 @@ class PolicyIntelligenceEngine:
                     logger.debug(f'Checking DG existence for {dg_domain}/{dg_name}')
                     dg_found = any(
                         dg.get('dynamic_group_name', '').lower() == dg_name.lower()
-                        and dg.get('domain_name', 'default').lower() == dg_domain.lower()
+                        and (
+                            dg.get('domain_name', 'default').lower() == dg_domain.lower()
+                            or _compliance_domains_are_equivalent(repo, dg.get('domain_name'), dg_domain)
+                        )
                         for dg in repo.dynamic_groups
                     )
                     if not dg_found:
@@ -871,7 +885,10 @@ class PolicyIntelligenceEngine:
                     logger.debug(f'Checking Group existence for {group_domain}/{group_name}')
                     group_found = any(
                         g.get('group_name', '').lower() == group_name.lower()
-                        and g.get('domain_name', 'default').lower() == group_domain.lower()
+                        and (
+                            g.get('domain_name', 'default').lower() == group_domain.lower()
+                            or _compliance_domains_are_equivalent(repo, g.get('domain_name'), group_domain)
+                        )
                         for g in repo.groups
                     )
                     # TODO(identity-domain-mappings): replace this legacy-only validation bridge with

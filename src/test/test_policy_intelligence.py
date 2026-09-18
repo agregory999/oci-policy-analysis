@@ -90,6 +90,34 @@ def test_explicit_default_group_does_not_use_legacy_idcs_mapping() -> None:
     assert 'Group ConvertedAdmins not found in tenancy' in statement['invalid_reasons']
 
 
+def test_cis_legacy_idcs_default_equivalence_validates_groups_and_dynamic_groups() -> None:
+    group_statement = _base_statement()
+    group_statement['subject'] = [('Default', 'ConvertedAdmins')]
+    dynamic_group_statement = _base_statement()
+    dynamic_group_statement.update(
+        {
+            'subject_type': 'dynamic-group',
+            'subject': [('OracleIdentityCloudService', 'ConvertedAgents')],
+            'statement_text': 'allow dynamic-group ConvertedAgents to read instances in tenancy',
+        }
+    )
+    repo = SimpleNamespace(
+        regular_statements=[group_statement, dynamic_group_statement],
+        groups=[{'domain_name': 'OracleIdentityCloudService', 'group_name': 'ConvertedAdmins'}],
+        dynamic_groups=[{'domain_name': 'Default', 'dynamic_group_name': 'ConvertedAgents'}],
+        identity_domains=[{'display_name': 'OracleIdentityCloudService'}],
+        defined_tag_namespace_keys={},
+        loaded_from_compliance_output=True,
+        compliance_capabilities={'groups_inventory': True, 'dynamic_groups_inventory': True},
+        compliance_legacy_idcs_default_equivalence=True,
+    )
+
+    PolicyIntelligenceEngine(repo, strategies=[]).find_invalid_statements()
+
+    assert group_statement['invalid_reasons'] == []
+    assert dynamic_group_statement['invalid_reasons'] == []
+
+
 def _build_engine_with_compartment_repo() -> tuple[PolicyIntelligenceEngine, dict[str, str]]:
     """Create a minimal repo with a deterministic compartment hierarchy for path tests."""
 
