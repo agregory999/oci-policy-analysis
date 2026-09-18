@@ -1,0 +1,306 @@
+{
+    "resources": {
+        "zpr-policy": {
+            "verbs": {
+                "inspect": [
+                    "ZPR_POLICY_INSPECT"
+                ],
+                "read": [
+                    "ZPR_POLICY_READ"
+                ],
+                "use": [
+                    "ZPR_POLICY_UPDATE"
+                ],
+                "manage": [
+                    "ZPR_POLICY_CREATE",
+                    "ZPR_POLICY_DELETE"
+                ]
+            }
+        },
+        "zpr-configuration": {
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "ZPR_CONFIGURATION_READ"
+                ],
+                "use": [
+                    "ZPR_CONFIGURATION_UPDATE"
+                ],
+                "manage": [
+                    "ZPR_CONFIGURATION_CREATE",
+                    "ZPR_CONFIGURATION_DELETE"
+                ]
+            }
+        },
+        "security-attribute-namespace": {
+            "verbs": {
+                "inspect": [
+                    "SECURITY_ATTRIBUTE_NAMESPACE_INSPECT"
+                ],
+                "read": [
+                    "SECURITY_ATTRIBUTE_NAMESPACE_READ"
+                ],
+                "use": [
+                    "SECURITY_ATTRIBUTE_NAMESPACE_USE"
+                ],
+                "manage": [
+                    "SECURITY_ATTRIBUTE_NAMESPACE_CREATE",
+                    "SECURITY_ATTRIBUTE_NAMESPACE_DELETE",
+                    "SECURITY_ATTRIBUTE_NAMESPACE_MOVE",
+                    "SECURITY_ATTRIBUTE_NAMESPACE_UPDATE",
+                    "ZPR_CONFIGURATION_DELETE"
+                ]
+            },
+            "notes": "REVIEW: ZPR_CONFIGURATION_DELETE is reproduced from this resource's manage row; it appears misplaced. The page also uses the plural security-attribute-namespaces without a separate verb table."
+        },
+        "zpr-topology": {
+            "verbs": {
+                "inspect": [
+                    "ZPR_TOPOLOGY_NODE_READ",
+                    "ZPR_TOPOLOGY_LINK_READ"
+                ],
+                "read": [
+                    "ZPR_TOPOLOGY_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "ZPR_TOPOLOGY_CREATE",
+                    "ZPR_TOPOLOGY_DELETE"
+                ]
+            },
+            "notes": "REVIEW: ZPR_TOPOLOGY_USE appears in the operation table but has no verb assignment. The use increment is left empty as documented; no assignment is inferred."
+        }
+    },
+    "families": {
+        "zpr-family": {
+            "resources": [
+                "zpr-policy",
+                "zpr-configuration"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/zero-trust-packet-routing/policy-reference.htm",
+            "notes": "REVIEW: Membership inferred from the ZPR verb tables; the page does not explicitly enumerate this family. The listed zpr-security-attribute resource has no permission table and is not assigned invented permissions."
+        },
+        "security-attribute-family": {
+            "resources": [
+                "security-attribute-namespace"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/zero-trust-packet-routing/policy-reference.htm",
+            "notes": "REVIEW: Membership inferred from the security attribute verb table; confirm the source's inconsistent resource naming."
+        },
+        "zpr-topology-family": {
+            "resources": [
+                "zpr-topology"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/zero-trust-packet-routing/policy-reference.htm"
+        }
+    },
+    "operations": {
+        "ListZprPolicies": {
+            "permissions": [
+                "ZPR_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "ListZprPolicyWorkRequests": {
+            "permissions": [
+                "ZPR_POLICY_INSPECT"
+            ],
+            "notes": ""
+        },
+        "CreateZprPolicy": {
+            "permissions": [
+                "ZPR_POLICY_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetZprPolicy": {
+            "permissions": [
+                "ZPR_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "GetZprPolicyWorkRequest": {
+            "permissions": [
+                "ZPR_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "ListZprPolicyWorkRequestErrors": {
+            "permissions": [
+                "ZPR_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "ListZprPolicyWorkRequestLogs": {
+            "permissions": [
+                "ZPR_POLICY_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateZprPolicy": {
+            "permissions": [
+                "ZPR_POLICY_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteZprPolicy": {
+            "permissions": [
+                "ZPR_POLICY_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateConfiguration": {
+            "permissions": [
+                "ZPR_CONFIGURATION_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetConfiguration": {
+            "permissions": [
+                "ZPR_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListZprConfigurationWorkRequests": {
+            "permissions": [
+                "ZPR_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "GetZprConfigurationWorkRequest": {
+            "permissions": [
+                "ZPR_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListZprConfigurationWorkRequestErrors": {
+            "permissions": [
+                "ZPR_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "ListZprConfigurationWorkRequestLogs": {
+            "permissions": [
+                "ZPR_CONFIGURATION_READ"
+            ],
+            "notes": ""
+        },
+        "UpdateConfiguration": {
+            "permissions": [
+                "ZPR_CONFIGURATION_UPDATE"
+            ],
+            "notes": ""
+        },
+        "DeleteConfiguration": {
+            "permissions": [
+                "ZPR_CONFIGURATION_DELETE"
+            ],
+            "notes": ""
+        },
+        "CreateSecurityAttributeNamespace": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_CREATE"
+            ],
+            "notes": ""
+        },
+        "DeleteSecurityAttributeNamespace": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "CascadeDeleteSecurityAttributeNamespace": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "DeleteSecurityAttribute": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_DELETE"
+            ],
+            "notes": ""
+        },
+        "SecurityAttributeWorkRequest": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_INSPECT"
+            ],
+            "notes": "REVIEW: Operation name reproduced from the policy reference; verify against the Security Attribute API."
+        },
+        "ChangeSecurityAttributeNamespaceCompartment": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_MOVE"
+            ],
+            "notes": ""
+        },
+        "UpdateSecurityAttributeNamespace": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateSecurityAttribute": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_UPDATE"
+            ],
+            "notes": ""
+        },
+        "CreateZprTopology": {
+            "permissions": [
+                "ZPR_TOPOLOGY_CREATE"
+            ],
+            "notes": ""
+        },
+        "GetZprTopology": {
+            "permissions": [
+                "ZPR_TOPOLOGY_READ"
+            ],
+            "notes": ""
+        },
+        "GetZprTopologyById": {
+            "permissions": [
+                "ZPR_TOPOLOGY_READ"
+            ],
+            "notes": ""
+        },
+        "DeleteZprTopology": {
+            "permissions": [
+                "ZPR_TOPOLOGY_DELETE"
+            ],
+            "notes": ""
+        },
+        "ReadSecurityAttributeNamespace": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_READ"
+            ],
+            "notes": "REVIEW: The source repeats this operation under INSPECT and READ. This draft uses READ, whose resource verb includes INSPECT; verify the operation requirement and API name."
+        },
+        "ReadSecurityAttribute": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_READ"
+            ],
+            "notes": "REVIEW: The source repeats this operation under INSPECT and READ. This draft uses READ, whose resource verb includes INSPECT; verify the operation requirement and API name."
+        },
+        "UpdateSecurityAttribute": {
+            "permissions": [
+                "SECURITY_ATTRIBUTE_NAMESPACE_UPDATE",
+                "SECURITY_ATTRIBUTE_NAMESPACE_USE"
+            ],
+            "notes": "REVIEW: The source lists UPDATE and USE in separate rows for this name. This draft combines them as required permissions; whether both are necessary is unresolved."
+        },
+        "ListZprTopologyNodes": {
+            "permissions": [
+                "ZPR_TOPOLOGY_USE",
+                "ZPR_TOPOLOGY_NODE_READ"
+            ],
+            "notes": "REVIEW: Uses the per-operation table. ZPR_TOPOLOGY_USE is absent from the verb table, so resource expansion cannot currently grant it."
+        },
+        "ListZprTopologyLinks": {
+            "permissions": [
+                "ZPR_TOPOLOGY_USE",
+                "ZPR_TOPOLOGY_LINK_READ"
+            ],
+            "notes": "REVIEW: Uses the per-operation table. ZPR_TOPOLOGY_USE is absent from the verb table, so resource expansion cannot currently grant it."
+        }
+    }
+}

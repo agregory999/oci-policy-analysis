@@ -23,6 +23,10 @@ from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
 from oci_policy_analysis.application.core.common.consolidation_opportunities import build_consolidation_opportunities
+from oci_policy_analysis.application.core.common.policy_helpers import (
+    render_diagnostic_text,
+    strip_non_printable_characters,
+)
 from oci_policy_analysis.application.core.engine.recommendation_actions import (
     ATTEMPT_FIX_HELP,
     RECOMMENDATION_PRIORITY_HIGH,
@@ -2705,6 +2709,34 @@ class PolicyRecommendationsTab(BaseUITab):
         issues = []
         self._cleanup_payload_by_key = {}
 
+        def _identity_name_diagnostics(statement: dict) -> list[str]:
+            """Find inventory names that only differ from a statement by hidden characters."""
+            repo = self.policy_repo
+            diagnostics: list[str] = []
+            for principal in statement.get('principals', []) or []:
+                if not isinstance(principal, dict):
+                    continue
+                principal_type = principal.get('principal_type')
+                name = str(principal.get('name') or '')
+                domain = str(principal.get('domain_name') or 'Default')
+                inventory = (
+                    getattr(repo, 'groups', [])
+                    if principal_type == 'group'
+                    else getattr(repo, 'dynamic_groups', [])
+                    if principal_type == 'dynamic-group'
+                    else []
+                )
+                name_key = 'group_name' if principal_type == 'group' else 'dynamic_group_name'
+                for identity in inventory:
+                    identity_name = str(identity.get(name_key) or '')
+                    if (
+                        str(identity.get('domain_name') or 'Default').casefold() == domain.casefold()
+                        and strip_non_printable_characters(identity_name).casefold() == name.casefold()
+                        and identity_name != name
+                    ):
+                        diagnostics.append(f'{domain}/{render_diagnostic_text(identity_name)} ({principal_type})')
+            return diagnostics
+
         # Invalid statements
         for item in cleanup.get('invalid_statements', []):
             internal_id = item.get('internal_id') or ''
@@ -2725,6 +2757,7 @@ class PolicyRecommendationsTab(BaseUITab):
                 'policy_ocid': item.get('policy_ocid'),
                 'policy_name': item.get('policy_name'),
                 'statement_text': item.get('statement_text'),
+                'identity_name_diagnostics': _identity_name_diagnostics(item),
             }
 
         # Unused groups

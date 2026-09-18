@@ -277,7 +277,14 @@
             }),
           });
           const payload = await response.json();
-          permissionsResult.textContent = (payload.permissions || []).join('\n') || 'No permissions found.';
+          const metadata = payload.catalog_metadata || {};
+          const lines = [];
+          if (metadata.catalog_status) lines.push(`Catalog status: ${metadata.catalog_status}`);
+          if (metadata.notes) lines.push(`Catalog note: ${metadata.notes}`);
+          if (metadata.replacement_resources?.length) lines.push(`Documented resource types: ${metadata.replacement_resources.join(', ')}`);
+          if (lines.length) lines.push('');
+          lines.push((payload.permissions || []).join('\n') || 'No permissions found.');
+          permissionsResult.textContent = lines.join('\n');
         } catch (err) {
           lookupStatus.textContent = `Lookup failed: ${err}`;
           lookupStatus.className = 'status error';

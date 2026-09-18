@@ -134,3 +134,85 @@ def test_operation_listing_includes_related_checks():
 
     assert row['related_checks']
     assert row['notes']
+
+
+def test_explicit_resource_aliases_share_permissions_and_provenance():
+    repo = _load_repo()
+    for alias, canonical in [('instance', 'instances'), ('object', 'objects')]:
+        for verb in repo.verb_set:
+            for action in ('allow', 'deny'):
+                assert set(repo.get_permissions(alias.upper(), verb, action)) == set(
+                    repo.get_permissions(canonical, verb, action)
+                )
+        assert repo.get_containing_family(alias) == repo.get_containing_family(canonical)
+        assert repo.get_source(alias) == repo.get_source(canonical)
+    assert repo.get_permissions('invented-object', 'manage') == []
+
+
+def test_duplicate_operation_names_require_catalog_identity():
+    import pytest
+
+    repo = _load_repo()
+    bastion = repo.data['operations']['bastion:CreateSession']
+    agent = repo.data['operations']['generative_ai_agents:CreateSession']
+    assert bastion['permissions'] != agent['permissions']
+    assert 'CreateSession' not in repo.data['operations']
+    for name in ('CreateSession', 'oci:CreateSession'):
+        with pytest.raises(ValueError, match='Ambiguous API operation'):
+            repo.resolve_operation(name)
+    assert repo.resolve_operation('bastion:CreateSession') == 'bastion:CreateSession'
+    assert repo.resolve_operation('CreateBastion') == 'bastion:CreateBastion'
+    assert repo.resolve_operation('oci:CreateBastion') == 'bastion:CreateBastion'
+    assert repo.has_api_operation_permissions('bastion:CreateSession', bastion['permissions'])
+    assert not repo.has_api_operation_permissions('generative_ai_agents:CreateSession', bastion['permissions'])
+
+
+def test_alias_conflicts_are_rejected():
+    import pytest
+
+    repo = ReferenceDataRepo()
+    repo.data['resources'] = {'objects': {'aliases': ['object']}, 'object': {}}
+    with pytest.raises(ValueError, match='Ambiguous resources aliases'):
+        repo.rebuild_name_maps()
+
+
+def test_objectstorage_documented_family_and_legacy_review_metadata():
+    repo = _load_repo()
+    assert repo.data['families']['object-family']['resources'] == ['objectstorage-namespaces', 'buckets', 'objects']
+    for alias, canonical in [('bucket', 'buckets'), ('object', 'objects')]:
+        assert set(repo.get_permissions(alias, 'manage')) == set(repo.get_permissions(canonical, 'manage'))
+    assert repo.get_permissions('objectstorage-namespaces', 'inspect') == []
+    assert set(repo.get_permissions('objectstorage-namespaces', 'manage')) == {
+        'OBJECTSTORAGE_NAMESPACE_READ',
+        'OBJECTSTORAGE_NAMESPACE_UPDATE',
+    }
+    for name in [
+        'multipart-uploads',
+        'pre-authenticated-requests',
+        'replication-policies',
+        'retention-rules',
+        'namespace-metadata',
+    ]:
+        metadata = repo.get_catalog_metadata(name)
+        assert metadata['catalog_status'] == (
+            'rejected_in_console' if name == 'pre-authenticated-requests' else 'legacy_unverified'
+        )
+        assert metadata['replacement_resources']
+        if name == 'pre-authenticated-requests':
+            assert repo.get_permissions(name, 'manage') == []
+            assert repo.get_permissions(name, 'inspect', 'deny') == []
+            assert repo.data['resources'][name]['verbs']['manage'] == ['PAR_MANAGE']
+        else:
+            assert repo.get_permissions(name, 'manage')
+        assert repo.get_source(name).endswith('/objectstoragepolicyreference.htm')
+        assert repo.get_containing_family(name) is None
+
+
+def test_objectstorage_bucket_permissions_and_corrected_operations():
+    repo = _load_repo()
+    assert {'PAR_MANAGE', 'RETENTION_RULE_MANAGE', 'RETENTION_RULE_LOCK'} <= set(
+        repo.get_permissions('buckets', 'manage')
+    )
+    assert repo.data['operations']['objectstorage:ReencryptBucket']['permissions'] == ['BUCKET_UPDATE']
+    assert repo.data['operations']['objectstorage:PutObject (New)']['permissions'] == ['OBJECT_CREATE']
+    assert repo.data['operations']['objectstorage:PutObject (Overwrite)']['permissions'] == ['OBJECT_OVERWRITE']

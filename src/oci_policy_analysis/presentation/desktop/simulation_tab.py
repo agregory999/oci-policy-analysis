@@ -481,13 +481,21 @@ class SimulationTab(BaseUITab):
         # Container for dynamic variable inputs
         self.where_inputs_frame = ttk.Frame(simulate_frame)
         self.where_inputs_frame.grid(row=1, column=0, columnspan=4, pady=(2, 8), sticky='ew')
+        # Catalog group selection scopes operation identities, including duplicate names.
+        self.selected_api_group = tk.StringVar()
+        ttk.Label(simulate_frame, text='OCI API / catalog group:').grid(row=2, column=0, sticky='w')
+        self.api_group_combobox = ttk.Combobox(
+            simulate_frame, textvariable=self.selected_api_group, width=60, state='readonly'
+        )
+        self.api_group_combobox.grid(row=2, column=1, padx=2)
+        self.api_group_combobox.bind('<<ComboboxSelected>>', self._on_api_group_selected)
         # API Operation selection
-        ttk.Label(simulate_frame, text='API Operation:').grid(row=2, column=0, sticky='w')
+        ttk.Label(simulate_frame, text='API Operation:').grid(row=3, column=0, sticky='w')
         self.api_operation_combobox = ttk.Combobox(simulate_frame, textvariable=self.selected_api_operation, width=60)
-        self.api_operation_combobox.grid(row=2, column=1, padx=2)
+        self.api_operation_combobox.grid(row=3, column=1, padx=2)
         self.add_context_help(self.api_operation_combobox, 'Pick the target OCI API call to simulate.')
         self.simulate_button = ttk.Button(simulate_frame, text='Run Simulation', command=self.run_simulation)
-        self.simulate_button.grid(row=2, column=2, padx=8)
+        self.simulate_button.grid(row=3, column=2, padx=8)
         self.simulate_button.config(state='disabled')  # Disabled at startup
         self.add_context_help(self.simulate_button, 'Run simulation using selected context, operation, and variables.')
 
@@ -522,7 +530,7 @@ class SimulationTab(BaseUITab):
             wraplength=630,
             font=('TkDefaultFont', 9, 'italic'),
         )
-        self.api_op_note_label.grid(row=3, column=0, columnspan=4, sticky='w', padx=(4, 2), pady=(2, 0))
+        self.api_op_note_label.grid(row=4, column=0, columnspan=4, sticky='w', padx=(4, 2), pady=(2, 0))
         self.api_op_note_label.grid_remove()  # Hide initially
 
         # --- Subtab 3: Results and trace / Simulation History ---
@@ -896,7 +904,7 @@ class SimulationTab(BaseUITab):
         ptype = (principal_type or '').strip()
         display = (principal_display or '').strip()
 
-        if ptype in ('any-user', 'any-group', 'service'):
+        if ptype in ('any-user', 'any-group', 'service', 'resource'):
             return display or ptype
 
         if '/' in display:
@@ -1137,7 +1145,11 @@ class SimulationTab(BaseUITab):
         else:
             logger.info('API operation population: No valid source for opnames')
         self._all_api_ops = opnames
-        self.api_operation_combobox['values'] = opnames
+        api_groups = sorted({op.split(':', 1)[0] for op in opnames if ':' in op})
+        self.api_group_combobox['values'] = api_groups
+        if self.selected_api_group.get() not in api_groups:
+            self.selected_api_group.set(api_groups[0] if api_groups else '')
+        self._on_api_group_selected()
         self.api_operation_combobox.bind('<KeyRelease>', self._on_api_op_search)
         self.api_operation_combobox.bind('<<ComboboxSelected>>', self._on_api_op_selected)
         if not opnames:
@@ -1546,11 +1558,17 @@ class SimulationTab(BaseUITab):
         self._maybe_enable_sim_buttons()
         logger.info('Auto where fields rebuilt; variables=%s', sorted_vars)
 
+    def _on_api_group_selected(self, event=None):
+        group = self.selected_api_group.get()
+        self._group_api_ops = [op for op in getattr(self, '_all_api_ops', []) if op.startswith(group + ':')]
+        self.api_operation_combobox['values'] = self._group_api_ops
+        self.selected_api_operation.set('')
+
     # API Operation search/filter
     def _on_api_op_search(self, event):
         val = self.api_operation_combobox.get()
-        filtered = [op for op in getattr(self, '_all_api_ops', []) if val.lower() in op.lower()]
-        self.api_operation_combobox['values'] = filtered if filtered else getattr(self, '_all_api_ops', [])
+        filtered = [op for op in getattr(self, '_group_api_ops', []) if val.lower() in op.lower()]
+        self.api_operation_combobox['values'] = filtered if filtered else getattr(self, '_group_api_ops', [])
 
     def _on_api_op_selected(self, event=None):
         """
@@ -1720,8 +1738,8 @@ class SimulationTab(BaseUITab):
         # PolicySimulationEngine._normalize_principal_key. Keep this
         # logic local to avoid importing engine classes into the UI
         # layer while still producing identical keys.
-        if ptype in ('any-user', 'any-group', 'service'):
-            # any-user:any-group/service always carry domain "None" in the key.
+        if ptype in ('any-user', 'any-group', 'service', 'resource'):
+            # Non-identity subjects always carry domain "None" in the key.
             pname = pname_display or ptype
             principal_key = f'{ptype}:None/{pname}'
         elif '/' in pname_display:

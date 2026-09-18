@@ -1,6 +1,9 @@
 {
     "resources": {
         "buckets": {
+            "aliases": [
+                "bucket"
+            ],
             "verbs": {
                 "inspect": [
                     "BUCKET_INSPECT"
@@ -13,11 +16,19 @@
                 ],
                 "manage": [
                     "BUCKET_CREATE",
-                    "BUCKET_DELETE"
+                    "BUCKET_DELETE",
+                    "PAR_MANAGE",
+                    "RETENTION_RULE_MANAGE",
+                    "RETENTION_RULE_LOCK"
                 ]
-            }
+            },
+            "catalog_status": "documented",
+            "notes": "RETENTION_RULE_LOCK is used only when optional rule locking is requested."
         },
         "objects": {
+            "aliases": [
+                "object"
+            ],
             "verbs": {
                 "inspect": [
                     "OBJECT_INSPECT"
@@ -35,7 +46,8 @@
                     "OBJECT_RESTORE",
                     "OBJECT_UPDATE_TIER"
                 ]
-            }
+            },
+            "catalog_status": "documented"
         },
         "multipart-uploads": {
             "verbs": {
@@ -49,7 +61,14 @@
                 "manage": [
                     "OBJECT_DELETE"
                 ]
-            }
+            },
+            "catalog_status": "legacy_unverified",
+            "replacement_resources": [
+                "buckets",
+                "objects"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "Retained for compatibility with earlier tool catalogs. This resource type is absent from the current reference; Oracle deprecation is not established. Its permissions are documented under buckets, objects."
         },
         "pre-authenticated-requests": {
             "verbs": {
@@ -61,7 +80,13 @@
                 "manage": [
                     "PAR_MANAGE"
                 ]
-            }
+            },
+            "catalog_status": "rejected_in_console",
+            "replacement_resources": [
+                "buckets"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "User reported that OCI Console policy creation with this resource type returned no permission found. The current Oracle reference lists buckets instead, with PAR_MANAGE at manage. Historical verb mappings are retained for inspection only and excluded from permission expansion; this is not an Oracle deprecation announcement."
         },
         "replication-policies": {
             "verbs": {
@@ -73,7 +98,14 @@
                 "manage": [
                     "BUCKET_UPDATE"
                 ]
-            }
+            },
+            "catalog_status": "legacy_unverified",
+            "replacement_resources": [
+                "buckets",
+                "objects"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "Retained for compatibility with earlier tool catalogs. This resource type is absent from the current reference; Oracle deprecation is not established. Its permissions are documented under buckets, objects."
         },
         "retention-rules": {
             "verbs": {
@@ -86,7 +118,13 @@
                     "RETENTION_RULE_MANAGE",
                     "RETENTION_RULE_LOCK"
                 ]
-            }
+            },
+            "catalog_status": "legacy_unverified",
+            "replacement_resources": [
+                "buckets"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "Retained for compatibility with earlier tool catalogs. This resource type is absent from the current reference; Oracle deprecation is not established. Its permissions are documented under buckets."
         },
         "namespace-metadata": {
             "verbs": {
@@ -98,21 +136,38 @@
                 "manage": [
                     "OBJECTSTORAGE_NAMESPACE_UPDATE"
                 ]
-            }
+            },
+            "catalog_status": "legacy_unverified",
+            "replacement_resources": [
+                "objectstorage-namespaces"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "Retained for compatibility with earlier tool catalogs. This resource type is absent from the current reference; Oracle deprecation is not established. Its permissions are documented under objectstorage-namespaces."
+        },
+        "objectstorage-namespaces": {
+            "catalog_status": "documented",
+            "verbs": {
+                "inspect": [],
+                "read": [
+                    "OBJECTSTORAGE_NAMESPACE_READ"
+                ],
+                "use": [],
+                "manage": [
+                    "OBJECTSTORAGE_NAMESPACE_UPDATE"
+                ]
+            },
+            "notes": "No inspect row is documented. GetNamespace without compartmentId needs no IAM permission; namespace read is required when that parameter is supplied."
         }
     },
     "families": {
         "object-family": {
             "resources": [
+                "objectstorage-namespaces",
                 "buckets",
-                "objects",
-                "multipart-uploads",
-                "pre-authenticated-requests",
-                "replication-policies",
-                "retention-rules",
-                "namespace-metadata"
+                "objects"
             ],
-            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm"
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/objectstoragepolicyreference.htm",
+            "notes": "Only the three resource types listed in the current reference are aggregated. Unlisted legacy catalog types remain individually available for inspection."
         }
     },
     "operations": {
@@ -170,24 +225,21 @@
         },
         "ReencryptBucket": {
             "permissions": [
-                "BUCKET_UPDATET",
-                "KEY_ENCRYPT",
-                "KEY_DECRYPT"
+                "BUCKET_UPDATE"
             ],
-            "notes": "BUCKET_UPDATEThe objectstorage-<location> subject must also have: , and ."
+            "notes": "The objectstorage-<location> service principal also needs KEY_ENCRYPT and KEY_DECRYPT; these are not caller permissions."
         },
         "PutObject (New)": {
             "permissions": [
-                "OBJECT_CREATE",
-                "OBJECT_OVERWRITE"
+                "OBJECT_CREATE"
             ],
-            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+            "notes": "Tool scenario variant of PutObject: select according to whether the object already exists. For customer-managed encryption, the objectstorage-<location> service principal needs KEY_ENCRYPT."
         },
         "PutObject (Overwrite)": {
             "permissions": [
                 "OBJECT_OVERWRITE"
             ],
-            "notes": "The permission required depends on whether the object already exists in the bucket: is required when an object with that name doesn't already exist in the bucket. is required when an object with that name already exists in the bucket. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+            "notes": "Tool scenario variant of PutObject: select according to whether the object already exists. For customer-managed encryption, the objectstorage-<location> service principal needs KEY_ENCRYPT."
         },
         "RenameObject": {
             "permissions": [
@@ -206,7 +258,7 @@
             "permissions": [
                 "OBJECT_INSPECT"
             ],
-            "notes": "or OBJECT_INSPECTFor a customer-managed key encrypted bucket, the objectstorage-<location> service must have KEY_DECRYPT."
+            "notes": "REVIEW: the reference permits OBJECT_READ or OBJECT_INSPECT. The current flat permission-list evaluator does not model OR alternatives; the existing list is retained for compatibility, not as an exact decision model."
         },
         "DeleteObject": {
             "permissions": [
@@ -256,14 +308,14 @@
                 "OBJECT_CREATE",
                 "OBJECT_OVERWRITE"
             ],
-            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+            "notes": "For customer-managed encryption, the objectstorage-<location> service principal also needs KEY_ENCRYPT."
         },
         "UploadPart": {
             "permissions": [
                 "OBJECT_CREATE",
                 "OBJECT_OVERWRITE"
             ],
-            "notes": "and OBJECT_OVERWRITEFor a customer-managed key encrypted bucket, the objectstorage-<location> subject must have KEY_ENCRYPT."
+            "notes": "For customer-managed encryption, the objectstorage-<location> service principal also needs KEY_ENCRYPT."
         },
         "CommitMultipartUpload": {
             "permissions": [
@@ -303,14 +355,14 @@
                 "PAR_MANAGE",
                 "BUCKET_READ"
             ],
-            "notes": "Either permission is sufficient"
+            "notes": "REVIEW: the reference permits PAR_MANAGE or BUCKET_READ. The current flat permission-list evaluator does not model OR alternatives; the existing list is retained for compatibility, not as an exact decision model."
         },
         "ListPreauthenticatedRequests": {
             "permissions": [
                 "PAR_MANAGE",
                 "BUCKET_READ"
             ],
-            "notes": "or"
+            "notes": "REVIEW: the reference permits PAR_MANAGE or BUCKET_READ. The current flat permission-list evaluator does not model OR alternatives; the existing list is retained for compatibility, not as an exact decision model."
         },
         "DeletePreauthenticatedRequest": {
             "permissions": [
@@ -343,7 +395,7 @@
                 "BUCKET_UPDATE",
                 "RETENTION_RULE_MANAGE"
             ],
-            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT. Optional locking additionally requires RETENTION_RULE_LOCK; use the With Lock scenario variant."
         },
         "CreateRetentionRule (With Lock)": {
             "permissions": [
@@ -363,14 +415,14 @@
             "permissions": [
                 "BUCKET_READ"
             ],
-            "notes": ""
+            "notes": "REVIEW: this spelling appears in the per-operation table, while the verb table uses ListRetentionRules. Retained pending API naming verification."
         },
         "UpdateRetentionRule": {
             "permissions": [
                 "BUCKET_UPDATE",
                 "RETENTION_RULE_MANAGE"
             ],
-            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT."
+            "notes": "For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have: KEY_ENCRYPT, and KEY_DECRYPT. Optional locking additionally requires RETENTION_RULE_LOCK; use the With Lock scenario variant."
         },
         "UpdateRetentionRule (With Lock)": {
             "permissions": [
@@ -392,7 +444,7 @@
                 "OBJECT_READ",
                 "OBJECT_CREATE"
             ],
-            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT."
+            "notes": "Additionally, the objectstorage-<location> subject requires OBJECT_READ. For a customer-managed key encrypted bucket, the objectstorage-<location> subject must also have KEY_ENCRYPT, KEY_DECRYPT. This tool entry models a new destination object; use the Existing Object variant when overwriting."
         },
         "CopyObjectRequest (Existing Object)": {
             "permissions": [

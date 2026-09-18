@@ -43,10 +43,13 @@ compartmentSubject      : COMPARTMENT (WORD | HCL_VAR);
      ;
  subject             : (groupSubject | serviceSubject | dynamicGroupSubject | resourceSubject | ANYUSER | ANYGROUP) ;
  groupSubject        : GROUP (groupName| groupID) (','(groupName|groupID))* ;
- resourceSubject     : RESOURCE resourceSubjectId (resourceSubjectId)*;
+// Resource subjects are opaque internal principals. OCI emits both legacy
+// one-token forms and the two-token form; preserve the token sequence without
+// assigning domain or OCID semantics to it.
+resourceSubject     : RESOURCE resourceSubjectId resourceSubjectId?;
  serviceSubject      : SERVICE serviceSubjectId (',' serviceSubjectId)*;
  groupName           : (WORD | QUOTED_STRING) | (WORD | QUOTED_STRING) '/' (WORD | QUOTED_STRING) | HCL_VAR ;
- resourceSubjectId   : (WORD | HCL_VAR) ('\'' (WORD | HCL_VAR) '\'' | '\'' (WORD | HCL_VAR) '/' (WORD | HCL_VAR) '\'' )+?;
+resourceSubjectId   : (WORD | HCL_VAR);
  serviceSubjectId    : (WORD | HCL_VAR);
  groupID             : ID OCID ;
  dynamicGroupSubject : DYNAMICGROUP (groupName| groupID) (','(groupName|groupID))* ;

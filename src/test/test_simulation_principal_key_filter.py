@@ -54,6 +54,34 @@ def test_simulation_engine_principal_key_filter_mapping_uses_principal_key() -> 
     assert mapped == {'principal_key': ['service:None/database']}
 
 
+def test_simulation_engine_loads_statements_for_an_opaque_resource_principal() -> None:
+    resource_name = 'agcsgovernanceinstance agcs-rp'
+    repo = PolicyAnalysisRepository()
+    repo.regular_statements = [
+        {
+            'policy_name': 'resource-principal-policy',
+            'policy_ocid': 'ocid1.policy.oc1..resource',
+            'compartment_ocid': 'ocid1.compartment.oc1..root',
+            'compartment_path': 'ROOT',
+            'statement_text': f'allow resource {resource_name} to manage domains in tenancy',
+            'creation_time': '',
+            'internal_id': 'stmt-resource',
+            'parsed': True,
+            'subject_type': 'resource',
+            'subject': [resource_name],
+            'principal_keys': [f'resource:None/{resource_name}'],
+            'effective_path': 'ROOT',
+            'valid': True,
+        }
+    ]
+    engine = PolicySimulationEngine(policy_repo=repo, ref_data_repo=None)
+
+    principal_key, rows = engine.get_statements_for_context('ROOT', 'resource', resource_name)
+
+    assert principal_key == f'resource:None/{resource_name}'
+    assert [row['internal_id'] for row in rows] == ['stmt-resource']
+
+
 def test_repo_filter_policy_statements_effective_path_supports_multi_value_or() -> None:
     repo = PolicyAnalysisRepository()
     repo.regular_statements = [

@@ -110,7 +110,7 @@ class PolicySimulationEngine:
         Returns:
             str: Canonical key (e.g., "user:Default/anita", "any-user:None/any-user")
         """
-        if principal_type in ('any-user', 'any-group', 'service'):
+        if principal_type in ('any-user', 'any-group', 'service', 'resource'):
             key = f'{principal_type}:None/{principal or principal_type}'
             return key
         if isinstance(principal, list | tuple) and len(principal) == 2:
@@ -459,6 +459,11 @@ class PolicySimulationEngine:
         """
         # Wrap this entire function with try and catch, print stack trace, then re-raise
         try:
+            if hasattr(self.ref_data_repo, 'resolve_operation'):
+                api_operation = self.ref_data_repo.resolve_operation(api_operation)
+            op_info = self.ref_data_repo.data.get('operations', {}).get(api_operation, {})
+            where_context = dict(where_context or {})
+            where_context['request.operation'] = op_info.get('operation_name', api_operation.removeprefix('oci:'))
             # If checked_statement_ids not provided, use all statements applicable to this context.
             # We keep the derived list in a local variable for optional debug logging.
             stmts: list[dict[str, Any]] | None = None
@@ -816,6 +821,7 @@ class PolicySimulationEngine:
         if not self.ref_data_repo or not hasattr(self.ref_data_repo, 'data'):
             return []
         ops = self.ref_data_repo.data.get('operations', {})
+        ops = {name: meta for name, meta in ops.items() if ':' in name or not meta.get('api_name')}
         filtered = [name for name in ops if filter_text.lower() in name.lower()] if filter_text else list(ops.keys())
         return sorted(filtered)
 

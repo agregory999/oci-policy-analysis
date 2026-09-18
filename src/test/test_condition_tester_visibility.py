@@ -54,3 +54,6 @@ def test_console_tab_uses_current_logger_names_only():
     assert 'presentation.desktop.console_tab' in source
     assert 'web_routes' in source
     assert 'web_auth' in source
+    assert "'Core Repo / Engine'" in source
+    assert "'Core Repo':" not in source
+    assert "'Core Engine':" not in source

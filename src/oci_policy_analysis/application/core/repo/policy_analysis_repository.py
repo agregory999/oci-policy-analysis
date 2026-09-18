@@ -3456,7 +3456,10 @@ class PolicyAnalysisRepository:
                 with open(domains_csv_path, encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        display_name = (row.get('display_name') or '').strip()
+                        domain_id = (row.get('id') or row.get('domain_ocid') or row.get('domain_id') or '').strip()
+                        display_name = (row.get('display_name') or row.get('name') or '').strip()
+                        if domain_id:
+                            self.identity_domains.append({'id': domain_id, 'display_name': display_name or 'Default'})
                         if display_name.lower() == 'default domain':
                             default_domain_compartment_id = (row.get('compartment_id') or '').strip()
                             if default_domain_compartment_id:
@@ -3505,11 +3508,12 @@ class PolicyAnalysisRepository:
                         created_by_ocid = created_by_json.get('odid', 'n/a')
                     except json.JSONDecodeError:
                         created_by_ocid = 'n/a'
-                    domain_ocid = row.get('domain_ocid', '')
+                    domain_ocid = row.get('domain_ocid') or row.get('domain_id') or ''
                     domain_name = self._get_domain_name_from_ocid(domain_ocid)
                     matching_rule_structure = parse_condition_structure(row.get('matching_rule', ''))
                     dg: DynamicGroup = {
                         'domain_name': domain_name or 'Default',
+                        'domain_ocid': domain_ocid,
                         'dynamic_group_name': row.get('display_name') or '',
                         'dynamic_group_id': 'n/a',
                         'dynamic_group_ocid': row.get('ocid', ''),

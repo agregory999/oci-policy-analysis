@@ -6,6 +6,7 @@ from oci_policy_analysis.application.core.parser.policy_statement_normalizer imp
     PolicyStatementNormalizer,
     PolicyStatementParser,
 )
+from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
 from oci_policy_analysis.common.helpers import for_display_policy
 from oci_policy_analysis.common.models import RegularPolicyStatement
 
@@ -134,6 +135,60 @@ def test_regular_normalization_emits_principal_keys_for_named_group_subjects():
     keys = normalized.get('principal_keys') or []
     assert isinstance(keys, list)
     assert 'group:Default/Admins' in keys
+
+
+@pytest.mark.parametrize(
+    'statement,expected_name',
+    [
+        (
+            'allow resource agcsgovernanceinstance agcs-rp to manage domains in tenancy '
+            "where all {request.principal.siOcid='ocid1.agcsgovernanceinstance.oc1.iad.example'}",
+            'agcsgovernanceinstance agcs-rp',
+        ),
+        (
+            'allow resource loganalyticsvrp LogAnalyticsVirtualResource to {DEVOPS_DEPLOY_PIPELINE_READ} in tenancy',
+            'loganalyticsvrp LogAnalyticsVirtualResource',
+        ),
+    ],
+)
+def test_resource_subject_with_two_terms_parses_as_an_opaque_principal(parser, statement, expected_name):
+    results, errors = parser.parse(statement)
+
+    assert errors == []
+    assert results and results[0]['subject_type'] == 'resource'
+    assert results[0]['subject'] == [expected_name]
+
+    normalized = PolicyStatementNormalizer().normalize(
+        statement,
+        'allow',
+        {
+            'policy_name': 'P',
+            'policy_ocid': 'ocid1.policy.oc1..example',
+            'compartment_ocid': 'ocid1.compartment.oc1..example',
+            'compartment_path': 'ROOT',
+            'statement_text': statement,
+            'creation_time': '2026-01-01T00:00:00Z',
+            'internal_id': 'resource-subject',
+            'parsed': False,
+        },
+    )
+
+    assert normalized['parsed'] is True
+    assert normalized['subject_type'] == 'resource'
+    assert normalized['subject'] == [expected_name]
+    assert normalized['principal_keys'] == [f'resource:None/{expected_name}']
+
+    PolicyAnalysisRepository()._build_principals_from_statement(normalized)
+    assert normalized['principals'] == [
+        {
+            'principal_type': 'resource',
+            'principal_key': f'resource:None/{expected_name}',
+            'domain_name': None,
+            'name': expected_name,
+            'ocid': None,
+            'display_name': expected_name,
+        }
+    ]
 
 
 def test_endorse_any_tenancy_permission_set_parses_and_normalizes():

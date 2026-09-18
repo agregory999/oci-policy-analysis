@@ -49,7 +49,7 @@ class ReferenceDataRepo:
         # New: Also store a grouped operations structure for API/source display (`operations_by_api`)
         self.data['operations_by_api'] = {}
         # Per-verb risk weights: each permission is scored by the verb it belongs to (exposure points)
-        for file_path in glob.glob(os.path.join(self.json_dir, '*.json')):
+        for file_path in sorted(glob.glob(os.path.join(self.json_dir, '*.json'))):
             logger.debug(f'Loading reference data file: {file_path}')
             try:
                 with open(file_path) as f:
@@ -75,12 +75,13 @@ class ReferenceDataRepo:
                     # Determine api_name from filename (basename, no extension)
                     api_name = os.path.splitext(os.path.basename(file_path))[0]
                     if debug_operations:
-                        self.data['operations'].update(debug_operations)
                         # group by api_name: {op_name: op_data + 'api_name': ...}
                         ops = {}
                         for op_name, meta in debug_operations.items():
                             meta_copy = dict(meta)  # don't mutate input
                             meta_copy['api_name'] = api_name
+                            meta_copy['operation_name'] = op_name
+                            self.data['operations'][f'{api_name}:{op_name}'] = meta_copy
                             ops[op_name] = meta_copy
                         self.data['operations_by_api'][api_name] = ops
                     logger.debug(
@@ -92,10 +93,57 @@ class ReferenceDataRepo:
         logger.info(
             f'Loaded {files_loaded} reference data files. Total resources: {len(self.data["resources"])}, families: {len(self.data["families"])}, operations: {len(self.data["operations"])}, operations_by_api: {len(self.data["operations_by_api"])}'
         )
-        # Create case-insensitive maps for resources and families
-        self.resource_name_map = {k.lower(): k for k in self.data['resources'].keys()}
-        self.family_name_map = {k.lower(): k for k in self.data['families'].keys()}
+        # Bare operation names are compatibility aliases only when unambiguous.
+        by_name = {}
+        for key, meta in self.data['operations'].items():
+            by_name.setdefault(meta['operation_name'], []).append(key)
+        self.data['ambiguous_operations'] = {name: keys for name, keys in by_name.items() if len(keys) > 1}
+        for name, keys in by_name.items():
+            if len(keys) == 1:
+                self.data['operations'][name] = self.data['operations'][keys[0]]
+        self.rebuild_name_maps()
         self.verb_set = {'inspect', 'read', 'use', 'manage'}
+
+    def rebuild_name_maps(self):
+        """Resolve declared aliases only; singular/plural spelling is not inferred."""
+        for section, attribute in (('resources', 'resource_name_map'), ('families', 'family_name_map')):
+            claims = {}
+            for name, metadata in self.data.get(section, {}).items():
+                for spelling in [name, *metadata.get('aliases', [])]:
+                    claims.setdefault(spelling.lower(), set()).add(name)
+            conflicts = {alias: sorted(names) for alias, names in claims.items() if len(names) > 1}
+            if conflicts:
+                raise ValueError(f'Ambiguous {section} aliases: {conflicts}')
+            setattr(self, attribute, {alias: next(iter(names)) for alias, names in claims.items()})
+
+    def resolve_operation(self, operation_name):
+        """Return a qualified identity, accepting an unambiguous legacy name."""
+        name = operation_name or ''
+        if name.startswith('oci:') and name not in self.data.get('operations', {}):
+            name = name.removeprefix('oci:')
+        alternatives = self.data.get('ambiguous_operations', {}).get(name)
+        if alternatives:
+            raise ValueError(f'Ambiguous API operation {name!r}; select one of: {", ".join(alternatives)}')
+        info = self.data.get('operations', {}).get(name, {})
+        if info.get('api_name') and info.get('operation_name'):
+            return f'{info["api_name"]}:{info["operation_name"]}'
+        return name
+
+    def get_catalog_metadata(self, entity):
+        """Return review metadata without treating unlisted types as deprecated."""
+        name = str(entity or '').strip().lower()
+        family = self.family_name_map.get(name)
+        resource = self.resource_name_map.get(name)
+        data = (
+            self.data.get('families', {}).get(family, {})
+            if family
+            else self.data.get('resources', {}).get(resource, {})
+        )
+        return {
+            key: data[key]
+            for key in ('catalog_status', 'notes', 'replacement_resources', 'source_url', 'aliases')
+            if key in data
+        }
 
     def get_permission_risk(self, permission: str, resource: str | None = None):
         """
@@ -196,6 +244,8 @@ class ReferenceDataRepo:
             return None
         if resource_key not in self.data['resources']:
             return None
+        if self.data['resources'][resource_key].get('catalog_status') == 'rejected_in_console':
+            return None
         perms = []
         if action == 'deny':
             # For deny, we deny verb and everything MORE powerful (up the privilege ladder)
@@ -237,6 +287,9 @@ class ReferenceDataRepo:
         Retrieve the source URL(s) for a given entity (resource or family) in a case-insensitive manner.
         """
         sources = set()
+        direct_source = self.get_catalog_metadata(entity).get('source_url')
+        if direct_source:
+            sources.add(direct_source)
         entity_ci = (entity or '').lower()
         fam_key = self.family_name_map.get(entity_ci)
         if fam_key and fam_key in self.data['families']:
@@ -290,7 +343,7 @@ class ReferenceDataRepo:
             bool: True if all required permissions for the operation are present, False otherwise.
         """
         # Find operation (case-sensitive key match)
-        op_info = self.data.get('operations', {}).get(operation_name)
+        op_info = self.data.get('operations', {}).get(self.resolve_operation(operation_name))
         if not op_info:
             logger.debug(f'API operation {operation_name!r} not found in reference data.')
             return False

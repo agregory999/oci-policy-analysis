@@ -33,7 +33,8 @@
                     "DNS_RECORD_CREATE",
                     "DNS_RECORD_DELETE"
                 ]
-            }
+            },
+            "notes": "REVIEW: introductory prose says manage adds nothing over use, but the verb table lists DNS_RECORD_CREATE and DNS_RECORD_DELETE. The existing mapping follows the explicit permission table."
         },
         "dns-steering-policies": {
             "verbs": {
@@ -51,7 +52,8 @@
                     "DNS_STEERING_POLICY_DELETE",
                     "DNS_STEERING_POLICY_MOVE"
                 ]
-            }
+            },
+            "notes": "REVIEW: the use row spells the update permission DNS_POLICY_STEERING_UPDATE, while the per-operation table uses DNS_STEERING_POLICY_UPDATE. The existing mapping retains the operation-table spelling; no additional permission is inferred."
         },
         "dns-steering-policy-attachments": {
             "verbs": {
@@ -63,7 +65,8 @@
                 ],
                 "use": [],
                 "manage": []
-            }
+            },
+            "notes": "Only inspect and read rows are documented. Empty higher-verb increments do not add attachment mutation permissions; those operations require zone and steering-policy permissions."
         },
         "dns-tsig-keys": {
             "verbs": {
@@ -117,7 +120,8 @@
                     "DNS_RESOLVER_DELETE",
                     "DNS_RESOLVER_MOVE"
                 ]
-            }
+            },
+            "notes": "REVIEW: the manage verb table lists DNS_RESOLVER_CREATE and DNS_RESOLVER_DELETE and names CreateResolver/DeleteResolver, but neither appears in the per-operation table. The verb permissions are retained; no new operation mappings are inferred."
         },
         "dns-resolver-endpoint": {
             "verbs": {
@@ -134,11 +138,13 @@
                     "DNS_RESOLVER_ENDPOINT_CREATE",
                     "DNS_RESOLVER_ENDPOINT_DELETE"
                 ]
-            }
+            },
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/dnspolicyreference.htm",
+            "notes": "Documented as an individual resource in the verb table, but omitted from the aggregate member list. Its permissions remain separately available."
         }
     },
     "families": {
-        "dns-family": {
+        "dns": {
             "resources": [
                 "dns-zones",
                 "dns-records",
@@ -146,10 +152,13 @@
                 "dns-steering-policy-attachments",
                 "dns-tsig-keys",
                 "dns-views",
-                "dns-resolvers",
-                "dns-resolver-endpoint"
+                "dns-resolvers"
             ],
-            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/policyreference/dnspolicyreference.htm"
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/dnspolicyreference.htm",
+            "aliases": [
+                "dns-family"
+            ],
+            "notes": "dns is the documented aggregate. dns-family is retained only as a legacy tool alias, not a documented OCI spelling. REVIEW: the aggregate lists seven member types and omits dns-resolver-endpoint despite providing a separate endpoint verb table; endpoint permissions are not inferred as aggregate members."
         }
     },
     "operations": {
@@ -163,14 +172,36 @@
             "permissions": [
                 "DNS_ZONE_CREATE"
             ],
-            "notes": ""
+            "notes": "Conditional view/TSIG requirements are represented as related checks; evaluate each referenced resource in its own scope.",
+            "related_checks": [
+                {
+                    "resource": "dns-views",
+                    "permissions": [
+                        "DNS_VIEW_INSPECT"
+                    ],
+                    "applies_when": "Creating a private zone.",
+                    "principal": "same-principal",
+                    "reason": "Private zone creation requires access to the associated view.",
+                    "failure_hint": "Verify the permission on each referenced resource in its own compartment."
+                },
+                {
+                    "resource": "dns-tsig-keys",
+                    "permissions": [
+                        "DNS_TSIG_KEY_READ"
+                    ],
+                    "applies_when": "The request references TsigKeys in externalMasters or externalDownstreams.",
+                    "principal": "same-principal",
+                    "reason": "Read access is required for every referenced TSIG key.",
+                    "failure_hint": "Verify the permission on each referenced resource in its own compartment."
+                }
+            ]
         },
         "CreateChildZone": {
             "permissions": [
                 "DNS_ZONE_CREATE",
                 "DNS_RECORD_UPDATE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "DeleteZone": {
             "permissions": [
@@ -188,7 +219,19 @@
             "permissions": [
                 "DNS_ZONE_UPDATE"
             ],
-            "notes": ""
+            "notes": "Referenced TSIG keys require separate read checks in each key scope.",
+            "related_checks": [
+                {
+                    "resource": "dns-tsig-keys",
+                    "permissions": [
+                        "DNS_TSIG_KEY_READ"
+                    ],
+                    "applies_when": "The request references TsigKeys in externalMasters or externalDownstreams.",
+                    "principal": "same-principal",
+                    "reason": "Read access is required for every referenced TSIG key.",
+                    "failure_hint": "Verify the permission on each referenced resource in its own compartment."
+                }
+            ]
         },
         "ChangeZoneCompartment": {
             "permissions": [
@@ -201,21 +244,21 @@
                 "DNS_ZONE_READ",
                 "DNS_RECORD_READ"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "PatchZoneRecords": {
             "permissions": [
                 "DNS_ZONE_UPDATE",
                 "DNS_RECORD_UPDATE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "UpdateZoneRecords": {
             "permissions": [
                 "DNS_ZONE_UPDATE",
                 "DNS_RECORD_UPDATE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "GetDomainRecords": {
             "permissions": [
@@ -269,7 +312,19 @@
             "permissions": [
                 "DNS_STEERING_POLICY_CREATE"
             ],
-            "notes": ""
+            "notes": "A referenced monitor requires a conditional read check. Permission source: https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/healthcheckpolicyreference.htm",
+            "related_checks": [
+                {
+                    "resource": "health-check-monitor",
+                    "permissions": [
+                        "HEALTH_CHECK_MONITOR_READ"
+                    ],
+                    "applies_when": "A Health Check Monitor is specified.",
+                    "principal": "same-principal",
+                    "reason": "The DNS reference requires monitor retrieval; the Health Checks reference maps GetHttpMonitor and GetPingMonitor to HEALTH_CHECK_MONITOR_READ.",
+                    "failure_hint": "Verify the permission on each referenced resource in its own compartment."
+                }
+            ]
         },
         "GetSteeringPolicy": {
             "permissions": [
@@ -281,7 +336,7 @@
             "permissions": [
                 "DNS_STEERING_POLICY_UPDATE"
             ],
-            "notes": ""
+            "notes": "REVIEW: the use row spells the update permission DNS_POLICY_STEERING_UPDATE, while the per-operation table uses DNS_STEERING_POLICY_UPDATE. The existing mapping retains the operation-table spelling; no additional permission is inferred."
         },
         "DeleteSteeringPolicy": {
             "permissions": [
@@ -306,7 +361,7 @@
                 "DNS_ZONE_UPDATE",
                 "DNS_STEERING_POLICY_READ"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "GetSteeringPolicyAttachment": {
             "permissions": [
@@ -319,14 +374,14 @@
                 "DNS_ZONE_UPDATE",
                 "DNS_STEERING_POLICY_READ"
             ],
-            "notes": "and"
+            "notes": "REVIEW: the dns-records verb table lists this as partially covered by DNS_RECORD_UPDATE, while the per-operation table requires DNS_ZONE_UPDATE and DNS_STEERING_POLICY_READ. This mapping follows the per-operation table."
         },
         "DeleteSteeringPolicyAttachment": {
             "permissions": [
                 "DNS_ZONE_UPDATE",
                 "DNS_STEERING_POLICY_READ"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "ListTsigKeys": {
             "permissions": [
@@ -416,7 +471,19 @@
             "permissions": [
                 "DNS_RESOLVER_UPDATE"
             ],
-            "notes": ""
+            "notes": "Attached views require separate inspect checks in each view scope.",
+            "related_checks": [
+                {
+                    "resource": "dns-views",
+                    "permissions": [
+                        "DNS_VIEW_INSPECT"
+                    ],
+                    "applies_when": "The request contains attachedViews.",
+                    "principal": "same-principal",
+                    "reason": "Inspect access is required for every referenced view.",
+                    "failure_hint": "Verify the permission on each referenced resource in its own compartment."
+                }
+            ]
         },
         "ChangeResolverCompartment": {
             "permissions": [
@@ -429,14 +496,14 @@
                 "DNS_RESOLVER_ENDPOINT_INSPECT",
                 "DNS_RESOLVER_READ"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "CreateResolverEndpoint": {
             "permissions": [
                 "DNS_RESOLVER_UPDATE",
                 "DNS_RESOLVER_ENDPOINT_CREATE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "GetResolverEndpoint": {
             "permissions": [
@@ -449,14 +516,14 @@
                 "DNS_RESOLVER_UPDATE",
                 "DNS_RESOLVER_ENDPOINT_UPDATE"
             ],
-            "notes": "and"
+            "notes": ""
         },
         "DeleteResolverEndpoint": {
             "permissions": [
                 "DNS_RESOLVER_UPDATE",
                 "DNS_RESOLVER_ENDPOINT_DELETE"
             ],
-            "notes": "and"
+            "notes": ""
         }
     }
 }

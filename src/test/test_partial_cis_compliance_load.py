@@ -127,6 +127,37 @@ def test_minimum_cis_export_loads_and_derives_policy_principals(tmp_path: Path) 
     assert plan['plan_steps']
 
 
+def test_cis_dynamic_groups_keep_their_identity_domain_from_domain_id(tmp_path: Path) -> None:
+    _write_minimum_compliance_export(tmp_path)
+    domain_id = 'ocid1.domain.oc1..federated'
+    _write_csv(
+        tmp_path / 'raw_data_identity_domains.csv',
+        ['id', 'display_name', 'compartment_id'],
+        [{'id': domain_id, 'display_name': 'Federated', 'compartment_id': ''}],
+    )
+    _write_csv(
+        tmp_path / 'raw_data_identity_dynamic_groups.csv',
+        ['display_name', 'domain_id', 'ocid', 'matching_rule', 'description', 'idcs_created_by'],
+        [
+            {
+                'display_name': 'BuildAgents',
+                'domain_id': domain_id,
+                'ocid': 'ocid1.dynamicgroup.oc1..buildagents',
+                'matching_rule': "ALL {resource.type = 'instance'}",
+                'description': '',
+                'idcs_created_by': '{}',
+            }
+        ],
+    )
+
+    repo = PolicyAnalysisRepository()
+
+    assert repo.load_from_compliance_output_dir(str(tmp_path)) is True
+    assert repo.identity_domains == [{'id': domain_id, 'display_name': 'Federated'}]
+    assert repo.dynamic_groups[0]['domain_name'] == 'Federated'
+    assert repo.dynamic_groups[0]['domain_ocid'] == domain_id
+
+
 def test_cis_policy_statements_use_the_policy_ocid_when_export_identifier_differs(tmp_path: Path) -> None:
     _write_minimum_compliance_export(tmp_path, policy_identifier='cis-export-identifier')
     repo = PolicyAnalysisRepository()

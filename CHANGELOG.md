@@ -1,3 +1,13 @@
+## [6.5.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.2...v6.5.3) (2026-09-18)
+
+
+### Bug Fixes
+
+* retain identity-domain inventory from CIS exports and resolve dynamic-group `domain_id` values, preventing non-default dynamic groups from being mislabeled as `Default`
+* qualify duplicate API operation identities in simulation and preserve OCI `request.operation` condition semantics
+* select an initial catalog group in the desktop simulation interface so operations are immediately available
+* parse opaque two-term `resource` principals without assigning unsupported simulation or consolidation semantics
+
 ## [6.5.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.1...v6.5.2) (2026-09-10)
 
 

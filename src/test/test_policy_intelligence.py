@@ -37,6 +37,7 @@ def _build_engine_with_statement(statement: dict, catalog: dict):
         regular_statements=[statement],
         dynamic_groups=[],
         groups=[],
+        identity_domains=[],
         defined_tag_namespace_keys=catalog,
     )
     return PolicyIntelligenceEngine(repo, strategies=[]), repo
@@ -52,6 +53,41 @@ def _base_statement() -> dict:
         'valid': True,
         'invalid_reasons': [],
     }
+
+
+def test_unqualified_group_resolves_through_loaded_legacy_idcs_domain() -> None:
+    statement = _base_statement()
+    statement['subject'] = [(None, 'ConvertedAdmins')]
+    engine, repo = _build_engine_with_statement(statement, {})
+    repo.identity_domains = [{'display_name': 'OracleIdentityCloudService'}]
+    repo.groups = [{'domain_name': 'OracleIdentityCloudService', 'group_name': 'ConvertedAdmins'}]
+
+    engine.find_invalid_statements()
+
+    assert not any('Group ConvertedAdmins not found' in reason for reason in statement['invalid_reasons'])
+
+
+def test_unqualified_group_does_not_resolve_without_loaded_legacy_idcs_domain() -> None:
+    statement = _base_statement()
+    statement['subject'] = [(None, 'ConvertedAdmins')]
+    engine, repo = _build_engine_with_statement(statement, {})
+    repo.groups = [{'domain_name': 'OracleIdentityCloudService', 'group_name': 'ConvertedAdmins'}]
+
+    engine.find_invalid_statements()
+
+    assert 'Group ConvertedAdmins not found in tenancy' in statement['invalid_reasons']
+
+
+def test_explicit_default_group_does_not_use_legacy_idcs_mapping() -> None:
+    statement = _base_statement()
+    statement['subject'] = [('Default', 'ConvertedAdmins')]
+    engine, repo = _build_engine_with_statement(statement, {})
+    repo.identity_domains = [{'display_name': 'OracleIdentityCloudService'}]
+    repo.groups = [{'domain_name': 'OracleIdentityCloudService', 'group_name': 'ConvertedAdmins'}]
+
+    engine.find_invalid_statements()
+
+    assert 'Group ConvertedAdmins not found in tenancy' in statement['invalid_reasons']
 
 
 def _build_engine_with_compartment_repo() -> tuple[PolicyIntelligenceEngine, dict[str, str]]:

@@ -666,7 +666,7 @@ def _build_engine_principal_value(principal_type: str, principal_display: str) -
     ptype = (principal_type or '').strip()
     display = (principal_display or '').strip()
 
-    if ptype in ('any-user', 'any-group', 'service'):
+    if ptype in ('any-user', 'any-group', 'service', 'resource'):
         return display or ptype
 
     if '/' in display:
@@ -1809,7 +1809,7 @@ def get_reference_permissions(payload: dict[str, object]) -> dict[str, object]:
     ctx = get_context()
     service = ReferenceDataService(ctx.reference_data)
     permissions = service.get_permissions(str(entity), str(verb), str(action))
-    return {'permissions': permissions}
+    return {'permissions': permissions, 'catalog_metadata': ctx.reference_data.get_catalog_metadata(str(entity))}
 
 
 @router.post('/reference/source')

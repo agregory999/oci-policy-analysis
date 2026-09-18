@@ -16,6 +16,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+from oci_policy_analysis.application.core.common.policy_helpers import render_diagnostic_text
 from oci_policy_analysis.application.core.models.models import (
     Group,
     GroupSearch,
@@ -33,9 +34,19 @@ from oci_policy_analysis.presentation.desktop.data_table import DataTable
 # Global logger for this module
 logger = get_logger(component='users_tab')
 
-GROUPS_ALL_COLUMNS = ['Domain Name', 'Group Name', 'User Count', 'Group ID', 'Group OCID']
+GROUPS_ALL_COLUMNS = ['Domain Name', 'Group Name', 'Diagnostic Name', 'User Count', 'Group ID', 'Group OCID']
 GROUPS_DEFAULT_COLUMNS = ['Domain Name', 'Group Name', 'User Count']
-GROUPS_COLUMNS_WIDTHS = {'Domain Name': 120, 'Group Name': 250, 'User Count': 80, 'Group ID': 220, 'Group OCID': 300}
+GROUPS_COLUMNS_WIDTHS = {
+    'Domain Name': 120,
+    'Group Name': 250,
+    'Diagnostic Name': 340,
+    'User Count': 80,
+    'Group ID': 220,
+    'Group OCID': 300,
+}
+
+
+render_diagnostic_name = render_diagnostic_text
 
 USERS_ALL_COLUMNS = ['Domain Name', 'Username', 'Display Name', 'Primary Email', 'User ID', 'User OCID']
 USERS_DEFAULT_COLUMNS = ['Domain Name', 'Username', 'Display Name', 'Primary Email']
@@ -545,6 +556,7 @@ class UsersTab(BaseUITab):
                     {
                         'Domain Name': g.get('domain_name', 'Default'),
                         'Group Name': g.get('group_name', ''),
+                        'Diagnostic Name': render_diagnostic_name(g.get('group_name', '')),
                         'User Count': (
                             len(self.policy_compartment_analysis.get_users_for_group(g))
                             if hasattr(self.policy_compartment_analysis, 'get_users_for_group')

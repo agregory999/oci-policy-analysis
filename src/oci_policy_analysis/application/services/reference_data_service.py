@@ -181,7 +181,7 @@ class ReferenceDataService:
     def get_operation_detail(self, operation_name: str) -> dict[str, object]:
         """Return permissions, notes, and related checks for an operation."""
 
-        op_name = str(operation_name or '').strip()
+        op_name = self.reference_data.resolve_operation(str(operation_name or '').strip())
         meta = self.reference_data.data.get('operations', {}).get(op_name, {})
         if not isinstance(meta, dict):
             meta = {}
