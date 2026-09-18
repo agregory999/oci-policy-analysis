@@ -95,7 +95,9 @@ def parse_policy_subjects(subject_type: str, raw_subject: str):  # noqa: C901
         return ocid_tuples
 
     elif subject_type == 'resource':
-        # As per resourceSubject, often a single name or OCID in raw_subject.
+        # Resource subjects are opaque, whitespace-separated internal-principal
+        # identifiers (usually two terms). Keep each comma-separated subject
+        # intact as one name: these are neither identity-domain names nor OCIDs.
         items = [i.strip(' \'"') for i in re.split(r',\s*', raw_subject) if i.strip()]
         logger.info(f'[parse_policy_subjects] resource subject: {items}')
         return items

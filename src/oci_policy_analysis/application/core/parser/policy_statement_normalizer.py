@@ -275,7 +275,7 @@ class _FieldCollectingVisitor(PolicyVisitor):
                 )
                 fields['subject'] = result
         else:
-            raw_subject = ctx_subject.getText() if ctx_subject else ''
+            raw_subject = self._get_text(ctx_subject) if ctx_subject else ''
 
             # Service subjects come through as "serviceX" (no delimiter) or
             # "serviceA,serviceB" in some parse shapes. Strip the leading
@@ -283,6 +283,8 @@ class _FieldCollectingVisitor(PolicyVisitor):
             if fields['subject_type'] == 'service' and raw_subject:
                 raw_subject = re.sub(r'^service\s*', '', raw_subject, flags=re.IGNORECASE)
                 raw_subject = re.sub(r',\s*service\s*', ',', raw_subject, flags=re.IGNORECASE)
+            elif fields['subject_type'] == 'resource' and raw_subject:
+                raw_subject = re.sub(r'^resource\s*', '', raw_subject, flags=re.IGNORECASE).strip()
 
             logger.info(
                 f"[DEBUG] Non-group subject extraction: ctx_subject={ctx_subject}, subject_type={fields['subject_type']}, raw_subject={raw_subject!r}"
