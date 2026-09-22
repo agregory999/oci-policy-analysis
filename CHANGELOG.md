@@ -1,3 +1,10 @@
+## [6.6.0-idcs-domain-mappings-policy-corpus.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.6.0-idcs-domain-mappings-policy-corpus.1...v6.6.0-idcs-domain-mappings-policy-corpus.2) (2026-09-22)
+
+
+### Features
+
+* diagnose IAM loading and IDCS mappings ([c9d8771](https://github.com/agregory999/oci-policy-analysis/commit/c9d87712318ecae501d57b608496cf9fded86107))
+
 ## [6.6.0-idcs-domain-mappings-policy-corpus.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.6.0-idcs-domain-mappings-policy-corpus.1) (2026-09-18)
 
 
