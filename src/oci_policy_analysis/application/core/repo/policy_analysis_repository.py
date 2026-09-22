@@ -130,6 +130,19 @@ def _open_optional_compliance_csv(path: str | None):
     return open(path, encoding='utf-8') if path else StringIO('')
 
 
+def _set_compliance_csv_field_size_limit() -> None:
+    """Set the largest portable CSV field-size limit for compliance exports.
+
+    ``csv.field_size_limit`` accepts a C ``long``.  Windows uses a 32-bit
+    ``long`` even in 64-bit Python, so passing its 64-bit ``sys.maxsize``
+    raises ``OverflowError`` before an import can read its first CSV row.
+    """
+    try:
+        csv.field_size_limit(sys.maxsize)
+    except OverflowError:
+        csv.field_size_limit((1 << 31) - 1)
+
+
 def _identity_api_worker_count() -> int:
     """Return the opt-in identity API worker limit, retaining the normal default."""
 
@@ -3704,7 +3717,7 @@ class PolicyAnalysisRepository:
         # A CIS import is a new offline snapshot, not an extension of a cache.
         self.current_cache_name = ''
         self.tenancy_policy_limits = {}
-        csv.field_size_limit(sys.maxsize)
+        _set_compliance_csv_field_size_limit()
 
         logger.info(f'Loading compliance data from output dir: {dir_path}')
 

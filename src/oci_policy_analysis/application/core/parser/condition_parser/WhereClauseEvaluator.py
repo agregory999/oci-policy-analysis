@@ -171,7 +171,7 @@ class WhereClauseEvaluator(OciIamPolicyConditionVisitor):
         if not_in_token is not None:
             operator = 'not in'
         else:
-            operator = op_token.getText().lower() if op_token is not None else ''
+            operator = ''.join(op_token.getText().split()).lower() if op_token is not None else ''
         value = None
         value_2 = None
 

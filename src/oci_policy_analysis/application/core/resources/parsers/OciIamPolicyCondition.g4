@@ -59,7 +59,10 @@ OPERATOR        : EQ | NEQ | GT | LT | GTE | LTE | IN_OP | BEFORE | AFTER | BETW
 NOT_IN          : [Nn][Oo][Tt] WHITESPACE+ [Ii][Nn] ;
 BANG            : '!' ; // OCI presence check: !request.variable means variable was not supplied
 EQ              : '=' ;
-NEQ             : '!=' ;
+// OCI accepts whitespace between ! and = (for example, "! =").  Keep it
+// in one lexer token so callers can normalize it to the same inequality
+// operator as the compact form.
+NEQ             : '!' [ \t]* '=' ;
 GT              : '>' ;
 LT              : '<' ;
 GTE             : '>=' ;
