@@ -59,6 +59,7 @@ private/
 node_modules
 env.sh
 usage-par.txt
+iam-api-diagnostics*.csv
 
 # --- Codex ---
 .codex/

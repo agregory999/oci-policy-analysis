@@ -1,3 +1,5 @@
+import logging
+
 from oci_policy_analysis.application.core.parser.condition_structure import (
     format_condition_structure_summary,
     parse_condition_structure,
@@ -34,3 +36,17 @@ def test_parse_condition_structure_handles_absent_text():
     assert parsed['parse_status'] == 'absent'
     assert parsed['atoms'] == []
     assert format_condition_structure_summary(parsed) == ''
+
+
+def test_parse_condition_structure_captures_lexer_errors_without_stderr(capsys, caplog):
+    text = 'request.operation = ‘CreateVcn’'
+
+    with caplog.at_level(logging.WARNING, logger='oci-policy-analysis.condition_structure'):
+        parsed = parse_condition_structure(text)
+
+    captured = capsys.readouterr()
+    assert captured.err == ''
+    assert parsed['parse_status'] == 'unsupported'
+    assert len(parsed['warnings']) == 2
+    assert all('token recognition error' in warning for warning in parsed['warnings'])
+    assert text in caplog.text

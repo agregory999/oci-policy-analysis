@@ -85,6 +85,24 @@ def capture_inputs(repo, reference, *, log_capture=False) -> dict:
         logger.info('Snapshot capture started: %d inventory fields plus reference data', len(SNAPSHOT_FIELDS))
     for field in (*SNAPSHOT_FIELDS, 'reference_data'):
         value = reference.data if field == 'reference_data' else getattr(repo, field, None)
+        if field in {'regular_statements', 'cross_tenancy_statements', 'defined_aliases'} and isinstance(value, list):
+            original_count = len(value)
+            value = [
+                statement
+                for statement in value
+                if not isinstance(statement, dict)
+                or (
+                    statement.get('parsed') is not False
+                    and statement.get('valid') is not False
+                    and not statement.get('invalid_reasons')
+                )
+            ]
+            if log_capture and len(value) != original_count:
+                logger.warning(
+                    'Snapshot excluded %d invalid or unparseable %s; they remain available in the policy browser.',
+                    original_count - len(value),
+                    field,
+                )
         if log_capture:
             item_types = sorted({type(item).__name__ for item in value}) if isinstance(value, list) else []
             logger.debug(

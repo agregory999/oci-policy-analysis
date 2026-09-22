@@ -632,10 +632,10 @@ class PolicyStatementNormalizer:
         parsed_statements, parse_errors = self.antlr_parser.parse(statement_text)
         # If *any* parse_errors were present, treat this as not parsed, even if something is returned in parsed_statements.
         if parse_errors and len(parse_errors) > 0:
-            logger.info(f'Parsing failed for: {statement_text} with errors: {parse_errors}')
+            logger.warning('Parsing failed for policy statement: %s; errors: %s', statement_text, parse_errors)
             return {'parsed': False, 'invalid_reasons': parse_errors}
         if not parsed_statements or not isinstance(parsed_statements, list):
-            logger.info(f'Parsing failed for: {statement_text} with errors: {parse_errors}')
+            logger.warning('Parsing failed for policy statement: %s; errors: %s', statement_text, parse_errors)
             return {'parsed': False, 'invalid_reasons': [f'Failed to parse: {statement_text}']}
 
         fields = parsed_statements[0]

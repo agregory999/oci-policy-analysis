@@ -1,3 +1,4 @@
+import logging
 from typing import cast
 
 import pytest
@@ -48,6 +49,27 @@ def test_basic_policy_statements(parser, stmt):
     assert isinstance(results, list)
     assert len(results) > 0
     assert not errors, f"Parser returned errors for '{stmt}': {errors}"
+
+
+def test_policy_normalizer_logs_the_full_statement_at_warning_when_lexer_rejects_it(caplog):
+    statement = 'allow group Administrators to read buckets in tenancy where request.operation = ‘CreateVcn’'
+    base = {
+        'policy_name': 'P',
+        'policy_ocid': 'ocid1.policy.oc1..example',
+        'compartment_ocid': 'ocid1.compartment.oc1..example',
+        'compartment_path': 'ROOT',
+        'statement_text': statement,
+        'creation_time': '2026-01-01T00:00:00Z',
+        'internal_id': 'curly-quote',
+        'parsed': False,
+    }
+
+    with caplog.at_level(logging.WARNING, logger='oci-policy-analysis.core.parser.policy_statement_normalizer'):
+        parsed = PolicyStatementNormalizer().normalize(statement, 'allow', base)
+
+    assert parsed['parsed'] is False
+    assert statement in caplog.text
+    assert 'token recognition error' in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -541,6 +563,34 @@ def test_policy_statement_with_spaced_not_equal_operators(parser):
     assert results[0].get('condition') == (
         "all {target.vcn.display-name ! = /mgmt-vcn\\*/, request.operation ! = 'CreateVcn'}"
     )
+
+
+def test_policy_statement_with_colon_in_tag_namespace_parses_and_preserves_condition_structure(parser):
+    statement = (
+        'Allow any-user to manage all-resources in compartment rbalajep '
+        'where request.groups.name=target.resource.tag.pt:access.group_to_manage'
+    )
+
+    results, errors = parser.parse(statement)
+    normalized = PolicyStatementNormalizer().normalize(
+        statement,
+        'allow',
+        {
+            'policy_name': 'P',
+            'policy_ocid': 'ocid1.policy.oc1..example',
+            'compartment_ocid': 'ocid1.compartment.oc1..example',
+            'compartment_path': 'ROOT',
+            'statement_text': statement,
+            'creation_time': '2026-01-01T00:00:00Z',
+            'internal_id': 'colon-tag-namespace',
+            'parsed': False,
+        },
+    )
+
+    assert not errors
+    assert results and results[0]['condition'].endswith('target.resource.tag.pt:access.group_to_manage')
+    assert normalized['parsed'] is True
+    assert normalized['condition_atoms'][0]['right'] == 'target.resource.tag.pt:access.group_to_manage'
 
 
 def test_policy_statement_with_not_in_pattern_list(parser):

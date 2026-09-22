@@ -132,6 +132,25 @@ def test_unresolved_sources_and_partial_inventory_never_claim_complete_decisions
     assert len(rt.corpus['sources']) == 2
 
 
+def test_capture_excludes_invalid_statements_but_keeps_them_in_the_policy_browser_repository():
+    valid = statement('valid')
+    invalid = {
+        **statement('invalid'),
+        'parsed': False,
+        'valid': False,
+        'invalid_reasons': ['ANTLR syntax error'],
+    }
+    ctx = context([valid, invalid])
+
+    captured = capture_inputs(ctx.policy_repo, ctx.reference_data)
+    corpus = build_corpus(captured)
+
+    assert [item['internal_id'] for item in ctx.policy_repo.regular_statements] == ['valid', 'invalid']
+    assert [item['internal_id'] for item in captured['inventory']['regular_statements']] == ['valid']
+    assert corpus['summary']['statements'] == 1
+    assert corpus['summary']['unresolved_statements'] == 0
+
+
 def test_no_condition_parsing_during_queries(monkeypatch):
     rt = runtime([statement('a', condition="request.region in ('iad','phx')")])
     monkeypatch.setattr(

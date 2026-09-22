@@ -96,7 +96,9 @@ PATTERN_LITERAL
 
 // *** IDENTIFIER rule MUST follow keywords/operators for 'in' parsing bug fix ***
 IDENTIFIER
-    : [a-zA-Z] [a-zA-Z0-9._-]*
+    // OCI defined-tag namespaces may contain a colon, for example
+    // target.resource.tag.pt:access.group_to_manage.
+    : [a-zA-Z] [a-zA-Z0-9._:-]*
     ;
 
 // White space and comments are ignored

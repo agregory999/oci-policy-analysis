@@ -141,17 +141,21 @@ def parse_condition_structure(text: str | None) -> dict[str, Any]:
         stream = CommonTokenStream(lexer)
         parser = OciIamPolicyConditionParser(stream)
         errors = _CapturingErrorListener()
+        lexer.removeErrorListeners()
+        lexer.addErrorListener(errors)
         parser.removeErrorListeners()
         parser.addErrorListener(errors)
         tree = parser.condition_clause()
-        if parser.getNumberOfSyntaxErrors() > 0:
+        if errors.errors or parser.getNumberOfSyntaxErrors() > 0:
+            warnings = [err.get('message', 'syntax error') for err in errors.errors]
+            logger.warning('Unsupported condition syntax: %s; condition: %s', '; '.join(warnings), raw_text)
             return {
                 'raw_text': raw_text,
                 'parse_status': 'unsupported',
                 'structure': '',
                 'atoms': [],
                 'residual_text': raw_text,
-                'warnings': [err.get('message', 'syntax error') for err in errors.errors],
+                'warnings': warnings,
             }
 
         visitor = _ConditionStructureVisitor()
