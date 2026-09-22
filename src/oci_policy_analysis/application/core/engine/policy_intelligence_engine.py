@@ -62,6 +62,37 @@ def _compliance_domains_are_equivalent(repo, left_domain: object, right_domain: 
     )
 
 
+def _idp_group_mapping_note(repo, declared_domain: object, group_name: object) -> str | None:
+    """Resolve a legacy IDCS source group through a loaded explicit mapping."""
+    domain = str(declared_domain or '').casefold()
+    if domain and domain != LEGACY_IDCS_DOMAIN_NAME.casefold():
+        return None
+    for mapping in getattr(repo, 'idp_group_mappings', []) or []:
+        if str(mapping.get('idp_group_name') or '').casefold() != str(group_name or '').casefold():
+            continue
+        target_name = str(mapping.get('target_group_name') or '')
+        target_domain = str(mapping.get('target_group_domain') or 'Default')
+        if target_name:
+            return (
+                f"Resolved group through IdP mapping {mapping.get('identity_provider_name') or LEGACY_IDCS_DOMAIN_NAME}/"
+                f"{group_name} -> {target_domain}/{target_name}"
+            )
+    return None
+
+
+def _idp_mapping_target_note(repo, group_domain: object, group_name: object) -> str | None:
+    """Describe explicit IdP sources for a policy subject that names the target group directly."""
+    sources = [
+        f"{mapping.get('identity_provider_name') or LEGACY_IDCS_DOMAIN_NAME}/{mapping.get('idp_group_name')}"
+        for mapping in getattr(repo, 'idp_group_mappings', []) or []
+        if str(mapping.get('target_group_name') or '').casefold() == str(group_name or '').casefold()
+        and str(mapping.get('target_group_domain') or 'Default').casefold() == str(group_domain or 'Default').casefold()
+    ]
+    if sources:
+        return f"Group {group_domain or 'Default'}/{group_name} is an IdP mapping target for: {', '.join(sources)}"
+    return None
+
+
 def _append_unique(items: list, value) -> None:
     """Append value only if not already present (preserve order)."""
     if value not in items:
@@ -891,6 +922,13 @@ class PolicyIntelligenceEngine:
                         )
                         for g in repo.groups
                     )
+                    target_note = _idp_mapping_target_note(repo, group_domain, group_name)
+                    if group_found and target_note:
+                        _append_unique(st.setdefault('parsing_notes', []), target_note)
+                    mapping_note = _idp_group_mapping_note(repo, declared_domain, group_name)
+                    if not group_found and mapping_note:
+                        group_found = True
+                        _append_unique(st.setdefault('parsing_notes', []), mapping_note)
                     # TODO(identity-domain-mappings): replace this legacy-only validation bridge with
                     # explicit mapping records loaded through the future mapping API. Do not extend
                     # principal keys, filtering, simulation, or consolidation until mappings are modeled.

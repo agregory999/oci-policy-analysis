@@ -19,12 +19,24 @@ narrow compatibility bridge in `PolicyIntelligenceEngine.find_invalid_statements
   simulation, policy filtering, consolidation, and principal keys are not
   changed.
 
-## Planned replacement
+## Live-tenancy mapping inventory
 
-The future identity-domain mapping API should load explicit mapping records and
-materialize mapped aliases in the repository group model. Once it exists,
-replace the validation-only bridge with that data. Do not infer mappings merely
-from same-named groups in arbitrary domains.
+For live tenancy loads, the repository now best-effort discovers the SAML2
+identity provider named `OracleIdentityCloudService` and calls
+`list_idp_group_mappings` for it. Mapping records are held separately in
+`idp_group_mappings` and are saved in combined caches. A missing permission or
+API failure logs an informational message and does not fail the broader load.
+
+Each active mapping records its IdP source-group name and resolved target IAM
+group. The target group carries `mapped_idp_groups`, displayed as **Mapped IdP
+Groups** when the Groups tab is in its expanded view. The JSON Debugger exposes
+the raw inventory as **Policy Repo IdP Group Mappings**.
+
+During validation, an otherwise unresolved unqualified group subject can be
+resolved through an explicit mapping. Its statement receives a parsing note
+showing `OracleIdentityCloudService/<source> -> Default/<target>`. Direct group
+matches still take precedence, and mappings do not alter simulation,
+consolidation, filtering, or principal keys.
 
 ## CIS Compliance snapshot assumption
 

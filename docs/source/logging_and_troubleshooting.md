@@ -50,6 +50,42 @@ If the global logger is set to `WARNING`, but API logger is emitting certain mes
 
 *To configure more granular logging for API and timing, use either the UI log level overrides (via the "Show Loggers" checkbox) or set log levels programmatically in your environment/setup scripts.*
 
+## IAM Loading Diagnostics
+
+Use these temporary environment controls only when investigating a live-tenancy IAM load. They apply to identity-domain, group, user, and dynamic-group collection; they do not change OCI resources.
+
+### Reduce identity API concurrency
+
+The normal identity-detail load uses six workers. If OCI Identity Domains returns HTTP 429 responses, retry with one worker to serialize dynamic-group and user detail calls:
+
+```bash
+OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS=1 ./local-run.sh --mode desktop
+```
+
+Values from `1` through `6` are accepted. Invalid values retain the normal six-worker setting. This flag does not change policy or compartment loading concurrency.
+
+### Capture IAM API results to CSV
+
+Set `OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV` to a local output path before starting the application:
+
+```bash
+OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS=1 \
+OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV="$PWD/iam-api-diagnostics.csv" \
+./local-run.sh --mode desktop
+```
+
+The CSV records the API call, identity-domain context, resource ID, elapsed time, outcome, HTTP status, OCI service code, request ID, and error message. It covers identity-domain discovery plus group, user, and dynamic-group list/detail calls. CSV writing is best-effort: an output-file error is logged and does not stop the tenancy load.
+
+Successful response bodies are omitted by default. To include them for a narrowly scoped troubleshooting run, also set `OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_RESPONSES=1`. Response bodies can contain user and group data, so keep that CSV local and remove it when it is no longer needed.
+
+On PowerShell, set the variables before starting the app:
+
+```powershell
+$env:OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS = "1"
+$env:OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV = "$PWD\iam-api-diagnostics.csv"
+.\local-run.ps1 --mode desktop
+```
+
 ## Web UI and command-line logging
 
 The desktop application, web server, CLI, and MCP server use the same application logging system, but the place to inspect output differs by mode.

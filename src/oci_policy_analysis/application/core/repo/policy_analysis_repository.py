@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
@@ -80,6 +81,24 @@ logger = get_logger(component='core.repo.policy_analysis_repository')
 
 # Constants
 THREADS = 6
+IDENTITY_API_WORKERS_ENV = 'OCI_POLICY_ANALYSIS_IDENTITY_API_WORKERS'
+IAM_API_DIAGNOSTICS_CSV_ENV = 'OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_CSV'
+IAM_API_DIAGNOSTICS_RESPONSES_ENV = 'OCI_POLICY_ANALYSIS_IAM_API_DIAGNOSTICS_RESPONSES'
+IAM_API_DIAGNOSTICS_FIELDS = (
+    'captured_at_utc',
+    'call',
+    'entity_type',
+    'domain_name',
+    'domain_ocid',
+    'resource_id',
+    'status',
+    'http_status',
+    'service_code',
+    'request_id',
+    'duration_seconds',
+    'error_message',
+    'response_json',
+)
 
 # Cache Directory and Date (for consistency across classes)
 CACHE_DIR = Path.home() / '.oci-policy-analysis' / 'cache'
@@ -111,6 +130,34 @@ def _open_optional_compliance_csv(path: str | None):
     return open(path, encoding='utf-8') if path else StringIO('')
 
 
+def _identity_api_worker_count() -> int:
+    """Return the opt-in identity API worker limit, retaining the normal default."""
+
+    configured = os.environ.get(IDENTITY_API_WORKERS_ENV, '').strip()
+    if not configured:
+        return THREADS
+    try:
+        workers = int(configured)
+        if not 1 <= workers <= THREADS:
+            raise ValueError
+        return workers
+    except ValueError:
+        logger.warning(
+            'Ignoring invalid %s=%r; use a value from 1 to %s. Using the normal %s identity API workers.',
+            IDENTITY_API_WORKERS_ENV,
+            configured,
+            THREADS,
+            THREADS,
+        )
+        return THREADS
+
+
+def _environment_flag_enabled(name: str) -> bool:
+    """Interpret conventional environment flag values without raising."""
+
+    return os.environ.get(name, '').strip().casefold() in {'1', 'true', 'yes', 'on'}
+
+
 class PolicyAnalysisRepository:
     """
     This is the main data repository for Policy, Identity, and Compartment data
@@ -126,7 +173,9 @@ class PolicyAnalysisRepository:
     See `filter_policy_statements` for an example of filtering and returning PolicyStatement objects.
     """
 
-    def _api_call_with_logging(self, label, fn, *args, **kwargs):
+    def _api_call_with_logging(
+        self, label, fn, *args, _iam_diagnostics_context: dict[str, object] | None = None, **kwargs
+    ):
         """Wrap OCI API call for logging+timing at INFO or CRITICAL based on settings."""
 
         # TODO: https://docs.oracle.com/en-us/iaas/tools/python/latest/exceptions.html
@@ -147,6 +196,13 @@ class PolicyAnalysisRepository:
             level_func(
                 f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) succeeded in {elapsed:.2f}s — args={args} kwargs={kwargs}'
             )
+            self._record_iam_api_diagnostic(
+                label,
+                context=_iam_diagnostics_context,
+                status='success',
+                duration_seconds=elapsed,
+                response=result,
+            )
             return result
         except ServiceError as se:
             if getattr(self, '_cleanup_reload_api_errors', None) is not None:
@@ -155,6 +211,13 @@ class PolicyAnalysisRepository:
             # Print detailed ServiceError info
             logger.error(
                 f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) ServiceError after {elapsed:.2f}s: code={se.code} status={se.status} message={se.message} args={args}, kwargs={kwargs}'
+            )
+            self._record_iam_api_diagnostic(
+                label,
+                context=_iam_diagnostics_context,
+                status='service_error',
+                duration_seconds=elapsed,
+                service_error=se,
             )
             raise
         except Exception as e:
@@ -165,7 +228,104 @@ class PolicyAnalysisRepository:
             logger.error(
                 f'[API] {label} ({getattr(fn, "__name__", repr(fn))}) failed after {elapsed:.2f}s: {e} args={args}, kwargs={kwargs}'
             )
+            self._record_iam_api_diagnostic(
+                label,
+                context=_iam_diagnostics_context,
+                status='exception',
+                duration_seconds=elapsed,
+                error=e,
+            )
             raise
+
+    @staticmethod
+    def _json_for_iam_api_diagnostics(value: object) -> str:
+        """Serialize OCI response data for the explicitly opt-in IAM diagnostics CSV."""
+
+        if value is None:
+            return ''
+        data = getattr(value, 'data', value)
+        try:
+            if hasattr(data, 'to_dict'):
+                data = data.to_dict()
+            return json.dumps(data, default=str, ensure_ascii=False, sort_keys=True)
+        except Exception as exc:
+            return json.dumps({'serialization_error': str(exc), 'value': str(data)}, ensure_ascii=False)
+
+    def _configure_iam_api_diagnostics(self) -> None:
+        """Configure local-only IAM API response capture when its environment flag is set."""
+
+        self._iam_api_diagnostics_path: Path | None = None
+        self._iam_api_diagnostics_lock = threading.Lock()
+        self._iam_api_diagnostics_include_responses = _environment_flag_enabled(IAM_API_DIAGNOSTICS_RESPONSES_ENV)
+        configured_path = os.environ.get(IAM_API_DIAGNOSTICS_CSV_ENV, '').strip()
+        if not configured_path or configured_path.casefold() in {'0', 'false', 'no', 'off'}:
+            return
+        if configured_path.casefold() in {'1', 'true', 'yes', 'on'}:
+            timestamp = datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')
+            output_path = CACHE_DIR / f'iam-api-diagnostics-{timestamp}.csv'
+        else:
+            output_path = Path(configured_path).expanduser()
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            new_file = not output_path.exists() or output_path.stat().st_size == 0
+            with output_path.open('a', encoding='utf-8', newline='') as file_object:
+                if new_file:
+                    csv.DictWriter(file_object, fieldnames=IAM_API_DIAGNOSTICS_FIELDS).writeheader()
+            self._iam_api_diagnostics_path = output_path
+            logger.warning(
+                'IAM API diagnostics are enabled at %s. Full Identity Domains API responses are %s.',
+                output_path,
+                'included and may contain identity data' if self._iam_api_diagnostics_include_responses else 'omitted',
+            )
+        except OSError as exc:
+            logger.warning('Could not enable IAM API diagnostics CSV at %s: %s', output_path, exc)
+
+    def _record_iam_api_diagnostic(
+        self,
+        label: str,
+        *,
+        context: dict[str, object] | None,
+        status: str,
+        duration_seconds: float,
+        response: object | None = None,
+        service_error: ServiceError | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        """Append a targeted identity-domain API result without affecting the load on diagnostics failure."""
+
+        output_path = getattr(self, '_iam_api_diagnostics_path', None)
+        if output_path is None or context is None:
+            return
+        error_headers = getattr(service_error, 'headers', {}) or {}
+        request_id = (
+            getattr(service_error, 'request_id', '')
+            or getattr(service_error, 'opc_request_id', '')
+            or error_headers.get('opc-request-id', '')
+        )
+        row = {
+            'captured_at_utc': datetime.now(UTC).isoformat(),
+            'call': label,
+            'entity_type': str(context.get('entity_type') or ''),
+            'domain_name': str(context.get('domain_name') or ''),
+            'domain_ocid': str(context.get('domain_ocid') or ''),
+            'resource_id': str(context.get('resource_id') or ''),
+            'status': status,
+            'http_status': str(getattr(service_error, 'status', '') or ''),
+            'service_code': str(getattr(service_error, 'code', '') or ''),
+            'request_id': str(request_id or ''),
+            'duration_seconds': f'{duration_seconds:.3f}',
+            'error_message': str(getattr(service_error, 'message', '') or error or ''),
+            'response_json': (
+                self._json_for_iam_api_diagnostics(response)
+                if self._iam_api_diagnostics_include_responses and response is not None
+                else ''
+            ),
+        }
+        try:
+            with self._iam_api_diagnostics_lock, output_path.open('a', encoding='utf-8', newline='') as file_object:
+                csv.DictWriter(file_object, fieldnames=IAM_API_DIAGNOSTICS_FIELDS).writerow(row)
+        except OSError as exc:
+            logger.warning('Could not append IAM API diagnostics CSV %s: %s', output_path, exc)
 
     def _iter_legacy_subject_strings(self, stmt: RegularPolicyStatement) -> list[str]:
         """Flatten legacy ``subject`` representations into searchable strings."""
@@ -832,6 +992,7 @@ class PolicyAnalysisRepository:
         self.defined_aliases: list[DefineStatement] = []  # Store define statements as list of dict
         self.dynamic_groups = []
         self.identity_domains = []
+        self.idp_group_mappings = []
         self.compliance_legacy_idcs_default_equivalence = False
         self.groups = []
         self.users: list[User] = []
@@ -865,6 +1026,14 @@ class PolicyAnalysisRepository:
         self.compliance_artifact_counts: dict[str, int] = {}
         # Settings controlling logging/behavior (injected by App)
         self.settings = None
+        self.identity_api_workers = _identity_api_worker_count()
+        if self.identity_api_workers != THREADS:
+            logger.warning(
+                'Using %s identity API worker(s) from %s for this process.',
+                self.identity_api_workers,
+                IDENTITY_API_WORKERS_ENV,
+            )
+        self._configure_iam_api_diagnostics()
         # Keep the refence data repo as a member
         # self.permission_reference_repo = ReferenceDataRepo()
         self.permission_reference_repo = None
@@ -918,6 +1087,7 @@ class PolicyAnalysisRepository:
         self.defined_aliases = []
         self.dynamic_groups = []
         self.identity_domains = []
+        self.idp_group_mappings = []
         self.compliance_legacy_idcs_default_equivalence = False
         self.groups = []
         self.users = []
@@ -2063,6 +2233,12 @@ class PolicyAnalysisRepository:
                         domain_client.get_dynamic_resource_group,
                         dynamic_resource_group_id=_dg.id,
                         attribute_sets=['all'],
+                        _iam_diagnostics_context={
+                            'entity_type': 'dynamic_group',
+                            'domain_name': domain.display_name,
+                            'domain_ocid': domain.id,
+                            'resource_id': _dg.id,
+                        },
                     ).data
                     logger.debug(
                         f"Thread {thread_name} (id={thread_id}) finished fetch_full_dg for dg_id={getattr(_dg, 'id', None)} display_name={getattr(_dg, 'display_name', None)}"
@@ -2088,6 +2264,11 @@ class PolicyAnalysisRepository:
                     sort_by='displayName',
                     sort_order='ASCENDING',
                     attribute_sets=['never'],
+                    _iam_diagnostics_context={
+                        'entity_type': 'dynamic_group',
+                        'domain_name': domain.display_name,
+                        'domain_ocid': domain.id,
+                    },
                 )
                 if dg_response is None or dg_response.data is None:
                     logger.error('Failed to list dynamic groups')
@@ -2102,7 +2283,7 @@ class PolicyAnalysisRepository:
                     getattr(dg_response.data, 'total_results', None),
                 )
 
-                with ThreadPoolExecutor(max_workers=THREADS) as executor:
+                with ThreadPoolExecutor(max_workers=self.identity_api_workers) as executor:
                     futures = [executor.submit(fetch_full_dg, _dg) for _dg in dg_response.data.resources]
                     for f in as_completed(futures):
                         result = f.result()
@@ -2170,6 +2351,11 @@ class PolicyAnalysisRepository:
                     count=limit,
                     sort_by='displayName',
                     sort_order='ASCENDING',
+                    _iam_diagnostics_context={
+                        'entity_type': 'group',
+                        'domain_name': domain.display_name,
+                        'domain_ocid': domain.id,
+                    },
                 )
                 if group_response.data is None or not group_response.data.resources:
                     break
@@ -2211,6 +2397,11 @@ class PolicyAnalysisRepository:
                     sort_by='displayName',
                     sort_order='ASCENDING',
                     attribute_sets=['never'],
+                    _iam_diagnostics_context={
+                        'entity_type': 'user',
+                        'domain_name': domain.display_name,
+                        'domain_ocid': domain.id,
+                    },
                 )
                 if user_response.data is None or not user_response.data.resources:
                     break
@@ -2233,6 +2424,12 @@ class PolicyAnalysisRepository:
                     domain_client.get_user,
                     user_id=u.id,
                     attribute_sets=['all'],
+                    _iam_diagnostics_context={
+                        'entity_type': 'user',
+                        'domain_name': domain.display_name,
+                        'domain_ocid': domain.id,
+                        'resource_id': u.id,
+                    },
                 ).data
                 logger.debug(
                     f"Thread {thread_name} (id={thread_id}) finished fetch_full_user for user_id={getattr(u, 'id', None)} display_name={getattr(u, 'display_name', None)}"
@@ -2267,7 +2464,7 @@ class PolicyAnalysisRepository:
 
             user_list = []
             user_lock = Lock()
-            with ThreadPoolExecutor(max_workers=THREADS) as executor:
+            with ThreadPoolExecutor(max_workers=self.identity_api_workers) as executor:
                 futures = []
                 for user_summary in user_summary_generator():
                     futures.append(executor.submit(fetch_full_user, user_summary))
@@ -2284,6 +2481,64 @@ class PolicyAnalysisRepository:
 
         return user_list
 
+    def _load_legacy_idcs_group_mappings(self) -> None:
+        """Best-effort load of legacy IDCS-to-IAM group mappings for a live tenancy."""
+        if not self.identity_client or not self.tenancy_ocid:
+            return
+        try:
+            providers = (
+                self._api_call_with_logging(
+                    'IdentityClient.list_identity_providers',
+                    pagination.list_call_get_all_results,
+                    self.identity_client.list_identity_providers,
+                    'SAML2',
+                    self.tenancy_ocid,
+                ).data
+                or []
+            )
+            legacy_providers = [
+                p for p in providers if str(getattr(p, 'name', '')).casefold() == 'oracleidentitycloudservice'
+            ]
+            for provider in legacy_providers:
+                mappings = (
+                    self._api_call_with_logging(
+                        'IdentityClient.list_idp_group_mappings',
+                        pagination.list_call_get_all_results,
+                        self.identity_client.list_idp_group_mappings,
+                        provider.id,
+                    ).data
+                    or []
+                )
+                for mapping in mappings:
+                    if str(getattr(mapping, 'lifecycle_state', '')).upper() not in {'', 'ACTIVE'}:
+                        continue
+                    target = next(
+                        (
+                            group
+                            for group in self.groups
+                            if str(group.get('group_ocid') or group.get('group_id') or '').casefold()
+                            == str(getattr(mapping, 'group_id', '')).casefold()
+                        ),
+                        None,
+                    )
+                    record = {
+                        'id': getattr(mapping, 'id', ''),
+                        'identity_provider_id': provider.id,
+                        'identity_provider_name': provider.name,
+                        'idp_group_name': getattr(mapping, 'idp_group_name', ''),
+                        'group_id': getattr(mapping, 'group_id', ''),
+                        'target_group_name': target.get('group_name', '') if target else '',
+                        'target_group_domain': target.get('domain_name', '') if target else '',
+                        'lifecycle_state': getattr(mapping, 'lifecycle_state', ''),
+                        'time_created': str(getattr(mapping, 'time_created', '') or ''),
+                    }
+                    self.idp_group_mappings.append(record)
+                    if target:
+                        target.setdefault('mapped_idp_groups', []).append(f"{provider.name}/{record['idp_group_name']}")
+            logger.info('Loaded %s OracleIdentityCloudService IdP group mapping(s).', len(self.idp_group_mappings))
+        except Exception as exc:
+            logger.info('IdP group mappings unavailable; continuing without them: %s', exc)
+
     def load_complete_identity_domains(
         self, load_all_users: bool = True, compartment_domain_search_depth: int = 1
     ) -> bool:
@@ -2298,7 +2553,13 @@ class PolicyAnalysisRepository:
 
             def add_domains_from_compartment(compartment_id: str) -> bool:
                 resp = self._api_call_with_logging(
-                    'IdentityClient.list_domains', self.identity_client.list_domains, compartment_id=compartment_id
+                    'IdentityClient.list_domains',
+                    self.identity_client.list_domains,
+                    compartment_id=compartment_id,
+                    _iam_diagnostics_context={
+                        'entity_type': 'identity_domain',
+                        'resource_id': compartment_id,
+                    },
                 )
                 logger.info(
                     f'Listed domains for compartment {compartment_id}: {len(resp.data) if resp and resp.data else 0}'
@@ -2431,6 +2692,7 @@ class PolicyAnalysisRepository:
             logger.info(
                 f'Loaded {len(self.groups)} groups, {len(self.users)} users, {len(self.dynamic_groups)} dynamic groups across all domains'
             )
+            self._load_legacy_idcs_group_mappings()
             # Set this so that callback can stop any waiting
             self.identity_loaded_from_tenancy = True
 

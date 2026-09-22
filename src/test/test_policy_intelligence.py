@@ -78,6 +78,50 @@ def test_unqualified_group_does_not_resolve_without_loaded_legacy_idcs_domain() 
     assert 'Group ConvertedAdmins not found in tenancy' in statement['invalid_reasons']
 
 
+def test_unqualified_group_resolves_through_explicit_idp_mapping_with_note() -> None:
+    statement = _base_statement()
+    statement['subject'] = [(None, 'SourceAdmins')]
+    engine, repo = _build_engine_with_statement(statement, {})
+    repo.idp_group_mappings = [
+        {
+            'identity_provider_name': 'OracleIdentityCloudService',
+            'idp_group_name': 'SourceAdmins',
+            'target_group_name': 'DefaultAdmins',
+            'target_group_domain': 'Default',
+        }
+    ]
+
+    engine.find_invalid_statements()
+
+    assert statement['invalid_reasons'] == []
+    assert (
+        'Resolved group through IdP mapping OracleIdentityCloudService/SourceAdmins -> Default/DefaultAdmins'
+        in (statement['parsing_notes'])
+    )
+
+
+def test_direct_mapping_target_group_receives_an_idp_note() -> None:
+    statement = _base_statement()
+    statement['subject'] = [('Default', 'DefaultAdmins')]
+    engine, repo = _build_engine_with_statement(statement, {})
+    repo.groups = [{'domain_name': 'Default', 'group_name': 'DefaultAdmins'}]
+    repo.idp_group_mappings = [
+        {
+            'identity_provider_name': 'OracleIdentityCloudService',
+            'idp_group_name': 'SourceAdmins',
+            'target_group_name': 'DefaultAdmins',
+            'target_group_domain': 'Default',
+        }
+    ]
+
+    engine.find_invalid_statements()
+
+    assert (
+        'Group Default/DefaultAdmins is an IdP mapping target for: OracleIdentityCloudService/SourceAdmins'
+        in (statement['parsing_notes'])
+    )
+
+
 def test_explicit_default_group_does_not_use_legacy_idcs_mapping() -> None:
     statement = _base_statement()
     statement['subject'] = [('Default', 'ConvertedAdmins')]

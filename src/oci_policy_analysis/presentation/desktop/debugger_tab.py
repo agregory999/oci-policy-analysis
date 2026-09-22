@@ -55,6 +55,7 @@ class DebuggerTab(BaseUITab):
             'Policy Repo Compartments',
             'Policy Repo Policies',
             'Policy Repo Groups',
+            'Policy Repo IdP Group Mappings',
             'Policy Repo Dynamic Groups',
             'Policy Repo: Defined Aliases',
             'Policy Repo Cross-Tenancy Statements',
@@ -140,6 +141,8 @@ class DebuggerTab(BaseUITab):
                 return self.app.policy_compartment_analysis.regular_statements
             elif source == 'Policy Repo Groups':
                 return self.app.policy_compartment_analysis.groups
+            elif source == 'Policy Repo IdP Group Mappings':
+                return self.app.policy_compartment_analysis.idp_group_mappings
             elif source == 'Policy Repo Dynamic Groups':
                 return self.app.policy_compartment_analysis.dynamic_groups
             elif source == 'Policy Repo: Defined Aliases':
