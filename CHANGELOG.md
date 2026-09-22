@@ -1,3 +1,10 @@
+## [6.6.0-idcs-domain-mappings-policy-corpus.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.6.0-idcs-domain-mappings-policy-corpus.3...v6.6.0-idcs-domain-mappings-policy-corpus.4) (2026-09-22)
+
+
+### Bug Fixes
+
+* preserve parser diagnostics outside corpus ([2ed2da7](https://github.com/agregory999/oci-policy-analysis/commit/2ed2da7992267bfa48ee8edb8b389c1403a434d7))
+
 ## [6.6.0-idcs-domain-mappings-policy-corpus.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.6.0-idcs-domain-mappings-policy-corpus.2...v6.6.0-idcs-domain-mappings-policy-corpus.3) (2026-09-22)
 
 
