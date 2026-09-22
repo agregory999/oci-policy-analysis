@@ -1,3 +1,10 @@
+## [6.6.0-idcs-domain-mappings-policy-corpus.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.6.0-idcs-domain-mappings-policy-corpus.2...v6.6.0-idcs-domain-mappings-policy-corpus.3) (2026-09-22)
+
+
+### Bug Fixes
+
+* support spaced inequality and Windows CIS imports ([b9e727d](https://github.com/agregory999/oci-policy-analysis/commit/b9e727dfa7fcd4d58ba4bfb3153080cb56d28f57))
+
 ## [6.6.0-idcs-domain-mappings-policy-corpus.2](https://github.com/agregory999/oci-policy-analysis/compare/v6.6.0-idcs-domain-mappings-policy-corpus.1...v6.6.0-idcs-domain-mappings-policy-corpus.2) (2026-09-22)
 
 
