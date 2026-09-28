@@ -82,7 +82,7 @@ class PrincipalAnalysisService:
         return principal
 
     def by_exact_dynamic_groups(self, dynamic_groups: list[DynamicGroup]) -> PrincipalPolicyResult:
-        """Find statements matching exact dynamic groups.
+        """Find statements matching exact dynamic groups, including legacy cache rows.
 
         Args:
             dynamic_groups: Dynamic groups to match exactly.
@@ -90,7 +90,11 @@ class PrincipalAnalysisService:
         Returns:
             PrincipalPolicyResult: Matched policy statements.
         """
-        return self.by_dynamic_groups(dynamic_groups)
+        self.logger.info('Filtering policies by exact dynamic groups: count=%s', len(dynamic_groups))
+        if not dynamic_groups:
+            return PrincipalPolicyResult(statements=[])
+        filters: PolicySearch = PolicySearch(exact_dynamic_groups=dynamic_groups)
+        return PrincipalPolicyResult(statements=self.analysis.filter_policy_statements(filters=filters).statements)
 
     def by_dynamic_groups(self, dynamic_groups: list[DynamicGroup]) -> PrincipalPolicyResult:
         """Find statements matching dynamic group principals.

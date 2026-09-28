@@ -9,6 +9,7 @@ Full documentation
    user_guide
    setup
    architecture
+   core_integration
    usage
    logging_and_troubleshooting
 

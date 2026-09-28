@@ -253,9 +253,20 @@ class DynamicGroupsTab(BaseUITab):
         self.dg_rule_var.trace_add('write', lambda *args: self._update_dg_output())
         self.dg_ocid_var.trace_add('write', lambda *args: self._update_dg_output())
 
+        # Keep the inventory and matching-statement tables in a weighted grid.
+        # A packed inventory frame requests the full height of a large dynamic
+        # group list, leaving no visible space for the statement table below.
+        tables_frame = ttk.Frame(self)
+        tables_frame.pack(fill='both', expand=True, padx=5, pady=(8, 12))
+        tables_frame.grid_columnconfigure(0, weight=1)
+        tables_frame.grid_rowconfigure(0, weight=1)
+        tables_frame.grid_rowconfigure(1, weight=1)
+
         # Dynamic Groups Table Area (LabelFrame)
-        label_frm_dynamicgroups = ttk.LabelFrame(self, text='Dynamic Groups Table')
-        label_frm_dynamicgroups.pack(fill='both', expand=False, padx=5, pady=(8, 2))
+        label_frm_dynamicgroups = ttk.LabelFrame(tables_frame, text='Dynamic Groups Table')
+        label_frm_dynamicgroups.grid(row=0, column=0, sticky='nsew', pady=(0, 2))
+        label_frm_dynamicgroups.grid_columnconfigure(0, weight=1)
+        label_frm_dynamicgroups.grid_rowconfigure(0, weight=1)
         self.add_context_help(
             label_frm_dynamicgroups,
             'This table lists all discovered dynamic groups matching your filters. Select rows to see their matching policies below.',
@@ -274,7 +285,10 @@ class DynamicGroupsTab(BaseUITab):
                 )
             logger.info(f'DGs for filter: {dgs_for_filter}')
             dg_principals: list[DynamicGroup] = [DynamicGroup(**dg) for dg in dgs_for_filter]  # type: ignore
-            filtered = self.principal_analysis.by_dynamic_groups(dg_principals).statements
+            # Use the exact lookup so selections also work for cached policy
+            # rows that retain legacy subject fields but predate principal
+            # selector enrichment.
+            filtered = self.principal_analysis.by_exact_dynamic_groups(dg_principals).statements
             filtered = [for_display_policy(stmt) for stmt in filtered]
             self.dg_policy_table.update_data(filtered)
             logger.info(f'Policies added to policy table: {len(filtered)}')
@@ -302,11 +316,13 @@ class DynamicGroupsTab(BaseUITab):
             row_context_menu_callback=dg_table_right_click,
             multi_select=True,
         )
-        self.custom_data_dynamic_group.pack(fill='both', expand=True, padx=0, pady=0)
+        self.custom_data_dynamic_group.grid(row=0, column=0, sticky='nsew')
 
         # Dynamic Group Policy Table Area (LabelFrame)
-        label_frm_policies = ttk.LabelFrame(self, text='Policies Matching Selected Dynamic Groups')
-        label_frm_policies.pack(fill='both', expand=True, padx=5, pady=(2, 12))
+        label_frm_policies = ttk.LabelFrame(tables_frame, text='Policies Matching Selected Dynamic Groups')
+        label_frm_policies.grid(row=1, column=0, sticky='nsew', pady=(2, 0))
+        label_frm_policies.grid_columnconfigure(0, weight=1)
+        label_frm_policies.grid_rowconfigure(0, weight=1)
         self.add_context_help(
             label_frm_policies,
             'Shows policies applying to the selected dynamic groups. Right-click rows for details or jump to the Policies tab to analyze.',
@@ -355,13 +371,13 @@ class DynamicGroupsTab(BaseUITab):
             selection_callback=dg_policy_selection_callback,
             multi_select=False,
         )
-        self.dg_policy_table.pack(fill='both', expand=True, padx=0, pady=0)
+        self.dg_policy_table.grid(row=0, column=0, sticky='nsew')
 
         # Context note for policy table
         context_note_lbl = ttk.Label(
             label_frm_policies, text='Right-click a policy for more details or jump to Policy Analysis tab.'
         )
-        context_note_lbl.pack(anchor='w', padx=10, pady=(3, 0))
+        context_note_lbl.grid(row=1, column=0, sticky='w', padx=10, pady=(3, 0))
         self.add_context_help(
             context_note_lbl,
             'Right-click a row for more advanced policy analysis. Click to open in the Policies tab for deeper review.',
