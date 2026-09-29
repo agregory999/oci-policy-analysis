@@ -34,12 +34,21 @@ from oci_policy_analysis.presentation.desktop.data_table import DataTable
 # Global logger for this module
 logger = get_logger(component='users_tab')
 
-GROUPS_ALL_COLUMNS = ['Domain Name', 'Group Name', 'Diagnostic Name', 'User Count', 'Group ID', 'Group OCID']
+GROUPS_ALL_COLUMNS = [
+    'Domain Name',
+    'Group Name',
+    'Diagnostic Name',
+    'Mapped IdP Groups',
+    'User Count',
+    'Group ID',
+    'Group OCID',
+]
 GROUPS_DEFAULT_COLUMNS = ['Domain Name', 'Group Name', 'User Count']
 GROUPS_COLUMNS_WIDTHS = {
     'Domain Name': 120,
     'Group Name': 250,
     'Diagnostic Name': 340,
+    'Mapped IdP Groups': 340,
     'User Count': 80,
     'Group ID': 220,
     'Group OCID': 300,
@@ -557,6 +566,7 @@ class UsersTab(BaseUITab):
                         'Domain Name': g.get('domain_name', 'Default'),
                         'Group Name': g.get('group_name', ''),
                         'Diagnostic Name': render_diagnostic_name(g.get('group_name', '')),
+                        'Mapped IdP Groups': ', '.join(g.get('mapped_idp_groups', [])),
                         'User Count': (
                             len(self.policy_compartment_analysis.get_users_for_group(g))
                             if hasattr(self.policy_compartment_analysis, 'get_users_for_group')

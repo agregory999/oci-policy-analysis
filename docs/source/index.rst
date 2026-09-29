@@ -9,7 +9,6 @@ Full documentation
    user_guide
    setup
    architecture
-   core_integration
    usage
    logging_and_troubleshooting
 
@@ -18,6 +17,7 @@ Full documentation
    :caption: Advanced Topics
 
    simulation
+   core_integration
    consolidation
    recommendations
    reports

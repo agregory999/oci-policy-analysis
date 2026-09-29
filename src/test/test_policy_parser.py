@@ -91,11 +91,10 @@ def test_admit_and_endorse_normalization_handles_tuple_subjects():
     }
 
     admit_stmt = (
-        'admit group id ocid1.group.oc1..aaaaaaaabbbbbccccdddd of tenancy parent ' 'to read all-resources in tenancy'
+        'admit group id ocid1.group.oc1..aaaaaaaabbbbbccccdddd of tenancy parent to read all-resources in tenancy'
     )
     endorse_stmt = (
-        'endorse dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaabbbbbccccdddd '
-        'to read all-resources in tenancy target'
+        'endorse dynamic-group id ocid1.dynamicgroup.oc1..aaaaaaaabbbbbccccdddd to read all-resources in tenancy target'
     )
 
     admit_norm = normalizer.normalize(admit_stmt, 'admit', base)
@@ -367,7 +366,7 @@ def test_policy_subject_and_location_fields(
     ), f"Expected subject_type '{expected_subject_type}', got '{result.get('subject_type')}' for: {statement}"
     assert (
         result.get('subject') == expected_subject
-    ), f"Expected subject {expected_subject}, got {result.get('subject')} for: {statement}"
+    ), f'Expected subject {expected_subject}, got {result.get("subject")} for: {statement}'
     lt = result.get('location_type')
     loc = result.get('location')
     assert (
@@ -526,6 +525,22 @@ def test_policy_statement_with_tag_pattern_and_trailing_comment(parser):
     parsed = results[0]
     assert parsed.get('condition'), f'Expected a parsed condition but got: {parsed}'
     assert 'request.principal.group.tag.MyTagNamespace.MyTag' in parsed.get('condition', '')
+
+
+def test_policy_statement_with_spaced_not_equal_operators(parser):
+    statement = (
+        'allow group Administrators to manage virtual-network-family in tenancy '
+        "where all {target.vcn.display-name ! = /mgmt-vcn\\*/, request.operation ! = 'CreateVcn'}"
+    )
+
+    results, errors = parser.parse(statement)
+
+    assert results is not None
+    assert len(results) == 1
+    assert not errors
+    assert results[0].get('condition') == (
+        "all {target.vcn.display-name ! = /mgmt-vcn\\*/, request.operation ! = 'CreateVcn'}"
+    )
 
 
 def test_policy_statement_with_not_in_pattern_list(parser):

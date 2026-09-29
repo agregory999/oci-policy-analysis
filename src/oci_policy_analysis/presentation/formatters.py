@@ -184,6 +184,7 @@ def for_display_group(g: Group) -> dict:
         'Group ID': g.get('group_id', 'N/A'),
         'Group OCID': g.get('group_ocid', 'N/A'),
         'Description': g.get('description', 'N/A'),
+        'Mapped IdP Groups': ', '.join(g.get('mapped_idp_groups', [])),
     }  # type: ignore
 
 

@@ -5,8 +5,9 @@ loads, preserves, validates, and analyzes OCI IAM and policy data; the desktop
 app, CLI, web application, and MCP server are first-party adapters over that
 same runtime.
 
-This guide describes the supported integration model for current data. It does
-not define a persistent corpus, a valid-only data store, or a plugin system.
+This guide covers the small, supported Python embedding surface for the current
+analysis snapshot. It does not define a persistent corpus, plugin SDK, or OCI
+authorization decision service.
 
 ## The current analysis snapshot
 
@@ -23,18 +24,6 @@ An integration must therefore preserve the distinction between:
 
 Treat validation findings, load warnings, collection timestamp, source mode,
 and any scope limits as output that belongs beside the requested result.
-
-## Integration roles
-
-| Role | Responsibility | First-party examples |
-| --- | --- | --- |
-| Data acquisition | Load live OCI, cache, export JSON, or CIS input into the current snapshot. | `LoadService`, CLI loading modes, MCP startup |
-| Core analysis | Query parsed statements, identities, reference data, and derived findings. | application services and engines |
-| Interface adapter | Translate a caller's task into core operations and present bounded results. | CLI, web, desktop, MCP |
-
-Keep these responsibilities separate in custom integrations. A loader should
-not discard invalid rows, and an interface should not reimplement policy
-parsing or permission expansion.
 
 ## Python embedding
 
@@ -60,10 +49,9 @@ statements = MCPQueryService(context).filter_policy_statements(
 )
 ```
 
-Use the current context and services when embedding today. The package does not
-yet promise a separate, semantically-versioned plugin SDK. Keep imports and
-integration tests close to the released package version, and prefer the
-documented services over presentation modules or private helper functions.
+Use the current context and services rather than presentation modules or
+private helpers. Keep integration tests close to the package version you run;
+there is not yet a separately versioned plugin SDK.
 
 ### Extension checklist
 
@@ -74,55 +62,7 @@ documented services over presentation modules or private helper functions.
 4. Return a task-level result plus data-quality and provenance information.
 5. Test against valid, invalid, and partial snapshots.
 
-## CLI as a reference adapter
-
-The CLI is a supported adapter for scripts and scheduled jobs. Use it when a
-file or terminal result is a better contract than Python objects. It provides
-the normal data-loading paths and applies minimal post-load enrichment before
-its analysis operations.
-
-The CLI is also a useful reference implementation for custom hosts: load data,
-run only the needed enrichment, invoke core analysis, and make failures or
-incomplete data visible in output rather than treating them as empty results.
-See the [CLI guide](cli.md) for commands and output formats.
-
-## MCP as the first-party agent adapter
-
-The MCP server is supplied by this project. It is not a package-authoring
-extension mechanism. It exposes selected core capabilities as bounded,
-task-level tools for MCP clients.
-
-The current tool surface covers policy search, tag-policy search, OKE workload
-identity search, related search sets, snapshot comparison, identity search,
-cross-tenancy search, and data-state operations. It supports standalone STDIO,
-streamable HTTP, and an embedded desktop-server mode. Its HTTP health endpoint
-is `/health`.
-
-MCP callers should use the published tool schemas rather than construct or
-mutate internal repositories. In particular:
-
-- use `policy_search` and `identity_search` for focused queries;
-- use `policy_history_search` only with identified current/cache snapshots;
-- use `data_operations` to inspect or change the server's loaded data state;
-- treat results as bounded evidence, not an OCI authorization decision;
-- protect remote HTTP deployments because the tool results can contain IAM and
-  policy information.
-
-The current MCP implementation exposes tools and a health route. It does not
-register a general MCP resource catalog; documentation and integrations should
-not assume one exists.
-
-## Compatibility and change discipline
-
-When adding a core capability, first decide which layer owns it:
-
-- Add it to a service or engine when all adapters can share the behavior.
-- Add a CLI option only when it is a command-oriented workflow.
-- Add an MCP tool only when an agent needs a narrow, structured task contract.
-- Do not make a data snapshot stricter merely to simplify an adapter.
-
-For each change, document input requirements, output shape, validation and
-partial-data behavior, permission/reference-data dependencies, and tests. This
-keeps the current runtime useful for Functions, scripts, CLI automation, and
-MCP clients while leaving persistent corpus design as a separate future
-decision.
+For scripts and scheduled jobs, use the [CLI guide](cli.md). For agent-facing
+queries, use the documented [MCP tools](mcp.md) instead of constructing or
+mutating internal repositories. Both return analysis evidence, not an
+OCI-authoritative allow/deny decision.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from oci_policy_analysis.application.core.engine.intelligence_strategies.cleanup
 from oci_policy_analysis.application.core.engine.policy_intelligence_engine import PolicyIntelligenceEngine
 from oci_policy_analysis.application.core.engine.strategies.move_closer_to_target import MoveCloserToTargetCompartment
 from oci_policy_analysis.application.core.engine.strategies.move_down_next_level import MoveDownNextLevel
+from oci_policy_analysis.application.core.repo import policy_analysis_repository
 from oci_policy_analysis.application.core.repo.policy_analysis_repository import PolicyAnalysisRepository
 from oci_policy_analysis.application.services.recommendations_service import RecommendationsService
 from oci_policy_analysis.application.services.reports_service import ReportsService
@@ -26,6 +28,22 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) ->
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def test_compliance_csv_field_limit_falls_back_when_c_long_is_32_bit(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    windows_c_long_max = (1 << 31) - 1
+
+    def fake_field_size_limit(value: int) -> None:
+        calls.append(value)
+        if value > windows_c_long_max:
+            raise OverflowError('Python int too large to convert to C long')
+
+    monkeypatch.setattr(policy_analysis_repository.csv, 'field_size_limit', fake_field_size_limit)
+
+    policy_analysis_repository._set_compliance_csv_field_size_limit()
+
+    assert calls == [sys.maxsize, windows_c_long_max]
 
 
 def _write_minimum_compliance_export(tmp_path: Path, *, policy_identifier: str | None = None) -> None:
@@ -197,7 +215,7 @@ def test_cis_policy_statements_use_the_policy_ocid_when_export_identifier_differ
         app=SimpleNamespace(policy_intelligence=SimpleNamespace(overlay={'risk_scores': []})),
         policy_risk_threshold_var=SimpleNamespace(get=lambda: 'Show all'),
         policy_risk_table=risk_table,
-        _get_policy_path=lambda *, policy_obj: f"{policy_obj['compartment_path']}/{policy_obj['policy_name']}",
+        _get_policy_path=lambda *, policy_obj: f'{policy_obj["compartment_path"]}/{policy_obj["policy_name"]}',
     )
     PolicyRecommendationsTab.update_policy_risk_tab_output(policy_risk_tab)
     assert len(risk_table.rows) == 1
@@ -280,8 +298,7 @@ def test_move_closer_uses_parent_of_deep_common_effective_scope() -> None:
             'effective_path': 'ROOT/A/B/C/D/E',
             'location': 'A:B:C:D:E',
             'statement_text': (
-                'allow group Developers to read buckets in compartment A:B:C:D:E '
-                f"where target.bucket.name = '{number}'"
+                f"allow group Developers to read buckets in compartment A:B:C:D:E where target.bucket.name = '{number}'"
             ),
         }
         for number in range(13)

@@ -46,9 +46,10 @@ class OciIamPolicyConditionParser ( Parser ):
     sharedContextCache = PredictionContextCache()
 
     literalNames = [ "<INVALID>", "<INVALID>", "<INVALID>", "<INVALID>",
-                     "<INVALID>", "<INVALID>", "'!'", "'='", "'!='", "'>'",
-                     "'<'", "'>='", "'<='", "<INVALID>", "<INVALID>", "<INVALID>",
-                     "<INVALID>", "','", "'.'", "'{'", "'}'", "'('", "')'" ]
+                     "<INVALID>", "<INVALID>", "'!'", "'='", "<INVALID>",
+                     "'>'", "'<'", "'>='", "'<='", "<INVALID>", "<INVALID>",
+                     "<INVALID>", "<INVALID>", "','", "'.'", "'{'", "'}'",
+                     "'('", "')'" ]
 
     symbolicNames = [ "<INVALID>", "ALL", "ANY", "AND", "OPERATOR", "NOT_IN",
                       "BANG", "EQ", "NEQ", "GT", "LT", "GTE", "LTE", "IN_OP",
