@@ -1,3 +1,12 @@
+## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-29)
+
+
+### Bug Fixes
+
+* Merge pull request [#63](https://github.com/agregory999/oci-policy-analysis/issues/63) from agregory999/fix/6.5.4-core-adapters ([8288f4c](https://github.com/agregory999/oci-policy-analysis/commit/8288f4cd7e91467581cc109098c1581b1e994715))
+* prepare local desktop builds ([e8bc602](https://github.com/agregory999/oci-policy-analysis/commit/e8bc6026d2a88a769dbde5d07ec5ff544fbf67a9))
+* ship core adapter patch release ([bdd3cc2](https://github.com/agregory999/oci-policy-analysis/commit/bdd3cc2eddfd8e96bae37c625a4ec83ec2b6f6d2))
+
 ## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-28)
 
 ### Bug Fixes
