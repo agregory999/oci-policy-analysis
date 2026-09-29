@@ -19,14 +19,14 @@ python -m pip install --upgrade pip
 python -m pip install setuptools wheel build pip-tools pyinstaller ruff
 
 Write-Host "Locking dependencies with pip-compile..."
-python -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
+python -m piptools compile --extra mcp --generate-hashes --output-file frozen.txt pyproject.toml
 
 Write-Host "Cleaning dependency list (no dev dependencies)..."
 (Get-Content frozen.txt) | Where-Object { $_ -notmatch '^-e \.' -and $_ -notmatch '--hash=' } | Set-Content frozen.txt
 
-Write-Host "Building wheels from source..."
+Write-Host "Building dependency wheels..."
 New-Item -ItemType Directory -Force -Path wheels | Out-Null
-pip wheel --no-binary=:all: -r frozen.txt -w wheels/
+pip wheel --only-binary=:all: -r frozen.txt -w wheels/
 
 Write-Host "Installing only local source-built wheels..."
 pip install --no-index --find-links=./wheels -r frozen.txt
