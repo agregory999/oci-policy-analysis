@@ -61,7 +61,7 @@ resourceSubjectId   : (WORD | HCL_VAR);
  unaryComparison     : '!' variable ; // OCI presence check: true only when the variable is not supplied
  comparison          : variable operator (value|valueList|timeWindow| patternMatch) ;
  variable            : (WORD | HCL_VAR) (('.' (WORD | HCL_VAR) )+)? ;
- operator            : ('=' | '!''=' | BEFORE | AFTER | IN | NOT IN | BETWEEN) ;
+operator            : ('=' | NEQ | BEFORE | AFTER | IN | NOT IN | BETWEEN) ;
  value               : (WORD 
                      | QUOTED_STRING 
                      | QUOTED_STRING '/' WORD 
@@ -87,8 +87,10 @@ resourceSubjectId   : (WORD | HCL_VAR);
   */
  BEFORE              : B E F O R E ;
  AFTER               : A F T E R ;
- BETWEEN             : B E T W E E N;
- NEWLINE             : ('\r'? '\n' | '\r')+ -> skip;
+BETWEEN             : B E T W E E N;
+// OCI accepts both "!=" and "! =" as inequality in a WHERE condition.
+NEQ                 : '!' ' '* '=' ;
+NEWLINE             : ('\r'? '\n' | '\r')+ -> skip;
  COMMENT             : '//' ~[\r\n]* ;
  QUOTED_STRING       : '\'' (LETTER | DIGIT | ' ' | '-' | '.' | ':' | '@' | '_' | '/' | '$')+ '\'' ;
  WS                  : ' '+  -> skip;
@@ -132,7 +134,8 @@ resourceSubjectId   : (WORD | HCL_VAR);
 
 OCID                : 'ocid1.' (LETTER | DIGIT | '_' | '-' | '.')+ ;
  // Word is last to prevent ambiguity with other tokens
- WORD                : (LETTER | DIGIT | '_' | '-' | '.' | ':'| '@' | '$')+ ;
+ // Backslash is valid inside an escaped wildcard pattern such as /mgmt-vcn\*/.
+ WORD                : (LETTER | DIGIT | '_' | '-' | '.' | ':'| '@' | '$' | '\\')+ ;
 
  fragment LETTER     : [a-zA-Z] ;
  fragment DIGIT      : [0-9] ;

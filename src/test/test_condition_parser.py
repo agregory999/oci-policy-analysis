@@ -11,6 +11,7 @@ from oci_policy_analysis.application.core.parser.condition_parser.condition_pars
 from oci_policy_analysis.application.core.parser.condition_parser.TagConditionCollector import (
     collect_tag_conditions,
 )
+from oci_policy_analysis.application.core.parser.condition_structure import parse_condition_structure
 
 # --- Ensure logs are output to console during tests
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -68,6 +69,18 @@ COND_STATEMENTS = [
     "any {request.utc-timestamp.day-of-week in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday')}",
 ]
 
+
+@pytest.mark.parametrize('operator', ['!=', '! =', '!\t='])
+def test_spaced_not_equal_operator_parses_and_evaluates_like_compact_form(operator):
+    parser = ConditionParser({'request.operation': 'CreateVcn'})
+
+    result = parser.parse(f"request.operation {operator} 'DeleteVcn'")
+
+    assert result['result'] == 'GRANTED'
+    assert result['log'][0]['operator'] == '!='
+    assert parse_condition_structure(f"request.operation {operator} 'DeleteVcn'")['atoms'][0]['operator'] == '!='
+
+
 SIM_VARS = {
     'request.networkSource.name': 'OfficeNetwork',
     'request.utc-timestamp': '2025-12-11T14:00:00Z',
@@ -85,8 +98,8 @@ SIM_VARS = {
 def test_condition_parser_print_results(statement):
     parser = ConditionParser(SIM_VARS)
     result = parser.parse(statement)
-    print(f"Parsed condition: {result['condition']}")
-    print(f"Access Result: {result['result']}")
+    print(f'Parsed condition: {result["condition"]}')
+    print(f'Access Result: {result["result"]}')
     print('  --- Comparison Log ---')
     for entry in result['log']:
         res = 'PASS' if entry.get('result') else 'FAIL'

@@ -81,7 +81,7 @@ class _ConditionStructureVisitor(OciIamPolicyConditionVisitor):
             right, value_type = self._extract_right(ctx)
         else:
             op_token = ctx.OPERATOR()
-            operator = op_token.getText().lower() if op_token is not None else ''
+            operator = ''.join(op_token.getText().split()).lower() if op_token is not None else ''
             right, value_type = self._extract_right(ctx)
         subexpression = ctx.getText()
         evidence_kind = _classify_evidence(left, right)

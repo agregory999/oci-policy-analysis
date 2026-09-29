@@ -491,6 +491,7 @@ class CacheManager:
             'compartments': policy_analysis.compartments,
             'identity_domains': identity_domains,
             'groups': groups,
+            'idp_group_mappings': getattr(policy_analysis, 'idp_group_mappings', []),
             'users': users,
             # New, additive map forms for stable keyed diffing.
             'policies_by_key': self._build_by_key(policies),
@@ -680,6 +681,7 @@ class CacheManager:
                         for d in cache_data.get('identity_domains', [])
                     ]
                     policy_analysis.groups = cache_data.get('groups', [])
+                    policy_analysis.idp_group_mappings = cache_data.get('idp_group_mappings', [])
                     policy_analysis.users = cache_data.get('users', [])
                     policy_analysis.version = cache_data.get('version', 1)
                     policy_analysis.load_all_users = cache_data.get('load_all_users', True)
@@ -758,6 +760,7 @@ class CacheManager:
                 for d in loaded_json.get('identity_domains', [])
             ]
             policy_analysis.groups = loaded_json.get('groups', [])
+            policy_analysis.idp_group_mappings = loaded_json.get('idp_group_mappings', [])
             policy_analysis.users = loaded_json.get('users', [])
             policy_analysis.version = loaded_json.get('version', 1)
             policy_analysis.load_all_users = loaded_json.get('load_all_users', True)
