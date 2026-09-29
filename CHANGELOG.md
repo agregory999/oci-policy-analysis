@@ -1,3 +1,10 @@
+## [6.6.0-compiled-policy-corpus.1](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.4...v6.6.0-compiled-policy-corpus.1) (2026-09-29)
+
+
+### Features
+
+* add experimental compiled policy corpus ([8ec94e5](https://github.com/agregory999/oci-policy-analysis/commit/8ec94e5537da7a3017205bada08b83ff061a9ec7))
+
 ## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-29)
 
 
