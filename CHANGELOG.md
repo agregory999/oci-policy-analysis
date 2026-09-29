@@ -1,3 +1,14 @@
+## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-28)
+
+### Bug Fixes
+
+* match selected dynamic groups against legacy cached policy subjects and keep the matching-policy table visible for large inventories
+* add Oracle Multicloud Hub resource, permission, family, and API-operation reference data
+
+### Documentation
+
+* document Python embedding, CLI automation, and the supplied MCP server as first-party adapters over the current analysis snapshot
+
 ## [6.5.3](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.2...v6.5.3) (2026-09-18)
 
 

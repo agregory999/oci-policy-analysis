@@ -21,7 +21,7 @@ python -m pip install "pip==25.3"
 python -m pip install setuptools wheel build pip-tools pyinstaller ruff
 
 echo "🔒 Locking dependencies with pip-compile..."
-python -m piptools compile --generate-hashes --output-file frozen.txt pyproject.toml
+python -m piptools compile --extra mcp --generate-hashes --output-file frozen.txt pyproject.toml
 
 echo "📦 Exporting dependencies (no dev)..."
 grep -v '^-e .' frozen.txt > deps.txt
@@ -29,9 +29,9 @@ grep -v -- "--hash=" deps.txt > frozen2.txt
 mv frozen2.txt frozen.txt
 rm deps.txt
 
-echo "🔨 Building wheels from source..."
+echo "🔨 Building dependency wheels..."
 mkdir -p wheels
-pip wheel --no-binary=:all: -r frozen.txt -w wheels/
+pip wheel --only-binary=:all: -r frozen.txt -w wheels/
 
 echo "📥 Installing only local source-built wheels..."
 pip install --no-index --find-links=./wheels -r frozen.txt

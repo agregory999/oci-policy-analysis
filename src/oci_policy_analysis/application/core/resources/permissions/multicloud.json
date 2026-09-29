@@ -1,0 +1,84 @@
+{
+    "resources": {
+        "multicloud-configurations": {
+            "verbs": {
+                "inspect": [
+                    "MULTICLOUD_CONFIGURATION_INSPECT",
+                    "MULTICLOUD_SUBSCRIPTION_INSPECT",
+                    "MULTICLOUDLINK_COMPARTMENTS_METADATA_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        },
+        "multicloud-network-anchors": {
+            "verbs": {
+                "inspect": [
+                    "MULTICLOUD_NETWORK_ANCHOR_INSPECT"
+                ],
+                "read": [
+                    "MULTICLOUD_NETWORK_ANCHOR_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "multicloud-resource-anchors": {
+            "verbs": {
+                "inspect": [
+                    "MULTICLOUD_RESOURCE_ANCHOR_INSPECT"
+                ],
+                "read": [
+                    "MULTICLOUD_RESOURCE_ANCHOR_READ"
+                ],
+                "use": [],
+                "manage": []
+            }
+        },
+        "multicloud-resources": {
+            "verbs": {
+                "inspect": [
+                    "MULTICLOUD_RESOURCE_INSPECT"
+                ],
+                "read": [],
+                "use": [],
+                "manage": []
+            }
+        }
+    },
+    "families": {
+        "multicloud-family": {
+            "resources": [
+                "multicloud-configurations",
+                "multicloud-network-anchors",
+                "multicloud-resource-anchors",
+                "multicloud-resources"
+            ],
+            "source_url": "https://docs.oracle.com/en-us/iaas/Content/multicloud-hub/policy-reference.htm"
+        }
+    },
+    "operations": {
+        "GetMultiCloudMetadata": {"permissions": ["MULTICLOUDLINK_COMPARTMENTS_METADATA_INSPECT"], "notes": ""},
+        "GetNetworkAnchor": {"permissions": ["MULTICLOUD_NETWORK_ANCHOR_READ"], "notes": ""},
+        "GetResourceAnchor": {"permissions": ["MULTICLOUD_RESOURCE_ANCHOR_READ"], "notes": ""},
+        "ListExternalLocationDetailsMetadata": {"permissions": ["MULTICLOUD_RESOURCE_ANCHOR_INSPECT"], "notes": ""},
+        "ListExternalLocationMappingMetadata": {"permissions": ["MULTICLOUD_CONFIGURATION_INSPECT"], "notes": ""},
+        "ListExternalLocationSummariesMetadata": {"permissions": ["MULTICLOUD_CONFIGURATION_INSPECT"], "notes": ""},
+        "ListMultiCloudMetadata": {"permissions": ["MULTICLOUDLINK_COMPARTMENTS_METADATA_INSPECT"], "notes": ""},
+        "ListMulticloudResources": {
+            "permissions": ["MULTICLOUD_RESOURCE_INSPECT", "COMPARTMENT_INSPECT"],
+            "notes": "Also requires read permission for the OCI resource being listed."
+        },
+        "ListMulticloudSubscriptions": {
+            "permissions": [
+                "MULTICLOUD_SUBSCRIPTION_INSPECT",
+                "ORGANIZATIONS_ASSIGNED_SUBSCRIPTION_READ",
+                "SUBSCRIPTION_INFO_READ"
+            ],
+            "notes": ""
+        },
+        "ListNetworkAnchors": {"permissions": ["MULTICLOUD_NETWORK_ANCHOR_INSPECT"], "notes": ""},
+        "ListResourceAnchors": {"permissions": ["MULTICLOUD_RESOURCE_ANCHOR_INSPECT"], "notes": ""}
+    }
+}

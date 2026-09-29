@@ -5,7 +5,7 @@ readme = "README.md"
 authors = [{ name = "Andrew Gregory" }]
 requires-python = ">=3.12"
 license = { text = "UPL-1.0" }
-version = "6.5.3"
+version = "6.5.4"
 
 dependencies = [
     "oci==2.168.0",
@@ -71,6 +71,10 @@ include = ["oci_policy_analysis*"]
 [tool.setuptools.package-data]
 "oci_policy_analysis" = [
     "version.txt",
+    "application/core/resources/permissions/*.json",
+    "application/core/resources/mcp_tools_list/*.json",
+    "application/core/resources/parsers/*.txt",
+    "application/core/resources/parsers/*.jar",
     "logic/permissions/*.json",
     "logic/mcp_tools_list/*.json",
     "logic/parsers/*.txt",

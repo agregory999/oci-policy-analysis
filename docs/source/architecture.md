@@ -35,7 +35,7 @@ Loads, caches, parses, and normalizes tenancy data including policies, users, gr
 Derives additional analytics and insights, such as policy recommendations, cleanup tasks, security risks, and overlap/consolidation suggestions.
 
 **MCP Layer**  
-Runs an embedded MCP server using FastMCP to expose the current policy state and analytics as tools/resources to compatible clients.
+Runs an embedded MCP server using FastMCP to expose the current policy state and analytics as tools to compatible clients.
 
 **UI Layer**  
 Implements all user-visible tabs, resizable panes, and integrates with the full policy/data model and analytics overlays. 
