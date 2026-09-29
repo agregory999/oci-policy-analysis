@@ -1,3 +1,11 @@
+## [6.5.5](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.4...v6.5.5) (2026-09-29)
+
+
+### Bug Fixes
+
+* improve identity diagnostics and policy parsing ([391dd5c](https://github.com/agregory999/oci-policy-analysis/commit/391dd5c497d755ee45c67809a5cb1cde246c68ee))
+* Merge pull request [#64](https://github.com/agregory999/oci-policy-analysis/issues/64) from agregory999/fix/6.5.5-identity-diagnostics ([727f5ec](https://github.com/agregory999/oci-policy-analysis/commit/727f5ecd66544ee91814c0f0fc2e6103c5982998))
+
 ## [6.5.4](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.3...v6.5.4) (2026-09-29)
 
 
