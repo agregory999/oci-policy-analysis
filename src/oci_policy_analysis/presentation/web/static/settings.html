@@ -41,6 +41,7 @@
             <div class="helper-text">Helps prioritize features; no policy text or sensitive data is stored.</div>
           </div>
 
+          <div id="profileLoadSettings">
           <div class="section-kicker">Profile Load</div>
           <div class="field">
             <div class="tenancy-options-row" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: nowrap;">
@@ -48,6 +49,7 @@
               <input id="defaultProfile" type="text" placeholder="e.g. DEFAULT" style="margin: 0; min-width: 10rem; max-width: 10rem;" />
             </div>
             <div class="helper-text">Used as the default profile on the home page load form.</div>
+          </div>
           </div>
 
           <div class="field">
@@ -136,6 +138,7 @@
     <script>
       const usageTracking = document.getElementById('usageTracking');
       const defaultProfile = document.getElementById('defaultProfile');
+      const profileLoadSettings = document.getElementById('profileLoadSettings');
       const defaultCompartmentDepth = document.getElementById('defaultCompartmentDepth');
       const riskWhereReductionPct = document.getElementById('riskWhereReductionPct');
       const riskServiceReductionPct = document.getElementById('riskServiceReductionPct');
@@ -200,6 +203,13 @@
         riskWhereReductionPct.value = String(settings.risk_where_clause_reduction_pct ?? 50);
         riskServiceReductionPct.value = String(settings.risk_service_principal_reduction_pct ?? 50);
         renderStrategyChecks(settings);
+      }
+
+      async function loadAuthMode() {
+        const response = await fetch('/load/auth-mode', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Unable to load tenancy authentication mode (${response.status})`);
+        const payload = await response.json();
+        profileLoadSettings.hidden = payload.resource_principal_only === true;
       }
 
       function renderStrategyChecks(settings) {
@@ -389,7 +399,7 @@
 
       bindContextHelp();
       setContextHelp(defaultContextHelp.title, defaultContextHelp.body);
-      loadStrategyCatalog().then(loadSettings);
+      loadAuthMode().then(loadStrategyCatalog).then(loadSettings);
       fetchCaches();
     </script>
       <script src="/app-version.js"></script>

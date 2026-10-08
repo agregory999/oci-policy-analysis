@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from datetime import UTC, datetime
@@ -1964,6 +1965,8 @@ def get_logging_logs(lines: int = 300) -> dict[str, object]:
 @router.get('/profiles')
 def list_profiles() -> dict[str, list[str]]:
     """Return available OCI CLI profiles from ~/.oci/config."""
+    if _resource_principal_only():
+        return {'profiles': []}
     config_path = Path('~/.oci/config').expanduser()
     profiles: list[str] = []
     if config_path.exists():
@@ -1974,15 +1977,26 @@ def list_profiles() -> dict[str, list[str]]:
     return {'profiles': profiles}
 
 
+def _resource_principal_only() -> bool:
+    """Use the Container Instance identity for every web tenancy load when enabled."""
+    return os.environ.get('WEB_RESOURCE_PRINCIPAL_ONLY', '').strip().lower() in {'1', 'true', 'yes'}
+
+
+@router.get('/load/auth-mode')
+def get_load_auth_mode() -> dict[str, bool]:
+    return {'resource_principal_only': _resource_principal_only()}
+
+
 @router.post('/load/tenancy')
 def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
-    """Load tenancy data using profile or instance principal."""
+    """Load tenancy data using the configured web identity mode."""
     ctx = get_context()
     service = LoadService(ctx)
-    use_instance_principal = bool(payload.get('instance_principal'))
-    profile = payload.get('profile')
+    use_resource_principal = _resource_principal_only()
+    use_instance_principal = False if use_resource_principal else bool(payload.get('instance_principal'))
+    profile = None if use_resource_principal else payload.get('profile')
     profile = profile if isinstance(profile, str) else None
-    session_token = payload.get('session_token')
+    session_token = None if use_resource_principal else payload.get('session_token')
     session_token = session_token if isinstance(session_token, str) else None
     recursive = bool(payload.get('recursive'))
     load_all_users = payload.get('load_all_users')
@@ -1996,6 +2010,7 @@ def load_tenancy(payload: dict[str, object]) -> dict[str, object]:
     started = time.perf_counter()
     result = service.load_from_tenancy(
         use_instance_principal=use_instance_principal,
+        use_resource_principal=use_resource_principal,
         profile=profile,
         session_token=session_token,
         recursive=recursive,

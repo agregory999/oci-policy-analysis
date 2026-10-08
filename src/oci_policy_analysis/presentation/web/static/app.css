@@ -787,6 +787,16 @@ footer,
   gap: 0.6rem;
 }
 
+#instancePrincipalOption[hidden],
+#profileOption[hidden],
+#resourcePrincipalNotice[hidden] {
+  display: none !important;
+}
+
+#profileLoadSettings[hidden] {
+  display: none !important;
+}
+
 .tenancy-profile-row label {
   margin: 0;
   font-weight: 600;
