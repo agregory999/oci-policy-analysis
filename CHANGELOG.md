@@ -1,3 +1,11 @@
+## [6.5.6](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.5...v6.5.6) (2026-10-09)
+
+
+### Bug Fixes
+
+* Merge pull request [#65](https://github.com/agregory999/oci-policy-analysis/issues/65) from agregory999/fix/6.5.6-web-resource-principal ([cd3f9e0](https://github.com/agregory999/oci-policy-analysis/commit/cd3f9e0aed4624542ea2969ceae9b606bbc33cab))
+* support resource principal only web container loads ([026a640](https://github.com/agregory999/oci-policy-analysis/commit/026a640a3a616224009ab5b29dfb0e4100204a0d))
+
 ## [6.5.5](https://github.com/agregory999/oci-policy-analysis/compare/v6.5.4...v6.5.5) (2026-09-29)
 
 
