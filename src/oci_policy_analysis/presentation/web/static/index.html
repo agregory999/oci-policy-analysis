@@ -71,9 +71,10 @@
         <!-- Form sections: common options + 4 data source entry points -->
         <div class="form-grid form-grid-spacious">
 
-          <!-- Tenancy load: profile/instance principal + recursive options -->
+          <!-- Tenancy load: server-selected identity mode + recursive options -->
           <div>
-            <div class="section-kicker">From Profile (Tenancy)</div>
+            <div class="section-kicker" id="tenancySourceTitle">From Profile (Tenancy)</div>
+            <p id="resourcePrincipalNotice" hidden>Tenancy loads use this container's Resource Principal.</p>
             <div class="tenancy-options-row">
               <label for="compartmentDepth" class="no-margin-label">Compartment Depth (Identity Domains):</label>
               <select id="compartmentDepth" class="select-compact" data-help-title="Compartment Depth" data-help-body="Controls how deeply identity domain compartments are searched during tenancy load.">
@@ -86,13 +87,15 @@
               </select>
             </div>
             <div class="tenancy-options-row">
-              <label class="checkbox-label" data-help-title="Instance Principal" data-help-body="Use OCI instance principal auth instead of a local profile."><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
+              <label class="checkbox-label" id="instancePrincipalOption" data-help-title="Instance Principal" data-help-body="Use OCI instance principal auth instead of a local profile."><input type="checkbox" id="instancePrincipal" /> Instance Principal</label>
               <label class="checkbox-label" data-help-title="Recursive Load" data-help-body="When enabled, traverses nested compartments during tenancy load."><input type="checkbox" id="recursiveLoad" checked /> Recursive</label>
               <label class="checkbox-label" data-help-title="Load All Users" data-help-body="Include all users in loaded identity data (applies to tenancy and compliance load flows)."><input type="checkbox" id="commonLoadAllUsers" checked /> Load All Users</label>
             </div>
             <div class="tenancy-profile-row mt-compact">
+              <span id="profileOption">
               <label for="profileSelect">Profile:</label>
               <select id="profileSelect" data-help-title="Profile Selector" data-help-body="Select the OCI config profile to use when loading tenancy data."></select>
+              </span>
               <button id="loadTenancyBtn" class="ops-button" data-help-title="Load from Tenancy" data-help-body="Runs a direct tenancy load using the selected profile or instance principal settings.">Load from Tenancy</button>
             </div>
           </div>
@@ -206,6 +209,7 @@
       const complianceStatus = document.getElementById('complianceStatus');
       const profileSelect = document.getElementById('profileSelect');
       const instancePrincipal = document.getElementById('instancePrincipal');
+      let resourcePrincipalOnly = false;
       const recursiveLoad = document.getElementById('recursiveLoad');
       const commonLoadAllUsers = document.getElementById('commonLoadAllUsers');
       const compartmentDepth = document.getElementById('compartmentDepth');
@@ -464,6 +468,7 @@
 
       // Load available OCI profiles for tenancy path.
       async function loadProfiles() {
+        if (resourcePrincipalOnly) return;
         const response = await fetch('/profiles');
         const payload = await response.json();
         const profiles = payload.profiles || [];
@@ -503,10 +508,26 @@
         }
       }
 
+      async function loadAuthMode() {
+        const response = await fetch('/load/auth-mode', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Unable to load tenancy authentication mode (${response.status})`);
+        const payload = await response.json();
+        resourcePrincipalOnly = payload.resource_principal_only === true;
+        document.getElementById('resourcePrincipalNotice').hidden = !resourcePrincipalOnly;
+        document.getElementById('instancePrincipalOption').hidden = resourcePrincipalOnly;
+        document.getElementById('profileOption').hidden = resourcePrincipalOnly;
+        document.getElementById('tenancySourceTitle').textContent = resourcePrincipalOnly
+          ? 'From Tenancy (Resource Principal)' : 'From Profile (Tenancy)';
+        if (resourcePrincipalOnly) {
+          instancePrincipal.checked = false;
+          profileSelect.value = '';
+          loadTenancyBtn.dataset.helpBody = 'Loads tenancy data using this container\'s Resource Principal.';
+        }
+      }
+
       // Disable profile selector when instance principal mode is enabled.
       function syncProfileState() {
-        const ip = instancePrincipal.checked;
-        profileSelect.disabled = ip;
+        profileSelect.disabled = resourcePrincipalOnly || instancePrincipal.checked;
       }
       async function ensureHomeRoleBehavior() {
         try {
@@ -535,8 +556,8 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              profile: profileSelect.value,
-              instance_principal: instancePrincipal.checked,
+              profile: resourcePrincipalOnly ? null : profileSelect.value,
+              instance_principal: !resourcePrincipalOnly && instancePrincipal.checked,
               recursive: recursiveLoad.checked,
               load_all_users: commonLoadAllUsers.checked,
               compartment_domain_search_depth: Number(compartmentDepth.value || 1),
@@ -663,6 +684,7 @@
         await ensureHomeRoleBehavior();
         bindContextHelp();
         await loadAppSettings();
+        await loadAuthMode();
         await loadCaches();
         await loadProfiles();
         syncProfileState();
