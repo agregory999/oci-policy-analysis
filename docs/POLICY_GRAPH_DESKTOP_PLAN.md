@@ -140,8 +140,8 @@ that a complete original 7.0 requirements list has been recovered.
   Verify semantic-release will select the intended 7.0 prerelease; changing
   the local package version alone does not force its next version.
 - PyPI publishing currently runs only on `main`. GitHub executable release
-  attachment runs only on `main` and `develop`; feature branches build CI
-  artifacts. Decide which dev artifact is wanted before changing that policy.
+  attachment now also runs on `feature/*`, creating prerelease installers after
+  the packaged startup checks pass. Feature pushes do not publish to PyPI.
 
 ## Suggested order for today's dev release
 

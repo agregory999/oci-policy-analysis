@@ -841,7 +841,7 @@ requires-dist = [
     { name = "oci", specifier = "==2.168.0" },
     { name = "pipdeptree", marker = "extra == 'commit'", specifier = ">=2.30.0" },
     { name = "pre-commit", marker = "extra == 'commit'", specifier = ">=4.5.0" },
-    { name = "pydantic", specifier = ">=2.9,<2.13" },
+    { name = "pydantic", specifier = ">=2.11.7,<2.13" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3" },

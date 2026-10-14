@@ -9,7 +9,8 @@ version = "7.0.0.dev0"
 
 dependencies = [
     "oci==2.168.0",
-    "pydantic>=2.9,<2.13",
+    # FastMCP 2.12.5 requires typing helpers retained in this Pydantic range.
+    "pydantic>=2.11.7,<2.13",
     "deepdiff==8.5.0",
     "antlr4-python3-runtime==4.13.2",
     "markdown2>=2.5.5",
